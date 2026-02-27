@@ -10,7 +10,9 @@ import {
   Menu,
   X,
   GraduationCap,
+  LogOut,
 } from 'lucide-react'
+import { UserButton, useClerk } from '@clerk/clerk-react'
 import { useAuthContext } from '../../contexts/AuthContext'
 
 interface LayoutProps {
@@ -20,7 +22,7 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const location = useLocation()
-  const { user } = useAuthContext()
+  const { user, isClerkEnabled } = useAuthContext()
   const isAdmin = user?.is_staff
 
   const studentNav = [
@@ -115,11 +117,22 @@ export function Layout({ children }: LayoutProps) {
           </nav>
           <div className="border-t border-slate-200 p-4">
             <div className="flex items-center gap-3 px-3 py-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-primary-700 text-sm font-semibold">
-                {user?.first_name?.[0] || user?.email?.[0] || '?'}
-              </div>
+              {isClerkEnabled ? (
+                <UserButton
+                  afterSignOutUrl="/sign-in"
+                  appearance={{
+                    elements: {
+                      avatarBox: 'h-8 w-8',
+                    }
+                  }}
+                />
+              ) : (
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-primary-700 text-sm font-semibold">
+                  {user?.first_name?.[0] || user?.email?.[0] || '?'}
+                </div>
+              )}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-900 truncate">{user?.full_name}</p>
+                <p className="text-sm font-medium text-slate-900 truncate">{user?.full_name || user?.email}</p>
                 <p className="text-xs text-slate-500 truncate capitalize">{user?.role}</p>
               </div>
             </div>
