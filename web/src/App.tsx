@@ -1,34 +1,121 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { Layout } from './components/shared/Layout'
+import ProtectedRoute from './components/auth/ProtectedRoute'
+import { Dashboard } from './pages/student/Dashboard'
+import { ModuleView } from './pages/student/ModuleView'
+import { LessonView } from './pages/student/LessonView'
+import { Profile } from './pages/student/Profile'
+import { AdminDashboard } from './pages/admin/AdminDashboard'
+import { StudentManagement } from './pages/admin/StudentManagement'
+import { ContentManagement } from './pages/admin/ContentManagement'
+import { Grading } from './pages/admin/Grading'
+import { SignInPage } from './pages/SignIn'
+import { useAuthContext } from './contexts/AuthContext'
+import { LoadingSpinner } from './components/shared/LoadingSpinner'
 
-function App() {
-  const [count, setCount] = useState(0)
+function AppRoutes() {
+  const { isLoading } = useAuthContext()
+
+  if (isLoading) {
+    return <LoadingSpinner message="Loading..." />
+  }
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    <Routes>
+      <Route path="/sign-in" element={<SignInPage />} />
+
+      {/* Student routes */}
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Dashboard />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/modules/:id"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <ModuleView />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/lessons/:id"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <LessonView />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Profile />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Admin routes */}
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute requiredRole="staff">
+            <Layout>
+              <AdminDashboard />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/students"
+        element={
+          <ProtectedRoute requiredRole="staff">
+            <Layout>
+              <StudentManagement />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/content"
+        element={
+          <ProtectedRoute requiredRole="staff">
+            <Layout>
+              <ContentManagement />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/grading"
+        element={
+          <ProtectedRoute requiredRole="staff">
+            <Layout>
+              <Grading />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+    </Routes>
+  )
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AppRoutes />
+    </BrowserRouter>
   )
 }
 
