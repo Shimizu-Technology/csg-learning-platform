@@ -40,7 +40,14 @@ export function Dashboard() {
 
   useEffect(() => {
     api.getDashboard().then((res) => {
-      if (res.data) setData(res.data.dashboard)
+      if (res.data) {
+        // If admin/instructor, redirect to admin dashboard
+        if (res.data.dashboard?.user?.is_staff) {
+          window.location.href = '/admin'
+          return
+        }
+        setData(res.data.dashboard)
+      }
       setLoading(false)
     })
   }, [])
