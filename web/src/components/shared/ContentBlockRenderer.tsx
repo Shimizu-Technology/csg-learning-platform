@@ -36,9 +36,10 @@ function getYouTubeId(url: string): string | null {
   return match ? match[1] : null
 }
 
-function getVimeoId(url: string): string | null {
-  const match = url.match(/vimeo\.com\/(\d+)/)
-  return match ? match[1] : null
+function getVimeoEmbed(url: string): { id: string; hash?: string } | null {
+  const match = url.match(/vimeo\.com\/(\d+)(?:\/([a-zA-Z0-9]+))?/)
+  if (!match) return null
+  return { id: match[1], hash: match[2] }
 }
 
 export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: ContentBlockRendererProps) {
@@ -117,11 +118,12 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
                   />
                 )
               }
-              const vimeoId = getVimeoId(block.video_url!)
-              if (vimeoId) {
+              const vimeo = getVimeoEmbed(block.video_url!)
+              if (vimeo) {
+                const hashParam = vimeo.hash ? `?h=${vimeo.hash}` : ''
                 return (
                   <iframe
-                    src={`https://player.vimeo.com/video/${vimeoId}?h=0`}
+                    src={`https://player.vimeo.com/video/${vimeo.id}${hashParam}`}
                     className="w-full h-full"
                     allowFullScreen
                     allow="autoplay; fullscreen; picture-in-picture"
@@ -153,11 +155,12 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
                   />
                 )
               }
-              const vimeoId = getVimeoId(block.video_url!)
-              if (vimeoId) {
+              const vimeo = getVimeoEmbed(block.video_url!)
+              if (vimeo) {
+                const hashParam = vimeo.hash ? `?h=${vimeo.hash}` : ''
                 return (
                   <iframe
-                    src={`https://player.vimeo.com/video/${vimeoId}?h=0`}
+                    src={`https://player.vimeo.com/video/${vimeo.id}${hashParam}`}
                     className="w-full h-full"
                     allowFullScreen
                   />
