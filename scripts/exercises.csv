@@ -1,0 +1,3960 @@
+release_day,title,video_url,instructions,solution,filename
+0,Week 1 Overview Lesson 1: Debugging,https://vimeo.com/841343889/e2d322cb20,,,
+0,Week 1 Overview Lesson 2: Coding environment,https://vimeo.com/841388530/1f52ef6514,"Install the VSCode text editor: https://code.visualstudio.com/  
+Follow the steps in the video to make a test Ruby file and run it in the terminal.",,
+0,Week 1 Overview Lesson 3: Version control,https://vimeo.com/841390794/180c74507f,"Install git by following the first part of the video.  
+Make a GitHub account: https://github.com/  
+Install GitHub Desktop on your computer: https://desktop.github.com/
+
+Use GitHub Desktop to make a new repository called `prework-exercises`.  
+Open the repository in your text editor, make a new file called `test.rb`  
+Write some Ruby code:
+```
+puts 10
+```
+Use GitHub Desktop to commit your changes and publish your repository.
+
+Open your GitHub repository in your web browser and add your instructor as a collaborator.",,
+0,Week 1 Overview Lesson 4: Instructor feedback,https://vimeo.com/841396051/bffa0be03b,"In your prework-exercises repository, make a file called `about.txt`.  
+Write a brief introduction about yourself (a couple of sentences) describing your background and why you're interested in learning programming. Here's an example:
+```My name is Babe Ruth. I've been playing professional baseball for the past 
+number of years, but I'm finding that I've reached the top of the career 
+ladder in my field. I'm looking to transition into a position in web development, 
+because I find that it's a career in which I can truly express my creativity. 
+I was always interested in coding, but was never able to get into it because 
+computers haven't been invented yet. This is my chance to finally jump into it, 
+and hopefully land a job at my dream company: MySpace.
+```
+Use GitHub Desktop to commit your changes and publish your repository.",,about.txt
+1,Week 1 Day 1 Lesson 1: Integers and floats to represent numbers,https://vimeo.com/841390922/b6eb4a0f0f,"In your prework-exercises repository, make a file called `111.rb`  
+(the numbers stand for week 1, day 1, lesson 1 - [example video](/create_a_ruby_file.gif)).  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write code to print out the numbers 4, 30, 12, 983 on separate lines. 
+# For this exercise, you are required to use addition, subtraction, multiplication, and division at least once.
+
+
+# QUESTION 2
+# Write code using addition, subtraction, multiplication, or division with numbers that causes the computer to crash.
+# Add a comment with a copy of the error message.
+# Add a comment that describes the error message in your own words.
+```
+Commit your code and push your changes to GitHub ([example video](/github_commit_and_push.gif)).","# QUESTION 1
+# Write code to print out the numbers 4, 30, 12, 983 on separate lines. 
+# For this exercise, you are required to use addition, subtraction, multiplication, and division at least once.
+puts 2 + 2
+puts 3 * 10
+puts 15 - 3
+puts 983 / 1
+
+# QUESTION 2
+# Write code using addition, subtraction, multiplication, or division with numbers that causes the computer to crash.
+# Add a comment with a copy of the error message.
+# Add a comment that describes the error message in your own words.
+puts 9 / 0 
+# divided by 0 (ZeroDivisionError)
+# This is saying you can't divide by 0 in math",111.rb
+1,Week 1 Day 1 Lesson 2: Strings to represent letters,https://vimeo.com/841390946/7cdccb6a98,"In your `prework-exercises` repository, make a file called `112.rb` ([example video](/create_a_ruby_file.gif)).  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write code to print hellohellohello using string addition.
+# Then write code to print hellohellohello again, this time using string multiplication.
+
+
+# QUESTION 2
+# Read the code below and predict which lines will crash. 
+# Then run the code and remove the invalid lines one at a time, until only the valid code remains.
+puts 9 + 3
+puts ""9"" + 3
+puts 9 + ""3""
+puts ""9"" + ""3""
+puts 9 - 3
+puts ""9"" - 3
+puts 9 - ""3""
+puts 9 * 3
+puts ""9"" * 3
+puts 9 * ""3""
+puts ""9"" * ""3""
+puts 9 / 3
+puts ""9"" / 3
+puts 9 / ""3""
+puts ""9"" / ""3""
+```
+Commit your code and push your changes to GitHub ([example video](/github_commit_and_push.gif)).","# QUESTION 1
+# Write code to print hellohellohello using string addition.
+# Then write code to print hellohellohello again, this time using string multiplication.
+puts ""hello"" + ""hello"" + ""hello""
+puts ""hello"" * 3
+
+# QUESTION 2
+# Read the code below and predict which lines will crash. 
+# Then run the code and remove the invalid lines one at a time, until only the valid code remains.
+puts 9 + 3
+puts ""9"" + ""3""
+puts 9 - 3
+puts 9 * 3
+puts ""9"" * 3
+puts 9 / 3",112.rb
+1,Week 1 Day 1 Lesson 3: Variables to store information,https://vimeo.com/841390963/3afa840d09,"In your `prework-exercises` repository, make a file called `113.rb` ([example video](/create_a_ruby_file.gif)).  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write code to store 3 different numbers in three different variables.
+# Then write the code to print the three variables added together.
+
+
+# QUESTION 2
+# If you run the code below, it will crash due to invalid variable names. 
+# Find the invalid variable names and delete the special characters 
+# (be sure to leave the special characters in the valid variable names alone).
+bob7 = 50
+7bob = 50
+bob@ = 50
+@bob = 50
+bob_ = 50
+_bob = 50
+bob$ = 50
+$bob = 50
+```
+Commit your code and push your changes to GitHub ([example video](/github_commit_and_push.gif)).","# QUESTION 1
+# Write code to store 3 different numbers in three different variables.
+# Then write the code to print the three variables added together.
+x = 1
+y = 2
+z = 3
+puts x + y + z
+
+# QUESTION 2
+# If you run the code below, it will crash due to invalid variable names. 
+# Find the invalid variable names and delete the special characters 
+# (be sure to leave the special characters in the valid variable names alone).
+bob7 = 50
+bob = 50
+bob = 50
+@bob = 50
+bob_ = 50
+_bob = 50
+bob = 50
+$bob = 50",113.rb
+1,Week 1 Day 1 Lesson 4: Changing variable values,https://vimeo.com/841390994/5cb97ae717,"In your `prework-exercises` repository, make a file called `114.rb` ([example video](/create_a_ruby_file.gif)).  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# In this code, the variable z is printed out on lines 4 and 6. 
+# Predict what will print out to the terminal, then run the code to see if you were right. 
+# Explain in your own words exactly why those values were printed to the terminal.
+x = 40
+y = 3
+z = x + y
+puts z
+x = 60
+puts z
+
+
+# QUESTION 2
+# Write comments for the remaining lines to describe in your own words 
+# what is happening line by line with the following code.
+mars = 4               # Make a variable called mars and set the value to 4
+mars = 2 * mars        # 
+pluto = 7              # 
+mars = mars - pluto    # 
+pluto = pluto + mars   # 
+puts mars              # 
+puts pluto             # 
+```
+Commit your code and push your changes to GitHub ([example video](/github_commit_and_push.gif)).","# QUESTION 1
+# In this code, the variable z is printed out on lines 4 and 6. 
+# Predict what will print out to the terminal, then run the code to see if you were right. 
+# Explain in your own words exactly why those values were printed to the terminal.
+x = 40
+y = 3
+z = x + y
+puts z
+x = 60
+puts z
+# on line 7 z is 43
+# when x changes on line 9 it doesn't affect z
+# so on line 10 z is still 43 
+
+
+# QUESTION 2
+# Write comments for the remaining lines to describe in your own words 
+# what is happening line by line with the following code.
+mars = 4               # Make a variable called mars and set the value to 4
+mars = 2 * mars        # Change mars to twice its initial value (8)
+pluto = 7              # Make a variable called pluto and set it to 7
+mars = mars - pluto    # Change mars to its current value (8) minus pluto (7), which is 1
+pluto = pluto + mars   # Change pluto to its current value (7) plus mars (1), which is 8
+puts mars              # Print 1
+puts pluto             # Print 8",114.rb
+1,Week 1 Day 1 Optional Additional Resources,,"Read the following chapters of the ""Learn to Program"" book to review numbers, letters, and variables.
+- https://pine.fm/LearnToProgram/chap_01.html
+- https://pine.fm/LearnToProgram/chap_02.html
+- https://pine.fm/LearnToProgram/chap_03.html",,
+2,Week 1 Day 2 Lesson 1: Methods,https://vimeo.com/841391034/2cf521c061,"In your `prework-exercises` repository, make a file called `121.rb` ([example video](/create_a_ruby_file.gif)).  Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write example code to demonstrate three string methods you've never 
+# worked with before from the Ruby documentation. 
+# Write a comment for each method describing how it works in your own words.
+
+
+# QUESTION 2
+# Write example code that crashes using an integer method from the Ruby documentation. 
+# Write a comment describing the error message in your own words.
+```
+Commit your code and push your changes to GitHub ([example video](/github_commit_and_push.gif)).","# QUESTION 1
+# Write example code to demonstrate three string methods you've never 
+# worked with before from the Ruby documentation. 
+# Write a comment for each method describing how it works in your own words.
+puts ""HELLO"".delete(""L"") # This deletes all occurrences of ""L"" from the string
+puts ""HELLO"".insert(0, ""W"") # This inserts ""W"" at the given index
+puts ""HELLO"".rjust(10) # This adds spaces to the right of the string to make it 10 characters long
+
+# QUESTION 2
+# Write example code that crashes using an integer method from the Ruby documentation. 
+# Write a comment describing the error message in your own words.
+puts 10.pow(""a"")
+# String can't be coerced into Integer (TypeError)
+# The .pow method needs an integer as an argument",121.rb
+2,Week 1 Day 2 Lesson 2: User input,https://vimeo.com/841391080/6c5d4a0e16,"In your `prework-exercises` repository, make a file called `122.rb` ([example video](/create_a_ruby_file.gif)).  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write code that asks the user for their name, then asks for their favorite color, 
+# then prints out back to them their name and favorite color in a sentence.
+
+
+# QUESTION 2
+# The following code has a mistake on one line that doesn't cause the program to crash,
+# but it causes the program to have the wrong output.
+# Explain where the mistake is occurring, then fix the code
+# (this may require changing more than one line).
+puts ""Please enter a number:""
+number = gets.chomp
+doubled_number = number * 2
+puts ""The doubled number is "" + doubled_number
+```
+Commit your code and push your changes to GitHub ([example video](https://drive.google.com/file/d/14BVeFOXQQLiVkGgV8-gBCLEQjJIghPAt/vie ).","# QUESTION 1
+# Write code that asks the user for their name, then asks for their favorite color, 
+# then prints out back to them their name and favorite color in a sentence.
+puts ""What is your name?""
+name = gets.chomp
+puts ""What is your favorite color?""
+color = gets.chomp
+puts ""Hello "" + name + "", your favorite color is "" + color + ""!""
+
+# QUESTION 2
+# The following code has a mistake on one line that doesn't cause the program to crash,
+# but it causes the program to have the wrong output.
+# Explain where the mistake is occurring, then fix the code
+# (this may require changing more than one line).
+puts ""Please enter a number:""
+number = gets.chomp.to_i # gets.chomp returns a string, add .to_i here
+doubled_number = number * 2
+puts ""The doubled number is "" + doubled_number.to_s # change it back to a string",122.rb
+2,Week 1 Day 2 Lesson 3: Booleans,https://vimeo.com/841391094/9ccc5e4fbd,"In your `prework-exercises` repository, make a file called `123.rb` ([example video](/create_a_ruby_file.gif)).  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write code to store a number in a variable called age. 
+# Then write an expression that prints true if the value of the variable age 
+# is less than or equal to 21, otherwise it prints false.
+
+
+# QUESTION 2
+# The code below is supposed to get a percent from the user, 
+# then it should print true if the percent is an A (a 90 or above), 
+# otherwise it should print false. 
+# However, there are two bugs in the code, 
+# one that causes it to crash and one that causes an incorrect output. 
+# Fix the bugs.
+puts ""Enter a percent and I'll tell if you if it's an A:""
+input_percent = gets.chomp
+puts input_percent > 90
+```
+Commit your code and push your changes to GitHub ([example video](/github_commit_and_push.gif)).","# QUESTION 1
+# Write code to store a number in a variable called age. 
+# Then write an expression that prints true if the value of the variable age 
+# is less than or equal to 21, otherwise it prints false.
+age = 100
+puts age <= 21
+
+# QUESTION 2
+# The code below is supposed to get a percent from the user, 
+# then it should print true if the percent is an A (a 90 or above), 
+# otherwise it should print false. 
+# However, there are two bugs in the code, 
+# one that causes it to crash and one that causes an incorrect output. 
+# Fix the bugs.
+puts ""Enter a percent and I'll tell if you if it's an A:""
+input_percent = gets.chomp.to_i
+puts input_percent >= 90",123.rb
+2,Week 1 Day 2 Lesson 4: Conditionals,https://vimeo.com/841391113/b363363f4e,"In your `prework-exercises` repository, make a file called `124.rb` ([example video](/create_a_ruby_file.gif)).  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write code to store a number in a variable.
+# Then write a condition that 
+# prints -1 if the number is less than 10, 
+# prints 1 if the number is greater than 10, 
+# and prints 0 if the number is equal to 10.
+
+
+# QUESTION 2
+# There are two mistakes with the code below. 
+# One mistake will cause the code to crash. 
+# The other mistake doesn't cause the code to crash, but it is unnecessary code. 
+# Fix both mistakes.
+if x < 5
+  puts 0
+else x < 50
+  puts 1
+elsif x < 100
+  puts 2
+end
+```
+Commit your code and push your changes to GitHub ([example video](/github_commit_and_push.gif)).","# QUESTION 1
+# Write code to store a number in a variable.
+# Then write a condition that 
+# prints -1 if the number is less than 10, 
+# prints 1 if the number is greater than 10, 
+# and prints 0 if the number is equal to 10.
+x = 10
+if x < 10
+  puts -1
+elsif x > 10
+  puts 1
+else
+  puts 0
+end
+
+# QUESTION 2
+# There are two mistakes with the code below. 
+# One mistake will cause the code to crash. 
+# The other mistake doesn't cause the code to crash, but it is unnecessary code. 
+# Fix both mistakes.
+x = 100
+if x < 5
+  puts 0
+elsif x < 50
+  puts 1
+else
+  puts 2
+end",124.rb
+2,Week 1 Day 2 Optional Additional Resources,,"Read the following chapters of the ""Learn to Program"" book to review methods.
+- https://pine.fm/LearnToProgram/chap_04.html
+- https://pine.fm/LearnToProgram/chap_05.html",,
+3,Week 1 Day 3 Lesson 1: Loops to repeat code,https://vimeo.com/841391161/20bc3b4477,"In your `prework-exercises` repository, make a file called `131.rb` ([example video](/create_a_ruby_file.gif)).  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write code using a while loop to print the phrase ""Around the world"" 144 times.
+
+
+# QUESTION 2
+# The following code is supposed to print the numbers 1 to 10, but it currently doesn't work. 
+# Find and fix all the mistakes in the code.
+while x < 10
+  x = 1
+  x = x + 1
+end
+```
+Commit your code and push your changes to GitHub ([example video](/github_commit_and_push.gif)).","# QUESTION 1
+# Write code using a while loop to print the phrase ""Around the world"" 144 times.
+count = 0
+while count < 144
+  puts ""Around the world""
+  count = count + 1
+end
+
+# QUESTION 2
+# The following code is supposed to print the numbers 1 to 10, but it currently doesn't work. 
+# Find and fix all the mistakes in the code.
+x = 1
+while x <= 10
+  puts x
+  x = x + 1
+end",131.rb
+3,Week 1 Day 3 Lesson 2: Annotating loops,https://vimeo.com/841391206/d81d76c9ba,"In your `prework-exercises` repository, make a file called `132.rb` ([example video](/create_a_ruby_file.gif)).  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Finish annotating the code below.
+# Then run the code to see if the output matches your annotation.
+word = ""hi""           # 1
+index = 0             # 2
+while index < 2       # 
+  word = word + word  # 
+  index = index + 1   # 
+end
+p word                # 
+
+# 1: word is ""hi""
+# 2: word is ""hi"", index is 0
+# 3: 
+# 4:
+# 5: 
+# 6: 
+# 7: 
+# 8: 
+# 9: 
+# 10: 
+
+
+# QUESTION 2
+# Finish annotating the code below.
+# Then run the code to see if the output matches your annotation.
+index = 0             # 1
+while index > 2       # 2
+  puts index          # 
+  index = index + 1   # 
+end 
+puts ""Done!""          # 
+
+# 1: 
+# 2: 
+# 3: 
+```
+Commit your code and push your changes to GitHub ([example video](/github_commit_and_push.gif)).","# QUESTION 1
+# Finish annotating the code below.
+# Then run the code to see if the output matches your annotation.
+word = ""hi""           # 1
+index = 0             # 2
+while index < 2       # 3 6 9
+  word = word + word  # 4 7
+  index = index + 1   # 5 8
+end
+p word                #     10
+
+# 1: word is ""hi""
+# 2: word is ""hi"", index is 0
+# 3: (0 is less than 2, continue)
+# 4: word is ""hihi"", index is 0
+# 5: word is ""hihi"", index is 1
+# 6: (1 is less than 2, continue)
+# 7: word is ""hihihihi"", index is 1
+# 8: word is ""hihihihi"", index is 2
+# 9: (2 is not less than 2, end the loop)
+# 10: (print ""hihihihi"")
+
+
+# QUESTION 2
+# Finish annotating the code below.
+# Then run the code to see if the output matches your annotation.
+index = 0             # 1
+while index > 2       # 2
+  puts index          # 
+  index = index + 1   # 
+end 
+puts ""Done!""          # 3
+
+# 1: index is 0
+# 2: (0 is not greater than 2, end the loop)
+# 3: (puts ""Done!"")",132.rb
+3,Week 1 Day 3 Lesson 3: Loops with conditionals,https://vimeo.com/841391275/54e8503802,"In your `prework-exercises` repository, make a file called `133.rb` ([example video](/create_a_ruby_file.gif)).  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write a program that uses a while loop to print the numbers from 1 to 20.
+# If the number is 7 or 15, it should also print out ""Hey, that's my lucky number!""
+
+
+# QUESTION 2
+# Finish annotating the code below.
+# Then run the code to see if the output matches your annotation.
+number = 0             # 1
+while 2 > number       # 2 
+  if number < 1        # 
+    puts number        #  
+  end
+  number = number + 1  # 
+end
+puts ""Done!""           # 
+
+# 1: number is 0
+# 2: (2 is greater than 0, continue)
+# 3: 
+# 4: 
+# 5: 
+# 6: 
+# 7: 
+# 8: 
+# 9: 
+# 10: 
+```
+Commit your code and push your changes to GitHub ([example video](/github_commit_and_push.gif)).","# QUESTION 1
+# Write a program that uses a while loop to print the numbers from 1 to 20.
+# If the number is 7 or 15, it should also print out ""Hey, that's my lucky number!""
+number = 1
+while number <= 20
+  if number == 7
+    puts ""Hey, that's my lucky number!""
+  elsif number == 15
+    puts ""Hey, that's my lucky number!""
+  end
+  number = number + 1
+end
+
+# QUESTION 2
+# Finish annotating the code below.
+# Then run the code to see if the output matches your annotation.
+number = 0             # 1
+while 2 > number       # 2 6 9
+  if number < 1        # 3 7
+    puts number        # 4
+  end
+  number = number + 1  # 5 8
+end
+puts ""Done!""           #     10
+
+# 1: number is 0
+# 2: (2 is greater than 0, continue)
+# 3: (0 is less than 1, continue)
+# 4: (print 0)
+# 5: number is 1
+# 6: (2 is greater than 1, continue)
+# 7: (1 is not less than 1, end the condition)
+# 8: number is 2
+# 9: (2 is not greater than 2, end the loop)
+# 10: (print ""Done!"")",133.rb
+3,Week 1 Day 3 Lesson 4: Loops with the break statement,https://vimeo.com/841391349/7e1e232562,"In your `prework-exercises` repository, make a file called `134.rb` ([example video](/create_a_ruby_file.gif)).  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write code using a while loop that asks the user to enter a number 
+# and will run forever until the user enters a number greater than 10.
+
+
+# QUESTION 2
+# The following code will run 100 times, and each time it will ask the user for their name. 
+# The code will break early if the user's name is Bob.
+# Rewrite the code using a while loop so the program will run *forever* unless 
+# the user enters a name of Bob.
+index = 0
+while index < 100
+  puts ""What is your name?""  
+  name = gets.chomp
+  if name == ""Bob""
+    break
+  end
+  index = index + 1
+end
+puts ""Hi, Bob!""
+```
+Commit your code and push your changes to GitHub ([example video](/github_commit_and_push.gif)).","# QUESTION 1
+# Write code using a while loop that asks the user to enter a number 
+# and will run forever until the user enters a number greater than 10.
+while true
+  puts ""Enter a number:""
+  number = gets.chomp.to_i
+  if number > 10
+    break
+  end
+end
+
+# QUESTION 2
+# The following code will run 100 times, and each time it will ask the user for their name. 
+# The code will break early if the user's name is Bob.
+# Rewrite the code using a while loop so the program will run *forever* unless 
+# the user enters a name of Bob.
+while true
+  puts ""What is your name?""  
+  name = gets.chomp
+  if name == ""Bob""
+    break
+  end
+end
+puts ""Hi, Bob!""",134.rb
+3,Week 1 Day 3 Optional Additional Resources,,"Read the following chapter of the ""Learn to Program"" book to review conditionals and loops.
+- https://pine.fm/LearnToProgram/chap_06.html",,
+4,Week 1 Day 4 Lesson 1: Arrays to store lists of data,https://vimeo.com/841391394/badbf1f527,"In your `prework-exercises` repository, make a file called `141.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Finish annotating the code below.
+x = 0                                  # 1
+names = [""Saron"", ""Majora"", ""Danilo""]  # 2
+names[1] = ""Bob""                       # 
+x = names[2]                           # 
+names[0] = x                           # 
+x = ""Charlie""                          # 
+
+# 1: x is 0
+# 2: x is 0, names is [""Saron"", ""Majora"", ""Danilo""]
+
+
+# QUESTION 2
+# Find and fix the mistakes in the code below.
+items [3, 2, 3 2]
+pp items
+```
+Commit your code and push your changes to GitHub.","# QUESTION 1
+# Finish annotating the code below.
+x = 0                                  # 1
+names = [""Saron"", ""Majora"", ""Danilo""]  # 2
+names[1] = ""Bob""                       # 3
+x = names[2]                           # 4
+names[0] = x                           # 5
+pp names                               # 6
+
+# 1: x is 0
+# 2: x is 0, names is [""Saron"", ""Majora"", ""Danilo""]
+# 3: x is 0, names is [""Saron"", ""Bob"", ""Danilo""]
+# 4: x is ""Danilo"", names is [""Saron"", ""Bob"", ""Danilo""]
+# 5: x is ""Danilo"", names is [""Danilo"", ""Bob"", ""Danilo""]
+# 6: print [""Danilo"", ""Bob"", ""Danilo""]
+
+
+# QUESTION 2
+# Find and fix the mistakes in the code below.
+items = [3, 2, 3, 2]
+pp items",141.rb
+4,Week 1 Day 4 Lesson 2: Arrays with loops,https://vimeo.com/841391437/5bc7a7fa16,"In your `prework-exercises` repository, make a file called `142.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write a program that starts with an array of strings, 
+# then prints out each string on separate lines using a while loop.
+
+
+
+# QUESTION 2
+# Write a program that starts with an array of numbers, 
+# then prints out each number times 3 using a while loop.
+```
+Commit your code and push your changes to GitHub.","# QUESTION 1
+# Write a program that starts with an array of strings, 
+# then prints out each string on separate lines using a while loop.
+words = [""one"", ""two"", ""three""]
+index = 0
+while index < words.length
+  puts words[index]
+  index = index + 1
+end
+
+
+# QUESTION 2
+# Write a program that starts with an array of numbers, 
+# then prints out each number times 3 using a while loop.
+numbers = [1, 2, 3]
+index = 0
+while index < numbers.length
+  puts numbers[index] * 3
+  index = index + 1
+end",142.rb
+4,Week 1 Day 4 Lesson 3: Hashes to store values by associated keys,https://vimeo.com/841391494/8c4c9a6157,"In your `prework-exercises` repository, make a file called `143.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Start with the hash below. In the following lines, add the populations for 
+# New York City (8.4 million) and San Francisco (800,000).
+city_populations = { ""Chicago"" => 2700000 }  # (don't change this line)
+# Your code goes here
+
+p city_populations
+
+
+# QUESTION 2
+# The following code should print ""I have 2 dogs!"" if the number of dogs
+# in the my_pets hash equals 2. However, the code doesn't work.
+# Explain why the code doesn't work and fix the mistake.
+my_pets = { ""dogs"" => 2, ""cats"" => 1, ""fish"" => 5 }
+if my_pets[2] == ""dogs""
+  puts ""I have 2 dogs!""
+end
+```
+Commit your code and push your changes to GitHub.","# QUESTION 1
+# Start with the hash below. In the following lines, add the populations for 
+# New York City (8.4 million) and San Francisco (800,000).
+city_populations = { ""Chicago"" => 2700000 }  # (don't change this line)
+# Your code goes here
+city_populations[""New York City""] = 8400000
+city_populations[""San Francisco""] = 800000
+pp city_populations
+
+
+# QUESTION 2
+# The following code should print ""I have 2 dogs!"" if the number of dogs
+# in the my_pets hash equals 2. However, the code doesn't work.
+# Explain why the code doesn't work and fix the mistake.
+my_pets = { ""dogs"" => 2, ""cats"" => 1, ""fish"" => 5 }
+if my_pets[""dogs""] == 2 # my_pets[2] == ""dogs"" is backwards
+  puts ""I have 2 dogs!""
+end",143.rb
+4,Week 1 Day 4 Lesson 4: Hashes to represent a single item,https://vimeo.com/841391522/8790104f04,"In your `prework-exercises` repository, make a file called `144.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Make an array called cars with three hashes to define three different cars. 
+# Each car should have a make (brand), model, color, and year. 
+# (Example: a silver 2006 Honda Accord, Honda is the make, Accord is the model)
+
+
+# QUESTION 2
+# The following code should print the age of the first student in the array.
+# However, the code doesn't work. Fix the mistakes in the code.
+students = [
+  { ""name"" => ""Maria"", ""age"" => 20, ""major"" => ""Computer Science"" },
+  { ""name"" => ""Sofia"", ""age"" => 21, ""major"" => ""Mathematics"" },
+  { ""name"" => ""Jayden"", ""age"" => 19, ""major"" => ""Biology"" }
+]
+puts student[""age""]
+```
+Commit your code and push your changes to GitHub.","# QUESTION 1
+# Make an array called cars with three hashes to define three different cars. 
+# Each car should have a make (brand), model, color, and year. 
+# (Example: a silver 2006 Honda Accord, Honda is the make, Accord is the model)
+cars = [
+  {""make"" => ""Honda"", ""model"" => ""Accord"", ""color"" => ""silver"", ""year"" => 2006},
+  {""make"" => ""Honda"", ""model"" => ""Civic"", ""color"" => ""red"", ""year"" => 2000},
+  {""make"" => ""Ford"", ""model"" => ""Explorer"", ""color"" => ""blue"", ""year"" => 1999},
+]
+pp cars
+
+# QUESTION 2
+# The following code should print the age of the first student in the array.
+# However, the code doesn't work. Fix the mistakes in the code.
+students = [
+  { ""name"" => ""Maria"", ""age"" => 20, ""major"" => ""Computer Science"" },
+  { ""name"" => ""Sofia"", ""age"" => 21, ""major"" => ""Mathematics"" },
+  { ""name"" => ""Jayden"", ""age"" => 19, ""major"" => ""Biology"" }
+]
+puts students[0][""age""]",144.rb
+4,Week 1 Day 4 Optional Additional Resources,,"Read the following chapter of the ""Learn to Program"" book to review arrays.
+- https://pine.fm/LearnToProgram/chap_07.html",,
+5,Week 1 Day 5 Lesson 1: Custom methods,https://vimeo.com/841391556/cfdcb76f3e,"In your `prework-exercises` repository, make a file called `151.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write a method that prints out any message or design that you choose
+# (you can use an ASCII art generator if you want to make it fancy).
+# Then run the method three times to see your message display three times.
+
+
+# QUESTION 2
+# When you run the code below, it should print lyrics. 
+# However, right now if you run the code, it doesn't print anything. 
+# Add the appropriate line of code to make the code run properly.
+def print_lyrics
+  puts ""Now this is a story all about how""
+  puts ""My life got flipped turned upside down""
+  puts ""And I'd like to take a minute, just sit right there""
+  puts ""I'll tell you how I became the prince of a town called Bel-Air""
+end
+```
+Commit your code and push your changes to GitHub.","# QUESTION 1
+# Write a method that prints out any message or design that you choose
+# (you can use an ASCII art generator if you want to make it fancy).
+# Then run the method three times to see your message display three times.
+def display_message
+  puts ""HELLO!""
+end
+
+display_message
+display_message
+display_message
+
+# QUESTION 2
+# When you run the code below, it should print lyrics. 
+# However, right now if you run the code, it doesn't print anything. 
+# Add the appropriate line of code to make the code run properly.
+def print_lyrics
+  puts ""Now this is a story all about how""
+  puts ""My life got flipped turned upside down""
+  puts ""And I'd like to take a minute, just sit right there""
+  puts ""I'll tell you how I became the prince of a town called Bel-Air""
+end
+
+print_lyrics",151.rb
+5,Week 1 Day 5 Lesson 2: Custom method arguments,https://vimeo.com/841391611/06c2a6a00b,"In your `prework-exercises` repository, make a file called `152.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Create a method that accepts three numbers as inputs, 
+# and returns the product of all three numbers. 
+# So, if the three inputs were 2, 4, and 6, the output should be 48.
+
+
+
+# QUESTION 2
+# The following method is supposed to take in 3 numbers and return the sum.
+# However, there are mistakes in the code that cause it to crash.
+# Explain what the error message means in your own words, then fix the mistakes in the code.
+def add_three_numbers(number1, number2, number3)
+  return number1 + number2 + number3
+end
+
+numbers = [3, 2, 7]
+add_three_numbers(numbers)
+```
+Commit your code and push your changes to GitHub.","# QUESTION 1
+# Create a method that accepts three numbers as inputs, 
+# and returns the product of all three numbers. 
+# So, if the three inputs were 2, 4, and 6, the output should be 48.
+def multiplier(x, y, z)
+  return x * y * z
+end
+
+puts multiplier(2, 4, 6)
+
+# QUESTION 2
+# The following method is supposed to take in 3 numbers and return the sum.
+# However, there are mistakes in the code that cause it to crash.
+# Explain what the error message means in your own words, then fix the mistakes in the code.
+def add_three_numbers(number1, number2, number3)
+  return number1 + number2 + number3
+end
+
+numbers = [3, 2, 7]
+# add_three_numbers(numbers)
+# `add_three_numbers': wrong number of arguments (given 1, expected 3) (ArgumentError)
+# You have to give the method 3 numbers, not 1 array with 3 numbers in it
+puts add_three_numbers(numbers[0], numbers[1], numbers[2])",152.rb
+5,Week 1 Day 5 Lesson 3: Custom classes,https://vimeo.com/841391660/3dc51bb0f2,"In your `prework-exercises` repository, make a file called `153.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Create a hash called cat to store the cat's name, breed, and age. Then print the hash.
+# Create a Cat class which stores a cat's name, breed, and age. Print an instance of the cat class.
+
+
+# QUESTION 2
+# The following code has several mistakes that cause it to crash and not run properly.
+# Fix the mistakes to make sure the code runs properly.
+class StoreItem
+  def new(input_name, input_price)
+    @name = input_name
+    @price = input_price
+  end
+end
+
+StoreItem = store_item.new(""chair"", 100)
+pp StoreItem
+```
+Commit your code and push your changes to GitHub.","# QUESTION 1
+# Create a hash called cat to store the cat's name, breed, and age. Then print the hash.
+# Create a Cat class which stores a cat's name, breed, and age. Print an instance of the cat class.
+cat = { ""name"" => ""Garfield"", ""breed"" => ""Tabby"", ""age"" => ""unknown""}
+pp cat
+class Cat
+  def initialize(input_name, input_breed, input_age)
+    @name = input_name
+    @breed = input_breed
+    @age = input_age
+  end
+end
+cat = Cat.new(""Garfield"", ""Tabby"", ""unknown"")
+pp cat
+
+# QUESTION 2
+# The following code has several mistakes that cause it to crash and not run properly.
+# Fix the mistakes to make sure the code runs properly.
+class StoreItem
+  def initialize(input_name, input_price)
+    @name = input_name
+    @price = input_price
+  end
+end
+
+store_item = StoreItem.new(""chair"", 100)
+pp store_item",153.rb
+5,Week 1 Day 5 Lesson 4: Custom classes with methods,https://vimeo.com/841391710/8d0da98d05,"In your `prework-exercises` repository, make a file called `154.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Create a Song class that stores a song's title, artist, and lyrics. 
+# Add three methods to give the ability to print out the title, artist, and lyrics attributes.
+# Demonstrate how those methods work.
+
+
+# QUESTION 2
+# The following code has several mistakes that cause it to crash and not run properly.
+# Fix the mistakes to make sure the code runs properly.
+class Person
+  def initialize(input_name, input_age, input_occupation)
+    @name = input_name
+    @age = input_age
+    @occupation = input_occupation
+  end
+
+  def get_name
+    return input_name
+  end
+end
+
+person = Person.new(""Shawn"", 42, ""accountant"")
+puts Person.get_name
+```
+Commit your code and push your changes to GitHub.","# QUESTION 1
+# Create a Song class that stores a song's title, artist, and lyrics. 
+# Add three methods to give the ability to print out the title, artist, and lyrics attributes.
+# Demonstrate how those methods work.
+class Song
+  def initialize(input_title, input_artist, input_lyrics)
+    @title = input_title
+    @artist = input_artist
+    @lyrics = input_lyrics
+  end
+
+  def title
+    return @title
+  end
+
+  def artist
+    return @artist
+  end
+
+  def lyrics
+    return @lyrics
+  end
+end
+
+song = Song.new(""Happy Birthday"", ""Unknown"", ""Happy birthday to you..."")
+puts song.title
+puts song.artist
+puts song.lyrics
+
+# QUESTION 2
+# The following code has several mistakes that cause it to crash and not run properly.
+# Fix the mistakes to make sure the code runs properly.
+class Person
+  def initialize(input_name, input_age, input_occupation)
+    @name = input_name
+    @age = input_age
+    @occupation = input_occupation
+  end
+
+  def get_name
+    return @name
+  end
+end
+
+person = Person.new(""Shawn"", 42, ""accountant"")
+puts person.get_name",154.rb
+5,Week 1 Day 5 Optional Additional Resources,,"Read the following chapter of the ""Learn to Program"" book to review custom methods and classes.
+- https://pine.fm/LearnToProgram/chap_08.html
+- https://pine.fm/LearnToProgram/chap_09.html",,
+7,Week 2 Overview Lesson 1: Deliberate practice,https://vimeo.com/841398503/ea42d51591,,,
+7,Week 2 Overview 2: Deliberate practice repository,https://vimeo.com/841398576/4ce1d29a6e,"Use GitHub Desktop to make a new repository called `deliberate-practice`.  
+Open the repository in your text editor, make a new file called `practice.rb`  
+Write some practice Ruby code.  
+Use GitHub Desktop to commit your changes and publish your repository.
+
+Open your GitHub repository in your web browser and add your instructor as a collaborator.",,
+7,Week 2 Overview Lesson 3: Command line version control,https://vimeo.com/841398676/aed374c981,"In your `deliberate-practice` repository, add a new practice problem to `practice.rb`.  
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add practice problem""
+git push origin main```",,
+7,Week 2 Overview Lesson 4: Job Hacking Career Inventory,https://vimeo.com/841398727/843eb0069b,"In your `prework-exercises` repository, make a file called `204.rb`.  
+Paste the code below and follow the instructions:
+```
+# QUESTION 1
+# Paste this link in your browser to make a copy of the Career Inventory Google document: 
+#     https://docs.google.com/document/d/1XaPaG6QXSQEajkHE1noa5pMfa27qmegSOY_FY6zBoQA/copy  
+# Fill in the answers for each question in the Career Inventory.
+# Change the sharing settings of the document to ""Anyone with the link can view"" 
+# Copy the link to your Career Inventory Google document and paste it below.
+
+
+```
+Commit your code and push your changes to GitHub.",,204.rb
+8,Week 2 Day 1 Lesson 1: Daily deliberate practice,,"In your `prework-exercises` repository, make a file called `211.rb`.  
+Paste the code below and answer the following questions:
+```
+# DELIBERATE PRACTICE REFLECTION
+# Paste a deliberate practice question you are currently working on below.
+# Write the code to solve the problem without looking at any notes or other resources.
+
+
+# Were you able to easily solve the problem from memory?
+# If so, describe the next skill you will start to practice tomorrow.
+# If not, describe the part you got stuck on that requires more practice.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,211.rb
+8,Week 2 Day 1 Lesson 2: Review variables,https://vimeo.com/841398738/123c11fb67,"In your `prework-exercises` repository, make a file called `212.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write code to store a number using a variable, then a string using a different variable.
+# Then add the two variables together (by converting the number to a string) and 
+# store the result in a third variable. Finally, print out the third variable.
+
+
+# QUESTION 2
+# The code below has a mistake in it. Run the code to see the error message,
+# then explain what the error message means and what would need to change to fix it.
+x = 10
+puts x + y
+y = x
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Write code to store a number using a variable, then a string using a different variable.
+# Then add the two variables together (by converting the number to a string) and 
+# store the result in a third variable. Finally, print out the third variable.
+number = 10
+word = ""hello""
+sum = number.to_s + word
+puts sum
+
+# QUESTION 2
+# The code below has a mistake in it. Run the code to see the error message,
+# then explain what the error message means and what would need to change to fix it.
+x = 10
+puts x + y
+y = x
+# undefined local variable or method `y' for main:Object (NameError)
+# This means Ruby doesn't know what y is, since it was used before it was defined
+# To fix this, line 15 has to move before line 14",212.rb
+8,Week 2 Day 1 Lesson 3: Intermediate variables,https://vimeo.com/841398770/44668344e0,"In your `prework-exercises` repository, make a file called `213.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Rewrite the code below to use string interpolation instead of concatenation.
+first_name = ""Katherine""
+last_name = ""Johnson""
+puts first_name + "" "" + last_name + "" was a NASA research mathematician.""
+
+
+# QUESTION 2
+# The following code has several mistakes that cause it to crash and not run properly.
+# Fix the mistakes to make sure the code runs properly.
+name = ""Salvador""
+age = 37
+puts name + ""is"" + age + ""years old and goes by ""Chava"" with his friends"".
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Rewrite the code below to use string interpolation instead of concatenation.
+first_name = ""Katherine""
+last_name = ""Johnson""
+puts ""#{first_name} #{last_name} was a NASA research mathematician.""
+
+
+# QUESTION 2
+# The following code has several mistakes that cause it to crash and not run properly.
+# Fix the mistakes to make sure the code runs properly.
+name = ""Salvador""
+age = 37
+puts name + "" is "" + age.to_s + "" years old and goes by Chava with his friends.""",213.rb
+8,Week 2 Day 1 Lesson 4: Advanced variables,https://vimeo.com/841398797/846cf3f4e7,"In your `prework-exercises` repository, make a file called `214.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Annotate the code below to clarify the status of each variable on each line of code. 
+# When you're done, print the values of red, blue, and green to double check your work.
+red = 3             # 1
+blue = 8            # 2
+green = red + blue  # 3
+red = blue + green  # 4
+green = blue - blue # 5
+blue = red * green  # 6
+red = green + 2     # 7
+blue = red * 2      # 8
+green = blue * red  # 9
+red = green - blue  # 10
+green = red * green # 11
+
+# 1: red is 3
+# 2: red is 3, blue is 8
+# 3: 
+# 4: 
+# 5: 
+# 6: 
+# 7: 
+# 8: 
+# 9: 
+# 10: 
+# 11: 
+
+# QUESTION 2
+# Fix the code found below. 
+# You should do so by moving around the order of the lines.
+ohio = 1
+grand = erie * franklin
+erie = 2
+wells = franklin / grand
+grand = 3
+franklin = ohio + erie + grand
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Annotate the code below to clarify the status of each variable on each line of code. 
+# When you're done, print the values of red, blue, and green to double check your work.
+red = 3             # 1
+blue = 8            # 2
+green = red + blue  # 3
+red = blue + green  # 4
+green = blue - blue # 5
+blue = red * green  # 6
+red = green + 2     # 7
+blue = red * 2      # 8
+green = blue * red  # 9
+red = green - blue  # 10
+green = red * green # 11
+puts red, blue, green
+# 1: red is 3
+# 2: red is 3, blue is 8
+# 3: red is 3, blue is 8, green is 11
+# 4: red is 19, blue is 8, green is 11
+# 5: red is 19, blue is 8, green is 0
+# 6: red is 19, blue is 0, green is 0
+# 7: red is 2, blue is 0, green is 0
+# 8: red is 2, blue is 4, green is 0
+# 9: red is 2, blue is 4, green is 8
+# 10: red is 4, blue is 4, green is 8
+# 11: red is 4, blue is 4, green is 32
+
+# QUESTION 2
+# Fix the code found below. 
+# You should do so by moving around the order of the lines.
+ohio = 1
+erie = 2
+grand = 3
+franklin = ohio + erie + grand
+grand = erie * franklin
+wells = franklin / grand",214.rb
+9,Week 2 Day 2 Lesson 1: Daily deliberate practice,,"In your `prework-exercises` repository, make a file called `221.rb`.  
+Paste the code below and answer the following questions:
+```
+# DELIBERATE PRACTICE REFLECTION
+# Paste a deliberate practice question you are currently working on below.
+# Write the code to solve the problem without looking at any notes or other resources.
+
+
+# Were you able to easily solve the problem from memory?
+# If so, describe the next skill you will start to practice tomorrow.
+# If not, describe the part you got stuck on that requires more practice.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,221.rb
+9,Week 2 Day 2 Lesson 2: Review conditionals,https://vimeo.com/841398817/12a25cfece,"In your `prework-exercises` repository, make a file called `222.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write a program that asks the user for their name.
+# If their name is Martin, print ""Hi Martin!"" to the screen.
+# Otherwise print ""You're not Martin.""
+
+
+# QUESTION 2
+# Fix the indentation and the errors with the code below.
+x = 1000
+if x < 5
+puts 0
+else if x < 10
+puts 1
+else x < 100
+puts 2
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Write a program that asks the user for their name.
+# If their name is Martin, print ""Hi Martin!"" to the screen.
+# Otherwise print ""You're not Martin.""
+puts ""Enter your name: ""
+name = gets.chomp
+if name == ""Martin""
+  puts ""Hi Martin!""
+else
+  puts ""You're not Martin.""
+end
+
+# QUESTION 2
+# Fix the indentation and the errors with the code below.
+x = 1000
+if x < 5
+  puts 0
+elsif x < 10
+  puts 1
+else
+  puts 2
+end",222.rb
+9,Week 2 Day 2 Lesson 3: Intermediate conditionals,https://vimeo.com/841398840/46ab4df734,"In your `prework-exercises` repository, make a file called `223.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Annotate the following code to keep track of the variables.
+x = 10                # 1
+y = 4                 # 2
+if x == 10 && y == 10 
+  x = 10              
+  y = 10              
+end                   
+if x == 10 || y == 10 
+  x = x + y           
+  y = x + y           
+end                   
+p x                   
+p y                   
+
+# 1: x is 10
+# 2: x is 10, y is 4
+# 3: 
+# 4: 
+# 5: 
+# 6: 
+# 7: 
+# 8: 
+# 9: 
+# 10: 
+
+
+# QUESTION 2
+# Fix the error with the code below.
+x = 5
+if 0 <= x <= 10
+  puts ""The variable x is between 0 and 10.""
+end
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Annotate the following code to keep track of the variables.
+x = 10                # 1
+y = 4                 # 2
+if x == 10 && y == 10 # 3
+  x = 10              
+  y = 10              
+end                   
+if x == 10 || y == 10 # 4
+  x = x + y           # 5
+  y = x + y           # 6
+end                   
+p x                   # 7
+p y                   # 8
+
+# 1: x is 10
+# 2: x is 10, y is 4
+# 3: (x is 10 but y is not 10, end the if condition)
+# 4: (x is 10, continue)
+# 5: x is 14, y is 4
+# 6: y is 14, y is 18
+# 7: (print 14)
+# 8: (print 18)
+
+
+# QUESTION 2
+# Fix the error with the code below.
+x = 5
+if 0 <= x && x <= 10
+  puts ""The variable x is between 0 and 10.""
+end",223.rb
+9,Week 2 Day 2 Lesson 4: Advanced conditionals,https://vimeo.com/841398885/9ceb5706bd,"In your `prework-exercises` repository, make a file called `224.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Annotate the code below (just the lines that get executed).
+# Although it seems like a lot of lines to annotate, 
+# there are large amounts of code that never get run!
+v = 1             # 1
+w = 2             # 2
+x = 3             # 3
+y = 4             
+z = 5             
+
+if 2 > 3          
+  x = 10          
+  if 2 == 2       
+    y = 20        
+    if 3 == 3     
+      z = 30      
+    end           
+  end             
+  w = 9           
+elsif 2 == 2      
+  x = 70          
+  if 2 > 1        
+    y = 80        
+  else            
+    z = 90        
+  end             
+  if x < 100      
+    w = 8         
+    if z == 30    
+      y = 100     
+    else          
+      y = 14      
+      if w > 10   
+        v = 1000  
+      end         
+    end           
+  else            
+    w = 19        
+    if z == 200   
+      y = 87      
+    else          
+      y = 33      
+      if w > 4    
+        v = 10000 
+      end         
+    end           
+  end             
+else              
+  w = 100         
+  x = x + x       
+  y = 10          
+  if z < w        
+    if x < y      
+      if z < v    
+        z = y     
+      end         
+    end           
+  end             
+end               
+
+p v               
+p w               
+p x               
+p y               
+p z            
+
+# QUESTION 2
+# Fix the indentation of the code below.
+apple = 1
+banana = 2
+carrot = 3
+
+if apple > carrot
+if apple > 1
+p 1
+else
+p 2
+if banana == 2
+p 3
+else
+p 4
+end
+end
+elsif apple == carrot
+if apple > 1
+p 5
+else
+p 6
+if banana == 2
+p 7
+else
+p 8
+end
+end
+else
+if apple > 1
+p 9
+else
+p 10
+if banana == 2
+p 11
+else
+p 12
+end
+end
+end
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Annotate the code below (just mark the lines that get executed).
+# Although it seems like a lot of lines to annotate, 
+# there are large amounts of code that never get run!
+v = 1             # 1 (v is 1)
+w = 2             # 2 (v is 1, w is 2)
+x = 3             # 3 (v is 1, w is 2, x is 3)
+y = 4             # 4 (v is 1, w is 2, x is 3, y is 4)
+z = 5             # 5 (v is 1, w is 2, x is 3, y is 4, z is 5)
+
+if 2 > 3          # 6 (false)
+  x = 10          
+  if 2 == 2       
+    y = 20        
+    if 3 == 3     
+      z = 30      
+    end           
+  end             
+  w = 9           
+elsif 2 == 2      # 7 (true)
+  x = 70          # 8 (v is 1, w is 2, x is 70, y is 4, z is 5)
+  if 2 > 1        # 9 (true)
+    y = 80        # 10 (v is 1, w is 2, x is 70, y is 80, z is 5)
+  else            
+    z = 90        
+  end             
+  if x < 100      # 11 (true)
+    w = 8         # 12 (v is 1, w is 8, x is 70, y is 80, z is 5)
+    if z == 30    # 13 (false)
+      y = 100     
+    else          
+      y = 14      # 14 (v is 1, w is 8, x is 70, y is 14, z is 5)
+      if w > 10   # 15 (false)
+        v = 1000  
+      end         
+    end           
+  else            
+    w = 19        
+    if z == 200   
+      y = 87      
+    else          
+      y = 33      
+      if w > 4    
+        v = 10000 
+      end         
+    end           
+  end             
+else              
+  w = 100         
+  x = x + x       
+  y = 10          
+  if z < w        
+    if x < y      
+      if z < v    
+        z = y     
+      end         
+    end           
+  end             
+end               
+
+p v               # 16 (print 1)
+p w               # 17 (print 8)
+p x               # 18 (print 70)
+p y               # 19 (print 14)
+p z               # 20 (print 5)
+
+# QUESTION 2
+# Fix the indentation of the code below.
+apple = 1
+banana = 2
+carrot = 3
+
+if apple > carrot
+  if apple > 1
+    p 1
+  else
+    p 2
+    if banana == 2
+      p 3
+    else
+      p 4
+    end
+  end
+elsif apple == carrot
+  if apple > 1
+    p 5
+  else
+    p 6
+    if banana == 2
+      p 7
+    else
+      p 8
+    end
+  end
+else
+  if apple > 1
+    p 9
+  else
+    p 10
+    if banana == 2
+      p 11
+    else
+      p 12
+    end
+  end
+end",224.rb
+10,Week 2 Day 3 Lesson 1: Daily deliberate practice,,"In your `prework-exercises` repository, make a file called `231.rb`.  
+Paste the code below and answer the following questions:
+```
+# DELIBERATE PRACTICE REFLECTION
+# Paste a deliberate practice question you are currently working on below.
+# Write the code to solve the problem without looking at any notes or other resources.
+
+
+# Were you able to easily solve the problem from memory?
+# If so, describe the next skill you will start to practice tomorrow.
+# If not, describe the part you got stuck on that requires more practice.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,231.rb
+10,Week 2 Day 3 Lesson 2: Review loops,https://vimeo.com/841398920/0952490caf,"In your `prework-exercises` repository, make a file called `232.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write code that prints all the years between 1980 to 2020 (including 1980 and 2020).
+
+
+# QUESTION 2
+# The following code is supposed to print the numbers 1 through 10, but it has errors.
+# Fix the errors with the code below.
+count = 0
+while count > 10
+  puts count
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Write code that prints all the years between 1980 to 2020 (including 1980 and 2020).
+year = 1980
+while year <= 2020
+  puts year
+  year = year + 1
+end
+
+# QUESTION 2
+# The following code is supposed to print the numbers 1 through 10, but it has errors.
+# Fix the errors with the code below.
+count = 1
+while count <= 10
+  puts count
+  count = count + 1
+end",232.rb
+10,Week 2 Day 3 Lesson 3: Intermediate loops,https://vimeo.com/841398950/3a6e6588e8,"In your `prework-exercises` repository, make a file called `233.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Rewrite the while loop using a .times loop, then rewrite it again using a .each loop.
+numbers = [4, 3, 1, 5]
+new_numbers = []
+index = 0
+while index < numbers.length
+  number = numbers[index]
+  new_numbers.push(number + 5)
+  index = index + 1
+end
+pp new_numbers
+
+
+# QUESTION 2
+# Fix the errors with the code below.
+colors = [""red"", ""green"", ""blue""]
+color.each do |colors|
+  puts color.upcase
+  index = index + 1
+end
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Rewrite the while loop using a .times loop, then rewrite it again using a .each loop.
+numbers = [4, 3, 1, 5]
+new_numbers = []
+index = 0
+while index < numbers.length
+  number = numbers[index]
+  new_numbers.push(number + 5)
+  index = index + 1
+end
+pp new_numbers
+
+numbers = [4, 3, 1, 5]
+new_numbers = []
+index = 0
+numbers.length.times do
+  new_numbers.push(numbers[index] + 5)
+  index = index + 1
+end
+pp new_numbers
+
+numbers = [4, 3, 1, 5]
+new_numbers = []
+numbers.each do |number|
+  new_numbers.push(number + 5)
+end
+pp new_numbers
+
+
+# QUESTION 2
+# Fix the errors with the code below.
+colors = [""red"", ""green"", ""blue""]
+colors.each do |color|
+  puts color.upcase
+end",233.rb
+10,Week 2 Day 3 Lesson 4: Advanced loops,https://vimeo.com/841398999/f848af6dc4,"In your `prework-exercises` repository, make a file called `234.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Finish annotating the code below (just the lines that get executed). 
+# The first several comments are done for you.
+booyeah = 0                # 1
+2.times do                 # 2
+  booyeah = booyeah + 1    # 3
+  3.times do               # 4 6
+    booyeah = booyeah + 2  # 5 7
+  end                      
+end                        
+p booyeah                  #
+
+
+# QUESTION 2
+# The following code is supposed to print ""OUTER LOOP"" followed by ""inner loop"" three times,
+# then print ""OUTER LOOP"" followed by ""inner loop"" three times again.
+# However, there is a mistake in the code that causes the code to run forever.
+# Find and fix the mistake.
+index = 0
+while index < 2
+  puts ""OUTER LOOP""
+  index2 = 0
+  while index2 < 3
+    puts ""inner loop""
+    index = index + 1
+  end
+  index = index + 1
+end
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Finish annotating the code below (just mark the lines that get executed). 
+# The first several comments are done for you.
+booyeah = 0                # 1
+2.times do                 # 2     10 
+  booyeah = booyeah + 1    # 3     11 14
+  3.times do               # 4 6 8 12 15 17 19
+    booyeah = booyeah + 2  # 5 7 9 13 16 18 20
+  end                      
+end                        
+p booyeah                  #                21
+
+
+# QUESTION 2
+# The following code is supposed to print ""OUTER LOOP"" followed by ""inner loop"" three times,
+# then print ""OUTER LOOP"" followed by ""inner loop"" three times again.
+# However, there is a mistake in the code that causes the code to run forever.
+# Find and fix the mistake.
+index = 0
+while index < 2
+  puts ""OUTER LOOP""
+  index2 = 0
+  while index2 < 3
+    puts ""inner loop""
+    index2 = index2 + 1
+  end
+  index = index + 1
+end",234.rb
+11,Week 2 Day 4 Lesson 1: Daily deliberate practice,,"In your `prework-exercises` repository, make a file called `241.rb`.  
+Paste the code below and answer the following questions:
+```
+# DELIBERATE PRACTICE REFLECTION
+# Paste a deliberate practice question you are currently working on below.
+# Write the code to solve the problem without looking at any notes or other resources.
+
+
+# Were you able to easily solve the problem from memory?
+# If so, describe the next skill you will start to practice tomorrow.
+# If not, describe the part you got stuck on that requires more practice.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,241.rb
+11,Week 2 Day 4 Lesson 2: Review arrays and hashes,https://vimeo.com/841399106/f6e3464a61,"In your `prework-exercises` repository, make a file called `242.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Use a variable to store an array with three different words.
+# Then add one more word to the array and print the array on one line.
+
+
+# QUESTION 2
+# Use a variable to store a hash with two different words and their definitions.
+# Then add one more word with its definition and print the hash on one line.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Use a variable to store an array with three different words.
+# Then add one more word to the array and print the array on one line.
+words = [""one"", ""two"", ""three""]
+words.push(""four"")
+pp words
+
+# QUESTION 2
+# Use a variable to store a hash with two different words and their definitions.
+# Then add one more word with its definition and print the hash on one line.
+definitions = { ""boat"" => ""a thing that floats"", ""moat"" => ""a place for boats"" }
+definitions[""goat""] = ""a thing in a boat""
+pp definitions",242.rb
+11,Week 2 Day 4 Lesson 3: Intermediate arrays and hashes,https://vimeo.com/841399149/2746789bd3,"In your `prework-exercises` repository, make a file called `243.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Convert all three lines of the following code
+# to use symbols instead of strings for the hash keys.
+product = {""name"" => ""Jacket"", ""price"" => 49.99, ""color"" => ""red""}
+puts product[""name""] # the output is Jacket
+puts product[""price""] # the output is 49.99
+
+
+# QUESTION 2
+# The following code is supposed to add a new item to an existing hash,
+# but it has mistakes that cause the code to crash.
+# Find and fix the errors with the code.
+fruits = { coconut: 1, apple: 2, banana: 3 }
+fruits.push(pears: 3)
+pp fruits
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Convert all three lines of the following code
+# to use symbols instead of strings for the hash keys.
+product = {:name => ""Jacket"", :price => 49.99, :color => ""red""}
+puts product[:name] # the output is Jacket
+puts product[:price] # the output is 49.99
+
+
+# QUESTION 2
+# The following code is supposed to add a new item to an existing hash,
+# but it has mistakes that cause the code to crash.
+# Find and fix the errors with the code.
+fruits = { coconut: 1, apple: 2, banana: 3 }
+fruits[:pears] = 3
+pp fruits",243.rb
+11,Week 2 Day 4 Lesson 4: Advanced arrays and hashes,https://vimeo.com/841399179/1b44416ed5,"In your `prework-exercises` repository, make a file called `244.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write a line of code to print out the name for drink1. 
+# Then write a line of code to print out the ingredients for drink1. 
+# Then write a line of code to print out only the first ingredient for drink1. 
+# The final output should be: ""Seltzer"", then [""water"", ""bubbles""], then ""water""
+drink1 = {""name"" => ""Seltzer"", ""ingredients"" => [""water"", ""bubbles""]}
+drink2 = {""name"" => ""Coca Cola"", ""ingredients"" => [""water"", ""bubbles"", ""sugar"", ""brown food coloring""]}
+drink3 = {""name"" => ""water"", ""ingredients"" => [""hydrogen"", ""oxygen""]}
+
+
+# QUESTION 2
+# Start with the array of hashes below.
+# Write a loop to print out each person's hobby using a p statement, each on separate lines.
+people = [
+  {
+    ""first_name"" => ""Robert"",
+    ""last_name"" => ""Garcia"", 
+    ""hobbies"" => [""basketball"", ""chess"", ""phone tag""]
+   },
+   {
+    ""first_name"" => ""Molly"",
+    ""last_name"" => ""Barker"",
+    ""hobbies"" => [""programming"", ""reading"", ""jogging""]
+   },
+   {
+    ""first_name"" => ""Kelly"",
+    ""last_name"" => ""Miller"",
+    ""hobbies"" => [""cricket"", ""baking"", ""stamp collecting""]
+   }
+]
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Write a line of code to print out the name for drink1. 
+# Then write a line of code to print out the ingredients for drink1 (on a single line). 
+# Then write a line of code to print out only the first ingredient for drink1. 
+# The final output should be: ""Seltzer"", then [""water"", ""bubbles""], then ""water""
+drink1 = {""name"" => ""Seltzer"", ""ingredients"" => [""water"", ""bubbles""]}
+drink2 = {""name"" => ""Coca Cola"", ""ingredients"" => [""water"", ""bubbles"", ""sugar"", ""brown food coloring""]}
+drink3 = {""name"" => ""water"", ""ingredients"" => [""hydrogen"", ""oxygen""]}
+pp drink1[""name""]
+pp drink1[""ingredients""]
+pp drink1[""ingredients""][0]
+
+# QUESTION 2
+# Start with the array of hashes below.
+# Write a loop to print out each person's hobby using a pp statement, each on separate lines.
+people = [
+  {
+    ""first_name"" => ""Robert"",
+    ""last_name"" => ""Garcia"", 
+    ""hobbies"" => [""basketball"", ""chess"", ""phone tag""]
+   },
+   {
+    ""first_name"" => ""Molly"",
+    ""last_name"" => ""Barker"",
+    ""hobbies"" => [""programming"", ""reading"", ""jogging""]
+   },
+   {
+    ""first_name"" => ""Kelly"",
+    ""last_name"" => ""Miller"",
+    ""hobbies"" => [""cricket"", ""baking"", ""stamp collecting""]
+   }
+]
+index = 0
+while index < people.length
+  pp people[index][""hobbies""]
+  index = index + 1
+end",244.rb
+12,Week 2 Day 5 Lesson 1: Daily deliberate practice,,"In your `prework-exercises` repository, make a file called `251.rb`.  
+Paste the code below and answer the following questions:
+```
+# DELIBERATE PRACTICE REFLECTION
+# Paste a deliberate practice question you are currently working on below.
+# Write the code to solve the problem without looking at any notes or other resources.
+
+
+# Were you able to easily solve the problem from memory?
+# If so, describe the next skill you will start to practice tomorrow.
+# If not, describe the part you got stuck on that requires more practice.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,251.rb
+12,Week 2 Day 5 Lesson 2: Review methods and classes,https://vimeo.com/841399224/4c1d990785,"In your `prework-exercises` repository, make a file called `252.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write a method that takes in four numbers and returns the numbers added together.
+# Then run the method and print the result. 
+# (Note: you do not need to make a custom class for this exercise, just a method)
+
+
+# QUESTION 2
+# Write a class called Shoe that stores attributes for name, color, and price.
+# Then make an instance of a shoe and print out the details using `pp`.
+# (Note: for this problem, just make the initialize method in the class, no other methods needed)
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Write a method that takes in four numbers and returns the numbers added together.
+# Then run the method and print the result. 
+# (Note: you do not need to make a custom class for this exercise, just a method)
+def sum(a, b, c, d)
+  return a + b + c + d
+end
+
+puts sum(1, 2, 3, 4)
+
+# QUESTION 2
+# Write a class called Shoe that stores attributes for name, color, and price.
+# Then make an instance of a shoe and print out the details using `pp`.
+# (Note: for this problem, just make the initialize method in the class, no other methods needed)
+class Shoe
+  def initialize(input_name, input_color, input_price)
+    @name = input_name
+    @color = input_color
+    @price = input_price
+  end
+end
+
+shoe = Shoe.new(""Air Jordans"", ""Red"", 300)
+pp shoe",252.rb
+12,Week 2 Day 5 Lesson 3: Intermediate methods and classes,https://vimeo.com/841399297/262a6b3b06,"In your `prework-exercises` repository, make a file called `253.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Revise the Song class so that it reflects idiomatic Ruby conventions.
+class Song
+  def set_title(input_title)
+    @song_title = input_title
+  end
+  
+  def title
+    return @song_title
+  end
+
+  def set_artist(artist)
+    @song_artist = artist
+  end
+
+  def artist
+    return @song_artist
+  end
+
+  def set_lyrics(lyrics)
+    @song_lyrics = lyrics
+  end
+
+  def lyrics
+    return @song_lyrics
+  end
+end
+
+
+# QUESTION 2
+# Fix the errors in the code below.
+class Person
+  attr_reader :name, :height
+end
+
+person = Person.initialize(""Rob"", 80)
+pp person
+pp person.name
+pp person.height
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Revise the Song class so that it reflects idiomatic Ruby conventions.
+class Song
+  attr_reader :title, :artist, :lyrics
+  attr_writer :title, :artist, :lyrics
+
+  def initialize(input_title, input_artist, input_lyrics)
+    @title = input_title
+    @artist = input_artist
+    @lyrics = input_lyrics
+  end
+end
+
+
+# QUESTION 2
+# Fix the errors in the code below.
+class Person
+  attr_reader :name, :height
+
+  def initialize(name, height)
+    @name = name
+    @height = height
+  end
+end
+
+person = Person.new(""Rob"", 80)
+pp person
+pp person.name
+pp person.height",253.rb
+12,Week 2 Day 5 Lesson 4: Advanced methods and classes,https://vimeo.com/841399359/5a789bdc90,"In your `prework-exercises` repository, make a file called `254.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Start with the Person class defined below.
+# Add a method called email that returns the person's email address as a string. 
+#     The person's email has the format: ""firstname.lastname@gmail.com"".
+# Add a method called info that returns a string that describes the person 
+#     in a user-friendly format. Make sure it works no matter how many hobbies a person has! 
+#     (You'll need to use a loop!)
+class Person
+  def initialize(first_name, last_name, hair_color, hobbies)
+    @first_name = first_name
+    @last_name = last_name
+    @hair_color = hair_color
+    @hobbies = hobbies
+  end
+end
+
+person = Person.new(""Bob"", ""Jones"", ""pink"", [""basketball"", ""chess"", ""phone tag""])
+
+
+# QUESTION 2
+# The code below crashes when it is run.
+# First explain what the error message means, 
+# then fix the code by modifying the class and the puts statement.
+# (This one is quite tricky!)
+class Product
+  def initialize(options)
+    @options = options
+  end
+end
+
+product = Product.new({ ""name"" => ""Table"", ""price"" => 500, ""description"" => ""Solid oak table"" })
+puts ""The product's name is #{product[""name""]}.""
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# Start with the Person class defined below.
+# Add a method called email that returns the person's email address as a string. 
+#     The person's email has the format: ""firstname.lastname@gmail.com"".
+# Add a method called info that returns a string that describes the person's hobbies 
+#     in a user-friendly format. Make sure it works no matter how many hobbies a person has! 
+#     (You'll need to use a loop!)
+class Person
+  def initialize(first_name, last_name, hair_color, hobbies)
+    @first_name = first_name
+    @last_name = last_name
+    @hair_color = hair_color
+    @hobbies = hobbies
+  end
+
+  def email
+    ""#{@first_name}.#{@last_name}@gmail.com""
+  end
+
+  def info
+    result = ""#{@first_name} #{@last_name}'s hobbies are: ""
+    index = 0
+    while index < @hobbies.length
+      result = result + @hobbies[index] + "" ""
+      index = index + 1
+    end
+    result
+  end
+end
+
+person = Person.new(""Bob"", ""Jones"", ""pink"", [""basketball"", ""chess"", ""phone tag""])
+puts person.email
+puts person.info
+
+# QUESTION 2
+# The code below crashes when it is run.
+# First explain what the error message means, 
+# then fix the code by modifying only the line marked # FIX THIS LINE.
+# (This one is quite tricky!)
+class Product
+  attr_reader :name, :price, :description
+
+  def initialize(options_hash)
+    @name = options_hash[""name""]
+    @price = options_hash[""price""]
+    @description = options_hash[""description""]
+  end
+end
+
+# product = Product.new(""Table"",500, ""Solid oak"") # FIX THIS LINE
+# `initialize': wrong number of arguments (given 3, expected 1) (ArgumentError)
+# The initialize method takes in a single hash, not three separate arguments
+product = Product.new({ ""name"" => ""Table"", ""price"" => 500, ""description"" => ""Solid oak"" })
+puts ""The product's name is #{product.name}.""",254.rb
+14,Week 3 Overview Lesson 1: Decomposition,https://vimeo.com/841400830/cfb8c77501,,,
+14,Week 3 Overview Lesson 2: Decomposition example,https://vimeo.com/841400901/3b7a86d2ea,,,
+14,Week 3 Overview Lesson 3: Navigating files and folders in the terminal,https://vimeo.com/841401002/5842bccaff,"Open Spotlight using the keyboard shortcut Command Space.
+In Spotlight, search for the word “terminal” to open a stand-alone terminal.
+Practice using the commands `ls` and `cd` to navigate to your `prework-exercises` folder.",,
+14,Week 3 Overview Lesson 4: Job Hacking LinkedIn Profile Strength,https://vimeo.com/841401040/dfd180f64a,"In your `prework-exercises` repository, make a file called `304.rb`.  
+Paste the code below and follow the instructions:
+```
+# QUESTION 1
+# Log into your LinkedIn account. (If you don't have one, signup for an account).
+#     https://www.linkedin.com/ 
+# Follow this document to improve your LinkedIn profile strength to at least Intermediate:
+#     https://docs.google.com/document/d/1df31q78ZlLuv-1sCQw-p61p-6Tfewf8seuQ5XhE99pM 
+# Paste the link to your LinkedIn profile below.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,304.rb
+15,Week 3 Day 1 Lesson 1: Daily deliberate practice,,"In your `prework-exercises` repository, make a file called `311.rb`.  
+Paste the code below and answer the following questions:
+```
+# DELIBERATE PRACTICE REFLECTION
+# Paste a deliberate practice question you are currently working on below.
+# Write the code to solve the problem without looking at any notes or other resources.
+
+
+# Were you able to easily solve the problem from memory?
+# If so, describe the next skill you will start to practice tomorrow.
+# If not, describe the part you got stuck on that requires more practice.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,311.rb
+15,Week 3 Day 1 Lesson 2: Review problem,,"In your `prework-exercises` repository, make a file called `312.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Use a loop to print out only the numbers greater than 10.
+numbers = [4, 53, 22, 3, 9, 7, 12]
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Use a loop to print out only the numbers greater than 10.
+numbers = [4, 53, 22, 3, 9, 7, 12]
+index = 0
+while index < numbers.length
+  number = numbers[index]
+  if number > 10
+    puts number
+  end
+  index = index + 1
+end",312.rb
+15,Week 3 Day 1 Lesson 3: Synthesis problem,,"In your `prework-exercises` repository, make a file called `313.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Create a fortune teller which tells the user a fortune based on the user's favorite number. 
+# Give at least 3 possible outcomes. So along these lines, for example: 
+# If the user's favorite number is below 50, give fortune X. 
+# If the user's favorite number is between 50 and 100, give fortune Y. 
+# If the user's favorite number is above 100, give fortune Z.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Create a fortune teller which tells the user a fortune based on the user's favorite number. 
+# Give at least 3 possible outcomes. So along these lines, for example: 
+# If the user's favorite number is below 50, give fortune X. 
+# If the user's favorite number is between 50 and 100, give fortune Y. 
+# If the user's favorite number is above 100, give fortune Z.
+puts ""What's your favorite number?""
+number = gets.chomp.to_i
+if number < 50
+  puts ""(fortune 1)""
+elsif number <= 100
+  puts ""(fortune 2)""
+else
+  puts ""(fortune 3)""
+end",313.rb
+15,Week 3 Day 1 Lesson 4: Challenge problem,,"In your `prework-exercises` repository, make a file called `314.rb`.  
+Paste the code below and answer the following questions:
+```
+# Step 1: Read the problem below.
+# Step 2: Decompose the problem into smaller testable problems. DO NOT SOLVE THE PROBLEM YET.
+# Step 3: Solve each problem until you get stuck. YOU DO NOT NEED TO SOLVE THE COMPLETE PROBLEM!
+
+# QUESTION 1
+# Start your program with the line of code below.
+# The rest of your program should create and print out 
+# an array that removes all duplicates from the original array. 
+# That is, the second array should look like: [4, 6, 1, 2, 8, 3, 7]
+# The one catch: Don't use the ""uniq"" method available to arrays! (That would do this for you.)
+numbers = [4, 6, 1, 4, 2, 8, 3, 4, 1, 7]
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Ancay ouyay igurefay histay neoay utoay?
+# Pig Latin is a very sophisticated language in which 
+# each English word is converted as follows: 
+# The first letter of each word is removed from the beginning and added to the end. 
+# Then, the letters 'ay' are added to the very end of the word.
+# For example: hello = ellohay, pingpong = ingpongpay, marmalade = armalademay, etc.
+# Write a program that asks the user to enter a single word 
+# and prints out the Pig Latin version of that word.
+
+# Write a program that asks the user to enter a word, then print that word
+
+# Write a program that asks the user to enter a word, then print that word with each character split into an array.
+
+# Write a program that asks the user to enter a word, then print each letter of the word one at a time.
+
+# Write a program that asks the user to enter a word, then prints the word without the first letter.
+
+# Write a program that asks the user to enter a word, then prints the Pig Latin version of that word.
+
+
+puts ""Enter a word:""
+word = gets.chomp
+letters = word.split("""")
+new_letters = []
+index = 1
+while index < letters.length
+  new_letters.push(letters[index])
+  index = index + 1
+end
+new_letters.push(letters[0])
+new_letters.push(""a"")
+new_letters.push(""y"")
+new_word = new_letters.join
+puts new_word",314.rb
+16,Week 3 Day 2 Lesson 1: Daily deliberate practice,,"In your `prework-exercises` repository, make a file called `321.rb`.  
+Paste the code below and answer the following questions:
+```
+# DELIBERATE PRACTICE REFLECTION
+# Paste a deliberate practice question you are currently working on below.
+# Write the code to solve the problem without looking at any notes or other resources.
+
+
+# Were you able to easily solve the problem from memory?
+# If so, describe the next skill you will start to practice tomorrow.
+# If not, describe the part you got stuck on that requires more practice.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,321.rb
+16,Week 3 Day 2 Lesson 2: Review problem,,"In your `prework-exercises` repository, make a file called `322.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Use a loop to create a new array of strings from each hash's :name key.
+dogs = [
+  { name: ""Toto"", breed: ""Cairn Terrier"" },
+  { name: ""Snoopy"", breed: ""Beagle"" },
+  { name: ""Beethoven"", breed: ""Saint Bernard"" }
+]
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Use a loop to create a new array of strings from each hash's :name key.
+dogs = [
+  { name: ""Toto"", breed: ""Cairn Terrier"" },
+  { name: ""Snoopy"", breed: ""Beagle"" },
+  { name: ""Beethoven"", breed: ""Saint Bernard"" }
+]
+
+names = []
+index = 0
+while index < dogs.length
+  names.push(dogs[index][:name])
+  index = index + 1
+end
+pp names",322.rb
+16,Week 3 Day 2 Lesson 3: Synthesis problem,,"In your `prework-exercises` repository, make a file called `323.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Create a program that multiplies by 2 until 100,000. 
+# That is, the program should print out: 1, 2, 4, 8, 16, 32, etc. until you get above 100,000.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Create a program that multiplies by 2 until 100,000. 
+# That is, the program should print out: 1, 2, 4, 8, 16, 32, etc. until you get above 100,000.
+number = 1
+while number < 100000
+  puts number
+  number = number * 2
+end
+puts number",323.rb
+16,Week 3 Day 2 Lesson 4: Challenge problem,,"In your `prework-exercises` repository, make a file called `324.rb`.  
+Paste the code below and answer the following questions:
+```
+# Step 1: Read the problem below.
+# Step 2: Decompose the problem into smaller testable problems. DO NOT SOLVE THE PROBLEM YET.
+# Step 3: Solve each problem until you get stuck. YOU DO NOT NEED TO SOLVE THE COMPLETE PROBLEM!
+
+# QUESTION 1
+# Fibonacci numbers are numbers that follow the pattern:
+# 0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, etc.
+# That is, each number is the sum of the two numbers that precede it.
+# Write a program that prints out the first 100 fibonacci numbers.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# Step 1: Read the problem below.
+# Step 2: Decompose the problem into smaller testable problems. DO NOT SOLVE THE PROBLEM YET.
+# Step 3: Solve each problem until you get stuck. YOU DO NOT NEED TO SOLVE THE COMPLETE PROBLEM!
+
+# QUESTION 1
+# Start your program with the line of code below.
+# The rest of your program should create and print out 
+# an array that removes all duplicates from the original array. 
+# That is, the second array should look like: [4, 6, 1, 2, 8, 3, 7]
+# The one catch: Don't use the ""uniq"" method available to arrays! (That would do this for you.)
+numbers = [4, 6, 1, 4, 2, 8, 3, 4, 1, 7]
+
+# Loop through the numbers and print one at a time.
+
+# Loop through the numbers and print ""duplicate"" if any numbers are equal to the first number.
+
+# Loop through the numbers and push any numbers into a new array if they are not equal to the first number.
+
+# Loop through the numbers, then loop again and print ""duplicate"" 
+# if the inner loop number matches the outer loop number
+
+# Loop through the numbers, then loop again and push the outer number into a new array
+# if the outer loop number doesn't match any of the inner loop numbers",324.rb
+17,Week 3 Day 3 Lesson 1: Daily deliberate practice,,"In your `prework-exercises` repository, make a file called `331.rb`.  
+Paste the code below and answer the following questions:
+```
+# DELIBERATE PRACTICE REFLECTION
+# Paste a deliberate practice question you are currently working on below.
+# Write the code to solve the problem without looking at any notes or other resources.
+
+
+# Were you able to easily solve the problem from memory?
+# If so, describe the next skill you will start to practice tomorrow.
+# If not, describe the part you got stuck on that requires more practice.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,331.rb
+17,Week 3 Day 3 Lesson 2: Review problem,,"In your `prework-exercises` repository, make a file called `332.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Use a loop to compute the sum of all the given numbers.
+numbers = [5, 4, 2, 2, 6, 8, 1]
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Use a loop to compute the sum of all the given numbers.
+numbers = [5, 4, 2, 2, 6, 8, 1]
+sum = 0
+index = 0
+while index < numbers.length
+  sum = sum + numbers[index]
+  index = index + 1
+end
+puts sum",332.rb
+17,Week 3 Day 3 Lesson 3: Synthesis problem,,"In your `prework-exercises` repository, make a file called `333.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Create a program that asks the user to enter 5 numbers. 
+# Then, tell the user the mean average of all the numbers.
+# The mean average is defined as the sum of all the numbers 
+# divided by the count of how many numbers there are. 
+# For example, if the user enters: 11, 7, 30, 22, 55
+# the average will be 25. This is because 11 + 7 + 30 + 22 + 55 = 125, and 125 / 5 
+# (the amount of numbers in the list) = 25.
+
+# Note: If you run the code p 9 / 2, it prints 4 even though the result should be 4.5. 
+# This is because when dividing integers in Ruby, the result will be an integer. 
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Create a program that asks the user to enter 5 numbers. 
+# Then, tell the user the mean average of all the numbers.
+# The mean average is defined as the sum of all the numbers 
+# divided by the count of how many numbers there are. 
+# For example, if the user enters: 11, 7, 30, 22, 55
+# the average will be 25. This is because 11 + 7 + 30 + 22 + 55 = 125, and 125 / 5 
+# (the amount of numbers in the list) = 25.
+
+# Note: If you run the code p 9 / 2, it prints 4 even though the result should be 4.5. 
+# This is because when dividing integers in Ruby, the result will be an integer. 
+puts ""Enter 5 numbers:""
+count = 0
+sum = 0
+while count < 5
+  number = gets.chomp.to_i
+  sum = sum + number
+  count = count + 1
+end
+mean = sum / 5.0
+puts mean",333.rb
+17,Week 3 Day 3 Lesson 4: Challenge problem,,"In your `prework-exercises` repository, make a file called `334.rb`.  
+Paste the code below and answer the following questions:
+```
+# Step 1: Read the problem below.
+# Step 2: Decompose the problem into smaller testable problems. DO NOT SOLVE THE PROBLEM YET.
+# Step 3: Solve each problem until you get stuck. YOU DO NOT NEED TO SOLVE THE COMPLETE PROBLEM!
+
+# QUESTION 1
+# Have the user enter 10 words, and allow for duplicate words. 
+# After the user is done, the program will tell the user 
+# which word was entered the most frequently.
+# For example, if the user enters: 
+#   apple, banana, orange, pear, apple, pear, apple, squash, apple, pear
+# The program will say: ""apple was your most common word""
+# (That's because apple appeared in the user's list 4 times, more than any other word.)
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# Step 1: Read the problem below.
+# Step 2: Decompose the problem into smaller testable problems. DO NOT SOLVE THE PROBLEM YET.
+# Step 3: Solve each problem until you get stuck. YOU DO NOT NEED TO SOLVE THE COMPLETE PROBLEM!
+
+# QUESTION 1
+# Have the user enter 10 words, and allow for duplicate words. 
+# After the user is done, the program will tell the user 
+# which word was entered the most frequently.
+# For example, if the user enters: 
+#   apple, banana, orange, pear, apple, pear, apple, squash, apple, pear
+# The program will say: ""apple was your most common word""
+# (That's because apple appeared in the user's list 4 times, more than any other word.)
+
+# Write a program to have the user enter 10 words, 
+# then print out those words.
+
+# Write a program to have the user enter 10 words,
+# then print out how many times the user entered the word ""apple"".
+
+# Write a program to have the user enter 10 words,
+# then count up how many times each word is entered using a hash.
+
+# Write a program to have the user enter 10 words,
+# then count up how many times each word is entered using a hash,
+# then print the word that has the highest count.",334.rb
+18,Week 3 Day 4 Lesson 1: Daily deliberate practice,,"In your `prework-exercises` repository, make a file called `341.rb`.  
+Paste the code below and answer the following questions:
+```
+# DELIBERATE PRACTICE REFLECTION
+# Paste a deliberate practice question you are currently working on below.
+# Write the code to solve the problem without looking at any notes or other resources.
+
+
+# Were you able to easily solve the problem from memory?
+# If so, describe the next skill you will start to practice tomorrow.
+# If not, describe the part you got stuck on that requires more practice.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,341.rb
+18,Week 3 Day 4 Lesson 2: Review problem,,"In your `prework-exercises` repository, make a file called `342.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Use a loop to create a new array with only the strings with 6 or fewer letters.
+words = [""correct"", ""horse"", ""battery"", ""staple""]
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# Use a loop to create a new array with only the strings with 6 or fewer letters.
+words = [""correct"", ""horse"", ""battery"", ""staple""]
+index = 0
+while index < words.length
+  word = words[index]
+  if word.length <= 6
+    puts word
+  end
+  index = index + 1
+end",342.rb
+18,Week 3 Day 4 Lesson 3: Synthesis problem,,"In your `prework-exercises` repository, make a file called `343.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Let's assume that there is a secret code that works this way: 
+# Every letter has its mirror from the other half of the alphabet. 
+# You can represent this secret code with the hash below.
+# Start with this hash to write a program that asks the user 
+# to enter a single word and convert it into secret code.
+converter = {
+  ""A"" => ""Z"",
+  ""B"" => ""Y"",
+  ""C"" => ""X"",
+  ""D"" => ""W"",
+  ""E"" => ""V"",
+  ""F"" => ""U"",
+  ""G"" => ""T"",
+  ""H"" => ""S"",
+  ""I"" => ""R"",
+  ""J"" => ""Q"",
+  ""K"" => ""P"",
+  ""L"" => ""O"",
+  ""M"" => ""N"",
+  ""N"" => ""M"",
+  ""O"" => ""L"",
+  ""P"" => ""K"",
+  ""Q"" => ""J"",
+  ""R"" => ""I"",
+  ""S"" => ""H"",
+  ""T"" => ""G"",
+  ""U"" => ""F"",
+  ""V"" => ""E"",
+  ""W"" => ""D"",
+  ""X"" => ""C"",
+  ""Y"" => ""B"",
+  ""Z"" => ""A""
+}
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Create a program that asks the user to enter any word.
+# Then print out the amount of points the word is worth in the game of Scrabble.
+# You can start with the hash below to determine how many points each letter is worth.
+# (As an example, the word ""bad"" is worth 3 + 1 + 2 = 6 points.)
+letter_points = { ""a"" => 1, ""b"" => 3, ""c"" => 3, ""d"" => 2, ""e"" => 1, ""f"" => 4, ""g"" => 2, ""h"" => 4, ""i"" => 1, ""j"" => 8, ""k"" => 5, ""l"" => 1, ""m"" => 3, ""n"" => 1, ""o"" => 1, ""p"" => 3, ""q"" => 10, ""r"" => 1, ""s"" => 1, ""t"" => 1, ""u"" => 1, ""v"" => 4, ""w"" => 4, ""x"" => 8, ""y"" => 4, ""z"" => 10 }
+
+puts ""Enter any word:""
+word = gets.chomp
+letters = word.split("""")
+points = 0
+index = 0
+while index < letters.length
+  puts letters[index]
+  points += letter_points[letters[index]]
+  index = index + 1
+end
+puts ""The score for this word is #{points}""",343.rb
+18,Week 3 Day 4 Lesson 4: Challenge problem,,"In your `prework-exercises` repository, make a file called `344.rb`.  
+Paste the code below and answer the following questions:
+```
+# Step 1: Read the problem below.
+# Step 2: Decompose the problem into smaller testable problems. DO NOT SOLVE THE PROBLEM YET.
+# Step 3: Solve each problem until you get stuck. YOU DO NOT NEED TO SOLVE THE COMPLETE PROBLEM!
+
+# QUESTION 1
+# Ruby has a .sort method that makes it easy to sort an array. 
+# The goal of this exercise is to implement your own sort from scratch 
+# (without using Ruby's #sort method!)
+
+# The approach you will implement is called bubble sort. 
+# First you examine the first two items in the array. 
+# If the second is smaller than the first, you swap their positions. 
+# Then you move on to the next two items and keep repeating. 
+# You can see a visual of it in action here: https://upload.wikimedia.org/wikipedia/commons/c/c8/Bubble-sort-example-300px.gif 
+
+# Your job is to implement a bubble sort that takes an array and returns a sorted array. 
+# To be clear, you're not allowed to use the built in .sort method.
+# Instead you'll write code to go through the array two items at a time 
+# to accomplish the same thing.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# Step 1: Read the problem below.
+# Step 2: Decompose the problem into smaller testable problems. DO NOT SOLVE THE PROBLEM YET.
+# Step 3: Solve each problem until you get stuck. YOU DO NOT NEED TO SOLVE THE COMPLETE PROBLEM!
+
+# QUESTION 1
+# Given an integer, write a method to return its roman numeral representation.
+# (1 is I, 2 is II, 3 is III, 4 is IV, 5 is V, 6 is VI, 7 is VII, etc.)
+# (You can see an example of all the rules here: https://byjus.com/maths/roman-numerals/#chart)
+
+# Write a method that prints ""hello"".
+
+# Write a method that takes in a number and prints out that number.
+
+# Write a method that takes in a number and returns ""I"" times the number (3 => ""III"").
+
+# Write a method that takes in a number and returns ""V"" for as many times
+# the number is divisible by 5, and returns ""I"" for the remainder.
+
+# Write a method that takes in a number and returns ""V"" for as many times
+# the number is divisible by 5, and returns ""I"" for the remainder.
+# Except if the number is 4, return ""IV"".",344.rb
+19,Week 3 Day 5 Lesson 1: Daily deliberate practice,,"In your `prework-exercises` repository, make a file called `351.rb`.  
+Paste the code below and answer the following questions:
+```
+# DELIBERATE PRACTICE REFLECTION
+# Paste a deliberate practice question you are currently working on below.
+# Write the code to solve the problem without looking at any notes or other resources.
+
+
+# Were you able to easily solve the problem from memory?
+# If so, describe the next skill you will start to practice tomorrow.
+# If not, describe the part you got stuck on that requires more practice.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,351.rb
+19,Week 3 Day 5 Lesson 2: Review problem,,"In your `prework-exercises` repository, make a file called `352.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Use a loop to create a new array with each string's first letter only.
+words = [""Big"", ""Elephants"", ""Can"", ""Always"", ""Understand"", ""Small"", ""Elephants""]
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# Use a loop to create a new array with each string's first letter only.
+words = [""Big"", ""Elephants"", ""Can"", ""Always"", ""Understand"", ""Small"", ""Elephants""]
+letters = []
+index = 0
+while index < words.length
+  letters.push(words[index][0])
+  index = index + 1
+end
+pp letters",352.rb
+19,Week 3 Day 5 Lesson 3: Synthesis problem,,"In your `prework-exercises` repository, make a file called `353.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Ancay ouyay igurefay histay neoay utoay?
+# Pig Latin is a very sophisticated language in which 
+# each English word is converted as follows: 
+# The first letter of each word is removed from the beginning and added to the end. 
+# Then, the letters 'ay' are added to the very end of the word.
+# For example: hello = ellohay, pingpong = ingpongpay, marmalade = armalademay, etc.
+# Write a program that asks the user to enter a single word 
+# and prints out the Pig Latin version of that word.
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Start your program with the line of code below.
+# The rest of your program should print out the second letter from each inner array. 
+# (The result in your terminal should be the letters b, d, f, h, j on separate lines)
+letters = [[""a"", ""b""], [""c"", ""d""], [""e"", ""f""], [""g"", ""h""], [""i"", ""j""]]
+index = 0
+while index < letters.length
+  puts letters[index][1]
+  index = index + 1
+end",353.rb
+19,Week 3 Day 5 Lesson 4: Challenge problem,,"In your `prework-exercises` repository, make a file called `354.rb`.  
+Paste the code below and answer the following questions:
+```
+# Step 1: Read the problem below.
+# Step 2: Decompose the problem into smaller testable problems. DO NOT SOLVE THE PROBLEM YET.
+# Step 3: Solve each problem until you get stuck. YOU DO NOT NEED TO SOLVE THE COMPLETE PROBLEM!
+
+# QUESTION 1
+# In a previous exercise you implemented your own sort using a bubble sort algorithm. 
+# The goal of this exercise is to implement your own sort again, 
+# this time using a different algorithm!
+
+# The approach you will implement is called insertion sort. 
+# This algorithm is similar to how you would sort a hand of playing cards being dealt to you. 
+# You insert every new card in the proper location to always keep your cards sorted. 
+# You can see a visual of it in action here: https://upload.wikimedia.org/wikipedia/commons/0/0f/Insertion-sort-example-300px.gif 
+
+# The black squares represent the items that are properly sorted. 
+# Each new item is inserted into the proper index one at a time.
+# Your job is to implement an insertion sort that takes an array and returns a sorted array. 
+# To be clear, you're not allowed to use the built in .sort method.
+# Instead you'll write code to go through the array two items at a time 
+# to accomplish the same thing.
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# Step 1: Read the problem below.
+# Step 2: Decompose the problem into smaller testable problems. DO NOT SOLVE THE PROBLEM YET.
+# Step 3: Solve each problem until you get stuck. YOU DO NOT NEED TO SOLVE THE COMPLETE PROBLEM!
+
+# QUESTION 1
+# Ruby has a .sort method that makes it easy to sort an array. 
+# The goal of this exercise is to implement your own sort from scratch 
+# (without using Ruby's #sort method!)
+
+# The approach you will implement is called bubble sort. 
+# First you examine the first two items in the array. 
+# If the second is smaller than the first, you swap their positions. 
+# Then you move on to the next two items and keep repeating. 
+# You can see a visual of it in action here: https://upload.wikimedia.org/wikipedia/commons/c/c8/Bubble-sort-example-300px.gif 
+
+# Your job is to implement a bubble sort that takes an array and returns a sorted array. 
+# To be clear, you're not allowed to use the built in .sort method.
+# Instead you'll write code to go through the array two items at a time 
+# to accomplish the same thing.
+
+# Write code that loops through an array and prints each number one at a time.
+
+# Write code that loops through an array and prints two numbers at a time.
+
+# Write code that loops through an array and compares two numbers at a time,
+# printing ""SWAP"" if the second number is smaller than the first.
+
+# Write code that loops through an array and compares two numbers at a time,
+# swapping the two numbers if the second number is smaller than the first.
+
+# Write code that loops through an array and compares two numbers at a time,
+# swapping the two numbers if the second number is smaller than the first.
+# Then add an outer loop that repeats this code n times, where n is the length of the array.",354.rb
+21,Week 4 Overview Lesson 1: Discovery,https://vimeo.com/841401053/65cb44c565,,,
+21,Week 4 Overview Lesson 2: Discovery example,https://vimeo.com/841401157/64c5a8c703,,,
+21,Week 4 Overview Lesson 3: Managing files and folders in the terminal,https://vimeo.com/841401274/cdb4080ea8,"Open Spotlight using the keyboard shortcut Command Space.
+In Spotlight, search for the word “terminal” to open a stand-alone terminal.
+Practice using the commands `ls` and `cd` to navigate to your `GitHub` folder.
+Use the commands `mkdir` and `touch` to make a new folder and file.
+Use the commands `git init`, `git add --all`, and `git commit -m ""Initial commit""` to commit your code.
+Make a new GitHub repository with the same name as your folder.
+Copy the commands from GitHub to push your folder to the GitHub repository.
+
+Explore other terminal commands: https://tldr.inbrowser.app/",,
+21,Week 4 Overview Lesson 4: Job Search Schedule,https://vimeo.com/841401372/3d7974c90f,"In your `prework-exercises` repository, make a file called `404.rb`.  
+Paste the code below and follow the instructions:
+```
+# QUESTION 1
+# If you do have a full-time job or other daytime commitments:
+#     Make a copy of the Job Search Schedules - Evenings/Weekends Google Document.
+#     https://docs.google.com/document/d/1dlSQcCimFHJqcyJggmeZWv4vmBnbos-zNsH8vdeA_D8/copy 
+# If you do not have a full-time job or other daytime commitments:
+#     Make a copy of the Job Search Schedules - Daytime Google Document.
+#     https://docs.google.com/document/d/1YpdKGuinjqcNLcER5r4mAtkQYZ0tWdtZoor83wSUuIw/copy  
+# At the top of the document, write answers to the following questions: 
+#     Which schedule version are you choosing?
+#     Why do you feel it works best for you?
+# Change the sharing settings of the document to ""Anyone with the link can view"" 
+# Copy the link to your Job Search Schedules document and paste it below.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,404.rb
+22,Week 4 Day 1 Lesson 1: Daily deliberate practice,,"In your `prework-exercises` repository, make a file called `411.rb`.  
+Paste the code below and answer the following questions:
+```
+# DELIBERATE PRACTICE REFLECTION
+# Paste a deliberate practice question you are currently working on below.
+# Write the code to solve the problem without looking at any notes or other resources.
+
+
+# Were you able to easily solve the problem from memory?
+# If so, describe the next skill you will start to practice tomorrow.
+# If not, describe the part you got stuck on that requires more practice.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,411.rb
+22,Week 4 Day 1 Lesson 2: Review problem,,"In your `prework-exercises` repository, make a file called `412.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write a method that takes in an array of numbers and returns its sum.
+# Then run the method and print the result.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Write a method that takes in an array of numbers and returns its sum.
+# Then run the method and print the result.
+def sum_array(numbers)
+  sum = 0
+  index = 0
+  while index < numbers.length
+    sum = sum + numbers[index]
+    index = index + 1
+  end
+  sum
+end
+
+puts sum_array([1, 2, 3])",412.rb
+22,Week 4 Day 1 Lesson 3: Discovery in reading code,,"In your `prework-exercises` repository, make a file called `413.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# The following code uses the geocoder Ruby library.
+# First read the library documentation: https://github.com/alexreisner/geocoder 
+# Then write comments next to each line explaining what you think the code is doing.
+require ""geocoder""
+
+addresses = [
+  ""1600 Amphitheatre Parkway, Mountain View, CA"",
+  ""1 Infinite Loop, Cupertino, CA"",
+  ""350 5th Ave, New York, NY"",
+]
+
+addresses.each do |address|
+  result = Geocoder.search(address).first
+  if result
+    latitude = result.latitude
+    longitude = result.longitude
+    
+    puts ""Address: #{address}""
+    puts ""Latitude: #{latitude}""
+    puts ""Longitude: #{longitude}""
+    puts ""---""
+  else
+    puts ""Unable to geocode address: #{address}""
+  end
+end
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# The following code uses the geocoder Ruby library.
+# First read the library documentation: https://github.com/alexreisner/geocoder 
+# Then write comments next to each line explaining what you think the code is doing.
+require ""geocoder""                                   # load the library
+
+addresses = [                                        # define addresses as strings
+  ""1600 Amphitheatre Parkway, Mountain View, CA"",
+  ""1 Infinite Loop, Cupertino, CA"",
+  ""350 5th Ave, New York, NY"",
+]
+
+addresses.each do |address|                          # loop through each address
+  result = Geocoder.search(address).first            # use the Geocoder library to find the first matching lat/long
+  if result                                          # check if the address was found
+    latitude = result.latitude                       # save the latitude into a variable
+    longitude = result.longitude                     # save the longitude into a variable
+    
+    puts ""Address: #{address}""                       # print the info to the screen
+    puts ""Latitude: #{latitude}""
+    puts ""Longitude: #{longitude}""
+    puts ""---""
+  else
+    puts ""Unable to geocode address: #{address}""     # print a message if the address wasn't found
+  end
+end",413.rb
+22,Week 4 Day 1 Lesson 4: Discovery in writing code,,"In your `prework-exercises` repository, make a file called `414.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Read about the Ruby File class: https://rubyapi.org/3.2/o/s?q=file
+# Then write a program that creates a file called example.txt with the 
+# sentence ""This is an example!"" in it.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Read about the Ruby File class: https://rubyapi.org/3.2/o/s?q=file
+# Then write a program that creates a file called example.txt with the 
+# sentence ""This is an example!"" in it.
+File.write('example.txt', ""This is an example!"")",414.rb
+23,Week 4 Day 2 Lesson 1: Daily deliberate practice,,"In your `prework-exercises` repository, make a file called `421.rb`.  
+Paste the code below and answer the following questions:
+```
+# DELIBERATE PRACTICE REFLECTION
+# Paste a deliberate practice question you are currently working on below.
+# Write the code to solve the problem without looking at any notes or other resources.
+
+
+# Were you able to easily solve the problem from memory?
+# If so, describe the next skill you will start to practice tomorrow.
+# If not, describe the part you got stuck on that requires more practice.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,421.rb
+23,Week 4 Day 2 Lesson 2: Review problem,,"In your `prework-exercises` repository, make a file called `422.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write a method that takes in a string and a number n and returns the string repeated n times.
+# Then run the method and print the result.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Write a method that takes in a string and a number n and returns the string repeated n times.
+# Then run the method and print the result.
+def string_repeater(word, n)
+  word * n
+end
+
+puts string_repeater(""hello"", 3)",422.rb
+23,Week 4 Day 2 Lesson 3: Discovery in reading code,,"In your `prework-exercises` repository, make a file called `423.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# The following code uses the faker Ruby library.
+# First read the library documentation: https://github.com/faker-ruby/faker 
+# Then write comments next to each line explaining what you think the code is doing.
+require 'faker'
+
+fake_data = []
+100.times do
+  name = Faker::Name.name
+  email = Faker::Internet.email(name: name)
+  fake_data << { name: name, email: email }
+end
+
+fake_data.each do |item|
+  puts ""Fake Name: #{item[:name]}""
+  puts ""Fake Email: #{item[:email]}""
+  puts ""---""
+end
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# The following code uses the faker Ruby library.
+# First read the library documentation: https://github.com/faker-ruby/faker 
+# Then write comments next to each line explaining what you think the code is doing.
+require 'faker'                              # load the faker library 
+
+fake_data = []                               # make an empty array to store fake data
+100.times do                                 # loop 100 times
+  name = Faker::Name.name                    # make a fake name
+  email = Faker::Internet.email(name: name)  # make a fake email
+  fake_data << { name: name, email: email }  # push the fake data as a hash into the fake_data array
+end
+
+fake_data.each do |item|                     # loop through the fake_data array
+  puts ""Fake Name: #{item[:name]}""           # print out the fake data using string interpolation
+  puts ""Fake Email: #{item[:email]}""
+  puts ""---""
+end",423.rb
+23,Week 4 Day 2 Lesson 4: Discovery in writing code,,"In your `prework-exercises` repository, make a file called `424.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Read about the Ruby map method: https://www.rubyguides.com/2018/10/ruby-map-method/ 
+# Then write a program that uses the map method with an array of numbers 
+# to create a new array with each number multiplied by 100.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Read about the Ruby map method: https://www.rubyguides.com/2018/10/ruby-map-method/ 
+# Then write a program that uses the map method with an array of numbers 
+# to create a new array with each number multiplied by 100.
+numbers = [1, 2, 3]
+pp numbers.map { |number| number * 100 }",424.rb
+24,Week 4 Day 3 Lesson 1: Daily deliberate practice,,"In your `prework-exercises` repository, make a file called `431.rb`.  
+Paste the code below and answer the following questions:
+```
+# DELIBERATE PRACTICE REFLECTION
+# Paste a deliberate practice question you are currently working on below.
+# Write the code to solve the problem without looking at any notes or other resources.
+
+
+# Were you able to easily solve the problem from memory?
+# If so, describe the next skill you will start to practice tomorrow.
+# If not, describe the part you got stuck on that requires more practice.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,431.rb
+24,Week 4 Day 3 Lesson 2: Review problem,,"In your `prework-exercises` repository, make a file called `432.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write a method that takes in an array of numbers and returns the mean average.
+# Then run the method and print the result.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Write a method that takes in an array of numbers and returns the mean average.
+# Then run the method and print the result.
+def mean(numbers)
+  sum = 0
+  index = 0
+  while index < numbers.length
+    sum = sum + numbers[index]
+    index = index + 1
+  end
+  sum / numbers.length.to_f
+end
+
+puts mean([1, 2, 3, 4])",432.rb
+24,Week 4 Day 3 Lesson 3: Discovery in reading code,,"In your `prework-exercises` repository, make a file called `433.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# The following code uses the csv Ruby library.
+# First read this tutorial on the library: https://www.rubyguides.com/2018/10/parse-csv-ruby/ 
+# Then write comments next to each line explaining what you think the code is doing.
+require 'csv'
+
+def read_csv(file_path)
+  data = []
+  CSV.foreach(file_path, headers: true) do |row|
+    data << row.to_h
+  end
+  data
+end
+
+file_path = 'data.csv'
+data = [
+  { name: 'John Doe', age: 30, city: 'New York' },
+  { name: 'Jane Smith', age: 25, city: 'San Francisco' },
+  { name: 'Bob Johnson', age: 35, city: 'Chicago' }
+]
+write_csv(file_path, data)
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# The following code uses the csv Ruby library.
+# First read this tutorial on the library: https://www.rubyguides.com/2018/10/parse-csv-ruby/ 
+# Then write comments next to each line explaining what you think the code is doing.
+require 'csv'                                               # load the csv library
+
+def write_csv(file_path, data)                              # define a method with a file path string and data array arguments
+  headers = data.first.keys                                 # define the headers from the keys of the first row's hash
+  CSV.open(                                                 # make a new csv object with the following arguments:
+    file_path,                                              #   the filename to save the csv data
+    'w',                                                    #   set the file to ""write"" mode
+    write_headers: true,                                    #   include headers in the first row
+    headers: headers                                        #   pass in the header data
+  ) do |csv|                                                # save the csv object in a variable called csv
+    data.each do |row|                                      # loop through the given data
+      csv << row.values                                     # push the values from each row into the csv
+    end
+  end
+end
+
+file_path = 'data.csv'                                      # Define the file path to save the csv data into
+data = [                                                    # Define the data to save as an array of hashes
+  { name: 'John Doe', age: 30, city: 'New York' },
+  { name: 'Jane Smith', age: 25, city: 'San Francisco' },
+  { name: 'Bob Johnson', age: 35, city: 'Chicago' }
+]
+write_csv(file_path, data)",433.rb
+24,Week 4 Day 3 Lesson 4: Discovery in writing code,,"In your `prework-exercises` repository, make a file called `434.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Read about regular expressions in Ruby:
+# http://ruby-for-beginners.rubymonstas.org/advanced/regular_expressions.html 
+# Then write a program that takes in a string and prints out 
+# the total number of numbers found in the string using regular expressions. 
+# For example, given the string ""Pg7USm29ln"", the program would print 3 since
+# there are 3 total numbers (7, 2, and 9) in the string.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Read about regular expressions in Ruby:
+# http://ruby-for-beginners.rubymonstas.org/advanced/regular_expressions.html 
+# Then write a program that takes in a string and prints out 
+# the total number of numbers found in the string using regular expressions. 
+# For example, given the string ""Pg7USm29ln"", the program would print 3 since
+# there are 3 total numbers (7, 2, and 9) in the string.
+word = ""Pg7USm29ln""
+puts word.scan(/\d/).length",434.rb
+25,Week 4 Day 4 Lesson 1: Daily deliberate practice,,"In your `prework-exercises` repository, make a file called `441.rb`.  
+Paste the code below and answer the following questions:
+```
+# DELIBERATE PRACTICE REFLECTION
+# Paste a deliberate practice question you are currently working on below.
+# Write the code to solve the problem without looking at any notes or other resources.
+
+
+# Were you able to easily solve the problem from memory?
+# If so, describe the next skill you will start to practice tomorrow.
+# If not, describe the part you got stuck on that requires more practice.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,441.rb
+25,Week 4 Day 4 Lesson 2: Review problem,,"In your `prework-exercises` repository, make a file called `442.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write a method that takes in an array of numbers and returns an array with every number doubled.
+# Then run the method and print the result.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Write a method that takes in an array of numbers and returns an array with every number doubled.
+# Then run the method and print the result.
+def doubler(numbers)
+  result = []
+  index = 0
+  while index < numbers.length
+    result.push(numbers[index] * 2)
+    index = index + 1
+  end
+  result
+end
+
+pp doubler([1, 2, 3])",442.rb
+25,Week 4 Day 4 Lesson 3: Discovery in reading code,,"In your `prework-exercises` repository, make a file called `443.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# The following code uses the money Ruby library.
+# First read the library documentation: https://github.com/RubyMoney/money 
+# Then write comments next to each line explaining what you think the code is doing.
+require ""money""
+
+I18n.enforce_available_locales = false
+I18n.locale = :en
+Money.default_currency = ""USD""
+Money.add_rate(""CAD"", ""USD"", 0.8)
+
+money1 = Money.new(1000)
+money2 = Money.new(500, ""CAD"")
+result = money1 + money2
+puts ""Total: #{result}""
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# The following code uses the money Ruby library.
+# First read the library documentation: https://github.com/RubyMoney/money 
+# Then write comments next to each line explaining what you think the code is doing.
+require ""money""                          # load the money library
+
+I18n.enforce_available_locales = false   # disable I18n (internationalization) from validating locales if they are not installed
+I18n.locale = :en                        # set the I18n locale to english
+Money.default_currency = ""USD""           # set the default currency to dollars
+Money.add_rate(""CAD"", ""USD"", 0.8)        # set the exchange rate between CAD to USD
+
+money1 = Money.new(1000)                 # make a variable to store 1000 pennies in USD (default)
+money2 = Money.new(500, ""CAD"")           # make a variable to store 500 pennies CAD
+result = money1 + money2                 # add the two amounts together
+puts ""Total: #{result}""                  # print the amount in US dollars",443.rb
+25,Week 4 Day 4 Lesson 4: Discovery in writing code,,"In your `prework-exercises` repository, make a file called `444.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Read about the Ruby select method: https://www.rubyguides.com/2019/04/ruby-select-method/ 
+# Then write a program that uses the select method with an array of strings 
+# to create a new array with only the strings that start with the letter ""a"".
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Read about the Ruby select method: https://www.rubyguides.com/2019/04/ruby-select-method/ 
+# Then write a program that uses the select method with an array of strings 
+# to create a new array with only the strings that start with the letter ""a"".
+words = [""apple"", ""pear"", ""apricot"", ""peach"", ""avacado"", ""plum""]
+pp words.select { |word| word[0] == ""a"" }",444.rb
+26,Week 4 Day 5 Lesson 1: Daily deliberate practice,,"In your `prework-exercises` repository, make a file called `451.rb`.  
+Paste the code below and answer the following questions:
+```
+# DELIBERATE PRACTICE REFLECTION
+# Paste a deliberate practice question you are currently working on below.
+# Write the code to solve the problem without looking at any notes or other resources.
+
+
+# Were you able to easily solve the problem from memory?
+# If so, describe the next skill you will start to practice tomorrow.
+# If not, describe the part you got stuck on that requires more practice.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,451.rb
+26,Week 4 Day 5 Lesson 2: Review problem,,"In your `prework-exercises` repository, make a file called `452.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write a method that takes in an array of strings and returns an array of the small strings
+# where the length of each string is 4 or fewer letters.
+# Then run the method and print the result.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Write a method that takes in an array of strings and returns an array of the small strings
+# where the length of each string is 4 or fewer letters.
+# Then run the method and print the result.
+def small_strings(strings)
+  result = []
+  index = 0
+  while index < strings.length
+    string = strings[index]
+    if string.length <= 4
+      result.push(string)
+    end
+    index = index + 1
+  end
+  result
+end
+
+pp small_strings([""a"", ""man"", ""a"", ""plan"", ""a"", ""canal"", ""panama""])",452.rb
+26,Week 4 Day 5 Lesson 3: Discovery in reading code,,"In your `prework-exercises` repository, make a file called `453.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# The following code uses the sqlite3 Ruby library.
+# First read the library documentation: https://github.com/sparklemotion/sqlite3-ruby 
+# Then write comments next to each line explaining what you think the code is doing.
+require 'sqlite3'
+
+db = SQLite3::Database.open 'test.db'
+db.results_as_hash = true
+db.execute ""CREATE TABLE IF NOT EXISTS images(path TEXT, thumbs_up INT)""
+
+image_path = 'image1.png'
+results = db.query ""SELECT path, thumbs_up FROM images WHERE path=?"", image_path
+
+first_result = results.next
+if first_result
+  puts first_result['thumb_up']
+else
+  puts 'No results found.'
+end
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# The following code uses the sqlite3 Ruby library.
+# First read the library documentation: https://github.com/sparklemotion/sqlite3-ruby 
+# Then write comments next to each line explaining what you think the code is doing.
+require 'sqlite3'                                                                  # load the sqlite3 library
+
+db = SQLite3::Database.open 'test.db'                                              # create a new sqlite3 file called test.db
+db.results_as_hash = true                                                          # configure the db to return data as a Ruby hash
+db.execute ""CREATE TABLE IF NOT EXISTS images(path TEXT, thumbs_up INT)""           # create a new images database table to store a path and thumbs_up
+
+image_path = 'image1.png'                                                          # define an image path
+results = db.query ""SELECT path, thumbs_up FROM images WHERE path=?"", image_path   # look for the image in the database
+
+first_result = results.next                                                        # store the first result in a variable
+if first_result                                                                    # check if the first result exists
+  puts first_result['thumb_up']                                                    #   if so, print the thumbs_up value
+else
+  puts 'No results found.'                                                         #   if not, print 'No results found.'
+end",453.rb
+26,Week 4 Day 5 Lesson 4: Discovery in writing code,,"In your `prework-exercises` repository, make a file called `454.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Read about the Ruby begin and rescue keywords to handle exceptions:
+# https://docs.ruby-lang.org/en/3.2/syntax/exceptions_rdoc.html
+# Then write a program that would crash because of a division by zero error.
+# Instead of crashing with a normal error message, the program should instead
+# print ""You cannot divide by zero"" to the terminal.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Read about the Ruby begin and rescue keywords to handle exceptions:
+# https://docs.ruby-lang.org/en/3.2/syntax/exceptions_rdoc.html
+# Then write a program that would crash because of a division by zero error.
+# Instead of crashing with a normal error message, the program should instead
+# print ""You cannot divide by zero"" to the terminal.
+begin
+  x = 9 / 0
+  puts x
+rescue ZeroDivisionError
+  puts ""You cannot divide by zero""
+end",454.rb
+28,Week 5 Overview Lesson 1: Learn how to learn summary,https://vimeo.com/841746343/69351ff4b9,,,
+28,Week 5 Overview Lesson 2: Learning new languages,https://vimeo.com/841746441/fc0ca7d4da,,,
+29,Week 5 Day 1 Lesson 1: Daily deliberate practice,,"In your `prework-exercises` repository, make a file called `511.rb`.  
+Paste the code below and answer the following questions:
+```
+# DELIBERATE PRACTICE REFLECTION
+# Paste a deliberate practice question you are currently working on below.
+# Write the code to solve the problem without looking at any notes or other resources.
+
+
+# Were you able to easily solve the problem from memory?
+# If so, describe the next skill you will start to practice tomorrow.
+# If not, describe the part you got stuck on that requires more practice.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,511.rb
+29,Week 5 Day 1 Lesson 2: Review problem,,"In your `prework-exercises` repository, make a file called `512.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write a method that takes in the person hash below and increases the age by 1.
+# Then run the method and print the person hash to see if the hash was changed.
+person = { name: ""Shawn"", age: 25 }
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Write a method that takes in the person hash below and increases the age by 1.
+# Then run the method and print the person hash to see if the hash was changed.
+def increase_age(person)
+  person[:age] = person[:age] + 1
+end
+
+person = { name: ""Shawn"", age: 25 }
+increase_age(person)
+pp person",512.rb
+29,Week 5 Day 1 Lesson 3: HTML elements,https://vimeo.com/841746456/9ae07f525a,"In your `prework-exercises` repository, make a file called `513.html`.  
+(Note: be sure to name the file with a .html extension!)  
+
+Then write HTML to represent a cooking recipe. While you can  use a real recipe,  
+fake recipes are so much more fun. Please include the following HTML elements:  
+`<h1>`, `<h2>`, `<h3>`, `<p>`, `<ol>`, `<li>`. and `<ul>`. 
+
+To view your HTML file, use the terminal to run the command `open 513.html`.
+
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","<h2>Delicious Sauce Recipe</h2>
+<h3>Sauce Ingredients</h3>
+<ul>
+  <li>8 cups of maid's milk</li>
+  <li>11 piping bags of piping-hot chicken stock</li>
+  <li>12 drums of vegetable oil</li>
+</ul>
+<ol>
+  Steps to prepare tasty sauce:
+  <li>
+    Have 9 ladies combine the ingredients in a bowl, mix them, and then dance
+    around with them in the bowl. Have each lady take a turn with the bowl.
+  </li>
+  <li>
+    The ladies' bowl dancing now being complete, have 10 lords leap around with
+    the bowl. Be sure that each lord gets a turn with the bowl.
+  </li>
+  <li>Ladle and serve on the pie.</li>
+</ol>",513.html
+29,Week 5 Day 1 Lesson 4: HTML attributes,https://vimeo.com/841746511/7069ac2f8b,"In your `prework-exercises` repository, make a file called `514.html`.  
+(Note: be sure to name the file with a .html extension!)  
+
+Copy the HTML recipe from the previous exercise.  
+Then add at least three links and two images to your recipe page.  
+
+To view your HTML file, use the terminal to run the command `open 514.html`.
+
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","<!DOCTYPE html>
+<html>
+  <head>
+    <title>12 Days of Christmas Pie Recipe</title>
+  </head>
+  <body>
+    <h1>12 Days of Christmas Pie</h1>
+    <img src=""http://christmasfoodrecipes.com/files/2013/11/Christmas-Pie.jpg"">
+    <p>This sumptuous holiday delicacy is rarely served in today's ""on-the-go, on-demand"" society because of the difficulty of not only the procurement of the ingredients, but also because of the difficulty in preparing said ingredients. Traditionally served at Welsh mid-winter feasts, the <strong>12 Days of Christmas Pie</strong> will delight the senses and satiate the hunger of the most ardent <em>gourmand</em>. 
+    </p>
+    <h2>Ingredients</h2>
+    <img src=""https://www.purelypoultry.com/images/embden-geese.jpg"">
+    <ul>
+      <li>1 cup partridge, feathers on</li>
+      <li>2oz turtle dove</li>
+      <li>3 french hens, quartered, berets included</li>
+      <li>4 calling birds, preferably muted</li>
+      <li>5lbs. golden onion rings</li>
+      <li>6 geese, preferably a-laying eggs</li>
+      <li>7 whole swans, feathers removed</li>
+    </ul>
+    <p>If you need a good prep knife, I suggest going to <a href=""https://www.amazon.com/s/ref=nb_sb_noss?url=search-alias%3Dgarden&field-keywords=chef%27s+knife&rh=n%3A1055398%2Ck%3Achef%27s+knife"">Amazon</a> for the best prices.</p>
+    <h2>Hearty Pie Filling</h2>
+    <ol>Steps to preparing the heartiest of pie fillings:
+      <li>Pre-heat the oven to 350F, and rub butter over the surfaces of the fowl.</li>
+      <li>Combine the partridge, turtle dove, and onion rings in a food processor until combined.</li>
+      <li>Place the mixture inside of the french hens.</li>
+      <li>Stuff the french hens and calling birds into the geese. Expect the geese to protest. Rather vigorously, I should expect.</li>
+      <li>Tie the swans and stuffed geeese together with twine, and place on a baking sheet. Place the sheet in the oven, on the bottom rack.</li>
+     <li>Cook for 30min., then flip the bound fowl and cook for another 10min., or until tender.</li>
+    </ol>
+    <h2>Delicious Sauce Recipe</h2>
+    <h3>Sauce Ingredients</h3>
+    <ul>
+     <li>8 cups of maid's milk</li>
+     <li>11 piping bags of piping-hot chicken stock</li>
+     <li>12 drums of vegetable oil</li>
+    </ul>
+    <ol>Steps to prepare tasty sauce:
+      <li>Have 9 ladies combine the ingredients in a bowl, mix them, and then dance around with them in the bowl. Have each lady take a turn with the bowl.</li>
+      <li>The ladies' bowl dancing now being complete, have 10 lords leap around with the bowl. Be sure that each lord gets a turn with the bowl.</li>
+      <li>Ladle and serve on the pie.</li>
+    </ol>
+    <h5>Curious history of the ladle</h5>
+    <p><a href=""https://en.wikipedia.org/wiki/Ladle_(spoon)"">Ladles</a></p>
+  </body>
+</html>",514.html
+29,Week 5 Day 1: Optional Additional Resources,,"- https://developer.mozilla.org/en-US/docs/Learn/HTML  
+- https://developer.mozilla.org/en-US/docs/Web/HTML/Reference  
+- https://developer.mozilla.org/en-US/docs/Learn/HTML/Howto  
+- https://developer.mozilla.org/en-US/docs/Learn/Accessibility/HTML",,
+30,Week 5 Day 2 Lesson 1: Daily deliberate practice,,"In your `prework-exercises` repository, make a file called `521.rb`.  
+Paste the code below and answer the following questions:
+```
+# DELIBERATE PRACTICE REFLECTION
+# Paste a deliberate practice question you are currently working on below.
+# Write the code to solve the problem without looking at any notes or other resources.
+
+
+# Were you able to easily solve the problem from memory?
+# If so, describe the next skill you will start to practice tomorrow.
+# If not, describe the part you got stuck on that requires more practice.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,521.rb
+30,Week 5 Day 2 Lesson 2: Review problem,,"In your `prework-exercises` repository, make a file called `522.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write a method that takes in the array of hashes below 
+# and returns a new array of strings from the model of each item. 
+# Then run the method and print the result.
+cars = [
+  { ""make"" => ""Toyota"", ""model"" => ""Corolla"", ""year"" => 2018 },
+  { ""make"" => ""Honda"", ""model"" => ""Civic"", ""year"" => 2020 },
+  { ""make"" => ""Ford"", ""model"" => ""Mustang"", ""year"" => 2019 }
+]
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Write a method that takes in the array of hashes below 
+# and returns a new array of strings from the model of each item. 
+# Then run the method and print the result.
+def models(cars)
+  result = []
+  index = 0
+  while index < cars.length
+    car = cars[index]
+    result.push(car[""model""])
+    index = index + 1
+  end
+  result
+end
+
+cars = [
+  { ""make"" => ""Toyota"", ""model"" => ""Corolla"", ""year"" => 2018 },
+  { ""make"" => ""Honda"", ""model"" => ""Civic"", ""year"" => 2020 },
+  { ""make"" => ""Ford"", ""model"" => ""Mustang"", ""year"" => 2019 }
+]
+pp models(cars)",522.rb
+30,Week 5 Day 2 Lesson 3: CSS properties,https://vimeo.com/841746548/a6d95ace50,"In your `prework-exercises` repository, make a file called `523.html`.  
+(Note: be sure to name the file with a .html extension!)  
+
+Paste the HTML code below:
+```
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Exercise</title>
+    <link rel=""stylesheet"" href=""523.css"">
+  </head>
+  <body>
+    <h1>Week 5 Day 2 Lesson 3: CSS properties</h1>
+  </body>
+</html>
+```
+In your `prework-exercises` repository, make a file called `523.css`.  
+(Note: be sure to name the file with a .css extension!)  
+
+Then write the CSS to customize the `<h1>` element's color, background color,  
+and font properties. Feel free to customize other properties as well!
+
+To view the styled HTML, use the terminal to run the command `open 523.html`.  
+
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","h1 {
+  color: red;
+  background-color: black;
+  font-size: 5em;
+}",523.css
+30,Week 5 Day 2 Lesson 4: CSS selectors,https://vimeo.com/841746609/a32c95739e,"In your `prework-exercises` repository, make a file called `524.html`.  
+(Note: be sure to name the file with a .html extension!)  
+
+Paste the HTML code below:
+```
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Exercise</title>
+    <link rel=""stylesheet"" href=""524.css"">
+  </head>
+  <body>
+    <h1>Week 5 Day 2 Lesson 4: CSS selectors</h1>
+    <h2>To do list</h2>
+    <ol>
+      <li>Plan birthday party</li>
+      <li>Back up computer</li>
+      <li>Change air filters</li>
+    </ol>
+    <h2>Shopping list</h2>
+    <ul>
+      <li>Eggs</li>
+      <li>Brown rice</li>
+      <li>Apples</li>
+    </ul>
+  </body>
+</html>
+```
+In your `prework-exercises` repository, make a file called `524.css`.  
+(Note: be sure to name the file with a .css extension!)  
+
+Then write the CSS to style the following:  
+Change the color of all the header elements to green.  
+Change the color of all the ordered <li> elements in the To do list to red.  
+Change the color of only the first <li> element in the unordered Shopping list to blue.  
+(You can add class attributes to the HTML as needed).  
+
+To view the styled HTML, use the terminal to run the command `open 524.html`.  
+
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","h1, h2 {
+  color: green;
+}
+
+ol li {
+  color: red;
+}
+
+.blue {
+  color: blue; 
+}",524.css
+30,Week 5 Day 2: Optional Additional Resources,,"- https://developer.mozilla.org/en-US/docs/Learn/CSS  
+- https://developer.mozilla.org/en-US/docs/Web/CSS/Reference",,
+31,Week 5 Day 3 Lesson 1: Daily deliberate practice,,"In your `prework-exercises` repository, make a file called `531.rb`.  
+Paste the code below and answer the following questions:
+```
+# DELIBERATE PRACTICE REFLECTION
+# Paste a deliberate practice question you are currently working on below.
+# Write the code to solve the problem without looking at any notes or other resources.
+
+
+# Were you able to easily solve the problem from memory?
+# If so, describe the next skill you will start to practice tomorrow.
+# If not, describe the part you got stuck on that requires more practice.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,531.rb
+31,Week 5 Day 3 Lesson 2: Review problem,,"In your `prework-exercises` repository, make a file called `532.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write a method called `check_power_level` that asks the user to enter a number.
+# If the number is greater than 9000, it will print ""BIG"" to the screen.
+# Otherwise, it will print ""SMALL"" to the screen.
+# Then run the method to see the result.
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Write a method called `check_power_level` that asks the user to enter a number.
+# If the number is greater than 9000, it will print ""BIG"" to the screen.
+# Otherwise, it will print ""SMALL"" to the screen.
+# Then run the method to see the result.
+def check_power_level
+  puts ""Enter a number:""
+  number = gets.chomp.to_i
+  if number > 9000
+    puts ""BIG""
+  else
+    puts ""SMALL""
+  end
+end
+
+check_power_level",532.rb
+31,Week 5 Day 3 Lesson 3: Real world HTML,https://vimeo.com/841746674/29657d8b9d,"In your `prework-exercises` repository, make a file called `about.html`.  
+(Note: be sure to name the file with a .html extension!)  
+
+Then write the HTML to create an About Me page. An About Me page  
+should be about you, and is commonly found on blogs.  
+Please include the following HTML elements:  
+`<header>`, `<main>`, `<section>`, and `<footer>`. 
+
+To view your HTML file, use the terminal to run the command `open about.html`.
+
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,about.html
+31,Week 5 Day 3 Lesson 4: Real world CSS,https://vimeo.com/841746806/eaa3992833,"In your `prework-exercises` repository, make a file called `about.css`.  
+(Note: be sure to name the file with a .css extension!)  
+
+In your `about.html` file, add a `<link>` element to link to the `about.css` file.  
+In your `about.css` file, use the techniques from the video lesson  
+to style your website. Feel free to customize the details to your liking!
+
+To view your styled HTML, use the terminal to run the command `open about.html`.
+
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,about.css
+31,Week 5 Day 3: Optional Additional Resources,,"- https://jgthms.com/web-design-in-4-minutes/ (the day 3 lessons were based on this guide)  
+- https://www.pierrickcalvez.com/journal/a-five-minute-guide-to-better-typography",,
+32,Week 5 Day 4 Lesson 1: Daily deliberate practice,,"In your `prework-exercises` repository, make a file called `541.rb`.  
+Paste the code below and answer the following questions:
+```
+# DELIBERATE PRACTICE REFLECTION
+# Paste a deliberate practice question you are currently working on below.
+# Write the code to solve the problem without looking at any notes or other resources.
+
+
+# Were you able to easily solve the problem from memory?
+# If so, describe the next skill you will start to practice tomorrow.
+# If not, describe the part you got stuck on that requires more practice.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,541.rb
+32,Week 5 Day 4 Lesson 2: Review problem,,"In your `prework-exercises` repository, make a file called `542.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write a method that takes in an array of numbers 
+# and returns a count of how many times the number 100 appeared in the array. 
+# Then run the method and print the result.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Write a method that takes in an array of numbers 
+# and returns a count of how many times the number 100 appeared in the array. 
+# Then run the method and print the result.
+def count_100s(numbers)
+  result = 0
+  index = 0
+  while index < numbers.length
+    if numbers[index] == 100
+      result = result + 1
+    end
+    index = index + 1
+  end
+  result
+end
+
+puts count_100s([200, 100, 400, 100, 800])",542.rb
+32,Week 5 Day 4 Lesson 3: JavaScript syntax,https://vimeo.com/841746948/bce452cf9d,"In your `prework-exercises` repository, make a file called `543.html`.  
+(Note: be sure to name the file with a .html extension!)  
+
+Paste the HTML code below:
+```
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Exercise</title>
+    <script src=""543.js""></script>
+  </head>
+  <body>
+    <h1>Week 5 Day 4 Lesson 3: JavaScript syntax</h1>
+  </body>
+</html>
+```
+In your `prework-exercises` repository, make a file called `543.js`.  
+(Note: be sure to name the file with a .js extension!)  
+
+Paste the code below and answer the following questions:
+```
+// QUESTION 1
+// Write code to store an array of numbers.
+// The print out the last item in that array.
+
+
+// QUESTION 2
+// Write code to store a number in a variable.
+// Then write a condition that 
+// prints -1 if the number is less than 10, 
+// prints 1 if the number is greater than 10, 
+// and prints 0 if the number is equal to 10.
+
+
+```
+To view the JavaScript output, use the terminal to run the command `open 543.html`.  
+Then in the Chrome web browser, open the JavaScript console from the menu:  
+View -> Developer -> JavaScript Console
+
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","// QUESTION 1
+// Write code to store an array of numbers.
+// The print out the last item in that array.
+var numbers = [1, 2, 3];
+console.log(numbers[2]);
+
+// QUESTION 2
+// Write code to store a number in a variable.
+// Then write a condition that 
+// prints -1 if the number is less than 10, 
+// prints 1 if the number is greater than 10, 
+// and prints 0 if the number is equal to 10.
+var number = 10;
+if (number < 10) {
+  console.log(-1);
+} else if (number > 10) {
+  console.log(1);
+} else {
+  console.log(0);
+}",543.js
+32,Week 5 Day 4 Lesson 4: JavaScript interactivity,https://vimeo.com/841747032/a812e7582d,"In your `prework-exercises` repository, make a file called `544.html`.  
+(Note: be sure to name the file with a .html extension!)  
+
+Paste the HTML code below:
+```
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Exercise</title>
+    <link rel=""stylesheet"" href=""544.css"">
+    <script src=""544.js""></script>
+  </head>
+  <body>
+    <h1>Week 5 Day 4 Lesson 4: JavaScript interactivity</h1>
+  </body>
+</html>
+```
+In your `prework-exercises` repository, make a file called `544.css`.  
+(Note: be sure to name the file with a .css extension!)  
+
+In your `prework-exercises` repository, make a file called `544.js`.  
+(Note: be sure to name the file with a .js extension!)  
+
+Choose an example from https://www.w3schools.com/howto/default.asp.  
+Copy the HTML/CSS/JS code into your own files to see if you can get it working.  
+If you get it to work, try to modify the code in different ways to explore how it works!
+
+To view the HTML file, use the terminal to run the command `open 544.html`.  
+
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,544.js
+32,Week 5 Day 4: Optional Additional Resources,,"- https://developer.mozilla.org/en-US/docs/Learn/JavaScript   
+- https://www.w3schools.com/js/js_intro.asp",,
+33,Week 5 Day 5 Lesson 1: Daily deliberate practice,,"In your `prework-exercises` repository, make a file called `551.rb`.  
+Paste the code below and answer the following questions:
+```
+# DELIBERATE PRACTICE REFLECTION
+# Paste a deliberate practice question you are currently working on below.
+# Write the code to solve the problem without looking at any notes or other resources.
+
+
+# Were you able to easily solve the problem from memory?
+# If so, describe the next skill you will start to practice tomorrow.
+# If not, describe the part you got stuck on that requires more practice.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,551.rb
+33,Week 5 Day 5 Lesson 2: Review problem,,"In your `prework-exercises` repository, make a file called `552.rb`.  
+Paste the code below and answer the following questions:
+```
+# QUESTION 1
+# Write a method that takes in three strings and uses string interpolation 
+# to return all three strings combined with spaces in between as a single string. 
+# Then run the method and print the result.
+
+
+```
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```","# QUESTION 1
+# Write a method that takes in three strings and uses string interpolation 
+# to return all three strings combined with spaces in between as a single string. 
+# Then run the method and print the result.
+def combiner(a, b, c)
+  ""#{a} #{b} #{c}""
+end
+
+puts combiner(""one"", ""two"", ""three"")",552.rb
+33,Week 5 Day 5 Lesson 3: Customize a website template,https://vimeo.com/841747147/cc1b519aeb,"Choose and download a website template from https://html5up.net/.  
+Open the folder in your text editor and customize the content.  
+Use git and GitHub to backup your code as a GitHub repository.  
+Add your instructor as a collaborator to your GitHub repository.  
+
+In your `prework-exercises` repository, make a file called `553.txt`.  
+Paste the url to your GitHub repository in the text file.
+
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,553.txt
+33,Week 5 Day 5 Lesson 4: Deploy a website,https://vimeo.com/841747519/5b2a294afc,"Sign up for an account on https://render.com/ using your GitHub login.  
+Follow the steps in the video to deploy your website from the previous exercise.  
+
+In your `prework-exercises` repository, make a file called `554.txt`.  
+Paste the url to your deployed website in the text file.
+
+Use the terminal to commit your code and push your changes to GitHub.
+```
+git add --all
+git commit -m ""Add exercise solutions""
+git push origin main```",,554.txt
+33,Week 5 Day 5: Optional Additional Resources,,"- https://html5up.net/  
+- https://startbootstrap.com/?showPro=false  
+- https://bootstrapmade.com/",,
