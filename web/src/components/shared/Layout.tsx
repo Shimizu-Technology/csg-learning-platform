@@ -10,9 +10,8 @@ import {
   Menu,
   X,
   GraduationCap,
-  LogOut,
 } from 'lucide-react'
-import { UserButton, useClerk } from '@clerk/clerk-react'
+import { UserButton } from '@clerk/clerk-react'
 import { useAuthContext } from '../../contexts/AuthContext'
 
 interface LayoutProps {
