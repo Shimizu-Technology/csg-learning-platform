@@ -24,6 +24,28 @@ module ClerkAuthenticatable
     first_name = decoded["first_name"]
     last_name = decoded["last_name"]
 
+    # Clerk JWTs often don't include email/name — fetch from Clerk Backend API
+    if email.blank? && clerk_id.present? && ENV["CLERK_SECRET_KEY"].present?
+      begin
+        clerk_response = HTTParty.get(
+          "https://api.clerk.com/v1/users/#{clerk_id}",
+          headers: { "Authorization" => "Bearer #{ENV['CLERK_SECRET_KEY']}" },
+          timeout: 5
+        )
+        if clerk_response.success?
+          clerk_user = clerk_response.parsed_response
+          primary_email_id = clerk_user["primary_email_address_id"]
+          email_addresses = clerk_user["email_addresses"] || []
+          primary_email = email_addresses.find { |e| e["id"] == primary_email_id }
+          email = primary_email&.dig("email_address") || email_addresses.first&.dig("email_address")
+          first_name ||= clerk_user["first_name"]
+          last_name ||= clerk_user["last_name"]
+        end
+      rescue => e
+        Rails.logger.warn("Clerk API lookup failed: #{e.message}")
+      end
+    end
+
     @current_user = find_or_create_user(
       clerk_id: clerk_id,
       email: email,
