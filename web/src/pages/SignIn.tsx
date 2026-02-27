@@ -1,3 +1,4 @@
+import { SignIn } from '@clerk/clerk-react'
 import { useAuthContext } from '../contexts/AuthContext'
 import { Navigate } from 'react-router-dom'
 import { GraduationCap } from 'lucide-react'
@@ -24,14 +25,23 @@ export function SignInPage() {
     )
   }
 
-  // When Clerk is enabled, we would use SignIn component from Clerk
-  // For now, show a redirect message
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <div className="max-w-sm mx-auto text-center">
-        <GraduationCap className="h-12 w-12 text-primary-500 mx-auto mb-4" />
-        <h1 className="text-2xl font-bold text-slate-900">Sign In</h1>
-        <p className="mt-2 text-sm text-slate-500">Please sign in to access the CSG Learning Platform.</p>
+      <div className="text-center">
+        <GraduationCap className="h-12 w-12 text-primary-500 mx-auto mb-6" />
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">CSG Learn</h1>
+        <p className="text-sm text-slate-500 mb-6">Sign in to access the Code School of Guam Learning Platform.</p>
+        <SignIn
+          appearance={{
+            elements: {
+              rootBox: 'mx-auto',
+              card: 'shadow-none',
+            }
+          }}
+          routing="hash"
+          signUpUrl="/sign-up"
+          afterSignInUrl="/"
+        />
       </div>
     </div>
   )
