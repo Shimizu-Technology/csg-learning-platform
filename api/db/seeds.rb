@@ -1,7 +1,7 @@
 puts "Seeding database..."
 
 # Create admin user (Leon)
-admin = User.find_or_create_by!(email: "leon@anyonecanlearntocode.com") do |u|
+admin = User.find_or_create_by!(email: "codeschoolofguam@gmail.com") do |u|
   u.clerk_id = "admin_leon_clerk_id"
   u.first_name = "Leon"
   u.last_name = "Shimizu"
