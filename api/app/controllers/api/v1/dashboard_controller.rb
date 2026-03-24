@@ -130,10 +130,24 @@ module Api
         total_blocks = all_block_ids.size
 
         # Student progress data
+        week_ago = 7.days.ago
         students = cohort.enrollments.active.includes(:user).map do |enrollment|
           user = enrollment.user
-          completed = user.progresses.completed.where(content_block_id: all_block_ids).count
+          user_completed_progresses = user.progresses.completed.where(content_block_id: all_block_ids)
+          completed = user_completed_progresses.count
           percentage = total_blocks > 0 ? (completed.to_f / total_blocks * 100).round(1) : 0
+
+          # Last time they completed any content block
+          last_activity = user_completed_progresses.maximum(:completed_at)
+
+          # Blocks completed in the last 7 days
+          blocks_this_week = user_completed_progresses.where("completed_at >= ?", week_ago).count
+
+          # Submissions this week (also signals activity)
+          submissions_this_week = user.submissions
+            .where(content_block_id: all_block_ids)
+            .where("created_at >= ?", week_ago)
+            .count
 
           {
             user_id: user.id,
@@ -144,6 +158,9 @@ module Api
             completed_blocks: completed,
             total_blocks: total_blocks,
             last_sign_in_at: user.last_sign_in_at,
+            last_activity_at: last_activity,
+            blocks_this_week: blocks_this_week,
+            submissions_this_week: submissions_this_week,
             enrollment_status: enrollment.status
           }
         end
