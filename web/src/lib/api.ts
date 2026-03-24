@@ -114,4 +114,6 @@ export const api = {
     fetchApi<any>(`/api/v1/modules/${moduleId}/lessons`, { method: 'POST', body: JSON.stringify(data) }),
   createContentBlock: (lessonId: number, data: any) =>
     fetchApi<any>(`/api/v1/lessons/${lessonId}/content_blocks`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteContentBlock: (id: number) =>
+    fetchApi<null>(`/api/v1/content_blocks/${id}`, { method: 'DELETE' }),
 };
