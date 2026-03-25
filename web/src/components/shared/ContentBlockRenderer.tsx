@@ -46,21 +46,17 @@ function getVimeoEmbed(url: string): { id: string; hash?: string } | null {
 }
 
 export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: ContentBlockRendererProps) {
-  // Sorted newest-first by the API; first item is the latest submission
   const hasGradedSubmission = (block.submissions ?? []).some((s) => s.grade !== null)
   const [isCompleted, setIsCompleted] = useState(block.progress?.status === 'completed')
   const [showSolution, setShowSolution] = useState(false)
   const [submissionText, setSubmissionText] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const vimeoContainerRef = useRef<HTMLDivElement>(null)
-  // Use a ref so the Vimeo 'ended' handler always reads the current completion state
   const isCompletedRef = useRef(isCompleted)
   useEffect(() => { isCompletedRef.current = isCompleted }, [isCompleted])
 
-  // Memoize language detection — called once, used across all code/exercise renders
   const detectedLang = detectLanguage(block.filename, block.metadata?.language)
 
-  // Vimeo SDK: auto-complete on video end
   useEffect(() => {
     const isVideoBlock = block.block_type === 'video' || block.block_type === 'recording'
     if (!isVideoBlock || !block.video_url) return
@@ -81,7 +77,6 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
     })
 
     player.on('ended', async () => {
-      // Guard: skip redundant API call if already marked complete (e.g. student re-watches)
       if (isCompletedRef.current) return
       const res = await api.updateProgress(block.id, 'completed')
       if (!res.error) {
@@ -130,12 +125,10 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-      {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 border-b border-slate-200">
         <div className="text-slate-500">{blockIcons[block.block_type]}</div>
         <span className="text-sm font-medium text-slate-700 capitalize">{block.block_type.replace('_', ' ')}</span>
         {block.title && <span className="text-sm text-slate-500">· {block.title}</span>}
-        {/* Graded badge — shown when at least one submission has been graded */}
         {hasGradedSubmission && (
           <span className="inline-flex items-center gap-1 rounded-full bg-success-50 border border-success-200 px-2 py-0.5 text-xs font-medium text-success-700">
             <BadgeCheck className="h-3.5 w-3.5" />
@@ -156,9 +149,7 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
         </div>
       </div>
 
-      {/* Content */}
       <div className="p-4 lg:p-6">
-        {/* Video embed */}
         {block.block_type === 'video' && block.video_url && (
           <div className="aspect-video rounded-xl overflow-hidden bg-slate-900">
             {(() => {
@@ -188,7 +179,6 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
           </div>
         )}
 
-        {/* Recording embed (same as video, Vimeo SDK handles it) */}
         {block.block_type === 'recording' && block.video_url && (
           <div className="aspect-video rounded-xl overflow-hidden bg-slate-900">
             {(() => {
@@ -211,14 +201,12 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
           </div>
         )}
 
-        {/* Text/body content */}
         {block.body && (
           <div className={block.block_type === 'video' ? 'mt-4' : ''}>
             <MarkdownRenderer content={block.body} />
           </div>
         )}
 
-        {/* Filename hint */}
         {block.filename && (
           <div className="mt-3 inline-flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-600">
             <Code className="h-3.5 w-3.5" />
@@ -226,10 +214,8 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
           </div>
         )}
 
-        {/* Exercise / Code Challenge submission area */}
         {(block.block_type === 'exercise' || block.block_type === 'code_challenge') && (
           <div className="mt-4 space-y-3">
-            {/* Show existing submissions — sorted newest first (from API) */}
             {block.submissions && block.submissions.length > 0 && (
               <div className="space-y-3">
                 {block.submissions.map((sub, idx) => {
@@ -246,7 +232,6 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
                           : 'border-slate-200 bg-slate-50'
                       }`}
                     >
-                      {/* Submission header */}
                       <div className="flex items-center gap-2 mb-3">
                         <span className="text-xs font-medium text-slate-500">
                           Submission #{sub.num_submissions}
@@ -262,7 +247,6 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
                         {isGraded && <GradeDisplay grade={sub.grade} size="md" />}
                       </div>
 
-                      {/* Student code */}
                       <div className="mt-2">
                         <CodeEditor
                           value={sub.text || 'No text submitted'}
@@ -272,7 +256,6 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
                         />
                       </div>
 
-                      {/* Instructor feedback */}
                       {isGraded && (
                         <div className="mt-3 rounded-lg border border-success-200 bg-white p-3">
                           <div className="flex items-center justify-between mb-1">
@@ -296,7 +279,6 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
               </div>
             )}
 
-            {/* Code editor submission */}
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
@@ -333,7 +315,6 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
           </div>
         )}
 
-        {/* Solution (staff only) */}
         {isStaff && block.solution && (
           <div className="mt-4">
             <button
