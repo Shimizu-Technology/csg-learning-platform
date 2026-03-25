@@ -3,6 +3,7 @@ import Player, { type VimeoUrl } from '@vimeo/player'
 import { Play, FileText, Code, CheckCircle2, Circle, ChevronDown, ChevronUp, Send, BadgeCheck } from 'lucide-react'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { GradeDisplay } from './GradeDisplay'
+import { CodeEditor, detectLanguage } from './CodeEditor'
 import { api } from '../../lib/api'
 
 interface ContentBlock {
@@ -39,7 +40,7 @@ function getYouTubeId(url: string): string | null {
 }
 
 function getVimeoEmbed(url: string): { id: string; hash?: string } | null {
-  const match = url.match(/vimeo\.com\/(\d+)(?:\/([a-zA-Z0-9]+))?/)
+  const match = url.match(/vimeo\.com\/(\d+)(?:\/([a-zA-Z0-9]+))?/) 
   if (!match) return null
   return { id: match[1], hash: match[2] }
 }
@@ -55,6 +56,9 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
   // Use a ref so the Vimeo 'ended' handler always reads the current completion state
   const isCompletedRef = useRef(isCompleted)
   useEffect(() => { isCompletedRef.current = isCompleted }, [isCompleted])
+
+  // Memoize language detection — called once, used across all code/exercise renders
+  const detectedLang = detectLanguage(block.filename, block.metadata?.language)
 
   // Vimeo SDK: auto-complete on video end
   useEffect(() => {
@@ -222,7 +226,7 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
           </div>
         )}
 
-        {/* Exercise submission area */}
+        {/* Exercise / Code Challenge submission area */}
         {(block.block_type === 'exercise' || block.block_type === 'code_challenge') && (
           <div className="mt-4 space-y-3">
             {/* Show existing submissions — sorted newest first (from API) */}
@@ -259,15 +263,18 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
                       </div>
 
                       {/* Student code */}
-                      <div className="rounded-lg bg-slate-900 p-3 mb-3 overflow-x-auto">
-                        <pre className="text-xs text-slate-100 whitespace-pre-wrap font-mono">
-                          {sub.text || 'No text submitted'}
-                        </pre>
+                      <div className="mt-2">
+                        <CodeEditor
+                          value={sub.text || 'No text submitted'}
+                          language={detectedLang}
+                          readOnly
+                          minHeight={120}
+                        />
                       </div>
 
                       {/* Instructor feedback */}
                       {isGraded && (
-                        <div className="rounded-lg border border-success-200 bg-white p-3">
+                        <div className="mt-3 rounded-lg border border-success-200 bg-white p-3">
                           <div className="flex items-center justify-between mb-1">
                             <p className="text-xs font-semibold text-success-700">Instructor Feedback</p>
                             {sub.graded_at && (
@@ -289,22 +296,37 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
               </div>
             )}
 
-            {/* Submission input */}
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <textarea
+            {/* Code editor submission */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                  {block.submissions && block.submissions.length > 0 ? 'Revise your answer' : 'Write your solution'}
+                </p>
+                {block.filename && (
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600 font-mono">
+                    <Code className="h-3 w-3" />
+                    {block.filename}
+                  </span>
+                )}
+              </div>
+              <CodeEditor
                 value={submissionText}
-                onChange={(e) => setSubmissionText(e.target.value)}
-                placeholder="Paste your code or write your answer here..."
-                className="w-full rounded-lg border border-slate-200 bg-white p-3 text-sm font-mono resize-y min-h-[100px] focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                onChange={setSubmissionText}
+                language={detectedLang}
+                minHeight={240}
               />
-              <div className="mt-2 flex justify-end">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-400">
+                  {detectedLang.charAt(0).toUpperCase() + detectedLang.slice(1)}
+                  {' · '}Tab = 2 spaces
+                </p>
                 <button
                   onClick={handleSubmit}
                   disabled={isSubmitting || !submissionText.trim()}
                   className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   <Send className="h-4 w-4" />
-                  Submit
+                  {isSubmitting ? 'Submitting…' : 'Submit'}
                 </button>
               </div>
             </div>
@@ -322,8 +344,13 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
               Solution
             </button>
             {showSolution && (
-              <div className="mt-2 rounded-xl bg-slate-900 p-4">
-                <pre className="text-sm text-slate-100 whitespace-pre-wrap font-mono">{block.solution}</pre>
+              <div className="mt-2">
+                <CodeEditor
+                  value={block.solution}
+                  language={detectedLang}
+                  readOnly
+                  minHeight={120}
+                />
               </div>
             )}
           </div>
