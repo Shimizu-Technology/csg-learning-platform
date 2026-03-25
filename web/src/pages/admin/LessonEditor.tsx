@@ -33,6 +33,7 @@ interface Lesson {
   id: number
   title: string
   module_id: number
+  lesson_type?: string
   content_blocks: ContentBlock[]
 }
 
@@ -42,9 +43,22 @@ interface BlockFormData {
   video_url: string
   solution: string
   filename: string
+  language: string
 }
 
 const BLOCK_TYPES = ['video', 'text', 'exercise', 'code_challenge', 'checkpoint', 'recording'] as const
+const LANGUAGE_OPTIONS = [
+  { value: '', label: 'Auto-detect (from filename)' },
+  { value: 'ruby', label: 'Ruby' },
+  { value: 'python', label: 'Python' },
+  { value: 'javascript', label: 'JavaScript' },
+  { value: 'typescript', label: 'TypeScript' },
+  { value: 'html', label: 'HTML' },
+  { value: 'css', label: 'CSS' },
+  { value: 'sql', label: 'SQL' },
+  { value: 'shell', label: 'Shell / Bash' },
+] as const
+
 type BlockType = (typeof BLOCK_TYPES)[number]
 
 const blockTypeIcons: Record<string, React.ReactNode> = {
@@ -64,8 +78,13 @@ function hasSolutionOrFilename(blockType: string): boolean {
   return blockType === 'exercise' || blockType === 'code_challenge'
 }
 
+function getLanguageFromBlock(block: ContentBlock): string {
+  const lang = block.metadata?.language
+  return typeof lang === 'string' ? lang : ''
+}
+
 function emptyFormData(): BlockFormData {
-  return { title: '', body: '', video_url: '', solution: '', filename: '' }
+  return { title: '', body: '', video_url: '', solution: '', filename: '', language: '' }
 }
 
 function blockToFormData(block: ContentBlock): BlockFormData {
@@ -75,6 +94,7 @@ function blockToFormData(block: ContentBlock): BlockFormData {
     video_url: block.video_url ?? '',
     solution: block.solution ?? '',
     filename: block.filename ?? '',
+    language: getLanguageFromBlock(block),
   }
 }
 
@@ -94,27 +114,42 @@ function EditBlockRow({ block, onSaved, onDeleted }: EditBlockRowProps) {
   const handleSave = async () => {
     setSaving(true)
     setError(null)
-    // Always send all fields so admins can clear values (empty string → null on server)
-    const payload: Record<string, string | null> = {
-      title: form.title || null,
-      body: form.body || null,
+
+    try {
+      const metadata: Record<string, unknown> = { ...(block.metadata ?? {}) }
+      if (form.language) {
+        metadata.language = form.language
+      } else {
+        delete metadata.language
+      }
+
+      const payload: Record<string, string | null | Record<string, unknown>> = {
+        title: form.title || null,
+        body: form.body || null,
+        metadata,
+      }
+
+      if (hasVideoUrl(block.block_type)) {
+        payload.video_url = form.video_url || null
+      }
+      if (hasSolutionOrFilename(block.block_type)) {
+        payload.solution = form.solution || null
+        payload.filename = form.filename || null
+      }
+
+      const res = await api.updateContentBlock(block.id, payload)
+      if (res.error) {
+        setError(res.error)
+      } else if (res.data) {
+        const data = res.data as { content_block: ContentBlock }
+        onSaved(data.content_block)
+        setExpanded(false)
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Save failed')
+    } finally {
+      setSaving(false)
     }
-    if (hasVideoUrl(block.block_type)) {
-      payload.video_url = form.video_url || null
-    }
-    if (hasSolutionOrFilename(block.block_type)) {
-      payload.solution = form.solution || null
-      payload.filename = form.filename || null
-    }
-    const res = await api.updateContentBlock(block.id, payload)
-    if (res.error) {
-      setError(res.error)
-    } else if (res.data) {
-      const data = res.data as { content_block: ContentBlock }
-      onSaved(data.content_block)
-      setExpanded(false)
-    }
-    setSaving(false)
   }
 
   const handleDelete = async () => {
@@ -131,7 +166,6 @@ function EditBlockRow({ block, onSaved, onDeleted }: EditBlockRowProps) {
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-      {/* Block header row */}
       <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 border-b border-slate-100">
         <span className="text-slate-400">{blockTypeIcons[block.block_type] ?? <FileText className="h-4 w-4" />}</span>
         <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
@@ -143,7 +177,6 @@ function EditBlockRow({ block, onSaved, onDeleted }: EditBlockRowProps) {
           onClick={() => {
             setExpanded((v) => {
               if (v) {
-                // Reset form to saved state when collapsing without saving
                 setForm(blockToFormData(block))
                 setError(null)
               }
@@ -166,7 +199,6 @@ function EditBlockRow({ block, onSaved, onDeleted }: EditBlockRowProps) {
         </button>
       </div>
 
-      {/* Inline edit form */}
       {expanded && (
         <div className="p-4 space-y-3">
           {error && (
@@ -210,15 +242,29 @@ function EditBlockRow({ block, onSaved, onDeleted }: EditBlockRowProps) {
 
           {hasSolutionOrFilename(block.block_type) && (
             <>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Filename</label>
-                <input
-                  type="text"
-                  value={form.filename}
-                  onChange={(e) => setForm((f) => ({ ...f, filename: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 font-mono"
-                  placeholder="e.g. exercise.rb"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Filename</label>
+                  <input
+                    type="text"
+                    value={form.filename}
+                    onChange={(e) => setForm((f) => ({ ...f, filename: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 font-mono"
+                    placeholder="e.g. exercise.rb"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Language</label>
+                  <select
+                    value={form.language}
+                    onChange={(e) => setForm((f) => ({ ...f, language: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    {LANGUAGE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Solution</label>
@@ -271,27 +317,36 @@ function AddBlockForm({ lessonId, nextPosition, onAdded }: AddBlockFormProps) {
   const handleAdd = async () => {
     setSaving(true)
     setError(null)
-    const payload: Record<string, string | number> = {
-      block_type: blockType,
-      position: nextPosition,
-      title: form.title,
+
+    try {
+      const payload: Record<string, string | number | Record<string, unknown>> = {
+        block_type: blockType,
+        position: nextPosition,
+        title: form.title,
+      }
+
+      if (form.body) payload.body = form.body
+      if (hasVideoUrl(blockType) && form.video_url) payload.video_url = form.video_url
+      if (hasSolutionOrFilename(blockType)) {
+        if (form.solution) payload.solution = form.solution
+        if (form.filename) payload.filename = form.filename
+        if (form.language) payload.metadata = { language: form.language }
+      }
+
+      const res = await api.createContentBlock(lessonId, payload)
+      if (res.error) {
+        setError(res.error)
+      } else if (res.data) {
+        const data = res.data as { content_block: ContentBlock }
+        onAdded(data.content_block)
+        resetForm()
+        setOpen(false)
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Add failed')
+    } finally {
+      setSaving(false)
     }
-    if (form.body) payload.body = form.body
-    if (hasVideoUrl(blockType) && form.video_url) payload.video_url = form.video_url
-    if (hasSolutionOrFilename(blockType)) {
-      if (form.solution) payload.solution = form.solution
-      if (form.filename) payload.filename = form.filename
-    }
-    const res = await api.createContentBlock(lessonId, payload)
-    if (res.error) {
-      setError(res.error)
-    } else if (res.data) {
-      const data = res.data as { content_block: ContentBlock }
-      onAdded(data.content_block)
-      resetForm()
-      setOpen(false)
-    }
-    setSaving(false)
   }
 
   if (!open) {
@@ -364,15 +419,29 @@ function AddBlockForm({ lessonId, nextPosition, onAdded }: AddBlockFormProps) {
 
       {hasSolutionOrFilename(blockType) && (
         <>
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Filename</label>
-            <input
-              type="text"
-              value={form.filename}
-              onChange={(e) => setForm((f) => ({ ...f, filename: e.target.value }))}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono"
-              placeholder="e.g. exercise.rb"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Filename</label>
+              <input
+                type="text"
+                value={form.filename}
+                onChange={(e) => setForm((f) => ({ ...f, filename: e.target.value }))}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono"
+                placeholder="e.g. exercise.rb"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Language</label>
+              <select
+                value={form.language}
+                onChange={(e) => setForm((f) => ({ ...f, language: e.target.value }))}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                {LANGUAGE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Solution</label>
@@ -482,7 +551,6 @@ export function LessonEditor() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <Link to="/admin/content" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-2">
           <ArrowLeft className="h-4 w-4" />
@@ -494,7 +562,6 @@ export function LessonEditor() {
         </p>
       </div>
 
-      {/* Content blocks list */}
       <div className="space-y-3">
         {lesson.content_blocks.length === 0 && (
           <div className="rounded-2xl border border-slate-200 bg-white px-6 py-8 text-center text-slate-400 text-sm">
@@ -514,7 +581,6 @@ export function LessonEditor() {
             />
           ))}
 
-        {/* Add block */}
         <AddBlockForm
           lessonId={lesson.id}
           nextPosition={nextPosition}
