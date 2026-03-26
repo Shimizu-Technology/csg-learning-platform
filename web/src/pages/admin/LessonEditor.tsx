@@ -94,12 +94,17 @@ function EditBlockRow({ block, onSaved, onDeleted }: EditBlockRowProps) {
   const handleSave = async () => {
     setSaving(true)
     setError(null)
-    const payload: Record<string, string> = { title: form.title }
-    if (form.body) payload.body = form.body
-    if (hasVideoUrl(block.block_type) && form.video_url) payload.video_url = form.video_url
+    // Always send all fields so admins can clear values (empty string → null on server)
+    const payload: Record<string, string | null> = {
+      title: form.title || null,
+      body: form.body || null,
+    }
+    if (hasVideoUrl(block.block_type)) {
+      payload.video_url = form.video_url || null
+    }
     if (hasSolutionOrFilename(block.block_type)) {
-      if (form.solution) payload.solution = form.solution
-      if (form.filename) payload.filename = form.filename
+      payload.solution = form.solution || null
+      payload.filename = form.filename || null
     }
     const res = await api.updateContentBlock(block.id, payload)
     if (res.error) {
@@ -135,7 +140,16 @@ function EditBlockRow({ block, onSaved, onDeleted }: EditBlockRowProps) {
         <span className="text-sm text-slate-700 flex-1 truncate">{block.title || <em className="text-slate-400">Untitled</em>}</span>
         <span className="text-xs text-slate-400 mr-2">#{block.position}</span>
         <button
-          onClick={() => setExpanded((v) => !v)}
+          onClick={() => {
+            setExpanded((v) => {
+              if (v) {
+                // Reset form to saved state when collapsing without saving
+                setForm(blockToFormData(block))
+                setError(null)
+              }
+              return !v
+            })
+          }}
           className="inline-flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 font-medium"
         >
           <Edit2 className="h-3.5 w-3.5" />

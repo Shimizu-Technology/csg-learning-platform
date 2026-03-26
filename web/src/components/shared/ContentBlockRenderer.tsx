@@ -51,6 +51,9 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
   const [submissionText, setSubmissionText] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const vimeoContainerRef = useRef<HTMLDivElement>(null)
+  // Use a ref so the Vimeo 'ended' handler always reads the current completion state
+  const isCompletedRef = useRef(isCompleted)
+  useEffect(() => { isCompletedRef.current = isCompleted }, [isCompleted])
 
   // Vimeo SDK: auto-complete on video end
   useEffect(() => {
@@ -73,6 +76,8 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
     })
 
     player.on('ended', async () => {
+      // Guard: skip redundant API call if already marked complete (e.g. student re-watches)
+      if (isCompletedRef.current) return
       const res = await api.updateProgress(block.id, 'completed')
       if (!res.error) {
         setIsCompleted(true)
