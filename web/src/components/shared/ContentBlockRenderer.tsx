@@ -266,14 +266,22 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
                       </div>
 
                       {/* Instructor feedback */}
-                      {isGraded && sub.feedback && (
+                      {isGraded && (
                         <div className="rounded-lg border border-success-200 bg-white p-3">
-                          <p className="text-xs font-semibold text-success-700 mb-1">Instructor Feedback</p>
-                          <p className="text-sm text-slate-700">{sub.feedback}</p>
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="text-xs font-semibold text-success-700">Instructor Feedback</p>
+                            {sub.graded_at && (
+                              <p className="text-xs text-slate-400">
+                                Graded {new Date(sub.graded_at).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                          {sub.feedback ? (
+                            <p className="text-sm text-slate-700">{sub.feedback}</p>
+                          ) : (
+                            <p className="text-xs text-slate-400 italic">No feedback provided.</p>
+                          )}
                         </div>
-                      )}
-                      {isGraded && !sub.feedback && (
-                        <p className="text-xs text-slate-400 italic">No feedback provided.</p>
                       )}
                     </div>
                   )
