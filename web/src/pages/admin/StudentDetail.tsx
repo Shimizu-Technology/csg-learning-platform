@@ -388,11 +388,11 @@ export function StudentDetail() {
             {recent_activity.length === 0 ? (
               <p className="text-sm text-slate-400 text-center py-6">No activity yet</p>
             ) : (
-              recent_activity.map((activity, i) => {
+              recent_activity.map((activity) => {
                 const Icon = BLOCK_ICONS[activity.block_type] || FileText
                 const colorClass = BLOCK_COLORS[activity.block_type] || 'text-slate-400'
                 return (
-                  <div key={i} className="flex items-start gap-3 p-4">
+                  <div key={activity.content_block_id} className="flex items-start gap-3 p-4">
                     <Icon className={`h-4 w-4 shrink-0 mt-0.5 ${colorClass}`} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-slate-800 truncate">{activity.block_title}</p>
