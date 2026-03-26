@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Users, Search, ArrowLeft, AlertTriangle, Activity, CheckCircle2 } from 'lucide-react'
+import { Users, Search, ArrowLeft, AlertTriangle, Activity, Circle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api } from '../../lib/api'
 import { ProgressBar } from '../../components/shared/ProgressBar'
@@ -24,14 +24,13 @@ interface Student {
 type ActivityStatus = 'active' | 'quiet' | 'at-risk' | 'new'
 
 function getActivityStatus(student: Student): ActivityStatus {
-  const hasAnyActivity = student.last_activity_at != null
-  if (!hasAnyActivity) return 'new'
-
-  const daysSinceActivity = student.last_activity_at
-    ? (Date.now() - new Date(student.last_activity_at).getTime()) / (1000 * 60 * 60 * 24)
-    : Infinity
-
+  // Check recent activity first — submissions_this_week signals activity even when
+  // last_activity_at is null (students who submit but haven't completed a block yet)
   if (student.blocks_this_week > 0 || student.submissions_this_week > 0) return 'active'
+
+  if (student.last_activity_at == null) return 'new'
+
+  const daysSinceActivity = (Date.now() - new Date(student.last_activity_at).getTime()) / (1000 * 60 * 60 * 24)
   if (daysSinceActivity <= 7) return 'quiet'
   return 'at-risk'
 }
@@ -39,9 +38,9 @@ function getActivityStatus(student: Student): ActivityStatus {
 function ActivityBadge({ status }: { status: ActivityStatus }) {
   const config = {
     active: { label: 'Active', icon: Activity, className: 'bg-success-100 text-success-700' },
-    quiet: { label: 'Quiet', icon: AlertTriangle, className: 'bg-amber-100 text-amber-700' },
+    quiet: { label: 'Quiet (2-7d)', icon: AlertTriangle, className: 'bg-amber-100 text-amber-700' },
     'at-risk': { label: 'At Risk', icon: AlertTriangle, className: 'bg-red-100 text-red-700' },
-    new: { label: 'Not Started', icon: CheckCircle2, className: 'bg-slate-100 text-slate-600' },
+    new: { label: 'Not Started', icon: Circle, className: 'bg-slate-100 text-slate-600' },
   }
   const { label, icon: Icon, className } = config[status]
   return (

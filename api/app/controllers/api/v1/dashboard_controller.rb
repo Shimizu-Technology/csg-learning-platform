@@ -129,25 +129,40 @@ module Api
 
         total_blocks = all_block_ids.size
 
-        # Student progress data
+        # Student progress data — bulk-load to avoid N+1 queries
         week_ago = 7.days.ago
-        students = cohort.enrollments.active.includes(:user).map do |enrollment|
+        enrollments = cohort.enrollments.active.includes(:user).to_a
+        user_ids = enrollments.map { |e| e.user.id }
+
+        # Bulk load all completed progresses for all students at once (1 query)
+        all_progresses = Progress.completed
+          .where(user_id: user_ids, content_block_id: all_block_ids)
+          .select(:user_id, :content_block_id, :completed_at)
+          .to_a
+        progresses_by_user = all_progresses.group_by(&:user_id)
+
+        # Bulk load all recent submissions for all students at once (1 query)
+        all_recent_submissions = Submission
+          .where(user_id: user_ids, content_block_id: all_block_ids)
+          .where("created_at >= ?", week_ago)
+          .select(:user_id, :content_block_id, :created_at)
+          .to_a
+        submissions_by_user = all_recent_submissions.group_by(&:user_id)
+
+        students = enrollments.map do |enrollment|
           user = enrollment.user
-          user_completed_progresses = user.progresses.completed.where(content_block_id: all_block_ids)
-          completed = user_completed_progresses.count
+          user_progresses = progresses_by_user[user.id] || []
+          completed = user_progresses.size
           percentage = total_blocks > 0 ? (completed.to_f / total_blocks * 100).round(1) : 0
 
           # Last time they completed any content block
-          last_activity = user_completed_progresses.maximum(:completed_at)
+          last_activity = user_progresses.map(&:completed_at).compact.max
 
           # Blocks completed in the last 7 days
-          blocks_this_week = user_completed_progresses.where("completed_at >= ?", week_ago).count
+          blocks_this_week = user_progresses.count { |p| p.completed_at && p.completed_at >= week_ago }
 
-          # Submissions this week (also signals activity)
-          submissions_this_week = user.submissions
-            .where(content_block_id: all_block_ids)
-            .where("created_at >= ?", week_ago)
-            .count
+          # Submissions this week (also signals activity even if no completed blocks)
+          submissions_this_week = (submissions_by_user[user.id] || []).size
 
           {
             user_id: user.id,
