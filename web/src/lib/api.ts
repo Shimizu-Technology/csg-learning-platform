@@ -91,6 +91,9 @@ export const api = {
   gradeSubmission: (id: number, data: any) =>
     fetchApi<any>(`/api/v1/submissions/${id}/grade`, { method: 'PATCH', body: JSON.stringify(data) }),
 
+  // Student progress (admin)
+  getStudentProgress: (userId: number) => fetchApi<any>(`/api/v1/progress/student/${userId}`),
+
   // Admin
   getUsers: (params?: Record<string, string>) => {
     const query = params ? '?' + new URLSearchParams(params).toString() : '';

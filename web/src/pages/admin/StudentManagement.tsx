@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Users, Search, ArrowLeft, AlertTriangle, Activity, Circle } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Users, Search, ArrowLeft, AlertTriangle, Activity, Circle, ChevronRight } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../../lib/api'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -64,6 +64,7 @@ function formatLastActivity(dateStr: string | null): string {
 }
 
 export function StudentManagement() {
+  const navigate = useNavigate()
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -107,7 +108,6 @@ export function StudentManagement() {
         </div>
       </div>
 
-      {/* Retention Alert Banner */}
       {atRiskCount > 0 && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-center gap-3">
           <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0" />
@@ -118,7 +118,6 @@ export function StudentManagement() {
         </div>
       )}
 
-      {/* Activity summary cards */}
       <div className="grid grid-cols-3 gap-3">
         <button
           onClick={() => setFilter(filter === 'active' ? 'all' : 'active')}
@@ -143,7 +142,6 @@ export function StudentManagement() {
         </button>
       </div>
 
-      {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
         <input
@@ -167,14 +165,16 @@ export function StudentManagement() {
                   <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Progress</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">This Week</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">Last Active</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">Status</th>
+                  <th className="px-3 py-3 w-8" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {filtered.map((student) => (
                   <tr
                     key={student.user_id}
-                    className={`hover:bg-slate-50 ${student.activityStatus === 'at-risk' ? 'bg-red-50/30' : ''}`}
+                    className={`hover:bg-slate-50 cursor-pointer ${student.activityStatus === 'at-risk' ? 'bg-red-50/30' : ''}`}
+                    onClick={() => navigate(`/admin/students/${student.user_id}`)}
                   >
                     <td className="px-6 py-4">
                       <p className="text-sm font-medium text-slate-900">{student.full_name}</p>
@@ -184,6 +184,7 @@ export function StudentManagement() {
                           href={`https://github.com/${student.github_username}`}
                           target="_blank"
                           rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
                           className="text-xs text-primary-600 hover:underline"
                         >
                           @{student.github_username}
@@ -212,8 +213,11 @@ export function StudentManagement() {
                         {formatLastActivity(student.last_activity_at)}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 hidden sm:table-cell">
                       <ActivityBadge status={student.activityStatus} />
+                    </td>
+                    <td className="px-3 py-4 w-8">
+                      <ChevronRight className="h-4 w-4 text-slate-300" />
                     </td>
                   </tr>
                 ))}
