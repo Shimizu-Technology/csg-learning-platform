@@ -9,6 +9,7 @@ import {
   Play,
   Code,
   Eye,
+  Pencil,
 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -125,12 +126,11 @@ export function ContentManagement() {
                   <div className="px-6 pb-4 pl-14">
                     <div className="space-y-1">
                       {mod.lessons.map((lesson) => (
-                        <Link
+                        <div
                           key={lesson.id}
-                          to={`/lessons/${lesson.id}`}
                           className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-slate-100 transition-colors group"
                         >
-                          <div className="text-slate-400">
+                          <div className="text-slate-400 flex-shrink-0">
                             {typeIcons[lesson.lesson_type] || <FileText className="h-3.5 w-3.5" />}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -139,8 +139,23 @@ export function ContentManagement() {
                               Day {lesson.release_day} · {lesson.content_blocks_count} blocks
                             </p>
                           </div>
-                          <Eye className="h-4 w-4 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </Link>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Link
+                              to={`/lessons/${lesson.id}`}
+                              title="Student preview"
+                              className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Link>
+                            <Link
+                              to={`/admin/lessons/${lesson.id}`}
+                              title="Edit lesson content"
+                              className="rounded-lg p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Link>
+                          </div>
+                        </div>
                       ))}
                     </div>
                   </div>

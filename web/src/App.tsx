@@ -9,6 +9,7 @@ import { AdminDashboard } from './pages/admin/AdminDashboard'
 import { StudentManagement } from './pages/admin/StudentManagement'
 import { ContentManagement } from './pages/admin/ContentManagement'
 import { Grading } from './pages/admin/Grading'
+import { LessonEditor } from './pages/admin/LessonEditor'
 import { SignInPage } from './pages/SignIn'
 import { useAuthContext } from './contexts/AuthContext'
 import { LoadingSpinner } from './components/shared/LoadingSpinner'
@@ -103,6 +104,16 @@ function AppRoutes() {
           <ProtectedRoute requiredRole="staff">
             <Layout>
               <Grading />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/lessons/:lessonId"
+        element={
+          <ProtectedRoute requiredRole="staff">
+            <Layout>
+              <LessonEditor />
             </Layout>
           </ProtectedRoute>
         }
