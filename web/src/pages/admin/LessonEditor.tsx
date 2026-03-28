@@ -12,6 +12,9 @@ import {
   X,
   Plus,
   Save,
+  Trash2,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -142,7 +145,7 @@ function BlockForm({ initial, submitLabel, onSubmit, onCancel, saving }: BlockFo
             type="url"
             value={form.video_url}
             onChange={(e) => set('video_url', e.target.value)}
-            placeholder="https://youtube.com/watch?v=..."
+            placeholder="https://vimeo.com/... or https://youtube.com/watch?v=..."
             className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           />
         </div>
@@ -150,12 +153,12 @@ function BlockForm({ initial, submitLabel, onSubmit, onCancel, saving }: BlockFo
 
       {/* Body */}
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Content / Prompt <span className="text-slate-400 font-normal">(optional)</span></label>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Content / Prompt <span className="text-slate-400 font-normal">(optional — supports Markdown)</span></label>
         <textarea
           value={form.body}
           onChange={(e) => set('body', e.target.value)}
           placeholder="Markdown content..."
-          rows={5}
+          rows={6}
           className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-y font-mono"
         />
       </div>
@@ -217,6 +220,9 @@ export function LessonEditor() {
   const [editingBlockId, setEditingBlockId] = useState<number | null>(null)
   const [editSaving, setEditSaving] = useState(false)
   const [addSaving, setAddSaving] = useState(false)
+  const [deletingBlockId, setDeletingBlockId] = useState<number | null>(null)
+  const [reorderingBlockId, setReorderingBlockId] = useState<number | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
 
   const loadLesson = async () => {
     if (!lessonId) return
@@ -274,6 +280,36 @@ export function LessonEditor() {
     }
   }
 
+  const handleDeleteBlock = async (blockId: number) => {
+    setDeletingBlockId(blockId)
+    const res = await api.deleteContentBlock(blockId)
+    setDeletingBlockId(null)
+    setConfirmDeleteId(null)
+    if (!res.error) {
+      await loadLesson()
+    }
+  }
+
+  const handleMoveBlock = async (block: ContentBlock, direction: 'up' | 'down') => {
+    if (!lesson) return
+    const sorted = [...lesson.content_blocks].sort((a, b) => a.position - b.position)
+    const idx = sorted.findIndex((b) => b.id === block.id)
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= sorted.length) return
+
+    const swapBlock = sorted[swapIdx]
+    setReorderingBlockId(block.id)
+
+    // Swap positions
+    await Promise.all([
+      api.updateContentBlock(block.id, { position: swapBlock.position }),
+      api.updateContentBlock(swapBlock.id, { position: block.position }),
+    ])
+
+    setReorderingBlockId(null)
+    await loadLesson()
+  }
+
   if (loading) return <LoadingSpinner message="Loading lesson..." />
   if (error) return (
     <div className="rounded-2xl bg-red-50 border border-red-200 p-6 text-red-700 text-sm">{error}</div>
@@ -304,9 +340,10 @@ export function LessonEditor() {
         <div className="rounded-2xl bg-white border border-slate-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-200 bg-slate-50">
             <h2 className="text-base font-semibold text-slate-900">Content Blocks</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Use the arrows to reorder blocks. Changes save immediately.</p>
           </div>
           <div className="divide-y divide-slate-200">
-            {sortedBlocks.map((block) => (
+            {sortedBlocks.map((block, idx) => (
               <div key={block.id} className="px-6 py-4">
                 {editingBlockId === block.id ? (
                   <div>
@@ -321,11 +358,55 @@ export function LessonEditor() {
                       onCancel={() => setEditingBlockId(null)}
                     />
                   </div>
+                ) : confirmDeleteId === block.id ? (
+                  <div className="flex items-center gap-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3">
+                    <p className="text-sm text-red-700 flex-1">
+                      Delete this block? This cannot be undone.
+                    </p>
+                    <button
+                      onClick={() => handleDeleteBlock(block.id)}
+                      disabled={deletingBlockId === block.id}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      {deletingBlockId === block.id ? 'Deleting...' : 'Delete'}
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteId(null)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      Cancel
+                    </button>
+                  </div>
                 ) : (
                   <div className="flex items-start gap-3">
-                    <div className="mt-0.5 text-slate-400 flex-shrink-0">
+                    {/* Reorder buttons */}
+                    <div className="flex flex-col gap-0.5 flex-shrink-0 mt-0.5">
+                      <button
+                        onClick={() => handleMoveBlock(block, 'up')}
+                        disabled={idx === 0 || reorderingBlockId === block.id}
+                        className="p-1 rounded text-slate-300 hover:text-slate-600 hover:bg-slate-100 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                        title="Move up"
+                      >
+                        <ChevronUp className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleMoveBlock(block, 'down')}
+                        disabled={idx === sortedBlocks.length - 1 || reorderingBlockId === block.id}
+                        className="p-1 rounded text-slate-300 hover:text-slate-600 hover:bg-slate-100 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                        title="Move down"
+                      >
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Block icon */}
+                    <div className="mt-1 text-slate-400 flex-shrink-0">
                       {blockIcons[block.block_type] ?? <FileText className="h-4 w-4" />}
                     </div>
+
+                    {/* Block content summary */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs font-medium text-slate-500 capitalize bg-slate-100 px-2 py-0.5 rounded-full">
@@ -334,29 +415,49 @@ export function LessonEditor() {
                         {block.title && (
                           <span className="text-sm font-medium text-slate-800">{block.title}</span>
                         )}
-                        <span className="text-xs text-slate-400">pos {block.position}</span>
+                        <span className="text-xs text-slate-400">#{idx + 1}</span>
                       </div>
                       {block.body && (
                         <p className="mt-1 text-sm text-slate-500 truncate">
-                          {block.body.slice(0, 80)}{block.body.length > 80 ? '…' : ''}
+                          {block.body.slice(0, 100)}{block.body.length > 100 ? '…' : ''}
                         </p>
                       )}
                       {block.video_url && (
                         <p className="mt-1 text-xs text-slate-400 truncate">{block.video_url}</p>
                       )}
                     </div>
-                    <button
-                      onClick={() => setEditingBlockId(block.id)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors flex-shrink-0"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                      Edit
-                    </button>
+
+                    {/* Action buttons */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => { setEditingBlockId(block.id); setConfirmDeleteId(null) }}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => { setConfirmDeleteId(block.id); setEditingBlockId(null) }}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {sortedBlocks.length === 0 && (
+        <div className="rounded-2xl bg-slate-50 border border-dashed border-slate-200 px-6 py-10 text-center">
+          <BookOpen className="mx-auto h-8 w-8 text-slate-300 mb-3" />
+          <p className="text-sm font-medium text-slate-500">No content blocks yet</p>
+          <p className="text-xs text-slate-400 mt-1">Add your first block below to get started.</p>
         </div>
       )}
 
