@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
   ChevronDown,
@@ -10,9 +10,12 @@ import {
   Code,
   Eye,
   Pencil,
+  Plus,
 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
+import { NewLessonModal } from './NewLessonModal'
+import { NewModuleModal } from './NewModuleModal'
 
 interface Curriculum {
   id: number
@@ -42,9 +45,13 @@ const typeIcons: Record<string, React.ReactNode> = {
 }
 
 export function ContentManagement() {
+  const navigate = useNavigate()
   const [curricula, setCurricula] = useState<Curriculum[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set())
+  const [newLessonModal, setNewLessonModal] = useState<{ moduleId: number; moduleName: string; curriculumId: number; lessonCount: number; lastReleaseDay: number } | null>(null)
+  const [newModuleModal, setNewModuleModal] = useState<{ curriculumId: number; moduleCount: number } | null>(null)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     api.getCurricula().then(async (res) => {
@@ -95,6 +102,13 @@ export function ContentManagement() {
                   {curriculum.status}
                 </span>
               </div>
+              <button
+                onClick={() => setNewModuleModal({ curriculumId: curriculum.id, moduleCount: curriculum.modules?.length || 0 })}
+                className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium text-primary-600 hover:bg-primary-100 transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                New Module
+              </button>
             </div>
           </div>
 
@@ -116,6 +130,22 @@ export function ContentManagement() {
                       {mod.module_type.replace('_', ' ')} · {mod.lessons?.length || 0} lessons
                     </p>
                   </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setNewLessonModal({
+                        moduleId: mod.id,
+                        moduleName: mod.name,
+                        curriculumId: curriculum.id,
+                        lessonCount: mod.lessons?.length || 0,
+                        lastReleaseDay: mod.lessons?.length > 0 ? mod.lessons[mod.lessons.length - 1].release_day : 0
+                      })
+                    }}
+                    className="ml-2 flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-primary-600 hover:bg-primary-50 transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    New Lesson
+                  </button>
                 </button>
 
                 {expandedModules.has(mod.id) && mod.lessons && (
@@ -161,6 +191,57 @@ export function ContentManagement() {
           </div>
         </div>
       ))}
+
+      {newLessonModal && (
+        <NewLessonModal
+          moduleId={newLessonModal.moduleId}
+          moduleName={newLessonModal.moduleName}
+          defaultPosition={newLessonModal.lessonCount}
+          defaultReleaseDay={newLessonModal.lastReleaseDay + 1}
+          saving={saving}
+          onClose={() => setNewLessonModal(null)}
+          onCreate={async (data) => {
+            setSaving(true)
+            try {
+              const res = await api.createLesson(newLessonModal.moduleId, data)
+              const lessonId = res.data?.lesson?.id
+              if (lessonId) {
+                navigate(`/admin/lessons/${lessonId}`)
+              }
+            } catch (err) {
+              console.error('Failed to create lesson', err)
+            } finally {
+              setSaving(false)
+              setNewLessonModal(null)
+            }
+          }}
+        />
+      )}
+
+      {newModuleModal && (
+        <NewModuleModal
+          curriculumId={newModuleModal.curriculumId}
+          defaultPosition={newModuleModal.moduleCount}
+          saving={saving}
+          onClose={() => setNewModuleModal(null)}
+          onCreate={async (data) => {
+            setSaving(true)
+            try {
+              await api.createModule(newModuleModal.curriculumId, data)
+              const detail = await api.getCurriculum(newModuleModal.curriculumId)
+              const updated = detail.data?.curriculum
+              if (updated) {
+                setCurricula(prev => prev.map(c => c.id === newModuleModal.curriculumId ? updated : c))
+              }
+              setNewModuleModal(null)
+            } catch (err) {
+              console.error('Failed to create module', err)
+            } finally {
+              setSaving(false)
+            }
+          }}
+        />
+      )}
     </div>
   )
 }
