@@ -54,6 +54,7 @@ export function ContentManagement() {
   const [saving, setSaving] = useState(false)
   const [lessonCreateError, setLessonCreateError] = useState('')
   const [moduleCreateError, setModuleCreateError] = useState('')
+  const [pageNotice, setPageNotice] = useState('')
 
   useEffect(() => {
     api.getCurricula().then(async (res) => {
@@ -92,6 +93,12 @@ export function ContentManagement() {
         <h1 className="text-2xl font-bold text-slate-900">Content Management</h1>
       </div>
 
+      {pageNotice && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {pageNotice}
+        </div>
+      )}
+
       {curricula.map((curriculum) => (
         <div key={curriculum.id} className="rounded-2xl bg-white border border-slate-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-200 bg-slate-50">
@@ -106,6 +113,7 @@ export function ContentManagement() {
               </div>
               <button
                 onClick={() => {
+                  setPageNotice('')
                   setModuleCreateError('')
                   setNewModuleModal({ curriculumId: curriculum.id, moduleCount: curriculum.modules?.length || 0 })
                 }}
@@ -141,6 +149,7 @@ export function ContentManagement() {
                   <button
                     type="button"
                     onClick={() => {
+                      setPageNotice('')
                       setLessonCreateError('')
                       setNewLessonModal({
                         moduleId: mod.id,
@@ -246,6 +255,7 @@ export function ContentManagement() {
           onCreate={async (data) => {
             setSaving(true)
             setModuleCreateError('')
+            setPageNotice('')
             const createRes = await api.createModule(newModuleModal.curriculumId, data)
             if (createRes.error) {
               setModuleCreateError(createRes.error)
@@ -272,7 +282,7 @@ export function ContentManagement() {
                 : c
               ))
               setNewModuleModal(null)
-              setModuleCreateError('Module created, but refresh failed. Please reload to verify the latest curriculum state.')
+              setPageNotice('Module created, but refresh failed. Please reload to verify the latest curriculum state.')
             } else {
               setModuleCreateError('Module was created, but the curriculum refresh failed. Please reload to verify the latest state.')
               setSaving(false)
