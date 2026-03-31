@@ -119,4 +119,6 @@ export const api = {
     fetchApi<any>(`/api/v1/lessons/${lessonId}/content_blocks`, { method: 'POST', body: JSON.stringify(data) }),
   deleteContentBlock: (id: number) =>
     fetchApi<null>(`/api/v1/content_blocks/${id}`, { method: 'DELETE' }),
+  getContentBlocks: (lessonId: number) =>
+    fetchApi<any>(`/api/v1/lessons/${lessonId}/content_blocks`),
 };

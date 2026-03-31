@@ -11,6 +11,7 @@ import {
   Plus,
   Save,
   Trash2,
+  X,
   ChevronDown,
   ChevronUp,
 } from 'lucide-react'
@@ -100,16 +101,22 @@ function blockToFormData(block: ContentBlock): BlockFormData {
 
 interface EditBlockRowProps {
   block: ContentBlock
+  isFirst: boolean
+  isLast: boolean
+  reordering: boolean
   onSaved: (updated: ContentBlock) => void
   onDeleted: (id: number) => void
+  onMove: (direction: 'up' | 'down') => void
 }
 
-function EditBlockRow({ block, onSaved, onDeleted }: EditBlockRowProps) {
+function EditBlockRow({ block, isFirst, isLast, reordering, onSaved, onDeleted, onMove }: EditBlockRowProps) {
   const [expanded, setExpanded] = useState(false)
   const [form, setForm] = useState<BlockFormData>(blockToFormData(block))
   const [saving, setSaving] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const handleSave = async () => {
     setSaving(true)
@@ -145,28 +152,52 @@ function EditBlockRow({ block, onSaved, onDeleted }: EditBlockRowProps) {
         onSaved(data.content_block)
         setExpanded(false)
       }
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Save failed')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Save failed')
     } finally {
       setSaving(false)
     }
   }
 
   const handleDelete = async () => {
-    if (!confirm(`Delete block "${block.title || block.block_type}"? This cannot be undone.`)) return
     setDeleting(true)
-    const res = await api.deleteContentBlock(block.id)
-    if (res.error) {
-      setError(res.error)
+    setDeleteError(null)
+    try {
+      const res = await api.deleteContentBlock(block.id)
+      if (res.error) {
+        setDeleteError(res.error)
+        setDeleting(false)
+      } else {
+        onDeleted(block.id)
+      }
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Delete failed')
       setDeleting(false)
-    } else {
-      onDeleted(block.id)
     }
   }
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
       <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 border-b border-slate-100">
+        <div className="flex flex-col gap-0.5 flex-shrink-0">
+          <button
+            onClick={() => onMove('up')}
+            disabled={isFirst || reordering}
+            className="p-0.5 rounded text-slate-300 hover:text-slate-600 hover:bg-slate-100 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+            title="Move up"
+          >
+            <ChevronUp className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => onMove('down')}
+            disabled={isLast || reordering}
+            className="p-0.5 rounded text-slate-300 hover:text-slate-600 hover:bg-slate-100 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+            title="Move down"
+          >
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
         <span className="text-slate-400">{blockTypeIcons[block.block_type] ?? <FileText className="h-4 w-4" />}</span>
         <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
           {block.block_type.replace('_', ' ')}
@@ -182,20 +213,13 @@ function EditBlockRow({ block, onSaved, onDeleted }: EditBlockRowProps) {
               }
               return !v
             })
+            setConfirmingDelete(false)
+            setDeleteError(null)
           }}
           className="inline-flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 font-medium"
         >
           <Edit2 className="h-3.5 w-3.5" />
           Edit
-          {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-        </button>
-        <button
-          onClick={handleDelete}
-          disabled={deleting}
-          className="inline-flex items-center gap-1 text-sm text-red-500 hover:text-red-600 disabled:opacity-50 ml-1"
-          title="Delete block"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
 
@@ -279,7 +303,52 @@ function EditBlockRow({ block, onSaved, onDeleted }: EditBlockRowProps) {
             </>
           )}
 
-          <div className="flex justify-end">
+          <div className="flex items-center justify-between gap-3 pt-2">
+            <div>
+              {confirmingDelete ? (
+                <div className="space-y-2">
+                  <div className="text-sm text-slate-600">
+                    Delete this block? This cannot be undone.
+                  </div>
+                  {deleteError && (
+                    <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{deleteError}</p>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleDelete}
+                      disabled={deleting}
+                      className="inline-flex items-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600 disabled:opacity-50 transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      {deleting ? 'Deleting...' : 'Confirm Delete'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setConfirmingDelete(false)
+                        setDeleteError(null)
+                      }}
+                      disabled={deleting}
+                      className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                    >
+                      <X className="h-4 w-4" />
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    setConfirmingDelete(true)
+                    setDeleteError(null)
+                  }}
+                  className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-100 transition-colors"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete Block
+                </button>
+              )}
+            </div>
+
             <button
               onClick={handleSave}
               disabled={saving}
@@ -342,8 +411,8 @@ function AddBlockForm({ lessonId, nextPosition, onAdded }: AddBlockFormProps) {
         resetForm()
         setOpen(false)
       }
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Add failed')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Add failed')
     } finally {
       setSaving(false)
     }
@@ -484,18 +553,23 @@ export function LessonEditor() {
   const [lesson, setLesson] = useState<Lesson | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [reorderingBlockId, setReorderingBlockId] = useState<number | null>(null)
+  const [reorderError, setReorderError] = useState<string | null>(null)
+
+  const loadLesson = async () => {
+    if (!id) return
+    const res = await api.getLesson(Number(id))
+    if (res.error) {
+      setError(res.error)
+    } else if (res.data) {
+      const data = res.data as { lesson: Lesson }
+      setLesson(data.lesson)
+    }
+    setLoading(false)
+  }
 
   useEffect(() => {
-    if (!id) return
-    api.getLesson(Number(id)).then((res) => {
-      if (res.error) {
-        setError(res.error)
-      } else if (res.data) {
-        const data = res.data as { lesson: Lesson }
-        setLesson(data.lesson)
-      }
-      setLoading(false)
-    })
+    loadLesson()
   }, [id])
 
   const handleBlockSaved = (updated: ContentBlock) => {
@@ -528,6 +602,55 @@ export function LessonEditor() {
     })
   }
 
+  const handleMoveBlock = async (block: ContentBlock, direction: 'up' | 'down') => {
+    if (!lesson || reorderingBlockId !== null) return
+    const sorted = [...lesson.content_blocks].sort((a, b) => a.position - b.position)
+    const idx = sorted.findIndex((b) => b.id === block.id)
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= sorted.length) return
+
+    const swapBlock = sorted[swapIdx]
+    setReorderingBlockId(block.id)
+    setReorderError(null)
+
+    try {
+      const res1 = await api.updateContentBlock(block.id, { position: swapBlock.position })
+      if (res1.error) {
+        setReorderError(res1.error)
+        setReorderingBlockId(null)
+        return
+      }
+
+      const res2 = await api.updateContentBlock(swapBlock.id, { position: block.position })
+      if (res2.error) {
+        const rollback = await api.updateContentBlock(block.id, { position: block.position })
+        if (rollback.error) {
+          setReorderError('Reorder failed and could not be rolled back. Please reload the page.')
+        } else {
+          setReorderError(res2.error)
+        }
+        setReorderingBlockId(null)
+        return
+      }
+
+      setLesson((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          content_blocks: prev.content_blocks.map((b) => {
+            if (b.id === block.id) return { ...b, position: swapBlock.position }
+            if (b.id === swapBlock.id) return { ...b, position: block.position }
+            return b
+          }),
+        }
+      })
+    } catch (err) {
+      setReorderError(err instanceof Error ? err.message : 'Reorder failed')
+    } finally {
+      setReorderingBlockId(null)
+    }
+  }
+
   if (loading) return <LoadingSpinner message="Loading lesson..." />
 
   if (error) {
@@ -544,6 +667,7 @@ export function LessonEditor() {
 
   if (!lesson) return null
 
+  const sortedBlocks = [...lesson.content_blocks].sort((a, b) => a.position - b.position)
   const nextPosition =
     lesson.content_blocks.length > 0
       ? Math.max(...lesson.content_blocks.map((b) => b.position)) + 1
@@ -559,27 +683,33 @@ export function LessonEditor() {
         <h1 className="text-2xl font-bold text-slate-900">{lesson.title}</h1>
         <p className="text-sm text-slate-500 mt-1">
           {lesson.content_blocks.length} content block{lesson.content_blocks.length !== 1 ? 's' : ''}
+          {lesson.lesson_type && <> · <span className="capitalize">{lesson.lesson_type.replace('_', ' ')}</span></>}
         </p>
       </div>
 
+      {reorderError && (
+        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{reorderError}</p>
+      )}
+
       <div className="space-y-3">
-        {lesson.content_blocks.length === 0 && (
+        {sortedBlocks.length === 0 && (
           <div className="rounded-2xl border border-slate-200 bg-white px-6 py-8 text-center text-slate-400 text-sm">
             No content blocks yet. Add one below.
           </div>
         )}
 
-        {lesson.content_blocks
-          .slice()
-          .sort((a, b) => a.position - b.position)
-          .map((block) => (
-            <EditBlockRow
-              key={block.id}
-              block={block}
-              onSaved={handleBlockSaved}
-              onDeleted={handleBlockDeleted}
-            />
-          ))}
+        {sortedBlocks.map((block, idx) => (
+          <EditBlockRow
+            key={block.id}
+            block={block}
+            isFirst={idx === 0}
+            isLast={idx === sortedBlocks.length - 1}
+            reordering={reorderingBlockId !== null}
+            onSaved={handleBlockSaved}
+            onDeleted={handleBlockDeleted}
+            onMove={(direction) => handleMoveBlock(block, direction)}
+          />
+        ))}
 
         <AddBlockForm
           lessonId={lesson.id}

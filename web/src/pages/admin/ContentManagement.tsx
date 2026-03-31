@@ -126,7 +126,7 @@ export function ContentManagement() {
                           key={lesson.id}
                           className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-slate-100 transition-colors group"
                         >
-                          <div className="text-slate-400">
+                          <div className="text-slate-400 flex-shrink-0">
                             {typeIcons[lesson.lesson_type] || <FileText className="h-3.5 w-3.5" />}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -138,15 +138,15 @@ export function ContentManagement() {
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <Link
                               to={`/admin/lessons/${lesson.id}/edit`}
-                              className="p-1 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-colors"
-                              title="Edit lesson"
+                              title="Edit lesson content"
+                              className="rounded-lg p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
                             >
                               <Pencil className="h-4 w-4" />
                             </Link>
                             <Link
                               to={`/lessons/${lesson.id}`}
-                              className="p-1 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-colors"
-                              title="View lesson"
+                              title="Student preview"
+                              className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors"
                             >
                               <Eye className="h-4 w-4" />
                             </Link>
