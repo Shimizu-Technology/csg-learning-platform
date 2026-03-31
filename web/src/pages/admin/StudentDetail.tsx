@@ -134,59 +134,61 @@ function LessonRow({ lesson }: { lesson: ProgressData['modules'][0]['lessons'][0
 
   return (
     <div className="border border-slate-200 rounded-xl overflow-hidden">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-3 p-4 hover:bg-slate-50 transition-colors text-left"
-      >
-        {lesson.completed ? (
-          <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
-        ) : lesson.available ? (
-          <Circle className="h-4 w-4 text-slate-300 shrink-0" />
-        ) : (
-          <Clock className="h-4 w-4 text-slate-200 shrink-0" />
-        )}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-slate-900 truncate">{lesson.title}</span>
-            {lesson.required && (
-              <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 bg-primary-100 text-primary-700 rounded">
-                Required
+      <div className="flex items-center gap-3 p-4 hover:bg-slate-50 transition-colors">
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className="flex flex-1 items-center gap-3 text-left min-w-0"
+        >
+          {lesson.completed ? (
+            <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+          ) : lesson.available ? (
+            <Circle className="h-4 w-4 text-slate-300 shrink-0" />
+          ) : (
+            <Clock className="h-4 w-4 text-slate-200 shrink-0" />
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-slate-900 truncate">{lesson.title}</span>
+              {lesson.required && (
+                <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 bg-primary-100 text-primary-700 rounded">
+                  Required
+                </span>
+              )}
+              {!lesson.available && (
+                <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded">
+                  Locked
+                </span>
+              )}
+            </div>
+            <div className="mt-1 flex items-center gap-3">
+              <span className="text-xs text-slate-500">
+                {lesson.completed_blocks}/{lesson.total_blocks} blocks
               </span>
-            )}
-            {!lesson.available && (
-              <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded">
-                Locked
-              </span>
-            )}
+              {lesson.total_blocks > 0 && (
+                <div className="flex-1 max-w-32">
+                  <ProgressBar
+                    value={lesson.total_blocks > 0 ? Math.round((lesson.completed_blocks / lesson.total_blocks) * 100) : 0}
+                    size="sm"
+                    showPercentage={false}
+                  />
+                </div>
+              )}
+            </div>
           </div>
-          <div className="mt-1 flex items-center gap-3">
-            <span className="text-xs text-slate-500">
-              {lesson.completed_blocks}/{lesson.total_blocks} blocks
-            </span>
-            {lesson.total_blocks > 0 && (
-              <div className="flex-1 max-w-32">
-                <ProgressBar
-                  value={lesson.total_blocks > 0 ? Math.round((lesson.completed_blocks / lesson.total_blocks) * 100) : 0}
-                  size="sm"
-                  showPercentage={false}
-                />
-              </div>
-            )}
-          </div>
-        </div>
+          {expanded ? (
+            <ChevronDown className="h-4 w-4 text-slate-400 shrink-0" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-slate-400 shrink-0" />
+          )}
+        </button>
         <Link
           to={`/lessons/${lesson.id}`}
-          onClick={(e) => e.stopPropagation()}
-          className="text-xs text-primary-600 hover:underline shrink-0 mr-2"
+          className="text-xs text-primary-600 hover:underline shrink-0 ml-3"
         >
           View
         </Link>
-        {expanded ? (
-          <ChevronDown className="h-4 w-4 text-slate-400 shrink-0" />
-        ) : (
-          <ChevronRight className="h-4 w-4 text-slate-400 shrink-0" />
-        )}
-      </button>
+      </div>
 
       {expanded && lesson.blocks.length > 0 && (
         <div className="border-t border-slate-200 bg-slate-50">

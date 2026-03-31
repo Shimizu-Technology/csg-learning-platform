@@ -71,9 +71,9 @@ module Api
 
         cohort = enrollment.cohort
         curriculum = cohort.curriculum
-        # Use sort_by at the Ruby level to preserve eager-loaded associations;
-        # calling .order() on a preloaded CollectionProxy fires extra SQL queries
-        modules = curriculum.modules.includes(lessons: :content_blocks).sort_by(&:position)
+        # The enrollment preload already loaded curriculum -> modules -> lessons -> content_blocks.
+        # Keep everything in memory here so we don't undo that eager loading with fresh queries.
+        modules = curriculum.modules.sort_by(&:position)
 
         # Index all progresses and submissions for this user
         all_block_ids = modules.flat_map { |m| m.lessons.flat_map { |l| l.content_blocks.map(&:id) } }
