@@ -262,6 +262,12 @@ function AddBlockForm({ lessonId, nextPosition, onAdded }: AddBlockFormProps) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const resetForm = () => {
+    setBlockType('video')
+    setForm(emptyFormData())
+    setError(null)
+  }
+
   const handleAdd = async () => {
     setSaving(true)
     setError(null)
@@ -282,7 +288,7 @@ function AddBlockForm({ lessonId, nextPosition, onAdded }: AddBlockFormProps) {
     } else if (res.data) {
       const data = res.data as { content_block: ContentBlock }
       onAdded(data.content_block)
-      setForm(emptyFormData())
+      resetForm()
       setOpen(false)
     }
     setSaving(false)
@@ -383,7 +389,10 @@ function AddBlockForm({ lessonId, nextPosition, onAdded }: AddBlockFormProps) {
 
       <div className="flex justify-end gap-2">
         <button
-          onClick={() => { setOpen(false); setError(null) }}
+          onClick={() => {
+            resetForm()
+            setOpen(false)
+          }}
           className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
         >
           Cancel
