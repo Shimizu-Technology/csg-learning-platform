@@ -115,6 +115,8 @@ export const api = {
     fetchApi<any>(`/api/v1/content_blocks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   createLesson: (moduleId: number, data: any) =>
     fetchApi<any>(`/api/v1/modules/${moduleId}/lessons`, { method: 'POST', body: JSON.stringify(data) }),
+  createModule: (curriculumId: number, data: any) =>
+    fetchApi<any>(`/api/v1/curricula/${curriculumId}/modules`, { method: 'POST', body: JSON.stringify(data) }),
   createContentBlock: (lessonId: number, data: any) =>
     fetchApi<any>(`/api/v1/lessons/${lessonId}/content_blocks`, { method: 'POST', body: JSON.stringify(data) }),
   deleteContentBlock: (id: number) =>
