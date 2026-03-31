@@ -7,6 +7,7 @@ import { LessonView } from './pages/student/LessonView'
 import { Profile } from './pages/student/Profile'
 import { AdminDashboard } from './pages/admin/AdminDashboard'
 import { StudentManagement } from './pages/admin/StudentManagement'
+import { StudentDetail } from './pages/admin/StudentDetail'
 import { ContentManagement } from './pages/admin/ContentManagement'
 import { LessonEditor } from './pages/admin/LessonEditor'
 import { Grading } from './pages/admin/Grading'
@@ -84,6 +85,16 @@ function AppRoutes() {
           <ProtectedRoute requiredRole="staff">
             <Layout>
               <StudentManagement />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/students/:id"
+        element={
+          <ProtectedRoute requiredRole="staff">
+            <Layout>
+              <StudentDetail />
             </Layout>
           </ProtectedRoute>
         }
