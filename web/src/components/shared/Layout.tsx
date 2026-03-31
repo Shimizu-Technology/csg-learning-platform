@@ -136,6 +136,17 @@ export function Layout({ children }: LayoutProps) {
               </div>
             </div>
           </div>
+          {/* Shimizu Technology attribution */}
+          <div className="px-4 pb-3 text-center">
+            <a
+              href="https://shimizu-technology.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-slate-400 hover:text-slate-600 transition-colors duration-200"
+            >
+              Built by <span className="font-medium">Shimizu Technology</span>
+            </a>
+          </div>
         </aside>
 
         {/* Main content */}
