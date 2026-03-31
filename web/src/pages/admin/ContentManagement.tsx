@@ -8,7 +8,7 @@ import {
   FileText,
   Play,
   Code,
-  Eye,
+  Edit2,
 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -127,7 +127,7 @@ export function ContentManagement() {
                       {mod.lessons.map((lesson) => (
                         <Link
                           key={lesson.id}
-                          to={`/lessons/${lesson.id}`}
+                          to={`/admin/lessons/${lesson.id}`}
                           className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-slate-100 transition-colors group"
                         >
                           <div className="text-slate-400">
@@ -139,7 +139,7 @@ export function ContentManagement() {
                               Day {lesson.release_day} · {lesson.content_blocks_count} blocks
                             </p>
                           </div>
-                          <Eye className="h-4 w-4 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          <Edit2 className="h-4 w-4 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </Link>
                       ))}
                     </div>
