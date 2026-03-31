@@ -129,11 +129,39 @@ module Api
 
         total_blocks = all_block_ids.size
 
-        # Student progress data
-        students = cohort.enrollments.active.includes(:user).map do |enrollment|
+        # Student progress data — bulk-load to avoid N+1 queries
+        week_ago = 7.days.ago
+        enrollments = cohort.enrollments.active.includes(:user).to_a
+        user_ids = enrollments.map { |e| e.user.id }
+
+        # Bulk load all completed progresses for all students at once (1 query)
+        all_progresses = Progress.completed
+          .where(user_id: user_ids, content_block_id: all_block_ids)
+          .select(:user_id, :content_block_id, :completed_at)
+          .to_a
+        progresses_by_user = all_progresses.group_by(&:user_id)
+
+        # Bulk load all submissions for all students at once (1 query)
+        all_submissions = Submission
+          .where(user_id: user_ids, content_block_id: all_block_ids)
+          .select(:user_id, :content_block_id, :created_at)
+          .to_a
+        submissions_by_user = all_submissions.group_by(&:user_id)
+
+        students = enrollments.map do |enrollment|
           user = enrollment.user
-          completed = user.progresses.completed.where(content_block_id: all_block_ids).count
+          user_progresses = progresses_by_user[user.id] || []
+          user_submissions = submissions_by_user[user.id] || []
+          completed = user_progresses.size
           percentage = total_blocks > 0 ? (completed.to_f / total_blocks * 100).round(1) : 0
+
+          last_completed_activity = user_progresses.map(&:completed_at).compact.max
+          last_submission_activity = user_submissions.map(&:created_at).compact.max
+          last_activity = [last_completed_activity, last_submission_activity].compact.max
+
+          # Weekly activity metrics for the admin table
+          blocks_this_week = user_progresses.count { |p| p.completed_at && p.completed_at >= week_ago }
+          submissions_this_week = user_submissions.count { |s| s.created_at && s.created_at >= week_ago }
 
           {
             user_id: user.id,
@@ -144,6 +172,9 @@ module Api
             completed_blocks: completed,
             total_blocks: total_blocks,
             last_sign_in_at: user.last_sign_in_at,
+            last_activity_at: last_activity,
+            blocks_this_week: blocks_this_week,
+            submissions_this_week: submissions_this_week,
             enrollment_status: enrollment.status
           }
         end

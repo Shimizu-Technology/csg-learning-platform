@@ -7,9 +7,10 @@ import { LessonView } from './pages/student/LessonView'
 import { Profile } from './pages/student/Profile'
 import { AdminDashboard } from './pages/admin/AdminDashboard'
 import { StudentManagement } from './pages/admin/StudentManagement'
+import { StudentDetail } from './pages/admin/StudentDetail'
 import { ContentManagement } from './pages/admin/ContentManagement'
-import { Grading } from './pages/admin/Grading'
 import { LessonEditor } from './pages/admin/LessonEditor'
+import { Grading } from './pages/admin/Grading'
 import { SignInPage } from './pages/SignIn'
 import { useAuthContext } from './contexts/AuthContext'
 import { LoadingSpinner } from './components/shared/LoadingSpinner'
@@ -89,6 +90,16 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/admin/students/:id"
+        element={
+          <ProtectedRoute requiredRole="staff">
+            <Layout>
+              <StudentDetail />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/admin/content"
         element={
           <ProtectedRoute requiredRole="staff">
@@ -109,7 +120,7 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/admin/lessons/:lessonId"
+        path="/admin/lessons/:id/edit"
         element={
           <ProtectedRoute requiredRole="staff">
             <Layout>

@@ -56,26 +56,133 @@ module Api
         }
       end
 
-      # GET /api/v1/progress/student/:user_id — admin: view student progress
+      # GET /api/v1/progress/student/:user_id — admin: view detailed student progress
       def student
         require_staff!
         return if performed?
 
         user = User.find(params[:user_id])
-        progresses = user.progresses.includes(:content_block)
+        enrollment = user.enrollments.active.includes(cohort: { curriculum: { modules: { lessons: :content_blocks } } }).first
+
+        unless enrollment
+          render json: { error: "Student is not enrolled in an active cohort" }, status: :not_found
+          return
+        end
+
+        cohort = enrollment.cohort
+        curriculum = cohort.curriculum
+        # The enrollment preload already loaded curriculum -> modules -> lessons -> content_blocks.
+        # Keep everything in memory here so we don't undo that eager loading with fresh queries.
+        modules = curriculum.modules.sort_by(&:position)
+
+        # Index all progresses and submissions for this user
+        all_block_ids = modules.flat_map { |m| m.lessons.flat_map { |l| l.content_blocks.map(&:id) } }
+        progress_by_block = user.progresses.where(content_block_id: all_block_ids).index_by(&:content_block_id)
+        submissions_by_block = user.submissions.where(content_block_id: all_block_ids)
+          .order(created_at: :desc)
+          .group_by(&:content_block_id)
+          .transform_values(&:first) # latest submission per block
+
+        # Build a flat lookup map from already-loaded data for recent_activity (avoids N+1)
+        all_blocks_by_id = modules.flat_map { |m|
+          m.lessons.flat_map { |l| l.content_blocks.map { |b| [ b.id, b ] } }
+        }.to_h
+
+        total_blocks = all_block_ids.size
+        completed_blocks = progress_by_block.values.count(&:completed?)
+        overall_percentage = total_blocks > 0 ? (completed_blocks.to_f / total_blocks * 100).round(1) : 0
+
+        modules_data = modules.map do |mod|
+          mod_block_ids = mod.lessons.flat_map { |l| l.content_blocks.map(&:id) }
+          mod_completed = mod_block_ids.count { |id| progress_by_block[id]&.completed? }
+          mod_total = mod_block_ids.size
+          mod_pct = mod_total > 0 ? (mod_completed.to_f / mod_total * 100).round(1) : 0
+
+          {
+            id: mod.id,
+            name: mod.name,
+            module_type: mod.module_type,
+            position: mod.position,
+            total_blocks: mod_total,
+            completed_blocks: mod_completed,
+            progress_percentage: mod_pct,
+            lessons: mod.lessons.sort_by(&:position).map do |lesson|
+              lesson_block_ids = lesson.content_blocks.map(&:id)
+              lesson_completed = lesson_block_ids.count { |id| progress_by_block[id]&.completed? }
+              lesson_total = lesson_block_ids.size
+              available = lesson.available?(cohort)
+
+              {
+                id: lesson.id,
+                title: lesson.title,
+                lesson_type: lesson.lesson_type,
+                position: lesson.position,
+                release_day: lesson.release_day,
+                required: lesson.required,
+                available: available,
+                unlock_date: lesson.unlock_date(cohort),
+                total_blocks: lesson_total,
+                completed_blocks: lesson_completed,
+                completed: lesson_completed == lesson_total && lesson_total > 0,
+                blocks: lesson.content_blocks.sort_by(&:position).map do |block|
+                  progress = progress_by_block[block.id]
+                  submission = submissions_by_block[block.id]
+                  {
+                    id: block.id,
+                    title: block.title,
+                    block_type: block.block_type,
+                    position: block.position,
+                    status: progress&.status || "not_started",
+                    completed_at: progress&.completed_at,
+                    submission: submission ? {
+                      id: submission.id,
+                      grade: submission.grade,
+                      feedback: submission.feedback,
+                      submitted_at: submission.created_at,
+                      graded_at: submission.graded_at
+                    } : nil
+                  }
+                end
+              }
+            end
+          }
+        end
+
+        # Recent activity: last 10 completed blocks
+        # Use all_blocks_by_id lookup map (built from eager-loaded data) to avoid N+1
+        recent_activity = progress_by_block.values
+          .select(&:completed?)
+          .sort_by { |p| -(p.completed_at&.to_i || 0) }
+          .first(10)
+          .map do |p|
+            block = all_blocks_by_id[p.content_block_id]
+            next nil unless block
+            { content_block_id: p.content_block_id, block_title: block.title, block_type: block.block_type, completed_at: p.completed_at }
+          end
+          .compact
 
         render json: {
-          user_id: user.id,
-          user_name: user.full_name,
-          progress: progresses.map { |p|
-            {
-              id: p.id,
-              content_block_id: p.content_block_id,
-              block_type: p.content_block.block_type,
-              status: p.status,
-              completed_at: p.completed_at
-            }
-          }
+          user: {
+            id: user.id,
+            full_name: user.full_name,
+            email: user.email,
+            github_username: user.github_username,
+            avatar_url: user.avatar_url,
+            last_sign_in_at: user.last_sign_in_at
+          },
+          cohort: {
+            id: cohort.id,
+            name: cohort.name,
+            start_date: cohort.start_date,
+            status: cohort.status
+          },
+          overall_progress: {
+            completed: completed_blocks,
+            total: total_blocks,
+            percentage: overall_percentage
+          },
+          modules: modules_data,
+          recent_activity: recent_activity
         }
       end
     end

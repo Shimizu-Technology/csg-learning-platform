@@ -49,7 +49,6 @@ export function ContentManagement() {
   useEffect(() => {
     api.getCurricula().then(async (res) => {
       if (res.data?.curricula) {
-        // Load full details for each curriculum
         const detailed = await Promise.all(
           res.data.curricula.map(async (c: any) => {
             const detail = await api.getCurriculum(c.id)
@@ -86,7 +85,6 @@ export function ContentManagement() {
 
       {curricula.map((curriculum) => (
         <div key={curriculum.id} className="rounded-2xl bg-white border border-slate-200 overflow-hidden">
-          {/* Curriculum header */}
           <div className="px-6 py-4 border-b border-slate-200 bg-slate-50">
             <div className="flex items-center justify-between">
               <div>
@@ -100,7 +98,6 @@ export function ContentManagement() {
             </div>
           </div>
 
-          {/* Modules accordion */}
           <div className="divide-y divide-slate-200">
             {curriculum.modules?.map((mod) => (
               <div key={mod.id}>
@@ -121,7 +118,6 @@ export function ContentManagement() {
                   </div>
                 </button>
 
-                {/* Expanded lessons list */}
                 {expandedModules.has(mod.id) && mod.lessons && (
                   <div className="px-6 pb-4 pl-14">
                     <div className="space-y-1">
@@ -141,18 +137,18 @@ export function ContentManagement() {
                           </div>
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <Link
+                              to={`/admin/lessons/${lesson.id}/edit`}
+                              title="Edit lesson content"
+                              className="rounded-lg p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Link>
+                            <Link
                               to={`/lessons/${lesson.id}`}
                               title="Student preview"
                               className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors"
                             >
                               <Eye className="h-4 w-4" />
-                            </Link>
-                            <Link
-                              to={`/admin/lessons/${lesson.id}`}
-                              title="Edit lesson content"
-                              className="rounded-lg p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
-                            >
-                              <Pencil className="h-4 w-4" />
                             </Link>
                           </div>
                         </div>
