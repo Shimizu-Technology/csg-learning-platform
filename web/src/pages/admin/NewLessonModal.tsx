@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { X } from 'lucide-react'
 
 interface Props {
-  moduleId: number
   moduleName: string
   defaultPosition: number
   defaultReleaseDay: number

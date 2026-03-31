@@ -120,24 +120,27 @@ export function ContentManagement() {
           <div className="divide-y divide-slate-200">
             {curriculum.modules?.map((mod) => (
               <div key={mod.id}>
-                <button
-                  onClick={() => toggleModule(mod.id)}
-                  className="w-full flex items-center gap-3 px-6 py-4 text-left hover:bg-slate-50 transition-colors"
-                >
-                  {expandedModules.has(mod.id) ? (
-                    <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-900">{mod.name}</p>
-                    <p className="text-xs text-slate-500 capitalize">
-                      {mod.module_type.replace('_', ' ')} · {mod.lessons?.length || 0} lessons
-                    </p>
-                  </div>
+                <div className="w-full flex items-center gap-3 px-6 py-4 hover:bg-slate-50 transition-colors">
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation()
+                    type="button"
+                    onClick={() => toggleModule(mod.id)}
+                    className="flex flex-1 items-center gap-3 text-left min-w-0"
+                  >
+                    {expandedModules.has(mod.id) ? (
+                      <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-900">{mod.name}</p>
+                      <p className="text-xs text-slate-500 capitalize">
+                        {mod.module_type.replace('_', ' ')} · {mod.lessons?.length || 0} lessons
+                      </p>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
                       setLessonCreateError('')
                       setNewLessonModal({
                         moduleId: mod.id,
@@ -154,7 +157,7 @@ export function ContentManagement() {
                     <Plus className="h-3.5 w-3.5" />
                     New Lesson
                   </button>
-                </button>
+                </div>
 
                 {expandedModules.has(mod.id) && mod.lessons && (
                   <div className="px-6 pb-4 pl-14">
@@ -202,7 +205,6 @@ export function ContentManagement() {
 
       {newLessonModal && (
         <NewLessonModal
-          moduleId={newLessonModal.moduleId}
           moduleName={newLessonModal.moduleName}
           defaultPosition={newLessonModal.lessonCount}
           defaultReleaseDay={newLessonModal.lastReleaseDay + 1}
@@ -234,7 +236,6 @@ export function ContentManagement() {
 
       {newModuleModal && (
         <NewModuleModal
-          curriculumId={newModuleModal.curriculumId}
           defaultPosition={newModuleModal.moduleCount}
           saving={saving}
           error={moduleCreateError}
@@ -252,13 +253,33 @@ export function ContentManagement() {
               return
             }
 
+            const createdModule = createRes.data?.module
             const detail = await api.getCurriculum(newModuleModal.curriculumId)
             const updated = detail.data?.curriculum
+
             if (updated) {
               setCurricula(prev => prev.map(c => c.id === newModuleModal.curriculumId ? updated : c))
+              setNewModuleModal(null)
+            } else if (createdModule) {
+              setCurricula(prev => prev.map(c => c.id === newModuleModal.curriculumId
+                ? {
+                    ...c,
+                    modules: [
+                      ...(c.modules || []),
+                      { ...createdModule, lessons: createdModule.lessons || [] },
+                    ].sort((a, b) => a.position - b.position),
+                  }
+                : c
+              ))
+              setNewModuleModal(null)
+              setModuleCreateError('Module created, but refresh failed. Please reload to verify the latest curriculum state.')
+            } else {
+              setModuleCreateError('Module was created, but the curriculum refresh failed. Please reload to verify the latest state.')
+              setSaving(false)
+              return
             }
+
             setSaving(false)
-            setNewModuleModal(null)
           }}
         />
       )}
