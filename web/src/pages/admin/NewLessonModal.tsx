@@ -7,6 +7,7 @@ interface Props {
   defaultPosition: number
   defaultReleaseDay: number
   saving: boolean
+  error?: string
   onClose: () => void
   onCreate: (data: { title: string; lesson_type: string; position: number; release_day: number }) => Promise<void>
 }
@@ -19,17 +20,20 @@ const LESSON_TYPES = [
   { value: 'checkpoint', label: 'Checkpoint' },
 ]
 
-export function NewLessonModal({ moduleName, defaultPosition, defaultReleaseDay, saving, onClose, onCreate }: Props) {
+export function NewLessonModal({ moduleName, defaultPosition, defaultReleaseDay, saving, error, onClose, onCreate }: Props) {
   const [title, setTitle] = useState('')
   const [lessonType, setLessonType] = useState('reading')
   const [position, setPosition] = useState(defaultPosition)
   const [releaseDay, setReleaseDay] = useState(defaultReleaseDay)
-  const [error, setError] = useState('')
+  const [validationError, setValidationError] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!title.trim()) { setError('Title is required'); return }
-    setError('')
+    if (!title.trim()) {
+      setValidationError('Title is required')
+      return
+    }
+    setValidationError('')
     await onCreate({ title: title.trim(), lesson_type: lessonType, position, release_day: releaseDay })
   }
 
@@ -43,7 +47,7 @@ export function NewLessonModal({ moduleName, defaultPosition, defaultReleaseDay,
           </button>
         </div>
         <p className="text-sm text-slate-500 mb-4">Adding to: <span className="font-medium text-slate-700">{moduleName}</span></p>
-        {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+        {(validationError || error) && <p className="text-sm text-red-600 mb-3">{validationError || error}</p>}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>

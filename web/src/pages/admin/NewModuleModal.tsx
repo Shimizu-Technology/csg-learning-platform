@@ -5,6 +5,7 @@ interface Props {
   curriculumId: number
   defaultPosition: number
   saving: boolean
+  error?: string
   onClose: () => void
   onCreate: (data: { name: string; module_type: string; position: number; day_offset: number; total_days: number }) => Promise<void>
 }
@@ -18,18 +19,21 @@ const MODULE_TYPES = [
   { value: 'recording', label: 'Recording' },
 ]
 
-export function NewModuleModal({ defaultPosition, saving, onClose, onCreate }: Props) {
+export function NewModuleModal({ defaultPosition, saving, error, onClose, onCreate }: Props) {
   const [name, setName] = useState('')
   const [moduleType, setModuleType] = useState('live_class')
   const [position, setPosition] = useState(defaultPosition)
   const [dayOffset, setDayOffset] = useState(0)
   const [totalDays, setTotalDays] = useState(7)
-  const [error, setError] = useState('')
+  const [validationError, setValidationError] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!name.trim()) { setError('Name is required'); return }
-    setError('')
+    if (!name.trim()) {
+      setValidationError('Name is required')
+      return
+    }
+    setValidationError('')
     await onCreate({ name: name.trim(), module_type: moduleType, position, day_offset: dayOffset, total_days: totalDays })
   }
 
@@ -42,7 +46,7 @@ export function NewModuleModal({ defaultPosition, saving, onClose, onCreate }: P
             <X className="h-4 w-4" />
           </button>
         </div>
-        {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+        {(validationError || error) && <p className="text-sm text-red-600 mb-3">{validationError || error}</p>}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
