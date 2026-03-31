@@ -45,6 +45,7 @@ function getVimeoEmbed(url: string): { id: string; hash?: string } | null {
 }
 
 export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: ContentBlockRendererProps) {
+  // Sorted newest-first by the API; first item is the latest submission
   const hasGradedSubmission = (block.submissions ?? []).some((s) => s.grade !== null)
   const [isCompleted, setIsCompleted] = useState(block.progress?.status === 'completed')
   const [showSolution, setShowSolution] = useState(false)
@@ -130,6 +131,7 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
         <div className="text-slate-500">{blockIcons[block.block_type]}</div>
         <span className="text-sm font-medium text-slate-700 capitalize">{block.block_type.replace('_', ' ')}</span>
         {block.title && <span className="text-sm text-slate-500">· {block.title}</span>}
+        {/* Graded badge — shown when at least one submission has been graded */}
         {hasGradedSubmission && (
           <span className="inline-flex items-center gap-1 rounded-full bg-success-50 border border-success-200 px-2 py-0.5 text-xs font-medium text-success-700">
             <BadgeCheck className="h-3.5 w-3.5" />
@@ -264,14 +266,22 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
                       </div>
 
                       {/* Instructor feedback */}
-                      {isGraded && sub.feedback && (
+                      {isGraded && (
                         <div className="rounded-lg border border-success-200 bg-white p-3">
-                          <p className="text-xs font-semibold text-success-700 mb-1">Instructor Feedback</p>
-                          <p className="text-sm text-slate-700">{sub.feedback}</p>
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="text-xs font-semibold text-success-700">Instructor Feedback</p>
+                            {sub.graded_at && (
+                              <p className="text-xs text-slate-400">
+                                Graded {new Date(sub.graded_at).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                          {sub.feedback ? (
+                            <p className="text-sm text-slate-700">{sub.feedback}</p>
+                          ) : (
+                            <p className="text-xs text-slate-400 italic">No feedback provided.</p>
+                          )}
                         </div>
-                      )}
-                      {isGraded && !sub.feedback && (
-                        <p className="text-xs text-slate-400 italic">No feedback provided.</p>
                       )}
                     </div>
                   )
