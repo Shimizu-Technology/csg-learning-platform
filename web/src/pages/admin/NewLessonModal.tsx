@@ -41,7 +41,11 @@ export function NewLessonModal({ moduleName, defaultPosition, defaultReleaseDay,
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-slate-900">New Lesson</h2>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -95,7 +99,8 @@ export function NewLessonModal({ moduleName, defaultPosition, defaultReleaseDay,
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+              disabled={saving}
+              className="flex-1 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>

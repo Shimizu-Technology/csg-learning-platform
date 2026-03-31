@@ -51,7 +51,8 @@ export function ContentManagement() {
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set())
   const [newLessonModal, setNewLessonModal] = useState<{ moduleId: number; moduleName: string; curriculumId: number; lessonCount: number; lastReleaseDay: number } | null>(null)
   const [newModuleModal, setNewModuleModal] = useState<{ curriculumId: number; moduleCount: number } | null>(null)
-  const [saving, setSaving] = useState(false)
+  const [lessonSaving, setLessonSaving] = useState(false)
+  const [moduleSaving, setModuleSaving] = useState(false)
   const [lessonCreateError, setLessonCreateError] = useState('')
   const [moduleCreateError, setModuleCreateError] = useState('')
   const [pageNotice, setPageNotice] = useState('')
@@ -217,24 +218,24 @@ export function ContentManagement() {
           moduleName={newLessonModal.moduleName}
           defaultPosition={newLessonModal.lessonCount}
           defaultReleaseDay={newLessonModal.lastReleaseDay + 1}
-          saving={saving}
+          saving={lessonSaving}
           error={lessonCreateError}
           onClose={() => {
             setLessonCreateError('')
             setNewLessonModal(null)
           }}
           onCreate={async (data) => {
-            setSaving(true)
+            setLessonSaving(true)
             setLessonCreateError('')
             const res = await api.createLesson(newLessonModal.moduleId, data)
             if (res.error) {
               setLessonCreateError(res.error)
-              setSaving(false)
+              setLessonSaving(false)
               return
             }
 
             const lessonId = res.data?.lesson?.id
-            setSaving(false)
+            setLessonSaving(false)
             setNewLessonModal(null)
             if (lessonId) {
               navigate(`/admin/lessons/${lessonId}/edit`)
@@ -246,20 +247,20 @@ export function ContentManagement() {
       {newModuleModal && (
         <NewModuleModal
           defaultPosition={newModuleModal.moduleCount}
-          saving={saving}
+          saving={moduleSaving}
           error={moduleCreateError}
           onClose={() => {
             setModuleCreateError('')
             setNewModuleModal(null)
           }}
           onCreate={async (data) => {
-            setSaving(true)
+            setModuleSaving(true)
             setModuleCreateError('')
             setPageNotice('')
             const createRes = await api.createModule(newModuleModal.curriculumId, data)
             if (createRes.error) {
               setModuleCreateError(createRes.error)
-              setSaving(false)
+              setModuleSaving(false)
               return
             }
 
@@ -285,11 +286,11 @@ export function ContentManagement() {
               setPageNotice('Module created, but refresh failed. Please reload to verify the latest curriculum state.')
             } else {
               setModuleCreateError('Module was created, but the curriculum refresh failed. Please reload to verify the latest state.')
-              setSaving(false)
+              setModuleSaving(false)
               return
             }
 
-            setSaving(false)
+            setModuleSaving(false)
           }}
         />
       )}
