@@ -179,7 +179,6 @@ function EditBlockRow({ block, isFirst, isLast, reordering, onSaved, onDeleted, 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
       <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 border-b border-slate-100">
-        {/* Reorder buttons */}
         <div className="flex flex-col gap-0.5 flex-shrink-0">
           <button
             onClick={() => onMove('up')}
@@ -221,49 +220,8 @@ function EditBlockRow({ block, isFirst, isLast, reordering, onSaved, onDeleted, 
         >
           <Edit2 className="h-3.5 w-3.5" />
           Edit
-          {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-        </button>
-        <button
-          onClick={() => {
-            setConfirmingDelete(true)
-            setExpanded(false)
-            setDeleteError(null)
-          }}
-          disabled={deleting}
-          className="inline-flex items-center gap-1 text-sm text-red-500 hover:text-red-600 disabled:opacity-50 ml-1"
-          title="Delete block"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
-
-      {confirmingDelete && (
-        <div className="p-4 space-y-2">
-          <div className="flex items-center gap-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3">
-            <p className="text-sm text-red-700 flex-1">
-              Delete block &quot;{block.title || block.block_type}&quot;? This cannot be undone.
-            </p>
-            <button
-              onClick={handleDelete}
-              disabled={deleting}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              {deleting ? 'Deleting...' : 'Delete'}
-            </button>
-            <button
-              onClick={() => { setConfirmingDelete(false); setDeleteError(null) }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
-            >
-              <X className="h-3.5 w-3.5" />
-              Cancel
-            </button>
-          </div>
-          {deleteError && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{deleteError}</p>
-          )}
-        </div>
-      )}
 
       {expanded && (
         <div className="p-4 space-y-3">
@@ -345,7 +303,52 @@ function EditBlockRow({ block, isFirst, isLast, reordering, onSaved, onDeleted, 
             </>
           )}
 
-          <div className="flex justify-end">
+          <div className="flex items-center justify-between gap-3 pt-2">
+            <div>
+              {confirmingDelete ? (
+                <div className="space-y-2">
+                  <div className="text-sm text-slate-600">
+                    Delete this block? This cannot be undone.
+                  </div>
+                  {deleteError && (
+                    <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{deleteError}</p>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleDelete}
+                      disabled={deleting}
+                      className="inline-flex items-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600 disabled:opacity-50 transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      {deleting ? 'Deleting...' : 'Confirm Delete'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setConfirmingDelete(false)
+                        setDeleteError(null)
+                      }}
+                      disabled={deleting}
+                      className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                    >
+                      <X className="h-4 w-4" />
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    setConfirmingDelete(true)
+                    setDeleteError(null)
+                  }}
+                  className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-100 transition-colors"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete Block
+                </button>
+              )}
+            </div>
+
             <button
               onClick={handleSave}
               disabled={saving}
@@ -553,17 +556,20 @@ export function LessonEditor() {
   const [reorderingBlockId, setReorderingBlockId] = useState<number | null>(null)
   const [reorderError, setReorderError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const loadLesson = async () => {
     if (!id) return
-    api.getLesson(Number(id)).then((res) => {
-      if (res.error) {
-        setError(res.error)
-      } else if (res.data) {
-        const data = res.data as { lesson: Lesson }
-        setLesson(data.lesson)
-      }
-      setLoading(false)
-    })
+    const res = await api.getLesson(Number(id))
+    if (res.error) {
+      setError(res.error)
+    } else if (res.data) {
+      const data = res.data as { lesson: Lesson }
+      setLesson(data.lesson)
+    }
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    loadLesson()
   }, [id])
 
   const handleBlockSaved = (updated: ContentBlock) => {
@@ -597,7 +603,7 @@ export function LessonEditor() {
   }
 
   const handleMoveBlock = async (block: ContentBlock, direction: 'up' | 'down') => {
-    if (!lesson) return
+    if (!lesson || reorderingBlockId !== null) return
     const sorted = [...lesson.content_blocks].sort((a, b) => a.position - b.position)
     const idx = sorted.findIndex((b) => b.id === block.id)
     const swapIdx = direction === 'up' ? idx - 1 : idx + 1
@@ -608,23 +614,25 @@ export function LessonEditor() {
     setReorderError(null)
 
     try {
-      // Sequential PATCHes to avoid race conditions
       const res1 = await api.updateContentBlock(block.id, { position: swapBlock.position })
       if (res1.error) {
         setReorderError(res1.error)
         setReorderingBlockId(null)
         return
       }
+
       const res2 = await api.updateContentBlock(swapBlock.id, { position: block.position })
       if (res2.error) {
-        // Try to roll back the first update
-        await api.updateContentBlock(block.id, { position: block.position })
-        setReorderError(res2.error)
+        const rollback = await api.updateContentBlock(block.id, { position: block.position })
+        if (rollback.error) {
+          setReorderError('Reorder failed and could not be rolled back. Please reload the page.')
+        } else {
+          setReorderError(res2.error)
+        }
         setReorderingBlockId(null)
         return
       }
 
-      // Optimistically update local state
       setLesson((prev) => {
         if (!prev) return prev
         return {
@@ -696,7 +704,7 @@ export function LessonEditor() {
             block={block}
             isFirst={idx === 0}
             isLast={idx === sortedBlocks.length - 1}
-            reordering={reorderingBlockId === block.id}
+            reordering={reorderingBlockId !== null}
             onSaved={handleBlockSaved}
             onDeleted={handleBlockDeleted}
             onMove={(direction) => handleMoveBlock(block, direction)}
