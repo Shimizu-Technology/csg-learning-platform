@@ -99,21 +99,21 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/admin/lessons/:id"
-        element={
-          <ProtectedRoute requiredRole="staff">
-            <Layout>
-              <LessonEditor />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
         path="/admin/grading"
         element={
           <ProtectedRoute requiredRole="staff">
             <Layout>
               <Grading />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/lessons/:id/edit"
+        element={
+          <ProtectedRoute requiredRole="staff">
+            <Layout>
+              <LessonEditor />
             </Layout>
           </ProtectedRoute>
         }

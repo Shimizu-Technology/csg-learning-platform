@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ArrowLeft, Filter, Check, RotateCcw } from 'lucide-react'
 import { api } from '../../lib/api'
 import { GradeDisplay } from '../../components/shared/GradeDisplay'
+import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 
@@ -22,6 +23,8 @@ interface SubmissionItem {
   content_block_type: string
   lesson_title: string
   solution?: string
+  filename?: string | null
+  language_hint?: string | null
 }
 
 export function Grading() {
@@ -131,22 +134,30 @@ export function Grading() {
             {/* Student code */}
             <div>
               <h4 className="text-sm font-medium text-slate-700 mb-2">Student Submission</h4>
-              <div className="rounded-xl bg-slate-900 p-4 max-h-64 overflow-y-auto">
-                <pre className="text-sm text-slate-100 whitespace-pre-wrap font-mono">
-                  {selectedSubmission.text || 'No text submitted'}
-                </pre>
-              </div>
+              {selectedSubmission.text ? (
+                <CodeEditor
+                  value={selectedSubmission.text}
+                  onChange={() => {}}
+                  language={detectLanguage(selectedSubmission.filename, selectedSubmission.language_hint)}
+                  readOnly
+                  minHeight={200}
+                />
+              ) : (
+                <p className="text-sm text-slate-400 italic">No code submitted</p>
+              )}
             </div>
 
             {/* Solution */}
             {selectedSubmission.solution && (
               <div>
                 <h4 className="text-sm font-medium text-slate-700 mb-2">Solution</h4>
-                <div className="rounded-xl bg-success-50 border border-success-200 p-4 max-h-64 overflow-y-auto">
-                  <pre className="text-sm text-success-900 whitespace-pre-wrap font-mono">
-                    {selectedSubmission.solution}
-                  </pre>
-                </div>
+                <CodeEditor
+                  value={selectedSubmission.solution}
+                  onChange={() => {}}
+                  language={detectLanguage(selectedSubmission.filename, selectedSubmission.language_hint)}
+                  readOnly
+                  minHeight={160}
+                />
               </div>
             )}
 

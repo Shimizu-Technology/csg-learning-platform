@@ -3,6 +3,7 @@ import Player, { type VimeoUrl } from '@vimeo/player'
 import { Play, FileText, Code, CheckCircle2, Circle, ChevronDown, ChevronUp, Send, BadgeCheck } from 'lucide-react'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { GradeDisplay } from './GradeDisplay'
+import { CodeEditor, detectLanguage } from './CodeEditor'
 import { api } from '../../lib/api'
 
 interface ContentBlock {
@@ -39,24 +40,23 @@ function getYouTubeId(url: string): string | null {
 }
 
 function getVimeoEmbed(url: string): { id: string; hash?: string } | null {
-  const match = url.match(/vimeo\.com\/(\d+)(?:\/([a-zA-Z0-9]+))?/)
+  const match = url.match(/vimeo\.com\/(\d+)(?:\/([a-zA-Z0-9]+))?/) 
   if (!match) return null
   return { id: match[1], hash: match[2] }
 }
 
 export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: ContentBlockRendererProps) {
-  // Sorted newest-first by the API; first item is the latest submission
   const hasGradedSubmission = (block.submissions ?? []).some((s) => s.grade !== null)
   const [isCompleted, setIsCompleted] = useState(block.progress?.status === 'completed')
   const [showSolution, setShowSolution] = useState(false)
   const [submissionText, setSubmissionText] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const vimeoContainerRef = useRef<HTMLDivElement>(null)
-  // Use a ref so the Vimeo 'ended' handler always reads the current completion state
   const isCompletedRef = useRef(isCompleted)
   useEffect(() => { isCompletedRef.current = isCompleted }, [isCompleted])
 
-  // Vimeo SDK: auto-complete on video end
+  const detectedLang = detectLanguage(block.filename, block.metadata?.language)
+
   useEffect(() => {
     const isVideoBlock = block.block_type === 'video' || block.block_type === 'recording'
     if (!isVideoBlock || !block.video_url) return
@@ -77,7 +77,6 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
     })
 
     player.on('ended', async () => {
-      // Guard: skip redundant API call if already marked complete (e.g. student re-watches)
       if (isCompletedRef.current) return
       const res = await api.updateProgress(block.id, 'completed')
       if (!res.error) {
@@ -126,12 +125,10 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-      {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 border-b border-slate-200">
         <div className="text-slate-500">{blockIcons[block.block_type]}</div>
         <span className="text-sm font-medium text-slate-700 capitalize">{block.block_type.replace('_', ' ')}</span>
         {block.title && <span className="text-sm text-slate-500">· {block.title}</span>}
-        {/* Graded badge — shown when at least one submission has been graded */}
         {hasGradedSubmission && (
           <span className="inline-flex items-center gap-1 rounded-full bg-success-50 border border-success-200 px-2 py-0.5 text-xs font-medium text-success-700">
             <BadgeCheck className="h-3.5 w-3.5" />
@@ -152,9 +149,7 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
         </div>
       </div>
 
-      {/* Content */}
       <div className="p-4 lg:p-6">
-        {/* Video embed */}
         {block.block_type === 'video' && block.video_url && (
           <div className="aspect-video rounded-xl overflow-hidden bg-slate-900">
             {(() => {
@@ -184,7 +179,6 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
           </div>
         )}
 
-        {/* Recording embed (same as video, Vimeo SDK handles it) */}
         {block.block_type === 'recording' && block.video_url && (
           <div className="aspect-video rounded-xl overflow-hidden bg-slate-900">
             {(() => {
@@ -207,14 +201,12 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
           </div>
         )}
 
-        {/* Text/body content */}
         {block.body && (
           <div className={block.block_type === 'video' ? 'mt-4' : ''}>
             <MarkdownRenderer content={block.body} />
           </div>
         )}
 
-        {/* Filename hint */}
         {block.filename && (
           <div className="mt-3 inline-flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-600">
             <Code className="h-3.5 w-3.5" />
@@ -222,10 +214,8 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
           </div>
         )}
 
-        {/* Exercise submission area */}
         {(block.block_type === 'exercise' || block.block_type === 'code_challenge') && (
           <div className="mt-4 space-y-3">
-            {/* Show existing submissions — sorted newest first (from API) */}
             {block.submissions && block.submissions.length > 0 && (
               <div className="space-y-3">
                 {block.submissions.map((sub, idx) => {
@@ -242,7 +232,6 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
                           : 'border-slate-200 bg-slate-50'
                       }`}
                     >
-                      {/* Submission header */}
                       <div className="flex items-center gap-2 mb-3">
                         <span className="text-xs font-medium text-slate-500">
                           Submission #{sub.num_submissions}
@@ -258,16 +247,17 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
                         {isGraded && <GradeDisplay grade={sub.grade} size="md" />}
                       </div>
 
-                      {/* Student code */}
-                      <div className="rounded-lg bg-slate-900 p-3 mb-3 overflow-x-auto">
-                        <pre className="text-xs text-slate-100 whitespace-pre-wrap font-mono">
-                          {sub.text || 'No text submitted'}
-                        </pre>
+                      <div className="mt-2">
+                        <CodeEditor
+                          value={sub.text || 'No text submitted'}
+                          language={detectedLang}
+                          readOnly
+                          minHeight={120}
+                        />
                       </div>
 
-                      {/* Instructor feedback */}
                       {isGraded && (
-                        <div className="rounded-lg border border-success-200 bg-white p-3">
+                        <div className="mt-3 rounded-lg border border-success-200 bg-white p-3">
                           <div className="flex items-center justify-between mb-1">
                             <p className="text-xs font-semibold text-success-700">Instructor Feedback</p>
                             {sub.graded_at && (
@@ -289,29 +279,42 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
               </div>
             )}
 
-            {/* Submission input */}
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <textarea
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                  {block.submissions && block.submissions.length > 0 ? 'Revise your answer' : 'Write your solution'}
+                </p>
+                {block.filename && (
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600 font-mono">
+                    <Code className="h-3 w-3" />
+                    {block.filename}
+                  </span>
+                )}
+              </div>
+              <CodeEditor
                 value={submissionText}
-                onChange={(e) => setSubmissionText(e.target.value)}
-                placeholder="Paste your code or write your answer here..."
-                className="w-full rounded-lg border border-slate-200 bg-white p-3 text-sm font-mono resize-y min-h-[100px] focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                onChange={setSubmissionText}
+                language={detectedLang}
+                minHeight={240}
               />
-              <div className="mt-2 flex justify-end">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-400">
+                  {detectedLang.charAt(0).toUpperCase() + detectedLang.slice(1)}
+                  {' · '}Tab = 2 spaces
+                </p>
                 <button
                   onClick={handleSubmit}
                   disabled={isSubmitting || !submissionText.trim()}
                   className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   <Send className="h-4 w-4" />
-                  Submit
+                  {isSubmitting ? 'Submitting…' : 'Submit'}
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* Solution (staff only) */}
         {isStaff && block.solution && (
           <div className="mt-4">
             <button
@@ -322,8 +325,13 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
               Solution
             </button>
             {showSolution && (
-              <div className="mt-2 rounded-xl bg-slate-900 p-4">
-                <pre className="text-sm text-slate-100 whitespace-pre-wrap font-mono">{block.solution}</pre>
+              <div className="mt-2">
+                <CodeEditor
+                  value={block.solution}
+                  language={detectedLang}
+                  readOnly
+                  minHeight={120}
+                />
               </div>
             )}
           </div>

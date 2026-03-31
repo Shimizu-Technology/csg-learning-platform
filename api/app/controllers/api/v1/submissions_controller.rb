@@ -130,7 +130,9 @@ module Api
           created_at: submission.created_at,
           content_block_title: submission.content_block.title,
           content_block_type: submission.content_block.block_type,
-          lesson_title: submission.content_block.lesson.title
+          lesson_title: submission.content_block.lesson.title,
+          filename: submission.content_block.filename,
+          language_hint: submission.content_block.metadata.is_a?(Hash) ? submission.content_block.metadata["language"] : nil
         }
 
         if include_solution

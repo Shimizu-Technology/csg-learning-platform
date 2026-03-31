@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Code School of Guam — AOLG Career Fair 2026</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* === Reset & Base === */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: #f8fafc;
+      color: #1e293b;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+      min-height: 100vh;
+    }
+
+    /* === Flyer Container === */
+    .flyer {
+      background: #ffffff;
+      width: 8.5in;
+      min-height: 11in;
+      padding: 0.6in 0.7in;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    /* === Header === */
+    .header {
+      text-align: center;
+      padding-bottom: 20px;
+      border-bottom: 3px solid #0ea5e9;
+      margin-bottom: 24px;
+    }
+
+    .header-badge {
+      display: inline-block;
+      background: #0ea5e9;
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 5px 16px;
+      border-radius: 100px;
+      margin-bottom: 14px;
+    }
+
+    .header h1 {
+      font-size: 42px;
+      font-weight: 800;
+      color: #1e293b;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+
+    .header h1 span {
+      color: #0ea5e9;
+    }
+
+    .tagline {
+      font-size: 16px;
+      font-weight: 600;
+      color: #475569;
+      margin-bottom: 6px;
+      letter-spacing: 0.01em;
+    }
+
+    .subtext {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1e293b;
+    }
+
+    /* === Stats Grid === */
+    .stats-section {
+      margin-bottom: 24px;
+    }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin-bottom: 12px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .stat-card {
+      border: 2px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 16px 12px;
+      text-align: center;
+      background: #f8fafc;
+    }
+
+    .stat-value {
+      font-size: 26px;
+      font-weight: 800;
+      color: #0ea5e9;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #475569;
+      line-height: 1.3;
+    }
+
+    /* === Divider === */
+    .divider {
+      height: 1px;
+      background: #e2e8f0;
+      margin: 20px 0;
+    }
+
+    /* === What You'll Learn === */
+    .learn-section {
+      margin-bottom: 20px;
+    }
+
+    .learn-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .pill {
+      background: #f0f9ff;
+      border: 1.5px solid #bae6fd;
+      color: #0369a1;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 7px 16px;
+      border-radius: 100px;
+    }
+
+    /* === What to Expect === */
+    .expect-section {
+      margin-bottom: 20px;
+    }
+
+    .expect-list {
+      list-style: none;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .expect-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #334155;
+      line-height: 1.4;
+    }
+
+    .expect-list li .check {
+      color: #0ea5e9;
+      font-weight: 700;
+      font-size: 14px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* === CTA Banner === */
+    .cta-banner {
+      background: #0ea5e9;
+      color: #ffffff;
+      border-radius: 12px;
+      padding: 20px 24px;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .cta-banner .cta-title {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      margin-bottom: 4px;
+    }
+
+    .cta-banner .cta-sub {
+      font-size: 13px;
+      font-weight: 500;
+      opacity: 0.9;
+    }
+
+    /* === QR + URL Section === */
+    .qr-section {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 32px;
+      margin-bottom: 20px;
+      padding: 16px 0;
+    }
+
+    .qr-block {
+      text-align: center;
+    }
+
+    .qr-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #64748b;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .qr-block img {
+      width: 160px;
+      height: 160px;
+      display: block;
+      border: 3px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 6px;
+      background: #fff;
+    }
+
+    .url-block {
+      text-align: center;
+    }
+
+    .url-main {
+      font-size: 30px;
+      font-weight: 800;
+      color: #0ea5e9;
+      letter-spacing: -0.02em;
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .contact-email {
+      font-size: 14px;
+      font-weight: 500;
+      color: #475569;
+    }
+
+    /* === Footer === */
+    .footer {
+      border-top: 2px solid #e2e8f0;
+      padding-top: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: auto;
+    }
+
+    .footer-left {
+      font-size: 12px;
+      color: #64748b;
+      font-weight: 500;
+    }
+
+    .footer-event {
+      font-size: 12px;
+      font-weight: 700;
+      color: #0ea5e9;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    /* === Print Styles === */
+    @media print {
+      body {
+        background: #ffffff;
+        padding: 0;
+        margin: 0;
+      }
+
+      .flyer {
+        width: 100%;
+        min-height: 100vh;
+        padding: 0.5in 0.6in;
+        border: none;
+        box-shadow: none;
+        page-break-after: avoid;
+      }
+
+      .no-print {
+        display: none !important;
+      }
+
+      .stat-card {
+        background: #f8fafc;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .cta-banner {
+        background: #0ea5e9 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .header-badge {
+        background: #0ea5e9 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .pill {
+        background: #f0f9ff !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+
+    /* === Print Button === */
+    .print-btn {
+      background: #0ea5e9;
+      color: #ffffff;
+      border: none;
+      padding: 12px 32px;
+      font-family: 'Inter', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .print-btn:hover {
+      background: #0284c7;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== FLYER ==================== -->
+  <div class="flyer">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="header-badge">Guam's First Coding Bootcamp</div>
+      <h1>Code School <span>of Guam</span></h1>
+      <p class="tagline">Turning Guam residents into professional software developers</p>
+      <p class="subtext">Learn to build AI-powered software in 6 months</p>
+    </header>
+
+    <!-- Stats Grid -->
+    <section class="stats-section">
+      <p class="section-label">Program at a Glance</p>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">6</div>
+          <div class="stat-label">Month Program</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">$7,500</div>
+          <div class="stat-label">Total Tuition</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">100%</div>
+          <div class="stat-label">Completion Rate</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">2</div>
+          <div class="stat-label">Cohorts Graduated</div>
+        </div>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- What You'll Learn -->
+    <section class="learn-section">
+      <p class="section-label">What You'll Learn</p>
+      <div class="learn-pills">
+        <span class="pill">Ruby on Rails</span>
+        <span class="pill">React</span>
+        <span class="pill">Python &amp; AI</span>
+        <span class="pill">Full-Stack Development</span>
+        <span class="pill">Databases &amp; APIs</span>
+        <span class="pill">Git &amp; Deployment</span>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- What to Expect -->
+    <section class="expect-section">
+      <p class="section-label">What to Expect</p>
+      <ul class="expect-list">
+        <li><span class="check">&#10003;</span> Hands-on project-based curriculum</li>
+        <li><span class="check">&#10003;</span> Small cohort, personalized attention</li>
+        <li><span class="check">&#10003;</span> Build real-world apps from day one</li>
+        <li><span class="check">&#10003;</span> AI tools and modern dev workflows</li>
+        <li><span class="check">&#10003;</span> Graduate with a professional portfolio</li>
+        <li><span class="check">&#10003;</span> Job-ready in 6 months</li>
+      </ul>
+    </section>
+
+    <!-- CTA Banner -->
+    <div class="cta-banner">
+      <div class="cta-title">Cohort 4 Waitlist Now Open</div>
+      <div class="cta-sub">Spots are limited — secure your place today</div>
+    </div>
+
+    <!-- QR Code + URL -->
+    <section class="qr-section">
+      <div class="qr-block">
+        <p class="qr-label">Scan to learn more:</p>
+        <img
+          src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://codeschoolofguam.com"
+          alt="QR Code — codeschoolofguam.com"
+          width="160"
+          height="160"
+        />
+      </div>
+      <div class="url-block">
+        <span class="url-main">codeschoolofguam.com</span>
+        <p class="contact-email">Questions? Email leon@codeschoolofguam.com</p>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <span class="footer-left">Code School of Guam &mdash; Shimizu Technology</span>
+      <span class="footer-event">AOLG Career Fair 2026 &mdash; March 27, 2026</span>
+    </footer>
+
+  </div>
+  <!-- ================== END FLYER ================== -->
+
+  <!-- Print Button (hidden on print) -->
+  <div class="no-print" style="text-align: center; margin: 24px;">
+    <button class="print-btn" onclick="window.print()">&#128438; Print Flyer</button>
+  </div>
+
+</body>
+</html>
