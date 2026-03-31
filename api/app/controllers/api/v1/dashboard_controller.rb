@@ -141,28 +141,27 @@ module Api
           .to_a
         progresses_by_user = all_progresses.group_by(&:user_id)
 
-        # Bulk load all recent submissions for all students at once (1 query)
-        all_recent_submissions = Submission
+        # Bulk load all submissions for all students at once (1 query)
+        all_submissions = Submission
           .where(user_id: user_ids, content_block_id: all_block_ids)
-          .where("created_at >= ?", week_ago)
           .select(:user_id, :content_block_id, :created_at)
           .to_a
-        submissions_by_user = all_recent_submissions.group_by(&:user_id)
+        submissions_by_user = all_submissions.group_by(&:user_id)
 
         students = enrollments.map do |enrollment|
           user = enrollment.user
           user_progresses = progresses_by_user[user.id] || []
+          user_submissions = submissions_by_user[user.id] || []
           completed = user_progresses.size
           percentage = total_blocks > 0 ? (completed.to_f / total_blocks * 100).round(1) : 0
 
-          # Last time they completed any content block
-          last_activity = user_progresses.map(&:completed_at).compact.max
+          last_completed_activity = user_progresses.map(&:completed_at).compact.max
+          last_submission_activity = user_submissions.map(&:created_at).compact.max
+          last_activity = [last_completed_activity, last_submission_activity].compact.max
 
-          # Blocks completed in the last 7 days
+          # Weekly activity metrics for the admin table
           blocks_this_week = user_progresses.count { |p| p.completed_at && p.completed_at >= week_ago }
-
-          # Submissions this week (also signals activity even if no completed blocks)
-          submissions_this_week = (submissions_by_user[user.id] || []).size
+          submissions_this_week = user_submissions.count { |s| s.created_at && s.created_at >= week_ago }
 
           {
             user_id: user.id,

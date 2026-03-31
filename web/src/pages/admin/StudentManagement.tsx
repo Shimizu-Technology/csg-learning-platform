@@ -24,14 +24,12 @@ interface Student {
 type ActivityStatus = 'active' | 'quiet' | 'at-risk' | 'new'
 
 function getActivityStatus(student: Student): ActivityStatus {
-  // Check recent activity first — submissions_this_week signals activity even when
-  // last_activity_at is null (students who submit but haven't completed a block yet)
-  if (student.blocks_this_week > 0 || student.submissions_this_week > 0) return 'active'
-
   if (student.last_activity_at == null) return 'new'
 
   const daysSinceActivity = (Date.now() - new Date(student.last_activity_at).getTime()) / (1000 * 60 * 60 * 24)
-  if (daysSinceActivity <= 7) return 'quiet'
+
+  if (daysSinceActivity < 2) return 'active'
+  if (daysSinceActivity < 7) return 'quiet'
   return 'at-risk'
 }
 
@@ -127,7 +125,7 @@ export function StudentManagement() {
           className={`rounded-xl border p-3 text-left transition-all ${filter === 'active' ? 'border-success-400 bg-success-50' : 'border-slate-200 bg-white hover:border-success-300'}`}
         >
           <p className="text-xl font-bold text-success-700">{activeCount}</p>
-          <p className="text-xs text-slate-500">Active this week</p>
+          <p className="text-xs text-slate-500">Active (&lt;2 days)</p>
         </button>
         <button
           onClick={() => setFilter(filter === 'quiet' ? 'all' : 'quiet')}
