@@ -215,6 +215,11 @@ export function CohortDetail() {
   if (loading) return <LoadingSpinner message="Loading cohort..." />
   if (!cohort) return null
 
+  const upcomingUnlocks = cohort.modules
+    .filter((mod) => mod.assigned && mod.unlock_date_overrides.length > 0)
+    .sort((a, b) => new Date(a.unlock_date_overrides[0]).getTime() - new Date(b.unlock_date_overrides[0]).getTime())
+    .slice(0, 5)
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div>
@@ -404,6 +409,25 @@ export function CohortDetail() {
         </div>
 
         <div className="space-y-4">
+          {upcomingUnlocks.length > 0 && (
+            <div className="rounded-2xl bg-white border border-slate-200 p-4">
+              <h2 className="text-lg font-semibold text-slate-900">Upcoming Unlocks</h2>
+              <div className="mt-3 space-y-2">
+                {upcomingUnlocks.map((mod) => (
+                  <div key={`${mod.id}-${mod.unlock_date_overrides[0]}`} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-900 truncate">{mod.name}</p>
+                      <p className="text-xs text-slate-500 capitalize">{mod.module_type.replace('_', ' ')} · {mod.assigned_count} assigned</p>
+                    </div>
+                    <span className="text-xs font-medium text-slate-600 shrink-0">
+                      {new Date(mod.unlock_date_overrides[0]).toLocaleDateString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div>
             <h2 className="text-lg font-semibold text-slate-900">Enrolled Students</h2>
             <p className="text-sm text-slate-500 mt-1">Student-level overrides can still be managed individually.</p>
