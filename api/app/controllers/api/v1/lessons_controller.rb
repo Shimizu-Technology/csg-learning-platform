@@ -5,6 +5,7 @@ module Api
       before_action :require_admin!, only: [:create, :update, :destroy]
       before_action :set_module, only: [:index, :create]
       before_action :set_lesson, only: [:show, :update, :destroy]
+      before_action :authorize_lesson_read!, only: [:show]
 
       # GET /api/v1/modules/:module_id/lessons
       def index
@@ -27,7 +28,6 @@ module Api
 
           submission_map = current_user.submissions
             .where(content_block_id: @lesson.content_blocks.pluck(:id))
-            .order(created_at: :desc)
             .group_by(&:content_block_id)
         end
 
@@ -73,6 +73,31 @@ module Api
 
       def lesson_params
         params.permit(:title, :lesson_type, :position, :release_day, :required)
+      end
+
+      def authorize_lesson_read!
+        return if current_user.staff?
+
+        enrollment = current_user.enrollments
+          .active
+          .joins(:cohort)
+          .includes(:cohort, :module_assignments)
+          .find_by(cohorts: { curriculum_id: @lesson.curriculum_module.curriculum_id })
+
+        unless enrollment
+          render_forbidden("Cannot access this lesson")
+          return
+        end
+
+        assignment = enrollment.module_assignments.find_by(module_id: @lesson.module_id)
+        unless assignment&.unlocked?
+          render_forbidden("Cannot access this lesson")
+          return
+        end
+
+        return if @lesson.available?(enrollment.cohort, assignment)
+
+        render_forbidden("Lesson is not unlocked yet")
       end
 
       def lesson_json(lesson, include_content: false, progress_map: {}, submission_map: {})

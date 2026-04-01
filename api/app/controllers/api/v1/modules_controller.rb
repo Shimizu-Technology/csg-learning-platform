@@ -5,6 +5,7 @@ module Api
       before_action :require_admin!, only: [:create, :update, :destroy]
       before_action :set_curriculum, only: [:index, :create]
       before_action :set_module, only: [:show, :update, :destroy]
+      before_action :authorize_module_read!, only: [:show]
 
       # GET /api/v1/curricula/:curriculum_id/modules
       def index
@@ -17,7 +18,7 @@ module Api
       # GET /api/v1/modules/:id
       def show
         render json: {
-          module: module_json(@module, include_lessons: true)
+          module: module_json(@module, include_lessons: true, include_solutions: current_user.staff?)
         }
       end
 
@@ -60,7 +61,36 @@ module Api
         params.permit(:name, :module_type, :description, :position, :total_days, :day_offset)
       end
 
-      def module_json(mod, include_lessons: false)
+      def authorize_module_read!
+        return if current_user.staff?
+
+        enrollment = active_enrollment_for_curriculum(@module.curriculum_id)
+        unless enrollment
+          render_forbidden("Cannot access this module")
+          return
+        end
+
+        assignment = enrollment.module_assignments.find_by(module_id: @module.id)
+        unless assignment&.unlocked?
+          render_forbidden("Cannot access this module")
+          return
+        end
+
+        return if @module.lessons.empty?
+        return if @module.lessons.any? { |lesson| lesson.available?(enrollment.cohort, assignment) }
+
+        render_forbidden("Module is not unlocked yet")
+      end
+
+      def active_enrollment_for_curriculum(curriculum_id)
+        current_user.enrollments
+          .active
+          .joins(:cohort)
+          .includes(:cohort, :module_assignments)
+          .find_by(cohorts: { curriculum_id: curriculum_id })
+      end
+
+      def module_json(mod, include_lessons: false, include_solutions: false)
         json = {
           id: mod.id,
           curriculum_id: mod.curriculum_id,
@@ -90,10 +120,9 @@ module Api
                   title: cb.title,
                   body: cb.body,
                   video_url: cb.video_url,
-                  solution: cb.solution,
                   filename: cb.filename,
                   metadata: cb.metadata
-                }
+                }.tap { |block| block[:solution] = cb.solution if include_solutions }
               }
             }
           }
