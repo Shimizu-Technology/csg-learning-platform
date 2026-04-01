@@ -162,6 +162,22 @@ module Api
           .compact
 
         render json: {
+          enrollment: {
+            id: enrollment.id,
+            status: enrollment.status,
+            module_assignments: enrollment.module_assignments.includes(:curriculum_module).map do |assignment|
+              {
+                id: assignment.id,
+                module_id: assignment.module_id,
+                module_name: assignment.curriculum_module.name,
+                module_type: assignment.curriculum_module.module_type,
+                unlocked: assignment.unlocked,
+                unlock_date_override: assignment.unlock_date_override,
+                available: assignment.available_for?(cohort),
+                next_unlock_date: assignment.next_unlock_date(cohort)
+              }
+            end
+          },
           user: {
             id: user.id,
             full_name: user.full_name,

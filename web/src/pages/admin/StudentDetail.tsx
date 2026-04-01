@@ -14,13 +14,15 @@ import {
   PlayCircle,
   FileText,
   AlertCircle,
+  Lock,
+  Unlock,
+  Save,
 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { ProgressRing } from '../../components/shared/ProgressRing'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 
-// Block type icon mapping
 const BLOCK_ICONS: Record<string, React.ElementType> = {
   reading: FileText,
   video: PlayCircle,
@@ -46,7 +48,23 @@ const GRADE_STYLES: Record<string, string> = {
   R: 'bg-red-100 text-red-700 border-red-200',
 }
 
+interface ModuleAssignment {
+  id: number
+  module_id: number
+  module_name: string
+  module_type: string
+  unlocked: boolean
+  unlock_date_override: string | null
+  available: boolean
+  next_unlock_date: string | null
+}
+
 interface ProgressData {
+  enrollment: {
+    id: number
+    status: string
+    module_assignments: ModuleAssignment[]
+  }
   user: {
     id: number
     full_name: string
@@ -127,6 +145,11 @@ function formatRelative(dateStr: string | null): string {
   if (diffDays === 1) return 'Yesterday'
   if (diffDays < 7) return `${diffDays} days ago`
   return formatDate(dateStr)
+}
+
+function toDateInputValue(dateStr: string | null): string {
+  if (!dateStr) return ''
+  return new Date(dateStr).toISOString().slice(0, 10)
 }
 
 function LessonRow({ lesson }: { lesson: ProgressData['modules'][0]['lessons'][0] }) {
@@ -234,13 +257,25 @@ export function StudentDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set())
+  const [assignmentForms, setAssignmentForms] = useState<Record<number, { unlocked: boolean; unlock_date_override: string }>>({})
+  const [savingAssignmentId, setSavingAssignmentId] = useState<number | null>(null)
+  const [assignmentMessage, setAssignmentMessage] = useState('')
 
   useEffect(() => {
     if (!id) return
     api.getStudentProgress(Number(id)).then((res) => {
       if (res.data) {
         setData(res.data)
-        // Auto-expand in-progress module
+        if (res.data.enrollment?.module_assignments) {
+          const nextForms: Record<number, { unlocked: boolean; unlock_date_override: string }> = {}
+          res.data.enrollment.module_assignments.forEach((assignment: ModuleAssignment) => {
+            nextForms[assignment.id] = {
+              unlocked: assignment.unlocked,
+              unlock_date_override: toDateInputValue(assignment.unlock_date_override),
+            }
+          })
+          setAssignmentForms(nextForms)
+        }
         if (res.data.modules) {
           const inProgress = res.data.modules.find(
             (m: ProgressData['modules'][0]) =>
@@ -266,6 +301,75 @@ export function StudentDetail() {
     })
   }
 
+  const updateAssignmentForm = (assignmentId: number, patch: Partial<{ unlocked: boolean; unlock_date_override: string }>) => {
+    setAssignmentForms((prev) => ({
+      ...prev,
+      [assignmentId]: {
+        ...prev[assignmentId],
+        ...patch,
+      },
+    }))
+  }
+
+  const saveAssignment = async (assignment: ModuleAssignment) => {
+    const form = assignmentForms[assignment.id]
+    if (!form) return
+
+    setSavingAssignmentId(assignment.id)
+    setAssignmentMessage('')
+    const res = await api.updateModuleAssignment(assignment.id, {
+      unlocked: form.unlocked,
+      unlock_date_override: form.unlock_date_override || null,
+    })
+
+    if (res.error) {
+      setAssignmentMessage(res.error)
+      setSavingAssignmentId(null)
+      return
+    }
+
+    const assignmentData = res.data?.module_assignment
+    if (assignmentData) {
+      setData((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          enrollment: {
+            ...prev.enrollment,
+            module_assignments: prev.enrollment.module_assignments.map((existing) =>
+              existing.id === assignment.id
+                ? {
+                    ...existing,
+                    unlocked: assignmentData.unlocked,
+                    unlock_date_override: assignmentData.unlock_date_override,
+                    next_unlock_date: assignmentData.unlock_date_override || existing.next_unlock_date,
+                    available: assignmentData.unlocked ? existing.available : false,
+                  }
+                : existing
+            ),
+          },
+        }
+      })
+    }
+
+    setAssignmentMessage(`Saved override for ${assignment.module_name}`)
+    if (id) {
+      const refreshed = await api.getStudentProgress(Number(id))
+      if (refreshed.data) {
+        setData(refreshed.data)
+        const nextForms: Record<number, { unlocked: boolean; unlock_date_override: string }> = {}
+        refreshed.data.enrollment.module_assignments.forEach((nextAssignment: ModuleAssignment) => {
+          nextForms[nextAssignment.id] = {
+            unlocked: nextAssignment.unlocked,
+            unlock_date_override: toDateInputValue(nextAssignment.unlock_date_override),
+          }
+        })
+        setAssignmentForms(nextForms)
+      }
+    }
+    setSavingAssignmentId(null)
+  }
+
   if (loading) return <LoadingSpinner message="Loading student progress..." />
   if (error) return (
     <div className="text-center py-12 text-red-500">
@@ -275,11 +379,10 @@ export function StudentDetail() {
   )
   if (!data) return null
 
-  const { user, cohort, overall_progress, modules, recent_activity } = data
+  const { enrollment, user, cohort, overall_progress, modules, recent_activity } = data
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Back link */}
+    <div className="max-w-5xl mx-auto space-y-6">
       <Link
         to="/admin/students"
         className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
@@ -288,7 +391,6 @@ export function StudentDetail() {
         Back to Students
       </Link>
 
-      {/* Student header */}
       <div className="rounded-2xl bg-white border border-slate-200 p-6">
         <div className="flex flex-col sm:flex-row sm:items-start gap-4">
           <div className="shrink-0">
@@ -325,7 +427,7 @@ export function StudentDetail() {
               </span>
             </div>
             <p className="mt-1 text-xs text-slate-400">
-              {cohort.name} · Started {formatDate(cohort.start_date)}
+              {cohort.name} · Started {formatDate(cohort.start_date)} · Enrollment {enrollment.status}
             </p>
           </div>
           <div className="shrink-0 text-center">
@@ -337,9 +439,14 @@ export function StudentDetail() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Modules + lessons (2/3 width) */}
-        <div className="lg:col-span-2 space-y-4">
+      {assignmentMessage && (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          {assignmentMessage}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="xl:col-span-2 space-y-4">
           <h2 className="text-lg font-semibold text-slate-900">Course Progress</h2>
           {modules.map((mod) => {
             const isExpanded = expandedModules.has(mod.id)
@@ -383,9 +490,79 @@ export function StudentDetail() {
           })}
         </div>
 
-        {/* Recent activity (1/3 width) */}
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-slate-900">Recent Activity</h2>
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Module Access</h2>
+            <p className="text-sm text-slate-500 mt-1">
+              Control per-student unlocks and override dates.
+            </p>
+          </div>
+          <div className="rounded-2xl bg-white border border-slate-200 divide-y divide-slate-100">
+            {enrollment.module_assignments.map((assignment) => {
+              const form = assignmentForms[assignment.id] || {
+                unlocked: assignment.unlocked,
+                unlock_date_override: toDateInputValue(assignment.unlock_date_override),
+              }
+              const saving = savingAssignmentId === assignment.id
+              return (
+                <div key={assignment.id} className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{assignment.module_name}</p>
+                      <p className="text-xs text-slate-500 capitalize">
+                        {assignment.module_type.replace('_', ' ')}
+                        {assignment.available
+                          ? ' · available now'
+                          : assignment.next_unlock_date
+                            ? ` · scheduled ${formatDate(assignment.next_unlock_date)}`
+                            : ' · locked'}
+                      </p>
+                    </div>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${form.unlocked ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
+                      {form.unlocked ? <Unlock className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
+                      {form.unlocked ? 'Unlocked' : 'Locked'}
+                    </span>
+                  </div>
+
+                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={form.unlocked}
+                      onChange={(e) => updateAssignmentForm(assignment.id, { unlocked: e.target.checked })}
+                      className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    Allow access to this module
+                  </label>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Unlock date override</label>
+                    <input
+                      type="date"
+                      value={form.unlock_date_override}
+                      onChange={(e) => updateAssignmentForm(assignment.id, { unlock_date_override: e.target.value })}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                    <p className="mt-1 text-xs text-slate-400">
+                      Leave blank to use the module and lesson schedule.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => saveAssignment(assignment)}
+                    disabled={saving}
+                    className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 transition-colors"
+                  >
+                    <Save className="h-4 w-4" />
+                    {saving ? 'Saving...' : 'Save Access'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Recent Activity</h2>
+          </div>
           <div className="rounded-2xl bg-white border border-slate-200 divide-y divide-slate-100">
             {recent_activity.length === 0 ? (
               <p className="text-sm text-slate-400 text-center py-6">No activity yet</p>
