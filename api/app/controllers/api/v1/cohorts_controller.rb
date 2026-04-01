@@ -42,10 +42,18 @@ module Api
       # PATCH /api/v1/cohorts/:id/module_access
       def update_module_access
         curriculum_module = @cohort.curriculum.modules.find(module_access_params[:module_id])
-        enrollments = @cohort.enrollments.active.includes(:module_assignments)
+        enrollments = @cohort.enrollments.active.includes(:module_assignments, :lesson_assignments)
+        assigned = module_access_params[:assigned]
+        lesson_ids = curriculum_module.lessons.pluck(:id)
 
         ActiveRecord::Base.transaction do
           enrollments.each do |enrollment|
+            if assigned == false
+              enrollment.lesson_assignments.where(lesson_id: lesson_ids).destroy_all
+              enrollment.module_assignments.where(module_id: curriculum_module.id).destroy_all
+              next
+            end
+
             assignment = enrollment.module_assignments.find_or_initialize_by(module_id: curriculum_module.id)
             assignment.unlocked = module_access_params[:unlocked] unless module_access_params[:unlocked].nil?
             assignment.unlock_date_override = module_access_params[:unlock_date_override]
@@ -92,7 +100,7 @@ module Api
       end
 
       def module_access_params
-        params.permit(:module_id, :unlocked, :unlock_date_override)
+        params.permit(:module_id, :assigned, :unlocked, :unlock_date_override)
       end
 
       def normalize_announcements(raw_announcements)
@@ -169,6 +177,7 @@ module Api
               position: mod.position,
               lessons_count: mod.lessons.count,
               assigned_count: assignments.size,
+              assigned: assignments.size.positive?,
               unlocked_count: assignments.count(&:unlocked?),
               unlock_date_overrides: assignments.map(&:unlock_date_override).compact.uniq.sort
             }

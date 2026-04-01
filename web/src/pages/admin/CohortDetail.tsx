@@ -33,6 +33,7 @@ interface CohortData {
     position: number
     lessons_count: number
     assigned_count: number
+    assigned: boolean
     unlocked_count: number
     unlock_date_overrides: string[]
   }>
@@ -63,7 +64,7 @@ export function CohortDetail() {
         const nextForms: Record<number, { unlocked: boolean; unlock_date_override: string }> = {}
         nextCohort.modules.forEach((mod: CohortData['modules'][0]) => {
           nextForms[mod.id] = {
-            unlocked: nextCohort.active_count > 0 ? mod.unlocked_count === nextCohort.active_count : false,
+            unlocked: mod.assigned && (nextCohort.active_count > 0 ? mod.unlocked_count === nextCohort.active_count : false),
             unlock_date_override: toDateInputValue(mod.unlock_date_overrides?.[0] || ''),
           }
         })
@@ -93,6 +94,7 @@ export function CohortDetail() {
     setMessage('')
     const res = await api.updateCohortModuleAccess(Number(id), {
       module_id: moduleId,
+      assigned: true,
       unlocked: form.unlocked,
       unlock_date_override: form.unlock_date_override || null,
     })
@@ -109,7 +111,7 @@ export function CohortDetail() {
       const nextForms: Record<number, { unlocked: boolean; unlock_date_override: string }> = {}
       nextCohort.modules.forEach((mod: CohortData['modules'][0]) => {
         nextForms[mod.id] = {
-          unlocked: nextCohort.active_count > 0 ? mod.unlocked_count === nextCohort.active_count : false,
+          unlocked: mod.assigned && (nextCohort.active_count > 0 ? mod.unlocked_count === nextCohort.active_count : false),
           unlock_date_override: toDateInputValue(mod.unlock_date_overrides?.[0] || ''),
         }
       })
@@ -140,6 +142,74 @@ export function CohortDetail() {
     }
     setMessage('Updated cohort announcements')
     setSavingAnnouncements(false)
+  }
+
+  const assignModuleToCohort = async (moduleId: number) => {
+    if (!id) return
+    setSavingModuleId(moduleId)
+    setMessage('')
+
+    const res = await api.updateCohortModuleAccess(Number(id), {
+      module_id: moduleId,
+      assigned: true,
+      unlocked: false,
+      unlock_date_override: null,
+    })
+
+    if (res.error) {
+      setMessage(res.error)
+      setSavingModuleId(null)
+      return
+    }
+
+    const nextCohort = res.data?.cohort
+    if (nextCohort) {
+      setCohort(nextCohort)
+      const nextForms: Record<number, { unlocked: boolean; unlock_date_override: string }> = {}
+      nextCohort.modules.forEach((mod: CohortData['modules'][0]) => {
+        nextForms[mod.id] = {
+          unlocked: mod.assigned && (nextCohort.active_count > 0 ? mod.unlocked_count === nextCohort.active_count : false),
+          unlock_date_override: toDateInputValue(mod.unlock_date_overrides?.[0] || ''),
+        }
+      })
+      setForms(nextForms)
+    }
+    const moduleName = cohort?.modules.find((mod) => mod.id === moduleId)?.name || 'module'
+    setMessage(`Assigned ${moduleName} to cohort`)
+    setSavingModuleId(null)
+  }
+
+  const removeModuleFromCohort = async (moduleId: number) => {
+    if (!id) return
+    setSavingModuleId(moduleId)
+    setMessage('')
+
+    const res = await api.updateCohortModuleAccess(Number(id), {
+      module_id: moduleId,
+      assigned: false,
+    })
+
+    if (res.error) {
+      setMessage(res.error)
+      setSavingModuleId(null)
+      return
+    }
+
+    const nextCohort = res.data?.cohort
+    if (nextCohort) {
+      setCohort(nextCohort)
+      const nextForms: Record<number, { unlocked: boolean; unlock_date_override: string }> = {}
+      nextCohort.modules.forEach((mod: CohortData['modules'][0]) => {
+        nextForms[mod.id] = {
+          unlocked: mod.assigned && (nextCohort.active_count > 0 ? mod.unlocked_count === nextCohort.active_count : false),
+          unlock_date_override: toDateInputValue(mod.unlock_date_overrides?.[0] || ''),
+        }
+      })
+      setForms(nextForms)
+    }
+    const moduleName = cohort?.modules.find((mod) => mod.id === moduleId)?.name || 'module'
+    setMessage(`Removed ${moduleName} from cohort assignments`)
+    setSavingModuleId(null)
   }
 
   if (loading) return <LoadingSpinner message="Loading cohort..." />
@@ -244,9 +314,15 @@ export function CohortDetail() {
                         {mod.module_type.replace('_', ' ')} · {mod.lessons_count} lessons
                       </p>
                     </div>
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${form.unlocked ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
-                      {form.unlocked ? <Unlock className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
-                      {form.unlocked ? 'Unlocked by default' : 'Locked by default'}
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${
+                      !mod.assigned
+                        ? 'bg-slate-100 text-slate-600'
+                        : form.unlocked
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {!mod.assigned ? <Lock className="h-3 w-3" /> : form.unlocked ? <Unlock className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
+                      {!mod.assigned ? 'Not assigned' : form.unlocked ? 'Unlocked by default' : 'Assigned but locked'}
                     </span>
                   </div>
 
@@ -265,37 +341,62 @@ export function CohortDetail() {
                     </div>
                   </div>
 
-                  <label className="flex items-center gap-2 text-sm text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={form.unlocked}
-                      onChange={(e) => updateForm(mod.id, { unlocked: e.target.checked })}
-                      className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                    />
-                    Unlock this module for all active cohort students
-                  </label>
+                  {!mod.assigned ? (
+                    <div className="space-y-3">
+                      <p className="text-sm text-slate-500">This module exists in the curriculum but is not assigned to this cohort yet.</p>
+                      <button
+                        onClick={() => assignModuleToCohort(mod.id)}
+                        disabled={saving}
+                        className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 transition-colors"
+                      >
+                        <Save className="h-4 w-4" />
+                        {saving ? 'Assigning...' : 'Assign to Cohort'}
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <label className="flex items-center gap-2 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={form.unlocked}
+                          onChange={(e) => updateForm(mod.id, { unlocked: e.target.checked })}
+                          className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        Unlock this module for all active cohort students
+                      </label>
 
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Default unlock date override</label>
-                    <input
-                      type="date"
-                      value={form.unlock_date_override}
-                      onChange={(e) => updateForm(mod.id, { unlock_date_override: e.target.value })}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
-                    <p className="mt-1 text-xs text-slate-400">
-                      Applies the same override date to all active enrollments for this module.
-                    </p>
-                  </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Default unlock date override</label>
+                        <input
+                          type="date"
+                          value={form.unlock_date_override}
+                          onChange={(e) => updateForm(mod.id, { unlock_date_override: e.target.value })}
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                        <p className="mt-1 text-xs text-slate-400">
+                          Applies the same override date to all active enrollments for this module.
+                        </p>
+                      </div>
 
-                  <button
-                    onClick={() => saveModuleAccess(mod.id)}
-                    disabled={saving}
-                    className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 transition-colors"
-                  >
-                    <Save className="h-4 w-4" />
-                    {saving ? 'Saving...' : 'Save Cohort Defaults'}
-                  </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => removeModuleFromCohort(mod.id)}
+                          disabled={saving}
+                          className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-100 disabled:opacity-50 transition-colors"
+                        >
+                          {saving ? 'Removing...' : 'Remove from Cohort'}
+                        </button>
+                        <button
+                          onClick={() => saveModuleAccess(mod.id)}
+                          disabled={saving}
+                          className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 transition-colors"
+                        >
+                          <Save className="h-4 w-4" />
+                          {saving ? 'Saving...' : 'Save Cohort Defaults'}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               )
             })}
