@@ -111,6 +111,20 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ user_id: userId }),
     }),
+  getEnrollment: (id: number) => fetchApi<any>(`/api/v1/enrollments/${id}`),
+  getModuleAssignments: (enrollmentId: number) => fetchApi<any>(`/api/v1/enrollments/${enrollmentId}/module_assignments`),
+  createModuleAssignment: (enrollmentId: number, data: any) =>
+    fetchApi<any>(`/api/v1/enrollments/${enrollmentId}/module_assignments`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateModuleAssignment: (id: number, data: any) =>
+    fetchApi<any>(`/api/v1/module_assignments/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteModuleAssignment: (id: number) =>
+    fetchApi<null>(`/api/v1/module_assignments/${id}`, { method: 'DELETE' }),
   updateContentBlock: (id: number, data: any) =>
     fetchApi<any>(`/api/v1/content_blocks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   createLesson: (moduleId: number, data: any) =>

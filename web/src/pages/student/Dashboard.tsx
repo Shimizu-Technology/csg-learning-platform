@@ -19,6 +19,10 @@ interface DashboardData {
     progress_percentage: number
     completed_blocks: number
     total_blocks: number
+    assigned: boolean
+    unlocked: boolean
+    available: boolean
+    unlock_date: string | null
     lessons: Array<{
       id: number
       title: string
@@ -119,14 +123,27 @@ export function Dashboard() {
         {data.modules?.map((mod) => (
           <Link
             key={mod.id}
-            to={`/modules/${mod.id}`}
-            className="block rounded-2xl bg-white border border-slate-200 p-5 hover:border-primary-200 hover:shadow-sm transition-all"
+            to={mod.available ? `/modules/${mod.id}` : '#'}
+            onClick={(e) => {
+              if (!mod.available) e.preventDefault()
+            }}
+            className={`block rounded-2xl border p-5 transition-all ${mod.available ? 'bg-white border-slate-200 hover:border-primary-200 hover:shadow-sm' : 'bg-slate-50 border-slate-200 opacity-80 cursor-not-allowed'}`}
           >
             <div className="flex items-center gap-4">
               <ProgressRing percentage={mod.progress_percentage} size={64} />
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-slate-900">{mod.name}</h3>
-                <p className="text-sm text-slate-500 capitalize">{mod.module_type.replace('_', ' ')}</p>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold text-slate-900">{mod.name}</h3>
+                  {!mod.available && (
+                    <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                      Locked
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-slate-500 capitalize">
+                  {mod.module_type.replace('_', ' ')}
+                  {!mod.available && mod.unlock_date ? ` · unlocks ${new Date(mod.unlock_date).toLocaleDateString()}` : ''}
+                </p>
                 <ProgressBar
                   value={mod.completed_blocks}
                   max={mod.total_blocks}

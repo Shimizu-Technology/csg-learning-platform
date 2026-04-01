@@ -66,6 +66,26 @@ module Api
       end
 
       def enrollment_json(enrollment, include_progress: false)
+         json = {
+           id: enrollment.id,
+           user_id: enrollment.user_id,
+           cohort_id: enrollment.cohort_id,
+           user_name: enrollment.user.full_name,
+           user_email: enrollment.user.email,
+           status: enrollment.status,
+           enrolled_at: enrollment.enrolled_at,
+-          completed_at: enrollment.completed_at
++          completed_at: enrollment.completed_at,
++          module_assignments: enrollment.module_assignments.includes(:curriculum_module).map { |assignment|
++            {
++              id: assignment.id,
++              module_id: assignment.module_id,
++              module_name: assignment.curriculum_module.name,
++              unlocked: assignment.unlocked,
++              unlock_date_override: assignment.unlock_date_override
++            }
++          }
+         }
         json = {
           id: enrollment.id,
           user_id: enrollment.user_id,

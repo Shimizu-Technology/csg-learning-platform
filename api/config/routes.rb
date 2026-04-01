@@ -40,8 +40,13 @@ Rails.application.routes.draw do
         resources :enrollments, only: [:index, :create]
       end
 
-      # Enrollments (shallow)
-      resources :enrollments, only: [:show, :update, :destroy]
+      # Enrollments with module assignments
+      resources :enrollments, only: [:show, :update, :destroy] do
+        resources :module_assignments, only: [:index, :create]
+      end
+
+      # Module assignments (shallow)
+      resources :module_assignments, only: [:show, :update, :destroy]
 
       # Progress
       get "progress", to: "progress#index"

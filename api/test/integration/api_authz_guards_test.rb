@@ -10,6 +10,13 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
       day_offset: 0
     )
 
+    @locked_module = CurriculumModule.create!(
+      curriculum: @curriculum,
+      name: "Advanced",
+      position: 1,
+      day_offset: 14
+    )
+
     @available_lesson = Lesson.create!(
       curriculum_module: @module,
       title: "Git Basics",
@@ -109,6 +116,14 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
     assert_response :success
     first_block = JSON.parse(response.body).dig("module", "lessons", 0, "content_blocks", 0)
     refute first_block.key?("solution")
+  end
+
+  test "student cannot access unassigned module" do
+    as_user(@student_one) do
+      get "/api/v1/modules/#{@locked_module.id}", headers: auth_headers
+    end
+
+    assert_response :forbidden
   end
 
   test "student cannot access lesson before unlock date" do
