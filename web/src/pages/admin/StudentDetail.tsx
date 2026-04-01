@@ -17,6 +17,8 @@ import {
   Lock,
   Unlock,
   Save,
+  Plus,
+  Trash2,
 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { ProgressBar } from '../../components/shared/ProgressBar'
@@ -312,6 +314,8 @@ export function StudentDetail() {
   const [assignmentForms, setAssignmentForms] = useState<Record<number, { unlocked: boolean; unlock_date_override: string }>>({})
   const [lessonAssignmentForms, setLessonAssignmentForms] = useState<Record<number, { id?: number; unlocked: boolean; unlock_date_override: string }>>({})
   const [savingAssignmentId, setSavingAssignmentId] = useState<number | null>(null)
+  const [creatingModuleId, setCreatingModuleId] = useState<number | null>(null)
+  const [deletingAssignmentId, setDeletingAssignmentId] = useState<number | null>(null)
   const [savingLessonId, setSavingLessonId] = useState<number | null>(null)
   const [assignmentMessage, setAssignmentMessage] = useState('')
 
@@ -518,6 +522,89 @@ export function StudentDetail() {
   if (!data) return null
 
   const { enrollment, user, cohort, overall_progress, modules, recent_activity } = data
+  const assignedModuleIds = new Set(enrollment.module_assignments.map((assignment) => assignment.module_id))
+  const assignableModules = modules.filter((mod) => !assignedModuleIds.has(mod.id))
+
+  const createModuleAssignment = async (moduleId: number) => {
+    setCreatingModuleId(moduleId)
+    setAssignmentMessage('')
+    const res = await api.createModuleAssignment(enrollment.id, { module_id: moduleId, unlocked: false })
+    if (res.error) {
+      setAssignmentMessage(res.error)
+      setCreatingModuleId(null)
+      return
+    }
+
+    if (id) {
+      const refreshed = await api.getStudentProgress(Number(id))
+      if (refreshed.data) {
+        setData(refreshed.data)
+        const nextForms: Record<number, { unlocked: boolean; unlock_date_override: string }> = {}
+        refreshed.data.enrollment.module_assignments.forEach((nextAssignment: ModuleAssignment) => {
+          nextForms[nextAssignment.id] = {
+            unlocked: nextAssignment.unlocked,
+            unlock_date_override: toDateInputValue(nextAssignment.unlock_date_override),
+          }
+        })
+        setAssignmentForms(nextForms)
+        const nextLessonForms: Record<number, { id?: number; unlocked: boolean; unlock_date_override: string }> = {}
+        refreshed.data.modules.forEach((mod: ProgressData['modules'][0]) => {
+          mod.lessons.forEach((nextLesson) => {
+            nextLessonForms[nextLesson.id] = {
+              id: nextLesson.lesson_assignment?.id,
+              unlocked: nextLesson.lesson_assignment?.unlocked || false,
+              unlock_date_override: toDateInputValue(nextLesson.lesson_assignment?.unlock_date_override || null),
+            }
+          })
+        })
+        setLessonAssignmentForms(nextLessonForms)
+      }
+    }
+
+    const moduleName = modules.find((mod) => mod.id === moduleId)?.name || 'module'
+    setAssignmentMessage(`Assigned ${moduleName} to ${user.full_name}`)
+    setCreatingModuleId(null)
+  }
+
+  const deleteModuleAssignment = async (assignment: ModuleAssignment) => {
+    setDeletingAssignmentId(assignment.id)
+    setAssignmentMessage('')
+    const res = await api.deleteModuleAssignment(assignment.id)
+    if (res.error) {
+      setAssignmentMessage(res.error)
+      setDeletingAssignmentId(null)
+      return
+    }
+
+    if (id) {
+      const refreshed = await api.getStudentProgress(Number(id))
+      if (refreshed.data) {
+        setData(refreshed.data)
+        const nextForms: Record<number, { unlocked: boolean; unlock_date_override: string }> = {}
+        refreshed.data.enrollment.module_assignments.forEach((nextAssignment: ModuleAssignment) => {
+          nextForms[nextAssignment.id] = {
+            unlocked: nextAssignment.unlocked,
+            unlock_date_override: toDateInputValue(nextAssignment.unlock_date_override),
+          }
+        })
+        setAssignmentForms(nextForms)
+        const nextLessonForms: Record<number, { id?: number; unlocked: boolean; unlock_date_override: string }> = {}
+        refreshed.data.modules.forEach((mod: ProgressData['modules'][0]) => {
+          mod.lessons.forEach((nextLesson) => {
+            nextLessonForms[nextLesson.id] = {
+              id: nextLesson.lesson_assignment?.id,
+              unlocked: nextLesson.lesson_assignment?.unlocked || false,
+              unlock_date_override: toDateInputValue(nextLesson.lesson_assignment?.unlock_date_override || null),
+            }
+          })
+        })
+        setLessonAssignmentForms(nextLessonForms)
+      }
+    }
+
+    setAssignmentMessage(`Removed ${assignment.module_name} from ${user.full_name}`)
+    setDeletingAssignmentId(null)
+  }
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -645,6 +732,32 @@ export function StudentDetail() {
               Control per-student unlocks and override dates.
             </p>
           </div>
+          {assignableModules.length > 0 && (
+            <div className="rounded-2xl bg-white border border-slate-200 p-4 space-y-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Assign Additional Modules</p>
+                <p className="text-xs text-slate-500 mt-1">Give this student access to modules that exist in the curriculum but are not yet assigned.</p>
+              </div>
+              <div className="space-y-2">
+                {assignableModules.map((mod) => (
+                  <div key={mod.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">{mod.name}</p>
+                      <p className="text-xs text-slate-500 capitalize">{mod.module_type.replace('_', ' ')} · {mod.lessons.length} lessons</p>
+                    </div>
+                    <button
+                      onClick={() => createModuleAssignment(mod.id)}
+                      disabled={creatingModuleId === mod.id}
+                      className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-3 py-2 text-xs font-medium text-white hover:bg-primary-600 disabled:opacity-50 transition-colors"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      {creatingModuleId === mod.id ? 'Assigning...' : 'Assign Module'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="rounded-2xl bg-white border border-slate-200 divide-y divide-slate-100">
             {enrollment.module_assignments.map((assignment) => {
               const form = assignmentForms[assignment.id] || {
@@ -695,14 +808,24 @@ export function StudentDetail() {
                     </p>
                   </div>
 
-                  <button
-                    onClick={() => saveAssignment(assignment)}
-                    disabled={saving}
-                    className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 transition-colors"
-                  >
-                    <Save className="h-4 w-4" />
-                    {saving ? 'Saving...' : 'Save Access'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => deleteModuleAssignment(assignment)}
+                      disabled={deletingAssignmentId === assignment.id}
+                      className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-100 disabled:opacity-50 transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      {deletingAssignmentId === assignment.id ? 'Removing...' : 'Remove'}
+                    </button>
+                    <button
+                      onClick={() => saveAssignment(assignment)}
+                      disabled={saving}
+                      className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 transition-colors"
+                    >
+                      <Save className="h-4 w-4" />
+                      {saving ? 'Saving...' : 'Save Access'}
+                    </button>
+                  </div>
                 </div>
               )
             })}
