@@ -86,6 +86,7 @@ export const api = {
     const query = params ? '?' + new URLSearchParams(params).toString() : '';
     return fetchApi<any>(`/api/v1/submissions${query}`);
   },
+  getSubmission: (id: number) => fetchApi<any>(`/api/v1/submissions/${id}`),
   createSubmission: (data: any) =>
     fetchApi<any>('/api/v1/submissions', { method: 'POST', body: JSON.stringify(data) }),
   gradeSubmission: (id: number, data: any) =>
