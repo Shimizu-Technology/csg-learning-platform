@@ -114,6 +114,11 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
+  updateCohortAnnouncements: (cohortId: number, announcements: any[]) =>
+    fetchApi<any>(`/api/v1/cohorts/${cohortId}/announcements`, {
+      method: 'PATCH',
+      body: JSON.stringify({ announcements }),
+    }),
   createEnrollment: (cohortId: number, userId: number) =>
     fetchApi<any>(`/api/v1/cohorts/${cohortId}/enrollments`, {
       method: 'POST',

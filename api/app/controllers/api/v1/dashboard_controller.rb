@@ -89,10 +89,17 @@ module Api
           break if continue_lesson
         end
 
-        # Action items: ungraded submissions with redo grade
-        redo_submissions = current_user.submissions.where(grade: "R").includes(:content_block).limit(5)
+        # Action items: submissions with redo grade (most recent first)
+        redo_submissions = current_user.submissions.where(grade: "R").includes(content_block: :lesson).order(graded_at: :desc).limit(5)
         action_items = redo_submissions.map { |s|
-          { type: "redo", submission_id: s.id, lesson_title: s.content_block.lesson.title, content_block_title: s.content_block.title }
+          {
+            type: "redo",
+            submission_id: s.id,
+            lesson_id: s.content_block.lesson.id,
+            lesson_title: s.content_block.lesson.title,
+            content_block_title: s.content_block.title,
+            feedback: s.feedback
+          }
         }
 
         render json: {
@@ -103,7 +110,8 @@ module Api
               id: cohort.id,
               name: cohort.name,
               start_date: cohort.start_date,
-              status: cohort.status
+              status: cohort.status,
+              announcements: Array((cohort.settings || {})["announcements"])
             },
             overall_progress: {
               completed: completed_count,

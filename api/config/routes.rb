@@ -42,6 +42,7 @@ Rails.application.routes.draw do
         resources :enrollments, only: [:index, :create]
         member do
           patch :module_access
+          patch :announcements
         end
       end
 

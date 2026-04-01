@@ -10,7 +10,18 @@ import { EmptyState } from '../../components/shared/EmptyState'
 interface DashboardData {
   enrolled: boolean
   user: { id: number; full_name: string; role: string }
-  cohort?: { id: number; name: string; start_date: string; status: string }
+  cohort?: {
+    id: number
+    name: string
+    start_date: string
+    status: string
+    announcements?: Array<{
+      title: string
+      body: string
+      pinned: boolean
+      published_at: string
+    }>
+  }
   overall_progress?: { completed: number; total: number; percentage: number }
   modules?: Array<{
     id: number
@@ -163,6 +174,26 @@ export function Dashboard() {
           )}
         </div>
       </div>
+
+      {data.cohort?.announcements && data.cohort.announcements.length > 0 && (
+        <div className="rounded-2xl bg-white border border-slate-200 p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-slate-900">Class Notices</h3>
+          {data.cohort.announcements
+            .slice()
+            .sort((a, b) => Number(b.pinned) - Number(a.pinned) || new Date(b.published_at).getTime() - new Date(a.published_at).getTime())
+            .map((announcement, idx) => (
+              <div key={`${announcement.published_at}-${idx}`} className={`rounded-xl border px-4 py-3 ${announcement.pinned ? 'border-primary-200 bg-primary-50' : 'border-slate-200 bg-slate-50'}`}>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-slate-900">{announcement.title || 'Announcement'}</p>
+                  {announcement.pinned && (
+                    <span className="rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-700">Pinned</span>
+                  )}
+                </div>
+                {announcement.body && <p className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{announcement.body}</p>}
+              </div>
+            ))}
+        </div>
+      )}
 
       {data.action_items && data.action_items.length > 0 && (
         <div className="rounded-2xl bg-orange-50 border border-orange-200 p-4">

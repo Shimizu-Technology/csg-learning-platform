@@ -3,7 +3,7 @@ module Api
     class CohortsController < ApplicationController
       before_action :authenticate_user!
       before_action :require_admin!
-      before_action :set_cohort, only: [:show, :update, :destroy, :update_module_access]
+      before_action :set_cohort, only: [:show, :update, :destroy, :update_module_access, :update_announcements]
 
       # GET /api/v1/cohorts
       def index
@@ -60,6 +60,20 @@ module Api
         render json: { errors: [e.message] }, status: :unprocessable_entity
       end
 
+      # PATCH /api/v1/cohorts/:id/announcements
+      def update_announcements
+        settings = (@cohort.settings || {}).deep_dup
+        settings["announcements"] = normalize_announcements(params[:announcements])
+
+        if @cohort.update(settings: settings)
+          render json: {
+            cohort: cohort_json(@cohort, include_students: true, include_modules: true)
+          }
+        else
+          render json: { errors: @cohort.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
       # DELETE /api/v1/cohorts/:id
       def destroy
         @cohort.destroy
@@ -81,6 +95,22 @@ module Api
         params.permit(:module_id, :unlocked, :unlock_date_override)
       end
 
+      def normalize_announcements(raw_announcements)
+        Array(raw_announcements).map do |announcement|
+          next unless announcement.is_a?(ActionController::Parameters) || announcement.is_a?(Hash)
+
+          item = announcement.to_h.symbolize_keys.slice(:title, :body, :pinned, :published_at)
+          next if item[:title].blank? && item[:body].blank?
+
+          {
+            title: item[:title].to_s.strip,
+            body: item[:body].to_s.strip,
+            pinned: ActiveModel::Type::Boolean.new.cast(item[:pinned]),
+            published_at: item[:published_at].presence || Time.current.iso8601,
+          }
+        end.compact
+      end
+
       def cohort_json(cohort, include_students: false, include_modules: false)
         json = {
           id: cohort.id,
@@ -96,7 +126,8 @@ module Api
           status: cohort.status,
           settings: cohort.settings,
           enrolled_count: cohort.enrollments.count,
-          active_count: cohort.enrollments.active.count
+          active_count: cohort.enrollments.active.count,
+          announcements: Array((cohort.settings || {})["announcements"])
         }
 
         if include_students

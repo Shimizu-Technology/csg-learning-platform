@@ -4,6 +4,13 @@ import { ArrowLeft, Save, Users, Lock, Unlock } from 'lucide-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 
+interface Announcement {
+  title: string
+  body: string
+  pinned: boolean
+  published_at: string
+}
+
 interface CohortData {
   id: number
   name: string
@@ -11,6 +18,7 @@ interface CohortData {
   start_date: string
   status: string
   active_count: number
+  announcements: Announcement[]
   students: Array<{
     enrollment_id: number
     user_id: number
@@ -41,7 +49,9 @@ export function CohortDetail() {
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
   const [savingModuleId, setSavingModuleId] = useState<number | null>(null)
+  const [savingAnnouncements, setSavingAnnouncements] = useState(false)
   const [forms, setForms] = useState<Record<number, { unlocked: boolean; unlock_date_override: string }>>({})
+  const [announcements, setAnnouncements] = useState<Announcement[]>([])
 
   useEffect(() => {
     if (!id) return
@@ -49,6 +59,7 @@ export function CohortDetail() {
       const nextCohort = res.data?.cohort
       if (nextCohort) {
         setCohort(nextCohort)
+        setAnnouncements(nextCohort.announcements || [])
         const nextForms: Record<number, { unlocked: boolean; unlock_date_override: string }> = {}
         nextCohort.modules.forEach((mod: CohortData['modules'][0]) => {
           nextForms[mod.id] = {
@@ -57,6 +68,7 @@ export function CohortDetail() {
           }
         })
         setForms(nextForms)
+        setAnnouncements(nextCohort.announcements || [])
       }
       setLoading(false)
     })
@@ -109,6 +121,27 @@ export function CohortDetail() {
     setSavingModuleId(null)
   }
 
+  const saveAnnouncements = async () => {
+    if (!id) return
+    setSavingAnnouncements(true)
+    setMessage('')
+
+    const res = await api.updateCohortAnnouncements(Number(id), announcements)
+    if (res.error) {
+      setMessage(res.error)
+      setSavingAnnouncements(false)
+      return
+    }
+
+    const nextCohort = res.data?.cohort
+    if (nextCohort) {
+      setCohort(nextCohort)
+      setAnnouncements(nextCohort.announcements || [])
+    }
+    setMessage('Updated cohort announcements')
+    setSavingAnnouncements(false)
+  }
+
   if (loading) return <LoadingSpinner message="Loading cohort..." />
   if (!cohort) return null
 
@@ -133,6 +166,70 @@ export function CohortDetail() {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 space-y-4">
+          <div className="space-y-3 rounded-2xl bg-white border border-slate-200 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Announcements</h2>
+                <p className="text-sm text-slate-500 mt-1">Short notices that students in this cohort will see on their dashboard.</p>
+              </div>
+              <button
+                onClick={() => setAnnouncements((prev) => [...prev, { title: '', body: '', pinned: false, published_at: new Date().toISOString() }])}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                Add notice
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {announcements.length === 0 ? (
+                <p className="text-sm text-slate-400">No announcements yet.</p>
+              ) : announcements.map((announcement, idx) => (
+                <div key={`${idx}-${announcement.published_at}`} className="rounded-xl border border-slate-200 p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <label className="flex items-center gap-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={announcement.pinned}
+                        onChange={(e) => setAnnouncements((prev) => prev.map((item, itemIdx) => itemIdx === idx ? { ...item, pinned: e.target.checked } : item))}
+                        className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      Pin this notice
+                    </label>
+                    <button
+                      onClick={() => setAnnouncements((prev) => prev.filter((_, itemIdx) => itemIdx !== idx))}
+                      className="text-xs font-medium text-red-600 hover:text-red-700"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={announcement.title}
+                    onChange={(e) => setAnnouncements((prev) => prev.map((item, itemIdx) => itemIdx === idx ? { ...item, title: e.target.value } : item))}
+                    placeholder="Announcement title"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                  <textarea
+                    value={announcement.body}
+                    onChange={(e) => setAnnouncements((prev) => prev.map((item, itemIdx) => itemIdx === idx ? { ...item, body: e.target.value } : item))}
+                    placeholder="What should students know?"
+                    rows={3}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-y"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={saveAnnouncements}
+              disabled={savingAnnouncements}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 transition-colors"
+            >
+              <Save className="h-4 w-4" />
+              {savingAnnouncements ? 'Saving...' : 'Save Announcements'}
+            </button>
+          </div>
+
           <h2 className="text-lg font-semibold text-slate-900">Cohort Module Access</h2>
           <div className="rounded-2xl bg-white border border-slate-200 divide-y divide-slate-100">
             {cohort.modules.map((mod) => {
