@@ -3,15 +3,16 @@ module Api
     class SubmissionsController < ApplicationController
       before_action :authenticate_user!
       before_action :set_submission, only: [:show, :update, :grade]
+      before_action :authorize_submission_read!, only: [:show]
 
       # GET /api/v1/submissions
       def index
         submissions = Submission.includes(:user, :content_block, :grader)
 
-        # Filter by student
-        if params[:user_id].present?
-          submissions = submissions.where(user_id: params[:user_id])
-        elsif !current_user.staff?
+        # Staff can filter by any student; students can only see themselves.
+        if current_user.staff?
+          submissions = submissions.where(user_id: params[:user_id]) if params[:user_id].present?
+        else
           submissions = submissions.where(user_id: current_user.id)
         end
 
@@ -103,6 +104,12 @@ module Api
 
       def set_submission
         @submission = Submission.find(params[:id])
+      end
+
+      def authorize_submission_read!
+        return if current_user.staff? || @submission.user_id == current_user.id
+
+        render_forbidden("Cannot view this submission")
       end
 
       def submission_params

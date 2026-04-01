@@ -19,10 +19,27 @@ class ClerkAuth
       jwks = fetch_jwks
       return nil if jwks.nil?
 
-      decoded = JWT.decode(token, nil, true, {
+      decode_options = {
         algorithms: ["RS256"],
         jwks: jwks
-      })
+      }
+
+      issuer = expected_issuer
+      if issuer.present?
+        decode_options[:verify_iss] = true
+        decode_options[:iss] = issuer
+      elsif Rails.env.production?
+        Rails.logger.error("CLERK_ISSUER is required in production for JWT issuer verification")
+        return nil
+      end
+
+      audience = expected_audience
+      if audience.present?
+        decode_options[:verify_aud] = true
+        decode_options[:aud] = audience
+      end
+
+      decoded = JWT.decode(token, nil, true, decode_options)
 
       decoded.first
     rescue JWT::DecodeError => e
@@ -81,6 +98,18 @@ class ClerkAuth
         Rails.logger.warn("Neither CLERK_JWKS_URL nor CLERK_ISSUER configured")
         nil
       end
+    end
+
+    def expected_issuer
+      ENV.fetch("CLERK_ISSUER", nil)
+    end
+
+    def expected_audience
+      raw = ENV.fetch("CLERK_AUDIENCE", nil)
+      return nil if raw.blank?
+
+      audiences = raw.split(",").map(&:strip).reject(&:empty?)
+      audiences.length == 1 ? audiences.first : audiences
     end
 
     def handle_test_token(token)
