@@ -22,6 +22,12 @@ csg-learning-platform/
 └── scripts/      Utility scripts
 ```
 
+## Product Direction
+
+- `docs/PRODUCT_VISION.md` — why this product exists, what it should become, and what we are optimizing for
+- `docs/ROADMAP.md` — execution plan: what to build now, next, and later
+- `docs/BUILD_PLAN.md` — original architecture/build plan and early implementation notes
+
 ## Getting Started
 
 ### API
