@@ -11,8 +11,9 @@ Rails.application.routes.draw do
       get "profile", to: "profile#show"
       patch "profile", to: "profile#update"
 
-      # Dashboard
+      # Dashboard / student hubs
       get "dashboard", to: "dashboard#show"
+      get "recordings", to: "recordings#index"
 
       # Users (admin)
       resources :users, only: [:index, :show, :update]

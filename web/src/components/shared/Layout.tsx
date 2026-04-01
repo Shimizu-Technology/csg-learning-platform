@@ -10,6 +10,7 @@ import {
   Menu,
   X,
   GraduationCap,
+  PlayCircle,
 } from 'lucide-react'
 import { UserButton } from '@clerk/clerk-react'
 import { useAuthContext } from '../../contexts/AuthContext'
@@ -26,6 +27,7 @@ export function Layout({ children }: LayoutProps) {
 
   const studentNav = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/recordings', icon: PlayCircle, label: 'Recordings' },
     { to: '/profile', icon: User, label: 'Profile' },
   ]
 

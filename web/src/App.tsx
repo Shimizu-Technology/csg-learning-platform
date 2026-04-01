@@ -4,6 +4,7 @@ import ProtectedRoute from './components/auth/ProtectedRoute'
 import { Dashboard } from './pages/student/Dashboard'
 import { ModuleView } from './pages/student/ModuleView'
 import { LessonView } from './pages/student/LessonView'
+import { Recordings } from './pages/student/Recordings'
 import { Profile } from './pages/student/Profile'
 import { AdminDashboard } from './pages/admin/AdminDashboard'
 import { StudentManagement } from './pages/admin/StudentManagement'
@@ -64,6 +65,16 @@ function AppRoutes() {
           <ProtectedRoute>
             <Layout>
               <Profile />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/recordings"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Recordings />
             </Layout>
           </ProtectedRoute>
         }
