@@ -106,6 +106,11 @@ export const api = {
   getCurriculum: (id: number) => fetchApi<any>(`/api/v1/curricula/${id}`),
   getCohorts: () => fetchApi<any>('/api/v1/cohorts'),
   getCohort: (id: number) => fetchApi<any>(`/api/v1/cohorts/${id}`),
+  updateCohortModuleAccess: (cohortId: number, data: any) =>
+    fetchApi<any>(`/api/v1/cohorts/${cohortId}/module_access`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
   createEnrollment: (cohortId: number, userId: number) =>
     fetchApi<any>(`/api/v1/cohorts/${cohortId}/enrollments`, {
       method: 'POST',

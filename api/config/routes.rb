@@ -38,6 +38,9 @@ Rails.application.routes.draw do
       # Cohorts with nested enrollments
       resources :cohorts, only: [:index, :show, :create, :update, :destroy] do
         resources :enrollments, only: [:index, :create]
+        member do
+          patch :module_access
+        end
       end
 
       # Enrollments with module assignments

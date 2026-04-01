@@ -8,6 +8,7 @@ import { Profile } from './pages/student/Profile'
 import { AdminDashboard } from './pages/admin/AdminDashboard'
 import { StudentManagement } from './pages/admin/StudentManagement'
 import { StudentDetail } from './pages/admin/StudentDetail'
+import { CohortDetail } from './pages/admin/CohortDetail'
 import { ContentManagement } from './pages/admin/ContentManagement'
 import { LessonEditor } from './pages/admin/LessonEditor'
 import { Grading } from './pages/admin/Grading'
@@ -95,6 +96,16 @@ function AppRoutes() {
           <ProtectedRoute requiredRole="staff">
             <Layout>
               <StudentDetail />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/cohorts/:id"
+        element={
+          <ProtectedRoute requiredRole="staff">
+            <Layout>
+              <CohortDetail />
             </Layout>
           </ProtectedRoute>
         }

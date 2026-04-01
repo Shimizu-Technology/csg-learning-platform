@@ -3,7 +3,7 @@ module Api
     class CohortsController < ApplicationController
       before_action :authenticate_user!
       before_action :require_admin!
-      before_action :set_cohort, only: [:show, :update, :destroy]
+      before_action :set_cohort, only: [:show, :update, :destroy, :update_module_access]
 
       # GET /api/v1/cohorts
       def index
@@ -16,7 +16,7 @@ module Api
       # GET /api/v1/cohorts/:id
       def show
         render json: {
-          cohort: cohort_json(@cohort, include_students: true)
+          cohort: cohort_json(@cohort, include_students: true, include_modules: true)
         }
       end
 
@@ -39,6 +39,27 @@ module Api
         end
       end
 
+      # PATCH /api/v1/cohorts/:id/module_access
+      def update_module_access
+        curriculum_module = @cohort.curriculum.modules.find(module_access_params[:module_id])
+        enrollments = @cohort.enrollments.active.includes(:module_assignments)
+
+        ActiveRecord::Base.transaction do
+          enrollments.each do |enrollment|
+            assignment = enrollment.module_assignments.find_or_initialize_by(module_id: curriculum_module.id)
+            assignment.unlocked = module_access_params[:unlocked] unless module_access_params[:unlocked].nil?
+            assignment.unlock_date_override = module_access_params[:unlock_date_override]
+            assignment.save!
+          end
+        end
+
+        render json: {
+          cohort: cohort_json(@cohort.reload, include_students: true, include_modules: true)
+        }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { errors: [e.message] }, status: :unprocessable_entity
+      end
+
       # DELETE /api/v1/cohorts/:id
       def destroy
         @cohort.destroy
@@ -56,7 +77,11 @@ module Api
                        :github_organization_name, :repository_name, :requires_github, :status, :settings)
       end
 
-      def cohort_json(cohort, include_students: false)
+      def module_access_params
+        params.permit(:module_id, :unlocked, :unlock_date_override)
+      end
+
+      def cohort_json(cohort, include_students: false, include_modules: false)
         json = {
           id: cohort.id,
           name: cohort.name,
@@ -75,7 +100,7 @@ module Api
         }
 
         if include_students
-          json[:students] = cohort.enrollments.includes(:user).map { |e|
+          json[:students] = cohort.enrollments.includes(:user, module_assignments: :curriculum_module).map { |e|
             {
               enrollment_id: e.id,
               user_id: e.user.id,
@@ -84,9 +109,39 @@ module Api
               github_username: e.user.github_username,
               status: e.status,
               enrolled_at: e.enrolled_at,
-              last_sign_in_at: e.user.last_sign_in_at
+              last_sign_in_at: e.user.last_sign_in_at,
+              module_assignments: e.module_assignments.map { |assignment|
+                {
+                  id: assignment.id,
+                  module_id: assignment.module_id,
+                  module_name: assignment.curriculum_module.name,
+                  unlocked: assignment.unlocked,
+                  unlock_date_override: assignment.unlock_date_override
+                }
+              }
             }
           }
+        end
+
+        if include_modules
+          active_enrollments = cohort.enrollments.active.includes(:module_assignments)
+          assignment_index = active_enrollments.each_with_object(Hash.new { |h, k| h[k] = [] }) do |enrollment, hash|
+            enrollment.module_assignments.each { |assignment| hash[assignment.module_id] << assignment }
+          end
+
+          json[:modules] = cohort.curriculum.modules.map do |mod|
+            assignments = assignment_index[mod.id]
+            {
+              id: mod.id,
+              name: mod.name,
+              module_type: mod.module_type,
+              position: mod.position,
+              lessons_count: mod.lessons.count,
+              assigned_count: assignments.size,
+              unlocked_count: assignments.count(&:unlocked?),
+              unlock_date_overrides: assignments.map(&:unlock_date_override).compact.uniq.sort
+            }
+          end
         end
 
         json

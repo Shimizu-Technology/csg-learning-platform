@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Users, FileText, ClipboardCheck, ArrowRight } from 'lucide-react'
+import { Users, FileText, ClipboardCheck, ArrowRight, Layers3 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -85,7 +85,7 @@ export function AdminDashboard() {
       </div>
 
       {/* Quick actions */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         <Link
           to="/admin/students"
           className="flex items-center justify-between rounded-2xl bg-white border border-slate-200 p-4 hover:border-primary-200 hover:shadow-sm transition-all"
@@ -116,6 +116,18 @@ export function AdminDashboard() {
           </div>
           <ArrowRight className="h-4 w-4 text-slate-400" />
         </Link>
+        {data.cohort && (
+          <Link
+            to={`/admin/cohorts/${data.cohort.id}`}
+            className="flex items-center justify-between rounded-2xl bg-white border border-slate-200 p-4 hover:border-primary-200 hover:shadow-sm transition-all"
+          >
+            <div className="flex items-center gap-3">
+              <Layers3 className="h-5 w-5 text-slate-400" />
+              <span className="text-sm font-medium text-slate-700">Cohort Access</span>
+            </div>
+            <ArrowRight className="h-4 w-4 text-slate-400" />
+          </Link>
+        )}
       </div>
 
       {/* Student progress table */}
