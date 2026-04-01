@@ -62,7 +62,7 @@ module Api
         return if performed?
 
         user = User.find(params[:user_id])
-        enrollment = user.enrollments.active.includes(cohort: { curriculum: { modules: { lessons: :content_blocks } } }).first
+        enrollment = user.enrollments.active.includes(:module_assignments, :lesson_assignments, cohort: { curriculum: { modules: { lessons: :content_blocks } } }).first
 
         unless enrollment
           render json: { error: "Student is not enrolled in an active cohort" }, status: :not_found
@@ -74,6 +74,8 @@ module Api
         # The enrollment preload already loaded curriculum -> modules -> lessons -> content_blocks.
         # Keep everything in memory here so we don't undo that eager loading with fresh queries.
         modules = curriculum.modules.sort_by(&:position)
+        module_assignments_by_module_id = enrollment.module_assignments.index_by(&:module_id)
+        lesson_assignments_by_lesson_id = enrollment.lesson_assignments.index_by(&:lesson_id)
 
         # Index all progresses and submissions for this user
         all_block_ids = modules.flat_map { |m| m.lessons.flat_map { |l| l.content_blocks.map(&:id) } }
@@ -110,7 +112,9 @@ module Api
               lesson_block_ids = lesson.content_blocks.map(&:id)
               lesson_completed = lesson_block_ids.count { |id| progress_by_block[id]&.completed? }
               lesson_total = lesson_block_ids.size
-              available = lesson.available?(cohort)
+              module_assignment = module_assignments_by_module_id[mod.id]
+              lesson_assignment = lesson_assignments_by_lesson_id[lesson.id]
+              available = lesson.available?(cohort, module_assignment, lesson_assignment)
 
               {
                 id: lesson.id,
@@ -120,10 +124,15 @@ module Api
                 release_day: lesson.release_day,
                 required: lesson.required,
                 available: available,
-                unlock_date: lesson.unlock_date(cohort),
+                unlock_date: lesson_assignment&.unlock_date_override || module_assignment&.unlock_date_override || lesson.unlock_date(cohort),
                 total_blocks: lesson_total,
                 completed_blocks: lesson_completed,
                 completed: lesson_completed == lesson_total && lesson_total > 0,
+                lesson_assignment: lesson_assignment ? {
+                  id: lesson_assignment.id,
+                  unlocked: lesson_assignment.unlocked,
+                  unlock_date_override: lesson_assignment.unlock_date_override
+                } : nil,
                 blocks: lesson.content_blocks.sort_by(&:position).map do |block|
                   progress = progress_by_block[block.id]
                   submission = submissions_by_block[block.id]

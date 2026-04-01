@@ -134,6 +134,16 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  test "student can access future lesson with lesson override" do
+    LessonAssignment.create!(enrollment: @enrollment_one, lesson: @future_lesson, unlocked: true)
+
+    as_user(@student_one) do
+      get "/api/v1/lessons/#{@future_lesson.id}", headers: auth_headers
+    end
+
+    assert_response :success
+  end
+
   private
 
   def auth_headers

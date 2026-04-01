@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_27_010009) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_01_041000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -82,6 +82,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_27_010009) do
     t.index ["module_id", "position"], name: "index_lessons_on_module_id_and_position"
     t.index ["module_id", "release_day"], name: "index_lessons_on_module_id_and_release_day"
     t.index ["module_id"], name: "index_lessons_on_module_id"
+  end
+
+  create_table "lesson_assignments", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "enrollment_id", null: false
+    t.bigint "lesson_id", null: false
+    t.date "unlock_date_override"
+    t.boolean "unlocked", default: false, null: false
+    t.datetime "updated_at", null: false
+    t.index ["enrollment_id", "lesson_id"], name: "index_lesson_assignments_on_enrollment_id_and_lesson_id", unique: true
+    t.index ["enrollment_id"], name: "index_lesson_assignments_on_enrollment_id"
+    t.index ["lesson_id"], name: "index_lesson_assignments_on_lesson_id"
   end
 
   create_table "module_assignments", force: :cascade do |t|
@@ -161,6 +173,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_27_010009) do
   add_foreign_key "enrollments", "cohorts"
   add_foreign_key "enrollments", "users"
   add_foreign_key "lessons", "modules"
+  add_foreign_key "lesson_assignments", "enrollments"
+  add_foreign_key "lesson_assignments", "lessons"
   add_foreign_key "module_assignments", "enrollments"
   add_foreign_key "module_assignments", "modules"
   add_foreign_key "modules", "curricula", column: "curriculum_id"

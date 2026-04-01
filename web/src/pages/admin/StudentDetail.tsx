@@ -104,6 +104,11 @@ interface ProgressData {
       total_blocks: number
       completed_blocks: number
       completed: boolean
+      lesson_assignment: {
+        id: number
+        unlocked: boolean
+        unlock_date_override: string | null
+      } | null
       blocks: Array<{
         id: number
         title: string
@@ -152,7 +157,19 @@ function toDateInputValue(dateStr: string | null): string {
   return new Date(dateStr).toISOString().slice(0, 10)
 }
 
-function LessonRow({ lesson }: { lesson: ProgressData['modules'][0]['lessons'][0] }) {
+function LessonRow({
+  lesson,
+  form,
+  saving,
+  onUpdate,
+  onSave,
+}: {
+  lesson: ProgressData['modules'][0]['lessons'][0]
+  form: { unlocked: boolean; unlock_date_override: string }
+  saving: boolean
+  onUpdate: (patch: Partial<{ unlocked: boolean; unlock_date_override: string }>) => void
+  onSave: () => void
+}) {
   const [expanded, setExpanded] = useState(false)
 
   return (
@@ -213,8 +230,43 @@ function LessonRow({ lesson }: { lesson: ProgressData['modules'][0]['lessons'][0
         </Link>
       </div>
 
-      {expanded && lesson.blocks.length > 0 && (
+      {expanded && (
         <div className="border-t border-slate-200 bg-slate-50">
+          <div className="px-5 py-3 border-b border-slate-200 bg-white/70 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Lesson Override</p>
+                <p className="text-xs text-slate-400">Use this only for student-specific exceptions.</p>
+              </div>
+              <button
+                onClick={onSave}
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-3 py-2 text-xs font-medium text-white hover:bg-primary-600 disabled:opacity-50 transition-colors"
+              >
+                <Save className="h-3.5 w-3.5" />
+                {saving ? 'Saving...' : 'Save Lesson Override'}
+              </button>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={form.unlocked}
+                onChange={(e) => onUpdate({ unlocked: e.target.checked })}
+                className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+              />
+              Unlock this lesson for this student
+            </label>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Lesson unlock date override</label>
+              <input
+                type="date"
+                value={form.unlock_date_override}
+                onChange={(e) => onUpdate({ unlock_date_override: e.target.value })}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+              <p className="mt-1 text-xs text-slate-400">Leave blank to use module/default schedule. A lesson-specific override wins over module timing.</p>
+            </div>
+          </div>
           {lesson.blocks.map((block) => {
             const Icon = BLOCK_ICONS[block.block_type] || FileText
             const colorClass = BLOCK_COLORS[block.block_type] || 'text-slate-400'
@@ -258,7 +310,9 @@ export function StudentDetail() {
   const [error, setError] = useState('')
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set())
   const [assignmentForms, setAssignmentForms] = useState<Record<number, { unlocked: boolean; unlock_date_override: string }>>({})
+  const [lessonAssignmentForms, setLessonAssignmentForms] = useState<Record<number, { id?: number; unlocked: boolean; unlock_date_override: string }>>({})
   const [savingAssignmentId, setSavingAssignmentId] = useState<number | null>(null)
+  const [savingLessonId, setSavingLessonId] = useState<number | null>(null)
   const [assignmentMessage, setAssignmentMessage] = useState('')
 
   useEffect(() => {
@@ -277,6 +331,17 @@ export function StudentDetail() {
           setAssignmentForms(nextForms)
         }
         if (res.data.modules) {
+          const nextLessonForms: Record<number, { id?: number; unlocked: boolean; unlock_date_override: string }> = {}
+          res.data.modules.forEach((mod: ProgressData['modules'][0]) => {
+            mod.lessons.forEach((lesson) => {
+              nextLessonForms[lesson.id] = {
+                id: lesson.lesson_assignment?.id,
+                unlocked: lesson.lesson_assignment?.unlocked || false,
+                unlock_date_override: toDateInputValue(lesson.lesson_assignment?.unlock_date_override || null),
+              }
+            })
+          })
+          setLessonAssignmentForms(nextLessonForms)
           const inProgress = res.data.modules.find(
             (m: ProgressData['modules'][0]) =>
               m.progress_percentage > 0 && m.progress_percentage < 100
@@ -306,6 +371,16 @@ export function StudentDetail() {
       ...prev,
       [assignmentId]: {
         ...prev[assignmentId],
+        ...patch,
+      },
+    }))
+  }
+
+  const updateLessonAssignmentForm = (lessonId: number, patch: Partial<{ unlocked: boolean; unlock_date_override: string }>) => {
+    setLessonAssignmentForms((prev) => ({
+      ...prev,
+      [lessonId]: {
+        ...prev[lessonId],
         ...patch,
       },
     }))
@@ -365,9 +440,72 @@ export function StudentDetail() {
           }
         })
         setAssignmentForms(nextForms)
+        const nextLessonForms: Record<number, { id?: number; unlocked: boolean; unlock_date_override: string }> = {}
+        refreshed.data.modules.forEach((mod: ProgressData['modules'][0]) => {
+          mod.lessons.forEach((lesson) => {
+            nextLessonForms[lesson.id] = {
+              id: lesson.lesson_assignment?.id,
+              unlocked: lesson.lesson_assignment?.unlocked || false,
+              unlock_date_override: toDateInputValue(lesson.lesson_assignment?.unlock_date_override || null),
+            }
+          })
+        })
+        setLessonAssignmentForms(nextLessonForms)
       }
     }
     setSavingAssignmentId(null)
+  }
+
+  const saveLessonAssignment = async (lesson: ProgressData['modules'][0]['lessons'][0]) => {
+    const form = lessonAssignmentForms[lesson.id]
+    if (!form) return
+
+    setSavingLessonId(lesson.id)
+    setAssignmentMessage('')
+
+    const payload = {
+      lesson_id: lesson.id,
+      unlocked: form.unlocked,
+      unlock_date_override: form.unlock_date_override || null,
+    }
+
+    const res = form.id
+      ? await api.updateLessonAssignment(form.id, payload)
+      : await api.createLessonAssignment(enrollment.id, payload)
+
+    if (res.error) {
+      setAssignmentMessage(res.error)
+      setSavingLessonId(null)
+      return
+    }
+
+    setAssignmentMessage(`Saved lesson override for ${lesson.title}`)
+    if (id) {
+      const refreshed = await api.getStudentProgress(Number(id))
+      if (refreshed.data) {
+        setData(refreshed.data)
+        const nextForms: Record<number, { unlocked: boolean; unlock_date_override: string }> = {}
+        refreshed.data.enrollment.module_assignments.forEach((nextAssignment: ModuleAssignment) => {
+          nextForms[nextAssignment.id] = {
+            unlocked: nextAssignment.unlocked,
+            unlock_date_override: toDateInputValue(nextAssignment.unlock_date_override),
+          }
+        })
+        setAssignmentForms(nextForms)
+        const nextLessonForms: Record<number, { id?: number; unlocked: boolean; unlock_date_override: string }> = {}
+        refreshed.data.modules.forEach((mod: ProgressData['modules'][0]) => {
+          mod.lessons.forEach((nextLesson) => {
+            nextLessonForms[nextLesson.id] = {
+              id: nextLesson.lesson_assignment?.id,
+              unlocked: nextLesson.lesson_assignment?.unlocked || false,
+              unlock_date_override: toDateInputValue(nextLesson.lesson_assignment?.unlock_date_override || null),
+            }
+          })
+        })
+        setLessonAssignmentForms(nextLessonForms)
+      }
+    }
+    setSavingLessonId(null)
   }
 
   if (loading) return <LoadingSpinner message="Loading student progress..." />
@@ -480,7 +618,17 @@ export function StudentDetail() {
                       <p className="text-sm text-slate-400 text-center py-4">No lessons yet</p>
                     ) : (
                       mod.lessons.map((lesson) => (
-                        <LessonRow key={lesson.id} lesson={lesson} />
+                        <LessonRow
+                          key={lesson.id}
+                          lesson={lesson}
+                          form={lessonAssignmentForms[lesson.id] || {
+                            unlocked: lesson.lesson_assignment?.unlocked || false,
+                            unlock_date_override: toDateInputValue(lesson.lesson_assignment?.unlock_date_override || null),
+                          }}
+                          saving={savingLessonId === lesson.id}
+                          onUpdate={(patch) => updateLessonAssignmentForm(lesson.id, patch)}
+                          onSave={() => saveLessonAssignment(lesson)}
+                        />
                       ))
                     )}
                   </div>

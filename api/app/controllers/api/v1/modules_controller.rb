@@ -71,13 +71,15 @@ module Api
         end
 
         assignment = enrollment.module_assignments.find_by(module_id: @module.id)
-        unless assignment&.unlocked?
+        lesson_assignments = enrollment.lesson_assignments.where(lesson_id: @module.lessons.select(:id)).index_by(&:lesson_id)
+
+        unless assignment&.unlocked? || lesson_assignments.any?
           render_forbidden("Cannot access this module")
           return
         end
 
         return if @module.lessons.empty?
-        return if @module.lessons.any? { |lesson| lesson.available?(enrollment.cohort, assignment) }
+        return if @module.lessons.any? { |lesson| lesson.available?(enrollment.cohort, assignment, lesson_assignments[lesson.id]) }
 
         render_forbidden("Module is not unlocked yet")
       end

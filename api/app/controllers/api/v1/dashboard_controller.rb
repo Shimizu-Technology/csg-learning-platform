@@ -15,7 +15,7 @@ module Api
       private
 
       def render_student_dashboard
-        enrollment = current_user.enrollments.active.includes(:module_assignments, cohort: { curriculum: { modules: { lessons: :content_blocks } } }).first
+        enrollment = current_user.enrollments.active.includes(:module_assignments, :lesson_assignments, cohort: { curriculum: { modules: { lessons: :content_blocks } } }).first
 
         unless enrollment
           render json: { dashboard: { enrolled: false, user: user_summary } }
@@ -25,6 +25,7 @@ module Api
         cohort = enrollment.cohort
         curriculum = cohort.curriculum
         assignments_by_module_id = enrollment.module_assignments.index_by(&:module_id)
+        lesson_assignments_by_lesson_id = enrollment.lesson_assignments.index_by(&:lesson_id)
         modules = curriculum.modules.includes(lessons: :content_blocks).select do |mod|
           assignments_by_module_id.key?(mod.id)
         end
@@ -55,7 +56,7 @@ module Api
             progress_percentage: mod_percentage,
             assigned: assignment.present?,
             unlocked: assignment&.unlocked? || false,
-            available: assignment&.available_for?(cohort) || false,
+            available: mod.lessons.any? { |lesson| lesson.available?(cohort, assignment, lesson_assignments_by_lesson_id[lesson.id]) },
             unlock_date: assignment&.next_unlock_date(cohort),
             lessons: mod.lessons.map { |l|
               lesson_block_ids = l.content_blocks.map(&:id)
@@ -66,8 +67,8 @@ module Api
                 lesson_type: l.lesson_type,
                 release_day: l.release_day,
                 required: l.required,
-                available: assignment&.unlocked? ? l.available?(cohort, assignment) : false,
-                unlock_date: assignment&.unlock_date_override || l.unlock_date(cohort),
+                available: l.available?(cohort, assignment, lesson_assignments_by_lesson_id[l.id]),
+                unlock_date: lesson_assignments_by_lesson_id[l.id]&.unlock_date_override || assignment&.unlock_date_override || l.unlock_date(cohort),
                 total_blocks: lesson_block_ids.size,
                 completed_blocks: lesson_completed,
                 completed: lesson_completed == lesson_block_ids.size && lesson_block_ids.any?

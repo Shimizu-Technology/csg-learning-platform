@@ -21,7 +21,8 @@ module Api
 
       # POST /api/v1/enrollments/:enrollment_id/module_assignments
       def create
-        assignment = @enrollment.module_assignments.new(module_assignment_params)
+        assignment = @enrollment.module_assignments.find_or_initialize_by(module_id: module_assignment_params[:module_id])
+        assignment.assign_attributes(module_assignment_params)
 
         if assignment.save
           render json: { module_assignment: module_assignment_json(assignment) }, status: :created

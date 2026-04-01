@@ -43,13 +43,15 @@ Rails.application.routes.draw do
         end
       end
 
-      # Enrollments with module assignments
+      # Enrollments with access overrides
       resources :enrollments, only: [:show, :update, :destroy] do
         resources :module_assignments, only: [:index, :create]
+        resources :lesson_assignments, only: [:index, :create]
       end
 
-      # Module assignments (shallow)
+      # Access overrides (shallow)
       resources :module_assignments, only: [:show, :update, :destroy]
+      resources :lesson_assignments, only: [:show, :update, :destroy]
 
       # Progress
       get "progress", to: "progress#index"

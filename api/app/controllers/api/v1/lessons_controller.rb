@@ -90,12 +90,14 @@ module Api
         end
 
         assignment = enrollment.module_assignments.find_by(module_id: @lesson.module_id)
-        unless assignment&.unlocked?
+        lesson_assignment = enrollment.lesson_assignments.find_by(lesson_id: @lesson.id)
+
+        unless assignment&.unlocked? || lesson_assignment.present?
           render_forbidden("Cannot access this lesson")
           return
         end
 
-        return if @lesson.available?(enrollment.cohort, assignment)
+        return if @lesson.available?(enrollment.cohort, assignment, lesson_assignment)
 
         render_forbidden("Lesson is not unlocked yet")
       end
