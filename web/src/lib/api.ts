@@ -63,6 +63,7 @@ export const api = {
   // Dashboard
   getDashboard: () => fetchApi<any>('/api/v1/dashboard'),
   getRecordings: () => fetchApi<any>('/api/v1/recordings'),
+  getResources: () => fetchApi<any>('/api/v1/resources'),
 
   // Profile
   getProfile: () => fetchApi<any>('/api/v1/profile'),

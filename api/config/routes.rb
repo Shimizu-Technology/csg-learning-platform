@@ -14,6 +14,7 @@ Rails.application.routes.draw do
       # Dashboard / student hubs
       get "dashboard", to: "dashboard#show"
       get "recordings", to: "recordings#index"
+      get "resources", to: "resources#index"
 
       # Users (admin)
       resources :users, only: [:index, :show, :update]
