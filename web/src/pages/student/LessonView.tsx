@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, ChevronLeft } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ChevronLeft, RotateCcw } from 'lucide-react'
 import { api } from '../../lib/api'
 import { ContentBlockRenderer } from '../../components/shared/ContentBlockRenderer'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -41,6 +41,8 @@ export function LessonView() {
   if (loading) return <LoadingSpinner message="Loading lesson..." />
   if (!lesson) return <div className="text-center text-slate-500 py-12">Lesson not found</div>
 
+  const redoBlocks = lesson.content_blocks.filter((block: any) => block.submissions?.[0]?.grade === 'R')
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       {/* Back link */}
@@ -61,6 +63,20 @@ export function LessonView() {
           {lesson.required && <span className="text-primary-500 font-medium">Required</span>}
         </div>
       </div>
+
+      {redoBlocks.length > 0 && (
+        <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
+          <div className="flex items-start gap-3">
+            <RotateCcw className="h-5 w-5 text-orange-600 shrink-0 mt-0.5" />
+            <div>
+              <h2 className="text-sm font-semibold text-orange-800">Redo requested in this lesson</h2>
+              <p className="mt-1 text-sm text-orange-700">
+                You have {redoBlocks.length} block{redoBlocks.length > 1 ? 's' : ''} that need an updated submission. Review the feedback below and resubmit your work.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Content blocks */}
       <div className="space-y-4">

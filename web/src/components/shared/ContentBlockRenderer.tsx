@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import Player, { type VimeoUrl } from '@vimeo/player'
-import { Play, FileText, Code, CheckCircle2, Circle, ChevronDown, ChevronUp, Send, BadgeCheck } from 'lucide-react'
+import { Play, FileText, Code, CheckCircle2, Circle, ChevronDown, ChevronUp, Send, BadgeCheck, RotateCcw } from 'lucide-react'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { GradeDisplay } from './GradeDisplay'
 import { CodeEditor, detectLanguage } from './CodeEditor'
@@ -46,7 +46,10 @@ function getVimeoEmbed(url: string): { id: string; hash?: string } | null {
 }
 
 export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: ContentBlockRendererProps) {
-  const hasGradedSubmission = (block.submissions ?? []).some((s) => s.grade !== null)
+  const submissions = block.submissions ?? []
+  const latestSubmission = submissions[0] || null
+  const hasRedoRequest = latestSubmission?.grade === 'R'
+  const hasPassingGrade = submissions.some((s) => s.grade !== null && s.grade !== 'R')
   const [isCompleted, setIsCompleted] = useState(block.progress?.status === 'completed')
   const [showSolution, setShowSolution] = useState(false)
   const [submissionText, setSubmissionText] = useState('')
@@ -129,7 +132,13 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
         <div className="text-slate-500">{blockIcons[block.block_type]}</div>
         <span className="text-sm font-medium text-slate-700 capitalize">{block.block_type.replace('_', ' ')}</span>
         {block.title && <span className="text-sm text-slate-500">· {block.title}</span>}
-        {hasGradedSubmission && (
+        {hasRedoRequest && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-orange-50 border border-orange-200 px-2 py-0.5 text-xs font-medium text-orange-700">
+            <RotateCcw className="h-3.5 w-3.5" />
+            Redo Requested
+          </span>
+        )}
+        {!hasRedoRequest && hasPassingGrade && (
           <span className="inline-flex items-center gap-1 rounded-full bg-success-50 border border-success-200 px-2 py-0.5 text-xs font-medium text-success-700">
             <BadgeCheck className="h-3.5 w-3.5" />
             Graded
@@ -216,16 +225,40 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
 
         {(block.block_type === 'exercise' || block.block_type === 'code_challenge') && (
           <div className="mt-4 space-y-3">
+            {latestSubmission?.grade && (
+              <div className={`rounded-xl border px-4 py-3 ${
+                hasRedoRequest ? 'border-orange-200 bg-orange-50' : 'border-success-200 bg-success-50'
+              }`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className={`text-xs font-semibold uppercase tracking-wide ${
+                      hasRedoRequest ? 'text-orange-700' : 'text-success-700'
+                    }`}>
+                      {hasRedoRequest ? 'Redo requested on latest submission' : 'Latest submission graded'}
+                    </p>
+                    {latestSubmission.feedback ? (
+                      <p className="mt-1 text-sm text-slate-700">{latestSubmission.feedback}</p>
+                    ) : (
+                      <p className="mt-1 text-sm text-slate-500">No written feedback provided.</p>
+                    )}
+                  </div>
+                  <GradeDisplay grade={latestSubmission.grade} size="md" />
+                </div>
+              </div>
+            )}
             {block.submissions && block.submissions.length > 0 && (
               <div className="space-y-3">
                 {block.submissions.map((sub, idx) => {
                   const isLatest = idx === 0
+                  const isRedo = sub.grade === 'R'
                   const isGraded = sub.grade !== null
                   return (
                     <div
                       key={sub.id}
                       className={`rounded-xl border p-4 ${
-                        isGraded
+                        isLatest && isRedo
+                          ? 'border-orange-200 bg-orange-50'
+                          : isLatest && isGraded
                           ? 'border-success-200 bg-success-50'
                           : isLatest
                           ? 'border-primary-200 bg-primary-50'
@@ -239,9 +272,20 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
                         <span className="text-xs text-slate-400">
                           {new Date(sub.created_at).toLocaleDateString()}
                         </span>
-                        {isLatest && !isGraded && (
-                          <span className="text-xs font-medium text-primary-600 bg-primary-100 px-2 py-0.5 rounded-full">
+                        {isLatest && (
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                            isRedo
+                              ? 'text-orange-700 bg-orange-100'
+                              : isGraded
+                              ? 'text-green-700 bg-green-100'
+                              : 'text-primary-600 bg-primary-100'
+                          }`}>
                             Latest
+                          </span>
+                        )}
+                        {!isLatest && (
+                          <span className="text-xs font-medium text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full">
+                            Previous
                           </span>
                         )}
                         {isGraded && <GradeDisplay grade={sub.grade} size="md" />}
@@ -257,9 +301,11 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
                       </div>
 
                       {isGraded && (
-                        <div className="mt-3 rounded-lg border border-success-200 bg-white p-3">
+                        <div className={`mt-3 rounded-lg border bg-white p-3 ${isRedo ? 'border-orange-200' : 'border-success-200'}`}>
                           <div className="flex items-center justify-between mb-1">
-                            <p className="text-xs font-semibold text-success-700">Instructor Feedback</p>
+                            <p className={`text-xs font-semibold ${isRedo ? 'text-orange-700' : 'text-success-700'}`}>
+                              {isRedo ? 'Redo Feedback' : 'Instructor Feedback'}
+                            </p>
                             {sub.graded_at && (
                               <p className="text-xs text-slate-400">
                                 Graded {new Date(sub.graded_at).toLocaleDateString()}
@@ -282,7 +328,7 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-                  {block.submissions && block.submissions.length > 0 ? 'Revise your answer' : 'Write your solution'}
+                  {hasRedoRequest ? 'Revise and resubmit' : block.submissions && block.submissions.length > 0 ? 'Revise your answer' : 'Write your solution'}
                 </p>
                 {block.filename && (
                   <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600 font-mono">

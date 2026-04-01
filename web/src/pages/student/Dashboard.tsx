@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, BookOpen, AlertCircle, Clock, Lock, PlayCircle, CalendarDays, CheckCircle2 } from 'lucide-react'
+import { ArrowRight, BookOpen, Clock, Lock, PlayCircle, CalendarDays, CheckCircle2, RotateCcw } from 'lucide-react'
 import { api } from '../../lib/api'
 import { ProgressRing } from '../../components/shared/ProgressRing'
 import { ProgressBar } from '../../components/shared/ProgressBar'
@@ -35,7 +35,7 @@ interface DashboardData {
     }>
   }>
   continue_lesson?: { id: number; title: string } | null
-  action_items?: Array<{ type: string; submission_id: number; lesson_title: string; content_block_title: string }>
+  action_items?: Array<{ type: string; submission_id: number; lesson_id: number; lesson_title: string; content_block_title: string; feedback: string | null }>
 }
 
 function formatDate(dateStr: string | null | undefined): string {
@@ -165,16 +165,31 @@ export function Dashboard() {
       </div>
 
       {data.action_items && data.action_items.length > 0 && (
-        <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4">
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-amber-800">
-            <AlertCircle className="h-4 w-4" />
-            Action Items
+        <div className="rounded-2xl bg-orange-50 border border-orange-200 p-4">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-orange-800">
+            <RotateCcw className="h-4 w-4" />
+            Redo Requested — Action Needed
           </h3>
           <ul className="mt-2 space-y-2">
             {data.action_items.map((item, i) => (
-              <li key={i} className="text-sm text-amber-700">
-                <span className="font-medium">Redo requested:</span> {item.content_block_title}
-                <span className="text-amber-600"> · {item.lesson_title}</span>
+              <li key={i}>
+                <Link
+                  to={`/lessons/${item.lesson_id}`}
+                  className="block rounded-lg border border-orange-200 bg-white p-3 hover:border-orange-300 hover:shadow-sm transition-all"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">{item.content_block_title}</p>
+                      <p className="text-xs text-slate-500">{item.lesson_title}</p>
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-orange-400 shrink-0" />
+                  </div>
+                  {item.feedback && (
+                    <p className="mt-2 text-xs text-slate-600 bg-orange-50 rounded px-2 py-1.5 border-l-2 border-orange-300">
+                      {item.feedback}
+                    </p>
+                  )}
+                </Link>
               </li>
             ))}
           </ul>
