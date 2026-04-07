@@ -18,8 +18,8 @@ class ApplicationController < ActionController::API
       return
     end
 
-    assignment = enrollment.module_assignments.find_by(module_id: lesson.module_id)
-    lesson_assignment = enrollment.lesson_assignments.find_by(lesson_id: lesson.id)
+    assignment = enrollment.module_assignments.find { |ma| ma.module_id == lesson.module_id }
+    lesson_assignment = enrollment.lesson_assignments.find { |la| la.lesson_id == lesson.id }
 
     unless assignment&.unlocked? || lesson_assignment.present?
       render_forbidden("Module is not accessible")

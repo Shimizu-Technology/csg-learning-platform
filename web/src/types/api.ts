@@ -71,11 +71,18 @@ export interface LessonSummary {
   content_blocks_count: number;
 }
 
-export interface LessonDetail extends LessonSummary {
+export interface LessonDetail {
+  id: number;
   module_id: number;
-  content_blocks?: ContentBlockSummary[];
-  prev_lesson?: { id: number; title: string } | null;
-  next_lesson?: { id: number; title: string } | null;
+  title: string;
+  lesson_type: string;
+  position: number;
+  release_day: number;
+  required: boolean;
+  content_blocks_count: number;
+  content_blocks: ContentBlockSummary[];
+  prev_lesson: { id: number; title: string } | null;
+  next_lesson: { id: number; title: string } | null;
 }
 
 export interface ModuleSummary {
@@ -91,7 +98,7 @@ export interface ModuleSummary {
 }
 
 export interface ModuleDetail extends ModuleSummary {
-  lessons?: {
+  lessons: {
     id: number;
     title: string;
     lesson_type: string;
@@ -112,7 +119,7 @@ export interface CurriculumSummary {
 }
 
 export interface CurriculumDetail extends CurriculumSummary {
-  modules?: {
+  modules: {
     id: number;
     name: string;
     module_type: string;
@@ -183,8 +190,8 @@ export interface CohortModule {
 }
 
 export interface CohortDetail extends CohortSummary {
-  students?: CohortStudent[];
-  modules?: CohortModule[];
+  students: CohortStudent[];
+  modules: CohortModule[];
 }
 
 export interface EnrollmentSummary {
@@ -262,7 +269,7 @@ export interface Submission {
   lesson_title: string;
   filename: string | null;
   language_hint: string | null;
-  solution?: string | null;
+  solution?: string;
 }
 
 export interface ProgressEntry {
@@ -270,91 +277,6 @@ export interface ProgressEntry {
   content_block_id: number;
   status: string;
   completed_at: string | null;
-}
-
-// ─── Dashboard ───────────────────────────────────────────────────────────────
-
-export interface DashboardLesson {
-  id: number;
-  title: string;
-  lesson_type: string;
-  release_day: number;
-  required: boolean;
-  available: boolean;
-  unlock_date: string;
-  total_blocks: number;
-  completed_blocks: number;
-  completed: boolean;
-}
-
-export interface DashboardModule {
-  id: number;
-  name: string;
-  module_type: string;
-  position: number;
-  total_blocks: number;
-  completed_blocks: number;
-  progress_percentage: number;
-  assigned: boolean;
-  unlocked: boolean;
-  available: boolean;
-  unlock_date: string | null;
-  lessons: DashboardLesson[];
-}
-
-export interface ActionItem {
-  type: string;
-  submission_id: number;
-  lesson_id: number;
-  lesson_title: string;
-  content_block_title: string;
-  feedback: string | null;
-}
-
-export interface StudentDashboard {
-  enrolled: boolean;
-  user: UserSummary;
-  cohort?: {
-    id: number;
-    name: string;
-    start_date: string;
-    status: string;
-    announcements: Announcement[];
-  };
-  overall_progress?: { completed: number; total: number; percentage: number };
-  modules?: DashboardModule[];
-  continue_lesson?: { id: number; title: string } | null;
-  action_items?: ActionItem[];
-}
-
-export interface AdminDashboardStudent {
-  user_id: number;
-  full_name: string;
-  email: string;
-  github_username: string | null;
-  progress_percentage: number;
-  completed_blocks: number;
-  total_blocks: number;
-  last_sign_in_at: string | null;
-  last_activity_at: string | null;
-  blocks_this_week: number;
-  submissions_this_week: number;
-  enrollment_status: string;
-}
-
-export interface AdminDashboard {
-  user: UserSummary;
-  cohort?: {
-    id: number;
-    name: string;
-    start_date: string;
-    status: string;
-    enrolled_count: number;
-    active_count: number;
-  };
-  students?: AdminDashboardStudent[];
-  ungraded_count?: number;
-  cohorts?: never[];
 }
 
 // ─── Recordings / Resources ──────────────────────────────────────────────────
@@ -430,7 +352,7 @@ export interface StudentProgressBlock {
   position: number;
   status: string;
   completed_at: string | null;
-  submission?: {
+  submission: {
     id: number;
     grade: string | null;
     feedback: string | null;
@@ -447,7 +369,7 @@ export interface StudentProgressLesson {
   release_day: number;
   required: boolean;
   available: boolean;
-  unlock_date: string;
+  unlock_date: string | null;
   total_blocks: number;
   completed_blocks: number;
   completed: boolean;
@@ -512,7 +434,8 @@ export interface SessionResponse {
 }
 
 export interface DashboardResponse {
-  dashboard: StudentDashboard | AdminDashboard;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  dashboard: any;
 }
 
 export interface ProfileResponse {

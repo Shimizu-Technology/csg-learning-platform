@@ -269,16 +269,27 @@ export function ContentManagement() {
             const updated = detail.data?.curriculum
 
             if (updated) {
-              setCurricula(prev => prev.map(c => c.id === newModuleModal.curriculumId ? updated : c))
+              setCurricula(prev => prev.map(c => c.id === newModuleModal.curriculumId ? updated as Curriculum : c))
               setNewModuleModal(null)
             } else if (createdModule) {
+              const mapped = {
+                id: createdModule.id,
+                name: createdModule.name,
+                module_type: createdModule.module_type,
+                position: createdModule.position,
+                lessons: ((createdModule as any).lessons || []).map((l: any) => ({
+                  id: l.id,
+                  title: l.title,
+                  lesson_type: l.lesson_type,
+                  position: l.position,
+                  release_day: l.release_day,
+                  content_blocks_count: l.content_blocks_count ?? l.content_blocks?.length ?? 0,
+                })),
+              }
               setCurricula(prev => prev.map(c => c.id === newModuleModal.curriculumId
                 ? {
                     ...c,
-                    modules: [
-                      ...(c.modules || []),
-                      { ...createdModule, lessons: createdModule.lessons || [] },
-                    ].sort((a, b) => a.position - b.position),
+                    modules: [...(c.modules || []), mapped].sort((a, b) => a.position - b.position),
                   }
                 : c
               ))
