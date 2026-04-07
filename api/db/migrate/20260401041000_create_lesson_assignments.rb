@@ -9,6 +9,6 @@ class CreateLessonAssignments < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :lesson_assignments, [:enrollment_id, :lesson_id], unique: true
+    add_index :lesson_assignments, [ :enrollment_id, :lesson_id ], unique: true
   end
 end

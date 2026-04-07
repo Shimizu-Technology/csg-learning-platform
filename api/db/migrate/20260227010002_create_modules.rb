@@ -12,6 +12,6 @@ class CreateModules < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :modules, [:curriculum_id, :position]
+    add_index :modules, [ :curriculum_id, :position ]
   end
 end

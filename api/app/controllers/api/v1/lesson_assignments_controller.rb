@@ -3,8 +3,8 @@ module Api
     class LessonAssignmentsController < ApplicationController
       before_action :authenticate_user!
       before_action :require_staff!
-      before_action :set_enrollment, only: [:index, :create]
-      before_action :set_lesson_assignment, only: [:show, :update, :destroy]
+      before_action :set_enrollment, only: [ :index, :create ]
+      before_action :set_lesson_assignment, only: [ :show, :update, :destroy ]
 
       def index
         assignments = @enrollment.lesson_assignments.includes(:lesson)

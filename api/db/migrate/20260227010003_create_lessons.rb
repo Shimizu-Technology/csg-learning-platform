@@ -11,7 +11,7 @@ class CreateLessons < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :lessons, [:module_id, :position]
-    add_index :lessons, [:module_id, :release_day]
+    add_index :lessons, [ :module_id, :position ]
+    add_index :lessons, [ :module_id, :release_day ]
   end
 end

@@ -20,7 +20,7 @@ class ClerkAuth
       return nil if jwks.nil?
 
       decode_options = {
-        algorithms: ["RS256"],
+        algorithms: [ "RS256" ],
         jwks: jwks
       }
 

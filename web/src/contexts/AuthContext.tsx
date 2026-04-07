@@ -2,19 +2,9 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 import type { ReactNode } from 'react'
 import { useAuth, useUser } from '@clerk/clerk-react'
 import { api, setAuthTokenGetter } from '../lib/api'
+import type { User } from '../types/api'
 
-interface UserData {
-  id: number
-  email: string
-  first_name: string
-  last_name: string
-  full_name: string
-  role: string
-  github_username: string | null
-  avatar_url: string | null
-  is_admin: boolean
-  is_staff: boolean
-}
+type UserData = User
 
 interface AuthContextType {
   isClerkEnabled: boolean

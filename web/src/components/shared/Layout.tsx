@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, Outlet, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   User,
@@ -17,7 +17,7 @@ import { UserButton } from '@clerk/clerk-react'
 import { useAuthContext } from '../../contexts/AuthContext'
 
 interface LayoutProps {
-  children: React.ReactNode
+  children?: React.ReactNode
 }
 
 export function Layout({ children }: LayoutProps) {
@@ -155,7 +155,7 @@ export function Layout({ children }: LayoutProps) {
 
         {/* Main content */}
         <main className="flex-1 lg:ml-64">
-          <div className="p-4 lg:p-8">{children}</div>
+          <div className="p-4 lg:p-8">{children ?? <Outlet />}</div>
         </main>
       </div>
     </div>

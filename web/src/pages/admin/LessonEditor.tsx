@@ -402,7 +402,7 @@ function AddBlockForm({ lessonId, nextPosition, onAdded }: AddBlockFormProps) {
         if (form.language) payload.metadata = { language: form.language }
       }
 
-      const res = await api.createContentBlock(lessonId, payload)
+      const res = await api.createContentBlock(lessonId, payload as Parameters<typeof api.createContentBlock>[1])
       if (res.error) {
         setError(res.error)
       } else if (res.data) {

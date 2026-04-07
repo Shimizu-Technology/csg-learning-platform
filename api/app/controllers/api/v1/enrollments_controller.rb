@@ -3,8 +3,8 @@ module Api
     class EnrollmentsController < ApplicationController
       before_action :authenticate_user!
       before_action :require_admin!
-      before_action :set_cohort, only: [:index, :create]
-      before_action :set_enrollment, only: [:show, :update, :destroy]
+      before_action :set_cohort, only: [ :index, :create ]
+      before_action :set_enrollment, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/cohorts/:cohort_id/enrollments
       def index

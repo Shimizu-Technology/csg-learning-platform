@@ -2,10 +2,10 @@ module Api
   module V1
     class LessonsController < ApplicationController
       before_action :authenticate_user!
-      before_action :require_admin!, only: [:create, :update, :destroy]
-      before_action :set_module, only: [:index, :create]
-      before_action :set_lesson, only: [:show, :update, :destroy]
-      before_action :authorize_lesson_read!, only: [:show]
+      before_action :require_admin!, only: [ :create, :update, :destroy ]
+      before_action :set_module, only: [ :index, :create ]
+      before_action :set_lesson, only: [ :show, :update, :destroy ]
+      before_action :authorize_lesson_read!, only: [ :show ]
 
       # GET /api/v1/modules/:module_id/lessons
       def index
@@ -157,8 +157,7 @@ module Api
           }
 
           # Get adjacent lessons for navigation
-          sibling_lessons = Lesson.unscoped
-            .where(module_id: lesson.module_id)
+          sibling_lessons = Lesson.where(module_id: lesson.module_id)
             .order(:position)
 
           current_index = sibling_lessons.to_a.index { |l| l.id == lesson.id }

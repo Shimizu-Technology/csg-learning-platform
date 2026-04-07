@@ -2,9 +2,9 @@ module Api
   module V1
     class UsersController < ApplicationController
       before_action :authenticate_user!
-      before_action :require_staff!, only: [:index, :show]
-      before_action :require_admin!, only: [:update]
-      before_action :set_user, only: [:show, :update]
+      before_action :require_staff!, only: [ :index, :show ]
+      before_action :require_admin!, only: [ :update ]
+      before_action :set_user, only: [ :show, :update ]
 
       # GET /api/v1/users
       def index

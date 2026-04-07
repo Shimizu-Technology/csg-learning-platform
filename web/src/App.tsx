@@ -29,139 +29,30 @@ function AppRoutes() {
     <Routes>
       <Route path="/sign-in" element={<SignInPage />} />
 
-      {/* Student routes */}
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <Dashboard />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/modules/:id"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <ModuleView />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/lessons/:id"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <LessonView />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/profile"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <Profile />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/recordings"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <Recordings />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/resources"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <Resources />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
+      {/* Authenticated routes with shared layout */}
+      <Route element={<ProtectedRoute />}>
+        <Route element={<Layout />}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/modules/:id" element={<ModuleView />} />
+          <Route path="/lessons/:id" element={<LessonView />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/recordings" element={<Recordings />} />
+          <Route path="/resources" element={<Resources />} />
+        </Route>
+      </Route>
 
-      {/* Admin routes */}
-      <Route
-        path="/admin"
-        element={
-          <ProtectedRoute requiredRole="staff">
-            <Layout>
-              <AdminDashboard />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/students"
-        element={
-          <ProtectedRoute requiredRole="staff">
-            <Layout>
-              <StudentManagement />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/students/:id"
-        element={
-          <ProtectedRoute requiredRole="staff">
-            <Layout>
-              <StudentDetail />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/cohorts/:id"
-        element={
-          <ProtectedRoute requiredRole="staff">
-            <Layout>
-              <CohortDetail />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/content"
-        element={
-          <ProtectedRoute requiredRole="staff">
-            <Layout>
-              <ContentManagement />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/grading"
-        element={
-          <ProtectedRoute requiredRole="staff">
-            <Layout>
-              <Grading />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/lessons/:id/edit"
-        element={
-          <ProtectedRoute requiredRole="staff">
-            <Layout>
-              <LessonEditor />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
+      {/* Staff-only routes with shared layout */}
+      <Route element={<ProtectedRoute requiredRole="staff" />}>
+        <Route element={<Layout />}>
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/students" element={<StudentManagement />} />
+          <Route path="/admin/students/:id" element={<StudentDetail />} />
+          <Route path="/admin/cohorts/:id" element={<CohortDetail />} />
+          <Route path="/admin/content" element={<ContentManagement />} />
+          <Route path="/admin/grading" element={<Grading />} />
+          <Route path="/admin/lessons/:id/edit" element={<LessonEditor />} />
+        </Route>
+      </Route>
     </Routes>
   )
 }

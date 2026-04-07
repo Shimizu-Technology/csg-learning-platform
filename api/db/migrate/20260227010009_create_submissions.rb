@@ -15,7 +15,7 @@ class CreateSubmissions < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :submissions, [:content_block_id, :user_id]
+    add_index :submissions, [ :content_block_id, :user_id ]
     add_index :submissions, :graded_by_id
     add_foreign_key :submissions, :users, column: :graded_by_id
   end

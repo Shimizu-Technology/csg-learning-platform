@@ -18,7 +18,7 @@ interface ProfileData {
     cohort_name: string
     curriculum_name: string
     status: string
-    enrolled_at: string
+    enrolled_at: string | null
   }>
 }
 

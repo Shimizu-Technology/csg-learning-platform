@@ -89,7 +89,7 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     user_ids = JSON.parse(response.body).fetch("submissions").map { |submission| submission["user_id"] }.uniq
-    assert_equal [@student_one.id], user_ids
+    assert_equal [ @student_one.id ], user_ids
   end
 
   test "student cannot view another student's submission" do
@@ -142,6 +142,92 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
+  end
+
+  # --- Progress write authorization ---
+
+  test "student can update progress on available content block" do
+    as_user(@student_one) do
+      patch "/api/v1/progress",
+        params: { content_block_id: @content_block.id, status: "completed" },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :success
+  end
+
+  test "unenrolled student cannot update progress" do
+    as_user(@student_two) do
+      patch "/api/v1/progress",
+        params: { content_block_id: @content_block.id, status: "completed" },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :forbidden
+  end
+
+  test "student cannot update progress on locked lesson content" do
+    locked_block = ContentBlock.create!(
+      lesson: @future_lesson,
+      block_type: :exercise,
+      position: 1,
+      title: "Locked Exercise",
+      body: "Locked"
+    )
+
+    as_user(@student_one) do
+      patch "/api/v1/progress",
+        params: { content_block_id: locked_block.id, status: "completed" },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :forbidden
+  end
+
+  # --- Submission create authorization ---
+
+  test "student can create submission on available content block" do
+    as_user(@student_one) do
+      post "/api/v1/submissions",
+        params: { content_block_id: @content_block.id, text: "my answer" },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :created
+  end
+
+  test "unenrolled student cannot create submission" do
+    as_user(@student_two) do
+      post "/api/v1/submissions",
+        params: { content_block_id: @content_block.id, text: "my answer" },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :forbidden
+  end
+
+  test "student cannot submit to locked lesson content" do
+    locked_block = ContentBlock.create!(
+      lesson: @future_lesson,
+      block_type: :exercise,
+      position: 1,
+      title: "Locked Exercise",
+      body: "Locked"
+    )
+
+    as_user(@student_one) do
+      post "/api/v1/submissions",
+        params: { content_block_id: locked_block.id, text: "my answer" },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :forbidden
   end
 
   private
