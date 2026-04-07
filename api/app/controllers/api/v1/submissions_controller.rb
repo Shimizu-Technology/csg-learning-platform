@@ -2,8 +2,8 @@ module Api
   module V1
     class SubmissionsController < ApplicationController
       before_action :authenticate_user!
-      before_action :set_submission, only: [:show, :update, :grade]
-      before_action :authorize_submission_read!, only: [:show]
+      before_action :set_submission, only: [ :show, :update, :grade ]
+      before_action :authorize_submission_read!, only: [ :show ]
 
       # GET /api/v1/submissions
       def index

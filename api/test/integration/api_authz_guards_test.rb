@@ -89,7 +89,7 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     user_ids = JSON.parse(response.body).fetch("submissions").map { |submission| submission["user_id"] }.uniq
-    assert_equal [@student_one.id], user_ids
+    assert_equal [ @student_one.id ], user_ids
   end
 
   test "student cannot view another student's submission" do

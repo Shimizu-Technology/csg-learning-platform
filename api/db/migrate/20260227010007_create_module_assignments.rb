@@ -9,6 +9,6 @@ class CreateModuleAssignments < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :module_assignments, [:enrollment_id, :module_id], unique: true
+    add_index :module_assignments, [ :enrollment_id, :module_id ], unique: true
   end
 end

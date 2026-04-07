@@ -12,7 +12,7 @@ class User < ApplicationRecord
   validates :role, presence: true
 
   def full_name
-    [first_name, last_name].compact.join(" ").presence || email.split("@").first
+    [ first_name, last_name ].compact.join(" ").presence || email.split("@").first
   end
 
   def staff?

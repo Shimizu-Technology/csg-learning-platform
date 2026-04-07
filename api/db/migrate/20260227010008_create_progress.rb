@@ -9,6 +9,6 @@ class CreateProgress < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :progresses, [:user_id, :content_block_id], unique: true
+    add_index :progresses, [ :user_id, :content_block_id ], unique: true
   end
 end

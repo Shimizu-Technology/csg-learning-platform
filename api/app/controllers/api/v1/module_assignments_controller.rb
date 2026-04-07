@@ -3,8 +3,8 @@ module Api
     class ModuleAssignmentsController < ApplicationController
       before_action :authenticate_user!
       before_action :require_staff!
-      before_action :set_enrollment, only: [:index, :create]
-      before_action :set_module_assignment, only: [:show, :update, :destroy]
+      before_action :set_enrollment, only: [ :index, :create ]
+      before_action :set_module_assignment, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/enrollments/:enrollment_id/module_assignments
       def index

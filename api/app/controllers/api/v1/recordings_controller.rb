@@ -50,7 +50,7 @@ module Api
               end
             }
           end
-        end.sort_by { |entry| [entry[:unlock_date] || Date.current, entry[:module_name], entry[:release_day] || 0, entry[:lesson_title]] }
+        end.sort_by { |entry| [ entry[:unlock_date] || Date.current, entry[:module_name], entry[:release_day] || 0, entry[:lesson_title] ] }
 
         render json: { recordings: recordings }
       end

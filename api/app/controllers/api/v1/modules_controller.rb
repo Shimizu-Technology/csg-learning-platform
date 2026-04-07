@@ -2,10 +2,10 @@ module Api
   module V1
     class ModulesController < ApplicationController
       before_action :authenticate_user!
-      before_action :require_admin!, only: [:create, :update, :destroy]
-      before_action :set_curriculum, only: [:index, :create]
-      before_action :set_module, only: [:show, :update, :destroy]
-      before_action :authorize_module_read!, only: [:show]
+      before_action :require_admin!, only: [ :create, :update, :destroy ]
+      before_action :set_curriculum, only: [ :index, :create ]
+      before_action :set_module, only: [ :show, :update, :destroy ]
+      before_action :authorize_module_read!, only: [ :show ]
 
       # GET /api/v1/curricula/:curriculum_id/modules
       def index

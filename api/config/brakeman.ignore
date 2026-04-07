@@ -1,0 +1,10 @@
+{
+  "ignored_warnings": [
+    {
+      "fingerprint": "72178641e417740e981260b7821f6a01db5664e7a19a5ac68b8ac61769b52e2b",
+      "note": "Intentional: only admins (require_admin!) can reach UsersController#update, so permitting :role is safe"
+    }
+  ],
+  "updated": "2026-04-07",
+  "brakeman_version": "8.0.4"
+}

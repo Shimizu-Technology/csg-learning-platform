@@ -3,8 +3,8 @@ module Api
     class ContentBlocksController < ApplicationController
       before_action :authenticate_user!
       before_action :require_admin!
-      before_action :set_lesson, only: [:index, :create]
-      before_action :set_content_block, only: [:show, :update, :destroy]
+      before_action :set_lesson, only: [ :index, :create ]
+      before_action :set_content_block, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/lessons/:lesson_id/content_blocks
       def index

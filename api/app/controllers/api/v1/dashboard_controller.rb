@@ -169,7 +169,7 @@ module Api
 
           last_completed_activity = user_progresses.map(&:completed_at).compact.max
           last_submission_activity = user_submissions.map(&:created_at).compact.max
-          last_activity = [last_completed_activity, last_submission_activity].compact.max
+          last_activity = [ last_completed_activity, last_submission_activity ].compact.max
 
           # Weekly activity metrics for the admin table
           blocks_this_week = user_progresses.count { |p| p.completed_at && p.completed_at >= week_ago }

@@ -3,7 +3,7 @@ module Api
     class CohortsController < ApplicationController
       before_action :authenticate_user!
       before_action :require_admin!
-      before_action :set_cohort, only: [:show, :update, :destroy, :update_module_access, :update_announcements]
+      before_action :set_cohort, only: [ :show, :update, :destroy, :update_module_access, :update_announcements ]
 
       # GET /api/v1/cohorts
       def index
@@ -65,7 +65,7 @@ module Api
           cohort: cohort_json(@cohort.reload, include_students: true, include_modules: true)
         }
       rescue ActiveRecord::RecordInvalid => e
-        render json: { errors: [e.message] }, status: :unprocessable_entity
+        render json: { errors: [ e.message ] }, status: :unprocessable_entity
       end
 
       # PATCH /api/v1/cohorts/:id/announcements
@@ -114,7 +114,7 @@ module Api
             title: item[:title].to_s.strip,
             body: item[:body].to_s.strip,
             pinned: ActiveModel::Type::Boolean.new.cast(item[:pinned]),
-            published_at: item[:published_at].presence || Time.current.iso8601,
+            published_at: item[:published_at].presence || Time.current.iso8601
           }
         end.compact
       end
