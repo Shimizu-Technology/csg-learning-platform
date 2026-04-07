@@ -1,3 +1,32 @@
+import type {
+  SessionResponse,
+  DashboardResponse,
+  RecordingsResponse,
+  ResourcesResponse,
+  ProfileResponse,
+  ProfileUpdateResponse,
+  ModuleResponse,
+  LessonResponse,
+  ProgressUpdateResponse,
+  SubmissionsListResponse,
+  SubmissionResponse,
+  StudentProgressResponse,
+  UsersListResponse,
+  UserDetailResponse,
+  UserUpdateResponse,
+  CurriculaListResponse,
+  CurriculumResponse,
+  CohortsListResponse,
+  CohortResponse,
+  EnrollmentResponse,
+  ModuleAssignmentsListResponse,
+  ModuleAssignmentResponse,
+  LessonAssignmentsListResponse,
+  LessonAssignmentResponse,
+  ContentBlockResponse,
+  ContentBlocksListResponse,
+} from '../types/api';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 let getAuthToken: (() => Promise<string | null>) | null = null;
@@ -58,27 +87,37 @@ async function fetchApi<T>(
 
 export const api = {
   // Auth
-  createSession: () => fetchApi<any>('/api/v1/sessions', { method: 'POST' }),
+  createSession: () =>
+    fetchApi<SessionResponse>('/api/v1/sessions', { method: 'POST' }),
 
   // Dashboard
-  getDashboard: () => fetchApi<any>('/api/v1/dashboard'),
-  getRecordings: () => fetchApi<any>('/api/v1/recordings'),
-  getResources: () => fetchApi<any>('/api/v1/resources'),
+  getDashboard: () =>
+    fetchApi<DashboardResponse>('/api/v1/dashboard'),
+  getRecordings: () =>
+    fetchApi<RecordingsResponse>('/api/v1/recordings'),
+  getResources: () =>
+    fetchApi<ResourcesResponse>('/api/v1/resources'),
 
   // Profile
-  getProfile: () => fetchApi<any>('/api/v1/profile'),
-  updateProfile: (data: any) =>
-    fetchApi<any>('/api/v1/profile', { method: 'PATCH', body: JSON.stringify(data) }),
+  getProfile: () =>
+    fetchApi<ProfileResponse>('/api/v1/profile'),
+  updateProfile: (data: { github_username?: string; avatar_url?: string }) =>
+    fetchApi<ProfileUpdateResponse>('/api/v1/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
 
   // Modules
-  getModule: (id: number) => fetchApi<any>(`/api/v1/modules/${id}`),
+  getModule: (id: number) =>
+    fetchApi<ModuleResponse>(`/api/v1/modules/${id}`),
 
   // Lessons
-  getLesson: (id: number) => fetchApi<any>(`/api/v1/lessons/${id}`),
+  getLesson: (id: number) =>
+    fetchApi<LessonResponse>(`/api/v1/lessons/${id}`),
 
   // Progress
   updateProgress: (contentBlockId: number, status: string) =>
-    fetchApi<any>('/api/v1/progress', {
+    fetchApi<ProgressUpdateResponse>('/api/v1/progress', {
       method: 'PATCH',
       body: JSON.stringify({ content_block_id: contentBlockId, status }),
     }),
@@ -86,81 +125,124 @@ export const api = {
   // Submissions
   getSubmissions: (params?: Record<string, string>) => {
     const query = params ? '?' + new URLSearchParams(params).toString() : '';
-    return fetchApi<any>(`/api/v1/submissions${query}`);
+    return fetchApi<SubmissionsListResponse>(`/api/v1/submissions${query}`);
   },
-  getSubmission: (id: number) => fetchApi<any>(`/api/v1/submissions/${id}`),
-  createSubmission: (data: any) =>
-    fetchApi<any>('/api/v1/submissions', { method: 'POST', body: JSON.stringify(data) }),
-  gradeSubmission: (id: number, data: any) =>
-    fetchApi<any>(`/api/v1/submissions/${id}/grade`, { method: 'PATCH', body: JSON.stringify(data) }),
-
-  // Student progress (admin)
-  getStudentProgress: (userId: number) => fetchApi<any>(`/api/v1/progress/student/${userId}`),
-
-  // Admin
-  getUsers: (params?: Record<string, string>) => {
-    const query = params ? '?' + new URLSearchParams(params).toString() : '';
-    return fetchApi<any>(`/api/v1/users${query}`);
-  },
-  getUser: (id: number) => fetchApi<any>(`/api/v1/users/${id}`),
-  updateUser: (id: number, data: any) =>
-    fetchApi<any>(`/api/v1/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  getCurricula: () => fetchApi<any>('/api/v1/curricula'),
-  getCurriculum: (id: number) => fetchApi<any>(`/api/v1/curricula/${id}`),
-  getCohorts: () => fetchApi<any>('/api/v1/cohorts'),
-  getCohort: (id: number) => fetchApi<any>(`/api/v1/cohorts/${id}`),
-  updateCohortModuleAccess: (cohortId: number, data: any) =>
-    fetchApi<any>(`/api/v1/cohorts/${cohortId}/module_access`, {
+  getSubmission: (id: number) =>
+    fetchApi<SubmissionResponse>(`/api/v1/submissions/${id}`),
+  createSubmission: (data: { content_block_id: number; text: string; github_issue_url?: string; github_code_url?: string }) =>
+    fetchApi<SubmissionResponse>('/api/v1/submissions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  gradeSubmission: (id: number, data: { grade: string; feedback?: string }) =>
+    fetchApi<SubmissionResponse>(`/api/v1/submissions/${id}/grade`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
-  updateCohortAnnouncements: (cohortId: number, announcements: any[]) =>
-    fetchApi<any>(`/api/v1/cohorts/${cohortId}/announcements`, {
+
+  // Student progress (admin)
+  getStudentProgress: (userId: number) =>
+    fetchApi<StudentProgressResponse>(`/api/v1/progress/student/${userId}`),
+
+  // Admin — Users
+  getUsers: (params?: Record<string, string>) => {
+    const query = params ? '?' + new URLSearchParams(params).toString() : '';
+    return fetchApi<UsersListResponse>(`/api/v1/users${query}`);
+  },
+  getUser: (id: number) =>
+    fetchApi<UserDetailResponse>(`/api/v1/users/${id}`),
+  updateUser: (id: number, data: { first_name?: string; last_name?: string; role?: string; github_username?: string; avatar_url?: string }) =>
+    fetchApi<UserUpdateResponse>(`/api/v1/users/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  // Admin — Curricula
+  getCurricula: () =>
+    fetchApi<CurriculaListResponse>('/api/v1/curricula'),
+  getCurriculum: (id: number) =>
+    fetchApi<CurriculumResponse>(`/api/v1/curricula/${id}`),
+
+  // Admin — Cohorts
+  getCohorts: () =>
+    fetchApi<CohortsListResponse>('/api/v1/cohorts'),
+  getCohort: (id: number) =>
+    fetchApi<CohortResponse>(`/api/v1/cohorts/${id}`),
+  updateCohortModuleAccess: (cohortId: number, data: { module_id: number; assigned?: boolean; unlocked?: boolean; unlock_date_override?: string | null }) =>
+    fetchApi<CohortResponse>(`/api/v1/cohorts/${cohortId}/module_access`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  updateCohortAnnouncements: (cohortId: number, announcements: { title: string; body: string; pinned?: boolean; published_at?: string }[]) =>
+    fetchApi<CohortResponse>(`/api/v1/cohorts/${cohortId}/announcements`, {
       method: 'PATCH',
       body: JSON.stringify({ announcements }),
     }),
+
+  // Admin — Enrollments
   createEnrollment: (cohortId: number, userId: number) =>
-    fetchApi<any>(`/api/v1/cohorts/${cohortId}/enrollments`, {
+    fetchApi<EnrollmentResponse>(`/api/v1/cohorts/${cohortId}/enrollments`, {
       method: 'POST',
       body: JSON.stringify({ user_id: userId }),
     }),
-  getEnrollment: (id: number) => fetchApi<any>(`/api/v1/enrollments/${id}`),
-  getModuleAssignments: (enrollmentId: number) => fetchApi<any>(`/api/v1/enrollments/${enrollmentId}/module_assignments`),
-  createModuleAssignment: (enrollmentId: number, data: any) =>
-    fetchApi<any>(`/api/v1/enrollments/${enrollmentId}/module_assignments`, {
+  getEnrollment: (id: number) =>
+    fetchApi<EnrollmentResponse>(`/api/v1/enrollments/${id}`),
+
+  // Admin — Module Assignments
+  getModuleAssignments: (enrollmentId: number) =>
+    fetchApi<ModuleAssignmentsListResponse>(`/api/v1/enrollments/${enrollmentId}/module_assignments`),
+  createModuleAssignment: (enrollmentId: number, data: { module_id: number; unlocked?: boolean; unlock_date_override?: string | null }) =>
+    fetchApi<ModuleAssignmentResponse>(`/api/v1/enrollments/${enrollmentId}/module_assignments`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  updateModuleAssignment: (id: number, data: any) =>
-    fetchApi<any>(`/api/v1/module_assignments/${id}`, {
+  updateModuleAssignment: (id: number, data: { unlocked?: boolean; unlock_date_override?: string | null }) =>
+    fetchApi<ModuleAssignmentResponse>(`/api/v1/module_assignments/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
   deleteModuleAssignment: (id: number) =>
     fetchApi<null>(`/api/v1/module_assignments/${id}`, { method: 'DELETE' }),
-  getLessonAssignments: (enrollmentId: number) => fetchApi<any>(`/api/v1/enrollments/${enrollmentId}/lesson_assignments`),
-  createLessonAssignment: (enrollmentId: number, data: any) =>
-    fetchApi<any>(`/api/v1/enrollments/${enrollmentId}/lesson_assignments`, {
+
+  // Admin — Lesson Assignments
+  getLessonAssignments: (enrollmentId: number) =>
+    fetchApi<LessonAssignmentsListResponse>(`/api/v1/enrollments/${enrollmentId}/lesson_assignments`),
+  createLessonAssignment: (enrollmentId: number, data: { lesson_id: number; unlocked?: boolean; unlock_date_override?: string | null }) =>
+    fetchApi<LessonAssignmentResponse>(`/api/v1/enrollments/${enrollmentId}/lesson_assignments`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  updateLessonAssignment: (id: number, data: any) =>
-    fetchApi<any>(`/api/v1/lesson_assignments/${id}`, {
+  updateLessonAssignment: (id: number, data: { unlocked?: boolean; unlock_date_override?: string | null }) =>
+    fetchApi<LessonAssignmentResponse>(`/api/v1/lesson_assignments/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
   deleteLessonAssignment: (id: number) =>
     fetchApi<null>(`/api/v1/lesson_assignments/${id}`, { method: 'DELETE' }),
-  updateContentBlock: (id: number, data: any) =>
-    fetchApi<any>(`/api/v1/content_blocks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  createLesson: (moduleId: number, data: any) =>
-    fetchApi<any>(`/api/v1/modules/${moduleId}/lessons`, { method: 'POST', body: JSON.stringify(data) }),
-  createModule: (curriculumId: number, data: any) =>
-    fetchApi<any>(`/api/v1/curricula/${curriculumId}/modules`, { method: 'POST', body: JSON.stringify(data) }),
-  createContentBlock: (lessonId: number, data: any) =>
-    fetchApi<any>(`/api/v1/lessons/${lessonId}/content_blocks`, { method: 'POST', body: JSON.stringify(data) }),
+
+  // Admin — Content
+  updateContentBlock: (id: number, data: { block_type?: string; position?: number; title?: string; body?: string; video_url?: string; solution?: string; filename?: string; metadata?: Record<string, unknown> }) =>
+    fetchApi<ContentBlockResponse>(`/api/v1/content_blocks/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  createLesson: (moduleId: number, data: { title: string; lesson_type?: string; position?: number; release_day?: number; required?: boolean }) =>
+    fetchApi<LessonResponse>(`/api/v1/modules/${moduleId}/lessons`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  createModule: (curriculumId: number, data: { name: string; module_type?: string; description?: string; position?: number; total_days?: number; day_offset?: number }) =>
+    fetchApi<ModuleResponse>(`/api/v1/curricula/${curriculumId}/modules`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  createContentBlock: (lessonId: number, data: { block_type: string; position?: number; title?: string; body?: string; video_url?: string; solution?: string; filename?: string; metadata?: Record<string, unknown> }) =>
+    fetchApi<ContentBlockResponse>(`/api/v1/lessons/${lessonId}/content_blocks`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   deleteContentBlock: (id: number) =>
     fetchApi<null>(`/api/v1/content_blocks/${id}`, { method: 'DELETE' }),
   getContentBlocks: (lessonId: number) =>
-    fetchApi<any>(`/api/v1/lessons/${lessonId}/content_blocks`),
+    fetchApi<ContentBlocksListResponse>(`/api/v1/lessons/${lessonId}/content_blocks`),
 };

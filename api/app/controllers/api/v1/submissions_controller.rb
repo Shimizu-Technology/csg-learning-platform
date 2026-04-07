@@ -41,6 +41,10 @@ module Api
 
       # POST /api/v1/submissions
       def create
+        content_block = ContentBlock.find(params[:content_block_id])
+        authorize_content_block_write!(content_block)
+        return if performed?
+
         submission = current_user.submissions.new(submission_params)
 
         # Check if resubmission

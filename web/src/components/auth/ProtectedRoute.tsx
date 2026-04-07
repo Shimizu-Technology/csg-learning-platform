@@ -1,17 +1,17 @@
-import { Navigate } from 'react-router-dom'
+import { Navigate, Outlet } from 'react-router-dom'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { LoadingSpinner } from '../shared/LoadingSpinner'
 
 interface ProtectedRouteProps {
-  children: React.ReactNode
   requiredRole?: 'admin' | 'instructor' | 'staff'
+  children?: React.ReactNode
 }
 
 export default function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
   const { isClerkEnabled, isSignedIn, isLoading, user } = useAuthContext()
 
   if (!isClerkEnabled) {
-    return <>{children}</>
+    return children ? <>{children}</> : <Outlet />
   }
 
   if (isLoading) {
@@ -33,5 +33,5 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
     }
   }
 
-  return <>{children}</>
+  return children ? <>{children}</> : <Outlet />
 }

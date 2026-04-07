@@ -157,8 +157,7 @@ module Api
           }
 
           # Get adjacent lessons for navigation
-          sibling_lessons = Lesson.unscoped
-            .where(module_id: lesson.module_id)
+          sibling_lessons = Lesson.where(module_id: lesson.module_id)
             .order(:position)
 
           current_index = sibling_lessons.to_a.index { |l| l.id == lesson.id }

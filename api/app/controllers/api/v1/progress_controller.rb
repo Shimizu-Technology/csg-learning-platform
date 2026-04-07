@@ -6,6 +6,8 @@ module Api
       # PATCH /api/v1/progress
       def update
         content_block = ContentBlock.find(params[:content_block_id])
+        authorize_content_block_write!(content_block)
+        return if performed?
 
         progress = Progress.find_or_initialize_by(
           user: current_user,
