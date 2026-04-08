@@ -29,7 +29,9 @@ module Api
         user = User.find_or_initialize_by(email: email)
         is_new = user.new_record?
         user.clerk_id = "pending_#{SecureRandom.uuid}" if user.clerk_id.blank?
-        user.role = user_create_params[:role] || :student
+        if is_new
+          user.role = user_create_params[:role] || :student
+        end
         user.github_username = user_create_params[:github_username] if user_create_params[:github_username].present?
 
         if user.save

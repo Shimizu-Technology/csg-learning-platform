@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_07_102346) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_08_035927) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1047,9 +1047,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_07_102346) do
     t.integer "assigned_district_id"
     t.integer "assigned_village_id"
     t.string "avatar_url"
-    t.string "clerk_id"
+    t.string "clerk_id", null: false
     t.datetime "created_at", null: false
-    t.string "email"
+    t.string "email", null: false
     t.string "first_name"
     t.string "github_username"
     t.string "last_name"

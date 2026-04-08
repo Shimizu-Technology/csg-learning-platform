@@ -146,7 +146,8 @@ module Api
 
       def param_to_hash(param)
         if param.is_a?(ActionController::Parameters)
-          param.permit!.to_h.symbolize_keys
+          param.permit(:title, :body, :pinned, :published_at, :url, :date,
+                       :description, :category).to_h.symbolize_keys
         elsif param.is_a?(Hash)
           param.symbolize_keys
         end

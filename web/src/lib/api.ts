@@ -192,7 +192,7 @@ export const api = {
     }),
   deleteCohort: (id: number) =>
     fetchApi<null>(`/api/v1/cohorts/${id}`, { method: 'DELETE' }),
-  updateCohortModuleAccess: (cohortId: number, data: { module_id: number; assigned?: boolean; unlocked?: boolean; unlock_date_override?: string | null }) =>
+  updateCohortModuleAccess: (cohortId: number, data: { module_id: number; assigned?: boolean; unlocked?: boolean; unlock_date_override?: string | null; requires_github?: boolean; repository_name?: string }) =>
     fetchApi<CohortResponse>(`/api/v1/cohorts/${cohortId}/module_access`, {
       method: 'PATCH',
       body: JSON.stringify(data),

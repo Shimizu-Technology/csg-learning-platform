@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState, useRef } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, RefreshCw, Filter, RotateCcw, Clock, Check, ChevronRight, Github, User, Keyboard } from 'lucide-react'
 import { api } from '../../lib/api'
 import { GradeDisplay } from '../../components/shared/GradeDisplay'
@@ -29,7 +29,7 @@ interface SubmissionItem {
   content_block_id: number
   user_id: number
   user_name: string
-  user_email: string
+  user_email?: string
   text: string
   grade: string | null
   feedback: string | null

@@ -97,39 +97,39 @@ export function Layout({ children }: LayoutProps) {
                   to={item.to}
                   onClick={() => setSidebarOpen(false)}
                   className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                    isActive(item.to, 'exact' in item ? item.exact : undefined)
-                      ? 'bg-primary-50 text-primary-700'
-                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                  }`}
-                >
-                  <item.icon className="h-5 w-5" />
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-          </div>
-        </div>
-      )}
-
-      <div className="flex">
-        {/* Desktop sidebar */}
-        <aside className={`hidden lg:flex lg:flex-col ${sidebarWidth} lg:fixed lg:inset-y-0 border-r border-slate-200 bg-white transition-all duration-200`}>
-          <div className={`flex h-14 items-center ${collapsed ? 'justify-center px-2' : 'gap-2 px-6'} border-b border-slate-200`}>
-            <GraduationCap className="h-6 w-6 text-primary-500 shrink-0" />
-            {!collapsed && <span className="font-semibold text-slate-900">CSG Learning Hub</span>}
-          </div>
-          <nav className={`flex-1 ${collapsed ? 'p-2' : 'p-4'} space-y-1`}>
-            {navItems.map((item) => (
-              <Link
-                key={item.to}
-                to={item.to}
-                title={collapsed ? item.label : undefined}
-                className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-lg ${collapsed ? 'px-2' : 'px-3'} py-2.5 text-sm font-medium transition-colors ${
-                  isActive(item.to, 'exact' in item ? item.exact : undefined)
+                  isActive(item.to, 'exact' in item ? (item as { exact?: boolean }).exact : undefined)
                     ? 'bg-primary-50 text-primary-700'
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
+                <item.icon className="h-5 w-5" />
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+      </div>
+    )}
+
+    <div className="flex">
+      {/* Desktop sidebar */}
+      <aside className={`hidden lg:flex lg:flex-col ${sidebarWidth} lg:fixed lg:inset-y-0 border-r border-slate-200 bg-white transition-all duration-200`}>
+        <div className={`flex h-14 items-center ${collapsed ? 'justify-center px-2' : 'gap-2 px-6'} border-b border-slate-200`}>
+          <GraduationCap className="h-6 w-6 text-primary-500 shrink-0" />
+          {!collapsed && <span className="font-semibold text-slate-900">CSG Learning Hub</span>}
+        </div>
+        <nav className={`flex-1 ${collapsed ? 'p-2' : 'p-4'} space-y-1`}>
+          {navItems.map((item) => (
+            <Link
+              key={item.to}
+              to={item.to}
+              title={collapsed ? item.label : undefined}
+              className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-lg ${collapsed ? 'px-2' : 'px-3'} py-2.5 text-sm font-medium transition-colors ${
+                isActive(item.to, 'exact' in item ? (item as { exact?: boolean }).exact : undefined)
+                  ? 'bg-primary-50 text-primary-700'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+            >
                 <item.icon className="h-5 w-5 shrink-0" />
                 {!collapsed && item.label}
               </Link>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Shield, ShieldCheck, UserPlus, Mail, Trash2, ChevronDown } from 'lucide-react'
+import { Shield, ShieldCheck, UserPlus, Mail, ChevronDown } from 'lucide-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Modal } from '../../components/shared/Modal'

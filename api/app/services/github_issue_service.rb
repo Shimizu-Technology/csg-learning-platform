@@ -6,7 +6,6 @@ class GithubIssueService
   def self.fetch_issue_with_comments(issue_url:, token:)
     path = issue_url
       .delete_prefix("https://github.com/")
-      .sub("/issues/", "/issues/")
 
     api_url = "#{GITHUB_API_BASE}/repos/#{path}"
     headers = {

@@ -187,11 +187,15 @@ export interface CohortModule {
   assigned: boolean;
   unlocked_count: number;
   unlock_date_overrides: string[];
+  requires_github?: boolean;
+  repository_name?: string;
 }
 
 export interface CohortDetail extends CohortSummary {
   students: CohortStudent[];
   modules: CohortModule[];
+  recordings?: Array<{ title: string; url: string; date?: string; description?: string }>;
+  class_resources?: Array<{ title: string; url: string; category?: string; description?: string }>;
 }
 
 export interface EnrollmentSummary {
@@ -270,6 +274,8 @@ export interface Submission {
   filename: string | null;
   language_hint: string | null;
   solution?: string;
+  exercise_body?: string;
+  exercise_video_url?: string;
 }
 
 export interface ProgressEntry {

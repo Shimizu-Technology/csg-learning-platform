@@ -33,7 +33,7 @@ interface CohortSummary {
   id: number
   name: string
   curriculum_name: string
-  modules: { id: number; name: string }[]
+  modules?: { id: number; name: string }[]
 }
 
 export function Grading() {

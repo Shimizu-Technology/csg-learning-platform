@@ -102,8 +102,8 @@ class GithubSyncService
 
   def fetch_repo_tree(owner, repo_name)
     query = <<~GRAPHQL
-      {
-        repository(owner: "#{owner}", name: "#{repo_name}") {
+      query($owner: String!, $name: String!) {
+        repository(owner: $owner, name: $name) {
           defaultBranchRef {
             target {
               ... on Commit {
@@ -135,7 +135,7 @@ class GithubSyncService
         "Authorization" => "Bearer #{@github_token}",
         "Content-Type" => "application/json"
       },
-      body: { query: query }.to_json,
+      body: { query: query, variables: { owner: owner, name: repo_name } }.to_json,
       timeout: 15
     )
 

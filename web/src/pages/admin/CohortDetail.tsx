@@ -26,7 +26,8 @@ interface ClassResource {
   description?: string
 }
 
-interface CohortData {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type CohortData = Record<string, any> & {
   id: number
   name: string
   curriculum_id: number
@@ -34,19 +35,19 @@ interface CohortData {
   start_date: string
   status: string
   active_count: number
-  requires_github: boolean
-  repository_name: string
-  github_organization_name: string | null
+  requires_github?: boolean
+  repository_name?: string | null
+  github_organization_name?: string | null
   announcements: Announcement[]
-  recordings: Recording[]
-  class_resources: ClassResource[]
+  recordings?: Recording[]
+  class_resources?: ClassResource[]
   students: Array<{
     enrollment_id: number
     user_id: number
     full_name: string
     email: string
     status: string
-    invite_pending: boolean
+    invite_pending?: boolean
   }>
   modules: Array<{
     id: number
@@ -58,8 +59,8 @@ interface CohortData {
     assigned: boolean
     unlocked_count: number
     unlock_date_overrides: string[]
-    requires_github: boolean
-    repository_name: string
+    requires_github?: boolean
+    repository_name?: string | null
   }>
 }
 
