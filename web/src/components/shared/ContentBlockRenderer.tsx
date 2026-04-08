@@ -31,6 +31,8 @@ interface ContentBlock {
 interface ContentBlockRendererProps {
   block: ContentBlock
   isStaff?: boolean
+  requiresGithub?: boolean
+  repositoryName?: string
   onProgressUpdate?: () => void
 }
 
@@ -45,7 +47,7 @@ function getVimeoEmbed(url: string): { id: string; hash?: string } | null {
   return { id: match[1], hash: match[2] }
 }
 
-export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: ContentBlockRendererProps) {
+export function ContentBlockRenderer({ block, isStaff, requiresGithub, repositoryName, onProgressUpdate }: ContentBlockRendererProps) {
   const submissions = block.submissions ?? []
   const latestSubmission = submissions[0] || null
   const hasRedoRequest = latestSubmission?.grade === 'R'
@@ -58,6 +60,7 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
   const isCompletedRef = useRef(isCompleted)
   useEffect(() => { isCompletedRef.current = isCompleted }, [isCompleted])
 
+  const isExerciseType = block.block_type === 'exercise' || block.block_type === 'code_challenge'
   const detectedLang = detectLanguage(block.filename, block.metadata?.language)
 
   useEffect(() => {
@@ -145,16 +148,28 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
           </span>
         )}
         <div className="ml-auto">
-          <button
-            onClick={handleToggleComplete}
-            className="flex items-center gap-1.5 text-sm transition-colors"
-          >
-            {isCompleted ? (
+          {isExerciseType ? (
+            hasPassingGrade ? (
               <CheckCircle2 className="h-5 w-5 text-success-500" />
+            ) : hasRedoRequest ? (
+              <RotateCcw className="h-4 w-4 text-orange-500" />
+            ) : submissions.length > 0 ? (
+              <Circle className="h-5 w-5 text-amber-400" />
             ) : (
-              <Circle className="h-5 w-5 text-slate-300 hover:text-slate-400" />
-            )}
-          </button>
+              <Circle className="h-5 w-5 text-slate-200" />
+            )
+          ) : (
+            <button
+              onClick={handleToggleComplete}
+              className="flex items-center gap-1.5 text-sm transition-colors"
+            >
+              {isCompleted ? (
+                <CheckCircle2 className="h-5 w-5 text-success-500" />
+              ) : (
+                <Circle className="h-5 w-5 text-slate-300 hover:text-slate-400" />
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -230,16 +245,18 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
                 hasRedoRequest ? 'border-orange-200 bg-orange-50' : 'border-success-200 bg-success-50'
               }`}>
                 <div className="flex items-start justify-between gap-3">
-                  <div>
+                  <div className="flex-1">
                     <p className={`text-xs font-semibold uppercase tracking-wide ${
                       hasRedoRequest ? 'text-orange-700' : 'text-success-700'
                     }`}>
-                      {hasRedoRequest ? 'Redo requested on latest submission' : 'Latest submission graded'}
+                      {hasRedoRequest ? 'Redo requested — please review and resubmit' : 'Latest submission graded'}
                     </p>
-                    {latestSubmission.feedback ? (
-                      <p className="mt-1 text-sm text-slate-700">{latestSubmission.feedback}</p>
-                    ) : (
-                      <p className="mt-1 text-sm text-slate-500">No written feedback provided.</p>
+                    {latestSubmission.feedback && (
+                      <div className={`mt-2 rounded-lg border p-3 ${
+                        hasRedoRequest ? 'border-orange-200 bg-white' : 'border-success-200 bg-white'
+                      }`}>
+                        <p className="text-sm text-slate-800 whitespace-pre-wrap">{latestSubmission.feedback}</p>
+                      </div>
                     )}
                   </div>
                   <GradeDisplay grade={latestSubmission.grade} size="md" />
@@ -300,23 +317,23 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
                         />
                       </div>
 
-                      {isGraded && (
+                      {isGraded && (sub.feedback || isRedo) && (
                         <div className={`mt-3 rounded-lg border bg-white p-3 ${isRedo ? 'border-orange-200' : 'border-success-200'}`}>
                           <div className="flex items-center justify-between mb-1">
                             <p className={`text-xs font-semibold ${isRedo ? 'text-orange-700' : 'text-success-700'}`}>
-                              {isRedo ? 'Redo Feedback' : 'Instructor Feedback'}
+                              {isRedo ? 'Instructor Feedback — Redo' : 'Instructor Feedback'}
                             </p>
                             {sub.graded_at && (
                               <p className="text-xs text-slate-400">
-                                Graded {new Date(sub.graded_at).toLocaleDateString()}
+                                {new Date(sub.graded_at).toLocaleDateString()}
                               </p>
                             )}
                           </div>
                           {sub.feedback ? (
-                            <p className="text-sm text-slate-700">{sub.feedback}</p>
-                          ) : (
-                            <p className="text-xs text-slate-400 italic">No feedback provided.</p>
-                          )}
+                            <p className="text-sm text-slate-700 whitespace-pre-wrap">{sub.feedback}</p>
+                          ) : isRedo ? (
+                            <p className="text-xs text-slate-400 italic">Please review the exercise instructions and try again.</p>
+                          ) : null}
                         </div>
                       )}
                     </div>
@@ -325,39 +342,52 @@ export function ContentBlockRenderer({ block, isStaff, onProgressUpdate }: Conte
               </div>
             )}
 
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-                  {hasRedoRequest ? 'Revise and resubmit' : block.submissions && block.submissions.length > 0 ? 'Revise your answer' : 'Write your solution'}
+            {requiresGithub ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2">
+                <p className="text-sm font-medium text-slate-700">Submit via GitHub</p>
+                <p className="text-sm text-slate-500">
+                  Complete this exercise in your local environment{block.filename ? ` in the file ${block.filename}` : ''}, then push your changes to your{' '}
+                  <span className="font-semibold text-slate-700">{repositoryName || 'exercises'}</span> repository on GitHub.
                 </p>
-                {block.filename && (
-                  <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600 font-mono">
-                    <Code className="h-3 w-3" />
-                    {block.filename}
-                  </span>
-                )}
-              </div>
-              <CodeEditor
-                value={submissionText}
-                onChange={setSubmissionText}
-                language={detectedLang}
-                minHeight={240}
-              />
-              <div className="flex items-center justify-between">
                 <p className="text-xs text-slate-400">
-                  {detectedLang.charAt(0).toUpperCase() + detectedLang.slice(1)}
-                  {' · '}Tab = 2 spaces
+                  Your instructor will sync and review your code from GitHub.
                 </p>
-                <button
-                  onClick={handleSubmit}
-                  disabled={isSubmitting || !submissionText.trim()}
-                  className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <Send className="h-4 w-4" />
-                  {isSubmitting ? 'Submitting…' : 'Submit'}
-                </button>
               </div>
-            </div>
+            ) : (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                    {hasRedoRequest ? 'Revise and resubmit' : block.submissions && block.submissions.length > 0 ? 'Revise your answer' : 'Write your solution'}
+                  </p>
+                  {block.filename && (
+                    <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600 font-mono">
+                      <Code className="h-3 w-3" />
+                      {block.filename}
+                    </span>
+                  )}
+                </div>
+                <CodeEditor
+                  value={submissionText}
+                  onChange={setSubmissionText}
+                  language={detectedLang}
+                  minHeight={240}
+                />
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-slate-400">
+                    {detectedLang.charAt(0).toUpperCase() + detectedLang.slice(1)}
+                    {' · '}Tab = 2 spaces
+                  </p>
+                  <button
+                    onClick={handleSubmit}
+                    disabled={isSubmitting || !submissionText.trim()}
+                    className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Send className="h-4 w-4" />
+                    {isSubmitting ? 'Submitting…' : 'Submit'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

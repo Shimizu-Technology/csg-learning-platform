@@ -2,12 +2,12 @@ module Api
   module V1
     class SubmissionsController < ApplicationController
       before_action :authenticate_user!
-      before_action :set_submission, only: [ :show, :update, :grade ]
+      before_action :set_submission, only: [ :show, :update, :grade, :github_issue ]
       before_action :authorize_submission_read!, only: [ :show ]
 
       # GET /api/v1/submissions
       def index
-        submissions = Submission.includes(:user, :content_block, :grader)
+        submissions = Submission.includes(:user, { content_block: :lesson }, :grader)
 
         # Staff can filter by any student; students can only see themselves.
         if current_user.staff?
@@ -104,6 +104,34 @@ module Api
         render json: { submission: submission_json(@submission) }
       end
 
+      # GET /api/v1/submissions/:id/github_issue
+      def github_issue
+        require_staff!
+        return if performed?
+
+        unless @submission.github_issue_url.present?
+          render json: { error: "No GitHub issue linked to this submission" }, status: :not_found
+          return
+        end
+
+        token = ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"]
+        unless token.present?
+          render json: { error: "GitHub token not configured" }, status: :service_unavailable
+          return
+        end
+
+        issue_data = GithubIssueService.fetch_issue_with_comments(
+          issue_url: @submission.github_issue_url,
+          token: token
+        )
+
+        if issue_data[:error]
+          render json: { error: issue_data[:error] }, status: :unprocessable_entity
+        else
+          render json: issue_data
+        end
+      end
+
       private
 
       def set_submission
@@ -148,6 +176,8 @@ module Api
 
         if include_solution
           json[:solution] = submission.content_block.solution
+          json[:exercise_body] = submission.content_block.body
+          json[:exercise_video_url] = submission.content_block.video_url
         end
 
         json

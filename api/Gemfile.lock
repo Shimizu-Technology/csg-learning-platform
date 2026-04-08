@@ -270,6 +270,10 @@ GEM
     regexp_parser (2.11.3)
     reline (0.6.3)
       io-console (~> 0.5)
+    resend (1.1.0)
+      httparty (>= 0.21.0)
+    reverse_markdown (3.0.2)
+      nokogiri
     roo (3.0.0)
       base64 (~> 0.2)
       csv (~> 3)
@@ -373,6 +377,8 @@ DEPENDENCIES
   puma (>= 5.0)
   rack-cors
   rails (~> 8.1.2)
+  resend
+  reverse_markdown
   roo
   rubocop-rails-omakase
   solid_cache
@@ -486,6 +492,8 @@ CHECKSUMS
   rdoc (7.2.0) sha256=8650f76cd4009c3b54955eb5d7e3a075c60a57276766ebf36f9085e8c9f23192
   regexp_parser (2.11.3) sha256=ca13f381a173b7a93450e53459075c9b76a10433caadcb2f1180f2c741fc55a4
   reline (0.6.3) sha256=1198b04973565b36ec0f11542ab3f5cfeeec34823f4e54cebde90968092b1835
+  resend (1.1.0) sha256=96f9c1bcc0e28a88103e22d4d912575c61981b1489844d3935a4cc152bda29fe
+  reverse_markdown (3.0.2) sha256=818ebb92ce39dbb1a291690dd1ec9a6d62530d4725296b17e9c8f668f9a5b8af
   roo (3.0.0) sha256=6fdd7a9158d657c69768b4168754ff2110cc21fdc01a1bec1010820cb05c91b1
   rubocop (1.85.0) sha256=317407feb681a07d54f64d2f9e1d6b6af1ce7678e51cd658e3ad8bd66da48c01
   rubocop-ast (1.49.0) sha256=49c3676d3123a0923d333e20c6c2dbaaae2d2287b475273fddee0c61da9f71fd

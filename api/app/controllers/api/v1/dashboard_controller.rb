@@ -68,7 +68,7 @@ module Api
                 release_day: l.release_day,
                 required: l.required,
                 available: l.available?(cohort, assignment, lesson_assignments_by_lesson_id[l.id]),
-                unlock_date: lesson_assignments_by_lesson_id[l.id]&.unlock_date_override || assignment&.unlock_date_override || l.unlock_date(cohort),
+                unlock_date: lesson_assignments_by_lesson_id[l.id]&.unlock_date_override || l.unlock_date(cohort, assignment),
                 total_blocks: lesson_block_ids.size,
                 completed_blocks: lesson_completed,
                 completed: lesson_completed == lesson_block_ids.size && lesson_block_ids.any?

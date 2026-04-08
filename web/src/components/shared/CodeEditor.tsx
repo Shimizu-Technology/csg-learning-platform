@@ -6,6 +6,7 @@ interface CodeEditorProps {
   language?: string
   readOnly?: boolean
   minHeight?: number
+  height?: string
 }
 
 // Derive Monaco language from filename first, then fall back to explicit admin hint.
@@ -39,14 +40,15 @@ export function CodeEditor({
   language = 'ruby',
   readOnly = false,
   minHeight = 200,
+  height,
 }: CodeEditorProps) {
   return (
     <div
       className="rounded-xl overflow-hidden border border-slate-700"
-      style={{ minHeight }}
+      style={{ minHeight, height: height || minHeight }}
     >
       <MonacoEditor
-        height={minHeight}
+        height={height || minHeight}
         language={language}
         value={value}
         theme="vs-dark"

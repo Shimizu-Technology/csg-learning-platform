@@ -80,16 +80,14 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
   )
 }
 
-function DevAuthProvider({ children }: { children: ReactNode }) {
+function NoAuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   const syncSession = useCallback(async () => {
     try {
       const res = await api.createSession()
-      if (res.data?.user) {
-        setUser(res.data.user)
-      }
+      if (res.data?.user) setUser(res.data.user)
     } catch (err) {
       console.error('Dev session sync failed:', err)
     }
@@ -104,7 +102,7 @@ function DevAuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         isClerkEnabled: false,
-        isSignedIn: true,
+        isSignedIn: !!user,
         isLoading,
         user,
         syncSession,
@@ -124,5 +122,5 @@ export function AuthProvider({ children, isClerkEnabled }: AuthProviderProps) {
   if (isClerkEnabled) {
     return <ClerkAuthProvider>{children}</ClerkAuthProvider>
   }
-  return <DevAuthProvider>{children}</DevAuthProvider>
+  return <NoAuthProvider>{children}</NoAuthProvider>
 }

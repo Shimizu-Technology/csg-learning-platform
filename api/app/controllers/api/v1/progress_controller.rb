@@ -126,7 +126,7 @@ module Api
                 release_day: lesson.release_day,
                 required: lesson.required,
                 available: available,
-                unlock_date: lesson_assignment&.unlock_date_override || module_assignment&.unlock_date_override || lesson.unlock_date(cohort),
+                unlock_date: lesson_assignment&.unlock_date_override || lesson.unlock_date(cohort, module_assignment),
                 total_blocks: lesson_total,
                 completed_blocks: lesson_completed,
                 completed: lesson_completed == lesson_total && lesson_total > 0,

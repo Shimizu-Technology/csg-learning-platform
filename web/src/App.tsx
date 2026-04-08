@@ -10,10 +10,13 @@ import { Profile } from './pages/student/Profile'
 import { AdminDashboard } from './pages/admin/AdminDashboard'
 import { StudentManagement } from './pages/admin/StudentManagement'
 import { StudentDetail } from './pages/admin/StudentDetail'
+import { CohortManagement } from './pages/admin/CohortManagement'
 import { CohortDetail } from './pages/admin/CohortDetail'
 import { ContentManagement } from './pages/admin/ContentManagement'
 import { LessonEditor } from './pages/admin/LessonEditor'
 import { Grading } from './pages/admin/Grading'
+import { CohortModuleGrading } from './pages/admin/CohortModuleGrading'
+import { TeamManagement } from './pages/admin/TeamManagement'
 import { SignInPage } from './pages/SignIn'
 import { useAuthContext } from './contexts/AuthContext'
 import { LoadingSpinner } from './components/shared/LoadingSpinner'
@@ -47,9 +50,12 @@ function AppRoutes() {
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/students" element={<StudentManagement />} />
           <Route path="/admin/students/:id" element={<StudentDetail />} />
+          <Route path="/admin/cohorts" element={<CohortManagement />} />
           <Route path="/admin/cohorts/:id" element={<CohortDetail />} />
           <Route path="/admin/content" element={<ContentManagement />} />
           <Route path="/admin/grading" element={<Grading />} />
+          <Route path="/admin/team" element={<TeamManagement />} />
+          <Route path="/admin/cohorts/:cohortId/modules/:moduleId/grading" element={<CohortModuleGrading />} />
           <Route path="/admin/lessons/:id/edit" element={<LessonEditor />} />
         </Route>
       </Route>

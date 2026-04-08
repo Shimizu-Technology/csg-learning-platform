@@ -59,3 +59,9 @@ gem "httparty"
 
 # Excel/CSV processing
 gem "roo"
+
+# HTML → Markdown conversion (used by curriculum import)
+gem "reverse_markdown"
+
+# Transactional email (invite emails via Resend)
+gem "resend"

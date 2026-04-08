@@ -3,8 +3,8 @@ module Api
     class UsersController < ApplicationController
       before_action :authenticate_user!
       before_action :require_staff!, only: [ :index, :show ]
-      before_action :require_admin!, only: [ :update ]
-      before_action :set_user, only: [ :show, :update ]
+      before_action :require_admin!, only: [ :create, :update, :resend_invite ]
+      before_action :set_user, only: [ :show, :update, :resend_invite ]
 
       # GET /api/v1/users
       def index
@@ -17,6 +17,41 @@ module Api
         render json: {
           users: users.map { |u| user_json(u) }
         }
+      end
+
+      # POST /api/v1/users
+      def create
+        email = user_create_params[:email].to_s.strip.downcase
+        if email.blank?
+          return render json: { errors: [ "Email is required" ] }, status: :unprocessable_entity
+        end
+
+        user = User.find_or_initialize_by(email: email)
+        is_new = user.new_record?
+        user.clerk_id = "pending_#{SecureRandom.uuid}" if user.clerk_id.blank?
+        if is_new
+          requested_role = params[:role].to_s.strip.downcase
+          user.role = User.roles.key?(requested_role) ? requested_role : :student
+        end
+        user.github_username = user_create_params[:github_username] if user_create_params[:github_username].present?
+
+        if user.save
+          skip = ActiveModel::Type::Boolean.new.cast(params[:skip_invite])
+          send_clerk_invitation_and_email(user) if is_new && !skip
+          render json: { user: user_json(user) }, status: :created
+        else
+          render json: { errors: user.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/users/:id/resend_invite
+      def resend_invite
+        if @user.clerk_id.blank? || !@user.clerk_id.start_with?("pending_")
+          return render json: { error: "User has already signed in — no invite needed" }, status: :unprocessable_entity
+        end
+
+        send_clerk_invitation_and_email(@user)
+        render json: { message: "Invite re-sent to #{@user.email}" }
       end
 
       # GET /api/v1/users/:id
@@ -54,6 +89,30 @@ module Api
 
       def user_params
         params.permit(:first_name, :last_name, :role, :github_username, :avatar_url)
+      end
+
+      def user_create_params
+        params.permit(:email, :github_username)
+      end
+
+      def send_clerk_invitation_and_email(user)
+        invitation_url = nil
+
+        clerk = ClerkInvitationService.new
+        if clerk.configured?
+          result = clerk.create_invitation(
+            email: user.email,
+            redirect_url: frontend_url,
+            ignore_existing: true
+          )
+          invitation_url = result[:url] if result[:success]
+        end
+
+        SendUserInviteEmailJob.perform_later(user.id, current_user&.id, invitation_url)
+      end
+
+      def frontend_url
+        ENV.fetch("FRONTEND_URL", "http://localhost:5173").split(",").first.strip
       end
 
       def user_json(user)
