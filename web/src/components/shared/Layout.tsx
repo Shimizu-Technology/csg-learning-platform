@@ -41,6 +41,7 @@ export function Layout({ children }: LayoutProps) {
   const adminNav = [
     { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', exact: true },
     { to: '/admin/cohorts', icon: Layers3, label: 'Cohorts' },
+    { to: '/admin/students', icon: GraduationCap, label: 'Students' },
     { to: '/admin/content', icon: FileText, label: 'Content' },
     { to: '/admin/grading', icon: ClipboardCheck, label: 'Grading' },
     { to: '/admin/team', icon: Users, label: 'Team' },

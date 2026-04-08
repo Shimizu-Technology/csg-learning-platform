@@ -15,6 +15,7 @@ interface TeamMember {
   github_username: string | null
   avatar_url: string | null
   last_sign_in_at: string | null
+  invite_pending: boolean
   created_at: string
 }
 
@@ -156,7 +157,7 @@ export function TeamManagement() {
   }
 
   const isSelf = (member: TeamMember) => currentUser?.id === member.id
-  const isPending = (member: TeamMember) => !member.last_sign_in_at
+  const isPending = (member: TeamMember) => member.invite_pending
 
   if (loading) return <LoadingSpinner message="Loading team..." />
 
@@ -298,7 +299,15 @@ export function TeamManagement() {
                       value={member.role}
                       onChange={(e) => {
                         const newRole = e.target.value
-                        api.updateUser(member.id, { role: newRole }).then(() => loadTeam())
+                        api.updateUser(member.id, { role: newRole }).then((res) => {
+                          if (res.error) {
+                            showNotification('error', `Failed to update role: ${res.error}`)
+                          }
+                          loadTeam()
+                        }).catch(() => {
+                          showNotification('error', 'Failed to update role — network error')
+                          loadTeam()
+                        })
                       }}
                       disabled={isSelf(member)}
                       className="appearance-none rounded-lg border border-slate-200 bg-white pl-3 pr-8 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 cursor-pointer"

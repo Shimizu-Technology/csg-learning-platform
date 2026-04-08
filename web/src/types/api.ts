@@ -19,6 +19,7 @@ export interface UserWithMeta extends User {
 
 export interface UserListItem extends User {
   last_sign_in_at: string | null;
+  invite_pending: boolean;
   created_at: string;
 }
 

@@ -29,9 +29,11 @@ module Api
         user = User.find_or_initialize_by(email: email)
         is_new = user.new_record?
         user.clerk_id = "pending_#{SecureRandom.uuid}" if user.clerk_id.blank?
-        if is_new
-          requested_role = params[:role].to_s.strip.downcase
-          user.role = User.roles.key?(requested_role) ? requested_role : :student
+        requested_role = params[:role].to_s.strip.downcase
+        if User.roles.key?(requested_role)
+          user.role = requested_role
+        elsif is_new
+          user.role = :student
         end
         user.github_username = user_create_params[:github_username] if user_create_params[:github_username].present?
 
@@ -138,6 +140,7 @@ module Api
           github_username: user.github_username,
           avatar_url: user.avatar_url,
           last_sign_in_at: user.last_sign_in_at,
+          invite_pending: user.clerk_id&.start_with?("pending_") || false,
           created_at: user.created_at
         }
       end
