@@ -12,18 +12,18 @@ class GithubSyncService
     repo_name = repository_name_override.presence || cohort.repository_name
 
     unless user.github_username.present?
-      return { synced: 0, errors: ["Student has no GitHub username"] }
+      return { synced: 0, errors: [ "Student has no GitHub username" ] }
     end
 
     unless repo_name.present?
-      return { synced: 0, errors: ["No repository name configured for this module"] }
+      return { synced: 0, errors: [ "No repository name configured for this module" ] }
     end
 
     exercise_blocks = ContentBlock
       .joins(:lesson)
       .where(lessons: { module_id: curriculum_module.id })
-      .where(block_type: [:exercise, :code_challenge])
-      .where.not(filename: [nil, ""])
+      .where(block_type: [ :exercise, :code_challenge ])
+      .where.not(filename: [ nil, "" ])
 
     if exercise_blocks.empty?
       return { synced: 0, errors: [] }
@@ -32,7 +32,7 @@ class GithubSyncService
     repo_data = fetch_repo_tree(user.github_username, repo_name)
 
     if repo_data[:error]
-      return { synced: 0, errors: [repo_data[:error]] }
+      return { synced: 0, errors: [ repo_data[:error] ] }
     end
 
     files = repo_data[:files]
@@ -55,6 +55,9 @@ class GithubSyncService
           existing.update!(
             text: file_text,
             grade: nil,
+            feedback: nil,
+            graded_at: nil,
+            graded_by_id: nil,
             github_code_url: github_code_url,
             num_submissions: existing.num_submissions + 1
           )
@@ -80,7 +83,7 @@ class GithubSyncService
 
     { synced: synced_count, errors: errors }
   rescue StandardError => e
-    { synced: 0, errors: ["Sync error: #{e.message}"] }
+    { synced: 0, errors: [ "Sync error: #{e.message}" ] }
   end
 
   # Sync all active students in a cohort for a given module

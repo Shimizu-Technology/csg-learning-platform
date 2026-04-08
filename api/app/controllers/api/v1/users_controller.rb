@@ -30,7 +30,7 @@ module Api
         is_new = user.new_record?
         user.clerk_id = "pending_#{SecureRandom.uuid}" if user.clerk_id.blank?
         if is_new
-          user.role = user_create_params[:role] || :student
+          user.role = params[:role] || :student
         end
         user.github_username = user_create_params[:github_username] if user_create_params[:github_username].present?
 
@@ -91,7 +91,7 @@ module Api
       end
 
       def user_create_params
-        params.permit(:email, :role, :github_username)
+        params.permit(:email, :github_username)
       end
 
       def send_clerk_invitation_and_email(user)

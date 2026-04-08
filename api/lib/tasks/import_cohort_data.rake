@@ -138,7 +138,7 @@ namespace :cohort do
     if prework_module
       ContentBlock.joins(:lesson)
         .where(lessons: { module_id: prework_module.id })
-        .where.not(filename: [nil, ""])
+        .where.not(filename: [ nil, "" ])
         .find_each do |cb|
           content_blocks_by_filename[cb.filename.strip] = cb
         end

@@ -14,9 +14,9 @@ class Lesson < ApplicationRecord
   def unlock_date(cohort, module_assignment = nil)
     base_date = if module_assignment&.unlock_date_override.present?
                   module_assignment.unlock_date_override
-                else
+    else
                   cohort.start_date + curriculum_module.day_offset
-                end
+    end
     base_date + release_day
   end
 

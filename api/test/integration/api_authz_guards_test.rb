@@ -50,19 +50,22 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
     @student_one = User.create!(
       clerk_id: "clerk_student_1",
       email: "student1@example.com",
-      name: "Student One",
+      first_name: "Student",
+      last_name: "One",
       role: :student
     )
     @student_two = User.create!(
       clerk_id: "clerk_student_2",
       email: "student2@example.com",
-      name: "Student Two",
+      first_name: "Student",
+      last_name: "Two",
       role: :student
     )
     @admin = User.create!(
       clerk_id: "clerk_admin_1",
       email: "admin@example.com",
-      name: "Admin User",
+      first_name: "Admin",
+      last_name: "User",
       role: :admin
     )
 
