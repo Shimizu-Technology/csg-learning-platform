@@ -8,6 +8,9 @@ class SendUserInviteEmailJob < ApplicationJob
 
     invited_by = invited_by_user_id.present? ? User.find_by(id: invited_by_user_id) : nil
     success = UserInviteEmailService.send_invite(user: user, invited_by: invited_by, invitation_url: invitation_url)
-    raise "Failed to send invite email to #{user.email}" unless success
+
+    if UserInviteEmailService.configured?
+      raise "Failed to send invite email to #{user.email}" unless success
+    end
   end
 end

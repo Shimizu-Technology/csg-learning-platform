@@ -6,3 +6,7 @@ web/.env.local
 web/.env.production
 web/dist/
 web/node_modules/
+
+# Data exports containing PII — never commit
+scripts/cohort3_*.json
+docs/cohort-output-from-prod.txt
