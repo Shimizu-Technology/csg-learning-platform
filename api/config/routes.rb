@@ -17,7 +17,11 @@ Rails.application.routes.draw do
       get "resources", to: "resources#index"
 
       # Users (admin)
-      resources :users, only: [ :index, :show, :update ]
+      resources :users, only: [ :index, :show, :create, :update ] do
+        member do
+          post :resend_invite
+        end
+      end
 
       # Curricula with nested modules
       resources :curricula, only: [ :index, :show, :create, :update, :destroy ] do
@@ -43,7 +47,13 @@ Rails.application.routes.draw do
         member do
           patch :module_access
           patch :announcements
+          patch :recordings
+          patch :class_resources
         end
+        # Cohort-scoped grading and GitHub sync per module
+        get "modules/:module_id/submissions", to: "cohort_grading#index", as: :module_submissions
+        post "modules/:module_id/sync_github", to: "cohort_grading#sync_all", as: :module_sync_github
+        post "modules/:module_id/sync_github/:user_id", to: "cohort_grading#sync_student", as: :module_sync_student
       end
 
       # Enrollments with access overrides
@@ -65,6 +75,7 @@ Rails.application.routes.draw do
       resources :submissions, only: [ :index, :show, :create, :update ] do
         member do
           patch :grade
+          get :github_issue
         end
       end
     end

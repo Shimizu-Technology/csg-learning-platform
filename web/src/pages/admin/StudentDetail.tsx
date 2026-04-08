@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
   User,
@@ -307,6 +307,7 @@ function LessonRow({
 
 export function StudentDetail() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const [data, setData] = useState<ProgressData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -318,6 +319,9 @@ export function StudentDetail() {
   const [deletingAssignmentId, setDeletingAssignmentId] = useState<number | null>(null)
   const [savingLessonId, setSavingLessonId] = useState<number | null>(null)
   const [assignmentMessage, setAssignmentMessage] = useState('')
+  const [editingUser, setEditingUser] = useState(false)
+  const [editForm, setEditForm] = useState({ first_name: '', last_name: '', email: '', github_username: '' })
+  const [savingUser, setSavingUser] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -608,13 +612,13 @@ export function StudentDetail() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <Link
-        to="/admin/students"
+      <button
+        onClick={() => navigate(-1)}
         className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
       >
         <ArrowLeft className="h-4 w-4" />
-        Back to Students
-      </Link>
+        Back
+      </button>
 
       <div className="rounded-2xl bg-white border border-slate-200 p-6">
         <div className="flex flex-col sm:flex-row sm:items-start gap-4">
@@ -632,10 +636,29 @@ export function StudentDetail() {
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold text-slate-900">{user.full_name}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-slate-900">{user.full_name}</h1>
+              {!editingUser && (
+                <button
+                  onClick={() => {
+                    const nameParts = (user.full_name || '').split(' ')
+                    setEditForm({
+                      first_name: nameParts[0] || '',
+                      last_name: nameParts.slice(1).join(' ') || '',
+                      email: user.email || '',
+                      github_username: user.github_username || '',
+                    })
+                    setEditingUser(true)
+                  }}
+                  className="text-xs font-medium text-primary-600 hover:text-primary-700"
+                >
+                  Edit
+                </button>
+              )}
+            </div>
             <p className="text-sm text-slate-500">{user.email}</p>
             <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-500">
-              {user.github_username && (
+              {user.github_username ? (
                 <a
                   href={`https://github.com/${user.github_username}`}
                   target="_blank"
@@ -645,6 +668,11 @@ export function StudentDetail() {
                   <Github className="h-3.5 w-3.5" />
                   @{user.github_username}
                 </a>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-slate-400">
+                  <Github className="h-3.5 w-3.5" />
+                  No GitHub username
+                </span>
               )}
               <span className="inline-flex items-center gap-1.5">
                 <Clock className="h-3.5 w-3.5" />
@@ -662,6 +690,54 @@ export function StudentDetail() {
             </p>
           </div>
         </div>
+
+        {editingUser && (
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault()
+              setSavingUser(true)
+              setAssignmentMessage('')
+              const res = await api.updateUser(user.id, {
+                first_name: editForm.first_name.trim() || undefined,
+                last_name: editForm.last_name.trim() || undefined,
+                github_username: editForm.github_username.trim() || undefined,
+              })
+              if (res.error) {
+                setAssignmentMessage(`Failed to update: ${res.error}`)
+              } else {
+                setAssignmentMessage('Student updated')
+                setEditingUser(false)
+                if (id) {
+                  const refreshed = await api.getStudentProgress(Number(id))
+                  if (refreshed.data) setData(refreshed.data)
+                }
+              }
+              setSavingUser(false)
+            }}
+            className="mt-4 border-t border-slate-200 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3"
+          >
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">First Name</label>
+              <input type="text" value={editForm.first_name} onChange={(e) => setEditForm((f) => ({ ...f, first_name: e.target.value }))} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Last Name</label>
+              <input type="text" value={editForm.last_name} onChange={(e) => setEditForm((f) => ({ ...f, last_name: e.target.value }))} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">GitHub Username</label>
+              <input type="text" value={editForm.github_username} onChange={(e) => setEditForm((f) => ({ ...f, github_username: e.target.value }))} placeholder="e.g., octocat" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+            </div>
+            <div className="flex items-end gap-2">
+              <button type="submit" disabled={savingUser} className="rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 transition-colors">
+                {savingUser ? 'Saving...' : 'Save Changes'}
+              </button>
+              <button type="button" onClick={() => setEditingUser(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
       </div>
 
       {assignmentMessage && (

@@ -139,6 +139,9 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getSubmissionGithubIssue: (id: number) =>
+    fetchApi<any>(`/api/v1/submissions/${id}/github_issue`),
 
   // Student progress (admin)
   getStudentProgress: (userId: number) =>
@@ -149,6 +152,15 @@ export const api = {
     const query = params ? '?' + new URLSearchParams(params).toString() : '';
     return fetchApi<UsersListResponse>(`/api/v1/users${query}`);
   },
+  createUser: (data: { email: string; role?: string; github_username?: string; skip_invite?: boolean }) =>
+    fetchApi<{ user: { id: number; email: string; full_name: string; role: string } }>('/api/v1/users', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  resendInvite: (userId: number) =>
+    fetchApi<{ message: string }>(`/api/v1/users/${userId}/resend_invite`, {
+      method: 'POST',
+    }),
   getUser: (id: number) =>
     fetchApi<UserDetailResponse>(`/api/v1/users/${id}`),
   updateUser: (id: number, data: { first_name?: string; last_name?: string; role?: string; github_username?: string; avatar_url?: string }) =>
@@ -168,6 +180,18 @@ export const api = {
     fetchApi<CohortsListResponse>('/api/v1/cohorts'),
   getCohort: (id: number) =>
     fetchApi<CohortResponse>(`/api/v1/cohorts/${id}`),
+  createCohort: (data: { name: string; cohort_type: string; curriculum_id: number; start_date: string; end_date?: string; status?: string }) =>
+    fetchApi<CohortResponse>('/api/v1/cohorts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateCohort: (id: number, data: { name?: string; start_date?: string; end_date?: string; status?: string }) =>
+    fetchApi<CohortResponse>(`/api/v1/cohorts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteCohort: (id: number) =>
+    fetchApi<null>(`/api/v1/cohorts/${id}`, { method: 'DELETE' }),
   updateCohortModuleAccess: (cohortId: number, data: { module_id: number; assigned?: boolean; unlocked?: boolean; unlock_date_override?: string | null }) =>
     fetchApi<CohortResponse>(`/api/v1/cohorts/${cohortId}/module_access`, {
       method: 'PATCH',
@@ -177,6 +201,16 @@ export const api = {
     fetchApi<CohortResponse>(`/api/v1/cohorts/${cohortId}/announcements`, {
       method: 'PATCH',
       body: JSON.stringify({ announcements }),
+    }),
+  updateCohortRecordings: (cohortId: number, recordings: { title: string; url: string; date?: string; description?: string }[]) =>
+    fetchApi<CohortResponse>(`/api/v1/cohorts/${cohortId}/recordings`, {
+      method: 'PATCH',
+      body: JSON.stringify({ recordings }),
+    }),
+  updateCohortClassResources: (cohortId: number, classResources: { title: string; url: string; category?: string; description?: string }[]) =>
+    fetchApi<CohortResponse>(`/api/v1/cohorts/${cohortId}/class_resources`, {
+      method: 'PATCH',
+      body: JSON.stringify({ class_resources: classResources }),
     }),
 
   // Admin — Enrollments
@@ -245,4 +279,15 @@ export const api = {
     fetchApi<null>(`/api/v1/content_blocks/${id}`, { method: 'DELETE' }),
   getContentBlocks: (lessonId: number) =>
     fetchApi<ContentBlocksListResponse>(`/api/v1/lessons/${lessonId}/content_blocks`),
+
+  // Cohort-scoped grading
+  getCohortModuleSubmissions: (cohortId: number, moduleId: number) =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fetchApi<any>(`/api/v1/cohorts/${cohortId}/modules/${moduleId}/submissions`),
+  syncCohortModuleGithub: (cohortId: number, moduleId: number) =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fetchApi<any>(`/api/v1/cohorts/${cohortId}/modules/${moduleId}/sync_github`, { method: 'POST' }),
+  syncStudentGithub: (cohortId: number, moduleId: number, userId: number) =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fetchApi<any>(`/api/v1/cohorts/${cohortId}/modules/${moduleId}/sync_github/${userId}`, { method: 'POST' }),
 };

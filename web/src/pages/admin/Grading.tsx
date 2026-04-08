@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Filter, Check, RotateCcw, Clock, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Filter, Check, RotateCcw, Clock, ChevronRight, Layers3 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { GradeDisplay } from '../../components/shared/GradeDisplay'
 import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
@@ -29,8 +29,16 @@ interface SubmissionItem {
   language_hint?: string | null
 }
 
+interface CohortSummary {
+  id: number
+  name: string
+  curriculum_name: string
+  modules: { id: number; name: string }[]
+}
+
 export function Grading() {
   const [submissions, setSubmissions] = useState<SubmissionItem[]>([])
+  const [cohorts, setCohorts] = useState<CohortSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [queueFilter, setQueueFilter] = useState<QueueFilter>('ungraded')
   const [selectedSubmission, setSelectedSubmission] = useState<SubmissionItem | null>(null)
@@ -70,8 +78,12 @@ export function Grading() {
 
   const loadSubmissions = () => {
     setLoading(true)
-    api.getSubmissions().then((res) => {
-      if (res.data?.submissions) setSubmissions(res.data.submissions)
+    Promise.all([
+      api.getSubmissions(),
+      api.getCohorts(),
+    ]).then(([subRes, cohortRes]) => {
+      if (subRes.data?.submissions) setSubmissions(subRes.data.submissions)
+      if (cohortRes.data?.cohorts) setCohorts(cohortRes.data.cohorts)
       setLoading(false)
     })
   }
@@ -103,15 +115,45 @@ export function Grading() {
 
   if (loading) return <LoadingSpinner message="Loading submissions..." />
 
+  const activeCohorts = cohorts.filter((c: CohortSummary & { status?: string }) => (c as CohortSummary & { status?: string }).status === 'active' || true)
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto">
       <div>
         <Link to="/admin" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-2">
           <ArrowLeft className="h-4 w-4" />
           Admin Dashboard
         </Link>
-        <h1 className="text-2xl font-bold text-slate-900">Grading</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Grading Inbox</h1>
+        <p className="text-sm text-slate-500 mt-1">All ungraded submissions across cohorts. For cohort-specific grading, use the links below.</p>
       </div>
+
+      {/* Quick links to cohort grading */}
+      {activeCohorts.length > 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2 mb-3">
+            <Layers3 className="h-4 w-4 text-primary-500" />
+            Grade by Cohort
+          </h2>
+          <div className="space-y-2">
+            {activeCohorts.map((cohort) => (
+              <div key={cohort.id} className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium text-slate-700 min-w-[140px]">{cohort.name}</span>
+                {cohort.modules?.map((mod) => (
+                  <Link
+                    key={mod.id}
+                    to={`/admin/cohorts/${cohort.id}/modules/${mod.id}/grading`}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:border-primary-200 transition-colors"
+                  >
+                    {mod.name}
+                    <ChevronRight className="h-3 w-3 text-slate-400" />
+                  </Link>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <button
@@ -237,15 +279,19 @@ export function Grading() {
                 </div>
 
                 {selectedSubmission.solution && (
-                  <div>
-                    <h4 className="text-sm font-medium text-slate-700 mb-2">Solution</h4>
-                    <CodeEditor
-                      value={selectedSubmission.solution}
-                      language={detectLanguage(selectedSubmission.filename, selectedSubmission.language_hint)}
-                      readOnly
-                      minHeight={180}
-                    />
-                  </div>
+                  <details className="group">
+                    <summary className="cursor-pointer text-sm font-medium text-slate-700 hover:text-slate-900 select-none">
+                      Show Solution
+                    </summary>
+                    <div className="mt-2">
+                      <CodeEditor
+                        value={selectedSubmission.solution}
+                        language={detectLanguage(selectedSubmission.filename, selectedSubmission.language_hint)}
+                        readOnly
+                        minHeight={180}
+                      />
+                    </div>
+                  </details>
                 )}
 
                 <div>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { CheckCircle2, Lock, ArrowLeft, Play, Code, FileText, BookOpen } from 'lucide-react'
+import { CheckCircle2, ArrowLeft, Play, Code, FileText, BookOpen } from 'lucide-react'
 import { api } from '../../lib/api'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -75,11 +75,12 @@ export function ModuleView() {
     return acc
   }, {})
 
-  const totalLessons = mod.lessons.length
-  const completedLessons = Object.entries(progressData).filter(([, v]) => v === 'completed').length
+  const availableLessons = mod.lessons.filter((l) => (progressData[l.id] || 'available') !== 'locked')
+  const totalLessons = availableLessons.length
+  const completedLessons = availableLessons.filter((l) => progressData[l.id] === 'completed').length
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-5xl mx-auto">
       {/* Header */}
       <div>
         <Link to="/" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
@@ -95,59 +96,50 @@ export function ModuleView() {
         </div>
       </div>
 
-      {/* Lessons by day */}
+      {/* Lessons by day — only show days that have at least one unlocked lesson */}
       <div className="space-y-6">
         {Object.entries(lessonsByDay)
           .sort(([a], [b]) => Number(a) - Number(b))
-          .map(([day, lessons]) => (
-            <div key={day}>
-              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">
-                {Number(day) === 0 ? 'Introduction' : `Day ${day}`}
-              </h3>
-              <div className="space-y-2">
-                {lessons.map((lesson) => {
-                  const status = progressData[lesson.id] || 'available'
-                  const isLocked = status === 'locked'
-                  const isCompleted = status === 'completed'
+          .filter(([, lessons]) => lessons.some((lesson) => (progressData[lesson.id] || 'available') !== 'locked'))
+          .map(([day, lessons]) => {
+            const visibleLessons = lessons.filter((lesson) => (progressData[lesson.id] || 'available') !== 'locked')
+            return (
+              <div key={day}>
+                <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                  {Number(day) === 0 ? 'Introduction' : `Day ${day}`}
+                </h3>
+                <div className="space-y-2">
+                  {visibleLessons.map((lesson) => {
+                    const isCompleted = progressData[lesson.id] === 'completed'
 
-                  return (
-                    <div key={lesson.id}>
-                      {isLocked ? (
-                        <div className="flex items-center gap-3 rounded-2xl bg-white border border-slate-200 p-4 opacity-60">
-                          <Lock className="h-5 w-5 text-slate-400" />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-slate-500">{lesson.title}</p>
-                            <p className="text-xs text-slate-400">Unlocks soon</p>
+                    return (
+                      <Link
+                        key={lesson.id}
+                        to={`/lessons/${lesson.id}`}
+                        className="flex items-center gap-3 rounded-2xl bg-white border border-slate-200 p-4 hover:border-primary-200 hover:shadow-sm transition-all"
+                      >
+                        <div className={`shrink-0 ${isCompleted ? 'text-success-500' : 'text-slate-400'}`}>
+                          {isCompleted ? <CheckCircle2 className="h-5 w-5" /> : lessonTypeIcons[lesson.lesson_type] || <FileText className="h-5 w-5" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium ${isCompleted ? 'text-slate-500' : 'text-slate-900'}`}>
+                            {lesson.title}
+                          </p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-xs text-slate-400 capitalize">{lesson.lesson_type}</span>
+                            <span className="text-xs text-slate-400">· {lesson.content_blocks.length} blocks</span>
                           </div>
                         </div>
-                      ) : (
-                        <Link
-                          to={`/lessons/${lesson.id}`}
-                          className="flex items-center gap-3 rounded-2xl bg-white border border-slate-200 p-4 hover:border-primary-200 hover:shadow-sm transition-all"
-                        >
-                          <div className={`flex-shrink-0 ${isCompleted ? 'text-success-500' : 'text-slate-400'}`}>
-                            {isCompleted ? <CheckCircle2 className="h-5 w-5" /> : lessonTypeIcons[lesson.lesson_type] || <FileText className="h-5 w-5" />}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-medium ${isCompleted ? 'text-slate-500' : 'text-slate-900'}`}>
-                              {lesson.title}
-                            </p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-xs text-slate-400 capitalize">{lesson.lesson_type}</span>
-                              <span className="text-xs text-slate-400">· {lesson.content_blocks.length} blocks</span>
-                            </div>
-                          </div>
-                          {isCompleted && (
-                            <span className="text-xs font-medium text-success-600 bg-success-50 px-2 py-0.5 rounded-full">Done</span>
-                          )}
-                        </Link>
-                      )}
-                    </div>
-                  )
-                })}
+                        {isCompleted && (
+                          <span className="text-xs font-medium text-success-600 bg-success-50 px-2 py-0.5 rounded-full">Done</span>
+                        )}
+                      </Link>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
       </div>
     </div>
   )

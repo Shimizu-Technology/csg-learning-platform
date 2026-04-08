@@ -14,6 +14,8 @@ interface LessonData {
   position: number
   release_day: number
   required: boolean
+  requires_github?: boolean
+  repository_name?: string
   content_blocks: Array<any>
   prev_lesson: { id: number; title: string } | null
   next_lesson: { id: number; title: string } | null
@@ -85,6 +87,8 @@ export function LessonView() {
             key={block.id}
             block={block}
             isStaff={user?.is_staff}
+            requiresGithub={lesson.requires_github}
+            repositoryName={lesson.repository_name}
             onProgressUpdate={loadLesson}
           />
         ))}

@@ -12,9 +12,8 @@ class ModuleAssignment < ApplicationRecord
   end
 
   def next_unlock_date(cohort)
-    return unlock_date_override if unlock_date_override.present?
     return nil if curriculum_module.lessons.empty?
 
-    curriculum_module.lessons.map { |lesson| lesson.unlock_date(cohort) }.min
+    curriculum_module.lessons.map { |lesson| lesson.unlock_date(cohort, self) }.min
   end
 end

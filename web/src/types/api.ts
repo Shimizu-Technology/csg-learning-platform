@@ -282,33 +282,19 @@ export interface ProgressEntry {
 // ─── Recordings / Resources ──────────────────────────────────────────────────
 
 export interface RecordingEntry {
-  module_id: number;
-  module_name: string;
-  lesson_id: number;
-  lesson_title: string;
-  lesson_type: string;
-  release_day: number;
-  unlock_date: string;
-  recordings: {
-    id: number;
-    title: string;
-    block_type: string;
-    video_url: string;
-    position: number;
-  }[];
+  id: number;
+  title: string;
+  url: string;
+  date: string | null;
+  description: string | null;
 }
 
 export interface ResourceEntry {
-  id: string;
+  id: number;
   title: string;
   url: string;
-  module_id: number;
-  module_name: string;
-  lesson_id: number;
-  lesson_title: string;
-  content_block_id: number;
-  content_block_title: string | null;
-  unlock_date: string;
+  category: string;
+  description: string | null;
 }
 
 // ─── Session ─────────────────────────────────────────────────────────────────

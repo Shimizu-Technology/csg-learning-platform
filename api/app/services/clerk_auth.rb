@@ -6,11 +6,6 @@ class ClerkAuth
     def verify(token)
       return nil if token.blank?
 
-      # DEV_BYPASS mode: skip JWT verification in development
-      if dev_bypass?
-        return dev_bypass_payload
-      end
-
       # Test environment: allow special test tokens
       if Rails.env.test? && token.start_with?("test_token_")
         return handle_test_token(token)
@@ -50,20 +45,7 @@ class ClerkAuth
       nil
     end
 
-    def dev_bypass?
-      ENV["DEV_BYPASS"] == "true" && (Rails.env.development? || Rails.env.test?)
-    end
-
     private
-
-    def dev_bypass_payload
-      {
-        "sub" => "dev_user_clerk_id",
-        "email" => "leon@anyonecanlearntocode.com",
-        "first_name" => "Leon",
-        "last_name" => "Shimizu"
-      }
-    end
 
     def fetch_jwks
       cached = Rails.cache.read(JWKS_CACHE_KEY)

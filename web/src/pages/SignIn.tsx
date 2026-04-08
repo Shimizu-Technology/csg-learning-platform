@@ -17,7 +17,7 @@ export function SignInPage() {
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
           <GraduationCap className="h-12 w-12 text-primary-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-slate-900">CSG Learning Platform</h1>
+          <h1 className="text-2xl font-bold text-slate-900">CSG Learning Hub</h1>
           <p className="mt-2 text-slate-500">Dev mode — authentication bypassed</p>
           <a href="/" className="mt-4 inline-block text-primary-600 hover:underline">Go to Dashboard</a>
         </div>
@@ -29,8 +29,8 @@ export function SignInPage() {
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
       <div className="text-center">
         <GraduationCap className="h-12 w-12 text-primary-500 mx-auto mb-6" />
-        <h1 className="text-2xl font-bold text-slate-900 mb-2">CSG Learn</h1>
-        <p className="text-sm text-slate-500 mb-6">Sign in to access the Code School of Guam Learning Platform.</p>
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">CSG Learning Hub</h1>
+        <p className="text-sm text-slate-500 mb-6">Sign in to access the Code School of Guam learning platform.</p>
         <SignIn
           appearance={{
             elements: {

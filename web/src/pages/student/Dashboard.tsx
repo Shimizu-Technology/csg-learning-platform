@@ -118,7 +118,7 @@ export function Dashboard() {
   const progress = data.overall_progress
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-5xl mx-auto">
       <div className="rounded-2xl bg-white border border-slate-200 p-6">
         <div className="flex flex-col lg:flex-row lg:items-center gap-6">
           <div className="flex-1">

@@ -114,6 +114,18 @@ module Api
           content_blocks_count: lesson.content_blocks.size
         }
 
+        if current_user.student?
+          enrollment = current_user.enrollments.active
+            .joins(:cohort)
+            .find_by(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
+          if enrollment
+            cohort = enrollment.cohort
+            mod_gh = (cohort.settings || {}).dig("module_github_config", lesson.module_id.to_s) || {}
+            json[:requires_github] = mod_gh["requires_github"] || false
+            json[:repository_name] = mod_gh["repository_name"].presence || cohort.repository_name
+          end
+        end
+
         if include_content
           json[:content_blocks] = lesson.content_blocks.map { |cb|
             block = {
@@ -156,15 +168,33 @@ module Api
             block
           }
 
-          # Get adjacent lessons for navigation
-          sibling_lessons = Lesson.where(module_id: lesson.module_id)
-            .order(:position)
+          sibling_lessons = Lesson.where(module_id: lesson.module_id).order(:position).to_a
+          current_index = sibling_lessons.index { |l| l.id == lesson.id }
 
-          current_index = sibling_lessons.to_a.index { |l| l.id == lesson.id }
-          if current_index
+          if current_index && !current_user.staff?
+            enrollment = current_user.enrollments.active
+              .joins(:cohort)
+              .includes(:cohort, :module_assignments, :lesson_assignments)
+              .find_by(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
+            if enrollment
+              ma = enrollment.module_assignments.find_by(module_id: lesson.module_id)
+              available_siblings = sibling_lessons.select { |l|
+                la = enrollment.lesson_assignments.find_by(lesson_id: l.id)
+                l.available?(enrollment.cohort, ma, la)
+              }
+              avail_index = available_siblings.index { |l| l.id == lesson.id }
+              prev_lesson = avail_index && avail_index > 0 ? available_siblings[avail_index - 1] : nil
+              next_lesson = avail_index && avail_index < available_siblings.size - 1 ? available_siblings[avail_index + 1] : nil
+            else
+              prev_lesson = nil
+              next_lesson = nil
+            end
+          elsif current_index
             prev_lesson = current_index > 0 ? sibling_lessons[current_index - 1] : nil
             next_lesson = current_index < sibling_lessons.size - 1 ? sibling_lessons[current_index + 1] : nil
+          end
 
+          if current_index
             json[:prev_lesson] = prev_lesson ? { id: prev_lesson.id, title: prev_lesson.title } : nil
             json[:next_lesson] = next_lesson ? { id: next_lesson.id, title: next_lesson.title } : nil
           end

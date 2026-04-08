@@ -11,8 +11,13 @@ class Lesson < ApplicationRecord
 
   scope :ordered, -> { order(:position) }
 
-  def unlock_date(cohort)
-    cohort.start_date + curriculum_module.day_offset + release_day
+  def unlock_date(cohort, module_assignment = nil)
+    base_date = if module_assignment&.unlock_date_override.present?
+                  module_assignment.unlock_date_override
+                else
+                  cohort.start_date + curriculum_module.day_offset
+                end
+    base_date + release_day
   end
 
   def available?(cohort, module_assignment = nil, lesson_assignment = nil)
@@ -20,10 +25,6 @@ class Lesson < ApplicationRecord
     return lesson_assignment.unlocked? if lesson_assignment.present?
     return false if module_assignment && !module_assignment.unlocked?
 
-    if module_assignment&.unlock_date_override.present?
-      Date.current >= module_assignment.unlock_date_override
-    else
-      Date.current >= unlock_date(cohort)
-    end
+    Date.current >= unlock_date(cohort, module_assignment)
   end
 end
