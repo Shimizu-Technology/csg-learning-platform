@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, RefreshCw, Filter, RotateCcw, Clock, Check, ChevronRight, Github, User, Keyboard } from 'lucide-react'
 import { api } from '../../lib/api'
+import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { GradeDisplay } from '../../components/shared/GradeDisplay'
 import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -675,7 +676,7 @@ export function CohortModuleGrading() {
                     <div className="flex flex-col flex-1 min-h-0">
                       {gridModalSubmission.github_code_url && (
                         <a
-                          href={gridModalSubmission.github_code_url}
+                          href={sanitizeUrl(gridModalSubmission.github_code_url)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1.5 text-xs text-primary-600 hover:text-primary-700 mb-3 shrink-0"
@@ -751,7 +752,7 @@ export function CohortModuleGrading() {
                           <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">GitHub Links</p>
                           {gridModalSubmission.github_code_url && (
                             <a
-                              href={gridModalSubmission.github_code_url}
+                              href={sanitizeUrl(gridModalSubmission.github_code_url)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="flex items-center gap-1.5 text-sm text-primary-600 hover:text-primary-700"
@@ -762,7 +763,7 @@ export function CohortModuleGrading() {
                           )}
                           {gridModalSubmission.github_issue_url && (
                             <a
-                              href={gridModalSubmission.github_issue_url}
+                              href={sanitizeUrl(gridModalSubmission.github_issue_url)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="flex items-center gap-1.5 text-sm text-primary-600 hover:text-primary-700"
@@ -792,7 +793,7 @@ export function CohortModuleGrading() {
                           {githubIssueData ? 'Refresh Issue' : 'Load GitHub Issue'}
                         </button>
                         <a
-                          href={gridModalSubmission.github_issue_url}
+                          href={sanitizeUrl(gridModalSubmission.github_issue_url)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-sm text-primary-600 hover:text-primary-700"
@@ -1014,7 +1015,7 @@ export function CohortModuleGrading() {
                       </p>
                       {selectedSubmission.github_code_url && (
                         <a
-                          href={selectedSubmission.github_code_url}
+                          href={sanitizeUrl(selectedSubmission.github_code_url)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="mt-1 inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700"
