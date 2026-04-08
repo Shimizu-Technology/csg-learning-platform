@@ -104,6 +104,7 @@ export function CohortModuleGrading() {
   const [gridModalOpen, setGridModalOpen] = useState(false)
   const [gridModalTab, setGridModalTab] = useState<'exercise' | 'answer' | 'solution' | 'feedback' | 'github_issue'>('answer')
   const [githubIssueData, setGithubIssueData] = useState<GitHubIssueData | null>(null)
+  const [githubIssueError, setGithubIssueError] = useState<string | null>(null)
   const [loadingGithubIssue, setLoadingGithubIssue] = useState(false)
 
   const loadData = async () => {
@@ -263,6 +264,7 @@ export function CohortModuleGrading() {
     setGridModalSubmission(null)
     setGridModalTab('answer')
     setGithubIssueData(null)
+    setGithubIssueError(null)
     const res = await api.getSubmission(sub.id)
     const full = res.data?.submission || sub
     setGridModalSubmission(full)
@@ -272,14 +274,19 @@ export function CohortModuleGrading() {
   const loadGithubIssue = async () => {
     if (!gridModalSubmission || !gridModalSubmission.github_issue_url) return
     setLoadingGithubIssue(true)
+    setGithubIssueError(null)
     try {
       const res = await api.getSubmissionGithubIssue(gridModalSubmission.id)
       if (res.data && !res.data.error) {
         setGithubIssueData(res.data)
       } else {
-        console.error('GitHub issue load failed:', res.data?.error || 'Unknown error')
+        const msg = res.data?.error || 'Failed to load GitHub issue'
+        setGithubIssueError(msg)
+        console.error('GitHub issue load failed:', msg)
       }
     } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Network request failed'
+      setGithubIssueError(msg)
       console.error('GitHub issue request failed:', err)
     } finally {
       setLoadingGithubIssue(false)
@@ -568,7 +575,7 @@ export function CohortModuleGrading() {
           {/* Grid grading modal */}
           <Modal
             open={gridModalOpen}
-            onClose={() => { setGridModalOpen(false); setGridModalSubmission(null); setGridFeedback(''); setGithubIssueData(null) }}
+            onClose={() => { setGridModalOpen(false); setGridModalSubmission(null); setGridFeedback(''); setGithubIssueData(null); setGithubIssueError(null) }}
             title={gridModalSubmission ? gridModalSubmission.content_block_title : 'Loading...'}
             subtitle={gridModalSubmission ? `Student: ${gridModalSubmission.user_name}  |  File: ${gridModalSubmission.filename || 'N/A'}  |  Submission #${gridModalSubmission.num_submissions}` : ''}
             size="xl"
@@ -833,7 +840,14 @@ export function CohortModuleGrading() {
                         </div>
                       )}
 
-                      {!githubIssueData && !loadingGithubIssue && (
+                      {githubIssueError && (
+                        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-center">
+                          <p className="text-sm font-medium text-red-700">Failed to load GitHub issue</p>
+                          <p className="text-xs text-red-500 mt-1">{githubIssueError}</p>
+                        </div>
+                      )}
+
+                      {!githubIssueData && !loadingGithubIssue && !githubIssueError && (
                         <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
                           <Github className="h-8 w-8 text-slate-300 mx-auto mb-2" />
                           <p className="text-sm text-slate-500">Click "Load GitHub Issue" to fetch the issue details and comments</p>
@@ -1078,7 +1092,12 @@ export function CohortModuleGrading() {
                       </button>
                     ))}
                     <button
-                      onClick={() => handleGrade('R')}
+                      onClick={() => {
+                        if (!feedback.trim()) {
+                          if (!window.confirm('No feedback written. The student won\'t know what to fix. Grade as Redo without feedback?')) return
+                        }
+                        handleGrade('R')
+                      }}
                       disabled={grading}
                       className="flex-1 rounded-lg py-2.5 text-sm font-semibold bg-primary-500 text-white hover:bg-primary-600 disabled:opacity-50 transition-colors"
                     >
