@@ -48,7 +48,8 @@ class GithubSyncService
       next unless block
 
       line_count = file_text.count("\n") + 1
-      github_code_url = "https://github.com/#{user.github_username}/#{repo_name}/blob/#{commit_hash}/#{file['name']}#L1-L#{line_count}"
+      ref = commit_hash.presence || "HEAD"
+      github_code_url = "https://github.com/#{user.github_username}/#{repo_name}/blob/#{ref}/#{file['name']}#L1-L#{line_count}"
 
       existing = Submission.where(user: user, content_block_id: block.id).order(:created_at).last
 
