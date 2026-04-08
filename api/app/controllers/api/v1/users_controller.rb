@@ -122,7 +122,11 @@ module Api
           invitation_url = result[:url] if result[:success]
         end
 
-        SendUserInviteEmailJob.perform_later(user.id, current_user&.id, invitation_url)
+        begin
+          SendUserInviteEmailJob.perform_later(user.id, current_user&.id, invitation_url)
+        rescue StandardError => e
+          Rails.logger.error("[InviteEmail] Failed to enqueue invite for #{user.email}: #{e.message}")
+        end
       end
 
       def frontend_url
