@@ -2,7 +2,8 @@ module Api
   module V1
     class CohortsController < ApplicationController
       before_action :authenticate_user!
-      before_action :require_admin!
+      before_action :require_staff!, only: [ :index, :show ]
+      before_action :require_admin!, except: [ :index, :show ]
       before_action :set_cohort, only: [ :show, :update, :destroy, :module_access, :announcements, :recordings, :class_resources ]
 
       # GET /api/v1/cohorts

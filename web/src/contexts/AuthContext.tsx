@@ -1,7 +1,9 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import type { ReactNode } from 'react'
 import { useAuth, useUser } from '@clerk/clerk-react'
+import posthog from 'posthog-js'
 import { api, setAuthTokenGetter } from '../lib/api'
+import { isPostHogEnabled } from '../providers/PostHogProvider'
 import type { User } from '../types/api'
 
 type UserData = User
@@ -48,6 +50,13 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
       const res = await api.createSession()
       if (res.data?.user) {
         setUser(res.data.user)
+        if (isPostHogEnabled) {
+          posthog.identify(String(res.data!.user.id), {
+            email: res.data!.user.email,
+            name: res.data!.user.full_name,
+            role: res.data!.user.role,
+          })
+        }
       }
     } catch (err) {
       console.error('Session sync failed:', err)
@@ -59,6 +68,9 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
     if (!isSignedIn) {
       setUser(null)
       setIsLoading(false)
+      if (isPostHogEnabled) {
+        posthog.reset()
+      }
       return
     }
 

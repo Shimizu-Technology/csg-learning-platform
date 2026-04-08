@@ -1,0 +1,14 @@
+# CSG Learning Hub
+# https://learn.codeschoolofguam.com
+
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://learn.codeschoolofguam.com/sitemap.xml
+
+# Disallow private/admin areas
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /api/
+Disallow: /sign-in

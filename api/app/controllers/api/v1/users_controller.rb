@@ -3,8 +3,8 @@ module Api
     class UsersController < ApplicationController
       before_action :authenticate_user!
       before_action :require_staff!, only: [ :index, :show ]
-      before_action :require_admin!, only: [ :create, :update, :resend_invite ]
-      before_action :set_user, only: [ :show, :update, :resend_invite ]
+      before_action :require_admin!, only: [ :create, :update, :destroy, :resend_invite ]
+      before_action :set_user, only: [ :show, :update, :destroy, :resend_invite ]
 
       # GET /api/v1/users
       def index
@@ -79,6 +79,18 @@ module Api
         else
           render json: { errors: @user.errors.full_messages }, status: :unprocessable_entity
         end
+      end
+
+      # DELETE /api/v1/users/:id
+      def destroy
+        if @user.id == current_user.id
+          return render json: { error: "You cannot delete yourself" }, status: :unprocessable_entity
+        end
+
+        @user.enrollments.destroy_all
+        @user.submissions.destroy_all
+        @user.destroy!
+        render json: { message: "User deleted" }
       end
 
       private
