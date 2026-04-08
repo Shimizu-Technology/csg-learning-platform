@@ -61,12 +61,19 @@ export function TeamManagement() {
   }
 
   const loadTeam = async () => {
-    const res = await api.getUsers({ role: 'admin' })
-    const admins = res.data?.users || []
-    const res2 = await api.getUsers({ role: 'instructor' })
-    const instructors = res2.data?.users || []
-    setMembers([...admins, ...instructors])
-    setLoading(false)
+    try {
+      const [res, res2] = await Promise.all([
+        api.getUsers({ role: 'admin' }),
+        api.getUsers({ role: 'instructor' }),
+      ])
+      const admins = res.data?.users || []
+      const instructors = res2.data?.users || []
+      setMembers([...admins, ...instructors])
+    } catch {
+      showNotification('error', 'Failed to load team members')
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { loadTeam() }, [])
