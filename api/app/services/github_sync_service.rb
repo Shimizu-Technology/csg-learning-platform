@@ -29,7 +29,8 @@ class GithubSyncService
       return { synced: 0, errors: [] }
     end
 
-    repo_data = fetch_repo_tree(user.github_username, repo_name)
+    target_filenames = exercise_blocks.filter_map { |b| b.filename&.strip }.uniq
+    repo_data = fetch_exercise_files(user.github_username, repo_name, target_filenames)
 
     if repo_data[:error]
       return { synced: 0, errors: [ repo_data[:error] ] }
@@ -40,13 +41,14 @@ class GithubSyncService
     synced_count = 0
 
     files.each do |file|
-      file_text = file.dig("object", "text")
+      file_text = file["text"]
       next unless file_text.present?
 
       block = exercise_blocks.find { |b| b.filename&.downcase == file["name"]&.downcase }
       next unless block
 
-      github_code_url = "https://github.com/#{user.github_username}/#{repo_name}/blob/#{commit_hash}/#{file['name']}#L1-L#{file['lineCount']}"
+      line_count = file_text.count("\n") + 1
+      github_code_url = "https://github.com/#{user.github_username}/#{repo_name}/blob/#{commit_hash}/#{file['name']}#L1-L#{line_count}"
 
       existing = Submission.where(user: user, content_block_id: block.id).order(:created_at).last
 
@@ -111,31 +113,21 @@ class GithubSyncService
 
   private
 
-  def fetch_repo_tree(owner, repo_name)
+  def fetch_exercise_files(owner, repo_name, filenames)
+    file_fragments = filenames.each_with_index.map do |filename, idx|
+      safe_expr = filename.gsub('"', '\\"')
+      "file_#{idx}: object(expression: \"HEAD:#{safe_expr}\") { ... on Blob { text } }"
+    end.join("\n        ")
+
     query = <<~GRAPHQL
       query($owner: String!, $name: String!) {
         repository(owner: $owner, name: $name) {
           defaultBranchRef {
             target {
-              ... on Commit {
-                oid
-                authoredDate
-              }
+              ... on Commit { oid }
             }
           }
-          object(expression: "HEAD:") {
-            ... on Tree {
-              entries {
-                name
-                lineCount
-                object {
-                  ... on Blob {
-                    text
-                  }
-                }
-              }
-            }
-          }
+          #{file_fragments}
         }
       }
     GRAPHQL
@@ -160,9 +152,17 @@ class GithubSyncService
       return { error: "Repository not found: #{owner}/#{repo_name}", files: [], commit_hash: nil }
     end
 
+    repo = data["repository"]
+    files = filenames.each_with_index.filter_map do |filename, idx|
+      blob = repo["file_#{idx}"]
+      next unless blob.is_a?(Hash) && blob["text"].present?
+
+      { "name" => filename, "text" => blob["text"] }
+    end
+
     {
-      files: data.dig("repository", "object", "entries") || [],
-      commit_hash: data.dig("repository", "defaultBranchRef", "target", "oid"),
+      files: files,
+      commit_hash: repo.dig("defaultBranchRef", "target", "oid"),
       error: nil
     }
   rescue StandardError => e

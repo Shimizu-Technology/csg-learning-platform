@@ -30,7 +30,8 @@ module Api
         is_new = user.new_record?
         user.clerk_id = "pending_#{SecureRandom.uuid}" if user.clerk_id.blank?
         if is_new
-          user.role = params[:role] || :student
+          requested_role = params[:role].to_s.strip.downcase
+          user.role = User.roles.key?(requested_role) ? requested_role : :student
         end
         user.github_username = user_create_params[:github_username] if user_create_params[:github_username].present?
 
