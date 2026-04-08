@@ -190,33 +190,6 @@ export function CohortModuleGrading() {
     }
   }, [data])
 
-  // Keyboard shortcuts for grading (works for both side panel and grid modal)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (grading) return
-      const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') return
-
-      const key = e.key.toUpperCase()
-      if (!['A', 'B', 'C', 'R'].includes(key)) return
-
-      if (gridModalSubmission) {
-        e.preventDefault()
-        if (key === 'R' && !gridFeedback.trim()) {
-          if (!window.confirm('No feedback written. The student won\'t know what to fix. Grade as Redo without feedback?')) return
-        }
-        handleGridGrade(key)
-      } else if (selectedSubmission && !loadingDetail) {
-        e.preventDefault()
-        if (key === 'R' && !feedback.trim()) {
-          if (!window.confirm('No feedback written. The student won\'t know what to fix. Grade as Redo without feedback?')) return
-        }
-        handleGrade(key)
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [selectedSubmission, gridModalSubmission, grading, loadingDetail, feedback, gridFeedback])
 
   const counts = useMemo(() => {
     if (!data) return { ungraded: 0, redo: 0, all: 0 }
@@ -299,11 +272,18 @@ export function CohortModuleGrading() {
   const loadGithubIssue = async () => {
     if (!gridModalSubmission || !gridModalSubmission.github_issue_url) return
     setLoadingGithubIssue(true)
-    const res = await api.getSubmissionGithubIssue(gridModalSubmission.id)
-    if (res.data && !res.data.error) {
-      setGithubIssueData(res.data)
+    try {
+      const res = await api.getSubmissionGithubIssue(gridModalSubmission.id)
+      if (res.data && !res.data.error) {
+        setGithubIssueData(res.data)
+      } else {
+        console.error('GitHub issue load failed:', res.data?.error || 'Unknown error')
+      }
+    } catch (err) {
+      console.error('GitHub issue request failed:', err)
+    } finally {
+      setLoadingGithubIssue(false)
     }
-    setLoadingGithubIssue(false)
   }
 
   const handleGridGrade = async (grade: string) => {
@@ -318,6 +298,34 @@ export function CohortModuleGrading() {
     }
     setGrading(false)
   }
+
+  // Keyboard shortcuts for grading (works for both side panel and grid modal)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (grading) return
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') return
+
+      const key = e.key.toUpperCase()
+      if (!['A', 'B', 'C', 'R'].includes(key)) return
+
+      if (gridModalSubmission) {
+        e.preventDefault()
+        if (key === 'R' && !gridFeedback.trim()) {
+          if (!window.confirm('No feedback written. The student won\'t know what to fix. Grade as Redo without feedback?')) return
+        }
+        handleGridGrade(key)
+      } else if (selectedSubmission && !loadingDetail) {
+        e.preventDefault()
+        if (key === 'R' && !feedback.trim()) {
+          if (!window.confirm('No feedback written. The student won\'t know what to fix. Grade as Redo without feedback?')) return
+        }
+        handleGrade(key)
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [selectedSubmission, gridModalSubmission, grading, loadingDetail, feedback, gridFeedback, handleGridGrade, handleGrade])
 
   if (loading) return <LoadingSpinner message="Loading grading data..." />
   if (!data) return null

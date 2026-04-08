@@ -115,7 +115,7 @@ class GithubSyncService
 
   def fetch_exercise_files(owner, repo_name, filenames)
     file_fragments = filenames.each_with_index.map do |filename, idx|
-      safe_expr = filename.gsub('"', '\\"')
+      safe_expr = filename.gsub("\\") { "\\\\" }.gsub('"') { '\\"' }
       "file_#{idx}: object(expression: \"HEAD:#{safe_expr}\") { ... on Blob { text } }"
     end.join("\n        ")
 
