@@ -3,8 +3,8 @@ module Api
     class UsersController < ApplicationController
       before_action :authenticate_user!
       before_action :require_staff!, only: [ :index, :show ]
-      before_action :require_admin!, only: [ :create, :update, :resend_invite ]
-      before_action :set_user, only: [ :show, :update, :resend_invite ]
+      before_action :require_admin!, only: [ :create, :update, :destroy, :resend_invite ]
+      before_action :set_user, only: [ :show, :update, :destroy, :resend_invite ]
 
       # GET /api/v1/users
       def index
@@ -29,9 +29,11 @@ module Api
         user = User.find_or_initialize_by(email: email)
         is_new = user.new_record?
         user.clerk_id = "pending_#{SecureRandom.uuid}" if user.clerk_id.blank?
-        if is_new
-          requested_role = params[:role].to_s.strip.downcase
-          user.role = User.roles.key?(requested_role) ? requested_role : :student
+        requested_role = params[:role].to_s.strip.downcase
+        if User.roles.key?(requested_role)
+          user.role = requested_role
+        elsif is_new
+          user.role = :student
         end
         user.github_username = user_create_params[:github_username] if user_create_params[:github_username].present?
 
@@ -81,6 +83,18 @@ module Api
         end
       end
 
+      # DELETE /api/v1/users/:id
+      def destroy
+        if @user.id == current_user.id
+          return render json: { error: "You cannot delete yourself" }, status: :unprocessable_entity
+        end
+
+        @user.enrollments.destroy_all
+        @user.submissions.destroy_all
+        @user.destroy!
+        render json: { message: "User deleted" }
+      end
+
       private
 
       def set_user
@@ -126,6 +140,7 @@ module Api
           github_username: user.github_username,
           avatar_url: user.avatar_url,
           last_sign_in_at: user.last_sign_in_at,
+          invite_pending: user.clerk_id&.start_with?("pending_") || false,
           created_at: user.created_at
         }
       end

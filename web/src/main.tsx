@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ClerkProvider } from '@clerk/clerk-react'
 import { AuthProvider } from './contexts/AuthContext'
+import { PostHogProvider } from './providers/PostHogProvider'
 import App from './App'
 import './index.css'
 
@@ -15,18 +16,22 @@ if (!isClerkEnabled) {
 function Root() {
   if (isClerkEnabled) {
     return (
-      <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/">
-        <AuthProvider isClerkEnabled={true}>
-          <App />
-        </AuthProvider>
-      </ClerkProvider>
+      <PostHogProvider>
+        <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/">
+          <AuthProvider isClerkEnabled={true}>
+            <App />
+          </AuthProvider>
+        </ClerkProvider>
+      </PostHogProvider>
     )
   }
 
   return (
-    <AuthProvider isClerkEnabled={false}>
-      <App />
-    </AuthProvider>
+    <PostHogProvider>
+      <AuthProvider isClerkEnabled={false}>
+        <App />
+      </AuthProvider>
+    </PostHogProvider>
   )
 }
 
@@ -35,3 +40,10 @@ createRoot(document.getElementById('root')!).render(
     <Root />
   </StrictMode>,
 )
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .catch((err) => console.log('SW registration failed:', err))
+  })
+}

@@ -29,7 +29,8 @@ export function Layout({ children }: LayoutProps) {
   })
   const location = useLocation()
   const { user, isClerkEnabled } = useAuthContext()
-  const isAdmin = user?.is_staff
+  const isStaff = user?.is_staff
+  const isFullAdmin = user?.is_admin
 
   const toggleCollapsed = () => {
     const next = !collapsed
@@ -37,12 +38,20 @@ export function Layout({ children }: LayoutProps) {
     try { localStorage.setItem('sidebar-collapsed', String(next)) } catch {}
   }
 
-  const staffNav = [
+  const adminNav = [
     { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', exact: true },
     { to: '/admin/cohorts', icon: Layers3, label: 'Cohorts' },
+    { to: '/admin/students', icon: GraduationCap, label: 'Students' },
     { to: '/admin/content', icon: FileText, label: 'Content' },
     { to: '/admin/grading', icon: ClipboardCheck, label: 'Grading' },
     { to: '/admin/team', icon: Users, label: 'Team' },
+    { to: '/profile', icon: User, label: 'Profile' },
+  ]
+
+  const instructorNav = [
+    { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', exact: true },
+    { to: '/admin/cohorts', icon: Layers3, label: 'Cohorts' },
+    { to: '/admin/grading', icon: ClipboardCheck, label: 'Grading' },
     { to: '/profile', icon: User, label: 'Profile' },
   ]
 
@@ -53,7 +62,7 @@ export function Layout({ children }: LayoutProps) {
     { to: '/profile', icon: User, label: 'Profile' },
   ]
 
-  const navItems = isAdmin ? staffNav : studentNav
+  const navItems = isFullAdmin ? adminNav : isStaff ? instructorNav : studentNav
 
   const isActive = (path: string, exact?: boolean) => {
     if (path === '/' || exact) return location.pathname === path

@@ -17,7 +17,7 @@ Rails.application.routes.draw do
       get "resources", to: "resources#index"
 
       # Users (admin)
-      resources :users, only: [ :index, :show, :create, :update ] do
+      resources :users, only: [ :index, :show, :create, :update, :destroy ] do
         member do
           post :resend_invite
         end

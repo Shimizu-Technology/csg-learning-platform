@@ -168,6 +168,8 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
+  deleteUser: (id: number) =>
+    fetchApi<{ message: string }>(`/api/v1/users/${id}`, { method: 'DELETE' }),
 
   // Admin — Curricula
   getCurricula: () =>
