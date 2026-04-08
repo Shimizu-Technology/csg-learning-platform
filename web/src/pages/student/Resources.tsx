@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, ExternalLink, Link2, Search, Video, MessageSquare, Github, FileText, Globe } from 'lucide-react'
 import { api } from '../../lib/api'
+import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 
@@ -87,7 +88,7 @@ export function Resources() {
           return (
             <a
               key={resource.id}
-              href={resource.url}
+              href={sanitizeUrl(resource.url)}
               target="_blank"
               rel="noopener noreferrer"
               className="block rounded-2xl border border-slate-200 bg-white p-5 hover:border-primary-200 hover:shadow-sm transition-all"

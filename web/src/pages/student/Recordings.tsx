@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, PlayCircle, ExternalLink, CalendarDays, Search, ChevronDown, ChevronUp } from 'lucide-react'
 import { api } from '../../lib/api'
+import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 
@@ -117,7 +118,7 @@ export function Recordings() {
                     </span>
                   )}
                   <a
-                    href={selected.url}
+                    href={sanitizeUrl(selected.url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-primary-600 hover:text-primary-700 transition-colors"
@@ -138,7 +139,7 @@ export function Recordings() {
                   <PlayCircle className="h-12 w-12 text-slate-300 mx-auto mb-3" />
                   <p className="text-sm text-slate-500 mb-3">This recording can't be embedded.</p>
                   <a
-                    href={selected.url}
+                    href={sanitizeUrl(selected.url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 transition-colors"
