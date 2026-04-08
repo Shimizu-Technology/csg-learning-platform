@@ -14,7 +14,7 @@ module Api
           .where(block_type: [ :exercise, :code_challenge ])
           .pluck(:id)
 
-        submissions = Submission.includes(:user, :content_block, :grader)
+        submissions = Submission.includes(:user, { content_block: :lesson }, :grader)
           .where(user_id: student_ids, content_block_id: block_ids)
           .order(created_at: :desc)
 

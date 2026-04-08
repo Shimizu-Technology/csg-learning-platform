@@ -7,7 +7,7 @@ module Api
 
       # GET /api/v1/submissions
       def index
-        submissions = Submission.includes(:user, :content_block, :grader)
+        submissions = Submission.includes(:user, { content_block: :lesson }, :grader)
 
         # Staff can filter by any student; students can only see themselves.
         if current_user.staff?
