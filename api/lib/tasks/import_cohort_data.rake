@@ -160,88 +160,101 @@ namespace :cohort do
     grader_user = User.find_by(role: :admin) || User.find_by(role: :instructor)
 
     # --- Grade mapping ---
-    grade_map = { "A" => "A", "B" => "B", "C" => "C", "R" => "R", "+" => nil }
+    known_grades = { "A" => "A", "B" => "B", "C" => "C", "R" => "R" }
 
     # --- Import submissions ---
     submissions_created = 0
     submissions_updated = 0
     submissions_skipped = 0
+    unknown_grades = Hash.new(0)
 
-    submissions_data.each do |sub|
-      filename = sub["exercise_filename"]&.strip
-      email = sub["student_email"]&.downcase
+    ActiveRecord::Base.transaction do
+      submissions_data.each do |sub|
+        filename = sub["exercise_filename"]&.strip
+        email = sub["student_email"]&.downcase
 
-      next unless filename.present? && email.present?
+        next unless filename.present? && email.present?
 
-      cb = content_blocks_by_filename[filename]
-      unless cb
-        submissions_skipped += 1
-        next
-      end
+        cb = content_blocks_by_filename[filename]
+        unless cb
+          submissions_skipped += 1
+          next
+        end
 
-      # Find user by email, or by github username from the prework grader mapping
-      user = users_by_email[email]
-      unless user
-        github = prework_email_to_github[email]
-        user = users_by_github[github] if github
-      end
-      unless user
-        submissions_skipped += 1
-        next
-      end
+        # Find user by email, or by github username from the prework grader mapping
+        user = users_by_email[email]
+        unless user
+          github = prework_email_to_github[email]
+          user = users_by_github[github] if github
+        end
+        unless user
+          submissions_skipped += 1
+          next
+        end
 
-      prework_grade = sub["grade"]
-      lp_grade = grade_map[prework_grade]
+        prework_grade = sub["grade"]
+        lp_grade = known_grades[prework_grade]
 
-      existing = Submission.find_by(content_block_id: cb.id, user_id: user.id)
-      if existing
-        # Update with grade info from prework grader if we have one and existing is ungraded
-        if lp_grade && existing.grade.nil?
-          existing.update!(
+        if prework_grade.present? && lp_grade.nil?
+          unknown_grades[prework_grade] += 1
+          puts "  WARN: unknown grade '#{prework_grade}' for #{email}/#{filename} — treating as ungraded"
+        end
+
+        existing = Submission.find_by(content_block_id: cb.id, user_id: user.id)
+        if existing
+          # Update with grade info from prework grader if we have one and existing is ungraded
+          if lp_grade && existing.grade.nil?
+            existing.update!(
+              grade: lp_grade,
+              graded_by_id: grader_user&.id,
+              graded_at: sub["updated_at"],
+              feedback: nil
+            )
+            submissions_updated += 1
+
+            if lp_grade != "R"
+              Progress.find_or_create_by!(user_id: user.id, content_block_id: cb.id) do |p|
+                p.status = :completed
+                p.completed_at = sub["updated_at"]
+              end
+            end
+          elsif lp_grade && existing.grade.present? && existing.grade != lp_grade
+            existing.update!(
+              grade: lp_grade,
+              graded_by_id: grader_user&.id,
+              graded_at: sub["updated_at"]
+            )
+            submissions_updated += 1
+          end
+        else
+          Submission.create!(
+            content_block_id: cb.id,
+            user_id: user.id,
+            text: sub["text"],
             grade: lp_grade,
-            graded_by_id: grader_user&.id,
-            graded_at: sub["updated_at"],
-            feedback: nil
+            graded_by_id: lp_grade ? grader_user&.id : nil,
+            graded_at: lp_grade ? sub["updated_at"] : nil,
+            github_code_url: sub["github_code_url"],
+            num_submissions: sub["num_submissions"].to_i.clamp(1, 999),
+            created_at: sub["created_at"],
+            updated_at: sub["updated_at"]
           )
-          submissions_updated += 1
+          submissions_created += 1
 
-          if lp_grade != "R"
+          if lp_grade && lp_grade != "R"
             Progress.find_or_create_by!(user_id: user.id, content_block_id: cb.id) do |p|
               p.status = :completed
               p.completed_at = sub["updated_at"]
             end
           end
-        elsif lp_grade && existing.grade.present? && existing.grade != lp_grade
-          # Grade differs — prefer the prework grader's grade as source of truth
-          existing.update!(
-            grade: lp_grade,
-            graded_by_id: grader_user&.id,
-            graded_at: sub["updated_at"]
-          )
-          submissions_updated += 1
-        end
-      else
-        Submission.create!(
-          content_block_id: cb.id,
-          user_id: user.id,
-          text: sub["text"],
-          grade: lp_grade,
-          graded_by_id: lp_grade ? grader_user&.id : nil,
-          graded_at: lp_grade ? sub["updated_at"] : nil,
-          github_code_url: sub["github_code_url"],
-          num_submissions: sub["num_submissions"].to_i.clamp(1, 999),
-          created_at: sub["created_at"],
-          updated_at: sub["updated_at"]
-        )
-        submissions_created += 1
-
-        if lp_grade && lp_grade != "R"
-          Progress.find_or_create_by!(user_id: user.id, content_block_id: cb.id) do |p|
-            p.status = :completed
-            p.completed_at = sub["updated_at"]
-          end
         end
       end
+    end
+
+    if unknown_grades.any?
+      puts ""
+      puts "Unknown grades encountered (mapped to nil/ungraded):"
+      unknown_grades.each { |grade, count| puts "  '#{grade}' => #{count} occurrence(s)" }
     end
 
     puts ""

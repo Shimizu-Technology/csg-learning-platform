@@ -64,12 +64,13 @@ module Api
             assignment.save!
           end
 
-          if params.key?(:requires_github) || params.key?(:repository_name)
+          permitted = module_access_params
+          if permitted.key?(:requires_github) || permitted.key?(:repository_name)
             settings = (@cohort.settings || {}).deep_dup
             config = settings["module_github_config"] ||= {}
             mod_config = config[curriculum_module.id.to_s] ||= {}
-            mod_config["requires_github"] = ActiveModel::Type::Boolean.new.cast(params[:requires_github]) if params.key?(:requires_github)
-            mod_config["repository_name"] = params[:repository_name].to_s.strip if params.key?(:repository_name)
+            mod_config["requires_github"] = ActiveModel::Type::Boolean.new.cast(permitted[:requires_github]) if permitted.key?(:requires_github)
+            mod_config["repository_name"] = permitted[:repository_name].to_s.strip if permitted.key?(:repository_name)
             @cohort.update!(settings: settings)
           end
         end
@@ -141,7 +142,7 @@ module Api
       end
 
       def module_access_params
-        params.permit(:module_id, :assigned, :unlocked, :unlock_date_override)
+        params.permit(:module_id, :assigned, :unlocked, :unlock_date_override, :requires_github, :repository_name)
       end
 
       def param_to_hash(param)

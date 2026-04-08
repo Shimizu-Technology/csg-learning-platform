@@ -52,17 +52,25 @@ class GithubSyncService
 
       if existing
         if existing.text != file_text
-          existing.update!(
+          attrs = {
             text: file_text,
-            grade: nil,
-            feedback: nil,
-            graded_at: nil,
-            graded_by_id: nil,
             github_code_url: github_code_url,
             num_submissions: existing.num_submissions + 1
-          )
-          Progress.find_or_create_by!(user: user, content_block_id: block.id) do |p|
-            p.status = :in_progress
+          }
+
+          passing = %w[A B C].include?(existing.grade)
+          unless passing
+            attrs[:grade] = nil
+            attrs[:feedback] = nil
+            attrs[:graded_at] = nil
+            attrs[:graded_by_id] = nil
+          end
+
+          existing.update!(attrs)
+          unless passing
+            Progress.find_or_create_by!(user: user, content_block_id: block.id) do |p|
+              p.status = :in_progress
+            end
           end
           synced_count += 1
         end
