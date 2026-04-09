@@ -63,6 +63,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
     }
   }, [isSignedIn])
 
+  const clerkUserId = clerkUser?.id
   useEffect(() => {
     if (!isLoaded) return
     if (!isSignedIn) {
@@ -75,7 +76,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
     }
 
     syncSession().finally(() => setIsLoading(false))
-  }, [isLoaded, isSignedIn, clerkUser, syncSession])
+  }, [isLoaded, isSignedIn, clerkUserId, syncSession])
 
   return (
     <AuthContext.Provider

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, BookOpen, Clock, Lock, PlayCircle, CalendarDays, CheckCircle2, RotateCcw } from 'lucide-react'
 import { api } from '../../lib/api'
+import { useAuthContext } from '../../contexts/AuthContext'
 import { ProgressRing } from '../../components/shared/ProgressRing'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -55,21 +56,24 @@ function formatDate(dateStr: string | null | undefined): string {
 }
 
 export function Dashboard() {
+  const { user } = useAuthContext()
+  const navigate = useNavigate()
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (user?.is_staff) {
+      navigate('/admin', { replace: true })
+      return
+    }
+
     api.getDashboard().then((res) => {
       if (res.data) {
-        if (res.data.dashboard?.user?.is_staff) {
-          window.location.href = '/admin'
-          return
-        }
         setData(res.data.dashboard)
       }
       setLoading(false)
     })
-  }, [])
+  }, [user, navigate])
 
   const derived = useMemo(() => {
     const modules = data?.modules || []
