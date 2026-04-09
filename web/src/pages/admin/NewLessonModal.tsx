@@ -46,7 +46,7 @@ export function NewLessonModal({
 }: Props) {
   const [title, setTitle] = useState('')
   const [lessonType, setLessonType] = useState('reading')
-  const [position, setPosition] = useState(defaultPosition)
+  const [position] = useState(defaultPosition)
   const [week, setWeek] = useState(defaultWeek)
   const [dayIndex, setDayIndex] = useState(defaultDayIndex)
   const [validationError, setValidationError] = useState('')

@@ -387,7 +387,7 @@ function ModuleSection({
 
               {/* Days in the active week */}
               <div className="space-y-4">
-                {daysInActiveWeek.map(({ dayIdx, releaseDay, exercises }) => (
+                {daysInActiveWeek.map(({ dayIdx, exercises }) => (
                   <div key={dayIdx} className="rounded-xl border border-slate-200 overflow-hidden">
                     {/* Day header */}
                     <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-100">

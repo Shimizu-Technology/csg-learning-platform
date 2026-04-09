@@ -196,6 +196,7 @@ export interface CohortModule {
   assigned_count: number;
   assigned: boolean;
   unlocked_count: number;
+  accessible_count: number;
   unlock_date_overrides: string[];
   requires_github?: boolean;
   repository_name?: string;

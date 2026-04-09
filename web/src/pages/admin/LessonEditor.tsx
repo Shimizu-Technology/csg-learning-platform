@@ -100,7 +100,7 @@ export function LessonEditor() {
       if (videoBlock) {
         const vRes = await api.updateContentBlock(videoBlock.id, {
           title: title.trim(),
-          video_url: videoUrl.trim() || null,
+          video_url: videoUrl.trim() || undefined,
         })
         if (vRes.error) { setSaveError(vRes.error); setSaving(false); return }
       } else if (videoUrl.trim()) {
@@ -117,9 +117,9 @@ export function LessonEditor() {
       if (exerciseBlock) {
         const eRes = await api.updateContentBlock(exerciseBlock.id, {
           title: title.trim(),
-          body: instructions.trim() || null,
-          solution: solution.trim() || null,
-          filename: filename.trim() || null,
+          body: instructions.trim() || undefined,
+          solution: solution.trim() || undefined,
+          filename: filename.trim() || undefined,
         })
         if (eRes.error) { setSaveError(eRes.error); setSaving(false); return }
       } else if (instructions.trim() || filename.trim()) {
