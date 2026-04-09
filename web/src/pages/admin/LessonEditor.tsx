@@ -96,6 +96,8 @@ export function LessonEditor() {
         return
       }
 
+      const nextPosition = Math.max(0, ...lesson.content_blocks.map(b => b.position)) + 1
+
       const videoBlock = lesson.content_blocks.find(b => b.block_type === 'video' || b.block_type === 'recording')
       if (videoBlock) {
         const vRes = await api.updateContentBlock(videoBlock.id, {
@@ -106,7 +108,7 @@ export function LessonEditor() {
       } else if (videoUrl.trim()) {
         const vRes = await api.createContentBlock(lesson.id, {
           block_type: 'video',
-          position: 0,
+          position: nextPosition,
           title: title.trim(),
           video_url: videoUrl.trim(),
         })
@@ -125,7 +127,7 @@ export function LessonEditor() {
       } else if (instructions.trim() || filename.trim()) {
         const eRes = await api.createContentBlock(lesson.id, {
           block_type: 'exercise',
-          position: 1,
+          position: nextPosition + 1,
           title: title.trim(),
           body: instructions.trim() || undefined,
           solution: solution.trim() || undefined,

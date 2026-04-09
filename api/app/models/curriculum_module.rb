@@ -44,9 +44,9 @@ class CurriculumModule < ApplicationRecord
   def week_count
     max_day = if lessons.loaded?
                 lessons.map(&:release_day).max || 0
-              else
+    else
                 lessons.maximum(:release_day) || 0
-              end
+    end
     (max_day / 7) + 1
   end
 end

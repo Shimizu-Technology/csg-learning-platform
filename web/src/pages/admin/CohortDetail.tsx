@@ -747,7 +747,7 @@ export function CohortDetail() {
                       onChange={(e) => updateForm(configureMod.id, { unlocked: e.target.checked })}
                       className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                     />
-                    Force unlock all lessons immediately (ignores start date scheduling)
+                    Make module accessible (lessons still follow their release-day schedule)
                   </label>
 
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">

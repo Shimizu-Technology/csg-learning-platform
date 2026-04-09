@@ -25,11 +25,8 @@ class Lesson < ApplicationRecord
     return lesson_assignment.unlocked? if lesson_assignment.present?
 
     if module_assignment
-      return true if module_assignment.unlocked?
-      if module_assignment.unlock_date_override.present?
-        return Date.current >= unlock_date(cohort, module_assignment)
-      end
-      return false
+      return false unless module_assignment.accessible?
+      return Date.current >= unlock_date(cohort, module_assignment)
     end
 
     Date.current >= unlock_date(cohort, module_assignment)

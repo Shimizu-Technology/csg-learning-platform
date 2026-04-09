@@ -14,14 +14,7 @@ import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { NewExerciseModal } from './NewExerciseModal'
 import { NewModuleModal } from './NewModuleModal'
-
-const SCHEDULE_DAY_INDICES: Record<string, number[]> = {
-  weekdays: [0, 1, 2, 3, 4],
-  weekdays_sat: [0, 1, 2, 3, 4, 5],
-  mwf: [0, 2, 4],
-  tth: [1, 3],
-  daily: [0, 1, 2, 3, 4, 5, 6],
-}
+import { SCHEDULE_DAY_INDICES } from '../../lib/scheduleConstants'
 
 interface Lesson {
   id: number
