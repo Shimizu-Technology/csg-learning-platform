@@ -19,16 +19,7 @@ import { Grading } from './pages/admin/Grading'
 import { CohortModuleGrading } from './pages/admin/CohortModuleGrading'
 import { TeamManagement } from './pages/admin/TeamManagement'
 import { SignInPage } from './pages/SignIn'
-import { useAuthContext } from './contexts/AuthContext'
-import { LoadingSpinner } from './components/shared/LoadingSpinner'
-
 function AppRoutes() {
-  const { isLoading } = useAuthContext()
-
-  if (isLoading) {
-    return <LoadingSpinner message="Loading..." />
-  }
-
   return (
     <>
     <PostHogPageView />
@@ -36,8 +27,8 @@ function AppRoutes() {
       <Route path="/sign-in" element={<SignInPage />} />
 
       {/* Authenticated routes with shared layout */}
-      <Route element={<ProtectedRoute />}>
-        <Route element={<Layout />}>
+      <Route element={<Layout />}>
+        <Route element={<ProtectedRoute />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/modules/:id" element={<ModuleView />} />
           <Route path="/lessons/:id" element={<LessonView />} />
@@ -45,11 +36,9 @@ function AppRoutes() {
           <Route path="/recordings" element={<Recordings />} />
           <Route path="/resources" element={<Resources />} />
         </Route>
-      </Route>
 
-      {/* Staff routes (admin + instructor) */}
-      <Route element={<ProtectedRoute requiredRole="staff" />}>
-        <Route element={<Layout />}>
+        {/* Staff routes (admin + instructor) */}
+        <Route element={<ProtectedRoute requiredRole="staff" />}>
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/students/:id" element={<StudentDetail />} />
           <Route path="/admin/cohorts" element={<CohortManagement />} />
@@ -57,11 +46,9 @@ function AppRoutes() {
           <Route path="/admin/grading" element={<Grading />} />
           <Route path="/admin/cohorts/:cohortId/modules/:moduleId/grading" element={<CohortModuleGrading />} />
         </Route>
-      </Route>
 
-      {/* Admin-only routes */}
-      <Route element={<ProtectedRoute requiredRole="admin" />}>
-        <Route element={<Layout />}>
+        {/* Admin-only routes */}
+        <Route element={<ProtectedRoute requiredRole="admin" />}>
           <Route path="/admin/students" element={<StudentManagement />} />
           <Route path="/admin/content" element={<ContentManagement />} />
           <Route path="/admin/team" element={<TeamManagement />} />

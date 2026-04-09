@@ -28,7 +28,7 @@ export function Layout({ children }: LayoutProps) {
     try { return localStorage.getItem('sidebar-collapsed') === 'true' } catch { return false }
   })
   const location = useLocation()
-  const { user, isClerkEnabled } = useAuthContext()
+  const { user, isClerkEnabled, isLoading } = useAuthContext()
   const isStaff = user?.is_staff
   const isFullAdmin = user?.is_admin
 
@@ -62,7 +62,7 @@ export function Layout({ children }: LayoutProps) {
     { to: '/profile', icon: User, label: 'Profile' },
   ]
 
-  const navItems = isFullAdmin ? adminNav : isStaff ? instructorNav : studentNav
+  const navItems = isLoading ? [] : isFullAdmin ? adminNav : isStaff ? instructorNav : studentNav
 
   const isActive = (path: string, exact?: boolean) => {
     if (path === '/' || exact) return location.pathname === path

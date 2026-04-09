@@ -15,7 +15,7 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
   }
 
   if (isLoading) {
-    return <LoadingSpinner message="Loading..." />
+    return <LoadingSpinner message="Loading..." fullScreen={false} />
   }
 
   if (!isSignedIn) {
