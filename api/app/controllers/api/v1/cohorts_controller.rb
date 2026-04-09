@@ -272,6 +272,7 @@ module Api
               assigned_count: assignments.size,
               assigned: assignments.size.positive?,
               unlocked_count: assignments.count(&:unlocked?),
+              accessible_count: assignments.count(&:accessible?),
               unlock_date_overrides: assignments.map(&:unlock_date_override).compact.uniq.sort,
               requires_github: mod_gh["requires_github"] || false,
               repository_name: mod_gh["repository_name"].presence || cohort.repository_name

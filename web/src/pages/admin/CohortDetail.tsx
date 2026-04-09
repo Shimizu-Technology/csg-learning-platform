@@ -58,6 +58,7 @@ type CohortData = Record<string, any> & {
     assigned_count: number
     assigned: boolean
     unlocked_count: number
+    accessible_count: number
     unlock_date_overrides: string[]
     requires_github?: boolean
     repository_name?: string | null
@@ -383,8 +384,9 @@ export function CohortDetail() {
       setForms(nextForms)
     }
     const moduleName = cohort?.modules.find((mod) => mod.id === moduleId)?.name || 'module'
-    setMessage(`Assigned ${moduleName} to cohort`)
+    setMessage(`Assigned ${moduleName} — open Configure to set a start date`)
     setSavingModuleId(null)
+    setConfigureModuleId(moduleId)
   }
 
   const removeModuleFromCohort = async (moduleId: number) => {
@@ -609,16 +611,28 @@ export function CohortDetail() {
               return (
                 <div key={mod.id} className="p-4 flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${
-                      !mod.assigned ? 'bg-slate-100 text-slate-400' : form.unlocked ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'
-                    }`}>
-                      {!mod.assigned ? <Lock className="h-4 w-4" /> : form.unlocked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-                    </div>
+                    {(() => {
+                      const isAccessible = form.unlocked || (form.unlock_date_override && new Date(form.unlock_date_override + 'T00:00:00') <= new Date())
+                      const isScheduled = !form.unlocked && form.unlock_date_override && new Date(form.unlock_date_override + 'T00:00:00') > new Date()
+                      return (
+                        <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${
+                          !mod.assigned ? 'bg-slate-100 text-slate-400'
+                            : isAccessible ? 'bg-green-50 text-green-600'
+                            : isScheduled ? 'bg-blue-50 text-blue-600'
+                            : 'bg-amber-50 text-amber-600'
+                        }`}>
+                          {!mod.assigned ? <Lock className="h-4 w-4" />
+                            : isAccessible ? <Unlock className="h-4 w-4" />
+                            : isScheduled ? <CalendarDays className="h-4 w-4" />
+                            : <Lock className="h-4 w-4" />}
+                        </div>
+                      )
+                    })()}
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-slate-900 truncate">{mod.name}</p>
                       <p className="text-xs text-slate-500 capitalize">
-                        {mod.module_type.replace('_', ' ')} · {mod.lessons_count} lessons · {mod.assigned_count} assigned
-                        {form.unlock_date_override && ` · starts ${form.unlock_date_override}`}
+                        {mod.module_type.replace('_', ' ')} · {mod.lessons_count} lesson{mod.lessons_count !== 1 ? 's' : ''} · {mod.assigned_count} assigned
+                        {form.unlock_date_override && ` · Starts ${form.unlock_date_override}`}
                         {form.requires_github && ' · GitHub'}
                       </p>
                     </div>
@@ -701,24 +715,14 @@ export function CohortDetail() {
                       <p className="font-semibold text-slate-900">{configureMod.assigned_count}</p>
                     </div>
                     <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
-                      <p className="text-xs text-slate-500">Unlocked</p>
-                      <p className="font-semibold text-slate-900">{configureMod.unlocked_count}</p>
+                      <p className="text-xs text-slate-500">Accessible</p>
+                      <p className="font-semibold text-slate-900">{configureMod.accessible_count}</p>
                     </div>
                     <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
-                      <p className="text-xs text-slate-500">Overrides</p>
-                      <p className="font-semibold text-slate-900">{configureMod.unlock_date_overrides.length}</p>
+                      <p className="text-xs text-slate-500">Force Unlocked</p>
+                      <p className="font-semibold text-slate-900">{configureMod.unlocked_count}</p>
                     </div>
                   </div>
-
-                  <label className="flex items-center gap-2 text-sm text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={form.unlocked}
-                      onChange={(e) => updateForm(configureMod.id, { unlocked: e.target.checked })}
-                      className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                    />
-                    Unlock this module for all active cohort students
-                  </label>
 
                   <div>
                     <label className="flex items-center gap-1 text-xs font-medium text-slate-600 mb-1">
@@ -732,9 +736,19 @@ export function CohortDetail() {
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                     <p className="mt-1 text-xs text-slate-400">
-                      Lessons unlock one per weekday starting from this date.
+                      Lessons unlock progressively based on the module's schedule, starting from this date.
                     </p>
                   </div>
+
+                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={form.unlocked}
+                      onChange={(e) => updateForm(configureMod.id, { unlocked: e.target.checked })}
+                      className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    Force unlock all lessons immediately (ignores start date scheduling)
+                  </label>
 
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
                     <label className="flex items-center gap-2 text-sm text-slate-700">

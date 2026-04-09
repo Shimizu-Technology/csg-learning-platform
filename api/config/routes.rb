@@ -31,6 +31,7 @@ Rails.application.routes.draw do
       # Modules (shallow) with nested lessons
       resources :modules, only: [ :show, :update, :destroy ] do
         resources :lessons, only: [ :index, :create ]
+        post :exercises, to: "lessons#create_exercise"
       end
 
       # Lessons (shallow) with nested content blocks

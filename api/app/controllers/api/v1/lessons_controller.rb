@@ -2,8 +2,8 @@ module Api
   module V1
     class LessonsController < ApplicationController
       before_action :authenticate_user!
-      before_action :require_admin!, only: [ :create, :update, :destroy ]
-      before_action :set_module, only: [ :index, :create ]
+      before_action :require_admin!, only: [ :create, :create_exercise, :update, :destroy ]
+      before_action :set_module, only: [ :index, :create, :create_exercise ]
       before_action :set_lesson, only: [ :show, :update, :destroy ]
       before_action :authorize_lesson_read!, only: [ :show ]
 
@@ -46,6 +46,50 @@ module Api
         end
       end
 
+      # POST /api/v1/modules/:module_id/exercises
+      def create_exercise
+        ActiveRecord::Base.transaction do
+          position = @module.lessons.where(release_day: params[:release_day].to_i).maximum(:position).to_i + 1
+
+          @lesson = @module.lessons.create!(
+            title: params[:title],
+            lesson_type: :exercise,
+            position: position,
+            release_day: params[:release_day].to_i,
+            required: true,
+            requires_submission: ActiveModel::Type::Boolean.new.cast(params[:requires_submission])
+          )
+
+          block_pos = 0
+
+          if params[:video_url].present?
+            block_pos += 1
+            @lesson.content_blocks.create!(
+              block_type: :video,
+              position: block_pos,
+              title: params[:title],
+              video_url: params[:video_url]
+            )
+          end
+
+          if params[:instructions].present? || params[:filename].present?
+            block_pos += 1
+            @lesson.content_blocks.create!(
+              block_type: :exercise,
+              position: block_pos,
+              title: params[:title],
+              body: params[:instructions],
+              solution: params[:solution],
+              filename: params[:filename]
+            )
+          end
+
+          render json: { lesson: lesson_json(@lesson) }, status: :created
+        end
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+      end
+
       # PATCH /api/v1/lessons/:id
       def update
         if @lesson.update(lesson_params)
@@ -72,7 +116,7 @@ module Api
       end
 
       def lesson_params
-        params.permit(:title, :lesson_type, :position, :release_day, :required)
+        params.permit(:title, :lesson_type, :position, :release_day, :required, :requires_submission)
       end
 
       def authorize_lesson_read!
@@ -92,7 +136,7 @@ module Api
         assignment = enrollment.module_assignments.find_by(module_id: @lesson.module_id)
         lesson_assignment = enrollment.lesson_assignments.find_by(lesson_id: @lesson.id)
 
-        unless assignment&.unlocked? || lesson_assignment.present?
+        unless assignment&.accessible? || lesson_assignment.present?
           render_forbidden("Cannot access this lesson")
           return
         end
@@ -111,6 +155,7 @@ module Api
           position: lesson.position,
           release_day: lesson.release_day,
           required: lesson.required,
+          requires_submission: lesson.requires_submission,
           content_blocks_count: lesson.content_blocks.size
         }
 

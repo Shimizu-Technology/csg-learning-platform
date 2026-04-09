@@ -55,7 +55,7 @@ module Api
             completed_blocks: mod_completed,
             progress_percentage: mod_percentage,
             assigned: assignment.present?,
-            unlocked: assignment&.unlocked? || false,
+            unlocked: assignment&.accessible? || false,
             available: mod.lessons.any? { |lesson| lesson.available?(cohort, assignment, lesson_assignments_by_lesson_id[lesson.id]) },
             unlock_date: assignment&.next_unlock_date(cohort),
             lessons: mod.lessons.map { |l|

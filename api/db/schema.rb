@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_08_035927) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_09_043000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -503,6 +503,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_035927) do
     t.integer "position", default: 0, null: false
     t.integer "release_day", default: 0, null: false
     t.boolean "required", default: true, null: false
+    t.boolean "requires_submission", default: false, null: false
     t.string "title", null: false
     t.datetime "updated_at", null: false
     t.index ["module_id", "position"], name: "index_lessons_on_module_id_and_position"
@@ -530,6 +531,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_035927) do
     t.integer "module_type", default: 0, null: false
     t.string "name", null: false
     t.integer "position", default: 0, null: false
+    t.string "schedule_days", default: "weekdays", null: false
     t.integer "total_days"
     t.datetime "updated_at", null: false
     t.index ["curriculum_id", "position"], name: "index_modules_on_curriculum_id_and_position"

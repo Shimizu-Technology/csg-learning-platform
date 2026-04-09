@@ -6,7 +6,7 @@ interface Props {
   saving: boolean
   error?: string
   onClose: () => void
-  onCreate: (data: { name: string; module_type: string; position: number; day_offset: number; total_days: number }) => Promise<void>
+  onCreate: (data: { name: string; module_type: string; position: number; day_offset: number; total_days: number; schedule_days: string }) => Promise<void>
 }
 
 const MODULE_TYPES = [
@@ -18,12 +18,18 @@ const MODULE_TYPES = [
   { value: 'recording', label: 'Recording' },
 ]
 
+const SCHEDULE_PATTERNS = [
+  { value: 'weekdays', label: 'Mon – Fri (5 days/week)' },
+  { value: 'weekdays_sat', label: 'Mon – Sat (6 days/week)' },
+  { value: 'mwf', label: 'Mon / Wed / Fri' },
+  { value: 'tth', label: 'Tue / Thu' },
+  { value: 'daily', label: 'Every day (7 days/week)' },
+]
+
 export function NewModuleModal({ defaultPosition, saving, error, onClose, onCreate }: Props) {
   const [name, setName] = useState('')
   const [moduleType, setModuleType] = useState('live_class')
-  const [position, setPosition] = useState(defaultPosition)
-  const [dayOffset, setDayOffset] = useState(0)
-  const [totalDays, setTotalDays] = useState(7)
+  const [scheduleDays, setScheduleDays] = useState('weekdays')
   const [validationError, setValidationError] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,7 +39,14 @@ export function NewModuleModal({ defaultPosition, saving, error, onClose, onCrea
       return
     }
     setValidationError('')
-    await onCreate({ name: name.trim(), module_type: moduleType, position, day_offset: dayOffset, total_days: totalDays })
+    await onCreate({
+      name: name.trim(),
+      module_type: moduleType,
+      position: defaultPosition,
+      day_offset: 0,
+      total_days: 0,
+      schedule_days: scheduleDays,
+    })
   }
 
   return (
@@ -57,7 +70,7 @@ export function NewModuleModal({ defaultPosition, saving, error, onClose, onCrea
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder="e.g. Week 1 — Ruby Foundations"
+              placeholder="e.g. Live Class"
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               autoFocus
             />
@@ -72,22 +85,16 @@ export function NewModuleModal({ defaultPosition, saving, error, onClose, onCrea
               {MODULE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Position</label>
-              <input type="number" min={0} value={position} onChange={e => setPosition(Number(e.target.value))}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Day Offset</label>
-              <input type="number" min={0} value={dayOffset} onChange={e => setDayOffset(Number(e.target.value))}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Total Days</label>
-              <input type="number" min={1} value={totalDays} onChange={e => setTotalDays(Number(e.target.value))}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500" />
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Schedule Pattern</label>
+            <select
+              value={scheduleDays}
+              onChange={e => setScheduleDays(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              {SCHEDULE_PATTERNS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+            <p className="mt-1 text-xs text-slate-400">Which days of the week will have content</p>
           </div>
           <div className="flex gap-3 pt-2">
             <button

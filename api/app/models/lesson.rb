@@ -23,7 +23,13 @@ class Lesson < ApplicationRecord
   def available?(cohort, module_assignment = nil, lesson_assignment = nil)
     return Date.current >= lesson_assignment.unlock_date_override if lesson_assignment&.unlock_date_override.present?
     return lesson_assignment.unlocked? if lesson_assignment.present?
-    return false if module_assignment && !module_assignment.unlocked?
+
+    if module_assignment
+      if module_assignment.unlock_date_override.present?
+        return Date.current >= unlock_date(cohort, module_assignment)
+      end
+      return false unless module_assignment.unlocked?
+    end
 
     Date.current >= unlock_date(cohort, module_assignment)
   end

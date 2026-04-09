@@ -32,6 +32,7 @@ interface ContentBlockRendererProps {
   block: ContentBlock
   isStaff?: boolean
   requiresGithub?: boolean
+  requiresSubmission?: boolean
   repositoryName?: string
   onProgressUpdate?: () => void
 }
@@ -47,7 +48,7 @@ function getVimeoEmbed(url: string): { id: string; hash?: string } | null {
   return { id: match[1], hash: match[2] }
 }
 
-export function ContentBlockRenderer({ block, isStaff, requiresGithub, repositoryName, onProgressUpdate }: ContentBlockRendererProps) {
+export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresSubmission = true, repositoryName, onProgressUpdate }: ContentBlockRendererProps) {
   const submissions = block.submissions ?? []
   const latestSubmission = submissions[0] || null
   const hasRedoRequest = latestSubmission?.grade === 'R'
@@ -238,7 +239,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, repositor
           </div>
         )}
 
-        {(block.block_type === 'exercise' || block.block_type === 'code_challenge') && (
+        {(block.block_type === 'exercise' || block.block_type === 'code_challenge') && requiresSubmission && (
           <div className="mt-4 space-y-3">
             {latestSubmission?.grade && (
               <div className={`rounded-xl border px-4 py-3 ${
