@@ -58,7 +58,7 @@ module Api
       end
 
       def module_params
-        params.permit(:name, :module_type, :description, :position, :total_days, :day_offset)
+        params.permit(:name, :module_type, :description, :position, :total_days, :day_offset, :schedule_days)
       end
 
       def authorize_module_read!
@@ -73,7 +73,7 @@ module Api
         assignment = enrollment.module_assignments.find_by(module_id: @module.id)
         lesson_assignments = enrollment.lesson_assignments.where(lesson_id: @module.lessons.select(:id)).index_by(&:lesson_id)
 
-        unless assignment&.unlocked? || lesson_assignments.any?
+        unless assignment&.accessible? || lesson_assignments.any?
           render_forbidden("Cannot access this module")
           return
         end
@@ -102,6 +102,9 @@ module Api
           position: mod.position,
           total_days: mod.total_days,
           day_offset: mod.day_offset,
+          schedule_days: mod.schedule_days,
+          scheduled_day_names: mod.scheduled_day_names,
+          week_count: mod.week_count,
           lessons_count: mod.lessons.size
         }
 
@@ -114,6 +117,7 @@ module Api
               position: l.position,
               release_day: l.release_day,
               required: l.required,
+              requires_submission: l.requires_submission,
               content_blocks: l.content_blocks.map { |cb|
                 {
                   id: cb.id,

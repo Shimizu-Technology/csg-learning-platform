@@ -257,17 +257,29 @@ export const api = {
     fetchApi<null>(`/api/v1/lesson_assignments/${id}`, { method: 'DELETE' }),
 
   // Admin — Content
-  updateContentBlock: (id: number, data: { block_type?: string; position?: number; title?: string; body?: string; video_url?: string; solution?: string; filename?: string; metadata?: Record<string, unknown> }) =>
+  updateContentBlock: (id: number, data: { block_type?: string; position?: number; title?: string; body?: string | null; video_url?: string | null; solution?: string | null; filename?: string | null; metadata?: Record<string, unknown> }) =>
     fetchApi<ContentBlockResponse>(`/api/v1/content_blocks/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
-  createLesson: (moduleId: number, data: { title: string; lesson_type?: string; position?: number; release_day?: number; required?: boolean }) =>
+  createLesson: (moduleId: number, data: { title: string; lesson_type?: string; position?: number; release_day?: number; required?: boolean; requires_submission?: boolean }) =>
     fetchApi<LessonResponse>(`/api/v1/modules/${moduleId}/lessons`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  createModule: (curriculumId: number, data: { name: string; module_type?: string; description?: string; position?: number; total_days?: number; day_offset?: number }) =>
+  updateLesson: (id: number, data: { title?: string; requires_submission?: boolean; release_day?: number }) =>
+    fetchApi<LessonResponse>(`/api/v1/lessons/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteLesson: (id: number) =>
+    fetchApi<void>(`/api/v1/lessons/${id}`, { method: 'DELETE' }),
+  createExercise: (moduleId: number, data: { title: string; release_day: number; video_url?: string; instructions?: string; solution?: string; filename?: string; requires_submission: boolean }) =>
+    fetchApi<LessonResponse>(`/api/v1/modules/${moduleId}/exercises`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  createModule: (curriculumId: number, data: { name: string; module_type?: string; description?: string; position?: number; total_days?: number; day_offset?: number; schedule_days?: string }) =>
     fetchApi<ModuleResponse>(`/api/v1/curricula/${curriculumId}/modules`, {
       method: 'POST',
       body: JSON.stringify(data),

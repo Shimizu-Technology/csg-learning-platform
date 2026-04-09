@@ -30,7 +30,9 @@ namespace :curriculum do
       m.description = "5 weeks of prework exercises covering programming fundamentals"
       m.total_days = 35
       m.day_offset = 0
+      m.schedule_days = "weekdays_sat"
     end
+    prework.update!(schedule_days: "weekdays_sat") if prework.schedule_days != "weekdays_sat"
     puts "  Module: #{prework.name} (id: #{prework.id})"
 
     lesson_position = 0

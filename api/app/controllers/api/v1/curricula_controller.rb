@@ -72,12 +72,16 @@ module Api
           json[:modules] = curriculum.modules.includes(lessons: :content_blocks).map { |m|
             {
               id: m.id,
+              curriculum_id: m.curriculum_id,
               name: m.name,
               module_type: m.module_type,
               description: m.description,
               position: m.position,
               total_days: m.total_days,
               day_offset: m.day_offset,
+              schedule_days: m.schedule_days,
+              scheduled_day_names: m.scheduled_day_names,
+              week_count: m.week_count,
               lessons_count: m.lessons.size,
               lessons: m.lessons.map { |l|
                 {
@@ -87,6 +91,7 @@ module Api
                   position: l.position,
                   release_day: l.release_day,
                   required: l.required,
+                  requires_submission: l.requires_submission,
                   content_blocks_count: l.content_blocks.size
                 }
               }

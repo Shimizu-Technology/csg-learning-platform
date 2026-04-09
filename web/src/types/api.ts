@@ -69,6 +69,7 @@ export interface LessonSummary {
   position: number;
   release_day: number;
   required: boolean;
+  requires_submission: boolean;
   content_blocks_count: number;
 }
 
@@ -80,6 +81,7 @@ export interface LessonDetail {
   position: number;
   release_day: number;
   required: boolean;
+  requires_submission: boolean;
   content_blocks_count: number;
   content_blocks: ContentBlockSummary[];
   prev_lesson: { id: number; title: string } | null;
@@ -95,6 +97,9 @@ export interface ModuleSummary {
   position: number;
   total_days: number | null;
   day_offset: number;
+  schedule_days: string;
+  scheduled_day_names: string[];
+  week_count: number;
   lessons_count: number;
 }
 
@@ -122,12 +127,16 @@ export interface CurriculumSummary {
 export interface CurriculumDetail extends CurriculumSummary {
   modules: {
     id: number;
+    curriculum_id: number;
     name: string;
     module_type: string;
     description: string | null;
     position: number;
     total_days: number | null;
     day_offset: number;
+    schedule_days: string;
+    scheduled_day_names: string[];
+    week_count: number;
     lessons_count: number;
     lessons: LessonSummary[];
   }[];
@@ -187,6 +196,7 @@ export interface CohortModule {
   assigned_count: number;
   assigned: boolean;
   unlocked_count: number;
+  accessible_count: number;
   unlock_date_overrides: string[];
   requires_github?: boolean;
   repository_name?: string;
