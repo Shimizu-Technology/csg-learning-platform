@@ -9,7 +9,6 @@ import { Recordings } from './pages/student/Recordings'
 import { Resources } from './pages/student/Resources'
 import { Profile } from './pages/student/Profile'
 import { AdminDashboard } from './pages/admin/AdminDashboard'
-import { StudentManagement } from './pages/admin/StudentManagement'
 import { StudentDetail } from './pages/admin/StudentDetail'
 import { CohortManagement } from './pages/admin/CohortManagement'
 import { CohortDetail } from './pages/admin/CohortDetail'
@@ -49,7 +48,6 @@ function AppRoutes() {
 
         {/* Admin-only routes */}
         <Route element={<ProtectedRoute requiredRole="admin" />}>
-          <Route path="/admin/students" element={<StudentManagement />} />
           <Route path="/admin/content" element={<ContentManagement />} />
           <Route path="/admin/team" element={<TeamManagement />} />
           <Route path="/admin/lessons/:id/edit" element={<LessonEditor />} />
