@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
+import DOMPurify from 'dompurify'
 import { Copy, Check } from 'lucide-react'
 
 interface MarkdownRendererProps {
@@ -8,7 +9,7 @@ interface MarkdownRendererProps {
 
 function isHtml(str: string): boolean {
   if (!str) return false
-  return /<\/?[a-z][\s\S]*>/i.test(str)
+  return /^\s*<(p|div|h[1-6]|ul|ol|li|pre|blockquote|table|br|hr|!DOCTYPE)[\s>]/i.test(str)
 }
 
 function CopyButton({ text }: { text: string }) {
@@ -99,7 +100,7 @@ function HtmlContentRenderer({ html }: { html: string }) {
 
   return (
     <div className="exercise-content">
-      <div ref={containerRef} dangerouslySetInnerHTML={{ __html: html }} />
+      <div ref={containerRef} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
     </div>
   )
 }

@@ -19,7 +19,7 @@ class CurriculumModule < ApplicationRecord
 
   validates :name, presence: true
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
-  validates :schedule_days, inclusion: { in: SCHEDULE_PATTERNS.keys }, allow_nil: true
+  validates :schedule_days, inclusion: { in: SCHEDULE_PATTERNS.keys }
 
   scope :ordered, -> { order(:position) }
 
@@ -42,7 +42,11 @@ class CurriculumModule < ApplicationRecord
   end
 
   def week_count
-    max_day = lessons.maximum(:release_day) || 0
+    max_day = if lessons.loaded?
+                lessons.map(&:release_day).max || 0
+              else
+                lessons.maximum(:release_day) || 0
+              end
     (max_day / 7) + 1
   end
 end

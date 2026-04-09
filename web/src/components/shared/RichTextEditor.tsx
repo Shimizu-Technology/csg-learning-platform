@@ -5,11 +5,11 @@ import { marked } from 'marked'
 
 /**
  * Detect whether a string is HTML (from Quill / Trix) vs legacy markdown.
- * If it contains any HTML tags we treat it as HTML; otherwise as markdown.
+ * Only matches block-level tags that Quill/Trix always produce for rich content.
  */
 function isHtml(str: string): boolean {
   if (!str) return false
-  return /<\/?[a-z][\s\S]*>/i.test(str)
+  return /^\s*<(p|div|h[1-6]|ul|ol|li|pre|blockquote|table|br|hr|!DOCTYPE)[\s>]/i.test(str)
 }
 
 /**
