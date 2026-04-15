@@ -221,8 +221,8 @@ module Api
             name: cohort.name,
             start_date: cohort.start_date,
             status: cohort.status,
-            enrolled_count: cohort.enrollments.count,
-            active_count: cohort.enrollments.active.count
+            enrolled_count: cohort.enrollments.size,
+            active_count: cohort.enrollments.count { |e| e.active? }
           },
           students: students.sort_by { |s| -s[:progress_percentage] },
           ungraded_count: ungraded_count

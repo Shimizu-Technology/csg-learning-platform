@@ -186,6 +186,8 @@ export function StudentManagement() {
 
       {cohortGroups.length === 0 ? (
         <EmptyState icon={Users} title="No cohorts" description="No active cohorts with students found." />
+      ) : allStudents.filter(matchesFilters).length === 0 ? (
+        <EmptyState icon={Search} title="No students found" description="No students match your current search or filters." />
       ) : (
         <div className="space-y-4">
           {cohortGroups.map(group => {
