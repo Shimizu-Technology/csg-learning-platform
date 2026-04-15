@@ -126,8 +126,12 @@ class GithubIssueService
 
     def handle_redo_grade(submission, user, repo, lesson, content_block, feedback, token)
       title = "Redo: #{content_block.title || lesson.title}"
+      existing_url = submission.github_issue_url.presence || find_prior_issue_url(submission)
 
-      if submission.github_issue_url.blank? && feedback.present?
+      if existing_url.present?
+        comment = feedback.present? ? "**Redo requested again**\n\n#{feedback}" : "**Redo requested again** — please review and resubmit."
+        add_comment(issue_url: existing_url, body: comment, token: token)
+      elsif feedback.present?
         body = build_issue_body(content_block, lesson, feedback)
         result = create_issue(
           owner: user.github_username, repo: repo,
@@ -136,12 +140,6 @@ class GithubIssueService
         if result[:github_issue_url]
           submission.update_column(:github_issue_url, result[:github_issue_url])
         end
-      elsif submission.github_issue_url.present?
-        comment = feedback.present? ? "**Redo requested again**\n\n#{feedback}" : "**Redo requested again** — please review and resubmit."
-        add_comment(
-          issue_url: submission.github_issue_url,
-          body: comment, token: token
-        )
       else
         Rails.logger.info("[GithubIssueService] R grade with no feedback and no existing issue; skipping GitHub issue creation")
       end
@@ -173,7 +171,7 @@ class GithubIssueService
       (module_config && module_config["repository_name"].presence) || cohort.repository_name
     end
 
-    def headers(token)
+    def read_headers(token)
       {
         "Authorization" => "Bearer #{token}",
         "Accept" => "application/vnd.github+json",
@@ -181,16 +179,20 @@ class GithubIssueService
       }
     end
 
+    def write_headers(token)
+      read_headers(token).merge("Content-Type" => "application/json")
+    end
+
     def github_get(url, token)
-      HTTParty.get(url, headers: headers(token), timeout: 10)
+      HTTParty.get(url, headers: read_headers(token), timeout: 10)
     end
 
     def github_post(url, token, body)
-      HTTParty.post(url, headers: headers(token), body: body.to_json, timeout: 10)
+      HTTParty.post(url, headers: write_headers(token), body: body.to_json, timeout: 10)
     end
 
     def github_patch(url, token, body)
-      HTTParty.patch(url, headers: headers(token), body: body.to_json, timeout: 10)
+      HTTParty.patch(url, headers: write_headers(token), body: body.to_json, timeout: 10)
     end
   end
 end
