@@ -10,6 +10,8 @@ interface VideoPlayerProps {
   onProgressUpdate?: (data: { completed: boolean; progress_percentage: number }) => void
 }
 
+const URL_REFRESH_MS = 90 * 60 * 1000 // Refresh presigned URL every 90 minutes (TTL is 2 hours)
+
 export function VideoPlayer({ cohortId, recordingId, title, initialPosition = 0, onProgressUpdate }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -26,16 +28,56 @@ export function VideoPlayer({ cohortId, recordingId, title, initialPosition = 0,
   const [showControls, setShowControls] = useState(true)
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  useEffect(() => {
-    api.getRecordingStreamUrl(cohortId, recordingId).then((res) => {
+  const fetchStreamUrl = useCallback(() => {
+    return api.getRecordingStreamUrl(cohortId, recordingId).then((res) => {
       if (res.data?.stream_url) {
         setStreamUrl(res.data.stream_url)
       } else {
         setError('Failed to load video')
       }
-      setLoading(false)
     })
   }, [cohortId, recordingId])
+
+  // Fetch initial URL and set up refresh timer
+  useEffect(() => {
+    fetchStreamUrl().then(() => setLoading(false))
+
+    const refreshTimer = setInterval(() => {
+      const video = videoRef.current
+      const savedTime = video?.currentTime ?? 0
+      const wasPaused = video?.paused ?? true
+
+      fetchStreamUrl().then(() => {
+        requestAnimationFrame(() => {
+          const v = videoRef.current
+          if (v && savedTime > 0) {
+            v.currentTime = savedTime
+            if (!wasPaused) v.play()
+          }
+        })
+      })
+    }, URL_REFRESH_MS)
+
+    return () => clearInterval(refreshTimer)
+  }, [fetchStreamUrl])
+
+  const sendProgress = useCallback((ended: boolean) => {
+    const video = videoRef.current
+    if (!video || !video.duration) return
+
+    const data = {
+      recording_id: recordingId,
+      last_position_seconds: Math.floor(ended ? video.duration : video.currentTime),
+      total_watched_seconds: totalWatchedRef.current,
+      duration_seconds: Math.floor(video.duration),
+    }
+
+    api.updateWatchProgress(data).then((res) => {
+      if (res.data?.watch_progress && onProgressUpdate) {
+        onProgressUpdate(res.data.watch_progress)
+      }
+    })
+  }, [recordingId, onProgressUpdate])
 
   useEffect(() => {
     const video = videoRef.current
@@ -68,7 +110,7 @@ export function VideoPlayer({ cohortId, recordingId, title, initialPosition = 0,
       video.removeEventListener('pause', handlePause)
       video.removeEventListener('ended', handleEnded)
     }
-  }, [streamUrl, initialPosition])
+  }, [streamUrl, initialPosition, sendProgress])
 
   // Track total watched time in 1-second increments while playing
   useEffect(() => {
@@ -92,30 +134,12 @@ export function VideoPlayer({ cohortId, recordingId, title, initialPosition = 0,
     if (!playing) return
     const interval = setInterval(() => sendProgress(false), 10000)
     return () => clearInterval(interval)
-  }, [playing, recordingId])
+  }, [playing, recordingId, sendProgress])
 
   // Send progress on unmount
   useEffect(() => {
     return () => { sendProgress(false) }
-  }, [recordingId])
-
-  const sendProgress = useCallback((ended: boolean) => {
-    const video = videoRef.current
-    if (!video || !video.duration) return
-
-    const data = {
-      recording_id: recordingId,
-      last_position_seconds: Math.floor(ended ? video.duration : video.currentTime),
-      total_watched_seconds: totalWatchedRef.current,
-      duration_seconds: Math.floor(video.duration),
-    }
-
-    api.updateWatchProgress(data).then((res) => {
-      if (res.data?.watch_progress && onProgressUpdate) {
-        onProgressUpdate(res.data.watch_progress)
-      }
-    })
-  }, [recordingId, onProgressUpdate])
+  }, [recordingId, sendProgress])
 
   const togglePlay = () => {
     const video = videoRef.current

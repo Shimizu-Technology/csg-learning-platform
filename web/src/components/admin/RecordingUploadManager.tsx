@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Upload, Trash2, Film, Calendar, Clock, GripVertical, Plus, X, CheckCircle2 } from 'lucide-react'
+import { Upload, Trash2, Film, Calendar, Clock, GripVertical, Plus, X, Pencil } from 'lucide-react'
 import { api } from '../../lib/api'
 
 interface S3Recording {
@@ -76,6 +76,10 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
       const file = files[0]
       if (!file.type.startsWith('video/')) {
         setError('Please drop a video file')
+        return
+      }
+      if (file.size > 5 * 1024 * 1024 * 1024) {
+        setError('File must be under 5 GB')
         return
       }
       setSelectedFile(file)
@@ -389,7 +393,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
                       className="rounded-lg p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
                       title="Edit"
                     >
-                      <CheckCircle2 className="h-4 w-4" />
+                      <Pencil className="h-4 w-4" />
                     </button>
                     <button
                       onClick={() => handleDelete(rec.id)}
