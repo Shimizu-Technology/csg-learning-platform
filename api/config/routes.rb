@@ -13,8 +13,12 @@ Rails.application.routes.draw do
 
       # Dashboard / student hubs
       get "dashboard", to: "dashboard#show"
-      get "recordings", to: "recordings#index"
+      get "recordings", to: "student_recordings#index"
       get "resources", to: "resources#index"
+
+      # Watch progress (student updates their own)
+      patch "watch_progress", to: "watch_progresses#update"
+      get "watch_progress/student/:user_id", to: "watch_progresses#student_progress"
 
       # Users (admin)
       resources :users, only: [ :index, :show, :create, :update, :destroy ] do
@@ -55,6 +59,16 @@ Rails.application.routes.draw do
         get "modules/:module_id/submissions", to: "cohort_grading#index", as: :module_submissions
         post "modules/:module_id/sync_github", to: "cohort_grading#sync_all", as: :module_sync_github
         post "modules/:module_id/sync_github/:user_id", to: "cohort_grading#sync_student", as: :module_sync_student
+
+        # S3-backed recordings
+        resources :recordings, only: [ :index, :show, :create, :update, :destroy ] do
+          member do
+            get :stream_url
+          end
+        end
+        post "recordings_presign", to: "recordings#presign"
+        patch "recordings_reorder", to: "recordings#reorder"
+        get "watch_progress", to: "watch_progresses#cohort_progress"
       end
 
       # Enrollments with access overrides

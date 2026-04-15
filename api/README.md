@@ -39,6 +39,10 @@ Test coverage is currently focused on authorization guards (`test/integration/ap
 | `RESEND_API_KEY` | No | — | Transactional email (invite emails) |
 | `MAILER_FROM_EMAIL` | No | `noreply@codeschoolofguam.com` | From address for emails |
 | `GITHUB_ORGANIZATION_ADMIN_TOKEN` | No | — | GitHub API token for repo sync and org invites |
+| `AWS_ACCESS_KEY_ID` | No | — | AWS IAM access key for S3 recording uploads |
+| `AWS_SECRET_ACCESS_KEY` | No | — | AWS IAM secret key for S3 recording uploads |
+| `AWS_REGION` | No | `us-east-1` | AWS region for S3 bucket |
+| `AWS_S3_BUCKET` | No | — | S3 bucket name for recording storage |
 
 ## Data Model
 
@@ -94,6 +98,21 @@ Submission
   ├── feedback: instructor notes
   ├── graded_by_id: FK to users
   └── github_issue_url / github_code_url
+
+Recording
+  ├── cohort_id: scoped to cohort
+  ├── uploaded_by_id: FK to users
+  ├── s3_key: unique key in S3 bucket
+  ├── title, description, content_type, file_size
+  ├── duration_seconds, position (ordering)
+  └── recorded_date
+
+WatchProgress
+  ├── user_id + recording_id (unique pair)
+  ├── last_position_seconds: resume position
+  ├── total_watched_seconds: cumulative watch time
+  ├── duration_seconds: total video length
+  └── completed: auto-set at 90% watched
 ```
 
 ## Unlock Logic

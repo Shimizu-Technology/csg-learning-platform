@@ -1,6 +1,6 @@
 # CSG Learning Platform — Roadmap
 
-**Last updated:** 2026-04-07
+**Last updated:** 2026-04-15
 **Status:** Active execution roadmap
 **Companion docs:** `docs/PRODUCT_VISION.md`, `docs/DEPLOYMENT.md`, `docs/API_REFERENCE.md`
 
@@ -28,12 +28,15 @@ The platform is **production-ready for its core use case** — managing cohorts,
 - ✅ PostHog analytics integration
 - ✅ CI pipeline (RuboCop, Brakeman, bundler-audit, Rails tests)
 - ✅ Deployment (Render Singapore + Netlify + Neon PostgreSQL)
+- ✅ Self-hosted class recordings (AWS S3 + presigned URLs)
+- ✅ Watch progress tracking with auto-resume and completion detection
+- ✅ GitHub issue lifecycle on grading (create, comment, close)
+- ✅ Email notifications (daily unlock, redo notification)
 
 ### What's partially built
 
-- ⚠️ Test coverage — authorization guards are tested, but model/controller coverage is minimal
-- ⚠️ Recordings and resources — pages exist but content is managed via cohort settings JSON, not a dedicated model
 - ⚠️ Announcements — backend endpoint exists, frontend display is basic
+- ⚠️ Legacy YouTube recordings — still served from cohort settings JSON alongside new S3 recordings
 
 ---
 
@@ -61,41 +64,50 @@ The platform is **production-ready for its core use case** — managing cohorts,
 - ✅ GithubIssueService unit tests
 - ✅ Authorization guard tests (submissions, progress, content)
 
-### 1.3 Prework Grader Retirement (In Progress)
+### 1.3 Prework Grader Retirement (Code Complete — Operational Steps Remain)
 - ✅ GitHub issue lifecycle on grading (create on R, comment on re-R, close on pass)
 - ✅ Daily unlock email notifications (rake task + Resend integration)
 - ✅ Redo notification email when graded R
-- 🔲 Migrate any remaining data
-- 🔲 Redirect old app to new platform
-- 🔲 Archive `csg-prework-grader` repo
+- 🔲 **Migrate any remaining data** — Run `rails import_cohort_data` for any cohorts still only in the old app. Verify all student submissions and grades are present in `csg-learning-platform`.
+- 🔲 **Redirect old app to new platform** — Update DNS or hosting config to point the old prework grader URL to `csg-learning-platform`. If hosted on Render/Heroku, add a redirect rule or shut down the old service.
+- 🔲 **Archive `csg-prework-grader` repo** — On GitHub: Settings → General → Danger Zone → Archive this repository. Do this last, after confirming the new platform is fully operational.
 
 ---
 
-## Phase 2: Self-Hosted Recordings (AWS S3)
+## Phase 2: Self-Hosted Recordings (AWS S3) ✅
 
 > **Goal:** Replace YouTube dependency with direct video uploads and granular tracking.
 
-**Why this is highest-value next:** YouTube hosting is free but gives us no real control over video organization, watch progress tracking, or student engagement data. Self-hosting on S3 + CloudFront makes recordings a first-class feature.
+### 2.1 Backend ✅
+- ✅ `aws-sdk-s3` gem with `S3Service` (presigned POST for upload, presigned GET for streaming, delete)
+- ✅ `Recording` model (cohort-scoped, s3_key, file_size, duration, position ordering)
+- ✅ `WatchProgress` model (per-user per-recording: last_position, total_watched, auto-completion at 90%)
+- ✅ `RecordingsController` — full CRUD + presign endpoint + stream_url + reorder
+- ✅ `WatchProgressController` — update from player + staff views (per-student, per-cohort matrix)
+- ✅ `StudentRecordingsController` — unified endpoint returning both legacy YouTube and S3 recordings
 
-### 2.1 Backend
-- Active Storage configuration with S3 backend
-- `VideoUpload` model (linked to content blocks)
-- Upload endpoint with multipart support and progress tracking
-- HLS transcoding pipeline (AWS MediaConvert or similar)
-- Watch progress API (percentage watched, last position, resume)
+### 2.2 Frontend ✅
+- ✅ Custom HTML5 `VideoPlayer` component with presigned URL streaming
+  - Play/pause, seek, volume, fullscreen, restart
+  - Auto-resume from last position
+  - Progress sent to API every 10 seconds + on pause/unmount
+  - Auto-hides controls during playback
+- ✅ Student recordings page — merged view of S3 + YouTube recordings
+  - Playlist sidebar with search, tabs (All/Uploaded/YouTube)
+  - Progress bars and completion badges per recording
+  - Mobile-responsive layout (collapsible playlist)
+- ✅ Staff recording upload UI (in cohort detail page)
+  - Drag-and-drop or click-to-select upload
+  - Presigned POST to S3 (up to 5 GB)
+  - Edit title/description/date, delete recordings
+- ✅ Admin watch progress matrix (cohort → per-student × per-recording grid)
 
-### 2.2 Frontend
-- Staff video upload UI within content management
-- Custom video player with progress tracking
-- Resume playback from last position
-- Recording library page with search and filtering
-- Student-visible completion status per recording
-
-### 2.3 Infrastructure
-- AWS S3 bucket configuration
-- CloudFront CDN distribution
-- IAM roles and policies
-- Cost monitoring (storage + bandwidth)
+### 2.3 Infrastructure ✅
+- ✅ AWS S3 bucket (`csg-learning-platform`, ap-southeast-2)
+- ✅ IAM credentials configured via env vars
+- ✅ Private bucket with presigned URLs (no public access)
+- 🔲 CloudFront CDN (future optimization — not needed for Guam-scale traffic)
+- 🔲 HLS transcoding (future optimization — direct MP4 streaming works well for now)
 
 ### Definition of done
 > Staff can upload a class recording, students can watch it with tracked progress, and the app shows exactly how much of each recording a student has watched.

@@ -5,6 +5,7 @@ class Cohort < ApplicationRecord
   belongs_to :curriculum
   has_many :enrollments, dependent: :destroy
   has_many :users, through: :enrollments
+  has_many :recordings, dependent: :destroy
 
   validates :name, presence: true
   validates :start_date, presence: true

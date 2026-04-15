@@ -476,6 +476,9 @@ export interface ProgressUpdateResponse {
 
 export interface RecordingsResponse {
   recordings: RecordingEntry[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  s3_recordings?: any[];
+  cohort_id?: number;
 }
 
 export interface ResourcesResponse {

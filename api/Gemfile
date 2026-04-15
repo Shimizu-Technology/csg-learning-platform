@@ -65,3 +65,6 @@ gem "reverse_markdown"
 
 # Transactional email (invite emails via Resend)
 gem "resend"
+
+# AWS S3 (video/recording uploads)
+gem "aws-sdk-s3"
