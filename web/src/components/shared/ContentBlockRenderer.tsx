@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import Player, { type VimeoUrl } from '@vimeo/player'
 import { Play, FileText, Code, CheckCircle2, Circle, ChevronDown, ChevronUp, Send, BadgeCheck, RotateCcw } from 'lucide-react'
 import { MarkdownRenderer } from './MarkdownRenderer'
@@ -58,12 +58,23 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
   const [submissionText, setSubmissionText] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const vimeoContainerRef = useRef<HTMLDivElement>(null)
+  const ytIframeRef = useRef<HTMLIFrameElement>(null)
   const isCompletedRef = useRef(isCompleted)
   useEffect(() => { isCompletedRef.current = isCompleted }, [isCompleted])
 
   const isExerciseType = block.block_type === 'exercise' || block.block_type === 'code_challenge'
   const detectedLang = detectLanguage(block.filename, block.metadata?.language)
 
+  const markVideoCompleted = useCallback(async () => {
+    if (isCompletedRef.current) return
+    const res = await api.updateProgress(block.id, 'completed')
+    if (!res.error) {
+      setIsCompleted(true)
+      onProgressUpdate?.()
+    }
+  }, [block.id, onProgressUpdate])
+
+  // Vimeo completion tracking
   useEffect(() => {
     const isVideoBlock = block.block_type === 'video' || block.block_type === 'recording'
     if (!isVideoBlock || !block.video_url) return
@@ -83,20 +94,59 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
       responsive: true,
     })
 
-    player.on('ended', async () => {
-      if (isCompletedRef.current) return
-      const res = await api.updateProgress(block.id, 'completed')
-      if (!res.error) {
-        setIsCompleted(true)
-        onProgressUpdate?.()
-      }
-    })
+    player.on('ended', markVideoCompleted)
 
     return () => {
       player.destroy()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [block.id, block.block_type, block.video_url])
+  }, [block.id, block.block_type, block.video_url, markVideoCompleted])
+
+  // YouTube completion tracking via iframe API postMessage
+  useEffect(() => {
+    const isVideoBlock = block.block_type === 'video' || block.block_type === 'recording'
+    if (!isVideoBlock || !block.video_url) return
+
+    const ytId = getYouTubeId(block.video_url)
+    if (!ytId) return
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== 'https://www.youtube.com') return
+      try {
+        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data
+        // YT player state 0 = ended
+        if (data?.event === 'onStateChange' && data?.info === 0) {
+          markVideoCompleted()
+        }
+      } catch {
+        // ignore non-JSON messages
+      }
+    }
+
+    window.addEventListener('message', handleMessage)
+
+    // Tell the YouTube iframe to start sending events
+    const iframe = ytIframeRef.current
+    if (iframe) {
+      const sendListenCommand = () => {
+        iframe.contentWindow?.postMessage(
+          JSON.stringify({ event: 'listening', id: block.id }),
+          'https://www.youtube.com'
+        )
+        iframe.contentWindow?.postMessage(
+          JSON.stringify({ event: 'command', func: 'addEventListener', args: ['onStateChange'] }),
+          'https://www.youtube.com'
+        )
+      }
+      iframe.addEventListener('load', sendListenCommand)
+      if (iframe.contentWindow) sendListenCommand()
+    }
+
+    return () => {
+      window.removeEventListener('message', handleMessage)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [block.id, block.block_type, block.video_url, markVideoCompleted])
 
   const blockIcons: Record<string, React.ReactNode> = {
     video: <Play className="h-4 w-4" />,
@@ -182,7 +232,8 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
               if (ytId) {
                 return (
                   <iframe
-                    src={`https://www.youtube.com/embed/${ytId}`}
+                    ref={ytIframeRef}
+                    src={`https://www.youtube.com/embed/${ytId}?enablejsapi=1&origin=${window.location.origin}`}
                     className="w-full h-full"
                     allowFullScreen
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -211,7 +262,8 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
               if (ytId) {
                 return (
                   <iframe
-                    src={`https://www.youtube.com/embed/${ytId}`}
+                    ref={ytIframeRef}
+                    src={`https://www.youtube.com/embed/${ytId}?enablejsapi=1&origin=${window.location.origin}`}
                     className="w-full h-full"
                     allowFullScreen
                   />
