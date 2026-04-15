@@ -126,39 +126,66 @@ module Api
       end
 
       def render_admin_dashboard
-        # Get active cohort
-        cohort = Cohort.active.includes(:enrollments).first
+        cohorts = Cohort.active.includes(:enrollments, :curriculum).to_a
 
-        unless cohort
+        if cohorts.empty?
           render json: { dashboard: { user: user_summary, cohorts: [] } }
           return
         end
 
+        week_ago = 7.days.ago
+
+        cohorts_data = cohorts.map do |cohort|
+          build_cohort_dashboard(cohort, week_ago)
+        end
+
+        # For backward compatibility, also include the first cohort's data
+        # at the top level so existing frontend code keeps working
+        primary = cohorts_data.first
+
+        render json: {
+          dashboard: {
+            user: user_summary,
+            cohort: primary[:cohort],
+            students: primary[:students],
+            ungraded_count: primary[:ungraded_count],
+            cohorts: cohorts_data
+          }
+        }
+      end
+
+      def build_cohort_dashboard(cohort, week_ago)
         curriculum = cohort.curriculum
+
+        unless curriculum
+          return {
+            cohort: { id: cohort.id, name: cohort.name, start_date: cohort.start_date,
+                      status: cohort.status, enrolled_count: cohort.enrollments.size,
+                      active_count: cohort.enrollments.count { |e| e.active? } },
+            students: [], ungraded_count: 0
+          }
+        end
+
         all_block_ids = ContentBlock.joins(lesson: :curriculum_module)
           .where(modules: { curriculum_id: curriculum.id })
           .pluck(:id)
 
         total_blocks = all_block_ids.size
 
-        # Student progress data — bulk-load to avoid N+1 queries
-        week_ago = 7.days.ago
         enrollments = cohort.enrollments.active.includes(:user).to_a
         user_ids = enrollments.map { |e| e.user.id }
 
-        # Bulk load all completed progresses for all students at once (1 query)
-        all_progresses = Progress.completed
+        progresses_by_user = Progress.completed
           .where(user_id: user_ids, content_block_id: all_block_ids)
           .select(:user_id, :content_block_id, :completed_at)
           .to_a
-        progresses_by_user = all_progresses.group_by(&:user_id)
+          .group_by(&:user_id)
 
-        # Bulk load all submissions for all students at once (1 query)
-        all_submissions = Submission
+        submissions_by_user = Submission
           .where(user_id: user_ids, content_block_id: all_block_ids)
           .select(:user_id, :content_block_id, :created_at)
           .to_a
-        submissions_by_user = all_submissions.group_by(&:user_id)
+          .group_by(&:user_id)
 
         students = enrollments.map do |enrollment|
           user = enrollment.user
@@ -171,7 +198,6 @@ module Api
           last_submission_activity = user_submissions.map(&:created_at).compact.max
           last_activity = [ last_completed_activity, last_submission_activity ].compact.max
 
-          # Weekly activity metrics for the admin table
           blocks_this_week = user_progresses.count { |p| p.completed_at && p.completed_at >= week_ago }
           submissions_this_week = user_submissions.count { |s| s.created_at && s.created_at >= week_ago }
 
@@ -191,26 +217,22 @@ module Api
           }
         end
 
-        # Ungraded submissions count
         ungraded_count = Submission.where(grade: nil)
           .joins(:user)
-          .where(users: { id: cohort.users.pluck(:id) })
+          .where(users: { id: user_ids })
           .count
 
-        render json: {
-          dashboard: {
-            user: user_summary,
-            cohort: {
-              id: cohort.id,
-              name: cohort.name,
-              start_date: cohort.start_date,
-              status: cohort.status,
-              enrolled_count: cohort.enrollments.count,
-              active_count: cohort.enrollments.active.count
-            },
-            students: students.sort_by { |s| -s[:progress_percentage] },
-            ungraded_count: ungraded_count
-          }
+        {
+          cohort: {
+            id: cohort.id,
+            name: cohort.name,
+            start_date: cohort.start_date,
+            status: cohort.status,
+            enrolled_count: cohort.enrollments.size,
+            active_count: cohort.enrollments.count { |e| e.active? }
+          },
+          students: students.sort_by { |s| -s[:progress_percentage] },
+          ungraded_count: ungraded_count
         }
       end
 

@@ -28,6 +28,7 @@ module Api
 
           submission_map = current_user.submissions
             .where(content_block_id: @lesson.content_blocks.pluck(:id))
+            .order(created_at: :desc)
             .group_by(&:content_block_id)
         end
 

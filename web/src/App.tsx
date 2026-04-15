@@ -10,6 +10,7 @@ import { Resources } from './pages/student/Resources'
 import { Profile } from './pages/student/Profile'
 import { AdminDashboard } from './pages/admin/AdminDashboard'
 import { StudentDetail } from './pages/admin/StudentDetail'
+import { StudentManagement } from './pages/admin/StudentManagement'
 import { CohortManagement } from './pages/admin/CohortManagement'
 import { CohortDetail } from './pages/admin/CohortDetail'
 import { ContentManagement } from './pages/admin/ContentManagement'
@@ -39,6 +40,7 @@ function AppRoutes() {
         {/* Staff routes (admin + instructor) */}
         <Route element={<ProtectedRoute requiredRole="staff" />}>
           <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/students" element={<StudentManagement />} />
           <Route path="/admin/students/:id" element={<StudentDetail />} />
           <Route path="/admin/cohorts" element={<CohortManagement />} />
           <Route path="/admin/cohorts/:id" element={<CohortDetail />} />

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Users, FileText, ClipboardCheck, ArrowRight, Layers3 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { ProgressBar } from '../../components/shared/ProgressBar'
@@ -30,6 +30,7 @@ interface AdminDashboardData {
 }
 
 export function AdminDashboard() {
+  const navigate = useNavigate()
   const [data, setData] = useState<AdminDashboardData | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -149,7 +150,7 @@ export function AdminDashboard() {
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {data.students.map((student) => (
-                  <tr key={student.user_id} className="hover:bg-slate-50">
+                  <tr key={student.user_id} className="hover:bg-slate-50 cursor-pointer" onClick={() => navigate(`/admin/students/${student.user_id}`)}>
                     <td className="px-6 py-4">
                       <p className="text-sm font-medium text-slate-900">{student.full_name}</p>
                       <p className="text-xs text-slate-500">{student.email}</p>
