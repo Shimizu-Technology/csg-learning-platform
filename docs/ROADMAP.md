@@ -1,468 +1,216 @@
 # CSG Learning Platform — Roadmap
 
-**Last updated:** 2026-04-01  
-**Status:** Active execution roadmap  
-**Companion docs:** `docs/PRODUCT_VISION.md`, `docs/BUILD_PLAN.md`
+**Last updated:** 2026-04-07
+**Status:** Active execution roadmap
+**Companion docs:** `docs/PRODUCT_VISION.md`, `docs/DEPLOYMENT.md`, `docs/API_REFERENCE.md`
 
 ---
 
-## 1. Purpose of this roadmap
+## Current State
 
-This document turns the product vision into an execution plan.
+The platform is **production-ready for its core use case** — managing cohorts, delivering curriculum content, tracking progress, and grading submissions.
 
-It answers:
+### What's built and working
 
-- what we should build **now**
-- what we should build **next**
-- what can wait until **later**
-- what needs to be good enough for **next week's real usage**
+- ✅ Curriculum CMS (curricula → modules → lessons → content blocks)
+- ✅ Cohort management with enrollments and access control
+- ✅ Unlock engine (day-based scheduling, MWF/TTh/daily/weekday patterns)
+- ✅ Per-student overrides (module and lesson level)
+- ✅ Student dashboard with progress tracking
+- ✅ Video completion tracking (YouTube iframe API + Vimeo player API)
+- ✅ Grading workflow (submission queue, A/B/C/R grades, feedback, redo flow)
+- ✅ GitHub integration (repo sync, issue creation for redos)
+- ✅ Rich content editing (WYSIWYG + Monaco code editor + student preview)
+- ✅ Role-based access (student / instructor / admin) with Clerk JWT auth
+- ✅ Multi-cohort admin dashboard with student health indicators
+- ✅ Student management page (grouped by cohort, search, filter)
+- ✅ Mobile-first responsive UI with collapsible sidebar and PWA support
+- ✅ PostHog analytics integration
+- ✅ CI pipeline (RuboCop, Brakeman, bundler-audit, Rails tests)
+- ✅ Deployment (Render Singapore + Netlify + Neon PostgreSQL)
 
-This roadmap is intentionally practical.
+### What's partially built
 
-The goal is not to build every future feature immediately.
-The goal is to make `csg-learning-platform` useful for real CSG operations as soon as possible, then expand it in the right order.
-
----
-
-## 2. Current state
-
-The platform already has a strong base:
-
-### Already in place
-- Rails API + React frontend foundation
-- Clerk-based auth flow
-- curriculum / module / lesson / content block structure
-- student dashboard and module/lesson views
-- admin content management
-- lesson editor
-- grading workflow foundation
-- student progress tracking
-- student admin detail views
-- module and lesson creation flows
-
-### What this means
-We are **past pure scaffolding**.
-
-The product is no longer just an idea or starter app.
-It already has the beginnings of the real learning platform.
-
-Now the priority is to make it operational for actual CSG use.
+- ⚠️ Test coverage — authorization guards are tested, but model/controller coverage is minimal
+- ⚠️ Recordings and resources — pages exist but content is managed via cohort settings JSON, not a dedicated model
+- ⚠️ Announcements — backend endpoint exists, frontend display is basic
 
 ---
 
-## 3. Guiding principle for prioritization
+## Phase 1: Documentation & Hardening (Current)
 
-When deciding what to build next, use this rule:
+> **Goal:** Ensure the platform is well-documented, maintainable, and safe to iterate on.
 
-> **If it helps CSG run prework and live class from this app next week, it goes first.**
+### 1.1 Documentation (COMPLETE)
+- ✅ Root README with full project overview and setup
+- ✅ Backend README with models, controllers, env vars
+- ✅ Frontend README with routes, components, design system
+- ✅ API Reference with all endpoints documented
+- ✅ Deployment runbook for Render + Netlify
+- ✅ Updated product vision with expanded scope
+- ✅ Updated roadmap (this document)
+- ✅ Cleaned up AGENTS.md
 
-That means we prioritize:
+### 1.2 Test Coverage (Recommended)
+- Model validations and associations
+- Controller actions (happy path + error cases)
+- Unlock logic edge cases
+- Progress and submission workflows
 
-1. learning flow
-2. unlocks and access
-3. progress and grading
-4. staff controls
-5. operational polish
-
-We do **not** prioritize nice-to-have platform expansions ahead of the learning core.
-
----
-
-## 4. Phase 1 — Next-week readiness
-
-This is the highest-priority phase.
-
-## Goal
-
-> Use `csg-learning-platform` for real cohort operations next week without needing to fall back to scattered workflows for the critical path.
-
-## Definition of done for Phase 1
-
-A student should be able to:
-- log in
-- see the correct modules/lessons
-- access unlocked content
-- watch/read/complete content
-- submit work where needed
-- see progress clearly
-
-A staff member should be able to:
-- manage curriculum content
-- see student progress
-- grade work
-- understand who is behind
-- control what is unlocked
+### 1.3 Prework Grader Retirement
+- Verify feature parity for all operational workflows
+- Migrate any remaining data
+- Redirect old app to new platform
+- Archive `csg-prework-grader` repo
 
 ---
 
-### 4.1 Unlock engine (top priority)
+## Phase 2: Self-Hosted Recordings (AWS S3)
 
-This is the single most important missing/critical system.
+> **Goal:** Replace YouTube dependency with direct video uploads and granular tracking.
 
-#### Must support
-- unlock by cohort start date
-- unlock by module day offset + lesson release day
-- locked vs available states in student UI
-- cohort-wide unlock behavior
-- per-student override support
-- manual unlock capability for staff
+**Why this is highest-value next:** YouTube hosting is free but gives us no real control over video organization, watch progress tracking, or student engagement data. Self-hosting on S3 + CloudFront makes recordings a first-class feature.
 
-#### Deliverables
-- lesson availability calculation on backend
-- student-facing locked/unlocked display that is reliable
-- admin controls for manual unlock override
-- audit-friendly override model (even if minimal at first)
+### 2.1 Backend
+- Active Storage configuration with S3 backend
+- `VideoUpload` model (linked to content blocks)
+- Upload endpoint with multipart support and progress tracking
+- HLS transcoding pipeline (AWS MediaConvert or similar)
+- Watch progress API (percentage watched, last position, resume)
 
-#### Why it matters
-This is the backbone of prework and live class pacing.
-Without this, the platform is content storage, not a learning system.
+### 2.2 Frontend
+- Staff video upload UI within content management
+- Custom video player with progress tracking
+- Resume playback from last position
+- Recording library page with search and filtering
+- Student-visible completion status per recording
 
----
+### 2.3 Infrastructure
+- AWS S3 bucket configuration
+- CloudFront CDN distribution
+- IAM roles and policies
+- Cost monitoring (storage + bandwidth)
 
-### 4.2 Cohort/module assignment model
-
-We need a clear way to decide what content a cohort or student can see.
-
-#### Must support
-- assign modules to a cohort
-- optionally assign extra modules to a student
-- hide/unhide or unlock for specific students when needed
-
-#### Deliverables
-- cohort-to-module assignment rules
-- student-specific module/lesson override support
-- admin UI for assignment / unlock management (simple first pass is fine)
-
-#### Why it matters
-This is what lets prework, live class, advanced modules, and AI modules coexist cleanly.
+### Definition of done
+> Staff can upload a class recording, students can watch it with tracked progress, and the app shows exactly how much of each recording a student has watched.
 
 ---
 
-### 4.3 Student dashboard clarity
+## Phase 3: Stripe Payment Integration
 
-The student experience needs to make the path obvious.
+> **Goal:** Replace manual email → Stripe link flow with in-app payments.
 
-#### Must support
-- “what should I do now?”
-- “what unlocks next?”
-- “what is complete?”
-- “what needs redo or attention?”
+**Why this is next:** It's a relatively low-complexity, high-impact change that eliminates a manual process and improves the enrollment experience.
 
-#### Deliverables
-- stronger current/next lesson emphasis
-- clear locked state messaging
-- completion state clarity
-- clearer progress rollups per module
+### 3.1 Backend
+- `Payment` model (user, cohort, amount, status, Stripe session ID)
+- Stripe Checkout session creation endpoint
+- Webhook handler for payment confirmation
+- Auto-enrollment on successful payment
+- Payment history and receipt endpoints
 
-#### Why it matters
-Even if staff tools are great, the platform fails if students are confused.
+### 3.2 Frontend
+- Payment page with Stripe Checkout embed
+- Payment status in student profile
+- Admin payment dashboard (who paid, outstanding, payment plans)
+- Invoice/receipt download
 
----
+### 3.3 Configuration
+- Stripe API keys (test + live)
+- Webhook secret
+- Product/price configuration in Stripe dashboard
 
-### 4.4 Grading and redo parity
-
-The platform must handle the real review loop, not just display content.
-
-#### Must support
-- view submissions
-- grade submissions
-- leave feedback
-- clearly show redo state
-- show history / most recent submission context
-
-#### Deliverables
-- grading polish where needed
-- student-visible feedback state
-- redo state reflected in dashboard/lesson UX
-
-#### Why it matters
-The learning loop is not complete until students can receive and act on feedback.
+### Definition of done
+> A prospective student can pay for the bootcamp through the app and be automatically enrolled in the correct cohort.
 
 ---
 
-### 4.5 Staff intervention tools
+## Phase 4: In-App Messaging (Slack Alternative)
 
-Staff need fast visibility into student health.
+> **Goal:** Bring communication into the platform without building a full Slack clone.
 
-#### Must support
-- who is behind
-- who is inactive
-- who needs follow-up
-- who has incomplete/redo work
+**Why this is later:** Slack works fine for now. Messaging is the biggest engineering lift and should only happen after the core platform is stable and the previous phases have shipped.
 
-#### Deliverables
-- at-risk / quiet / active status remains usable
-- drill-down from student list into student detail
-- easy access to progress context and submissions
+### 4.1 Phase 4a — Announcements
+- Announcement model (cohort-scoped + global)
+- Staff announcement creation UI
+- Student-visible announcement feed
+- Push notification support (via service worker)
 
-#### Why it matters
-This is one of the biggest operational wins vs fragmented tooling.
+### 4.2 Phase 4b — Cohort Channels
+- Channel model (per-cohort, alumni, custom)
+- Message model with threading support
+- ActionCable WebSocket integration for real-time
+- Typing indicators and read receipts
+- File/image attachment support
 
----
+### 4.3 Phase 4c — Direct Messages
+- Staff ↔ student direct messaging
+- Message notifications
+- Conversation list UI
 
-## 5. Phase 2 — Prework grader replacement
+### 4.4 Phase 4d — Rich Features
+- @mentions and notifications
+- Emoji reactions
+- Search across messages
+- Channel management (create, archive, pin messages)
 
-## Goal
-
-> Reach true parity for any important workflow that still forces staff back into `csg-prework-grader`.
-
-This phase starts as soon as the platform is usable next week.
-
-### 5.1 Audit parity gaps
-
-Create a short checklist of anything the old app still does better or exclusively.
-
-Likely items:
-- GitHub submission fetching nuance
-- redo flow edge cases
-- favorite/reusable comments
-- notification behavior
-- schedule-related admin controls
-- cohort setup ergonomics
-
-### 5.2 Port only what matters
-
-We should not blindly copy every prework grader feature.
-We should only port the parts that are:
-- operationally important
-- still missing
-- still aligned with the new architecture
-
-### 5.3 Keep identity modern
-
-Even if GitHub remains part of the workflow, Clerk stays the identity layer.
-GitHub should be a linked integration, not the root user model.
+### Definition of done
+> CSG can run day-to-day class communication through the platform instead of Slack, with per-cohort channels and an alumni channel.
 
 ---
 
-## 6. Phase 3 — Resource hub / recordings / class context
+## Phase 5: Extended Features
 
-## Goal
+These features are valuable but should not block the phases above:
 
-> Start replacing Slack bookmarks and ad hoc resource sharing with structured in-app content.
+### 5.1 Workshop Support
+Already works via the module system — a workshop is just a cohort with a workshop-type module. May need UI polish for shorter-format events.
 
-This is high value, but lower priority than the learning core.
+### 5.2 Notification & Reminder System
+- Email reminders for upcoming deadlines
+- Push notifications for graded work, announcements
+- Configurable notification preferences
 
-### 6.1 Resource hub / bookmarks
+### 5.3 Advanced Analytics
+- Cohort-level progress analytics
+- Time-on-task tracking
+- Engagement metrics dashboard
+- Export to CSV/PDF
 
-#### First version
-- cohort resources
-- module resources
-- lesson resources
-- important links section
+### 5.4 GitHub Organization Onboarding
+Dedicated workflow for GitHub org invites (see `docs/FUTURE_IMPROVEMENTS.md` for detailed plan).
 
-#### Why this goes early in Phase 3
-It is useful immediately and simpler than messaging.
-
----
-
-### 6.2 Recordings library
-
-#### First version
-- recordings linked by module / lesson / cohort
-- student-visible recordings list
-- metadata stored in app
-- external hosting still acceptable
-
-#### Recommended approach
-Short term:
-- YouTube / Vimeo / hosted links are fine
-
-Long term:
-- consider Mux or another managed approach before raw self-hosting
-
-#### Why not build self-hosting first
-Video infra is a distraction if the learning workflow is still evolving.
+### 5.5 Zoom Integration
+Zoom's API supports creating and managing meetings programmatically. If this becomes valuable, the platform could auto-create Zoom meetings for scheduled classes and embed join links. For now, Zoom links live in class resources.
 
 ---
 
-### 6.3 Announcements / notices
+## Prioritization Principles
 
-Start with:
-- staff announcements
-- cohort-level notices
-- lesson-level notes/reminders
+When deciding what to build next:
 
-This gives most of the value without building a general-purpose chat system.
-
----
-
-## 7. Phase 4 — Messaging and communication workflows
-
-## Goal
-
-> Bring communication context into the platform without trying to replace Slack all at once.
-
-### Recommended progression
-
-#### Step 1
-- announcements
-- scheduled reminders
-- simple staff-to-student notes/messages
-
-#### Step 2
-- cohort messaging thread or inbox
-- student/staff direct communication inside the platform
-
-#### Step 3
-- only if it proves necessary, richer threaded or channel-like messaging
-
-### What not to do too early
-Do **not** start by building “Slack clone in app.”
-That’s the expensive path with the worst short-term ROI.
+1. **Does it help CSG run operations more smoothly?** → Do it sooner
+2. **Does it eliminate a manual process?** → Do it sooner
+3. **Does it replace a scattered external tool?** → Do it after the core is stable
+4. **Does it only make the code cleverer without making the platform more useful?** → It's probably not the priority
 
 ---
 
-## 8. Phase 5 — Flexible learning paths
+## Success Criteria
 
-## Goal
+### Near-term (Phases 1-2)
+- CSG runs prework and live class entirely from this platform
+- `csg-prework-grader` is no longer needed for operations
+- Class recordings are self-hosted with real progress tracking
+- Documentation is comprehensive and up-to-date
 
-> Support more than one bootcamp path cleanly.
+### Medium-term (Phases 3-4)
+- Students pay through the app
+- Slack bookmarks and resource sharing are no longer necessary
+- Basic in-app communication replaces Slack for class-related messages
 
-Once the core is stable, the platform should expand into:
-- advanced module access
-- AI module access
-- remediation modules
-- optional/elective content
-- alumni content access
-- workshop-specific pathways
-
-This is where the curriculum/module model really pays off.
-
----
-
-## 9. Concrete workstreams
-
-These are the practical workstreams to organize around.
-
-### Workstream A — Access & Unlocks
-- unlock rules
-- cohort schedule logic
-- student override support
-- manual unlock UI
-- locked-state UX
-
-### Workstream B — Student Journey
-- dashboard clarity
-- next lesson / next action guidance
-- feedback and redo visibility
-- progress accuracy
-
-### Workstream C — Staff Operations
-- grading queue
-- progress monitoring
-- at-risk tracking
-- student detail drill-down
-- unlock/admin controls
-
-### Workstream D — Curriculum Management
-- module assignment
-- lesson sequencing
-- content editing
-- preview flows
-- recording/resource association
-
-### Workstream E — Platform Consolidation
-- resources / bookmarks
-- announcements
-- recording library
-- messaging later
-
----
-
-## 10. Recommended immediate build order
-
-If we are optimizing for next week, this is the order I would push:
-
-### 1. Unlock engine + overrides
-Without this, the app is not really pacing the curriculum.
-
-### 2. Cohort/module/student assignment controls
-Without this, we cannot flexibly deliver prework/live-class/advanced content.
-
-### 3. Student dashboard polish
-Students need a crystal-clear “do this next” flow.
-
-### 4. Grading / redo polish
-Feedback loop must be dependable.
-
-### 5. Staff unlock/intervention controls
-Staff need operational confidence.
-
-### 6. Resource hub / recordings list
-Useful next, but not ahead of the learning engine.
-
-### 7. Messaging / announcements
-After the platform is stable enough to be the source of truth.
-
----
-
-## 11. What can wait
-
-These are good ideas, but should not block next-week readiness:
-
-- self-hosted video infrastructure
-- rich in-app messaging / chat
-- advanced analytics dashboards beyond actionable basics
-- deep Slack replacement
-- overbuilt permissions/admin systems
-- broad automation before core workflows are dependable
-
----
-
-## 12. Near-term success criteria
-
-We should consider the platform successful in the near term if:
-
-### Students can
-- log in without confusion
-- see the right module/lesson content
-- understand what is unlocked now
-- understand what is next
-- submit and track their work
-- see feedback and redo state clearly
-
-### Staff can
-- manage content
-- manage unlocks
-- view student progress
-- identify who needs intervention
-- grade and give feedback
-- avoid relying on the old prework grader for critical workflows
-
----
-
-## 13. Medium-term success criteria
-
-We should consider the next stage successful if:
-
-- Slack bookmarks are no longer essential
-- recordings are organized in-platform
-- the old prework grader is no longer operationally necessary
-- adding a new module to a cohort is straightforward
-- giving one student an extra or early module is straightforward
-- the app feels like the central CSG learning hub
-
----
-
-## 14. Summary
-
-The order is:
-
-### Now
-- finish the learning core
-- especially unlocks, assignment, progress, grading, and staff controls
-
-### Next
-- replace any meaningful dependency on `csg-prework-grader`
-
-### Later
-- absorb bookmarks/resources/recordings
-- add announcements and eventually messaging
-- expand into richer multi-module learning paths
-
-The big rule:
-
-> **Build the learning engine first. Build the surrounding platform second.**
-
-That is the fastest path to making `csg-learning-platform` genuinely useful for CSG next week while still building toward the bigger all-in-one vision.
+### Long-term (Phase 5+)
+- The app is the complete CSG operating system
+- Adding a new cohort, workshop, or module is straightforward
+- Student engagement is fully visible without external tools
