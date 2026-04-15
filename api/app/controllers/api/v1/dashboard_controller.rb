@@ -126,7 +126,7 @@ module Api
       end
 
       def render_admin_dashboard
-        cohorts = Cohort.active.includes(:enrollments).to_a
+        cohorts = Cohort.active.includes(:enrollments, :curriculum).to_a
 
         if cohorts.empty?
           render json: { dashboard: { user: user_summary, cohorts: [] } }
