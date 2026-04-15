@@ -92,13 +92,29 @@ module Api
           graded_at: Time.current
         )
 
-        # If graded (not R), mark the content block as completed
         if @submission.grade != "R"
           progress = Progress.find_or_initialize_by(
             user_id: @submission.user_id,
             content_block_id: @submission.content_block_id
           )
-          progress.update(status: :completed)
+          progress.update!(status: :completed)
+        else
+          NotificationEmailService.send_redo_notification(
+            user: @submission.user,
+            submission: @submission,
+            feedback: @submission.feedback
+          )
+        end
+
+        token = ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"]
+        if token.present?
+          GithubIssueService.handle_grade(
+            submission: @submission,
+            grade: @submission.grade,
+            feedback: @submission.feedback,
+            token: token
+          )
+          @submission.reload
         end
 
         render json: { submission: submission_json(@submission) }

@@ -51,17 +51,23 @@ The platform is **production-ready for its core use case** — managing cohorts,
 - ✅ Updated roadmap (this document)
 - ✅ Cleaned up AGENTS.md
 
-### 1.2 Test Coverage (Recommended)
-- Model validations and associations
-- Controller actions (happy path + error cases)
-- Unlock logic edge cases
-- Progress and submission workflows
+### 1.2 Test Coverage ✅
+- ✅ Lesson unlock logic (available?, unlock_date, all override combos)
+- ✅ ModuleAssignment accessibility logic
+- ✅ Submission grading + auto-completion + R grade handling
+- ✅ Enrollment creation auto-generates module assignments
+- ✅ Cohort module_access bulk assign/unassign
+- ✅ Role matrix (student vs instructor vs admin access)
+- ✅ GithubIssueService unit tests
+- ✅ Authorization guard tests (submissions, progress, content)
 
-### 1.3 Prework Grader Retirement
-- Verify feature parity for all operational workflows
-- Migrate any remaining data
-- Redirect old app to new platform
-- Archive `csg-prework-grader` repo
+### 1.3 Prework Grader Retirement (In Progress)
+- ✅ GitHub issue lifecycle on grading (create on R, comment on re-R, close on pass)
+- ✅ Daily unlock email notifications (rake task + Resend integration)
+- ✅ Redo notification email when graded R
+- 🔲 Migrate any remaining data
+- 🔲 Redirect old app to new platform
+- 🔲 Archive `csg-prework-grader` repo
 
 ---
 
