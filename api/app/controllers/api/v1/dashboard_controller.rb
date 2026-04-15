@@ -134,12 +134,9 @@ module Api
         end
 
         week_ago = 7.days.ago
-        total_ungraded = 0
 
         cohorts_data = cohorts.map do |cohort|
-          cohort_data = build_cohort_dashboard(cohort, week_ago)
-          total_ungraded += cohort_data[:ungraded_count]
-          cohort_data
+          build_cohort_dashboard(cohort, week_ago)
         end
 
         # For backward compatibility, also include the first cohort's data
@@ -151,7 +148,7 @@ module Api
             user: user_summary,
             cohort: primary[:cohort],
             students: primary[:students],
-            ungraded_count: total_ungraded,
+            ungraded_count: primary[:ungraded_count],
             cohorts: cohorts_data
           }
         }
@@ -159,6 +156,16 @@ module Api
 
       def build_cohort_dashboard(cohort, week_ago)
         curriculum = cohort.curriculum
+
+        unless curriculum
+          return {
+            cohort: { id: cohort.id, name: cohort.name, start_date: cohort.start_date,
+                      status: cohort.status, enrolled_count: cohort.enrollments.size,
+                      active_count: cohort.enrollments.count { |e| e.active? } },
+            students: [], ungraded_count: 0
+          }
+        end
+
         all_block_ids = ContentBlock.joins(lesson: :curriculum_module)
           .where(modules: { curriculum_id: curriculum.id })
           .pluck(:id)
