@@ -126,9 +126,9 @@ class GithubIssueService
 
     def handle_redo_grade(submission, user, repo, lesson, content_block, feedback, token)
       title = "Redo: #{content_block.title || lesson.title}"
-      body = build_issue_body(content_block, lesson, feedback)
 
       if submission.github_issue_url.blank? && feedback.present?
+        body = build_issue_body(content_block, lesson, feedback)
         result = create_issue(
           owner: user.github_username, repo: repo,
           title: title, body: body, token: token
@@ -137,9 +137,10 @@ class GithubIssueService
           submission.update_column(:github_issue_url, result[:github_issue_url])
         end
       elsif submission.github_issue_url.present?
+        comment = feedback.present? ? "**Redo requested again**\n\n#{feedback}" : "**Redo requested again** — please review and resubmit."
         add_comment(
           issue_url: submission.github_issue_url,
-          body: body, token: token
+          body: comment, token: token
         )
       else
         Rails.logger.info("[GithubIssueService] R grade with no feedback and no existing issue; skipping GitHub issue creation")

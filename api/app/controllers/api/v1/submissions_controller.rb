@@ -97,7 +97,7 @@ module Api
             user_id: @submission.user_id,
             content_block_id: @submission.content_block_id
           )
-          progress.update(status: :completed)
+          progress.update!(status: :completed)
         else
           NotificationEmailService.send_redo_notification(
             user: @submission.user,

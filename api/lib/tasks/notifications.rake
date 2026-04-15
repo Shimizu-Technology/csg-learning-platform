@@ -11,27 +11,20 @@ namespace :notifications do
     sent_count = 0
     skip_count = 0
     error_count = 0
+    today = Date.current
 
     Cohort.active.includes(curriculum: { modules: :lessons }).find_each do |cohort|
-      today_lessons = find_lessons_unlocking_today(cohort)
-      next if today_lessons.empty?
-
-      puts "  Cohort #{cohort.name}: #{today_lessons.size} lesson(s) unlocking today"
-
       cohort.enrollments.active.includes(:user, :module_assignments).find_each do |enrollment|
         user = enrollment.user
-        accessible_lessons = today_lessons.select do |lesson|
-          ma = enrollment.module_assignments.find { |a| a.module_id == lesson.module_id }
-          ma && lesson.available?(cohort, ma)
-        end
+        unlocking_today = lessons_unlocking_today_for(cohort, enrollment, today)
 
-        if accessible_lessons.empty?
+        if unlocking_today.empty?
           skip_count += 1
           next
         end
 
         success = NotificationEmailService.send_daily_unlock(
-          user: user, cohort: cohort, lessons: accessible_lessons
+          user: user, cohort: cohort, lessons: unlocking_today
         )
 
         if success
@@ -47,11 +40,14 @@ namespace :notifications do
 
   private
 
-  def find_lessons_unlocking_today(cohort)
-    today = Date.current
-    cohort.curriculum.modules.flat_map do |mod|
-      mod.lessons.select do |lesson|
-        lesson.unlock_date(cohort) == today
+  # Finds lessons whose unlock_date is today for this specific enrollment,
+  # respecting per-student module_assignment unlock_date_override.
+  def lessons_unlocking_today_for(cohort, enrollment, today)
+    enrollment.module_assignments.flat_map do |ma|
+      next [] unless ma.accessible?
+
+      ma.curriculum_module.lessons.select do |lesson|
+        lesson.unlock_date(cohort, ma) == today
       end
     end
   end
