@@ -1,104 +1,78 @@
 # CSG Learning Platform — Product Vision & Direction
 
-**Last updated:** 2026-04-01  
-**Status:** Active north-star document  
+**Last updated:** 2026-04-07
+**Status:** Active north-star document
 **Repo:** `csg-learning-platform`
 
 ---
 
 ## 1. What this product is
 
-`csg-learning-platform` is the long-term **all-in-one learning platform for Code School of Guam**.
+`csg-learning-platform` is the **all-in-one operating system for Code School of Guam**.
 
-It is the successor to `csg-prework-grader`, but it is **not** just a prework app rewrite.
+It is the successor to `csg-prework-grader`, but it is not just a prework app rewrite.
 
-It should become the single place where CSG runs the learning experience for:
+It should become the single place where CSG runs every aspect of the learning experience:
 
-- prework
-- live class
-- recordings
-- exercises
-- grading and redo feedback
-- progress tracking
-- cohort management
-- student-specific unlocks / overrides
-- advanced / AI / extra modules
-- class resources / bookmarks
-- eventually messaging and announcements
+- Prework
+- Live class
+- Workshops
+- Recordings (self-hosted via AWS S3)
+- Exercises and coding challenges
+- Grading and redo feedback
+- Progress tracking
+- Cohort management
+- Student-specific unlocks and overrides
+- Advanced / AI / extra modules
+- Class resources and bookmarks
+- In-app messaging and announcements (Slack alternative)
+- Payments and enrollment via Stripe
 
 The goal is simple:
 
 > **Students and staff should not need to piece together the learning experience across multiple tools.**
 
-The app should become the canonical CSG learning hub, with external tools used only where it still makes sense (for example Zoom, GitHub, and possibly video hosting).
-
 ---
 
 ## 2. Why this exists
 
-### The current problem
+### The problem we solved
 
-Historically, CSG has used a mix of tools:
+Historically, CSG used a mix of tools:
 
-- `csg-prework-grader` for prework content + grading
-- Slack for communication
-- Slack bookmarks for resources and important links
-- YouTube links / lists for recordings
-- manual or semi-manual unlock workflows
-- separate admin flows for tracking who is behind
+- `csg-prework-grader` for prework content and grading
+- Slack for communication, bookmarks, and resource sharing
+- YouTube for hosting and sharing class recordings
+- Manual email → Stripe links for payment collection
+- Separate admin flows for tracking who is behind
 
-That works at a small scale, but it becomes fragmented when the program includes:
-
-- prework
-- live class
-- recordings
-- additional modules (advanced, AI, etc.)
-- per-student exceptions
-- multiple cohorts moving at different speeds
+That works at small scale, but it becomes fragmented when the program includes prework, live class, recordings, additional modules, per-student exceptions, and multiple cohorts.
 
 ### The product decision
 
-Instead of continuing to patch together multiple systems, CSG needs one platform that owns:
-
-- access
-- curriculum structure
-- unlock timing
-- progress
-- submissions
-- grading
-- feedback
-- student/admin visibility
-- class resources
-- eventually communications
+Instead of patching together multiple systems, CSG needs one platform that owns access, curriculum, unlocks, progress, submissions, grading, feedback, visibility, resources, communication, media, and payments.
 
 ---
 
 ## 3. What we learned from `csg-prework-grader`
 
-The prework grader proved that these workflows matter and should carry forward:
-
 ### Keep and improve
 
-- daily unlocks by schedule
-- force unlock / staff override
-- staff grading workflow
-- redo / feedback loop
-- student progress tracking
-- student dashboard of what is unlocked / complete / next
-- staff visibility into who is behind
-- cohort-based pacing
-- notifications / reminders
+- Daily unlocks by schedule
+- Force unlock / staff override
+- Staff grading workflow
+- Redo / feedback loop
+- Student progress tracking
+- Student dashboard of what is unlocked / complete / next
+- Staff visibility into who is behind
+- Cohort-based pacing
 
 ### Do not carry over blindly
 
 - GitHub as the primary identity system
-- a product model centered only on "exercises"
-- Slack as the long-term source of truth for resources or communication context
-- tightly coupled full-stack Rails UI patterns that are hard to extend
-
-`csg-prework-grader` was a successful product for a single phase of the school.
-
-`csg-learning-platform` should generalize that into a broader learning system.
+- A product model centered only on "exercises"
+- Slack as the source of truth for resources or communication
+- Tightly coupled full-stack Rails UI patterns
 
 ---
 
@@ -106,37 +80,35 @@ The prework grader proved that these workflows matter and should carry forward:
 
 This platform should be the **CSG learning operating system**.
 
-That means:
-
 ### For students
 
 A student should be able to:
 
-- log in once
-- see their assigned cohorts/modules
-- see what is unlocked now
-- see what is next
-- watch recordings
-- read lesson content
-- complete exercises/checkpoints
-- submit work
-- receive grades and feedback
-- track their progress over time
-- eventually access important links/resources/messages in the same place
+- Log in once and see everything they need
+- See their assigned cohorts and modules
+- See what is unlocked now and what is next
+- Watch recordings (hosted in-app, not on YouTube)
+- Read lesson content
+- Complete exercises and checkpoints
+- Submit work and receive grades and feedback
+- Track their progress over time
+- Access resources, links, and messages in the same place
+- Make payments and manage their enrollment
+- Communicate with staff and classmates
 
 ### For staff
 
 A staff member should be able to:
 
-- manage curricula, modules, lessons, and content blocks
-- assign content to cohorts
-- assign or unlock content for specific students
-- monitor student progress
-- see who is at risk / behind / inactive
-- grade submissions
-- leave redo feedback
-- eventually send announcements or messages
-- manage the full class workflow without jumping across multiple systems
+- Manage curricula, modules, lessons, and content blocks
+- Assign content to cohorts
+- Assign or unlock content for specific students
+- Monitor student progress and identify who needs intervention
+- Grade submissions and leave redo feedback
+- Upload and manage class recordings directly
+- Send announcements and messages
+- Manage payments and enrollment status
+- Run the full class workflow without jumping across multiple systems
 
 ---
 
@@ -144,243 +116,124 @@ A staff member should be able to:
 
 ### 5.1 Curriculum first, not prework first
 
-This app is **not** modeled around prework only.
-
-It is modeled around reusable curriculum structure:
-
-- curriculum
-- module
-- lesson
-- content block
-- cohort enrollment
-- progress
-- submission
-
-That lets the same system support:
-
-- Prework
-- Live Class
-- Advanced Module
-- AI Module
-- Capstone
-- Recordings library
-- Workshops
-- Alumni resources
+The app is modeled around reusable curriculum structure — not just prework exercises. This lets the same system support prework, live class, advanced modules, AI modules, capstone, recordings library, workshops, and alumni resources.
 
 ### 5.2 Content is reusable; access is flexible
 
-The same content should be reusable across cohorts.
+The same content should be reusable across cohorts. A cohort gets assigned a curriculum. Individual students can receive overrides (early access, skipped modules, extra content).
 
-A cohort should be assigned a curriculum or a set of modules.
-A student should also be able to receive overrides.
+### 5.3 Unlocking is a core system
 
-Examples:
+Unlock logic is foundational: scheduled unlocks by day/date, module-level pacing, lesson-level release timing, cohort-wide schedules, student-specific overrides, and manual unlocks by staff.
 
-- all students in a cohort get prework + live class
-- one student gets an AI module early
-- one student gets an advanced module later
-- one student gets a manual unlock override for a blocked day or lesson
+### 5.4 Own the media pipeline
 
-### 5.3 Unlocking is a core system, not a side feature
+Recordings should be hosted on AWS S3 with CloudFront CDN, not on YouTube. This gives CSG full control over video organization, granular watch-time tracking, resume position, and student progress visibility — without relying on YouTube's iframe API limitations.
 
-Unlock logic is foundational.
+### 5.5 Communication belongs in the platform
 
-The platform must support:
+Slack is useful but should not remain the source of truth for class links, resources, recordings lists, announcements, or context about what students should do next. The app should absorb these responsibilities progressively.
 
-- scheduled unlocks by day/date
-- module-level pacing
-- lesson-level release timing
-- cohort-wide schedules
-- student-specific overrides
-- manual unlocks by staff
-- exceptions and special cases
+### 5.6 Payments should be integrated
 
-This is one of the main value props of the entire app.
+The manual email → Stripe link flow should be replaced with in-app payment processing via Stripe Checkout or embedded payment forms, enabling auto-enrollment on payment completion and payment status visibility in the admin dashboard.
 
-### 5.4 Communication belongs in the platform eventually
+### 5.7 Use external tools where they still make sense
 
-Slack is useful, but it should not remain the long-term source of truth for:
+The goal is not to rebuild everything. Examples of tools that stay external:
 
-- important class links
-- class resources
-- recordings lists
-- announcements
-- context around where students should go next
-
-The app should gradually absorb these responsibilities, starting with the simplest and highest-value ones.
-
-### 5.5 Use external tools where they still make sense
-
-The goal is not to rebuild everything.
-
-Examples of tools that may stay external:
-
-- **Zoom** for live calls
-- **GitHub** for code hosting / some submission workflows
-- **video hosting** providers like YouTube/Vimeo/Mux/S3
-
-The platform should own the learning workflow, even if some media or communication delivery is powered externally.
+- **Zoom** for live video calls (link stored in class resources)
+- **GitHub** for code hosting and some submission workflows
+- **Clerk** for authentication and identity
 
 ---
 
-## 6. Product scope: now, next, later
+## 6. Product scope: now, next, and later
 
-## 6.1 Now — Learning core
+### 6.1 Now — Learning core (COMPLETE)
 
-This is the highest priority.
+The platform fully supports day-to-day learning workflows:
 
-The platform must fully support the day-to-day learning workflow for bootcamp operations:
+- ✅ Reusable curriculum structure (curriculum → module → lesson → content block)
+- ✅ Student dashboards with progress tracking
+- ✅ Grading and submission flow with GitHub integration
+- ✅ Cohort management with enrollments
+- ✅ Admin content management with rich editing
+- ✅ Unlock engine with day-based scheduling
+- ✅ Per-student override support (module and lesson level)
+- ✅ Role-based access control (student / instructor / admin)
+- ✅ Video completion tracking (YouTube + Vimeo)
+- ✅ Mobile-first responsive UI with PWA support
+- ✅ PostHog analytics integration
+- ✅ CI pipeline (RuboCop, Brakeman, bundler-audit, tests)
 
-- reusable curriculum structure
-- modules + lessons + content blocks
-- student dashboards
-- progress tracking
-- grading / submission flow
-- cohort management
-- admin content management
-- unlock engine
-- per-student override support
+### 6.2 Next — Self-hosted recordings (AWS S3)
 
-### Definition of success for this phase
+Replace YouTube dependency with direct video uploads to S3:
 
-> CSG can run prework and live class content from this platform without needing to fall back to `csg-prework-grader` for essential workflows.
+- Active Storage + S3 for upload and storage
+- HLS streaming via CloudFront for playback
+- Granular watch-time tracking (percentage watched, resume position)
+- Staff upload interface within content management
+- Recording library organized by cohort/module/lesson
 
----
+### 6.3 Next — Stripe payment integration
 
-## 6.2 Next — Feature parity and operational replacement
+Replace manual email → Stripe link flow:
 
-Once the learning core is solid, the next goal is to fully replace anything still uniquely handled by the prework grader.
+- Embedded Stripe Checkout or payment form
+- Payment plans and installment support
+- Auto-enrollment on payment completion
+- Payment status visible in admin dashboard
+- Invoice and receipt generation
 
-This includes:
+### 6.4 Later — In-app messaging
 
-- any remaining grading workflow gaps
-- redo flow parity
-- GitHub-linked submission support where still needed
-- reliable notifications/reminders
-- unlock/admin override polish
-- student/staff analytics and at-risk visibility
+Replace Slack as the primary communication channel:
 
-### Definition of success for this phase
+**Recommended progression:**
 
-> Staff no longer need to use `csg-prework-grader` for real operational work.
+1. **Announcements** — Staff posts visible to cohort
+2. **Per-cohort channels** — Threaded discussions per class
+3. **Alumni channel** — Not tied to a specific cohort
+4. **Direct messages** — Staff ↔ student communication
+5. **General channels** — Cross-cohort or topic-based
 
----
+This requires ActionCable/WebSockets for real-time messaging, message persistence, and notification delivery.
 
-## 6.3 Later — Slack/bookmarks/recordings consolidation
+### 6.5 Later — Extended platform features
 
-After the learning core is stable, the platform should absorb the adjacent class workflows that currently live elsewhere.
-
-### High-value later additions
-
-#### A. Resources / bookmarks
-A structured place for:
-- cohort resources
-- module resources
-- lesson resources
-- important links
-- student-facing reference material
-
-This should be one of the earliest "later" features because it is high value and relatively low complexity.
-
-#### B. Recordings library
-A proper recordings experience:
-- recording list by cohort/module/lesson
-- student-visible recordings hub
-- eventually staff upload / organization tooling
-
-Short term, external video hosting is fine.  
-Long term, consider a more owned experience if it becomes a major product advantage.
-
-#### C. Messaging / announcements
-This should start simple.
-
-The first version does **not** need to be Slack-in-the-app.
-
-Recommended progression:
-
-1. announcements
-2. cohort messages / notices
-3. direct staff-to-student messages
-4. maybe richer conversation features later if actually needed
-
-The app should first solve educational workflow communication, not generic chat.
+- Workshop support (already works via module system)
+- Alumni resource access
+- Advanced/AI/remediation modules
+- Notification and reminder system
+- Zoom meeting management via API (if justified)
 
 ---
 
-## 7. Core domain model we are building toward
-
-The product should continue to center around these concepts:
+## 7. Core domain model
 
 ### Learning structure
-- Curriculum
-- Module
-- Lesson
-- ContentBlock
+- Curriculum → Module → Lesson → ContentBlock
 
 ### People and access
-- User
-- Cohort
-- Enrollment
-- ModuleAssignment / access controls
-- student-level overrides
+- User → Enrollment → Cohort
+- ModuleAssignment / LessonAssignment for overrides
 
 ### Learning activity
-- Progress
-- Submission
-- Grade
-- Feedback / redo
+- Progress (per content block)
+- Submission → Grade → Feedback
 
-### Operational workflow
-- unlock rules
-- scheduled release
-- announcements/resources (later)
-- recording references (later)
-
-This is the right direction because it supports both today's bootcamp flow and future CSG expansions.
+### Future additions
+- Payment (user ↔ cohort enrollment)
+- Message / Channel (cohort-scoped and global)
+- VideoUpload (S3 asset linked to content block)
 
 ---
 
-## 8. Immediate product recommendations
+## 8. What this repo should optimize for
 
-These are the recommended priorities from here.
-
-### Priority 1 — Unlock engine
-Build / harden:
-
-- day-based release rules
-- cohort-level scheduling
-- per-student override unlocks
-- manual unlock controls for staff
-- clear student visibility into what is locked vs available
-
-### Priority 2 — Module and assignment model
-Make it easy to:
-
-- assign modules to cohorts
-- assign extra modules to specific students
-- unlock specific modules/lessons early
-- support advanced / AI / remediation content cleanly
-
-### Priority 3 — Student dashboard polish
-Students should clearly understand:
-
-- what to do now
-- what comes next
-- what is locked
-- what needs redo
-- what they have completed
-
-### Priority 4 — Replace remaining prework-grader-only workflows
-Anything essential still only living in the old app should be ported or rebuilt here.
-
-### Priority 5 — Resources and recordings
-Once the core learning flow is dependable, start collapsing Slack/bookmark/video-list workflows into the platform.
-
----
-
-## 9. What this repo should optimize for
-
-When making product or engineering decisions in this repo, optimize for:
+When making product or engineering decisions:
 
 1. **One platform for the full learning experience**
 2. **Reusable curriculum structure, not one-off cohort hacks**
@@ -389,33 +242,17 @@ When making product or engineering decisions in this repo, optimize for:
 5. **Strong instructor visibility and intervention tools**
 6. **Operational simplicity for CSG staff**
 7. **Replacing fragmented workflows over time**
+8. **Own the critical data (videos, payments, communication)**
 
 If a feature helps CSG stop depending on multiple scattered tools, it is probably in scope.
-If a feature only makes the code cleverer without making the platform more useful, it is probably not the priority.
 
 ---
 
-## 10. Short summary
+## 9. Related docs
 
-`csg-learning-platform` should become the canonical CSG hub for:
-
-- prework
-- live class
-- recordings
-- exercises
-- grading
-- progress
-- unlocks
-- cohort operations
-- student-specific learning paths
-- eventually class resources and messaging
-
-It should preserve the best ideas from `csg-prework-grader`, but move them into a cleaner, more modern, more flexible system built around reusable curricula and module-based learning.
-
----
-
-## 11. Related docs
-
-- `README.md` — repo overview / setup
-- `docs/BUILD_PLAN.md` — original implementation plan / architecture notes
-- `csg-prework-grader` — previous generation product and workflow reference
+- `README.md` — Repo overview and setup
+- `docs/ROADMAP.md` — Execution plan with phases and priorities
+- `docs/DEPLOYMENT.md` — Deployment runbook for Render + Netlify
+- `docs/API_REFERENCE.md` — Complete API endpoint documentation
+- `docs/BUILD_PLAN.md` — Original architecture and data model design
+- `docs/FUTURE_IMPROVEMENTS.md` — Planned enhancements (GitHub onboarding, etc.)
