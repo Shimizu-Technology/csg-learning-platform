@@ -5,6 +5,7 @@ module Api
       before_action :require_admin!, except: [ :video_stream, :video_progress ]
       before_action :set_lesson, only: [ :index, :create ]
       before_action :set_content_block, only: [ :show, :update, :destroy, :video_presign, :video_stream, :video_progress ]
+      before_action :authorize_video_access!, only: [ :video_stream, :video_progress ]
 
       # GET /api/v1/lessons/:lesson_id/content_blocks
       def index
@@ -136,6 +137,10 @@ module Api
 
       def set_content_block
         @content_block = ContentBlock.find(params[:id])
+      end
+
+      def authorize_video_access!
+        authorize_content_block_write!(@content_block)
       end
 
       def block_params

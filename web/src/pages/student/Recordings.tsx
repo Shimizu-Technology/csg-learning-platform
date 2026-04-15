@@ -95,13 +95,13 @@ export function Recordings() {
     )
   }, [allRecordings, query])
 
-  const handleProgressUpdate = useCallback((data: { completed?: boolean; progress_percentage?: number }) => {
+  const handleProgressUpdate = useCallback((data: Record<string, unknown>) => {
     if (!selectedItem || selectedItem.source !== 's3') return
-    setS3Recordings(prev => prev.map(r =>
-      r.id === selectedItem.id
-        ? { ...r, watch_progress: { ...(r.watch_progress || { last_position_seconds: 0, total_watched_seconds: 0, last_watched_at: '' }), ...data } }
-        : r
-    ))
+    setS3Recordings(prev => prev.map(r => {
+      if (r.id !== selectedItem.id) return r
+      const base = r.watch_progress || { last_position_seconds: 0, total_watched_seconds: 0, progress_percentage: 0, completed: false, last_watched_at: '' }
+      return { ...r, watch_progress: { ...base, ...data } as S3Recording['watch_progress'] }
+    }))
   }, [selectedItem])
 
   if (loading) return <LoadingSpinner message="Loading recordings..." />

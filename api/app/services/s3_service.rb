@@ -22,7 +22,7 @@ class S3Service
         metadata: { "original-content-type" => content_type },
         expires: Time.now + PRESIGN_EXPIRY
       ).tap do |post|
-        post.content_length_range(1, max_size)
+        post.content_length_range(1..max_size)
       end
     end
 
