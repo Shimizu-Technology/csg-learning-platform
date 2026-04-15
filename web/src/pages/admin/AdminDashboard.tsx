@@ -88,7 +88,7 @@ export function AdminDashboard() {
       {/* Quick actions */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         <Link
-          to={data.cohort ? `/admin/cohorts/${data.cohort.id}` : '/admin/cohorts'}
+          to="/admin/students"
           className="flex items-center justify-between rounded-2xl bg-white border border-slate-200 p-4 hover:border-primary-200 hover:shadow-sm transition-all"
         >
           <div className="flex items-center gap-3">
