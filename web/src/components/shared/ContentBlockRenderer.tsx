@@ -114,7 +114,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
       if (event.origin !== 'https://www.youtube.com') return
       try {
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data
-        if (data?.event === 'onStateChange' && data?.info === 0 && data?.id === block.id) {
+        if (data?.event === 'onStateChange' && data?.info === 0 && String(data?.id) === String(block.id)) {
           markVideoCompleted()
         }
       } catch {
