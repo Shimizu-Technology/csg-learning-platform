@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { X } from 'lucide-react'
 import { RichTextEditor } from '../../components/shared/RichTextEditor'
 import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
+import { VideoUploadField } from '../../components/admin/VideoUploadField'
 import { ALL_DAY_NAMES, SCHEDULE_DAY_INDICES } from '../../lib/scheduleConstants'
 
 interface Props {
@@ -21,6 +22,9 @@ interface Props {
     solution?: string
     filename?: string
     requires_submission: boolean
+    s3_video_key?: string
+    s3_video_content_type?: string
+    s3_video_size?: number
   }) => Promise<void>
 }
 
@@ -41,6 +45,7 @@ export function NewExerciseModal({
   const [videoUrl, setVideoUrl] = useState('')
   const [instructions, setInstructions] = useState('')
   const [solution, setSolution] = useState('')
+  const [s3Video, setS3Video] = useState<{ s3_video_key: string; s3_video_content_type: string; s3_video_size: number } | null>(null)
   const [filename, setFilename] = useState('')
   const [requiresSubmission, setRequiresSubmission] = useState(false)
   const [validationError, setValidationError] = useState('')
@@ -63,8 +68,8 @@ export function NewExerciseModal({
       setValidationError('Title is required')
       return
     }
-    if (!videoUrl.trim() && !instructions.trim()) {
-      setValidationError('Please provide a video URL, exercise instructions, or both')
+    if (!videoUrl.trim() && !instructions.trim() && !s3Video) {
+      setValidationError('Please provide a video, exercise instructions, or both')
       return
     }
     setValidationError('')
@@ -76,6 +81,7 @@ export function NewExerciseModal({
       solution: solution.trim() || undefined,
       filename: filename.trim() || undefined,
       requires_submission: requiresSubmission,
+      ...(s3Video || {}),
     })
   }
 
@@ -132,15 +138,14 @@ export function NewExerciseModal({
               </select>
             </div>
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-1">Video URL <span className="text-slate-400 font-normal">(optional)</span></label>
-              <input
-                type="url"
-                value={videoUrl}
-                onChange={e => setVideoUrl(e.target.value)}
-                placeholder="https://youtube.com/watch?v=..."
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              <VideoUploadField
+                videoUrl={videoUrl}
+                onVideoUrlChange={setVideoUrl}
+                s3VideoKey={s3Video?.s3_video_key || null}
+                onS3VideoUploaded={(data) => setS3Video(data)}
+                onS3VideoRemoved={() => setS3Video(null)}
+                compact
               />
-              <p className="text-[11px] text-slate-400 mt-1">Paste a URL now, or upload a video file after saving via the exercise editor</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Filename</label>

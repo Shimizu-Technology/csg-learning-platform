@@ -51,6 +51,30 @@ module Api
         head :no_content
       end
 
+      # POST /api/v1/video_presign — generic presign (staff only, no content block needed)
+      def generic_video_presign
+        require_admin!
+        return if performed?
+
+        unless S3Service.configured?
+          render json: { error: "S3 not configured" }, status: :service_unavailable
+          return
+        end
+
+        filename = params[:filename]
+        content_type = params[:content_type] || "video/mp4"
+        safe_name = filename.to_s.gsub(/[^a-zA-Z0-9._-]/, "_")
+        s3_key = "content_videos/#{SecureRandom.uuid}/#{safe_name}"
+
+        presigned = S3Service.generate_presigned_post(s3_key, content_type)
+
+        render json: {
+          upload_url: presigned.url,
+          fields: presigned.fields,
+          s3_key: s3_key
+        }
+      end
+
       # POST /api/v1/content_blocks/:id/video_presign
       def video_presign
         unless S3Service.configured?
@@ -104,7 +128,9 @@ module Api
         progress = current_user.progresses.find_or_initialize_by(content_block: @content_block)
 
         progress.video_last_position = params[:last_position_seconds].to_i
-        progress.video_duration = params[:duration_seconds].to_i if params[:duration_seconds].present?
+        if progress.video_duration.blank? && params[:duration_seconds].present?
+          progress.video_duration = params[:duration_seconds].to_i
+        end
 
         new_watched = params[:total_watched_seconds].to_i
         progress.video_total_watched = [ progress.video_total_watched, new_watched ].max

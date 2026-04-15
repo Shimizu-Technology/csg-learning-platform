@@ -63,13 +63,16 @@ module Api
 
           block_pos = 0
 
-          if params[:video_url].present?
+          if params[:video_url].present? || params[:s3_video_key].present?
             block_pos += 1
             @lesson.content_blocks.create!(
               block_type: :video,
               position: block_pos,
               title: params[:title],
-              video_url: params[:video_url]
+              video_url: params[:video_url].presence,
+              s3_video_key: params[:s3_video_key].presence,
+              s3_video_content_type: params[:s3_video_content_type].presence,
+              s3_video_size: params[:s3_video_size].presence
             )
           end
 

@@ -43,6 +43,9 @@ Rails.application.routes.draw do
         resources :content_blocks, only: [ :index, :create ]
       end
 
+      # Generic video presign (staff, no content block needed)
+      post "video_presign", to: "content_blocks#generic_video_presign"
+
       # Content blocks (shallow) with video endpoints
       resources :content_blocks, only: [ :show, :update, :destroy ] do
         member do

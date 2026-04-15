@@ -14,7 +14,8 @@ module Api
 
         progress = current_user.watch_progresses.find_or_initialize_by(recording: recording)
         progress.last_position_seconds = params[:last_position_seconds].to_i
-        progress.duration_seconds = params[:duration_seconds].to_i if params[:duration_seconds].present?
+        server_duration = recording.duration_seconds
+        progress.duration_seconds = server_duration || params[:duration_seconds].to_i
 
         new_watched = params[:total_watched_seconds].to_i
         progress.total_watched_seconds = [ progress.total_watched_seconds, new_watched ].max

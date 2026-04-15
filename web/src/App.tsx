@@ -20,6 +20,7 @@ import { CohortModuleGrading } from './pages/admin/CohortModuleGrading'
 import { CohortWatchProgress } from './pages/admin/CohortWatchProgress'
 import { TeamManagement } from './pages/admin/TeamManagement'
 import { SignInPage } from './pages/SignIn'
+import { UploadProvider } from './contexts/UploadContext'
 function AppRoutes() {
   return (
     <>
@@ -65,7 +66,9 @@ function AppRoutes() {
 function App() {
   return (
     <BrowserRouter>
-      <AppRoutes />
+      <UploadProvider>
+        <AppRoutes />
+      </UploadProvider>
     </BrowserRouter>
   )
 }

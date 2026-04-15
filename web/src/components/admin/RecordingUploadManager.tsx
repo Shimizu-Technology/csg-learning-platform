@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { Upload, Trash2, Film, Calendar, Clock, GripVertical, Plus, X, Pencil } from 'lucide-react'
 import { api } from '../../lib/api'
+import { useUpload } from '../../contexts/UploadContext'
 
 interface S3Recording {
   id: number
@@ -24,10 +25,10 @@ interface RecordingUploadManagerProps {
 }
 
 export function RecordingUploadManager({ cohortId, onRecordingsChange }: RecordingUploadManagerProps) {
+  const { startVideoUpload } = useUpload()
   const [recordings, setRecordings] = useState<S3Recording[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState<string | null>(null)
   const [showUploadForm, setShowUploadForm] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -96,62 +97,29 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
 
     setUploading(true)
     setError(null)
-    setUploadProgress('Getting upload URL...')
 
-    const presignRes = await api.presignRecordingUpload(
-      cohortId,
-      selectedFile.name,
-      selectedFile.type || 'video/mp4'
-    )
-
-    if (!presignRes.data) {
-      setError(presignRes.error || 'Failed to get upload URL')
-      setUploading(false)
-      setUploadProgress(null)
-      return
-    }
-
-    const { upload_url, fields, s3_key } = presignRes.data
-    setUploadProgress('Uploading video...')
-
-    try {
-      const formData = new FormData()
-      Object.entries(fields).forEach(([key, value]) => {
-        formData.append(key, value)
-      })
-      formData.append('file', selectedFile)
-
-      const uploadRes = await fetch(upload_url, { method: 'POST', body: formData })
-      if (!uploadRes.ok) throw new Error(`Upload failed: ${uploadRes.status}`)
-
-      setUploadProgress('Saving recording...')
-
-      const createRes = await api.createRecording(cohortId, {
+    const result = await startVideoUpload(selectedFile, {
+      cohortRecording: {
+        cohortId,
         title: newTitle.trim(),
         description: newDescription.trim() || undefined,
-        s3_key,
-        content_type: selectedFile.type || 'video/mp4',
-        file_size: selectedFile.size,
-        recorded_date: newDate || undefined,
-      })
+        recordedDate: newDate || undefined,
+      },
+    })
 
-      if (createRes.error) {
-        setError(createRes.error)
-      } else {
-        setShowUploadForm(false)
-        setSelectedFile(null)
-        setNewTitle('')
-        setNewDescription('')
-        setNewDate('')
-        fetchRecordings()
-        onRecordingsChange?.()
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed')
+    if (result) {
+      setShowUploadForm(false)
+      setSelectedFile(null)
+      setNewTitle('')
+      setNewDescription('')
+      setNewDate('')
+      fetchRecordings()
+      onRecordingsChange?.()
+    } else {
+      setError('Upload failed — check the upload indicator for details')
     }
 
     setUploading(false)
-    setUploadProgress(null)
   }
 
   const handleDelete = async (id: number) => {
@@ -313,7 +281,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
                   {uploading ? (
                     <>
                       <div className="animate-spin h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full" />
-                      {uploadProgress}
+                      Uploading...
                     </>
                   ) : (
                     <>

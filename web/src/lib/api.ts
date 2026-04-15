@@ -274,7 +274,7 @@ export const api = {
     }),
   deleteLesson: (id: number) =>
     fetchApi<void>(`/api/v1/lessons/${id}`, { method: 'DELETE' }),
-  createExercise: (moduleId: number, data: { title: string; release_day: number; video_url?: string; instructions?: string; solution?: string; filename?: string; requires_submission: boolean }) =>
+  createExercise: (moduleId: number, data: { title: string; release_day: number; video_url?: string; instructions?: string; solution?: string; filename?: string; requires_submission: boolean; s3_video_key?: string; s3_video_content_type?: string; s3_video_size?: number }) =>
     fetchApi<LessonResponse>(`/api/v1/modules/${moduleId}/exercises`, {
       method: 'POST',
       body: JSON.stringify(data),
@@ -295,6 +295,11 @@ export const api = {
     fetchApi<ContentBlocksListResponse>(`/api/v1/lessons/${lessonId}/content_blocks`),
 
   // Content block video (S3)
+  presignGenericVideo: (filename: string, contentType: string) =>
+    fetchApi<{ upload_url: string; fields: Record<string, string>; s3_key: string }>(
+      `/api/v1/video_presign`,
+      { method: 'POST', body: JSON.stringify({ filename, content_type: contentType }) }
+    ),
   presignContentBlockVideo: (blockId: number, filename: string, contentType: string) =>
     fetchApi<{ upload_url: string; fields: Record<string, string>; s3_key: string }>(
       `/api/v1/content_blocks/${blockId}/video_presign`,
