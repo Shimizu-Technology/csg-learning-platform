@@ -68,4 +68,17 @@ class GithubIssueServiceTest < ActiveSupport::TestCase
     assert_includes body, "Git Basics"
     assert_includes body, "Fix your code"
   end
+
+  test "find_prior_issue_url finds github_issue_url from prior submission" do
+    @submission.update_column(:github_issue_url, "https://github.com/student-one/cohort-3-prework/issues/42")
+    resubmission = Submission.create!(user: @student, content_block: @block, text: "fixed code", num_submissions: 2)
+
+    url = GithubIssueService.send(:find_prior_issue_url, resubmission)
+    assert_equal "https://github.com/student-one/cohort-3-prework/issues/42", url
+  end
+
+  test "find_prior_issue_url returns nil when no prior issue exists" do
+    url = GithubIssueService.send(:find_prior_issue_url, @submission)
+    assert_nil url
+  end
 end

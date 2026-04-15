@@ -107,12 +107,15 @@ class GithubIssueService
 
       if grade == "R"
         handle_redo_grade(submission, user, repo, lesson, content_block, feedback, token)
-      elsif submission.github_issue_url.present?
-        close_issue(
-          issue_url: submission.github_issue_url,
-          token: token,
-          comment: feedback.present? ? "Graded **#{grade}** - #{feedback}" : "Graded **#{grade}** - Passing!"
-        )
+      else
+        issue_url = submission.github_issue_url.presence || find_prior_issue_url(submission)
+        if issue_url.present?
+          close_issue(
+            issue_url: issue_url,
+            token: token,
+            comment: feedback.present? ? "Graded **#{grade}** - #{feedback}" : "Graded **#{grade}** - Passing!"
+          )
+        end
       end
     rescue StandardError => e
       Rails.logger.error("[GithubIssueService] handle_grade error: #{e.message}")
@@ -138,7 +141,20 @@ class GithubIssueService
           issue_url: submission.github_issue_url,
           body: body, token: token
         )
+      else
+        Rails.logger.info("[GithubIssueService] R grade with no feedback and no existing issue; skipping GitHub issue creation")
       end
+    end
+
+    # When a student resubmits, the new Submission has no github_issue_url.
+    # Look up the most recent prior submission for the same user + content_block
+    # that has a github_issue_url, so we can close it on a passing grade.
+    def find_prior_issue_url(submission)
+      Submission
+        .where(user: submission.user, content_block: submission.content_block)
+        .where.not(github_issue_url: [ nil, "" ])
+        .order(created_at: :desc)
+        .pick(:github_issue_url)
     end
 
     def build_issue_body(content_block, lesson, feedback)
