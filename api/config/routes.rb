@@ -43,8 +43,14 @@ Rails.application.routes.draw do
         resources :content_blocks, only: [ :index, :create ]
       end
 
-      # Content blocks (shallow)
-      resources :content_blocks, only: [ :show, :update, :destroy ]
+      # Content blocks (shallow) with video endpoints
+      resources :content_blocks, only: [ :show, :update, :destroy ] do
+        member do
+          post :video_presign
+          get :video_stream
+          patch :video_progress
+        end
+      end
 
       # Cohorts with nested enrollments
       resources :cohorts, only: [ :index, :show, :create, :update, :destroy ] do

@@ -4,6 +4,7 @@ import { Play, FileText, Code, CheckCircle2, Circle, ChevronDown, ChevronUp, Sen
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { GradeDisplay } from './GradeDisplay'
 import { CodeEditor, detectLanguage } from './CodeEditor'
+import { VideoPlayer } from './VideoPlayer'
 import { api } from '../../lib/api'
 
 interface ContentBlock {
@@ -16,7 +17,8 @@ interface ContentBlock {
   filename: string | null
   solution?: string | null
   metadata: Record<string, any>
-  progress?: { status: string; completed_at: string | null }
+  s3_video_key?: string | null
+  progress?: { status: string; completed_at: string | null; video_last_position?: number; video_total_watched?: number }
   submissions?: Array<{
     id: number
     text: string
@@ -227,7 +229,32 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
       </div>
 
       <div className="p-4 lg:p-6">
-        {block.block_type === 'video' && block.video_url && (
+        {(block.block_type === 'video' || block.block_type === 'recording') && block.s3_video_key && (
+          <VideoPlayer
+            key={`s3-${block.id}`}
+            title={block.title || 'Video'}
+            initialPosition={block.progress?.video_last_position || 0}
+            initialTotalWatched={block.progress?.video_total_watched || 0}
+            fetchStreamUrl={async () => {
+              const res = await api.getContentBlockVideoStream(block.id)
+              return res.data?.stream_url || null
+            }}
+            onSaveProgress={(data) => {
+              api.updateContentBlockVideoProgress(block.id, data).then(res => {
+                if (res.data?.video_progress?.completed) {
+                  setIsCompleted(true)
+                  onProgressUpdate?.()
+                }
+              })
+            }}
+            onCompleted={() => {
+              setIsCompleted(true)
+              onProgressUpdate?.()
+            }}
+          />
+        )}
+
+        {block.block_type === 'video' && block.video_url && !block.s3_video_key && (
           <div className="aspect-video rounded-xl overflow-hidden bg-slate-900">
             {(() => {
               const ytId = getYouTubeId(block.video_url!)
@@ -257,7 +284,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
           </div>
         )}
 
-        {block.block_type === 'recording' && block.video_url && (
+        {block.block_type === 'recording' && block.video_url && !block.s3_video_key && (
           <div className="aspect-video rounded-xl overflow-hidden bg-slate-900">
             {(() => {
               const ytId = getYouTubeId(block.video_url!)

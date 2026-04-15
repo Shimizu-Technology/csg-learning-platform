@@ -95,7 +95,7 @@ export function Recordings() {
     )
   }, [allRecordings, query])
 
-  const handleProgressUpdate = useCallback((data: { completed: boolean; progress_percentage: number }) => {
+  const handleProgressUpdate = useCallback((data: { completed?: boolean; progress_percentage?: number }) => {
     if (!selectedItem || selectedItem.source !== 's3') return
     setS3Recordings(prev => prev.map(r =>
       r.id === selectedItem.id
@@ -140,12 +140,18 @@ export function Recordings() {
             <div className="space-y-4">
               <VideoPlayer
                 key={selectedItem.id}
-                cohortId={cohortId}
-                recordingId={selectedItem.id}
                 title={selectedItem.title}
                 initialPosition={selectedItem.watch_progress?.last_position_seconds || 0}
                 initialTotalWatched={selectedItem.watch_progress?.total_watched_seconds || 0}
-                onProgressUpdate={handleProgressUpdate}
+                fetchStreamUrl={async () => {
+                  const res = await api.getRecordingStreamUrl(cohortId, selectedItem.id)
+                  return res.data?.stream_url || null
+                }}
+                onSaveProgress={(data) => {
+                  api.updateWatchProgress({ recording_id: selectedItem.id, ...data }).then(res => {
+                    if (res.data?.watch_progress) handleProgressUpdate(res.data.watch_progress)
+                  })
+                }}
               />
               <div className="rounded-2xl border border-slate-200 bg-white p-5">
                 <div className="flex items-start justify-between gap-3">

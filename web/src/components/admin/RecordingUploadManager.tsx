@@ -156,7 +156,11 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
 
   const handleDelete = async (id: number) => {
     if (!confirm('Delete this recording? This cannot be undone.')) return
-    await api.deleteRecording(cohortId, id)
+    const res = await api.deleteRecording(cohortId, id)
+    if (res.error) {
+      setError(res.error)
+      return
+    }
     fetchRecordings()
     onRecordingsChange?.()
   }
@@ -170,11 +174,15 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
 
   const saveEdit = async () => {
     if (!editingId || !editTitle.trim()) return
-    await api.updateRecording(cohortId, editingId, {
+    const res = await api.updateRecording(cohortId, editingId, {
       title: editTitle.trim(),
       description: editDescription.trim() || undefined,
       recorded_date: editDate || undefined,
     })
+    if (res.error) {
+      setError(res.error)
+      return
+    }
     setEditingId(null)
     fetchRecordings()
   }

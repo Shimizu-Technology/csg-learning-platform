@@ -6,6 +6,7 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { RichTextEditor } from '../../components/shared/RichTextEditor'
 import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
 import { ContentBlockRenderer } from '../../components/shared/ContentBlockRenderer'
+import { VideoUploadField } from '../../components/admin/VideoUploadField'
 
 interface ContentBlock {
   id: number
@@ -46,6 +47,8 @@ export function LessonEditor() {
   const [instructions, setInstructions] = useState('')
   const [solution, setSolution] = useState('')
   const [requiresSubmission, setRequiresSubmission] = useState(false)
+  const [s3VideoKey, setS3VideoKey] = useState<string | null>(null)
+  const [videoBlockId, setVideoBlockId] = useState<number | null>(null)
 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -66,7 +69,11 @@ export function LessonEditor() {
         setRequiresSubmission(l.requires_submission ?? false)
 
         const videoBlock = l.content_blocks.find(b => b.block_type === 'video' || b.block_type === 'recording')
-        if (videoBlock) setVideoUrl(videoBlock.video_url || '')
+        if (videoBlock) {
+          setVideoUrl(videoBlock.video_url || '')
+          setVideoBlockId(videoBlock.id)
+          setS3VideoKey((videoBlock as any).s3_video_key || null)
+        }
 
         const exerciseBlock = l.content_blocks.find(b => b.block_type === 'exercise' || b.block_type === 'code_challenge')
         if (exerciseBlock) {
@@ -105,14 +112,15 @@ export function LessonEditor() {
           video_url: videoUrl.trim() || null,
         })
         if (vRes.error) { setSaveError(vRes.error); setSaving(false); return }
-      } else if (videoUrl.trim()) {
+      } else if (videoUrl.trim() || s3VideoKey) {
         const vRes = await api.createContentBlock(lesson.id, {
           block_type: 'video',
           position: nextPosition,
           title: title.trim(),
-          video_url: videoUrl.trim(),
+          video_url: videoUrl.trim() || undefined,
         })
         if (vRes.error) { setSaveError(vRes.error); setSaving(false); return }
+        if (vRes.data?.content_block) setVideoBlockId(vRes.data.content_block.id)
       }
 
       const exerciseBlock = lesson.content_blocks.find(b => b.block_type === 'exercise' || b.block_type === 'code_challenge')
@@ -143,6 +151,11 @@ export function LessonEditor() {
       if (refreshRes.data) {
         const data = refreshRes.data as { lesson: Lesson }
         setLesson(data.lesson)
+        const refreshedVideo = data.lesson.content_blocks.find(b => b.block_type === 'video' || b.block_type === 'recording')
+        if (refreshedVideo) {
+          setVideoBlockId(refreshedVideo.id)
+          setS3VideoKey((refreshedVideo as any).s3_video_key || null)
+        }
       }
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Save failed')
@@ -165,18 +178,19 @@ export function LessonEditor() {
 
   const previewBlocks = useMemo(() => {
     const blocks: ContentBlock[] = []
-    if (videoUrl.trim()) {
+    if (videoUrl.trim() || s3VideoKey) {
       blocks.push({
-        id: -1,
+        id: videoBlockId || -1,
         block_type: 'video',
         position: 0,
         title: title || null,
         body: null,
-        video_url: videoUrl.trim(),
+        video_url: videoUrl.trim() || null,
         filename: null,
         solution: null,
         metadata: {},
-      })
+        ...(s3VideoKey ? { s3_video_key: s3VideoKey } : {}),
+      } as ContentBlock)
     }
     if (instructions.trim() || filename.trim()) {
       blocks.push({
@@ -192,7 +206,7 @@ export function LessonEditor() {
       })
     }
     return blocks
-  }, [title, videoUrl, instructions, filename])
+  }, [title, videoUrl, instructions, filename, s3VideoKey, videoBlockId])
 
   if (loading) return <LoadingSpinner message="Loading exercise..." />
   if (error) {
@@ -322,13 +336,13 @@ export function LessonEditor() {
 
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="sm:col-span-2">
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Video URL</label>
-                <input
-                  type="url"
-                  value={videoUrl}
-                  onChange={e => setVideoUrl(e.target.value)}
-                  placeholder="https://youtu.be/..."
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono"
+                <VideoUploadField
+                  contentBlockId={videoBlockId}
+                  videoUrl={videoUrl}
+                  onVideoUrlChange={setVideoUrl}
+                  s3VideoKey={s3VideoKey}
+                  onS3VideoUploaded={(data) => setS3VideoKey(data.s3_video_key)}
+                  onS3VideoRemoved={() => setS3VideoKey(null)}
                 />
               </div>
               <div>

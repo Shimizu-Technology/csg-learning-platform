@@ -140,6 +140,7 @@ export function NewExerciseModal({
                 placeholder="https://youtube.com/watch?v=..."
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
+              <p className="text-[11px] text-slate-400 mt-1">Paste a URL now, or upload a video file after saving via the exercise editor</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Filename</label>

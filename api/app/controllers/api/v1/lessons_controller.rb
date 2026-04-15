@@ -182,7 +182,10 @@ module Api
               body: cb.body,
               video_url: cb.video_url,
               filename: cb.filename,
-              metadata: cb.metadata
+              metadata: cb.metadata,
+              s3_video_key: cb.s3_video_key,
+              s3_video_content_type: cb.s3_video_content_type,
+              s3_video_size: cb.s3_video_size
             }
 
             # Include solution only for staff
@@ -190,9 +193,12 @@ module Api
 
             # Include progress for students
             if progress_map[cb.id]
+              p = progress_map[cb.id]
               block[:progress] = {
-                status: progress_map[cb.id].status,
-                completed_at: progress_map[cb.id].completed_at
+                status: p.status,
+                completed_at: p.completed_at,
+                video_last_position: p.video_last_position,
+                video_total_watched: p.video_total_watched
               }
             end
 

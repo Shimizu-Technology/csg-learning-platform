@@ -139,6 +139,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_15_193000) do
     t.bigint "lesson_id", null: false
     t.jsonb "metadata", default: {}, null: false
     t.integer "position", default: 0, null: false
+    t.string "s3_video_content_type"
+    t.string "s3_video_key"
+    t.bigint "s3_video_size"
     t.text "solution"
     t.string "title"
     t.datetime "updated_at", null: false
@@ -654,6 +657,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_15_193000) do
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
+    t.integer "video_duration"
+    t.integer "video_last_position", default: 0
+    t.integer "video_total_watched", default: 0
     t.index ["content_block_id"], name: "index_progresses_on_content_block_id"
     t.index ["user_id", "content_block_id"], name: "index_progresses_on_user_id_and_content_block_id", unique: true
     t.index ["user_id"], name: "index_progresses_on_user_id"

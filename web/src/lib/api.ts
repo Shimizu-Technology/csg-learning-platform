@@ -257,7 +257,7 @@ export const api = {
     fetchApi<null>(`/api/v1/lesson_assignments/${id}`, { method: 'DELETE' }),
 
   // Admin — Content
-  updateContentBlock: (id: number, data: { block_type?: string; position?: number; title?: string; body?: string | null; video_url?: string | null; solution?: string | null; filename?: string | null; metadata?: Record<string, unknown> }) =>
+  updateContentBlock: (id: number, data: { block_type?: string; position?: number; title?: string; body?: string | null; video_url?: string | null; solution?: string | null; filename?: string | null; metadata?: Record<string, unknown>; s3_video_key?: string | null; s3_video_content_type?: string | null; s3_video_size?: number | null }) =>
     fetchApi<ContentBlockResponse>(`/api/v1/content_blocks/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -293,6 +293,21 @@ export const api = {
     fetchApi<null>(`/api/v1/content_blocks/${id}`, { method: 'DELETE' }),
   getContentBlocks: (lessonId: number) =>
     fetchApi<ContentBlocksListResponse>(`/api/v1/lessons/${lessonId}/content_blocks`),
+
+  // Content block video (S3)
+  presignContentBlockVideo: (blockId: number, filename: string, contentType: string) =>
+    fetchApi<{ upload_url: string; fields: Record<string, string>; s3_key: string }>(
+      `/api/v1/content_blocks/${blockId}/video_presign`,
+      { method: 'POST', body: JSON.stringify({ filename, content_type: contentType }) }
+    ),
+  getContentBlockVideoStream: (blockId: number) =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fetchApi<any>(`/api/v1/content_blocks/${blockId}/video_stream`),
+  updateContentBlockVideoProgress: (blockId: number, data: { last_position_seconds: number; total_watched_seconds: number; duration_seconds?: number }) =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fetchApi<any>(`/api/v1/content_blocks/${blockId}/video_progress`, {
+      method: 'PATCH', body: JSON.stringify(data),
+    }),
 
   // Cohort-scoped grading
   getCohortModuleSubmissions: (cohortId: number, moduleId: number) =>
