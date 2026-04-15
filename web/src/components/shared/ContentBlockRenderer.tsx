@@ -114,8 +114,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
       if (event.origin !== 'https://www.youtube.com') return
       try {
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data
-        // YT player state 0 = ended
-        if (data?.event === 'onStateChange' && data?.info === 0) {
+        if (data?.event === 'onStateChange' && data?.info === 0 && data?.id === block.id) {
           markVideoCompleted()
         }
       } catch {
@@ -125,25 +124,28 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
 
     window.addEventListener('message', handleMessage)
 
-    // Tell the YouTube iframe to start sending events
     const iframe = ytIframeRef.current
+    const sendListenCommand = () => {
+      iframe?.contentWindow?.postMessage(
+        JSON.stringify({ event: 'listening', id: block.id }),
+        'https://www.youtube.com'
+      )
+      iframe?.contentWindow?.postMessage(
+        JSON.stringify({ event: 'command', func: 'addEventListener', args: ['onStateChange'] }),
+        'https://www.youtube.com'
+      )
+    }
+
     if (iframe) {
-      const sendListenCommand = () => {
-        iframe.contentWindow?.postMessage(
-          JSON.stringify({ event: 'listening', id: block.id }),
-          'https://www.youtube.com'
-        )
-        iframe.contentWindow?.postMessage(
-          JSON.stringify({ event: 'command', func: 'addEventListener', args: ['onStateChange'] }),
-          'https://www.youtube.com'
-        )
-      }
       iframe.addEventListener('load', sendListenCommand)
       if (iframe.contentWindow) sendListenCommand()
     }
 
     return () => {
       window.removeEventListener('message', handleMessage)
+      if (iframe) {
+        iframe.removeEventListener('load', sendListenCommand)
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [block.id, block.block_type, block.video_url, markVideoCompleted])
