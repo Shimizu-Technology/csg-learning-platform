@@ -7,16 +7,17 @@ interface VideoPlayerProps {
   recordingId: number
   title: string
   initialPosition?: number
+  initialTotalWatched?: number
   onProgressUpdate?: (data: { completed: boolean; progress_percentage: number }) => void
 }
 
 const URL_REFRESH_MS = 90 * 60 * 1000 // Refresh presigned URL every 90 minutes (TTL is 2 hours)
 
-export function VideoPlayer({ cohortId, recordingId, title, initialPosition = 0, onProgressUpdate }: VideoPlayerProps) {
+export function VideoPlayer({ cohortId, recordingId, title, initialPosition = 0, initialTotalWatched = 0, onProgressUpdate }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const totalWatchedRef = useRef(0)
+  const totalWatchedRef = useRef(initialTotalWatched)
 
   const [streamUrl, setStreamUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)

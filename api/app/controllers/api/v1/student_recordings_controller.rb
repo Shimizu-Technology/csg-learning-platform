@@ -41,7 +41,7 @@ module Api
             duration_seconds: r.duration_seconds,
             duration_display: r.duration_display,
             file_size_display: r.file_size_display,
-            recorded_date: r.recorded_date,
+            recorded_date: r.recorded_date&.strftime("%Y-%m-%d"),
             created_at: r.created_at,
             source: "s3",
             watch_progress: wp ? {

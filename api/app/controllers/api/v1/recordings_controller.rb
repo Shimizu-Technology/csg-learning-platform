@@ -164,7 +164,7 @@ module Api
           duration_seconds: recording.duration_seconds,
           duration_display: recording.duration_display,
           position: recording.position,
-          recorded_date: recording.recorded_date,
+          recorded_date: recording.recorded_date&.strftime("%Y-%m-%d"),
           created_at: recording.created_at
         }
 

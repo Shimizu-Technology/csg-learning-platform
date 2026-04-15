@@ -144,6 +144,7 @@ export function Recordings() {
                 recordingId={selectedItem.id}
                 title={selectedItem.title}
                 initialPosition={selectedItem.watch_progress?.last_position_seconds || 0}
+                initialTotalWatched={selectedItem.watch_progress?.total_watched_seconds || 0}
                 onProgressUpdate={handleProgressUpdate}
               />
               <div className="rounded-2xl border border-slate-200 bg-white p-5">
