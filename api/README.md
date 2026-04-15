@@ -37,7 +37,7 @@ Test coverage is currently focused on authorization guards (`test/integration/ap
 | `CLERK_AUDIENCE` | No | — | JWT audience verification |
 | `DATABASE_URL` | Prod only | — | Neon PostgreSQL connection string |
 | `RESEND_API_KEY` | No | — | Transactional email (invite emails) |
-| `MAILER_FROM_EMAIL` | No | `noreply@yourdomain.com` | From address for emails |
+| `MAILER_FROM_EMAIL` | No | `noreply@codeschoolofguam.com` | From address for emails |
 | `GITHUB_ORGANIZATION_ADMIN_TOKEN` | No | — | GitHub API token for repo sync and org invites |
 
 ## Data Model
