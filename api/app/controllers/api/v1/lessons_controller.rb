@@ -186,10 +186,14 @@ module Api
               video_url: cb.video_url,
               filename: cb.filename,
               metadata: cb.metadata,
-              s3_video_key: cb.s3_video_key,
-              s3_video_content_type: cb.s3_video_content_type,
-              s3_video_size: cb.s3_video_size
+              has_s3_video: cb.s3_video_key.present?
             }
+
+            if current_user.staff?
+              block[:s3_video_key] = cb.s3_video_key
+              block[:s3_video_content_type] = cb.s3_video_content_type
+              block[:s3_video_size] = cb.s3_video_size
+            end
 
             # Include solution only for staff
             block[:solution] = cb.solution if current_user.staff?
