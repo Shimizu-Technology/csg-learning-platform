@@ -101,12 +101,12 @@ module Api
 
       # DELETE /api/v1/cohorts/:cohort_id/recordings/:id
       def destroy
-        if S3Service.configured? && !S3Service.delete_object(@recording.s3_key)
-          render json: { error: "Failed to delete video from storage" }, status: :internal_server_error
-          return
-        end
-        @recording.destroy
+        key_to_delete = @recording.s3_key
+        @recording.destroy!
+        S3Service.delete_object(key_to_delete) if S3Service.configured?
         head :no_content
+      rescue ActiveRecord::RecordNotDestroyed => e
+        render json: { error: "Failed to delete recording" }, status: :unprocessable_entity
       end
 
       # GET /api/v1/cohorts/:cohort_id/recordings/:id/stream_url

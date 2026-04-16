@@ -11,6 +11,7 @@ interface ActiveUpload {
   status: 'presigning' | 'uploading' | 'saving' | 'done' | 'error'
   error?: string
   s3Key?: string
+  contentBlockId?: number
   abortController: AbortController
 }
 
@@ -66,6 +67,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     const upload: ActiveUpload = {
       id, fileName: file.name, fileSize: file.size,
       progress: 0, status: 'presigning', abortController,
+      contentBlockId: opts?.contentBlockId,
     }
     setUploads(prev => [...prev, upload])
 
