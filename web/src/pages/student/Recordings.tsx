@@ -164,8 +164,8 @@ export function Recordings() {
               <VideoPlayer
                 key={liveSelectedItem.id}
                 title={liveSelectedItem.title}
-                initialPosition={selectedItem?.watch_progress?.last_position_seconds || 0}
-                initialTotalWatched={selectedItem?.watch_progress?.total_watched_seconds || 0}
+                initialPosition={(selectedItem as S3Recording | null)?.watch_progress?.last_position_seconds || 0}
+                initialTotalWatched={(selectedItem as S3Recording | null)?.watch_progress?.total_watched_seconds || 0}
                 fetchStreamUrl={fetchSelectedStreamUrl}
                 onSaveProgress={saveSelectedProgress}
               />
