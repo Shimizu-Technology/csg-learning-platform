@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react'
-import { Upload, Film, X, Link2 } from 'lucide-react'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import { Upload, Film, X, Link2, Loader2 } from 'lucide-react'
 import { useUpload } from '../../contexts/UploadContext'
 
 interface VideoUploadFieldProps {
@@ -31,8 +31,22 @@ export function VideoUploadField({
 
   const activeUpload = uploads.find(u => u.id === uploadId)
   const isUploading = activeUpload && activeUpload.status !== 'done' && activeUpload.status !== 'error'
+  const hasReportedKeyRef = useRef(false)
 
-  const startUpload = useCallback(async (file: File) => {
+  useEffect(() => {
+    if (hasReportedKeyRef.current) return
+    if (activeUpload?.s3Key && activeUpload.status !== 'error') {
+      hasReportedKeyRef.current = true
+      onS3VideoUploaded({
+        s3_video_key: activeUpload.s3Key,
+        s3_video_content_type: activeUpload.fileName.endsWith('.webm') ? 'video/webm' : activeUpload.fileName.endsWith('.mov') ? 'video/quicktime' : 'video/mp4',
+        s3_video_size: activeUpload.fileSize,
+      })
+      onVideoUrlChange('')
+    }
+  }, [activeUpload?.s3Key, activeUpload?.status, activeUpload?.fileName, activeUpload?.fileSize, onS3VideoUploaded, onVideoUrlChange])
+
+  const startUpload = useCallback((file: File) => {
     if (!file.type.startsWith('video/')) {
       setError('Please select a video file')
       return
@@ -44,21 +58,11 @@ export function VideoUploadField({
 
     setError(null)
     setUploadedFileName(file.name)
+    hasReportedKeyRef.current = false
 
-    const { uploadId: newId, result } = startVideoUpload(file, contentBlockId ? { contentBlockId } : undefined)
+    const { uploadId: newId } = startVideoUpload(file, contentBlockId ? { contentBlockId } : undefined)
     setUploadId(newId)
-
-    const uploadResult = await result
-
-    if (uploadResult) {
-      onS3VideoUploaded({
-        s3_video_key: uploadResult.s3Key,
-        s3_video_content_type: uploadResult.contentType,
-        s3_video_size: uploadResult.fileSize,
-      })
-      onVideoUrlChange('')
-    }
-  }, [contentBlockId, startVideoUpload, onS3VideoUploaded, onVideoUrlChange])
+  }, [contentBlockId, startVideoUpload])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -114,18 +118,10 @@ export function VideoUploadField({
 
       {mode === 'upload' && (
         <>
-          {s3VideoKey && !isUploading ? (
-            <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
-              <Film className="h-4 w-4 text-primary-500 shrink-0" />
-              <span className="text-sm text-slate-700 truncate flex-1">{uploadedFileName || 'Uploaded video'}</span>
-              <button type="button" onClick={handleRemoveS3Video} className="text-slate-400 hover:text-red-500 shrink-0">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          ) : isUploading && activeUpload ? (
+          {isUploading && activeUpload ? (
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 space-y-2">
               <div className="flex items-center gap-2">
-                <Film className="h-4 w-4 text-primary-500 shrink-0" />
+                <Loader2 className="h-4 w-4 text-primary-500 shrink-0 animate-spin" />
                 <span className="text-sm text-slate-700 truncate flex-1">{uploadedFileName}</span>
                 <span className="text-xs text-slate-500 tabular-nums shrink-0">
                   {activeUpload.status === 'uploading' ? `${activeUpload.progress}%` : activeUpload.status === 'presigning' ? 'Preparing...' : 'Saving...'}
@@ -137,6 +133,17 @@ export function VideoUploadField({
                   style={{ width: `${activeUpload.status === 'uploading' ? activeUpload.progress : activeUpload.status === 'saving' ? 100 : 5}%` }}
                 />
               </div>
+              {activeUpload.s3Key && (
+                <p className="text-[10px] text-green-600">Video attached — you can proceed while it uploads</p>
+              )}
+            </div>
+          ) : s3VideoKey ? (
+            <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+              <Film className="h-4 w-4 text-primary-500 shrink-0" />
+              <span className="text-sm text-slate-700 truncate flex-1">{uploadedFileName || 'Uploaded video'}</span>
+              <button type="button" onClick={handleRemoveS3Video} className="text-slate-400 hover:text-red-500 shrink-0">
+                <X className="h-4 w-4" />
+              </button>
             </div>
           ) : (
             <div
