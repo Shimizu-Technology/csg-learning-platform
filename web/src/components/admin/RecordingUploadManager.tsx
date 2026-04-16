@@ -98,7 +98,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
     setUploading(true)
     setError(null)
 
-    const result = await startVideoUpload(selectedFile, {
+    const { result } = startVideoUpload(selectedFile, {
       cohortRecording: {
         cohortId,
         title: newTitle.trim(),
@@ -107,7 +107,9 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
       },
     })
 
-    if (result) {
+    const uploadResult = await result
+
+    if (uploadResult) {
       setShowUploadForm(false)
       setSelectedFile(null)
       setNewTitle('')

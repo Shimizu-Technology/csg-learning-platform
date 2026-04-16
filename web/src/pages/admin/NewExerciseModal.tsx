@@ -115,8 +115,8 @@ export function NewExerciseModal({
             />
           </div>
 
-          {/* Row 2: Week, Day, Video URL, Filename */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          {/* Row 2: Week, Day, Filename */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Week</label>
               <select
@@ -137,16 +137,6 @@ export function NewExerciseModal({
                 {availableDays.map(d => <option key={d.index} value={d.index}>{d.name}</option>)}
               </select>
             </div>
-            <div className="col-span-2">
-              <VideoUploadField
-                videoUrl={videoUrl}
-                onVideoUrlChange={setVideoUrl}
-                s3VideoKey={s3Video?.s3_video_key || null}
-                onS3VideoUploaded={(data) => setS3Video(data)}
-                onS3VideoRemoved={() => setS3Video(null)}
-                compact
-              />
-            </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Filename</label>
               <input
@@ -157,7 +147,28 @@ export function NewExerciseModal({
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono"
               />
             </div>
+            <div className="flex items-end">
+              <label className="flex items-center gap-2.5 rounded-lg border border-slate-200 px-3 py-2 cursor-pointer hover:bg-slate-50 transition-colors h-[38px] w-full">
+                <input
+                  type="checkbox"
+                  checked={requiresSubmission}
+                  onChange={e => setRequiresSubmission(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                />
+                <span className="text-sm text-slate-700">Requires submission</span>
+              </label>
+            </div>
           </div>
+
+          {/* Row 3: Video */}
+          <VideoUploadField
+            videoUrl={videoUrl}
+            onVideoUrlChange={setVideoUrl}
+            s3VideoKey={s3Video?.s3_video_key || null}
+            onS3VideoUploaded={(data) => setS3Video(data)}
+            onS3VideoRemoved={() => setS3Video(null)}
+            compact
+          />
 
           {/* Instructions — WYSIWYG */}
           <RichTextEditor
@@ -181,20 +192,6 @@ export function NewExerciseModal({
               minHeight={200}
             />
           </div>
-
-          {/* Requires submission */}
-          <label className="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors">
-            <input
-              type="checkbox"
-              checked={requiresSubmission}
-              onChange={e => setRequiresSubmission(e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-            />
-            <div>
-              <p className="text-sm font-medium text-slate-700">Requires student submission</p>
-              <p className="text-xs text-slate-400">Students will see a code editor and submit button for this exercise</p>
-            </div>
-          </label>
 
           {/* Actions */}
           <div className="flex gap-3 pt-2">

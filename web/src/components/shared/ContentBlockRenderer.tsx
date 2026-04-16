@@ -170,6 +170,25 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
     }
   }
 
+  const fetchBlockStreamUrl = useCallback(async () => {
+    const res = await api.getContentBlockVideoStream(block.id)
+    return res.data?.stream_url || null
+  }, [block.id])
+
+  const saveBlockProgress = useCallback((data: import('./VideoPlayer').VideoProgressData) => {
+    api.updateContentBlockVideoProgress(block.id, data).then(res => {
+      if (res.data?.video_progress?.completed) {
+        setIsCompleted(true)
+        onProgressUpdate?.()
+      }
+    })
+  }, [block.id, onProgressUpdate])
+
+  const handleBlockCompleted = useCallback(() => {
+    setIsCompleted(true)
+    onProgressUpdate?.()
+  }, [onProgressUpdate])
+
   const handleSubmit = async () => {
     if (!submissionText.trim()) return
     setIsSubmitting(true)
@@ -235,22 +254,9 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
             title={block.title || 'Video'}
             initialPosition={block.progress?.video_last_position || 0}
             initialTotalWatched={block.progress?.video_total_watched || 0}
-            fetchStreamUrl={async () => {
-              const res = await api.getContentBlockVideoStream(block.id)
-              return res.data?.stream_url || null
-            }}
-            onSaveProgress={(data) => {
-              api.updateContentBlockVideoProgress(block.id, data).then(res => {
-                if (res.data?.video_progress?.completed) {
-                  setIsCompleted(true)
-                  onProgressUpdate?.()
-                }
-              })
-            }}
-            onCompleted={() => {
-              setIsCompleted(true)
-              onProgressUpdate?.()
-            }}
+            fetchStreamUrl={fetchBlockStreamUrl}
+            onSaveProgress={saveBlockProgress}
+            onCompleted={handleBlockCompleted}
           />
         )}
 

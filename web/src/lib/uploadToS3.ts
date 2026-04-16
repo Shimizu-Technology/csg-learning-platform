@@ -29,7 +29,17 @@ export function uploadToS3(
 
     xhr.addEventListener('load', () => {
       if (xhr.status >= 200 && xhr.status < 300) resolve()
-      else reject(new Error(`Upload failed with status ${xhr.status}`))
+      else {
+        let detail = ''
+        try {
+          const parser = new DOMParser()
+          const xml = parser.parseFromString(xhr.responseText, 'text/xml')
+          const code = xml.querySelector('Code')?.textContent
+          const message = xml.querySelector('Message')?.textContent
+          if (code || message) detail = ` (${code}: ${message})`
+        } catch { /* ignore parse errors */ }
+        reject(new Error(`Upload failed with status ${xhr.status}${detail}`))
+      }
     })
 
     xhr.addEventListener('error', () => reject(new Error('Upload failed — check your connection')))

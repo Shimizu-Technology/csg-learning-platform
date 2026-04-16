@@ -19,7 +19,6 @@ class S3Service
         key: key,
         content_type: content_type,
         success_action_status: "201",
-        metadata: { "original-content-type" => content_type },
         expires: Time.now + PRESIGN_EXPIRY
       ).tap do |post|
         post.content_length_range(1..max_size)

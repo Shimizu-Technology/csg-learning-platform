@@ -104,6 +104,21 @@ export function Recordings() {
     }))
   }, [selectedItem])
 
+  const selectedId = selectedItem?.source === 's3' ? selectedItem.id : null
+
+  const fetchSelectedStreamUrl = useCallback(async () => {
+    if (!cohortId || !selectedId) return null
+    const res = await api.getRecordingStreamUrl(cohortId, selectedId)
+    return res.data?.stream_url || null
+  }, [cohortId, selectedId])
+
+  const saveSelectedProgress = useCallback((data: import('../../components/shared/VideoPlayer').VideoProgressData) => {
+    if (!selectedId) return
+    api.updateWatchProgress({ recording_id: selectedId, ...data }).then(res => {
+      if (res.data?.watch_progress) handleProgressUpdate(res.data.watch_progress)
+    })
+  }, [selectedId, handleProgressUpdate])
+
   if (loading) return <LoadingSpinner message="Loading recordings..." />
 
   const totalCount = s3Recordings.length + legacyRecordings.length
@@ -143,15 +158,8 @@ export function Recordings() {
                 title={selectedItem.title}
                 initialPosition={selectedItem.watch_progress?.last_position_seconds || 0}
                 initialTotalWatched={selectedItem.watch_progress?.total_watched_seconds || 0}
-                fetchStreamUrl={async () => {
-                  const res = await api.getRecordingStreamUrl(cohortId, selectedItem.id)
-                  return res.data?.stream_url || null
-                }}
-                onSaveProgress={(data) => {
-                  api.updateWatchProgress({ recording_id: selectedItem.id, ...data }).then(res => {
-                    if (res.data?.watch_progress) handleProgressUpdate(res.data.watch_progress)
-                  })
-                }}
+                fetchStreamUrl={fetchSelectedStreamUrl}
+                onSaveProgress={saveSelectedProgress}
               />
               <div className="rounded-2xl border border-slate-200 bg-white p-5">
                 <div className="flex items-start justify-between gap-3">

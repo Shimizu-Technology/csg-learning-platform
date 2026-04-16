@@ -46,16 +46,16 @@ export function VideoUploadField({
     setError(null)
     setUploadedFileName(file.name)
 
-    const id = crypto.randomUUID()
-    setUploadId(id)
+    const { uploadId: newId, result } = startVideoUpload(file, contentBlockId ? { contentBlockId } : undefined)
+    setUploadId(newId)
 
-    const result = await startVideoUpload(file, contentBlockId ? { contentBlockId } : undefined)
+    const uploadResult = await result
 
-    if (result) {
+    if (uploadResult) {
       onS3VideoUploaded({
-        s3_video_key: result.s3Key,
-        s3_video_content_type: result.contentType,
-        s3_video_size: result.fileSize,
+        s3_video_key: uploadResult.s3Key,
+        s3_video_content_type: uploadResult.contentType,
+        s3_video_size: uploadResult.fileSize,
       })
       onVideoUrlChange('')
     }

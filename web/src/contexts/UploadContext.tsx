@@ -20,12 +20,17 @@ interface UploadResult {
   fileSize: number
 }
 
+interface UploadStartResult {
+  uploadId: string
+  result: Promise<UploadResult | null>
+}
+
 interface UploadContextValue {
   uploads: ActiveUpload[]
   startVideoUpload: (
     file: File,
     opts?: { contentBlockId?: number; cohortRecording?: { cohortId: number; title: string; description?: string; recordedDate?: string } }
-  ) => Promise<UploadResult | null>
+  ) => UploadStartResult
   cancelUpload: (id: string) => void
 }
 
@@ -50,10 +55,10 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     setUploads(prev => prev.filter(u => u.id !== id))
   }, [])
 
-  const startVideoUpload = useCallback(async (
+  const startVideoUpload = useCallback((
     file: File,
     opts?: { contentBlockId?: number; cohortRecording?: { cohortId: number; title: string; description?: string; recordedDate?: string } }
-  ): Promise<UploadResult | null> => {
+  ): UploadStartResult => {
     const id = crypto.randomUUID()
     const abortController = new AbortController()
     const contentType = file.type || 'video/mp4'
@@ -64,56 +69,60 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     }
     setUploads(prev => [...prev, upload])
 
-    try {
-      let presignRes
-      if (opts?.contentBlockId) {
-        presignRes = await api.presignContentBlockVideo(opts.contentBlockId, file.name, contentType)
-      } else if (opts?.cohortRecording) {
-        presignRes = await api.presignRecordingUpload(opts.cohortRecording.cohortId, file.name, contentType)
-      } else {
-        presignRes = await api.presignGenericVideo(file.name, contentType)
-      }
+    const result = (async (): Promise<UploadResult | null> => {
+      try {
+        let presignRes
+        if (opts?.contentBlockId) {
+          presignRes = await api.presignContentBlockVideo(opts.contentBlockId, file.name, contentType)
+        } else if (opts?.cohortRecording) {
+          presignRes = await api.presignRecordingUpload(opts.cohortRecording.cohortId, file.name, contentType)
+        } else {
+          presignRes = await api.presignGenericVideo(file.name, contentType)
+        }
 
-      if (!presignRes.data) throw new Error(presignRes.error || 'Failed to get upload URL')
+        if (!presignRes.data) throw new Error(presignRes.error || 'Failed to get upload URL')
 
-      const { upload_url, fields, s3_key } = presignRes.data
-      updateUpload(id, { status: 'uploading', s3Key: s3_key })
+        const { upload_url, fields, s3_key } = presignRes.data
+        updateUpload(id, { status: 'uploading', s3Key: s3_key })
 
-      await uploadToS3(upload_url, fields, file, (p: UploadProgress) => {
-        updateUpload(id, { progress: p.percent })
-      }, abortController.signal)
+        await uploadToS3(upload_url, fields, file, (p: UploadProgress) => {
+          updateUpload(id, { progress: p.percent })
+        }, abortController.signal)
 
-      updateUpload(id, { status: 'saving', progress: 100 })
+        updateUpload(id, { status: 'saving', progress: 100 })
 
-      if (opts?.contentBlockId) {
-        const res = await api.updateContentBlock(opts.contentBlockId, {
-          s3_video_key: s3_key, s3_video_content_type: contentType,
-          s3_video_size: file.size, video_url: null,
-        })
-        if (res.error) throw new Error(res.error)
-      } else if (opts?.cohortRecording) {
-        const res = await api.createRecording(opts.cohortRecording.cohortId, {
-          title: opts.cohortRecording.title,
-          description: opts.cohortRecording.description,
-          s3_key, content_type: contentType, file_size: file.size,
-          recorded_date: opts.cohortRecording.recordedDate,
-        })
-        if (res.error) throw new Error(res.error)
-      }
+        if (opts?.contentBlockId) {
+          const res = await api.updateContentBlock(opts.contentBlockId, {
+            s3_video_key: s3_key, s3_video_content_type: contentType,
+            s3_video_size: file.size, video_url: null,
+          })
+          if (res.error) throw new Error(res.error)
+        } else if (opts?.cohortRecording) {
+          const res = await api.createRecording(opts.cohortRecording.cohortId, {
+            title: opts.cohortRecording.title,
+            description: opts.cohortRecording.description,
+            s3_key, content_type: contentType, file_size: file.size,
+            recorded_date: opts.cohortRecording.recordedDate,
+          })
+          if (res.error) throw new Error(res.error)
+        }
 
-      updateUpload(id, { status: 'done' })
-      setTimeout(() => removeUpload(id), 5000)
+        updateUpload(id, { status: 'done' })
+        setTimeout(() => removeUpload(id), 5000)
 
-      return { s3Key: s3_key, contentType, fileSize: file.size }
-    } catch (err) {
-      if (abortController.signal.aborted) {
-        removeUpload(id)
+        return { s3Key: s3_key, contentType, fileSize: file.size }
+      } catch (err) {
+        if (abortController.signal.aborted) {
+          removeUpload(id)
+          return null
+        }
+        const msg = err instanceof Error ? err.message : 'Upload failed'
+        updateUpload(id, { status: 'error', error: msg })
         return null
       }
-      const msg = err instanceof Error ? err.message : 'Upload failed'
-      updateUpload(id, { status: 'error', error: msg })
-      return null
-    }
+    })()
+
+    return { uploadId: id, result }
   }, [updateUpload, removeUpload])
 
   const cancelUpload = useCallback((id: string) => {
