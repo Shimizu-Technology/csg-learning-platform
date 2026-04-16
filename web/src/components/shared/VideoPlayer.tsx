@@ -23,6 +23,7 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
   const containerRef = useRef<HTMLDivElement>(null)
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const totalWatchedRef = useRef(initialTotalWatched)
+  const hasRestoredInitialPosition = useRef(false)
 
   const [streamUrl, setStreamUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -81,8 +82,9 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
 
     const handleLoaded = () => {
       setDuration(video.duration)
-      if (initialPosition > 0) {
+      if (!hasRestoredInitialPosition.current && initialPosition > 0) {
         video.currentTime = initialPosition
+        hasRestoredInitialPosition.current = true
       }
     }
     const handleTimeUpdate = () => setCurrentTime(video.currentTime)
