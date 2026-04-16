@@ -44,11 +44,12 @@ module Api
 
       # DELETE /api/v1/content_blocks/:id
       def destroy
-        if @content_block.s3_video_key.present? && S3Service.configured?
-          S3Service.delete_object(@content_block.s3_video_key)
-        end
-        @content_block.destroy
+        key_to_delete = @content_block.s3_video_key
+        @content_block.destroy!
+        S3Service.delete_object(key_to_delete) if key_to_delete.present? && S3Service.configured?
         head :no_content
+      rescue ActiveRecord::RecordNotDestroyed
+        render json: { error: "Failed to delete content block" }, status: :unprocessable_entity
       end
 
       # POST /api/v1/video_presign — generic presign (staff only, no content block needed)

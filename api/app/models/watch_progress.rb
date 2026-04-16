@@ -17,6 +17,7 @@ class WatchProgress < ApplicationRecord
 
   def check_completion
     return unless duration_seconds&.positive?
+    return if completed?
     self.completed = total_watched_seconds >= (duration_seconds * 0.9)
   end
 end

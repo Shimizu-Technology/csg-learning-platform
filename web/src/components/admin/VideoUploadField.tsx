@@ -22,25 +22,27 @@ export function VideoUploadField({
   compact,
 }: VideoUploadFieldProps) {
   const { startVideoUpload, uploads } = useUpload()
-  const [mode, setMode] = useState<'url' | 'upload'>(s3VideoKey ? 'upload' : 'url')
-  const [uploadId, setUploadId] = useState<string | null>(null)
+
+  const existingUpload = contentBlockId
+    ? uploads.find(u => u.contentBlockId === contentBlockId && u.status !== 'done' && u.status !== 'error')
+    : null
+
+  const [mode, setMode] = useState<'url' | 'upload'>(s3VideoKey || existingUpload ? 'upload' : 'url')
+  const [uploadId, setUploadId] = useState<string | null>(existingUpload?.id || null)
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(
-    s3VideoKey ? s3VideoKey.split('/').pop() || null : null
+    existingUpload?.fileName || (s3VideoKey ? s3VideoKey.split('/').pop() || null : null)
   )
   const [error, setError] = useState<string | null>(null)
 
-  const activeUpload = uploads.find(u => u.id === uploadId)
-    || (contentBlockId ? uploads.find(u => u.contentBlockId === contentBlockId && u.status !== 'done' && u.status !== 'error') : null)
+  const activeUpload = uploads.find(u => u.id === uploadId) || existingUpload || null
   const isUploading = activeUpload && activeUpload.status !== 'done' && activeUpload.status !== 'error'
   const hasReportedKeyRef = useRef(false)
 
   useEffect(() => {
-    if (activeUpload && !uploadId) {
+    if (activeUpload && activeUpload.id !== uploadId) {
       setUploadId(activeUpload.id)
       setUploadedFileName(activeUpload.fileName)
-      if (activeUpload.s3Key) {
-        setMode('upload')
-      }
+      setMode('upload')
     }
   }, [activeUpload, uploadId])
 
