@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react'
 import { Upload, Film, X, Link2 } from 'lucide-react'
 import { useUpload } from '../../contexts/UploadContext'
-import { formatFileSize } from '../../lib/uploadToS3'
 
 interface VideoUploadFieldProps {
   contentBlockId?: number | null

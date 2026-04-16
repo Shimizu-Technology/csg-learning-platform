@@ -54,7 +54,7 @@ module Api
         content_type = params[:content_type] || "video/mp4"
         timestamp = Time.current.strftime("%Y%m%d%H%M%S")
         safe_name = filename.to_s.gsub(/[^a-zA-Z0-9._-]/, "_")
-        s3_key = "recordings/cohort_#{@cohort.id}/#{timestamp}_#{safe_name}"
+        s3_key = "recordings/cohort_#{@cohort.id}/#{timestamp}_#{SecureRandom.hex(4)}_#{safe_name}"
 
         presigned = S3Service.generate_presigned_post(s3_key, content_type)
 
