@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Play, Pause, Maximize, Volume2, VolumeX, RotateCcw } from 'lucide-react'
+import { Play, Pause, Maximize, Volume2, VolumeX, RotateCcw, Loader2 } from 'lucide-react'
 
 export interface VideoProgressData {
   last_position_seconds: number
@@ -32,8 +32,24 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
   const [muted, setMuted] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
+  const [bufferedEnd, setBufferedEnd] = useState(0)
+  const [buffering, setBuffering] = useState(false)
   const [showControls, setShowControls] = useState(true)
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const bufferingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Debounce the buffering indicator so already-buffered seeks don't flash a spinner.
+  const showBufferingSoon = useCallback(() => {
+    if (bufferingTimerRef.current) clearTimeout(bufferingTimerRef.current)
+    bufferingTimerRef.current = setTimeout(() => setBuffering(true), 180)
+  }, [])
+  const hideBuffering = useCallback(() => {
+    if (bufferingTimerRef.current) {
+      clearTimeout(bufferingTimerRef.current)
+      bufferingTimerRef.current = null
+    }
+    setBuffering(false)
+  }, [])
 
   const loadUrl = useCallback(() => {
     return fetchStreamUrl().then((url) => {
@@ -95,12 +111,39 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
       sendProgress(true)
       onCompleted?.()
     }
+    const handleProgress = () => {
+      try {
+        const ranges = video.buffered
+        if (!ranges.length) return
+        // Show the buffered range that contains the current playhead, or the last range otherwise.
+        const t = video.currentTime
+        let end = ranges.end(ranges.length - 1)
+        for (let i = 0; i < ranges.length; i++) {
+          if (ranges.start(i) <= t && ranges.end(i) >= t) {
+            end = ranges.end(i)
+            break
+          }
+        }
+        setBufferedEnd(end)
+      } catch { /* ignore */ }
+    }
+    const handleWaiting = () => showBufferingSoon()
+    const handlePlaying = () => hideBuffering()
+    const handleSeeking = () => showBufferingSoon()
+    const handleSeeked = () => hideBuffering()
+    const handleCanPlay = () => hideBuffering()
 
     video.addEventListener('loadedmetadata', handleLoaded)
     video.addEventListener('timeupdate', handleTimeUpdate)
     video.addEventListener('play', handlePlay)
     video.addEventListener('pause', handlePause)
     video.addEventListener('ended', handleEnded)
+    video.addEventListener('progress', handleProgress)
+    video.addEventListener('waiting', handleWaiting)
+    video.addEventListener('playing', handlePlaying)
+    video.addEventListener('seeking', handleSeeking)
+    video.addEventListener('seeked', handleSeeked)
+    video.addEventListener('canplay', handleCanPlay)
 
     return () => {
       video.removeEventListener('loadedmetadata', handleLoaded)
@@ -108,8 +151,20 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
       video.removeEventListener('play', handlePlay)
       video.removeEventListener('pause', handlePause)
       video.removeEventListener('ended', handleEnded)
+      video.removeEventListener('progress', handleProgress)
+      video.removeEventListener('waiting', handleWaiting)
+      video.removeEventListener('playing', handlePlaying)
+      video.removeEventListener('seeking', handleSeeking)
+      video.removeEventListener('seeked', handleSeeked)
+      video.removeEventListener('canplay', handleCanPlay)
     }
-  }, [streamUrl, initialPosition, sendProgress, onCompleted])
+  }, [streamUrl, initialPosition, sendProgress, onCompleted, showBufferingSoon, hideBuffering])
+
+  useEffect(() => {
+    return () => {
+      if (bufferingTimerRef.current) clearTimeout(bufferingTimerRef.current)
+    }
+  }, [])
 
   useEffect(() => {
     if (playing) {
@@ -162,8 +217,11 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
     const video = videoRef.current
     if (!video || !duration) return
     const rect = e.currentTarget.getBoundingClientRect()
-    const pct = (e.clientX - rect.left) / rect.width
-    video.currentTime = pct * duration
+    const pct = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
+    const target = pct * duration
+    setCurrentTime(target)
+    showBufferingSoon()
+    video.currentTime = target
   }
 
   const handleMouseMove = () => {
@@ -210,6 +268,7 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
   }
 
   const progressPct = duration > 0 ? (currentTime / duration) * 100 : 0
+  const bufferedPct = duration > 0 ? Math.min(100, (bufferedEnd / duration) * 100) : 0
 
   return (
     <div
@@ -225,11 +284,11 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
         className="absolute inset-0 w-full h-full object-contain"
         onClick={togglePlay}
         playsInline
-        preload="metadata"
+        preload="auto"
         title={title}
       />
 
-      {!playing && (
+      {!playing && !buffering && (
         <button
           onClick={togglePlay}
           className="absolute inset-0 flex items-center justify-center bg-black/30 transition-opacity"
@@ -240,13 +299,23 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
         </button>
       )}
 
+      {buffering && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
+          <Loader2 className="h-10 w-10 text-white/90 animate-spin" />
+        </div>
+      )}
+
       <div className={`absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 to-transparent pt-10 pb-3 px-3 sm:px-4 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
         <div
-          className="w-full h-1.5 bg-white/20 rounded-full cursor-pointer mb-3 group/progress"
+          className="relative w-full h-1.5 bg-white/20 rounded-full cursor-pointer mb-3 group/progress"
           onClick={handleSeek}
         >
           <div
-            className="h-full bg-primary-500 rounded-full relative transition-all"
+            className="absolute inset-y-0 left-0 bg-white/30 rounded-full pointer-events-none"
+            style={{ width: `${bufferedPct}%` }}
+          />
+          <div
+            className="absolute inset-y-0 left-0 bg-primary-500 rounded-full"
             style={{ width: `${progressPct}%` }}
           >
             <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow-lg opacity-0 group-hover/progress:opacity-100 transition-opacity" />

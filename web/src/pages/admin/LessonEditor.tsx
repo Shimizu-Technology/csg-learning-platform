@@ -7,6 +7,7 @@ import { RichTextEditor } from '../../components/shared/RichTextEditor'
 import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
 import { ContentBlockRenderer } from '../../components/shared/ContentBlockRenderer'
 import { VideoUploadField } from '../../components/admin/VideoUploadField'
+import { AdminVideoPreview } from '../../components/admin/AdminVideoPreview'
 import { useUpload } from '../../contexts/UploadContext'
 
 interface ContentBlock {
@@ -402,6 +403,13 @@ export function LessonEditor() {
                 </label>
               </div>
             </div>
+
+            <AdminVideoPreview
+              contentBlockId={videoBlockId}
+              s3VideoKey={s3VideoKey}
+              videoUrl={videoUrl}
+              title={title}
+            />
           </div>
 
           {/* Instructions — WYSIWYG editor */}

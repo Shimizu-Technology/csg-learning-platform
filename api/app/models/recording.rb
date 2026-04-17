@@ -1,6 +1,6 @@
 class Recording < ApplicationRecord
   belongs_to :cohort
-  belongs_to :uploaded_by, class_name: "User"
+  belongs_to :uploaded_by, class_name: "User", optional: true
   has_many :watch_progresses, dependent: :destroy
 
   validates :title, presence: true

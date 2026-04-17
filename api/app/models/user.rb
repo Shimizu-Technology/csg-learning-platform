@@ -7,6 +7,7 @@ class User < ApplicationRecord
   has_many :submissions, dependent: :destroy
   has_many :graded_submissions, class_name: "Submission", foreign_key: :graded_by_id, dependent: :nullify
   has_many :watch_progresses, dependent: :destroy
+  has_many :uploaded_recordings, class_name: "Recording", foreign_key: :uploaded_by_id, dependent: :nullify
 
   validates :clerk_id, presence: true, uniqueness: true
   validates :email, presence: true, uniqueness: { case_sensitive: false }

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_17_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_17_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -724,7 +724,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_17_000001) do
     t.string "s3_key", null: false
     t.string "title", null: false
     t.datetime "updated_at", null: false
-    t.bigint "uploaded_by_id", null: false
+    t.bigint "uploaded_by_id"
     t.index ["cohort_id", "position"], name: "index_recordings_on_cohort_id_and_position"
     t.index ["cohort_id"], name: "index_recordings_on_cohort_id"
     t.index ["s3_key"], name: "index_recordings_on_s3_key", unique: true
@@ -1181,7 +1181,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_17_000001) do
   add_foreign_key "quotas", "districts"
   add_foreign_key "quotas", "villages"
   add_foreign_key "recordings", "cohorts"
-  add_foreign_key "recordings", "users", column: "uploaded_by_id"
+  add_foreign_key "recordings", "users", column: "uploaded_by_id", on_delete: :nullify
   add_foreign_key "referral_codes", "users", column: "assigned_user_id"
   add_foreign_key "referral_codes", "users", column: "created_by_user_id"
   add_foreign_key "referral_codes", "villages"
