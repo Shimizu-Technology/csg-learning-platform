@@ -154,18 +154,24 @@ module Api
           progress.status = :in_progress
         end
 
-        progress.save!
-
-        render json: {
-          video_progress: {
-            content_block_id: progress.content_block_id,
-            last_position: progress.video_last_position,
-            total_watched: progress.video_total_watched,
-            duration: progress.video_duration,
-            status: progress.status,
-            completed: progress.completed?
+        # Match the rest of the controllers: surface validation errors as 422
+        # rather than letting RecordInvalid bubble up to a 500. This is unlikely
+        # to fire on the happy path (all fields are coerced via to_i above) but
+        # keeps the contract consistent for the player's polling loop.
+        if progress.save
+          render json: {
+            video_progress: {
+              content_block_id: progress.content_block_id,
+              last_position: progress.video_last_position,
+              total_watched: progress.video_total_watched,
+              duration: progress.video_duration,
+              status: progress.status,
+              completed: progress.completed?
+            }
           }
-        }
+        else
+          render json: { errors: progress.errors.full_messages }, status: :unprocessable_entity
+        end
       end
 
       private

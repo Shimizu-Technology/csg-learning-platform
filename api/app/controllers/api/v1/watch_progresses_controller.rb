@@ -118,7 +118,10 @@ module Api
               total_watched_seconds: p&.video_total_watched || 0,
               progress_percentage: pct,
               completed: p&.status == "completed",
-              completed_at: p&.completed_at
+              completed_at: p&.completed_at,
+              # For video progresses, updated_at advances on every player ping,
+              # so it's the most accurate "last touched" signal we have.
+              last_watched_at: p&.updated_at
             }
           }
         }

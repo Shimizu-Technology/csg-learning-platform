@@ -168,6 +168,7 @@ interface LessonVideoProgress {
   progress_percentage: number
   completed: boolean
   completed_at: string | null
+  last_watched_at: string | null
 }
 
 interface RecordingProgress {
@@ -190,35 +191,83 @@ function formatWatchedDuration(seconds: number | null | undefined): string {
   return `<1m`
 }
 
-function WatchProgressBadge({
-  progressPercentage,
-  completed,
-  totalWatchedSeconds,
-  durationSeconds,
-}: {
+function formatLastActive(iso: string | null | undefined): string {
+  if (!iso) return 'Never'
+  const date = new Date(iso)
+  const diffMs = Date.now() - date.getTime()
+  const minutes = Math.floor(diffMs / 60_000)
+  if (minutes < 1) return 'Just now'
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 30) return `${days}d ago`
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+interface WatchProgressDetailsProps {
   progressPercentage: number
   completed: boolean
   totalWatchedSeconds: number
   durationSeconds: number | null
-}) {
+  lastActiveAt?: string | null
+  layout?: 'inline' | 'block'
+}
+
+// Rich progress strip used inline beneath a video / recording row. Shows the
+// status pill, a thin progress bar, watched/total minutes, and last-active —
+// the same level of detail the standalone watch progress page used to have,
+// but folded directly into the curriculum tree.
+function WatchProgressDetails({
+  progressPercentage,
+  completed,
+  totalWatchedSeconds,
+  durationSeconds,
+  lastActiveAt,
+  layout = 'inline',
+}: WatchProgressDetailsProps) {
   const pct = Math.round(progressPercentage)
   const watched = formatWatchedDuration(totalWatchedSeconds)
   const total = formatWatchedDuration(durationSeconds)
 
-  const tone = completed
+  const statusLabel = completed ? 'Watched' : pct > 0 ? 'In Progress' : 'Not Started'
+  const statusTone = completed
     ? 'bg-green-50 text-green-700 border-green-200'
     : pct > 0
       ? 'bg-amber-50 text-amber-700 border-amber-200'
       : 'bg-slate-50 text-slate-500 border-slate-200'
+  const barTone = completed ? 'bg-green-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-300'
 
   return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium tabular-nums ${tone}`}
-      title={`Watched ${watched} of ${total}`}
+    <div
+      className={
+        layout === 'block'
+          ? 'flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500'
+          : 'flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500 mt-1'
+      }
     >
-      <Eye className="h-3 w-3" />
-      {pct}%
-    </span>
+      <span
+        className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium tabular-nums ${statusTone}`}
+      >
+        <Eye className="h-3 w-3" />
+        {statusLabel} · {pct}%
+      </span>
+      <div className="flex items-center gap-1.5 min-w-[80px] flex-1 max-w-[160px]">
+        <div className="h-1 flex-1 rounded-full bg-slate-100 overflow-hidden">
+          <div
+            className={`h-full rounded-full ${barTone}`}
+            style={{ width: `${Math.max(0, Math.min(100, pct))}%` }}
+          />
+        </div>
+      </div>
+      <span className="tabular-nums" title={`Watched ${watched} of ${total}`}>
+        <span className="text-slate-700 font-medium">{watched}</span>
+        <span className="text-slate-300"> / {total}</span>
+      </span>
+      <span className="tabular-nums" title={lastActiveAt ? new Date(lastActiveAt).toLocaleString() : 'Never watched'}>
+        Last active: <span className="text-slate-700">{formatLastActive(lastActiveAt)}</span>
+      </span>
+    </div>
   )
 }
 
@@ -344,34 +393,39 @@ function LessonRow({
             return (
               <div
                 key={block.id}
-                className="flex items-center gap-3 px-5 py-2.5 border-b border-slate-100 last:border-0"
+                className="px-5 py-2.5 border-b border-slate-100 last:border-0"
               >
-                <Icon className={`h-3.5 w-3.5 shrink-0 ${colorClass}`} />
-                <span className="flex-1 text-xs text-slate-700 truncate">{block.title}</span>
-                <span className="text-xs text-slate-400 capitalize w-20 text-right shrink-0">
-                  {block.block_type.replace('_', ' ')}
-                </span>
-                {watchProgress && (
-                  <WatchProgressBadge
-                    progressPercentage={watchProgress.progress_percentage}
-                    completed={watchProgress.completed}
-                    totalWatchedSeconds={watchProgress.total_watched_seconds}
-                    durationSeconds={watchProgress.duration_seconds}
-                  />
-                )}
-                {block.submission && (
-                  <span
-                    className={`text-xs font-semibold px-1.5 py-0.5 rounded border ${GRADE_STYLES[block.submission.grade || ''] || 'bg-slate-100 text-slate-500 border-slate-200'}`}
-                  >
-                    {block.submission.grade || 'Submitted'}
+                <div className="flex items-center gap-3">
+                  <Icon className={`h-3.5 w-3.5 shrink-0 ${colorClass}`} />
+                  <span className="flex-1 text-xs text-slate-700 truncate">{block.title}</span>
+                  <span className="text-xs text-slate-400 capitalize w-20 text-right shrink-0">
+                    {block.block_type.replace('_', ' ')}
                   </span>
-                )}
-                {block.status === 'completed' ? (
-                  <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                ) : block.status === 'in_progress' ? (
-                  <div className="h-3.5 w-3.5 rounded-full border-2 border-primary-400 shrink-0" />
-                ) : (
-                  <Circle className="h-3.5 w-3.5 text-slate-200 shrink-0" />
+                  {block.submission && (
+                    <span
+                      className={`text-xs font-semibold px-1.5 py-0.5 rounded border ${GRADE_STYLES[block.submission.grade || ''] || 'bg-slate-100 text-slate-500 border-slate-200'}`}
+                    >
+                      {block.submission.grade || 'Submitted'}
+                    </span>
+                  )}
+                  {block.status === 'completed' ? (
+                    <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                  ) : block.status === 'in_progress' ? (
+                    <div className="h-3.5 w-3.5 rounded-full border-2 border-primary-400 shrink-0" />
+                  ) : (
+                    <Circle className="h-3.5 w-3.5 text-slate-200 shrink-0" />
+                  )}
+                </div>
+                {watchProgress && (
+                  <div className="pl-7 pr-1">
+                    <WatchProgressDetails
+                      progressPercentage={watchProgress.progress_percentage}
+                      completed={watchProgress.completed}
+                      totalWatchedSeconds={watchProgress.total_watched_seconds}
+                      durationSeconds={watchProgress.duration_seconds}
+                      lastActiveAt={watchProgress.last_watched_at || watchProgress.completed_at}
+                    />
+                  </div>
                 )}
               </div>
             )
@@ -896,47 +950,61 @@ export function StudentDetail() {
             )
           })}
 
-          {recordingProgress.length > 0 && (
-            <div className="rounded-2xl bg-white border border-slate-200 overflow-hidden">
-              <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100">
-                <Film className="h-4 w-4 text-primary-500" />
-                <h3 className="text-sm font-semibold text-slate-900">Class Recordings</h3>
-                <span className="text-xs text-slate-400 tabular-nums">
-                  ({recordingProgress.filter((r) => r.completed).length}/{recordingProgress.length} watched)
-                </span>
+          {recordingProgress.length > 0 && (() => {
+            const completedCount = recordingProgress.filter((r) => r.completed).length
+            const inProgressCount = recordingProgress.filter((r) => !r.completed && r.total_watched_seconds > 0).length
+            const totalWatched = recordingProgress.reduce((sum, r) => sum + r.total_watched_seconds, 0)
+            return (
+              <div className="rounded-2xl bg-white border border-slate-200 overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <Film className="h-4 w-4 text-primary-500" />
+                    <h3 className="text-sm font-semibold text-slate-900">Class Recordings</h3>
+                    <span className="text-xs text-slate-400 tabular-nums">
+                      ({completedCount}/{recordingProgress.length} watched)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-[11px] text-slate-500 tabular-nums">
+                    <span><span className="text-green-600 font-medium">{completedCount}</span> done</span>
+                    <span><span className="text-amber-600 font-medium">{inProgressCount}</span> in progress</span>
+                    <span><span className="text-slate-700 font-medium">{formatWatchedDuration(totalWatched)}</span> total watched</span>
+                  </div>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {recordingProgress.map((rec) => {
+                    const pct = Math.round(rec.progress_percentage)
+                    return (
+                      <div
+                        key={rec.recording_id}
+                        className="px-5 py-2.5"
+                      >
+                        <div className="flex items-center gap-3">
+                          <PlayCircle className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+                          <span className="flex-1 text-xs text-slate-700 truncate">{rec.recording_title}</span>
+                          {rec.completed ? (
+                            <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                          ) : pct > 0 ? (
+                            <div className="h-3.5 w-3.5 rounded-full border-2 border-amber-400 shrink-0" />
+                          ) : (
+                            <Circle className="h-3.5 w-3.5 text-slate-200 shrink-0" />
+                          )}
+                        </div>
+                        <div className="pl-7 pr-1">
+                          <WatchProgressDetails
+                            progressPercentage={rec.progress_percentage}
+                            completed={rec.completed}
+                            totalWatchedSeconds={rec.total_watched_seconds}
+                            durationSeconds={rec.duration_seconds}
+                            lastActiveAt={rec.last_watched_at}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-              <div className="divide-y divide-slate-100">
-                {recordingProgress.map((rec) => {
-                  const pct = Math.round(rec.progress_percentage)
-                  return (
-                    <div
-                      key={rec.recording_id}
-                      className="flex items-center gap-3 px-5 py-2.5"
-                    >
-                      <PlayCircle className="h-3.5 w-3.5 text-purple-500 shrink-0" />
-                      <span className="flex-1 text-xs text-slate-700 truncate">{rec.recording_title}</span>
-                      <span className="text-[10px] text-slate-400 tabular-nums shrink-0">
-                        {formatWatchedDuration(rec.total_watched_seconds)} / {formatWatchedDuration(rec.duration_seconds)}
-                      </span>
-                      <WatchProgressBadge
-                        progressPercentage={rec.progress_percentage}
-                        completed={rec.completed}
-                        totalWatchedSeconds={rec.total_watched_seconds}
-                        durationSeconds={rec.duration_seconds}
-                      />
-                      {rec.completed ? (
-                        <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                      ) : pct > 0 ? (
-                        <div className="h-3.5 w-3.5 rounded-full border-2 border-amber-400 shrink-0" />
-                      ) : (
-                        <Circle className="h-3.5 w-3.5 text-slate-200 shrink-0" />
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
+            )
+          })()}
         </div>
 
         <div className="space-y-4">
