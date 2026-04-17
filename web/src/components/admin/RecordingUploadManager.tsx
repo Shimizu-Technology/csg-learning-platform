@@ -3,11 +3,15 @@ import { Upload, Trash2, Film, Calendar, Clock, Plus, X, Pencil } from 'lucide-r
 import { api } from '../../lib/api'
 import { useUpload } from '../../contexts/UploadContext'
 
+// Mirror the shared API shape so we can drop a fetched array straight into state
+// without a cast. `s3_key`/`uploaded_by` are optional in the public type (they
+// only come back on the staff response), but the admin pages never read s3_key
+// directly, and `uploaded_by` is already rendered with a "Unknown" fallback.
 interface S3Recording {
   id: number
   title: string
   description: string | null
-  s3_key: string
+  s3_key?: string
   content_type: string
   file_size: number
   file_size_display: string
@@ -15,7 +19,7 @@ interface S3Recording {
   duration_display: string | null
   recorded_date: string | null
   position: number
-  uploaded_by: string | null
+  uploaded_by?: string | null
   created_at: string
 }
 

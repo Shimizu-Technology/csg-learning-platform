@@ -81,11 +81,14 @@ module Api
         user = User.find(params[:user_id])
         active_enrollments = user.enrollments.where(status: :active).includes(cohort: { curriculum: { modules: { lessons: :content_blocks } } })
 
+        # `has_many :modules / :lessons / :content_blocks` already use
+        # `-> { order(:position) }` scopes, so iterating the eager-loaded
+        # associations is already in display order — no Ruby-side resort needed.
         rows = []
         active_enrollments.each do |enrollment|
           cohort = enrollment.cohort
-          cohort.curriculum.modules.sort_by(&:position).each do |mod|
-            mod.lessons.sort_by(&:position).each do |lesson|
+          cohort.curriculum.modules.each do |mod|
+            mod.lessons.each do |lesson|
               lesson.content_blocks.each do |cb|
                 next unless (cb.block_type == "video" || cb.block_type == "recording") && cb.s3_video_key.present?
                 rows << [ cb, mod, lesson, cohort ]
@@ -171,17 +174,15 @@ module Api
         enrollments = cohort.enrollments.active.includes(:user)
 
         # Flatten the curriculum into ordered video blocks once. Skip blocks without
-        # an attached S3 video — there's nothing to track for those.
-        video_blocks = cohort.curriculum.modules
-          .sort_by(&:position)
-          .flat_map { |m|
-            m.lessons.sort_by(&:position).flat_map { |l|
-              l.content_blocks
-                .select { |cb| (cb.block_type == "video" || cb.block_type == "recording") && cb.s3_video_key.present? }
-                .sort_by(&:position)
-                .map { |cb| [ cb, m, l ] }
-            }
+        # an attached S3 video — there's nothing to track for those. The eager-loaded
+        # associations are already ordered by `position` via their `has_many` scopes.
+        video_blocks = cohort.curriculum.modules.flat_map { |m|
+          m.lessons.flat_map { |l|
+            l.content_blocks
+              .select { |cb| (cb.block_type == "video" || cb.block_type == "recording") && cb.s3_video_key.present? }
+              .map { |cb| [ cb, m, l ] }
           }
+        }
 
         block_ids = video_blocks.map { |cb, _m, _l| cb.id }
         progress_data = Progress

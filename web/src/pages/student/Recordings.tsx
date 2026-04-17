@@ -31,7 +31,7 @@ interface S3Recording {
     total_watched_seconds: number
     progress_percentage: number
     completed: boolean
-    last_watched_at: string
+    last_watched_at: string | null
   } | null
 }
 
@@ -68,8 +68,23 @@ export function Recordings() {
   useEffect(() => {
     api.getRecordings().then((res) => {
       if (res.data) {
-        const legacy = (res.data.recordings || []) as LegacyRecording[]
-        const s3 = (res.data.s3_recordings || []) as S3Recording[]
+        const legacy: LegacyRecording[] = (res.data.recordings || []).map((r) => ({
+          ...r,
+          source: 'youtube',
+        }))
+        // Adapt the API row into the discriminated-union shape this view uses.
+        const s3: S3Recording[] = (res.data.s3_recordings || []).map((r) => ({
+          id: r.id,
+          title: r.title,
+          description: r.description,
+          duration_seconds: r.duration_seconds,
+          duration_display: r.duration_display,
+          file_size_display: r.file_size_display,
+          recorded_date: r.recorded_date,
+          created_at: r.created_at,
+          source: 's3',
+          watch_progress: r.watch_progress ?? null,
+        }))
         setLegacyRecordings(legacy)
         setS3Recordings(s3)
         setCohortId(res.data.cohort_id || null)
@@ -95,12 +110,12 @@ export function Recordings() {
     )
   }, [allRecordings, query])
 
-  const handleProgressUpdate = useCallback((data: Record<string, unknown>) => {
+  const handleProgressUpdate = useCallback((data: Partial<NonNullable<S3Recording['watch_progress']>>) => {
     if (!selectedItem || selectedItem.source !== 's3') return
     setS3Recordings(prev => prev.map(r => {
       if (r.id !== selectedItem.id) return r
-      const base = r.watch_progress || { last_position_seconds: 0, total_watched_seconds: 0, progress_percentage: 0, completed: false, last_watched_at: '' }
-      return { ...r, watch_progress: { ...base, ...data } as S3Recording['watch_progress'] }
+      const base = r.watch_progress || { last_position_seconds: 0, total_watched_seconds: 0, progress_percentage: 0, completed: false, last_watched_at: null }
+      return { ...r, watch_progress: { ...base, ...data } }
     }))
   }, [selectedItem])
 

@@ -25,6 +25,16 @@ import type {
   LessonAssignmentResponse,
   ContentBlockResponse,
   ContentBlocksListResponse,
+  CohortRecordingsResponse,
+  RecordingResponse,
+  ReorderRecordingsResponse,
+  VideoStreamResponse,
+  VideoProgressResponse,
+  WatchProgressUpdateResponse,
+  CohortWatchProgressResponse,
+  CohortLessonVideoProgressResponse,
+  StudentWatchProgressResponse,
+  StudentLessonVideoProgressResponse,
 } from '../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
@@ -139,8 +149,8 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getSubmissionGithubIssue: (id: number) =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fetchApi<any>(`/api/v1/submissions/${id}/github_issue`),
 
   // Student progress (admin)
@@ -306,11 +316,9 @@ export const api = {
       { method: 'POST', body: JSON.stringify({ filename, content_type: contentType }) }
     ),
   getContentBlockVideoStream: (blockId: number) =>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    fetchApi<any>(`/api/v1/content_blocks/${blockId}/video_stream`),
+    fetchApi<VideoStreamResponse>(`/api/v1/content_blocks/${blockId}/video_stream`),
   updateContentBlockVideoProgress: (blockId: number, data: { last_position_seconds: number; total_watched_seconds: number; duration_seconds?: number }) =>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    fetchApi<any>(`/api/v1/content_blocks/${blockId}/video_progress`, {
+    fetchApi<VideoProgressResponse>(`/api/v1/content_blocks/${blockId}/video_progress`, {
       method: 'PATCH', body: JSON.stringify(data),
     }),
 
@@ -327,21 +335,18 @@ export const api = {
 
   // S3 Recordings
   getCohortRecordings: (cohortId: number) =>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    fetchApi<any>(`/api/v1/cohorts/${cohortId}/recordings`),
+    fetchApi<CohortRecordingsResponse>(`/api/v1/cohorts/${cohortId}/recordings`),
   presignRecordingUpload: (cohortId: number, filename: string, contentType: string) =>
     fetchApi<{ upload_url: string; fields: Record<string, string>; s3_key: string }>(
       `/api/v1/cohorts/${cohortId}/recordings_presign`,
       { method: 'POST', body: JSON.stringify({ filename, content_type: contentType }) }
     ),
   createRecording: (cohortId: number, data: { title: string; description?: string; s3_key: string; content_type: string; file_size: number; duration_seconds?: number; recorded_date?: string }) =>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    fetchApi<any>(`/api/v1/cohorts/${cohortId}/recordings`, {
+    fetchApi<RecordingResponse>(`/api/v1/cohorts/${cohortId}/recordings`, {
       method: 'POST', body: JSON.stringify(data),
     }),
   updateRecording: (cohortId: number, id: number, data: { title?: string; description?: string; duration_seconds?: number; recorded_date?: string; position?: number }) =>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    fetchApi<any>(`/api/v1/cohorts/${cohortId}/recordings/${id}`, {
+    fetchApi<RecordingResponse>(`/api/v1/cohorts/${cohortId}/recordings/${id}`, {
       method: 'PATCH', body: JSON.stringify(data),
     }),
   deleteRecording: (cohortId: number, id: number) =>
@@ -349,27 +354,21 @@ export const api = {
   getRecordingStreamUrl: (cohortId: number, id: number) =>
     fetchApi<{ stream_url: string }>(`/api/v1/cohorts/${cohortId}/recordings/${id}/stream_url`),
   reorderRecordings: (cohortId: number, recordingIds: number[]) =>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    fetchApi<any>(`/api/v1/cohorts/${cohortId}/recordings_reorder`, {
+    fetchApi<ReorderRecordingsResponse>(`/api/v1/cohorts/${cohortId}/recordings_reorder`, {
       method: 'PATCH', body: JSON.stringify({ recording_ids: recordingIds }),
     }),
 
   // Watch Progress
   updateWatchProgress: (data: { recording_id: number; last_position_seconds: number; total_watched_seconds: number; duration_seconds?: number }) =>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    fetchApi<any>('/api/v1/watch_progress', {
+    fetchApi<WatchProgressUpdateResponse>('/api/v1/watch_progress', {
       method: 'PATCH', body: JSON.stringify(data),
     }),
   getCohortWatchProgress: (cohortId: number) =>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    fetchApi<any>(`/api/v1/cohorts/${cohortId}/watch_progress`),
+    fetchApi<CohortWatchProgressResponse>(`/api/v1/cohorts/${cohortId}/watch_progress`),
   getCohortLessonVideoProgress: (cohortId: number) =>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    fetchApi<any>(`/api/v1/cohorts/${cohortId}/lesson_video_progress`),
+    fetchApi<CohortLessonVideoProgressResponse>(`/api/v1/cohorts/${cohortId}/lesson_video_progress`),
   getStudentWatchProgress: (userId: number) =>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    fetchApi<any>(`/api/v1/watch_progress/student/${userId}`),
+    fetchApi<StudentWatchProgressResponse>(`/api/v1/watch_progress/student/${userId}`),
   getStudentLessonVideoProgress: (userId: number) =>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    fetchApi<any>(`/api/v1/watch_progress/student/${userId}/lesson_videos`),
+    fetchApi<StudentLessonVideoProgressResponse>(`/api/v1/watch_progress/student/${userId}/lesson_videos`),
 };
