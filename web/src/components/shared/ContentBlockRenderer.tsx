@@ -185,10 +185,13 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
     })
   }, [block.id, onProgressUpdate])
 
+  // Optimistic local-state flip on video end. We intentionally don't call
+  // onProgressUpdate here because saveBlockProgress already does so when the
+  // backend confirms completion in the same `ended` ping — calling it from
+  // both paths fired the parent's progress refetch twice on every completion.
   const handleBlockCompleted = useCallback(() => {
     setIsCompleted(true)
-    onProgressUpdate?.()
-  }, [onProgressUpdate])
+  }, [])
 
   const handleSubmit = async () => {
     if (!submissionText.trim()) return
