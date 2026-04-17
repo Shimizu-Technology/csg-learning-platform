@@ -33,14 +33,46 @@ module Api
       def update
         old_s3_key = @content_block.s3_video_key
 
-        if @content_block.update(block_params)
-          if old_s3_key.present? && @content_block.s3_video_key != old_s3_key
-            S3Service.delete_object(old_s3_key) if S3Service.configured?
+        ContentBlock.transaction do
+          unless @content_block.update(block_params)
+            render json: { errors: @content_block.errors.full_messages }, status: :unprocessable_entity
+            raise ActiveRecord::Rollback
           end
-          render json: { content_block: block_json(@content_block) }
-        else
-          render json: { errors: @content_block.errors.full_messages }, status: :unprocessable_entity
+
+          # When the video binary is replaced (or removed), the previously locked
+          # authoritative duration belongs to a different file. Leaving it in
+          # place would let stale per-user `total_watched` values trip the 90%
+          # completion check against the OLD duration the moment the new video's
+          # first ping arrives — silently marking the new video complete after a
+          # few seconds. Clear the duration so the next first-reporter relocks
+          # it, and wipe per-user video progress so students restart cleanly.
+          if old_s3_key.present? && @content_block.s3_video_key != old_s3_key
+            duration_explicit = block_params.key?(:s3_video_duration_seconds)
+            unless duration_explicit
+              @content_block.update_column(:s3_video_duration_seconds, nil)
+            end
+            # update_all bypasses Active Record enum mapping, so pass the raw
+            # integer for status: instead of the symbol.
+            @content_block.progresses.update_all(
+              video_last_position: 0,
+              video_total_watched: 0,
+              video_duration: nil,
+              status: Progress.statuses[:not_started],
+              completed_at: nil,
+              updated_at: Time.current
+            )
+          end
         end
+        return if performed?
+
+        # S3 deletion is intentionally outside the transaction: rolling back a
+        # successful S3 DELETE is not possible, and a failed delete shouldn't
+        # block the DB update. Worst case we leak the old object, which the
+        # uploads#abandon flow can clean up later.
+        if old_s3_key.present? && @content_block.s3_video_key != old_s3_key
+          S3Service.delete_object(old_s3_key) if S3Service.configured?
+        end
+        render json: { content_block: block_json(@content_block) }
       end
 
       # DELETE /api/v1/content_blocks/:id
@@ -155,49 +187,70 @@ module Api
           @content_block.update_column(:s3_video_duration_seconds, authoritative_duration)
         end
 
-        progress = current_user.progresses.find_or_initialize_by(content_block: @content_block)
-        progress.video_last_position = params[:last_position_seconds].to_i
-        progress.video_duration = authoritative_duration if authoritative_duration.present?
-
-        # Same cap as watch_progresses#update: prevent a single forged request
-        # from claiming `total_watched_seconds >= 90% of duration` and
-        # instantly fabricating completion. Capped against the server-side
-        # authoritative duration only; if duration is still unknown (no first
-        # reporter yet) we fall back to taking the running max as before.
-        new_watched = params[:total_watched_seconds].to_i
-        if authoritative_duration&.positive?
-          new_watched = [ new_watched, authoritative_duration ].min
-        end
-        progress.video_total_watched = [ progress.video_total_watched, new_watched ].max
-
-        # Only mark complete using the server-side authoritative duration.
-        if authoritative_duration&.positive? && progress.video_total_watched >= (authoritative_duration * 0.9)
-          progress.status = :completed unless progress.completed?
-        elsif progress.not_started?
-          progress.status = :in_progress
-        end
-
-        # Match the rest of the controllers: surface validation errors as 422
-        # rather than letting RecordInvalid bubble up to a 500. This is unlikely
-        # to fire on the happy path (all fields are coerced via to_i above) but
-        # keeps the contract consistent for the player's polling loop.
+        # find_or_initialize_by + save races against the unique index
+        # index_progresses_on_user_id_and_content_block_id when the player
+        # fires its first progress ping concurrently with another tab or with
+        # the lesson view that lazily creates a not_started row. The second
+        # save would raise ActiveRecord::RecordNotUnique → unrescued 500. Try
+        # once, and on collision re-fetch the row the racing request inserted
+        # and merge our update into it.
+        progress = upsert_video_progress(authoritative_duration)
         if progress.save
-          render json: {
-            video_progress: {
-              content_block_id: progress.content_block_id,
-              last_position: progress.video_last_position,
-              total_watched: progress.video_total_watched,
-              duration: progress.video_duration,
-              status: progress.status,
-              completed: progress.completed?
-            }
-          }
+          render_video_progress(progress)
+        else
+          render json: { errors: progress.errors.full_messages }, status: :unprocessable_entity
+        end
+      rescue ActiveRecord::RecordNotUnique
+        progress = upsert_video_progress(authoritative_duration, force_existing: true)
+        if progress.save
+          render_video_progress(progress)
         else
           render json: { errors: progress.errors.full_messages }, status: :unprocessable_entity
         end
       end
 
       private
+
+      # Apply the param-derived video progress fields (last_position, capped
+      # total_watched, status transitions). Pass force_existing: true after a
+      # uniqueness collision to skip the build path and merge into the row the
+      # racing request just inserted instead of stacking another insert.
+      def upsert_video_progress(authoritative_duration, force_existing: false)
+        progress = if force_existing
+          current_user.progresses.find_by!(content_block: @content_block)
+        else
+          current_user.progresses.find_or_initialize_by(content_block: @content_block)
+        end
+
+        progress.video_last_position = params[:last_position_seconds].to_i
+        progress.video_duration = authoritative_duration if authoritative_duration.present?
+
+        new_watched = params[:total_watched_seconds].to_i
+        if authoritative_duration&.positive?
+          new_watched = [ new_watched, authoritative_duration ].min
+        end
+        progress.video_total_watched = [ progress.video_total_watched, new_watched ].max
+
+        if authoritative_duration&.positive? && progress.video_total_watched >= (authoritative_duration * 0.9)
+          progress.status = :completed unless progress.completed?
+        elsif progress.not_started?
+          progress.status = :in_progress
+        end
+        progress
+      end
+
+      def render_video_progress(progress)
+        render json: {
+          video_progress: {
+            content_block_id: progress.content_block_id,
+            last_position: progress.video_last_position,
+            total_watched: progress.video_total_watched,
+            duration: progress.video_duration,
+            status: progress.status,
+            completed: progress.completed?
+          }
+        }
+      end
 
       def set_lesson
         @lesson = Lesson.find(params[:lesson_id])

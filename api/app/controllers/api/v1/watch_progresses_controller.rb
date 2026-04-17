@@ -12,23 +12,31 @@ module Api
           return
         end
 
-        progress = current_user.watch_progresses.find_or_initialize_by(recording: recording)
-        progress.last_position_seconds = params[:last_position_seconds].to_i
-        server_duration = recording.duration_seconds
-        progress.duration_seconds = server_duration || params[:duration_seconds].to_i
+        # find_or_initialize_by + save is not atomic: two concurrent first-ever
+        # pings (the player kicks one off on play and another on its first
+        # interval tick before the first one persists) both see no row, both
+        # build a new one, and the second save raises ActiveRecord::RecordNotUnique
+        # against index_watch_progresses_on_user_id_and_recording_id, surfacing
+        # as an unrescued 500. Retry once after looking the row back up so the
+        # second ping merges with the first.
+        progress = upsert_watch_progress(recording)
 
-        # Cap the client-reported watch time at the authoritative duration so a
-        # single forged request can't claim `total_watched_seconds >= 90% of
-        # duration` and instantly fabricate completion on a video the student
-        # never actually played. We still keep the running max across pings so
-        # legitimate non-monotonic clocks don't go backwards.
-        new_watched = params[:total_watched_seconds].to_i
-        if progress.duration_seconds&.positive?
-          new_watched = [ new_watched, progress.duration_seconds ].min
+        if progress.save
+          render json: {
+            watch_progress: {
+              recording_id: progress.recording_id,
+              last_position_seconds: progress.last_position_seconds,
+              total_watched_seconds: progress.total_watched_seconds,
+              progress_percentage: progress.progress_percentage,
+              completed: progress.completed,
+              last_watched_at: progress.last_watched_at
+            }
+          }
+        else
+          render json: { errors: progress.errors.full_messages }, status: :unprocessable_entity
         end
-        progress.total_watched_seconds = [ progress.total_watched_seconds, new_watched ].max
-        progress.last_watched_at = Time.current
-
+      rescue ActiveRecord::RecordNotUnique
+        progress = upsert_watch_progress(recording, force_existing: true)
         if progress.save
           render json: {
             watch_progress: {
@@ -229,6 +237,33 @@ module Api
             }
           }
         }
+      end
+
+      private
+
+      # Build the WatchProgress row to save and apply the param-derived fields
+      # (last_position, capped total_watched, last_watched_at). Used by both the
+      # initial save attempt and the post-RecordNotUnique retry. Pass
+      # force_existing: true after a uniqueness collision to skip the build path
+      # and reload the row the racing request just inserted.
+      def upsert_watch_progress(recording, force_existing: false)
+        progress = if force_existing
+          current_user.watch_progresses.find_by!(recording: recording)
+        else
+          current_user.watch_progresses.find_or_initialize_by(recording: recording)
+        end
+
+        progress.last_position_seconds = params[:last_position_seconds].to_i
+        server_duration = recording.duration_seconds
+        progress.duration_seconds = server_duration || params[:duration_seconds].to_i
+
+        new_watched = params[:total_watched_seconds].to_i
+        if progress.duration_seconds&.positive?
+          new_watched = [ new_watched, progress.duration_seconds ].min
+        end
+        progress.total_watched_seconds = [ progress.total_watched_seconds, new_watched ].max
+        progress.last_watched_at = Time.current
+        progress
       end
     end
   end
