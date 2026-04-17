@@ -5,7 +5,8 @@ module Api
       before_action :require_admin!, except: [ :video_stream, :video_progress ]
       before_action :set_lesson, only: [ :index, :create ]
       before_action :set_content_block, only: [ :show, :update, :destroy, :video_presign, :video_stream, :video_progress ]
-      before_action :authorize_video_access!, only: [ :video_stream, :video_progress ]
+      before_action :authorize_video_access!, only: [ :video_stream ]
+      before_action :authorize_video_progress!, only: [ :video_progress ]
 
       # GET /api/v1/lessons/:lesson_id/content_blocks
       def index
@@ -62,8 +63,10 @@ module Api
           return
         end
 
+        content_type = validated_video_content_type(params[:content_type] || "video/mp4")
+        return if content_type.nil?
+
         filename = params[:filename]
-        content_type = params[:content_type] || "video/mp4"
         safe_name = filename.to_s.gsub(/[^a-zA-Z0-9._-]/, "_")
         s3_key = "content_videos/#{SecureRandom.uuid}/#{safe_name}"
 
@@ -83,8 +86,10 @@ module Api
           return
         end
 
+        content_type = validated_video_content_type(params[:content_type] || "video/mp4")
+        return if content_type.nil?
+
         filename = params[:filename]
-        content_type = params[:content_type] || "video/mp4"
         timestamp = Time.current.strftime("%Y%m%d%H%M%S")
         safe_name = filename.to_s.gsub(/[^a-zA-Z0-9._-]/, "_")
         s3_key = "content_videos/block_#{@content_block.id}/#{timestamp}_#{safe_name}"
@@ -186,6 +191,26 @@ module Api
 
       def authorize_video_access!
         authorize_content_block_write!(@content_block)
+      end
+
+      # Looser gate for the player's polling save: starting playback already
+      # passed `authorize_video_access!` via `video_stream`, but a lesson can
+      # be locked again mid-watch (admin removes the assignment, unlock window
+      # passes, etc.). Blocking the periodic progress save in that case would
+      # silently drop the student's last position and watched-seconds — there's
+      # no security gain (they're not gaining new access, just persisting where
+      # they got to). So we only require active enrollment in the curriculum
+      # here, not module/lesson availability.
+      def authorize_video_progress!
+        return if current_user.staff?
+
+        lesson = @content_block.lesson
+        enrolled = current_user.enrollments
+          .active
+          .joins(:cohort)
+          .exists?(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
+
+        render_forbidden("Not enrolled in this curriculum") unless enrolled
       end
 
       def block_params

@@ -50,8 +50,10 @@ module Api
           return
         end
 
+        content_type = validated_video_content_type(params[:content_type] || "video/mp4")
+        return if content_type.nil?
+
         filename = params[:filename]
-        content_type = params[:content_type] || "video/mp4"
         timestamp = Time.current.strftime("%Y%m%d%H%M%S")
         safe_name = filename.to_s.gsub(/[^a-zA-Z0-9._-]/, "_")
         s3_key = "recordings/cohort_#{@cohort.id}/#{timestamp}_#{SecureRandom.hex(4)}_#{safe_name}"
