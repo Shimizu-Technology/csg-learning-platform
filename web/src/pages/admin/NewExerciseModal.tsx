@@ -25,6 +25,7 @@ interface Props {
     s3_video_key?: string
     s3_video_content_type?: string
     s3_video_size?: number
+    upload_id?: string
   }) => Promise<void>
 }
 
@@ -46,6 +47,7 @@ export function NewExerciseModal({
   const [instructions, setInstructions] = useState('')
   const [solution, setSolution] = useState('')
   const [s3Video, setS3Video] = useState<{ s3_video_key: string; s3_video_content_type: string; s3_video_size: number } | null>(null)
+  const [uploadId, setUploadId] = useState<string | null>(null)
   const [filename, setFilename] = useState('')
   const [requiresSubmission, setRequiresSubmission] = useState(false)
   const [validationError, setValidationError] = useState('')
@@ -82,6 +84,7 @@ export function NewExerciseModal({
       filename: filename.trim() || undefined,
       requires_submission: requiresSubmission,
       ...(s3Video || {}),
+      upload_id: uploadId || undefined,
     })
   }
 
@@ -166,7 +169,9 @@ export function NewExerciseModal({
             onVideoUrlChange={setVideoUrl}
             s3VideoKey={s3Video?.s3_video_key || null}
             onS3VideoUploaded={(data) => setS3Video(data)}
-            onS3VideoRemoved={() => setS3Video(null)}
+            onS3VideoRemoved={() => { setS3Video(null); setUploadId(null) }}
+            onUploadStarted={(id) => setUploadId(id)}
+            contextLabel={title.trim() ? `Exercise: ${title.trim()}` : 'New Exercise'}
             compact
           />
 

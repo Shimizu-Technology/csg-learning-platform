@@ -11,6 +11,7 @@ interface VideoUploadFieldProps {
   s3VideoKey: string | null
   onS3VideoUploaded: (data: { s3_video_key: string; s3_video_content_type: string; s3_video_size: number }) => void
   onS3VideoRemoved: () => void
+  onUploadStarted?: (uploadId: string) => void
   compact?: boolean
 }
 
@@ -23,6 +24,7 @@ export function VideoUploadField({
   s3VideoKey,
   onS3VideoUploaded,
   onS3VideoRemoved,
+  onUploadStarted,
   compact,
 }: VideoUploadFieldProps) {
   const { startVideoUpload, uploads } = useUpload()
@@ -85,7 +87,8 @@ export function VideoUploadField({
         : { linkTo, linkLabel: contextLabel }
     )
     setUploadId(newId)
-  }, [contentBlockId, lessonId, contextLabel, startVideoUpload])
+    onUploadStarted?.(newId)
+  }, [contentBlockId, lessonId, contextLabel, startVideoUpload, onUploadStarted])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()

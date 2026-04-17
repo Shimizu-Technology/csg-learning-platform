@@ -40,6 +40,7 @@ interface UploadContextValue {
   uploads: ActiveUpload[]
   startVideoUpload: (file: File, opts?: UploadStartOpts) => UploadStartResult
   cancelUpload: (id: string) => void
+  attachUpload: (id: string, patch: { contentBlockId?: number; linkTo?: string; linkLabel?: string }) => void
 }
 
 const UploadContext = createContext<UploadContextValue | null>(null)
@@ -142,8 +143,12 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     removeUpload(id)
   }, [removeUpload])
 
+  const attachUpload = useCallback((id: string, patch: { contentBlockId?: number; linkTo?: string; linkLabel?: string }) => {
+    updateUpload(id, patch)
+  }, [updateUpload])
+
   return (
-    <UploadContext.Provider value={{ uploads, startVideoUpload, cancelUpload }}>
+    <UploadContext.Provider value={{ uploads, startVideoUpload, cancelUpload, attachUpload }}>
       {children}
       <UploadIndicator uploads={uploads} onCancel={cancelUpload} onDismiss={removeUpload} />
     </UploadContext.Provider>

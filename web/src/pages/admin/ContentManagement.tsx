@@ -15,6 +15,7 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { NewExerciseModal } from './NewExerciseModal'
 import { NewModuleModal } from './NewModuleModal'
 import { SCHEDULE_DAY_INDICES } from '../../lib/scheduleConstants'
+import { useUpload } from '../../contexts/UploadContext'
 
 interface Lesson {
   id: number
@@ -56,6 +57,7 @@ function groupLessonsByDay(lessons: Lesson[]) {
 
 export function ContentManagement() {
   const navigate = useNavigate()
+  const { attachUpload } = useUpload()
   const [curricula, setCurricula] = useState<Curriculum[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set())
@@ -201,11 +203,23 @@ export function ContentManagement() {
           onCreate={async (data) => {
             setExerciseSaving(true)
             setExerciseCreateError('')
-            const res = await api.createExercise(exerciseModal.moduleId, data)
+            const { upload_id, ...payload } = data
+            const res = await api.createExercise(exerciseModal.moduleId, payload)
             if (res.error) {
               setExerciseCreateError(res.error)
               setExerciseSaving(false)
               return
+            }
+            // If a video upload is still in flight, attach the new lesson/content_block to it
+            // so the toast can deep-link back here and the editor can reconnect to progress.
+            if (upload_id && res.data?.lesson) {
+              const lesson = res.data.lesson
+              const videoBlock = lesson.content_blocks?.find(cb => cb.block_type === 'video')
+              attachUpload(upload_id, {
+                contentBlockId: videoBlock?.id,
+                linkTo: `/admin/lessons/${lesson.id}/edit`,
+                linkLabel: `Exercise: ${lesson.title}`,
+              })
             }
             setExerciseSaving(false)
             setExerciseModal(null)
