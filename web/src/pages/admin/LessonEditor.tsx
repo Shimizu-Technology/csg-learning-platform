@@ -20,6 +20,7 @@ interface ContentBlock {
   filename: string | null
   solution: string | null
   metadata: Record<string, unknown>
+  s3_video_key?: string | null
 }
 
 interface Lesson {
@@ -88,7 +89,7 @@ export function LessonEditor() {
         if (videoBlock) {
           setVideoUrl(videoBlock.video_url || '')
           setVideoBlockId(videoBlock.id)
-          setS3VideoKey(resolveS3Key(videoBlock.id, (videoBlock as any).s3_video_key || null))
+          setS3VideoKey(resolveS3Key(videoBlock.id, videoBlock.s3_video_key ?? null))
         }
 
         const exerciseBlock = l.content_blocks.find(b => b.block_type === 'exercise' || b.block_type === 'code_challenge')
@@ -186,7 +187,7 @@ export function LessonEditor() {
         const refreshedVideo = data.lesson.content_blocks.find(b => b.block_type === 'video' || b.block_type === 'recording')
         if (refreshedVideo) {
           setVideoBlockId(refreshedVideo.id)
-          setS3VideoKey(resolveS3Key(refreshedVideo.id, (refreshedVideo as any).s3_video_key || null))
+          setS3VideoKey(resolveS3Key(refreshedVideo.id, refreshedVideo.s3_video_key ?? null))
         }
       }
     } catch (err) {

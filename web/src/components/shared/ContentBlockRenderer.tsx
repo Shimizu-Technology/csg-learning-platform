@@ -18,7 +18,6 @@ interface ContentBlock {
   solution?: string | null
   metadata: Record<string, any>
   s3_video_key?: string | null
-  has_s3_video?: boolean
   progress?: { status: string; completed_at: string | null; video_last_position?: number; video_total_watched?: number }
   submissions?: Array<{
     id: number
@@ -252,7 +251,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
       </div>
 
       <div className="p-4 lg:p-6">
-        {(block.block_type === 'video' || block.block_type === 'recording') && (block.s3_video_key || block.has_s3_video) && (
+        {(block.block_type === 'video' || block.block_type === 'recording') && block.s3_video_key && (
           <VideoPlayer
             key={`s3-${block.id}`}
             title={block.title || 'Video'}
@@ -264,7 +263,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
           />
         )}
 
-        {block.block_type === 'video' && block.video_url && !block.s3_video_key && !block.has_s3_video && (
+        {block.block_type === 'video' && block.video_url && !block.s3_video_key && (
           <div className="aspect-video rounded-xl overflow-hidden bg-slate-900">
             {(() => {
               const ytId = getYouTubeId(block.video_url!)
@@ -294,7 +293,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
           </div>
         )}
 
-        {block.block_type === 'recording' && block.video_url && !block.s3_video_key && !block.has_s3_video && (
+        {block.block_type === 'recording' && block.video_url && !block.s3_video_key && (
           <div className="aspect-video rounded-xl overflow-hidden bg-slate-900">
             {(() => {
               const ytId = getYouTubeId(block.video_url!)
