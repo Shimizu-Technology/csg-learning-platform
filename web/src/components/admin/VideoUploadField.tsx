@@ -59,13 +59,19 @@ export function VideoUploadField({
   useEffect(() => {
     if (!activeUpload?.s3Key || activeUpload.status === 'error') return
     if (s3VideoKey === activeUpload.s3Key) return
+    // Use the authoritative content type captured from the original File at upload
+    // start (file.type, the same value sent to the presign endpoint and used in
+    // the S3 PUT). Re-deriving from the filename extension here would silently
+    // mis-tag uploads whose extension doesn't match the actual MIME (.mkv, .m4v,
+    // unusual .mov containers, etc.) and could drift from the object's real
+    // Content-Type stored in S3.
     onS3VideoUploaded({
       s3_video_key: activeUpload.s3Key,
-      s3_video_content_type: activeUpload.fileName.endsWith('.webm') ? 'video/webm' : activeUpload.fileName.endsWith('.mov') ? 'video/quicktime' : 'video/mp4',
+      s3_video_content_type: activeUpload.contentType,
       s3_video_size: activeUpload.fileSize,
     })
     onVideoUrlChange('')
-  }, [activeUpload?.s3Key, activeUpload?.status, activeUpload?.fileName, activeUpload?.fileSize, s3VideoKey, onS3VideoUploaded, onVideoUrlChange])
+  }, [activeUpload?.s3Key, activeUpload?.status, activeUpload?.contentType, activeUpload?.fileSize, s3VideoKey, onS3VideoUploaded, onVideoUrlChange])
 
   const startUpload = useCallback((file: File) => {
     if (!file.type.startsWith('video/')) {

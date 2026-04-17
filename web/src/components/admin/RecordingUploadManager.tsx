@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Upload, Trash2, Film, Calendar, Clock, Plus, X, Pencil } from 'lucide-react'
+import { Upload, Trash2, Film, Calendar, Clock, Plus, X, Pencil, Loader2 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useUpload } from '../../contexts/UploadContext'
 
@@ -36,6 +36,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
   const [showUploadForm, setShowUploadForm] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [savingEdit, setSavingEdit] = useState(false)
   const [editTitle, setEditTitle] = useState('')
   const [editDescription, setEditDescription] = useState('')
   const [editDate, setEditDate] = useState('')
@@ -152,21 +153,26 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
   }
 
   const saveEdit = async () => {
-    if (!editingId || !editTitle.trim()) return
+    if (!editingId || !editTitle.trim() || savingEdit) return
     // Always send `description` (even when empty) so admins can intentionally
     // clear an existing description. Falling back to `undefined` would drop
     // the field from the JSON body and leave the old value in place.
-    const res = await api.updateRecording(cohortId, editingId, {
-      title: editTitle.trim(),
-      description: editDescription.trim(),
-      recorded_date: editDate || undefined,
-    })
-    if (res.error) {
-      setError(res.error)
-      return
+    setSavingEdit(true)
+    try {
+      const res = await api.updateRecording(cohortId, editingId, {
+        title: editTitle.trim(),
+        description: editDescription.trim(),
+        recorded_date: editDate || undefined,
+      })
+      if (res.error) {
+        setError(res.error)
+        return
+      }
+      setEditingId(null)
+      fetchRecordings()
+    } finally {
+      setSavingEdit(false)
     }
-    setEditingId(null)
-    fetchRecordings()
   }
 
   const formatSize = (bytes: number) => {
@@ -348,8 +354,21 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
                     />
                   </div>
                   <div className="flex justify-end gap-2">
-                    <button onClick={() => setEditingId(null)} className="rounded-lg px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100">Cancel</button>
-                    <button onClick={saveEdit} className="rounded-lg bg-primary-500 px-3 py-1.5 text-xs text-white hover:bg-primary-600">Save</button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      disabled={savingEdit}
+                      className="rounded-lg px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={saveEdit}
+                      disabled={savingEdit || !editTitle.trim()}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-primary-500 px-3 py-1.5 text-xs text-white hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {savingEdit && <Loader2 className="h-3 w-3 animate-spin" />}
+                      {savingEdit ? 'Saving...' : 'Save'}
+                    </button>
                   </div>
                 </div>
               ) : (

@@ -8,6 +8,7 @@ interface ActiveUpload {
   id: string
   fileName: string
   fileSize: number
+  contentType: string
   progress: number
   status: 'presigning' | 'uploading' | 'saving' | 'done' | 'error'
   error?: string
@@ -73,7 +74,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     const contentType = file.type || 'video/mp4'
 
     const upload: ActiveUpload = {
-      id, fileName: file.name, fileSize: file.size,
+      id, fileName: file.name, fileSize: file.size, contentType,
       progress: 0, status: 'presigning', abortController,
       contentBlockId: opts?.contentBlockId,
       linkTo: opts?.linkTo,
