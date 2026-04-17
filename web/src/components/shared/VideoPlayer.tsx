@@ -163,6 +163,11 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
   useEffect(() => {
     return () => {
       if (bufferingTimerRef.current) clearTimeout(bufferingTimerRef.current)
+      // Same lifecycle for the auto-hide-controls timer — without this, a
+      // pending setTimeout from a quick mouse move right before unmount can
+      // fire after the component is gone and call setShowControls on a stale
+      // setter (React 18 warns; future strict-mode tightening could throw).
+      if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current)
     }
   }, [])
 

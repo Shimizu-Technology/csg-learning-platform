@@ -67,21 +67,30 @@ module Api
 
       # POST /api/v1/cohorts/:cohort_id/recordings
       def create
-        next_position = @cohort.recordings.maximum(:position).to_i + 1
+        # Serialize concurrent creates so two simultaneous uploads can't compute
+        # the same `next_position` and produce duplicate slots. Locking the cohort
+        # row inside a transaction is enough — every position write for this
+        # cohort goes through here (and `reorder` already replaces them wholesale).
+        recording = nil
+        Cohort.transaction do
+          locked_cohort = Cohort.lock.find(@cohort.id)
+          next_position = locked_cohort.recordings.maximum(:position).to_i + 1
 
-        recording = @cohort.recordings.new(
-          title: params[:title],
-          description: params[:description],
-          s3_key: params[:s3_key],
-          content_type: params[:content_type] || "video/mp4",
-          file_size: params[:file_size],
-          duration_seconds: params[:duration_seconds],
-          recorded_date: params[:recorded_date],
-          uploaded_by: current_user,
-          position: next_position
-        )
+          recording = locked_cohort.recordings.new(
+            title: params[:title],
+            description: params[:description],
+            s3_key: params[:s3_key],
+            content_type: params[:content_type] || "video/mp4",
+            file_size: params[:file_size],
+            duration_seconds: params[:duration_seconds],
+            recorded_date: params[:recorded_date],
+            uploaded_by: current_user,
+            position: next_position
+          )
+          recording.save
+        end
 
-        if recording.save
+        if recording.persisted?
           render json: { recording: recording_json(recording, staff: true) }, status: :created
         else
           render json: { errors: recording.errors.full_messages }, status: :unprocessable_entity

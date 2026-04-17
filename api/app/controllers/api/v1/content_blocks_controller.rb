@@ -207,7 +207,10 @@ module Api
           metadata: cb.metadata,
           s3_video_key: cb.s3_video_key,
           s3_video_content_type: cb.s3_video_content_type,
-          s3_video_size: cb.s3_video_size
+          s3_video_size: cb.s3_video_size,
+          # Surface the authoritative server-side duration so the editor can show
+          # it without round-tripping through video_stream / video_progress.
+          s3_video_duration_seconds: cb.s3_video_duration_seconds
         }
       end
     end
