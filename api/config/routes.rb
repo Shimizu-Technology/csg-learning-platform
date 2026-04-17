@@ -78,6 +78,7 @@ Rails.application.routes.draw do
         post "recordings_presign", to: "recordings#presign"
         patch "recordings_reorder", to: "recordings#reorder"
         get "watch_progress", to: "watch_progresses#cohort_progress"
+        get "lesson_video_progress", to: "watch_progresses#cohort_lesson_video_progress"
       end
 
       # Enrollments with access overrides

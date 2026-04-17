@@ -94,6 +94,68 @@ module Api
           }
         }
       end
+
+      # GET /api/v1/cohorts/:cohort_id/lesson_video_progress
+      # Per-student watch matrix for in-lesson S3 videos (content blocks of type
+      # video or recording with an s3_video_key) across the cohort's curriculum.
+      def cohort_lesson_video_progress
+        require_staff!
+        return if performed?
+
+        cohort = Cohort.includes(curriculum: { modules: { lessons: :content_blocks } }).find(params[:cohort_id])
+        enrollments = cohort.enrollments.active.includes(:user)
+
+        # Flatten the curriculum into ordered video blocks once. Skip blocks without
+        # an attached S3 video — there's nothing to track for those.
+        video_blocks = cohort.curriculum.modules
+          .sort_by(&:position)
+          .flat_map { |m|
+            m.lessons.sort_by(&:position).flat_map { |l|
+              l.content_blocks
+                .select { |cb| (cb.block_type == "video" || cb.block_type == "recording") && cb.s3_video_key.present? }
+                .sort_by(&:position)
+                .map { |cb| [ cb, m, l ] }
+            }
+          }
+
+        block_ids = video_blocks.map { |cb, _m, _l| cb.id }
+        progress_data = Progress
+          .where(content_block_id: block_ids, user: enrollments.map(&:user))
+          .index_by { |p| [ p.user_id, p.content_block_id ] }
+
+        render json: {
+          videos: video_blocks.map { |cb, m, l|
+            {
+              id: cb.id,
+              title: cb.title.presence || l.title,
+              lesson_title: l.title,
+              module_title: m.name,
+              duration_seconds: cb.s3_video_duration_seconds
+            }
+          },
+          students: enrollments.map { |e|
+            {
+              user_id: e.user_id,
+              full_name: e.user.full_name,
+              videos: video_blocks.map { |cb, _m, _l|
+                p = progress_data[[ e.user_id, cb.id ]]
+                duration = cb.s3_video_duration_seconds
+                pct = if duration&.positive? && p&.video_total_watched
+                  [ (p.video_total_watched.to_f / duration * 100).round(1), 100.0 ].min
+                else
+                  0
+                end
+                {
+                  content_block_id: cb.id,
+                  progress_percentage: pct,
+                  completed: p&.status == "completed",
+                  total_watched_seconds: p&.video_total_watched || 0
+                }
+              }
+            }
+          }
+        }
+      end
     end
   end
 end

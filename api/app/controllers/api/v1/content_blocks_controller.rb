@@ -126,14 +126,19 @@ module Api
 
       # PATCH /api/v1/content_blocks/:id/video_progress
       def video_progress
-        # Lock the authoritative duration on the content block once.
-        # First reporter sets it; staff can override via update_content_block.
-        # This prevents per-user completion fabrication via tiny client durations.
-        if @content_block.s3_video_duration_seconds.blank? && params[:duration_seconds].to_i.positive?
-          @content_block.update_column(:s3_video_duration_seconds, params[:duration_seconds].to_i)
-        end
-
+        # Lock the authoritative duration on the content block once. The first reporter
+        # sets it; staff can override via update_content_block. This prevents per-user
+        # completion fabrication via tiny client-reported durations.
+        #
+        # Capture the resolved duration into a local *before* writing it via update_column,
+        # because update_column bypasses model callbacks and does not refresh the in-memory
+        # @content_block — without this, the very next read would still be nil and the 90%
+        # completion check below would be silently skipped on the first-ever ping.
         authoritative_duration = @content_block.s3_video_duration_seconds
+        if authoritative_duration.blank? && params[:duration_seconds].to_i.positive?
+          authoritative_duration = params[:duration_seconds].to_i
+          @content_block.update_column(:s3_video_duration_seconds, authoritative_duration)
+        end
 
         progress = current_user.progresses.find_or_initialize_by(content_block: @content_block)
         progress.video_last_position = params[:last_position_seconds].to_i
