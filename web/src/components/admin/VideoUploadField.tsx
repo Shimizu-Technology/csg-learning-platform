@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Upload, Film, X, Link2, Loader2 } from 'lucide-react'
 import { useUpload } from '../../contexts/UploadContext'
 
@@ -42,7 +42,6 @@ export function VideoUploadField({
 
   const activeUpload = uploads.find(u => u.id === uploadId) || existingUpload || null
   const isUploading = activeUpload && activeUpload.status !== 'done' && activeUpload.status !== 'error'
-  const hasReportedKeyRef = useRef(false)
 
   useEffect(() => {
     if (activeUpload && activeUpload.id !== uploadId) {
@@ -52,18 +51,21 @@ export function VideoUploadField({
     }
   }, [activeUpload, uploadId])
 
+  // Sync s3_key into parent state. Re-runs whenever the active upload's s3Key changes
+  // OR the parent's s3VideoKey diverges from it. This protects against a race where the
+  // parent re-fetches the lesson (with a still-null s3_video_key in DB) AFTER we initially
+  // reported the key — without this re-sync, the parent would be stuck with null until the
+  // user navigates away and the upload's PATCH eventually completes.
   useEffect(() => {
-    if (hasReportedKeyRef.current) return
-    if (activeUpload?.s3Key && activeUpload.status !== 'error') {
-      hasReportedKeyRef.current = true
-      onS3VideoUploaded({
-        s3_video_key: activeUpload.s3Key,
-        s3_video_content_type: activeUpload.fileName.endsWith('.webm') ? 'video/webm' : activeUpload.fileName.endsWith('.mov') ? 'video/quicktime' : 'video/mp4',
-        s3_video_size: activeUpload.fileSize,
-      })
-      onVideoUrlChange('')
-    }
-  }, [activeUpload?.s3Key, activeUpload?.status, activeUpload?.fileName, activeUpload?.fileSize, onS3VideoUploaded, onVideoUrlChange])
+    if (!activeUpload?.s3Key || activeUpload.status === 'error') return
+    if (s3VideoKey === activeUpload.s3Key) return
+    onS3VideoUploaded({
+      s3_video_key: activeUpload.s3Key,
+      s3_video_content_type: activeUpload.fileName.endsWith('.webm') ? 'video/webm' : activeUpload.fileName.endsWith('.mov') ? 'video/quicktime' : 'video/mp4',
+      s3_video_size: activeUpload.fileSize,
+    })
+    onVideoUrlChange('')
+  }, [activeUpload?.s3Key, activeUpload?.status, activeUpload?.fileName, activeUpload?.fileSize, s3VideoKey, onS3VideoUploaded, onVideoUrlChange])
 
   const startUpload = useCallback((file: File) => {
     if (!file.type.startsWith('video/')) {
@@ -77,7 +79,6 @@ export function VideoUploadField({
 
     setError(null)
     setUploadedFileName(file.name)
-    hasReportedKeyRef.current = false
 
     const linkTo = lessonId ? `/admin/lessons/${lessonId}/edit` : undefined
     const { uploadId: newId } = startVideoUpload(

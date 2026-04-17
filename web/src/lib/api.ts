@@ -284,7 +284,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  createContentBlock: (lessonId: number, data: { block_type: string; position?: number; title?: string; body?: string; video_url?: string; solution?: string; filename?: string; metadata?: Record<string, unknown> }) =>
+  createContentBlock: (lessonId: number, data: { block_type: string; position?: number; title?: string; body?: string; video_url?: string; solution?: string; filename?: string; metadata?: Record<string, unknown>; s3_video_key?: string; s3_video_content_type?: string; s3_video_size?: number }) =>
     fetchApi<ContentBlockResponse>(`/api/v1/lessons/${lessonId}/content_blocks`, {
       method: 'POST',
       body: JSON.stringify(data),

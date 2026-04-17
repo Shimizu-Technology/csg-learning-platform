@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Save, Trash2, Eye, Pencil } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -7,6 +7,7 @@ import { RichTextEditor } from '../../components/shared/RichTextEditor'
 import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
 import { ContentBlockRenderer } from '../../components/shared/ContentBlockRenderer'
 import { VideoUploadField } from '../../components/admin/VideoUploadField'
+import { useUpload } from '../../contexts/UploadContext'
 
 interface ContentBlock {
   id: number
@@ -56,6 +57,20 @@ export function LessonEditor() {
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
+  // Upload context — used to prefer in-flight upload's s3_key over a stale (null) fetch result.
+  const { uploads } = useUpload()
+  const uploadsRef = useRef(uploads)
+  uploadsRef.current = uploads
+
+  // Helper: returns the s3_key from the API response, but falls back to any in-flight
+  // upload's s3_key for the same content block (handles the case where the user navigates
+  // away and back while an upload is still in progress and hasn't yet PATCHed the block).
+  const resolveS3Key = useCallback((blockId: number, fetchedKey: string | null): string | null => {
+    if (fetchedKey) return fetchedKey
+    const live = uploadsRef.current.find(u => u.contentBlockId === blockId && u.s3Key && u.status !== 'error')
+    return live?.s3Key || null
+  }, [])
+
   useEffect(() => {
     if (!id) return
     api.getLesson(Number(id)).then((res) => {
@@ -72,7 +87,7 @@ export function LessonEditor() {
         if (videoBlock) {
           setVideoUrl(videoBlock.video_url || '')
           setVideoBlockId(videoBlock.id)
-          setS3VideoKey((videoBlock as any).s3_video_key || null)
+          setS3VideoKey(resolveS3Key(videoBlock.id, (videoBlock as any).s3_video_key || null))
         }
 
         const exerciseBlock = l.content_blocks.find(b => b.block_type === 'exercise' || b.block_type === 'code_challenge')
@@ -84,7 +99,14 @@ export function LessonEditor() {
       }
       setLoading(false)
     })
-  }, [id])
+  }, [id, resolveS3Key])
+
+  // Stable callbacks so VideoUploadField's effect deps don't churn every render.
+  const handleS3VideoUploaded = useCallback(
+    (data: { s3_video_key: string }) => setS3VideoKey(data.s3_video_key),
+    []
+  )
+  const handleS3VideoRemoved = useCallback(() => setS3VideoKey(null), [])
 
   const handleSave = async () => {
     if (!lesson) return
@@ -107,10 +129,18 @@ export function LessonEditor() {
 
       const videoBlock = lesson.content_blocks.find(b => b.block_type === 'video' || b.block_type === 'recording')
       if (videoBlock) {
-        const vRes = await api.updateContentBlock(videoBlock.id, {
+        // Don't include s3_video_key if there's an in-flight upload for this block — the
+        // UploadContext will PATCH the key when the upload completes; sending null here
+        // could otherwise clobber a value that's about to be saved.
+        const inFlight = uploadsRef.current.find(
+          u => u.contentBlockId === videoBlock.id && u.status !== 'done' && u.status !== 'error'
+        )
+        const updatePayload: { title: string; video_url: string | null; s3_video_key?: string | null } = {
           title: title.trim(),
           video_url: videoUrl.trim() || null,
-        })
+        }
+        if (!inFlight) updatePayload.s3_video_key = s3VideoKey
+        const vRes = await api.updateContentBlock(videoBlock.id, updatePayload)
         if (vRes.error) { setSaveError(vRes.error); setSaving(false); return }
       } else if (videoUrl.trim() || s3VideoKey) {
         const vRes = await api.createContentBlock(lesson.id, {
@@ -118,6 +148,7 @@ export function LessonEditor() {
           position: nextPosition,
           title: title.trim(),
           video_url: videoUrl.trim() || undefined,
+          s3_video_key: s3VideoKey || undefined,
         })
         if (vRes.error) { setSaveError(vRes.error); setSaving(false); return }
         if (vRes.data?.content_block) setVideoBlockId(vRes.data.content_block.id)
@@ -154,7 +185,7 @@ export function LessonEditor() {
         const refreshedVideo = data.lesson.content_blocks.find(b => b.block_type === 'video' || b.block_type === 'recording')
         if (refreshedVideo) {
           setVideoBlockId(refreshedVideo.id)
-          setS3VideoKey((refreshedVideo as any).s3_video_key || null)
+          setS3VideoKey(resolveS3Key(refreshedVideo.id, (refreshedVideo as any).s3_video_key || null))
         }
       }
     } catch (err) {
@@ -343,8 +374,8 @@ export function LessonEditor() {
                   videoUrl={videoUrl}
                   onVideoUrlChange={setVideoUrl}
                   s3VideoKey={s3VideoKey}
-                  onS3VideoUploaded={(data) => setS3VideoKey(data.s3_video_key)}
-                  onS3VideoRemoved={() => setS3VideoKey(null)}
+                  onS3VideoUploaded={handleS3VideoUploaded}
+                  onS3VideoRemoved={handleS3VideoRemoved}
                 />
               </div>
               <div>
