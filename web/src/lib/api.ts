@@ -366,4 +366,10 @@ export const api = {
   getCohortLessonVideoProgress: (cohortId: number) =>
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fetchApi<any>(`/api/v1/cohorts/${cohortId}/lesson_video_progress`),
+  getStudentWatchProgress: (userId: number) =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fetchApi<any>(`/api/v1/watch_progress/student/${userId}`),
+  getStudentLessonVideoProgress: (userId: number) =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fetchApi<any>(`/api/v1/watch_progress/student/${userId}/lesson_videos`),
 };

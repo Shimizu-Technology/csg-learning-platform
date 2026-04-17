@@ -45,18 +45,80 @@ module Api
         user = User.find(params[:user_id])
         progresses = user.watch_progresses.includes(recording: :cohort)
 
+        # All recordings the student is enrolled to see (active enrollments only),
+        # so the UI can surface "not started" rows alongside touched ones rather
+        # than just showing what they've already played.
+        active_cohorts = user.enrollments.where(status: :active).map(&:cohort_id)
+        all_recordings = Recording.where(cohort_id: active_cohorts).includes(:cohort).order(:cohort_id, :position)
+        progress_by_recording = progresses.index_by(&:recording_id)
+
         render json: {
-          watch_progresses: progresses.map { |wp|
+          watch_progresses: all_recordings.map { |r|
+            wp = progress_by_recording[r.id]
             {
-              recording_id: wp.recording_id,
-              recording_title: wp.recording.title,
-              cohort_name: wp.recording.cohort.name,
-              last_position_seconds: wp.last_position_seconds,
-              total_watched_seconds: wp.total_watched_seconds,
-              duration_seconds: wp.duration_seconds,
-              progress_percentage: wp.progress_percentage,
-              completed: wp.completed,
-              last_watched_at: wp.last_watched_at
+              recording_id: r.id,
+              recording_title: r.title,
+              cohort_id: r.cohort_id,
+              cohort_name: r.cohort.name,
+              last_position_seconds: wp&.last_position_seconds || 0,
+              total_watched_seconds: wp&.total_watched_seconds || 0,
+              duration_seconds: wp&.duration_seconds || r.duration_seconds,
+              progress_percentage: wp&.progress_percentage || 0,
+              completed: wp&.completed || false,
+              last_watched_at: wp&.last_watched_at
+            }
+          }
+        }
+      end
+
+      # GET /api/v1/watch_progress/student/:user_id/lesson_videos
+      # Per-student progress for in-lesson S3 video blocks across the curricula
+      # they're actively enrolled in.
+      def student_lesson_video_progress
+        require_staff!
+        return if performed?
+
+        user = User.find(params[:user_id])
+        active_enrollments = user.enrollments.where(status: :active).includes(cohort: { curriculum: { modules: { lessons: :content_blocks } } })
+
+        rows = []
+        active_enrollments.each do |enrollment|
+          cohort = enrollment.cohort
+          cohort.curriculum.modules.sort_by(&:position).each do |mod|
+            mod.lessons.sort_by(&:position).each do |lesson|
+              lesson.content_blocks.each do |cb|
+                next unless (cb.block_type == "video" || cb.block_type == "recording") && cb.s3_video_key.present?
+                rows << [ cb, mod, lesson, cohort ]
+              end
+            end
+          end
+        end
+
+        block_ids = rows.map { |cb, _m, _l, _c| cb.id }
+        progress_by_block = user.progresses.where(content_block_id: block_ids).index_by(&:content_block_id)
+
+        render json: {
+          lesson_videos: rows.map { |cb, mod, lesson, cohort|
+            p = progress_by_block[cb.id]
+            duration = cb.s3_video_duration_seconds
+            pct = if duration&.positive? && p&.video_total_watched
+              [ (p.video_total_watched.to_f / duration * 100).round(1), 100.0 ].min
+            else
+              0
+            end
+            {
+              content_block_id: cb.id,
+              title: cb.title.presence || lesson.title,
+              lesson_title: lesson.title,
+              module_title: mod.name,
+              cohort_id: cohort.id,
+              cohort_name: cohort.name,
+              duration_seconds: duration,
+              last_position_seconds: p&.video_last_position || 0,
+              total_watched_seconds: p&.video_total_watched || 0,
+              progress_percentage: pct,
+              completed: p&.status == "completed",
+              completed_at: p&.completed_at
             }
           }
         }

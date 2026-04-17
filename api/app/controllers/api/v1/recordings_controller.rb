@@ -105,7 +105,7 @@ module Api
         @recording.destroy!
         S3Service.delete_object(key_to_delete) if S3Service.configured?
         head :no_content
-      rescue ActiveRecord::RecordNotDestroyed => e
+      rescue ActiveRecord::RecordNotDestroyed
         render json: { error: "Failed to delete recording" }, status: :unprocessable_entity
       end
 
@@ -128,13 +128,17 @@ module Api
       # PATCH /api/v1/cohorts/:cohort_id/recordings/reorder
       def reorder
         ordered_ids = params[:recording_ids]
-        return head(:bad_request) unless ordered_ids.is_a?(Array)
+        return head(:bad_request) unless ordered_ids.is_a?(Array) && ordered_ids.all? { |i| i.to_s.match?(/\A\d+\z/) }
 
-        ActiveRecord::Base.transaction do
-          ordered_ids.each_with_index do |id, index|
-            @cohort.recordings.where(id: id).update_all(position: index)
-          end
-        end
+        ids = ordered_ids.map(&:to_i)
+        return head(:bad_request) if ids.empty?
+
+        # Constrain the update to recordings that actually belong to this cohort so a
+        # forged payload can't reorder another cohort's rows. Then issue a single
+        # UPDATE with a CASE expression instead of one query per recording.
+        scoped = @cohort.recordings.where(id: ids)
+        cases = ids.each_with_index.map { |id, index| "WHEN id = #{id} THEN #{index}" }.join(" ")
+        scoped.update_all("position = CASE #{cases} END")
 
         render json: {
           recordings: @cohort.recordings.reload.ordered.map { |r| recording_json(r, staff: true) }

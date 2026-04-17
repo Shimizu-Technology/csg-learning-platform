@@ -19,6 +19,7 @@ import {
   Save,
   Plus,
   Trash2,
+  Eye,
 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { ProgressBar } from '../../components/shared/ProgressBar'
@@ -748,7 +749,16 @@ export function StudentDetail() {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 space-y-4">
-          <h2 className="text-lg font-semibold text-slate-900">Course Progress</h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-slate-900">Course Progress</h2>
+            <Link
+              to={`/admin/students/${id}/watch-progress`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              <Eye className="h-3.5 w-3.5" />
+              View Watch Progress
+            </Link>
+          </div>
           {modules.map((mod) => {
             const isExpanded = expandedModules.has(mod.id)
             return (

@@ -19,6 +19,7 @@ Rails.application.routes.draw do
       # Watch progress (student updates their own)
       patch "watch_progress", to: "watch_progresses#update"
       get "watch_progress/student/:user_id", to: "watch_progresses#student_progress"
+      get "watch_progress/student/:user_id/lesson_videos", to: "watch_progresses#student_lesson_video_progress"
 
       # Users (admin)
       resources :users, only: [ :index, :show, :create, :update, :destroy ] do

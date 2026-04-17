@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, Link, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Film, CheckCircle2, Eye, PlaySquare } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
@@ -58,7 +59,7 @@ function ProgressMatrix<T extends { id: number; title: string }>({
   columns: T[]
   rows: { user_id: number; full_name: string; cells: ({ id: number } & CellProgress)[] }[]
   getCell: (row: { cells: ({ id: number } & CellProgress)[] }, colId: number) => CellProgress | undefined
-  emptyIcon: React.ElementType
+  emptyIcon: LucideIcon
   emptyTitle: string
   emptyDescription: string
   columnSubtitle?: (col: T) => string | null

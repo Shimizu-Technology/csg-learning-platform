@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Upload, Trash2, Film, Calendar, Clock, GripVertical, Plus, X, Pencil } from 'lucide-react'
+import { Upload, Trash2, Film, Calendar, Clock, Plus, X, Pencil } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useUpload } from '../../contexts/UploadContext'
 
@@ -15,7 +15,7 @@ interface S3Recording {
   duration_display: string | null
   recorded_date: string | null
   position: number
-  uploaded_by: string
+  uploaded_by: string | null
   created_at: string
 }
 
@@ -43,8 +43,11 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
 
   const fetchRecordings = useCallback(async () => {
     const res = await api.getCohortRecordings(cohortId)
-    if (res.data?.recordings) {
+    if (res.error) {
+      setError(res.error)
+    } else if (res.data?.recordings) {
       setRecordings(res.data.recordings)
+      setError(null)
     }
     setLoading(false)
   }, [cohortId])
@@ -344,7 +347,6 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
                 </div>
               ) : (
                 <div className="flex items-start gap-3">
-                  <GripVertical className="h-4 w-4 text-slate-300 mt-0.5 shrink-0 cursor-grab hidden sm:block" />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-slate-900">{rec.title}</p>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-slate-500">
@@ -361,7 +363,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
                         </span>
                       )}
                       <span>{rec.file_size_display}</span>
-                      <span className="text-slate-400">by {rec.uploaded_by}</span>
+                      <span className="text-slate-400">by {rec.uploaded_by || 'Unknown'}</span>
                     </div>
                     {rec.description && (
                       <p className="text-xs text-slate-500 mt-1">{rec.description}</p>
