@@ -47,6 +47,10 @@ Rails.application.routes.draw do
       # Generic video presign (staff, no content block needed)
       post "video_presign", to: "content_blocks#generic_video_presign"
 
+      # Orphan S3 cleanup: called by the upload UI when a presigned PUT
+      # succeeds but the follow-up DB write fails.
+      delete "uploads/abandon", to: "uploads#abandon"
+
       # Content blocks (shallow) with video endpoints
       resources :content_blocks, only: [ :show, :update, :destroy ] do
         member do

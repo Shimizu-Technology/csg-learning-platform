@@ -357,6 +357,10 @@ export const api = {
     fetchApi<ReorderRecordingsResponse>(`/api/v1/cohorts/${cohortId}/recordings_reorder`, {
       method: 'PATCH', body: JSON.stringify({ recording_ids: recordingIds }),
     }),
+  abandonUpload: (s3Key: string) =>
+    fetchApi<null>('/api/v1/uploads/abandon', {
+      method: 'DELETE', body: JSON.stringify({ s3_key: s3Key }),
+    }),
 
   // Watch Progress
   updateWatchProgress: (data: { recording_id: number; last_position_seconds: number; total_watched_seconds: number; duration_seconds?: number }) =>

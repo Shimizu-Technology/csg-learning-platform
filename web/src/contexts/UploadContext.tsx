@@ -82,6 +82,9 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     setUploads(prev => [...prev, upload])
 
     const result = (async (): Promise<UploadResult | null> => {
+      // Track whether the S3 PUT actually completed so the catch handler can
+      // clean up an orphaned object if the subsequent DB write fails.
+      let uploadedS3Key: string | null = null
       try {
         let presignRes
         if (opts?.contentBlockId) {
@@ -101,6 +104,9 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
           updateUpload(id, { progress: p.percent })
         }, abortController.signal)
 
+        // Past this point the object is in the bucket — if any of the DB
+        // writes below fail, we need to clean it up.
+        uploadedS3Key = s3_key
         updateUpload(id, { status: 'saving', progress: 100 })
 
         if (opts?.contentBlockId) {
@@ -125,9 +131,17 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         return { s3Key: s3_key, contentType, fileSize: file.size }
       } catch (err) {
         if (abortController.signal.aborted) {
+          // Cancellation after a successful S3 PUT also leaves an orphan —
+          // best-effort cleanup mirrors the error path.
+          if (uploadedS3Key) api.abandonUpload(uploadedS3Key).catch(() => {})
           removeUpload(id)
           return null
         }
+        // S3 PUT succeeded but the follow-up DB write didn't — the object is
+        // now in the bucket with no row pointing at it. Fire-and-forget
+        // cleanup so we don't leak storage. Failure here is non-fatal; the
+        // object can also be reaped by an S3 lifecycle rule as a backstop.
+        if (uploadedS3Key) api.abandonUpload(uploadedS3Key).catch(() => {})
         const msg = err instanceof Error ? err.message : 'Upload failed'
         updateUpload(id, { status: 'error', error: msg })
         return null

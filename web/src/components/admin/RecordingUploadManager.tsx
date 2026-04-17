@@ -153,9 +153,12 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
 
   const saveEdit = async () => {
     if (!editingId || !editTitle.trim()) return
+    // Always send `description` (even when empty) so admins can intentionally
+    // clear an existing description. Falling back to `undefined` would drop
+    // the field from the JSON body and leave the old value in place.
     const res = await api.updateRecording(cohortId, editingId, {
       title: editTitle.trim(),
-      description: editDescription.trim() || undefined,
+      description: editDescription.trim(),
       recorded_date: editDate || undefined,
     })
     if (res.error) {
