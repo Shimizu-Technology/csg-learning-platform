@@ -21,8 +21,12 @@ const URL_REFRESH_MS = 90 * 60 * 1000
 export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStreamUrl, onSaveProgress, onCompleted }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const totalWatchedRef = useRef(initialTotalWatched)
+  // Track the last observed currentTime so we can attribute watched time from
+  // playback-clock deltas instead of wall-clock seconds. The previous wall-clock
+  // approach undercounted at >1x playback (a 60s video watched at 1.5x credited
+  // ~40s of "watched" time) so the 90% completion check could never fire.
+  const lastTimeRef = useRef(0)
   const hasRestoredInitialPosition = useRef(false)
 
   const [streamUrl, setStreamUrl] = useState<string | null>(null)
@@ -85,9 +89,17 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
     const video = videoRef.current
     if (!video || !video.duration) return
 
+    // Clamp the reported total to floor(duration) on `ended` so a student who
+    // played the whole recording always crosses the 90% completion threshold,
+    // even if accumulated playback-time deltas drifted slightly low (rounding,
+    // dropped frames). Backend re-caps this against its authoritative duration.
+    const watched = ended
+      ? Math.max(totalWatchedRef.current, Math.floor(video.duration))
+      : totalWatchedRef.current
+
     onSaveProgress({
       last_position_seconds: Math.floor(ended ? video.duration : video.currentTime),
-      total_watched_seconds: totalWatchedRef.current,
+      total_watched_seconds: Math.floor(watched),
       duration_seconds: Math.floor(video.duration),
     }, ended)
   }, [onSaveProgress])
@@ -102,10 +114,32 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
         video.currentTime = initialPosition
         hasRestoredInitialPosition.current = true
       }
+      // Initialize the delta tracker to wherever we landed (resumed position
+      // or 0) so the first timeupdate doesn't book a giant fake forward jump.
+      lastTimeRef.current = video.currentTime
     }
-    const handleTimeUpdate = () => setCurrentTime(video.currentTime)
+    const handleTimeUpdate = () => {
+      const now = video.currentTime
+      const delta = now - lastTimeRef.current
+      // Only credit small forward steps. timeupdate fires every ~250ms, so a
+      // legitimate step at 2x playback is ≤0.5s; we allow up to 2s to absorb
+      // tab throttling. Larger jumps are seeks (don't credit) and negative
+      // deltas are rewinds (also skipped). This makes total_watched_seconds
+      // independent of playbackRate and immune to seek-to-end fabrication.
+      if (delta > 0 && delta <= 2) {
+        totalWatchedRef.current += delta
+      }
+      lastTimeRef.current = now
+      setCurrentTime(now)
+    }
     const handlePlay = () => setPlaying(true)
     const handlePause = () => setPlaying(false)
+    const handleSeeked = () => {
+      // After a seek, reset the baseline so we don't immediately credit the
+      // gap between old and new positions.
+      lastTimeRef.current = video.currentTime
+      hideBuffering()
+    }
     const handleEnded = () => {
       setPlaying(false)
       sendProgress(true)
@@ -130,7 +164,6 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
     const handleWaiting = () => showBufferingSoon()
     const handlePlaying = () => hideBuffering()
     const handleSeeking = () => showBufferingSoon()
-    const handleSeeked = () => hideBuffering()
     const handleCanPlay = () => hideBuffering()
 
     video.addEventListener('loadedmetadata', handleLoaded)
@@ -171,22 +204,9 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
     }
   }, [])
 
-  useEffect(() => {
-    if (playing) {
-      progressIntervalRef.current = setInterval(() => {
-        totalWatchedRef.current += 1
-      }, 1000)
-    } else {
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current)
-        progressIntervalRef.current = null
-      }
-    }
-    return () => {
-      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current)
-    }
-  }, [playing])
-
+  // Watched-time accumulation now lives in handleTimeUpdate (playback-clock
+  // deltas), so we only need the periodic ping here. 10s cadence so a tab
+  // close mid-watch loses at most ~10s of unsaved progress.
   useEffect(() => {
     if (!playing) return
     const interval = setInterval(() => sendProgress(false), 10000)
