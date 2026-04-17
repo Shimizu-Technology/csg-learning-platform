@@ -130,15 +130,30 @@ module Api
         ordered_ids = params[:recording_ids]
         return head(:bad_request) unless ordered_ids.is_a?(Array) && ordered_ids.all? { |i| i.to_s.match?(/\A\d+\z/) }
 
-        ids = ordered_ids.map(&:to_i)
+        # Dedup so a duplicate id in the payload can't produce two writes to
+        # the same row.
+        ids = ordered_ids.map(&:to_i).uniq
         return head(:bad_request) if ids.empty?
 
-        # Constrain the update to recordings that actually belong to this cohort so a
-        # forged payload can't reorder another cohort's rows. Then issue a single
-        # UPDATE with a CASE expression instead of one query per recording.
-        scoped = @cohort.recordings.where(id: ids)
-        cases = ids.each_with_index.map { |id, index| "WHEN id = #{id} THEN #{index}" }.join(" ")
-        scoped.update_all("position = CASE #{cases} END")
+        # Constrain to this cohort's recordings so a forged payload can't
+        # reorder another cohort's rows.
+        valid_ids = @cohort.recordings.where(id: ids).pluck(:id).to_set
+        targets = ids.each_with_index.select { |id, _| valid_ids.include?(id) }
+        return head(:bad_request) if targets.empty?
+
+        # Single UPDATE via a VALUES join with parameterized binds — keeps
+        # Brakeman happy (no string interpolation of params), avoids N+1, and
+        # implicitly leaves any row whose id slipped out of the join unchanged
+        # (no risk of NULL position from a stray CASE branch).
+        placeholders = targets.map { "(?, ?)" }.join(", ")
+        binds = targets.flat_map { |id, idx| [ id, idx ] }
+        sql = ActiveRecord::Base.sanitize_sql_array([
+          "UPDATE recordings AS r SET position = v.pos " \
+          "FROM (VALUES #{placeholders}) AS v(id, pos) " \
+          "WHERE r.id = v.id AND r.cohort_id = ?",
+          *binds, @cohort.id
+        ])
+        ActiveRecord::Base.connection.exec_update(sql)
 
         render json: {
           recordings: @cohort.recordings.reload.ordered.map { |r| recording_json(r, staff: true) }

@@ -66,10 +66,14 @@ class S3Service
     private
 
     def s3_client
+      # Use the same accessor style as `configured?` so a missing env var causes
+      # `configured?` to return false rather than `s3_client` raising KeyError.
+      # Memoization is intentional, but only kicks in once credentials are
+      # actually present.
       @s3_client ||= Aws::S3::Client.new(
         region: REGION,
-        access_key_id: ENV.fetch("AWS_ACCESS_KEY_ID"),
-        secret_access_key: ENV.fetch("AWS_SECRET_ACCESS_KEY")
+        access_key_id: ENV["AWS_ACCESS_KEY_ID"],
+        secret_access_key: ENV["AWS_SECRET_ACCESS_KEY"]
       )
     end
 

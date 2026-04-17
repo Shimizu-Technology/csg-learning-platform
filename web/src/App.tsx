@@ -18,7 +18,6 @@ import { LessonEditor } from './pages/admin/LessonEditor'
 import { Grading } from './pages/admin/Grading'
 import { CohortModuleGrading } from './pages/admin/CohortModuleGrading'
 import { CohortWatchProgress } from './pages/admin/CohortWatchProgress'
-import { StudentWatchProgress } from './pages/admin/StudentWatchProgress'
 import { TeamManagement } from './pages/admin/TeamManagement'
 import { SignInPage } from './pages/SignIn'
 import { UploadProvider } from './contexts/UploadContext'
@@ -45,7 +44,6 @@ function AppRoutes() {
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/students" element={<StudentManagement />} />
           <Route path="/admin/students/:id" element={<StudentDetail />} />
-          <Route path="/admin/students/:id/watch-progress" element={<StudentWatchProgress />} />
           <Route path="/admin/cohorts" element={<CohortManagement />} />
           <Route path="/admin/cohorts/:id" element={<CohortDetail />} />
           <Route path="/admin/cohorts/:id/watch-progress" element={<CohortWatchProgress />} />

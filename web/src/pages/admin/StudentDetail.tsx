@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -19,6 +19,7 @@ import {
   Save,
   Plus,
   Trash2,
+  Film,
   Eye,
 } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -160,18 +161,81 @@ function toDateInputValue(dateStr: string | null): string {
   return new Date(dateStr).toISOString().slice(0, 10)
 }
 
+interface LessonVideoProgress {
+  content_block_id: number
+  duration_seconds: number | null
+  total_watched_seconds: number
+  progress_percentage: number
+  completed: boolean
+  completed_at: string | null
+}
+
+interface RecordingProgress {
+  recording_id: number
+  recording_title: string
+  cohort_id: number
+  duration_seconds: number | null
+  total_watched_seconds: number
+  progress_percentage: number
+  completed: boolean
+  last_watched_at: string | null
+}
+
+function formatWatchedDuration(seconds: number | null | undefined): string {
+  if (!seconds || seconds <= 0) return '—'
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  if (h > 0) return `${h}h ${m}m`
+  if (m > 0) return `${m}m`
+  return `<1m`
+}
+
+function WatchProgressBadge({
+  progressPercentage,
+  completed,
+  totalWatchedSeconds,
+  durationSeconds,
+}: {
+  progressPercentage: number
+  completed: boolean
+  totalWatchedSeconds: number
+  durationSeconds: number | null
+}) {
+  const pct = Math.round(progressPercentage)
+  const watched = formatWatchedDuration(totalWatchedSeconds)
+  const total = formatWatchedDuration(durationSeconds)
+
+  const tone = completed
+    ? 'bg-green-50 text-green-700 border-green-200'
+    : pct > 0
+      ? 'bg-amber-50 text-amber-700 border-amber-200'
+      : 'bg-slate-50 text-slate-500 border-slate-200'
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium tabular-nums ${tone}`}
+      title={`Watched ${watched} of ${total}`}
+    >
+      <Eye className="h-3 w-3" />
+      {pct}%
+    </span>
+  )
+}
+
 function LessonRow({
   lesson,
   form,
   saving,
   onUpdate,
   onSave,
+  videoProgressByBlockId,
 }: {
   lesson: ProgressData['modules'][0]['lessons'][0]
   form: { unlocked: boolean; unlock_date_override: string }
   saving: boolean
   onUpdate: (patch: Partial<{ unlocked: boolean; unlock_date_override: string }>) => void
   onSave: () => void
+  videoProgressByBlockId: Map<number, LessonVideoProgress>
 }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -273,6 +337,10 @@ function LessonRow({
           {lesson.blocks.map((block) => {
             const Icon = BLOCK_ICONS[block.block_type] || FileText
             const colorClass = BLOCK_COLORS[block.block_type] || 'text-slate-400'
+            const watchProgress =
+              (block.block_type === 'video' || block.block_type === 'recording')
+                ? videoProgressByBlockId.get(block.id)
+                : undefined
             return (
               <div
                 key={block.id}
@@ -280,9 +348,17 @@ function LessonRow({
               >
                 <Icon className={`h-3.5 w-3.5 shrink-0 ${colorClass}`} />
                 <span className="flex-1 text-xs text-slate-700 truncate">{block.title}</span>
-                <span className="text-xs text-slate-400 capitalize w-24 text-right shrink-0">
+                <span className="text-xs text-slate-400 capitalize w-20 text-right shrink-0">
                   {block.block_type.replace('_', ' ')}
                 </span>
+                {watchProgress && (
+                  <WatchProgressBadge
+                    progressPercentage={watchProgress.progress_percentage}
+                    completed={watchProgress.completed}
+                    totalWatchedSeconds={watchProgress.total_watched_seconds}
+                    durationSeconds={watchProgress.duration_seconds}
+                  />
+                )}
                 {block.submission && (
                   <span
                     className={`text-xs font-semibold px-1.5 py-0.5 rounded border ${GRADE_STYLES[block.submission.grade || ''] || 'bg-slate-100 text-slate-500 border-slate-200'}`}
@@ -323,6 +399,24 @@ export function StudentDetail() {
   const [editingUser, setEditingUser] = useState(false)
   const [editForm, setEditForm] = useState({ first_name: '', last_name: '', email: '', github_username: '' })
   const [savingUser, setSavingUser] = useState(false)
+  const [recordingProgress, setRecordingProgress] = useState<RecordingProgress[]>([])
+  const [lessonVideoProgress, setLessonVideoProgress] = useState<LessonVideoProgress[]>([])
+
+  const lessonVideoProgressByBlockId = useMemo(() => {
+    const map = new Map<number, LessonVideoProgress>()
+    lessonVideoProgress.forEach((v) => map.set(v.content_block_id, v))
+    return map
+  }, [lessonVideoProgress])
+
+  useEffect(() => {
+    if (!id) return
+    api.getStudentWatchProgress(Number(id)).then((res) => {
+      if (res.data?.watch_progresses) setRecordingProgress(res.data.watch_progresses)
+    })
+    api.getStudentLessonVideoProgress(Number(id)).then((res) => {
+      if (res.data?.lesson_videos) setLessonVideoProgress(res.data.lesson_videos)
+    })
+  }, [id])
 
   useEffect(() => {
     if (!id) return
@@ -749,16 +843,7 @@ export function StudentDetail() {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-slate-900">Course Progress</h2>
-            <Link
-              to={`/admin/students/${id}/watch-progress`}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              <Eye className="h-3.5 w-3.5" />
-              View Watch Progress
-            </Link>
-          </div>
+          <h2 className="text-lg font-semibold text-slate-900">Course Progress</h2>
           {modules.map((mod) => {
             const isExpanded = expandedModules.has(mod.id)
             return (
@@ -801,6 +886,7 @@ export function StudentDetail() {
                           saving={savingLessonId === lesson.id}
                           onUpdate={(patch) => updateLessonAssignmentForm(lesson.id, patch)}
                           onSave={() => saveLessonAssignment(lesson)}
+                          videoProgressByBlockId={lessonVideoProgressByBlockId}
                         />
                       ))
                     )}
@@ -809,6 +895,48 @@ export function StudentDetail() {
               </div>
             )
           })}
+
+          {recordingProgress.length > 0 && (
+            <div className="rounded-2xl bg-white border border-slate-200 overflow-hidden">
+              <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100">
+                <Film className="h-4 w-4 text-primary-500" />
+                <h3 className="text-sm font-semibold text-slate-900">Class Recordings</h3>
+                <span className="text-xs text-slate-400 tabular-nums">
+                  ({recordingProgress.filter((r) => r.completed).length}/{recordingProgress.length} watched)
+                </span>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {recordingProgress.map((rec) => {
+                  const pct = Math.round(rec.progress_percentage)
+                  return (
+                    <div
+                      key={rec.recording_id}
+                      className="flex items-center gap-3 px-5 py-2.5"
+                    >
+                      <PlayCircle className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+                      <span className="flex-1 text-xs text-slate-700 truncate">{rec.recording_title}</span>
+                      <span className="text-[10px] text-slate-400 tabular-nums shrink-0">
+                        {formatWatchedDuration(rec.total_watched_seconds)} / {formatWatchedDuration(rec.duration_seconds)}
+                      </span>
+                      <WatchProgressBadge
+                        progressPercentage={rec.progress_percentage}
+                        completed={rec.completed}
+                        totalWatchedSeconds={rec.total_watched_seconds}
+                        durationSeconds={rec.duration_seconds}
+                      />
+                      {rec.completed ? (
+                        <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                      ) : pct > 0 ? (
+                        <div className="h-3.5 w-3.5 rounded-full border-2 border-amber-400 shrink-0" />
+                      ) : (
+                        <Circle className="h-3.5 w-3.5 text-slate-200 shrink-0" />
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="space-y-4">
