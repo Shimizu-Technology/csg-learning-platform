@@ -17,7 +17,15 @@ module Api
         server_duration = recording.duration_seconds
         progress.duration_seconds = server_duration || params[:duration_seconds].to_i
 
+        # Cap the client-reported watch time at the authoritative duration so a
+        # single forged request can't claim `total_watched_seconds >= 90% of
+        # duration` and instantly fabricate completion on a video the student
+        # never actually played. We still keep the running max across pings so
+        # legitimate non-monotonic clocks don't go backwards.
         new_watched = params[:total_watched_seconds].to_i
+        if progress.duration_seconds&.positive?
+          new_watched = [ new_watched, progress.duration_seconds ].min
+        end
         progress.total_watched_seconds = [ progress.total_watched_seconds, new_watched ].max
         progress.last_watched_at = Time.current
 

@@ -131,6 +131,16 @@ module Api
 
       # PATCH /api/v1/content_blocks/:id/video_progress
       def video_progress
+        # Refuse progress writes against blocks that aren't backed by an S3
+        # video. Without this, an enrolled student could call this endpoint on
+        # a text or code block and write through to its s3_video_duration_seconds
+        # via the first-reporter lock below, corrupting the authoritative
+        # duration the moment a real video is later attached.
+        unless @content_block.s3_video_key.present?
+          render json: { error: "Content block has no video to track" }, status: :unprocessable_entity
+          return
+        end
+
         # Lock the authoritative duration on the content block once. The first reporter
         # sets it; staff can override via update_content_block. This prevents per-user
         # completion fabrication via tiny client-reported durations.
@@ -149,7 +159,15 @@ module Api
         progress.video_last_position = params[:last_position_seconds].to_i
         progress.video_duration = authoritative_duration if authoritative_duration.present?
 
+        # Same cap as watch_progresses#update: prevent a single forged request
+        # from claiming `total_watched_seconds >= 90% of duration` and
+        # instantly fabricating completion. Capped against the server-side
+        # authoritative duration only; if duration is still unknown (no first
+        # reporter yet) we fall back to taking the running max as before.
         new_watched = params[:total_watched_seconds].to_i
+        if authoritative_duration&.positive?
+          new_watched = [ new_watched, authoritative_duration ].min
+        end
         progress.video_total_watched = [ progress.video_total_watched, new_watched ].max
 
         # Only mark complete using the server-side authoritative duration.
