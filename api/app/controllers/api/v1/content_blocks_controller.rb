@@ -126,17 +126,24 @@ module Api
 
       # PATCH /api/v1/content_blocks/:id/video_progress
       def video_progress
-        progress = current_user.progresses.find_or_initialize_by(content_block: @content_block)
-
-        progress.video_last_position = params[:last_position_seconds].to_i
-        if progress.video_duration.blank? && params[:duration_seconds].present?
-          progress.video_duration = params[:duration_seconds].to_i
+        # Lock the authoritative duration on the content block once.
+        # First reporter sets it; staff can override via update_content_block.
+        # This prevents per-user completion fabrication via tiny client durations.
+        if @content_block.s3_video_duration_seconds.blank? && params[:duration_seconds].to_i.positive?
+          @content_block.update_column(:s3_video_duration_seconds, params[:duration_seconds].to_i)
         end
+
+        authoritative_duration = @content_block.s3_video_duration_seconds
+
+        progress = current_user.progresses.find_or_initialize_by(content_block: @content_block)
+        progress.video_last_position = params[:last_position_seconds].to_i
+        progress.video_duration = authoritative_duration if authoritative_duration.present?
 
         new_watched = params[:total_watched_seconds].to_i
         progress.video_total_watched = [ progress.video_total_watched, new_watched ].max
 
-        if progress.video_duration&.positive? && progress.video_total_watched >= (progress.video_duration * 0.9)
+        # Only mark complete using the server-side authoritative duration.
+        if authoritative_duration&.positive? && progress.video_total_watched >= (authoritative_duration * 0.9)
           progress.status = :completed unless progress.completed?
         elsif progress.not_started?
           progress.status = :in_progress
@@ -172,7 +179,7 @@ module Api
 
       def block_params
         params.permit(:block_type, :position, :title, :body, :video_url, :solution, :filename, :metadata,
-                       :s3_video_key, :s3_video_content_type, :s3_video_size)
+                       :s3_video_key, :s3_video_content_type, :s3_video_size, :s3_video_duration_seconds)
       end
 
       def block_json(cb)

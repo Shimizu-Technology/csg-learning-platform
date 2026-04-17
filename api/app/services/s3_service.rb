@@ -19,7 +19,7 @@ class S3Service
         key: key,
         content_type: content_type,
         success_action_status: "201",
-        expires: Time.now + PRESIGN_EXPIRY
+        expires: Time.current + PRESIGN_EXPIRY
       ).tap do |post|
         post.content_length_range(1..max_size)
       end

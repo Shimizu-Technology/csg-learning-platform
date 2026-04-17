@@ -338,6 +338,8 @@ export function LessonEditor() {
               <div className="sm:col-span-2">
                 <VideoUploadField
                   contentBlockId={videoBlockId}
+                  lessonId={lesson?.id}
+                  contextLabel={title ? `Exercise: ${title}` : 'Exercise'}
                   videoUrl={videoUrl}
                   onVideoUrlChange={setVideoUrl}
                   s3VideoKey={s3VideoKey}

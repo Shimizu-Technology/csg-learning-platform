@@ -4,6 +4,8 @@ import { useUpload } from '../../contexts/UploadContext'
 
 interface VideoUploadFieldProps {
   contentBlockId?: number | null
+  lessonId?: number | null
+  contextLabel?: string
   videoUrl: string
   onVideoUrlChange: (url: string) => void
   s3VideoKey: string | null
@@ -14,6 +16,8 @@ interface VideoUploadFieldProps {
 
 export function VideoUploadField({
   contentBlockId,
+  lessonId,
+  contextLabel,
   videoUrl,
   onVideoUrlChange,
   s3VideoKey,
@@ -73,9 +77,15 @@ export function VideoUploadField({
     setUploadedFileName(file.name)
     hasReportedKeyRef.current = false
 
-    const { uploadId: newId } = startVideoUpload(file, contentBlockId ? { contentBlockId } : undefined)
+    const linkTo = lessonId ? `/admin/lessons/${lessonId}/edit` : undefined
+    const { uploadId: newId } = startVideoUpload(
+      file,
+      contentBlockId
+        ? { contentBlockId, linkTo, linkLabel: contextLabel }
+        : { linkTo, linkLabel: contextLabel }
+    )
     setUploadId(newId)
-  }, [contentBlockId, startVideoUpload])
+  }, [contentBlockId, lessonId, contextLabel, startVideoUpload])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()

@@ -105,6 +105,8 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
         description: newDescription.trim() || undefined,
         recordedDate: newDate || undefined,
       },
+      linkTo: `/admin/cohorts/${cohortId}`,
+      linkLabel: `Recording: ${newTitle.trim()}`,
     })
 
     const uploadResult = await result

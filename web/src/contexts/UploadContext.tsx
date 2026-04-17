@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Upload, X, CheckCircle2, AlertCircle, Film, ChevronDown, ChevronUp } from 'lucide-react'
 import { uploadToS3, formatFileSize, type UploadProgress } from '../lib/uploadToS3'
 import { api } from '../lib/api'
@@ -12,6 +13,8 @@ interface ActiveUpload {
   error?: string
   s3Key?: string
   contentBlockId?: number
+  linkTo?: string
+  linkLabel?: string
   abortController: AbortController
 }
 
@@ -26,12 +29,16 @@ interface UploadStartResult {
   result: Promise<UploadResult | null>
 }
 
+interface UploadStartOpts {
+  contentBlockId?: number
+  cohortRecording?: { cohortId: number; title: string; description?: string; recordedDate?: string }
+  linkTo?: string
+  linkLabel?: string
+}
+
 interface UploadContextValue {
   uploads: ActiveUpload[]
-  startVideoUpload: (
-    file: File,
-    opts?: { contentBlockId?: number; cohortRecording?: { cohortId: number; title: string; description?: string; recordedDate?: string } }
-  ) => UploadStartResult
+  startVideoUpload: (file: File, opts?: UploadStartOpts) => UploadStartResult
   cancelUpload: (id: string) => void
 }
 
@@ -58,7 +65,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
 
   const startVideoUpload = useCallback((
     file: File,
-    opts?: { contentBlockId?: number; cohortRecording?: { cohortId: number; title: string; description?: string; recordedDate?: string } }
+    opts?: UploadStartOpts
   ): UploadStartResult => {
     const id = crypto.randomUUID()
     const abortController = new AbortController()
@@ -68,6 +75,8 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
       id, fileName: file.name, fileSize: file.size,
       progress: 0, status: 'presigning', abortController,
       contentBlockId: opts?.contentBlockId,
+      linkTo: opts?.linkTo,
+      linkLabel: opts?.linkLabel,
     }
     setUploads(prev => [...prev, upload])
 
@@ -147,6 +156,7 @@ function UploadIndicator({ uploads, onCancel, onDismiss }: {
   onDismiss: (id: string) => void
 }) {
   const [collapsed, setCollapsed] = useState(false)
+  const navigate = useNavigate()
   const active = uploads.filter(u => u.status !== 'done')
 
   if (uploads.length === 0) return null
@@ -175,8 +185,24 @@ function UploadIndicator({ uploads, onCancel, onDismiss }: {
               <div className="flex items-start gap-2">
                 <Film className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-slate-700 truncate">{u.fileName}</p>
-                  <p className="text-[11px] text-slate-400">{formatFileSize(u.fileSize)}</p>
+                  {u.linkTo ? (
+                    <button
+                      type="button"
+                      onClick={() => navigate(u.linkTo!)}
+                      className="text-left w-full group"
+                      title={`Open ${u.linkLabel || u.fileName}`}
+                    >
+                      <p className="text-sm text-slate-700 truncate group-hover:text-primary-600 group-hover:underline">{u.fileName}</p>
+                      <p className="text-[11px] text-slate-400 truncate">
+                        {formatFileSize(u.fileSize)}{u.linkLabel ? ` · ${u.linkLabel}` : ''}
+                      </p>
+                    </button>
+                  ) : (
+                    <>
+                      <p className="text-sm text-slate-700 truncate">{u.fileName}</p>
+                      <p className="text-[11px] text-slate-400">{formatFileSize(u.fileSize)}</p>
+                    </>
+                  )}
                 </div>
                 {u.status === 'done' ? (
                   <button onClick={() => onDismiss(u.id)} className="text-slate-400 hover:text-slate-600">

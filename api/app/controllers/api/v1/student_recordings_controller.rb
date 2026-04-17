@@ -7,7 +7,7 @@ module Api
       # Returns both legacy (YouTube/URL-based from cohort settings) and
       # S3-backed recordings for the student's active cohort.
       def index
-        enrollment = current_user.enrollments.active.includes(:cohort).first
+        enrollment = current_user.enrollments.active.includes(:cohort).order(created_at: :desc).first
 
         unless enrollment
           render json: { recordings: [], s3_recordings: [] }
