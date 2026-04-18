@@ -267,7 +267,7 @@ export const api = {
     fetchApi<null>(`/api/v1/lesson_assignments/${id}`, { method: 'DELETE' }),
 
   // Admin — Content
-  updateContentBlock: (id: number, data: { block_type?: string; position?: number; title?: string; body?: string | null; video_url?: string | null; solution?: string | null; filename?: string | null; metadata?: Record<string, unknown>; s3_video_key?: string | null; s3_video_content_type?: string | null; s3_video_size?: number | null }) =>
+  updateContentBlock: (id: number, data: { block_type?: string; position?: number; title?: string; body?: string | null; video_url?: string | null; solution?: string | null; filename?: string | null; metadata?: Record<string, unknown>; s3_video_key?: string | null; s3_video_content_type?: string | null; s3_video_size?: number | null; s3_video_duration_seconds?: number | null }) =>
     fetchApi<ContentBlockResponse>(`/api/v1/content_blocks/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
