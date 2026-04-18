@@ -345,7 +345,7 @@ export const api = {
     fetchApi<RecordingResponse>(`/api/v1/cohorts/${cohortId}/recordings`, {
       method: 'POST', body: JSON.stringify(data),
     }),
-  updateRecording: (cohortId: number, id: number, data: { title?: string; description?: string; duration_seconds?: number; recorded_date?: string; position?: number }) =>
+  updateRecording: (cohortId: number, id: number, data: { title?: string; description?: string; duration_seconds?: number; recorded_date?: string }) =>
     fetchApi<RecordingResponse>(`/api/v1/cohorts/${cohortId}/recordings/${id}`, {
       method: 'PATCH', body: JSON.stringify(data),
     }),

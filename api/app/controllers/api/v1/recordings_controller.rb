@@ -109,7 +109,11 @@ module Api
 
       # PATCH /api/v1/cohorts/:cohort_id/recordings/:id
       def update
-        permitted = params.permit(:title, :description, :duration_seconds, :recorded_date, :position)
+        # Position changes must go through `reorder`, which validates the full
+        # cohort list under a lock. Allowing arbitrary per-row `position` here
+        # would bypass those guarantees and let a forged PATCH create duplicate
+        # slots or partial reorder states.
+        permitted = params.permit(:title, :description, :duration_seconds, :recorded_date)
 
         if @recording.update(permitted)
           render json: { recording: recording_json(@recording, staff: true) }
