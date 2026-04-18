@@ -95,23 +95,26 @@ module Api
         return if performed?
 
         user = User.find(params[:user_id])
-        active_enrollments = user.enrollments.where(status: :active).includes(cohort: { curriculum: { modules: { lessons: :content_blocks } } })
+        active_enrollments = user.enrollments.where(status: :active).includes(:cohort)
+        curriculum_ids = active_enrollments.map { |e| e.cohort.curriculum_id }.uniq
+        video_blocks_by_curriculum = ContentBlock
+          .joins(lesson: :curriculum_module)
+          .includes(lesson: :curriculum_module)
+          .where(curriculum_modules: { curriculum_id: curriculum_ids }, block_type: %w[video recording])
+          .where.not(s3_video_key: [ nil, "" ])
+          .order("curriculum_modules.position ASC, lessons.position ASC, content_blocks.position ASC")
+          .group_by { |cb| cb.lesson.curriculum_module.curriculum_id }
 
-        # `has_many :modules / :lessons / :content_blocks` already use
-        # `-> { order(:position) }` scopes, so iterating the eager-loaded
-        # associations is already in display order — no Ruby-side resort needed.
-        rows = []
-        active_enrollments.each do |enrollment|
+        # Keep the per-enrollment shape (a student in two cohorts with the same
+        # curriculum should still see two cohort-scoped rows), but fetch only the
+        # actual S3-backed video blocks instead of eager-loading the full
+        # curriculum tree into Ruby first.
+        rows = active_enrollments.flat_map { |enrollment|
           cohort = enrollment.cohort
-          cohort.curriculum.modules.each do |mod|
-            mod.lessons.each do |lesson|
-              lesson.content_blocks.each do |cb|
-                next unless (cb.block_type == "video" || cb.block_type == "recording") && cb.s3_video_key.present?
-                rows << [ cb, mod, lesson, cohort ]
-              end
-            end
-          end
-        end
+          video_blocks_by_curriculum.fetch(cohort.curriculum_id, []).map { |cb|
+            [ cb, cb.lesson.curriculum_module, cb.lesson, cohort ]
+          }
+        }
 
         block_ids = rows.map { |cb, _m, _l, _c| cb.id }
         progress_by_block = user.progresses.where(content_block_id: block_ids).index_by(&:content_block_id)
@@ -186,19 +189,20 @@ module Api
         require_staff!
         return if performed?
 
-        cohort = Cohort.includes(curriculum: { modules: { lessons: :content_blocks } }).find(params[:cohort_id])
+        cohort = Cohort.find(params[:cohort_id])
         enrollments = cohort.enrollments.active.includes(:user)
 
-        # Flatten the curriculum into ordered video blocks once. Skip blocks without
-        # an attached S3 video — there's nothing to track for those. The eager-loaded
-        # associations are already ordered by `position` via their `has_many` scopes.
-        video_blocks = cohort.curriculum.modules.flat_map { |m|
-          m.lessons.flat_map { |l|
-            l.content_blocks
-              .select { |cb| (cb.block_type == "video" || cb.block_type == "recording") && cb.s3_video_key.present? }
-              .map { |cb| [ cb, m, l ] }
-          }
-        }
+        # Query only the ordered S3-backed video blocks for this cohort's
+        # curriculum. The previous implementation eager-loaded the entire
+        # curriculum tree and filtered in Ruby, which pulls a lot of irrelevant
+        # non-video content into memory on larger cohorts.
+        video_blocks = ContentBlock
+          .joins(lesson: :curriculum_module)
+          .includes(lesson: :curriculum_module)
+          .where(curriculum_modules: { curriculum_id: cohort.curriculum_id }, block_type: %w[video recording])
+          .where.not(s3_video_key: [ nil, "" ])
+          .order("curriculum_modules.position ASC, lessons.position ASC, content_blocks.position ASC")
+          .map { |cb| [ cb, cb.lesson.curriculum_module, cb.lesson ] }
 
         block_ids = video_blocks.map { |cb, _m, _l| cb.id }
         progress_data = Progress
