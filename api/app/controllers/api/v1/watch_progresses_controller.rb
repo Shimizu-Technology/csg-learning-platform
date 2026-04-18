@@ -242,7 +242,7 @@ module Api
       private
 
       # Build the WatchProgress row to save and apply the param-derived fields
-      # (last_position, capped total_watched, last_watched_at). Used by both the
+      # (capped last_position, capped total_watched, last_watched_at). Used by both the
       # initial save attempt and the post-RecordNotUnique retry. Pass
       # force_existing: true after a uniqueness collision to skip the build path
       # and reload the row the racing request just inserted.
@@ -253,9 +253,13 @@ module Api
           current_user.watch_progresses.find_or_initialize_by(recording: recording)
         end
 
-        progress.last_position_seconds = params[:last_position_seconds].to_i
         server_duration = recording.duration_seconds
         progress.duration_seconds = server_duration || params[:duration_seconds].to_i
+        new_position = params[:last_position_seconds].to_i
+        if progress.duration_seconds&.positive?
+          new_position = [ new_position, progress.duration_seconds ].min
+        end
+        progress.last_position_seconds = [ new_position, 0 ].max
 
         new_watched = params[:total_watched_seconds].to_i
         if progress.duration_seconds&.positive?

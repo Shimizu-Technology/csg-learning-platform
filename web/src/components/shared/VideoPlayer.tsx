@@ -331,7 +331,7 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
         className="absolute inset-0 w-full h-full object-contain"
         onClick={togglePlay}
         playsInline
-        preload="auto"
+        preload="metadata"
         title={title}
       />
 

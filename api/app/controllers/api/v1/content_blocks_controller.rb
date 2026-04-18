@@ -228,7 +228,7 @@ module Api
 
       private
 
-      # Apply the param-derived video progress fields (last_position, capped
+      # Apply the param-derived video progress fields (capped last_position, capped
       # total_watched, status transitions). Pass force_existing: true after a
       # uniqueness collision to skip the build path and merge into the row the
       # racing request just inserted instead of stacking another insert.
@@ -239,8 +239,12 @@ module Api
           current_user.progresses.find_or_initialize_by(content_block: @content_block)
         end
 
-        progress.video_last_position = params[:last_position_seconds].to_i
         progress.video_duration = authoritative_duration if authoritative_duration.present?
+        new_position = params[:last_position_seconds].to_i
+        if authoritative_duration&.positive?
+          new_position = [ new_position, authoritative_duration ].min
+        end
+        progress.video_last_position = [ new_position, 0 ].max
 
         new_watched = params[:total_watched_seconds].to_i
         if authoritative_duration&.positive?
