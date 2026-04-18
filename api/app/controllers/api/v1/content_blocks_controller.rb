@@ -182,14 +182,26 @@ module Api
         # sets it; staff can override via update_content_block. This prevents per-user
         # completion fabrication via tiny client-reported durations.
         #
-        # Capture the resolved duration into a local *before* writing it via update_column,
-        # because update_column bypasses model callbacks and does not refresh the in-memory
-        # @content_block — without this, the very next read would still be nil and the 90%
-        # completion check below would be silently skipped on the first-ever ping.
+        # The previous read-then-write pattern raced against itself: two concurrent
+        # first pings (different students or different tabs) both saw nil and both
+        # ran update_column, so a malicious client could lose the race against an
+        # honest one and overwrite the legitimate duration with a tiny value.
+        # Compare-and-swap via UPDATE ... WHERE s3_video_duration_seconds IS NULL
+        # makes only one writer succeed; the loser re-reads the winner's value.
         authoritative_duration = @content_block.s3_video_duration_seconds
         if authoritative_duration.blank? && params[:duration_seconds].to_i.positive?
-          authoritative_duration = params[:duration_seconds].to_i
-          @content_block.update_column(:s3_video_duration_seconds, authoritative_duration)
+          candidate = params[:duration_seconds].to_i
+          updated = ContentBlock.where(id: @content_block.id, s3_video_duration_seconds: nil)
+                                .update_all(s3_video_duration_seconds: candidate)
+          authoritative_duration = if updated == 1
+            candidate
+          else
+            # Lost the CAS — another request set a value first. Trust theirs.
+            @content_block.reload.s3_video_duration_seconds
+          end
+          # Mirror onto the in-memory instance so downstream reads here and
+          # the eventual response match the row, not the stale @content_block.
+          @content_block.s3_video_duration_seconds = authoritative_duration
         end
 
         # find_or_initialize_by + save races against the unique index

@@ -146,25 +146,39 @@ module Api
         ids = ordered_ids.map(&:to_i).uniq
         return head(:bad_request) if ids.empty?
 
-        # Constrain to this cohort's recordings so a forged payload can't
-        # reorder another cohort's rows.
-        valid_ids = @cohort.recordings.where(id: ids).pluck(:id).to_set
-        targets = ids.each_with_index.select { |id, _| valid_ids.include?(id) }
-        return head(:bad_request) if targets.empty?
+        Cohort.transaction do
+          # Lock the cohort row to serialise concurrent reorders/creates so a
+          # caller-supplied "full list" doesn't race a brand-new recording
+          # being inserted at maximum(position)+1 and re-introduce duplicates.
+          locked_cohort = Cohort.lock.find(@cohort.id)
+          existing_ids = locked_cohort.recordings.pluck(:id).to_set
 
-        # Single UPDATE via a VALUES join with parameterized binds — keeps
-        # Brakeman happy (no string interpolation of params), avoids N+1, and
-        # implicitly leaves any row whose id slipped out of the join unchanged
-        # (no risk of NULL position from a stray CASE branch).
-        placeholders = targets.map { "(?, ?)" }.join(", ")
-        binds = targets.flat_map { |id, idx| [ id, idx ] }
-        sql = ActiveRecord::Base.sanitize_sql_array([
-          "UPDATE recordings AS r SET position = v.pos " \
-          "FROM (VALUES #{placeholders}) AS v(id, pos) " \
-          "WHERE r.id = v.id AND r.cohort_id = ?",
-          *binds, @cohort.id
-        ])
-        ActiveRecord::Base.connection.exec_update(sql)
+          # Require the payload to cover the entire current set. A partial
+          # list would only update the supplied rows to indices [0..N-1] and
+          # leave the rest at their previous positions — guaranteeing position
+          # collisions (e.g. a row already at position 0 colliding with the
+          # newly-zeroed first id of the partial list).
+          unless ids.to_set == existing_ids
+            render json: {
+              error: "recording_ids must include exactly the cohort's current recordings"
+            }, status: :unprocessable_entity
+            raise ActiveRecord::Rollback
+          end
+
+          # Single UPDATE via a VALUES join with parameterized binds — keeps
+          # Brakeman happy (no string interpolation of params) and avoids N+1.
+          targets = ids.each_with_index.to_a
+          placeholders = targets.map { "(?, ?)" }.join(", ")
+          binds = targets.flat_map { |id, idx| [ id, idx ] }
+          sql = ActiveRecord::Base.sanitize_sql_array([
+            "UPDATE recordings AS r SET position = v.pos " \
+            "FROM (VALUES #{placeholders}) AS v(id, pos) " \
+            "WHERE r.id = v.id AND r.cohort_id = ?",
+            *binds, locked_cohort.id
+          ])
+          ActiveRecord::Base.connection.exec_update(sql)
+        end
+        return if performed?
 
         render json: {
           recordings: @cohort.recordings.reload.ordered.map { |r| recording_json(r, staff: true) }
