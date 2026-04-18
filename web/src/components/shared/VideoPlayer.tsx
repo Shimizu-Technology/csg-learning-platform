@@ -57,8 +57,12 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
 
   const loadUrl = useCallback(() => {
     return fetchStreamUrl().then((url) => {
-      if (url) setStreamUrl(url)
-      else setError('Failed to load video')
+      if (url) {
+        setStreamUrl(url)
+        setError(null)
+      } else {
+        setError('Failed to load video')
+      }
     })
   }, [fetchStreamUrl])
 
@@ -134,6 +138,17 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
     }
     const handlePlay = () => setPlaying(true)
     const handlePause = () => setPlaying(false)
+    const handleError = () => {
+      // Expired presigned URLs, missing objects, and mid-stream S3 failures all
+      // surface through the media element's `error` event. Without handling it,
+      // the player can sit forever on a black box or spinner with no user
+      // feedback. Collapse buffering, stop the playing state, and render the
+      // existing error fallback instead.
+      hideBuffering()
+      setLoading(false)
+      setPlaying(false)
+      setError('Video failed to load. Please refresh and try again.')
+    }
     const handleSeeked = () => {
       // After a seek, reset the baseline so we don't immediately credit the
       // gap between old and new positions.
@@ -170,6 +185,7 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
     video.addEventListener('timeupdate', handleTimeUpdate)
     video.addEventListener('play', handlePlay)
     video.addEventListener('pause', handlePause)
+    video.addEventListener('error', handleError)
     video.addEventListener('ended', handleEnded)
     video.addEventListener('progress', handleProgress)
     video.addEventListener('waiting', handleWaiting)
@@ -183,6 +199,7 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
       video.removeEventListener('timeupdate', handleTimeUpdate)
       video.removeEventListener('play', handlePlay)
       video.removeEventListener('pause', handlePause)
+      video.removeEventListener('error', handleError)
       video.removeEventListener('ended', handleEnded)
       video.removeEventListener('progress', handleProgress)
       video.removeEventListener('waiting', handleWaiting)
