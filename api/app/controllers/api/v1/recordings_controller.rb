@@ -69,6 +69,14 @@ module Api
 
       # POST /api/v1/cohorts/:cohort_id/recordings
       def create
+        # Apply the same content_type validation that presign uses so a forged
+        # create payload can't persist a non-video MIME (e.g. application/zip)
+        # against an s3_key that may have been uploaded under it. Presign is
+        # the gatekeeper for the upload itself, but create is what makes the
+        # record visible to students, so the same regex must hold here.
+        content_type = validated_video_content_type(params[:content_type] || "video/mp4")
+        return if content_type.nil?
+
         # Serialize concurrent creates so two simultaneous uploads can't compute
         # the same `next_position` and produce duplicate slots. Locking the cohort
         # row inside a transaction is enough — every position write for this
@@ -82,7 +90,7 @@ module Api
             title: params[:title],
             description: params[:description],
             s3_key: params[:s3_key],
-            content_type: params[:content_type] || "video/mp4",
+            content_type: content_type,
             file_size: params[:file_size],
             duration_seconds: params[:duration_seconds],
             recorded_date: params[:recorded_date],
