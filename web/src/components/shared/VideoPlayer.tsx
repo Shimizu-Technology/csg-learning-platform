@@ -27,6 +27,7 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
   // approach undercounted at >1x playback (a 60s video watched at 1.5x credited
   // ~40s of "watched" time) so the 90% completion check could never fire.
   const lastTimeRef = useRef(0)
+  const lastTickAtRef = useRef<number | null>(null)
   const hasRestoredInitialPosition = useRef(false)
 
   const [streamUrl, setStreamUrl] = useState<string | null>(null)
@@ -121,22 +122,30 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
       // Initialize the delta tracker to wherever we landed (resumed position
       // or 0) so the first timeupdate doesn't book a giant fake forward jump.
       lastTimeRef.current = video.currentTime
+      lastTickAtRef.current = performance.now()
     }
     const handleTimeUpdate = () => {
       const now = video.currentTime
       const delta = now - lastTimeRef.current
-      // Only credit small forward steps. timeupdate fires every ~250ms, so a
-      // legitimate step at 2x playback is ≤0.5s; we allow up to 2s to absorb
-      // tab throttling. Larger jumps are seeks (don't credit) and negative
-      // deltas are rewinds (also skipped). This makes total_watched_seconds
-      // independent of playbackRate and immune to seek-to-end fabrication.
-      if (delta > 0 && delta <= 2) {
-        totalWatchedRef.current += delta
+      const tickNow = performance.now()
+      const elapsedSinceLastTick = lastTickAtRef.current ? (tickNow - lastTickAtRef.current) / 1000 : 0
+      // Credit only as much forward progress as could plausibly have happened
+      // since the last tick, based on elapsed wall time and playbackRate. This
+      // still blocks instant seek jumps, but avoids the old fixed 2s ceiling
+      // undercounting watch progress when the browser heavily throttles
+      // `timeupdate` in background tabs.
+      const maxCreditableDelta = Math.max(2, (elapsedSinceLastTick * Math.max(video.playbackRate, 0)) + 0.5)
+      if (delta > 0) {
+        totalWatchedRef.current += Math.min(delta, maxCreditableDelta)
       }
       lastTimeRef.current = now
+      lastTickAtRef.current = tickNow
       setCurrentTime(now)
     }
-    const handlePlay = () => setPlaying(true)
+    const handlePlay = () => {
+      lastTickAtRef.current = performance.now()
+      setPlaying(true)
+    }
     const handlePause = () => {
       setPlaying(false)
       // Persist immediately on pause so closing the tab or navigating away
@@ -158,6 +167,7 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
       // After a seek, reset the baseline so we don't immediately credit the
       // gap between old and new positions.
       lastTimeRef.current = video.currentTime
+      lastTickAtRef.current = performance.now()
       hideBuffering()
     }
     const handleEnded = () => {

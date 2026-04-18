@@ -300,6 +300,7 @@ export interface ProgressEntry {
 
 export interface RecordingEntry {
   id: number;
+  cohort_id?: number;
   title: string;
   url: string;
   date: string | null;
@@ -635,7 +636,6 @@ export interface ProgressUpdateResponse {
 export interface RecordingsResponse {
   recordings: RecordingEntry[];
   s3_recordings?: S3Recording[];
-  cohort_id?: number;
 }
 
 export interface ResourcesResponse {

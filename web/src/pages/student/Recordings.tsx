@@ -9,6 +9,7 @@ import { VideoPlayer } from '../../components/shared/VideoPlayer'
 
 interface LegacyRecording {
   id: number
+  cohort_id?: number
   title: string
   url: string
   date: string | null
@@ -18,6 +19,7 @@ interface LegacyRecording {
 
 interface S3Recording {
   id: number
+  cohort_id?: number
   title: string
   description: string | null
   duration_seconds: number | null
@@ -58,7 +60,6 @@ function extractYouTubeId(url: string): string | null {
 export function Recordings() {
   const [legacyRecordings, setLegacyRecordings] = useState<LegacyRecording[]>([])
   const [s3Recordings, setS3Recordings] = useState<S3Recording[]>([])
-  const [cohortId, setCohortId] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedItem, setSelectedItem] = useState<RecordingItem | null>(null)
   const [query, setQuery] = useState('')
@@ -75,6 +76,7 @@ export function Recordings() {
         // Adapt the API row into the discriminated-union shape this view uses.
         const s3: S3Recording[] = (res.data.s3_recordings || []).map((r) => ({
           id: r.id,
+          cohort_id: r.cohort_id,
           title: r.title,
           description: r.description,
           duration_seconds: r.duration_seconds,
@@ -87,7 +89,6 @@ export function Recordings() {
         }))
         setLegacyRecordings(legacy)
         setS3Recordings(s3)
-        setCohortId(res.data.cohort_id || null)
         const first = s3.length > 0 ? s3[0] : legacy.length > 0 ? legacy[0] : null
         setSelectedItem(first)
       }
@@ -128,12 +129,13 @@ export function Recordings() {
   }, [selectedItem, s3Recordings])
 
   const selectedId = liveSelectedItem?.source === 's3' ? liveSelectedItem.id : null
+  const selectedCohortId = liveSelectedItem?.source === 's3' ? liveSelectedItem.cohort_id ?? null : null
 
   const fetchSelectedStreamUrl = useCallback(async () => {
-    if (!cohortId || !selectedId) return null
-    const res = await api.getRecordingStreamUrl(cohortId, selectedId)
+    if (!selectedCohortId || !selectedId) return null
+    const res = await api.getRecordingStreamUrl(selectedCohortId, selectedId)
     return res.data?.stream_url || null
-  }, [cohortId, selectedId])
+  }, [selectedCohortId, selectedId])
 
   const saveSelectedProgress = useCallback((data: import('../../components/shared/VideoPlayer').VideoProgressData) => {
     if (!selectedId) return
@@ -174,7 +176,7 @@ export function Recordings() {
       <div className="flex flex-col lg:flex-row gap-5">
         {/* Player area */}
         <div className="flex-1 min-w-0">
-          {liveSelectedItem && liveSelectedItem.source === 's3' && cohortId ? (
+          {liveSelectedItem && liveSelectedItem.source === 's3' && selectedCohortId ? (
             <div className="space-y-4">
               <VideoPlayer
                 key={liveSelectedItem.id}

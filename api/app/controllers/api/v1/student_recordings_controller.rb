@@ -5,29 +5,33 @@ module Api
 
       # GET /api/v1/recordings
       # Returns both legacy (YouTube/URL-based from cohort settings) and
-      # S3-backed recordings for the student's active cohort.
+      # S3-backed recordings across all of the student's active cohorts.
       def index
-        enrollment = current_user.enrollments.active.includes(:cohort).order(created_at: :desc).first
-
-        unless enrollment
+        enrollments = current_user.enrollments.active.includes(:cohort).order(created_at: :desc)
+        if enrollments.empty?
           render json: { recordings: [], s3_recordings: [] }
           return
         end
 
-        cohort = enrollment.cohort
-
-        legacy = Array((cohort.settings || {})["recordings"]).map.with_index do |r, i|
-          {
-            id: i + 1,
-            title: r["title"],
-            url: r["url"],
-            date: r["date"],
-            description: r["description"],
-            source: "youtube"
-          }
+        cohorts = enrollments.map(&:cohort)
+        legacy = cohorts.flat_map do |cohort|
+          Array((cohort.settings || {})["recordings"]).map.with_index do |r, i|
+            {
+              # Legacy recordings don't have DB ids. Make the synthetic id stable
+              # and unique across multiple active cohorts so selection keys don't
+              # collide on the merged student recordings page.
+              id: -((cohort.id * 100_000) + i + 1),
+              cohort_id: cohort.id,
+              title: r["title"],
+              url: r["url"],
+              date: r["date"],
+              description: r["description"],
+              source: "youtube"
+            }
+          end
         end
 
-        s3_recordings = cohort.recordings.ordered
+        s3_recordings = Recording.where(cohort_id: cohorts.map(&:id)).includes(:cohort).order(:cohort_id, :position)
         progress_map = current_user.watch_progresses
           .where(recording_id: s3_recordings.map(&:id))
           .index_by(&:recording_id)
@@ -36,6 +40,7 @@ module Api
           wp = progress_map[r.id]
           {
             id: r.id,
+            cohort_id: r.cohort_id,
             title: r.title,
             description: r.description,
             duration_seconds: r.duration_seconds,
@@ -56,8 +61,7 @@ module Api
 
         render json: {
           recordings: legacy,
-          s3_recordings: s3_list,
-          cohort_id: cohort.id
+          s3_recordings: s3_list
         }
       end
     end
