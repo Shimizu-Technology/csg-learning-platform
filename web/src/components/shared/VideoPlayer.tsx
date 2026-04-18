@@ -137,7 +137,12 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
       setCurrentTime(now)
     }
     const handlePlay = () => setPlaying(true)
-    const handlePause = () => setPlaying(false)
+    const handlePause = () => {
+      setPlaying(false)
+      // Persist immediately on pause so closing the tab or navigating away
+      // right after stopping doesn't lose up to one full 10s autosave window.
+      sendProgress(false)
+    }
     const handleError = () => {
       // Expired presigned URLs, missing objects, and mid-stream S3 failures all
       // surface through the media element's `error` event. Without handling it,
