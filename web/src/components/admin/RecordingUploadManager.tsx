@@ -46,6 +46,15 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
   const [newDate, setNewDate] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
+  const resetUploadDraft = useCallback((keepFormOpen = false) => {
+    setSelectedFile(null)
+    setNewTitle('')
+    setNewDescription('')
+    setNewDate('')
+    setError(null)
+    if (!keepFormOpen) setShowUploadForm(false)
+  }, [])
+
   const fetchRecordings = useCallback(async () => {
     const res = await api.getCohortRecordings(cohortId)
     if (res.error) {
@@ -120,11 +129,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
     const uploadResult = await result
 
     if (uploadResult) {
-      setShowUploadForm(false)
-      setSelectedFile(null)
-      setNewTitle('')
-      setNewDescription('')
-      setNewDate('')
+      resetUploadDraft()
       fetchRecordings()
       onRecordingsChange?.()
     } else {
@@ -201,7 +206,10 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
           <span className="text-xs text-slate-400">({recordings.length})</span>
         </div>
         <button
-          onClick={() => setShowUploadForm(!showUploadForm)}
+          onClick={() => {
+            if (showUploadForm) resetUploadDraft()
+            else setShowUploadForm(true)
+          }}
           className="inline-flex items-center gap-1.5 rounded-lg bg-primary-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-600 transition-colors"
         >
           <Plus className="h-3.5 w-3.5" />
@@ -214,7 +222,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
         <div className="rounded-xl border border-primary-200 bg-primary-50/50 p-4 space-y-3">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-medium text-slate-900">Upload Recording</h4>
-            <button onClick={() => { setShowUploadForm(false); setSelectedFile(null); setError(null) }} className="text-slate-400 hover:text-slate-600">
+            <button onClick={() => resetUploadDraft()} className="text-slate-400 hover:text-slate-600">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -247,7 +255,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
                   <p className="text-sm font-medium text-slate-900 truncate">{selectedFile.name}</p>
                   <p className="text-xs text-slate-500">{formatSize(selectedFile.size)}</p>
                 </div>
-                <button onClick={() => setSelectedFile(null)} className="text-slate-400 hover:text-red-500">
+                <button onClick={() => resetUploadDraft(true)} className="text-slate-400 hover:text-red-500">
                   <X className="h-4 w-4" />
                 </button>
               </div>
