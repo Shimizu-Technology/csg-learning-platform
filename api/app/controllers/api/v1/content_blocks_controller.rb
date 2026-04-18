@@ -49,7 +49,12 @@ module Api
           if old_s3_key.present? && @content_block.s3_video_key != old_s3_key
             duration_explicit = block_params.key?(:s3_video_duration_seconds)
             unless duration_explicit
+              # update_column persists the change but doesn't refresh the
+              # in-memory attribute, so the JSON response below would still
+              # serialise the old duration. Mirror the write into the loaded
+              # instance so block_json reflects reality without an extra read.
               @content_block.update_column(:s3_video_duration_seconds, nil)
+              @content_block.s3_video_duration_seconds = nil
             end
             # update_all bypasses Active Record enum mapping, so pass the raw
             # integer for status: instead of the symbol.
