@@ -163,28 +163,41 @@ export function CohortWatchProgress() {
   const [videos, setVideos] = useState<VideoInfo[]>([])
   const [videoStudents, setVideoStudents] = useState<VideoStudent[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [cohortName, setCohortName] = useState('')
 
   useEffect(() => {
     if (!id) return
+    setLoading(true)
+    setLoadError(null)
+    // Without a catch, a single rejected request would leave loading=true
+    // forever and the page stuck on the spinner with no diagnostic. Surface
+    // any partial errors via in-band `error` fields too — fetchApi rejects
+    // only on network/parse failures, but a 4xx/5xx returns { error }.
     Promise.all([
       api.getCohortWatchProgress(Number(id)),
       api.getCohortLessonVideoProgress(Number(id)),
       api.getCohort(Number(id)),
-    ]).then(([recRes, vidRes, cohortRes]) => {
-      if (recRes.data) {
-        setRecordings(recRes.data.recordings || [])
-        setRecordingStudents(recRes.data.students || [])
-      }
-      if (vidRes.data) {
-        setVideos(vidRes.data.videos || [])
-        setVideoStudents(vidRes.data.students || [])
-      }
-      if (cohortRes.data?.cohort) {
-        setCohortName(cohortRes.data.cohort.name)
-      }
-      setLoading(false)
-    })
+    ])
+      .then(([recRes, vidRes, cohortRes]) => {
+        const firstError = recRes.error || vidRes.error || cohortRes.error
+        if (firstError) setLoadError(firstError)
+        if (recRes.data) {
+          setRecordings(recRes.data.recordings || [])
+          setRecordingStudents(recRes.data.students || [])
+        }
+        if (vidRes.data) {
+          setVideos(vidRes.data.videos || [])
+          setVideoStudents(vidRes.data.students || [])
+        }
+        if (cohortRes.data?.cohort) {
+          setCohortName(cohortRes.data.cohort.name)
+        }
+      })
+      .catch((err) => {
+        setLoadError(err instanceof Error ? err.message : 'Failed to load watch progress')
+      })
+      .finally(() => setLoading(false))
   }, [id])
 
   const handleTabChange = (next: TabKey) => {
@@ -216,6 +229,23 @@ export function CohortWatchProgress() {
   )
 
   if (loading) return <LoadingSpinner message="Loading watch progress..." />
+
+  if (loadError && recordings.length === 0 && videos.length === 0) {
+    return (
+      <div className="max-w-full mx-auto space-y-5">
+        <Link
+          to={`/admin/cohorts/${id}`}
+          className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to cohort
+        </Link>
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {loadError}
+        </div>
+      </div>
+    )
+  }
 
   const activeColumns = tab === 'recordings' ? recordings : videos
   const activeRows = tab === 'recordings' ? recordingRows : videoRows
