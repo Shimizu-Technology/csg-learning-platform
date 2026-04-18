@@ -295,7 +295,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
 
               <div className="flex items-center justify-end gap-2 pt-1">
                 <button
-                  onClick={() => { setShowUploadForm(false); setSelectedFile(null) }}
+                  onClick={() => resetUploadDraft()}
                   className="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
                   disabled={uploading}
                 >
