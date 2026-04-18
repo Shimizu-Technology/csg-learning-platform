@@ -49,6 +49,15 @@ module Api
 
       # POST /api/v1/modules/:module_id/exercises
       def create_exercise
+        # Keep the exercise-creation path aligned with the rest of the S3 video
+        # entry points: if staff attach an S3-backed intro/demo video while
+        # creating the exercise, validate the stored MIME metadata before it
+        # reaches the DB rather than accepting arbitrary strings.
+        s3_video_content_type = if params[:s3_video_content_type].present?
+          validated_video_content_type(params[:s3_video_content_type])
+        end
+        return if performed?
+
         ActiveRecord::Base.transaction do
           position = @module.lessons.where(release_day: params[:release_day].to_i).maximum(:position).to_i + 1
 
@@ -71,7 +80,7 @@ module Api
               title: params[:title],
               video_url: params[:video_url].presence,
               s3_video_key: params[:s3_video_key].presence,
-              s3_video_content_type: params[:s3_video_content_type].presence,
+              s3_video_content_type: s3_video_content_type,
               s3_video_size: params[:s3_video_size].presence
             )
           end
