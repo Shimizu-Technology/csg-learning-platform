@@ -1,7 +1,25 @@
 class ApplicationController < ActionController::API
   include ClerkAuthenticatable
 
+  # Permissive but strict-enough video MIME validator: matches `video/<subtype>`
+  # for any valid subtype token, rejects everything else (image/, application/,
+  # text/, blank, etc.). Used by every presign action so a forged content_type
+  # can't be slipped into our S3 bucket as something the player won't render.
+  VIDEO_MIME_PATTERN = /\Avideo\/[a-z0-9][a-z0-9.\-+]*\z/i
+
   private
+
+  # Returns the validated, lowercased MIME if it matches `video/<subtype>`,
+  # otherwise renders 422 and returns nil so the caller can `return if nil`.
+  def validated_video_content_type(content_type)
+    ct = content_type.to_s.strip
+    if ct.match?(VIDEO_MIME_PATTERN)
+      ct.downcase
+    else
+      render json: { error: "content_type must be a video/* MIME type" }, status: :unprocessable_entity
+      nil
+    end
+  end
 
   def authorize_content_block_write!(content_block)
     return if current_user.staff?

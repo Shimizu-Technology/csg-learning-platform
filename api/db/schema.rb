@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_09_043000) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_17_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -139,6 +139,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_09_043000) do
     t.bigint "lesson_id", null: false
     t.jsonb "metadata", default: {}, null: false
     t.integer "position", default: 0, null: false
+    t.string "s3_video_content_type"
+    t.integer "s3_video_duration_seconds"
+    t.string "s3_video_key"
+    t.bigint "s3_video_size"
     t.text "solution"
     t.string "title"
     t.datetime "updated_at", null: false
@@ -654,6 +658,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_09_043000) do
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
+    t.integer "video_duration"
+    t.integer "video_last_position", default: 0
+    t.integer "video_total_watched", default: 0
     t.index ["content_block_id"], name: "index_progresses_on_content_block_id"
     t.index ["user_id", "content_block_id"], name: "index_progresses_on_user_id_and_content_block_id", unique: true
     t.index ["user_id"], name: "index_progresses_on_user_id"
@@ -703,6 +710,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_09_043000) do
     t.index ["campaign_id"], name: "index_quotas_on_campaign_id"
     t.index ["district_id"], name: "index_quotas_on_district_id"
     t.index ["village_id"], name: "index_quotas_on_village_id"
+  end
+
+  create_table "recordings", force: :cascade do |t|
+    t.bigint "cohort_id", null: false
+    t.string "content_type", null: false
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.integer "duration_seconds"
+    t.bigint "file_size", null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "recorded_date"
+    t.string "s3_key", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "uploaded_by_id"
+    t.index ["cohort_id", "position"], name: "index_recordings_on_cohort_id_and_position"
+    t.index ["cohort_id"], name: "index_recordings_on_cohort_id"
+    t.index ["s3_key"], name: "index_recordings_on_s3_key", unique: true
+    t.index ["uploaded_by_id"], name: "index_recordings_on_uploaded_by_id"
   end
 
   create_table "referral_codes", force: :cascade do |t|
@@ -1088,6 +1114,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_09_043000) do
     t.index ["name"], name: "index_villages_on_name", unique: true
   end
 
+  create_table "watch_progresses", force: :cascade do |t|
+    t.boolean "completed", default: false, null: false
+    t.datetime "created_at", null: false
+    t.integer "duration_seconds"
+    t.integer "last_position_seconds", default: 0, null: false
+    t.datetime "last_watched_at"
+    t.bigint "recording_id", null: false
+    t.integer "total_watched_seconds", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["recording_id"], name: "index_watch_progresses_on_recording_id"
+    t.index ["user_id", "recording_id"], name: "index_watch_progresses_on_user_id_and_recording_id", unique: true
+    t.index ["user_id"], name: "index_watch_progresses_on_user_id"
+  end
+
   add_foreign_key "audit_logs", "users", column: "actor_user_id"
   add_foreign_key "blocks", "villages"
   add_foreign_key "cohorts", "curricula", column: "curriculum_id"
@@ -1139,6 +1180,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_09_043000) do
   add_foreign_key "quotas", "campaigns"
   add_foreign_key "quotas", "districts"
   add_foreign_key "quotas", "villages"
+  add_foreign_key "recordings", "cohorts"
+  add_foreign_key "recordings", "users", column: "uploaded_by_id", on_delete: :nullify
   add_foreign_key "referral_codes", "users", column: "assigned_user_id"
   add_foreign_key "referral_codes", "users", column: "created_by_user_id"
   add_foreign_key "referral_codes", "villages"
@@ -1167,4 +1210,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_09_043000) do
   add_foreign_key "village_quotas", "quota_periods"
   add_foreign_key "village_quotas", "villages"
   add_foreign_key "villages", "districts"
+  add_foreign_key "watch_progresses", "recordings"
+  add_foreign_key "watch_progresses", "users"
 end

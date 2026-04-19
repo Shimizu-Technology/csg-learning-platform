@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Save, Lock, Unlock, UserPlus, Mail, CheckCircle, PlayCircle, Link2, Plus, Trash2, CalendarDays, ExternalLink, Github } from 'lucide-react'
+import { ArrowLeft, Save, Lock, Unlock, UserPlus, Mail, CheckCircle, PlayCircle, Link2, Plus, Trash2, CalendarDays, ExternalLink, Github, Eye } from 'lucide-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Modal } from '../../components/shared/Modal'
+import { RecordingUploadManager } from '../../components/admin/RecordingUploadManager'
 
 interface Announcement {
   title: string
@@ -780,7 +781,21 @@ export function CohortDetail() {
             )
           })()}
 
-          {/* Recordings & Resources — compact summary cards */}
+          {/* S3 Uploaded Recordings */}
+          <div className="rounded-2xl bg-white border border-slate-200 p-5">
+            <RecordingUploadManager cohortId={Number(id)} />
+            <div className="mt-4 pt-4 border-t border-slate-100">
+              <Link
+                to={`/admin/cohorts/${id}/watch-progress`}
+                className="inline-flex items-center gap-2 text-sm text-primary-600 hover:text-primary-700 font-medium transition-colors"
+              >
+                <Eye className="h-4 w-4" />
+                View Student Watch Progress
+              </Link>
+            </div>
+          </div>
+
+          {/* Legacy Recordings & Resources — compact summary cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <button
               onClick={() => setShowRecordingsModal(true)}
@@ -792,9 +807,9 @@ export function CohortDetail() {
                     <PlayCircle className="h-5 w-5" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-slate-900">Class Recordings</h3>
+                    <h3 className="text-sm font-semibold text-slate-900">YouTube Recordings</h3>
                     <p className="text-xs text-slate-500">
-                      {recordings.length === 0 ? 'No recordings yet' : `${recordings.length} recording${recordings.length !== 1 ? 's' : ''}`}
+                      {recordings.length === 0 ? 'No YouTube links yet' : `${recordings.length} YouTube link${recordings.length !== 1 ? 's' : ''}`}
                     </p>
                   </div>
                 </div>

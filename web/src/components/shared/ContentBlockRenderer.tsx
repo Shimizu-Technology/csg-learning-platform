@@ -4,6 +4,7 @@ import { Play, FileText, Code, CheckCircle2, Circle, ChevronDown, ChevronUp, Sen
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { GradeDisplay } from './GradeDisplay'
 import { CodeEditor, detectLanguage } from './CodeEditor'
+import { VideoPlayer } from './VideoPlayer'
 import { api } from '../../lib/api'
 
 interface ContentBlock {
@@ -16,7 +17,8 @@ interface ContentBlock {
   filename: string | null
   solution?: string | null
   metadata: Record<string, any>
-  progress?: { status: string; completed_at: string | null }
+  s3_video_key?: string | null
+  progress?: { status: string; completed_at: string | null; video_last_position?: number; video_total_watched?: number }
   submissions?: Array<{
     id: number
     text: string
@@ -168,6 +170,28 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
     }
   }
 
+  const fetchBlockStreamUrl = useCallback(async () => {
+    const res = await api.getContentBlockVideoStream(block.id)
+    return res.data?.stream_url || null
+  }, [block.id])
+
+  const saveBlockProgress = useCallback((data: import('./VideoPlayer').VideoProgressData) => {
+    api.updateContentBlockVideoProgress(block.id, data).then(res => {
+      if (res.data?.video_progress?.completed) {
+        setIsCompleted(true)
+        onProgressUpdate?.()
+      }
+    })
+  }, [block.id, onProgressUpdate])
+
+  // Optimistic local-state flip on video end. We intentionally don't call
+  // onProgressUpdate here because saveBlockProgress already does so when the
+  // backend confirms completion in the same `ended` ping — calling it from
+  // both paths fired the parent's progress refetch twice on every completion.
+  const handleBlockCompleted = useCallback(() => {
+    setIsCompleted(true)
+  }, [])
+
   const handleSubmit = async () => {
     if (!submissionText.trim()) return
     setIsSubmitting(true)
@@ -227,7 +251,19 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
       </div>
 
       <div className="p-4 lg:p-6">
-        {block.block_type === 'video' && block.video_url && (
+        {(block.block_type === 'video' || block.block_type === 'recording') && block.s3_video_key && (
+          <VideoPlayer
+            key={`s3-${block.id}`}
+            title={block.title || 'Video'}
+            initialPosition={block.progress?.video_last_position || 0}
+            initialTotalWatched={block.progress?.video_total_watched || 0}
+            fetchStreamUrl={fetchBlockStreamUrl}
+            onSaveProgress={saveBlockProgress}
+            onCompleted={handleBlockCompleted}
+          />
+        )}
+
+        {block.block_type === 'video' && block.video_url && !block.s3_video_key && (
           <div className="aspect-video rounded-xl overflow-hidden bg-slate-900">
             {(() => {
               const ytId = getYouTubeId(block.video_url!)
@@ -257,7 +293,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
           </div>
         )}
 
-        {block.block_type === 'recording' && block.video_url && (
+        {block.block_type === 'recording' && block.video_url && !block.s3_video_key && (
           <div className="aspect-video rounded-xl overflow-hidden bg-slate-900">
             {(() => {
               const ytId = getYouTubeId(block.video_url!)

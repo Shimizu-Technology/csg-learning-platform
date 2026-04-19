@@ -299,7 +299,8 @@ export interface ProgressEntry {
 // ─── Recordings / Resources ──────────────────────────────────────────────────
 
 export interface RecordingEntry {
-  id: number;
+  id: string;
+  cohort_id?: number;
   title: string;
   url: string;
   date: string | null;
@@ -312,6 +313,164 @@ export interface ResourceEntry {
   url: string;
   category: string;
   description: string | null;
+}
+
+// S3-backed recordings (returned by /api/v1/cohorts/:id/recordings)
+export interface S3RecordingWatchProgress {
+  last_position_seconds: number;
+  total_watched_seconds: number;
+  progress_percentage: number;
+  completed: boolean;
+  last_watched_at: string | null;
+}
+
+export interface S3Recording {
+  id: number;
+  cohort_id?: number;
+  title: string;
+  description: string | null;
+  content_type: string;
+  file_size: number;
+  file_size_display: string;
+  duration_seconds: number | null;
+  duration_display: string | null;
+  position: number;
+  recorded_date: string | null;
+  created_at: string;
+  // staff-only
+  s3_key?: string;
+  uploaded_by?: string | null;
+  // student-scoped (only present when the controller adds it; treated as
+  // nullable here so callers don't have to special-case `undefined` vs `null`).
+  watch_progress?: S3RecordingWatchProgress | null;
+}
+
+export interface CohortRecordingsResponse {
+  recordings: S3Recording[];
+}
+
+export interface RecordingResponse {
+  recording: S3Recording;
+}
+
+// ─── Watch progress ──────────────────────────────────────────────────────────
+
+export interface WatchProgressUpdate {
+  recording_id: number;
+  last_position_seconds: number;
+  total_watched_seconds: number;
+  progress_percentage: number;
+  completed: boolean;
+  last_watched_at: string | null;
+}
+
+export interface WatchProgressUpdateResponse {
+  watch_progress: WatchProgressUpdate;
+}
+
+export interface VideoProgressEntry {
+  content_block_id: number;
+  last_position: number;
+  total_watched: number;
+  duration: number | null;
+  status: string;
+  completed?: boolean;
+}
+
+export interface VideoStreamResponse {
+  stream_url: string;
+  video_progress: VideoProgressEntry | null;
+}
+
+export interface VideoProgressResponse {
+  video_progress: VideoProgressEntry;
+}
+
+// Per-recording progress row used by the cohort watch-progress matrix.
+export interface CohortWatchProgressRow {
+  recording_id: number;
+  progress_percentage: number;
+  completed: boolean;
+  total_watched_seconds: number;
+}
+
+export interface CohortWatchProgressStudent {
+  user_id: number;
+  full_name: string;
+  recordings: CohortWatchProgressRow[];
+}
+
+export interface CohortWatchProgressResponse {
+  recordings: { id: number; title: string; duration_seconds: number | null }[];
+  students: CohortWatchProgressStudent[];
+}
+
+// Per-video progress row used by the cohort lesson-video matrix.
+export interface CohortLessonVideoProgressRow {
+  content_block_id: number;
+  progress_percentage: number;
+  completed: boolean;
+  total_watched_seconds: number;
+}
+
+export interface CohortLessonVideoProgressStudent {
+  user_id: number;
+  full_name: string;
+  videos: CohortLessonVideoProgressRow[];
+}
+
+export interface CohortLessonVideoProgressResponse {
+  videos: {
+    id: number;
+    title: string;
+    lesson_title: string;
+    module_title: string;
+    duration_seconds: number | null;
+  }[];
+  students: CohortLessonVideoProgressStudent[];
+}
+
+// Per-student watch progress (cohort recordings).
+export interface StudentRecordingProgress {
+  recording_id: number;
+  recording_title: string;
+  cohort_id: number;
+  cohort_name: string;
+  last_position_seconds: number;
+  total_watched_seconds: number;
+  duration_seconds: number | null;
+  progress_percentage: number;
+  completed: boolean;
+  last_watched_at: string | null;
+}
+
+export interface StudentWatchProgressResponse {
+  watch_progresses: StudentRecordingProgress[];
+}
+
+// Per-student watch progress (in-lesson S3 video blocks).
+export interface StudentLessonVideoProgress {
+  content_block_id: number;
+  title: string;
+  lesson_title: string;
+  module_title: string;
+  cohort_id: number;
+  cohort_name: string;
+  duration_seconds: number | null;
+  last_position_seconds: number;
+  total_watched_seconds: number;
+  progress_percentage: number;
+  completed: boolean;
+  completed_at: string | null;
+  last_watched_at: string | null;
+}
+
+export interface StudentLessonVideoProgressResponse {
+  lesson_videos: StudentLessonVideoProgress[];
+}
+
+export interface ReorderRecordingsResponse {
+  recordings: S3Recording[];
 }
 
 // ─── Session ─────────────────────────────────────────────────────────────────
@@ -476,6 +635,7 @@ export interface ProgressUpdateResponse {
 
 export interface RecordingsResponse {
   recordings: RecordingEntry[];
+  s3_recordings?: S3Recording[];
 }
 
 export interface ResourcesResponse {

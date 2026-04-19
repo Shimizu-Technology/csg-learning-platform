@@ -25,6 +25,16 @@ import type {
   LessonAssignmentResponse,
   ContentBlockResponse,
   ContentBlocksListResponse,
+  CohortRecordingsResponse,
+  RecordingResponse,
+  ReorderRecordingsResponse,
+  VideoStreamResponse,
+  VideoProgressResponse,
+  WatchProgressUpdateResponse,
+  CohortWatchProgressResponse,
+  CohortLessonVideoProgressResponse,
+  StudentWatchProgressResponse,
+  StudentLessonVideoProgressResponse,
 } from '../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
@@ -139,8 +149,8 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getSubmissionGithubIssue: (id: number) =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fetchApi<any>(`/api/v1/submissions/${id}/github_issue`),
 
   // Student progress (admin)
@@ -257,7 +267,7 @@ export const api = {
     fetchApi<null>(`/api/v1/lesson_assignments/${id}`, { method: 'DELETE' }),
 
   // Admin — Content
-  updateContentBlock: (id: number, data: { block_type?: string; position?: number; title?: string; body?: string | null; video_url?: string | null; solution?: string | null; filename?: string | null; metadata?: Record<string, unknown> }) =>
+  updateContentBlock: (id: number, data: { block_type?: string; position?: number; title?: string; body?: string | null; video_url?: string | null; solution?: string | null; filename?: string | null; metadata?: Record<string, unknown>; s3_video_key?: string | null; s3_video_content_type?: string | null; s3_video_size?: number | null; s3_video_duration_seconds?: number | null }) =>
     fetchApi<ContentBlockResponse>(`/api/v1/content_blocks/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -274,7 +284,7 @@ export const api = {
     }),
   deleteLesson: (id: number) =>
     fetchApi<void>(`/api/v1/lessons/${id}`, { method: 'DELETE' }),
-  createExercise: (moduleId: number, data: { title: string; release_day: number; video_url?: string; instructions?: string; solution?: string; filename?: string; requires_submission: boolean }) =>
+  createExercise: (moduleId: number, data: { title: string; release_day: number; video_url?: string; instructions?: string; solution?: string; filename?: string; requires_submission: boolean; s3_video_key?: string; s3_video_content_type?: string; s3_video_size?: number }) =>
     fetchApi<LessonResponse>(`/api/v1/modules/${moduleId}/exercises`, {
       method: 'POST',
       body: JSON.stringify(data),
@@ -284,7 +294,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  createContentBlock: (lessonId: number, data: { block_type: string; position?: number; title?: string; body?: string; video_url?: string; solution?: string; filename?: string; metadata?: Record<string, unknown> }) =>
+  createContentBlock: (lessonId: number, data: { block_type: string; position?: number; title?: string; body?: string; video_url?: string; solution?: string; filename?: string; metadata?: Record<string, unknown>; s3_video_key?: string; s3_video_content_type?: string; s3_video_size?: number }) =>
     fetchApi<ContentBlockResponse>(`/api/v1/lessons/${lessonId}/content_blocks`, {
       method: 'POST',
       body: JSON.stringify(data),
@@ -293,6 +303,24 @@ export const api = {
     fetchApi<null>(`/api/v1/content_blocks/${id}`, { method: 'DELETE' }),
   getContentBlocks: (lessonId: number) =>
     fetchApi<ContentBlocksListResponse>(`/api/v1/lessons/${lessonId}/content_blocks`),
+
+  // Content block video (S3)
+  presignGenericVideo: (filename: string, contentType: string) =>
+    fetchApi<{ upload_url: string; fields: Record<string, string>; s3_key: string }>(
+      `/api/v1/video_presign`,
+      { method: 'POST', body: JSON.stringify({ filename, content_type: contentType }) }
+    ),
+  presignContentBlockVideo: (blockId: number, filename: string, contentType: string) =>
+    fetchApi<{ upload_url: string; fields: Record<string, string>; s3_key: string }>(
+      `/api/v1/content_blocks/${blockId}/video_presign`,
+      { method: 'POST', body: JSON.stringify({ filename, content_type: contentType }) }
+    ),
+  getContentBlockVideoStream: (blockId: number) =>
+    fetchApi<VideoStreamResponse>(`/api/v1/content_blocks/${blockId}/video_stream`),
+  updateContentBlockVideoProgress: (blockId: number, data: { last_position_seconds: number; total_watched_seconds: number; duration_seconds?: number }) =>
+    fetchApi<VideoProgressResponse>(`/api/v1/content_blocks/${blockId}/video_progress`, {
+      method: 'PATCH', body: JSON.stringify(data),
+    }),
 
   // Cohort-scoped grading
   getCohortModuleSubmissions: (cohortId: number, moduleId: number) =>
@@ -304,4 +332,47 @@ export const api = {
   syncStudentGithub: (cohortId: number, moduleId: number, userId: number) =>
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fetchApi<any>(`/api/v1/cohorts/${cohortId}/modules/${moduleId}/sync_github/${userId}`, { method: 'POST' }),
+
+  // S3 Recordings
+  getCohortRecordings: (cohortId: number) =>
+    fetchApi<CohortRecordingsResponse>(`/api/v1/cohorts/${cohortId}/recordings`),
+  presignRecordingUpload: (cohortId: number, filename: string, contentType: string) =>
+    fetchApi<{ upload_url: string; fields: Record<string, string>; s3_key: string }>(
+      `/api/v1/cohorts/${cohortId}/recordings_presign`,
+      { method: 'POST', body: JSON.stringify({ filename, content_type: contentType }) }
+    ),
+  createRecording: (cohortId: number, data: { title: string; description?: string; s3_key: string; content_type: string; file_size: number; duration_seconds?: number; recorded_date?: string }) =>
+    fetchApi<RecordingResponse>(`/api/v1/cohorts/${cohortId}/recordings`, {
+      method: 'POST', body: JSON.stringify(data),
+    }),
+  updateRecording: (cohortId: number, id: number, data: { title?: string; description?: string; duration_seconds?: number; recorded_date?: string | null }) =>
+    fetchApi<RecordingResponse>(`/api/v1/cohorts/${cohortId}/recordings/${id}`, {
+      method: 'PATCH', body: JSON.stringify(data),
+    }),
+  deleteRecording: (cohortId: number, id: number) =>
+    fetchApi<null>(`/api/v1/cohorts/${cohortId}/recordings/${id}`, { method: 'DELETE' }),
+  getRecordingStreamUrl: (cohortId: number, id: number) =>
+    fetchApi<{ stream_url: string }>(`/api/v1/cohorts/${cohortId}/recordings/${id}/stream_url`),
+  reorderRecordings: (cohortId: number, recordingIds: number[]) =>
+    fetchApi<ReorderRecordingsResponse>(`/api/v1/cohorts/${cohortId}/recordings_reorder`, {
+      method: 'PATCH', body: JSON.stringify({ recording_ids: recordingIds }),
+    }),
+  abandonUpload: (s3Key: string) =>
+    fetchApi<null>('/api/v1/uploads/abandon', {
+      method: 'DELETE', body: JSON.stringify({ s3_key: s3Key }),
+    }),
+
+  // Watch Progress
+  updateWatchProgress: (data: { recording_id: number; last_position_seconds: number; total_watched_seconds: number; duration_seconds?: number }) =>
+    fetchApi<WatchProgressUpdateResponse>('/api/v1/watch_progress', {
+      method: 'PATCH', body: JSON.stringify(data),
+    }),
+  getCohortWatchProgress: (cohortId: number) =>
+    fetchApi<CohortWatchProgressResponse>(`/api/v1/cohorts/${cohortId}/watch_progress`),
+  getCohortLessonVideoProgress: (cohortId: number) =>
+    fetchApi<CohortLessonVideoProgressResponse>(`/api/v1/cohorts/${cohortId}/lesson_video_progress`),
+  getStudentWatchProgress: (userId: number) =>
+    fetchApi<StudentWatchProgressResponse>(`/api/v1/watch_progress/student/${userId}`),
+  getStudentLessonVideoProgress: (userId: number) =>
+    fetchApi<StudentLessonVideoProgressResponse>(`/api/v1/watch_progress/student/${userId}/lesson_videos`),
 };

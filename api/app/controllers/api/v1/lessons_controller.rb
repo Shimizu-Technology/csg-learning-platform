@@ -49,6 +49,15 @@ module Api
 
       # POST /api/v1/modules/:module_id/exercises
       def create_exercise
+        # Keep the exercise-creation path aligned with the rest of the S3 video
+        # entry points: if staff attach an S3-backed intro/demo video while
+        # creating the exercise, validate the stored MIME metadata before it
+        # reaches the DB rather than accepting arbitrary strings.
+        s3_video_content_type = if params[:s3_video_content_type].present?
+          validated_video_content_type(params[:s3_video_content_type])
+        end
+        return if performed?
+
         ActiveRecord::Base.transaction do
           position = @module.lessons.where(release_day: params[:release_day].to_i).maximum(:position).to_i + 1
 
@@ -63,13 +72,16 @@ module Api
 
           block_pos = 0
 
-          if params[:video_url].present?
+          if params[:video_url].present? || params[:s3_video_key].present?
             block_pos += 1
             @lesson.content_blocks.create!(
               block_type: :video,
               position: block_pos,
               title: params[:title],
-              video_url: params[:video_url]
+              video_url: params[:video_url].presence,
+              s3_video_key: params[:s3_video_key].presence,
+              s3_video_content_type: s3_video_content_type,
+              s3_video_size: params[:s3_video_size].presence
             )
           end
 
@@ -182,17 +194,27 @@ module Api
               body: cb.body,
               video_url: cb.video_url,
               filename: cb.filename,
-              metadata: cb.metadata
+              metadata: cb.metadata,
+              has_s3_video: cb.s3_video_key.present?
             }
+
+            if current_user.staff?
+              block[:s3_video_key] = cb.s3_video_key
+              block[:s3_video_content_type] = cb.s3_video_content_type
+              block[:s3_video_size] = cb.s3_video_size
+            end
 
             # Include solution only for staff
             block[:solution] = cb.solution if current_user.staff?
 
             # Include progress for students
             if progress_map[cb.id]
+              p = progress_map[cb.id]
               block[:progress] = {
-                status: progress_map[cb.id].status,
-                completed_at: progress_map[cb.id].completed_at
+                status: p.status,
+                completed_at: p.completed_at,
+                video_last_position: p.video_last_position,
+                video_total_watched: p.video_total_watched
               }
             end
 

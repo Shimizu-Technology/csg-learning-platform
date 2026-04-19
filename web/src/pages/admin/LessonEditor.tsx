@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Save, Trash2, Eye, Pencil } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -6,6 +6,9 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { RichTextEditor } from '../../components/shared/RichTextEditor'
 import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
 import { ContentBlockRenderer } from '../../components/shared/ContentBlockRenderer'
+import { VideoUploadField } from '../../components/admin/VideoUploadField'
+import { AdminVideoPreview } from '../../components/admin/AdminVideoPreview'
+import { useUpload } from '../../contexts/UploadContext'
 
 interface ContentBlock {
   id: number
@@ -17,6 +20,7 @@ interface ContentBlock {
   filename: string | null
   solution: string | null
   metadata: Record<string, unknown>
+  s3_video_key?: string | null
 }
 
 interface Lesson {
@@ -46,12 +50,28 @@ export function LessonEditor() {
   const [instructions, setInstructions] = useState('')
   const [solution, setSolution] = useState('')
   const [requiresSubmission, setRequiresSubmission] = useState(false)
+  const [s3VideoKey, setS3VideoKey] = useState<string | null>(null)
+  const [videoBlockId, setVideoBlockId] = useState<number | null>(null)
 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+
+  // Upload context — used to prefer in-flight upload's s3_key over a stale (null) fetch result.
+  const { uploads } = useUpload()
+  const uploadsRef = useRef(uploads)
+  uploadsRef.current = uploads
+
+  // Helper: returns the s3_key from the API response, but falls back to any in-flight
+  // upload's s3_key for the same content block (handles the case where the user navigates
+  // away and back while an upload is still in progress and hasn't yet PATCHed the block).
+  const resolveS3Key = useCallback((blockId: number, fetchedKey: string | null): string | null => {
+    if (fetchedKey) return fetchedKey
+    const live = uploadsRef.current.find(u => u.contentBlockId === blockId && u.s3Key && u.status !== 'error')
+    return live?.s3Key || null
+  }, [])
 
   useEffect(() => {
     if (!id) return
@@ -66,7 +86,11 @@ export function LessonEditor() {
         setRequiresSubmission(l.requires_submission ?? false)
 
         const videoBlock = l.content_blocks.find(b => b.block_type === 'video' || b.block_type === 'recording')
-        if (videoBlock) setVideoUrl(videoBlock.video_url || '')
+        if (videoBlock) {
+          setVideoUrl(videoBlock.video_url || '')
+          setVideoBlockId(videoBlock.id)
+          setS3VideoKey(resolveS3Key(videoBlock.id, videoBlock.s3_video_key ?? null))
+        }
 
         const exerciseBlock = l.content_blocks.find(b => b.block_type === 'exercise' || b.block_type === 'code_challenge')
         if (exerciseBlock) {
@@ -77,7 +101,14 @@ export function LessonEditor() {
       }
       setLoading(false)
     })
-  }, [id])
+  }, [id, resolveS3Key])
+
+  // Stable callbacks so VideoUploadField's effect deps don't churn every render.
+  const handleS3VideoUploaded = useCallback(
+    (data: { s3_video_key: string }) => setS3VideoKey(data.s3_video_key),
+    []
+  )
+  const handleS3VideoRemoved = useCallback(() => setS3VideoKey(null), [])
 
   const handleSave = async () => {
     if (!lesson) return
@@ -100,19 +131,29 @@ export function LessonEditor() {
 
       const videoBlock = lesson.content_blocks.find(b => b.block_type === 'video' || b.block_type === 'recording')
       if (videoBlock) {
-        const vRes = await api.updateContentBlock(videoBlock.id, {
+        // Don't include s3_video_key if there's an in-flight upload for this block — the
+        // UploadContext will PATCH the key when the upload completes; sending null here
+        // could otherwise clobber a value that's about to be saved.
+        const inFlight = uploadsRef.current.find(
+          u => u.contentBlockId === videoBlock.id && u.status !== 'done' && u.status !== 'error'
+        )
+        const updatePayload: { title: string; video_url: string | null; s3_video_key?: string | null } = {
           title: title.trim(),
           video_url: videoUrl.trim() || null,
-        })
+        }
+        if (!inFlight) updatePayload.s3_video_key = s3VideoKey
+        const vRes = await api.updateContentBlock(videoBlock.id, updatePayload)
         if (vRes.error) { setSaveError(vRes.error); setSaving(false); return }
-      } else if (videoUrl.trim()) {
+      } else if (videoUrl.trim() || s3VideoKey) {
         const vRes = await api.createContentBlock(lesson.id, {
           block_type: 'video',
           position: nextPosition,
           title: title.trim(),
-          video_url: videoUrl.trim(),
+          video_url: videoUrl.trim() || undefined,
+          s3_video_key: s3VideoKey || undefined,
         })
         if (vRes.error) { setSaveError(vRes.error); setSaving(false); return }
+        if (vRes.data?.content_block) setVideoBlockId(vRes.data.content_block.id)
       }
 
       const exerciseBlock = lesson.content_blocks.find(b => b.block_type === 'exercise' || b.block_type === 'code_challenge')
@@ -143,6 +184,11 @@ export function LessonEditor() {
       if (refreshRes.data) {
         const data = refreshRes.data as { lesson: Lesson }
         setLesson(data.lesson)
+        const refreshedVideo = data.lesson.content_blocks.find(b => b.block_type === 'video' || b.block_type === 'recording')
+        if (refreshedVideo) {
+          setVideoBlockId(refreshedVideo.id)
+          setS3VideoKey(resolveS3Key(refreshedVideo.id, refreshedVideo.s3_video_key ?? null))
+        }
       }
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Save failed')
@@ -165,18 +211,19 @@ export function LessonEditor() {
 
   const previewBlocks = useMemo(() => {
     const blocks: ContentBlock[] = []
-    if (videoUrl.trim()) {
+    if (videoUrl.trim() || s3VideoKey) {
       blocks.push({
-        id: -1,
+        id: videoBlockId || -1,
         block_type: 'video',
         position: 0,
         title: title || null,
         body: null,
-        video_url: videoUrl.trim(),
+        video_url: videoUrl.trim() || null,
         filename: null,
         solution: null,
         metadata: {},
-      })
+        ...(s3VideoKey ? { s3_video_key: s3VideoKey } : {}),
+      } as ContentBlock)
     }
     if (instructions.trim() || filename.trim()) {
       blocks.push({
@@ -192,7 +239,7 @@ export function LessonEditor() {
       })
     }
     return blocks
-  }, [title, videoUrl, instructions, filename])
+  }, [title, videoUrl, instructions, filename, s3VideoKey, videoBlockId])
 
   if (loading) return <LoadingSpinner message="Loading exercise..." />
   if (error) {
@@ -322,13 +369,15 @@ export function LessonEditor() {
 
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="sm:col-span-2">
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Video URL</label>
-                <input
-                  type="url"
-                  value={videoUrl}
-                  onChange={e => setVideoUrl(e.target.value)}
-                  placeholder="https://youtu.be/..."
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono"
+                <VideoUploadField
+                  contentBlockId={videoBlockId}
+                  lessonId={lesson?.id}
+                  contextLabel={title ? `Exercise: ${title}` : 'Exercise'}
+                  videoUrl={videoUrl}
+                  onVideoUrlChange={setVideoUrl}
+                  s3VideoKey={s3VideoKey}
+                  onS3VideoUploaded={handleS3VideoUploaded}
+                  onS3VideoRemoved={handleS3VideoRemoved}
                 />
               </div>
               <div>
@@ -355,6 +404,13 @@ export function LessonEditor() {
                 </label>
               </div>
             </div>
+
+            <AdminVideoPreview
+              contentBlockId={videoBlockId}
+              s3VideoKey={s3VideoKey}
+              videoUrl={videoUrl}
+              title={title}
+            />
           </div>
 
           {/* Instructions — WYSIWYG editor */}
