@@ -17,10 +17,10 @@ module Api
         legacy = cohorts.flat_map do |cohort|
           Array((cohort.settings || {})["recordings"]).map.with_index do |r, i|
             {
-              # Legacy recordings don't have DB ids. Make the synthetic id stable
-              # and unique across multiple active cohorts so selection keys don't
-              # collide on the merged student recordings page.
-              id: -((cohort.id * 100_000) + i + 1),
+              # Legacy recordings don't have DB ids. Use an explicit synthetic
+              # string id so merged multi-cohort playlists never depend on a
+              # numeric spacing scheme or hidden per-cohort item-count ceiling.
+              id: "legacy-#{cohort.id}-#{i + 1}",
               cohort_id: cohort.id,
               title: r["title"],
               url: r["url"],

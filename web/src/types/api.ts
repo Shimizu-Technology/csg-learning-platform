@@ -299,7 +299,7 @@ export interface ProgressEntry {
 // ─── Recordings / Resources ──────────────────────────────────────────────────
 
 export interface RecordingEntry {
-  id: number;
+  id: string;
   cohort_id?: number;
   title: string;
   url: string;

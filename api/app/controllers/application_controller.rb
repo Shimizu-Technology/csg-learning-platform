@@ -14,7 +14,7 @@ class ApplicationController < ActionController::API
   def validated_video_content_type(content_type)
     ct = content_type.to_s.strip
     if ct.match?(VIDEO_MIME_PATTERN)
-      ct
+      ct.downcase
     else
       render json: { error: "content_type must be a video/* MIME type" }, status: :unprocessable_entity
       nil

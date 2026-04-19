@@ -8,7 +8,7 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import { VideoPlayer } from '../../components/shared/VideoPlayer'
 
 interface LegacyRecording {
-  id: number
+  id: string
   cohort_id?: number
   title: string
   url: string
