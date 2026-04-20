@@ -14,6 +14,7 @@ module Api
       # POST /api/v1/push_subscriptions
       def create
         subscription = PushSubscription.find_or_initialize_by(endpoint: subscription_params[:endpoint])
+        new_subscription = subscription.new_record?
         if subscription.persisted? && subscription.user_id != current_user.id
           head :conflict
           return
@@ -27,7 +28,7 @@ module Api
         subscription.failed_at = nil
 
         if subscription.save
-          head :created
+          head new_subscription ? :created : :ok
         else
           render json: { errors: subscription.errors.full_messages }, status: :unprocessable_entity
         end

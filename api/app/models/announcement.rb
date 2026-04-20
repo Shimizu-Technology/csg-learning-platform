@@ -29,9 +29,7 @@ class Announcement < ApplicationRecord
   end
 
   def self.visible_for_staff(_user)
-    visible_now.where(audience: [ audiences[:global], audiences[:staff] ]).or(
-      visible_now.where(audience: :cohort)
-    )
+    visible_now.where(audience: audiences.values)
   end
 
   def recipients

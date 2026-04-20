@@ -141,7 +141,7 @@ class CommunicationTest < ActionDispatch::IntegrationTest
         as: :json
     end
 
-    assert_response :created
+    assert_response :success
     subscription = PushSubscription.find_by!(endpoint: "https://push.example/subscription-1")
     assert_equal @student, subscription.user
     assert_equal "new-public-key", subscription.p256dh
