@@ -21,6 +21,23 @@ export async function subscribeToChannelMessages(
   onStatus?: (status: RealtimeStatus) => void,
 ) {
   const identifier = JSON.stringify({ channel: 'ChannelMessagesChannel', channel_id: channelId })
+  return subscribe(identifier, onMessage, onStatus)
+}
+
+export async function subscribeToDirectMessages(
+  directConversationId: number,
+  onMessage: (payload: unknown) => void,
+  onStatus?: (status: RealtimeStatus) => void,
+) {
+  const identifier = JSON.stringify({ channel: 'DirectMessagesChannel', direct_conversation_id: directConversationId })
+  return subscribe(identifier, onMessage, onStatus)
+}
+
+async function subscribe(
+  identifier: string,
+  onMessage: (payload: unknown) => void,
+  onStatus?: (status: RealtimeStatus) => void,
+) {
   let closing = false
   let reconnectAttempts = 0
   let socket: WebSocket | null = null

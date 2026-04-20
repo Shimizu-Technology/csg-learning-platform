@@ -46,6 +46,12 @@ import type {
   ChannelsResponse,
   ChannelResponse,
   MessageResponse,
+  DirectConversationsResponse,
+  DirectConversationResponse,
+  AvailableDirectUsersResponse,
+  MessageAttachmentPresignResponse,
+  MessagePreferenceResponse,
+  MessageSearchResponse,
 } from '../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
@@ -170,8 +176,26 @@ export const api = {
     }),
   markChannelRead: (id: number) =>
     fetchApi<ChannelResponse>(`/api/v1/channels/${id}/read`, { method: 'PATCH' }),
-  createMessage: (channelId: number, data: { body: string; parent_message_id?: number | null; send_push?: boolean }) =>
+  createMessage: (channelId: number, data: { body: string; parent_message_id?: number | null; attachments?: { s3_key: string; filename: string; content_type: string; byte_size: number }[]; send_push?: boolean }) =>
     fetchApi<MessageResponse>(`/api/v1/channels/${channelId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getDirectConversations: () =>
+    fetchApi<DirectConversationsResponse>('/api/v1/direct_conversations'),
+  getAvailableDirectUsers: (cohortId: number) =>
+    fetchApi<AvailableDirectUsersResponse>(`/api/v1/direct_conversations/available_users?cohort_id=${cohortId}`),
+  getDirectConversation: (id: number) =>
+    fetchApi<DirectConversationResponse>(`/api/v1/direct_conversations/${id}`),
+  createDirectConversation: (data: { cohort_id: number; user_ids: number[] }) =>
+    fetchApi<DirectConversationResponse>('/api/v1/direct_conversations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  markDirectConversationRead: (id: number) =>
+    fetchApi<DirectConversationResponse>(`/api/v1/direct_conversations/${id}/read`, { method: 'PATCH' }),
+  createDirectMessage: (conversationId: number, data: { body: string; parent_message_id?: number | null; attachments?: { s3_key: string; filename: string; content_type: string; byte_size: number }[]; send_push?: boolean }) =>
+    fetchApi<MessageResponse>(`/api/v1/direct_conversations/${conversationId}/messages`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
@@ -182,6 +206,32 @@ export const api = {
     }),
   deleteMessage: (id: number) =>
     fetchApi<MessageResponse>(`/api/v1/messages/${id}`, { method: 'DELETE' }),
+  pinMessage: (id: number) =>
+    fetchApi<MessageResponse>(`/api/v1/messages/${id}/pin`, { method: 'PATCH' }),
+  unpinMessage: (id: number) =>
+    fetchApi<MessageResponse>(`/api/v1/messages/${id}/pin`, { method: 'DELETE' }),
+  reactMessage: (id: number, emoji: string) =>
+    fetchApi<MessageResponse>(`/api/v1/messages/${id}/reactions`, {
+      method: 'POST',
+      body: JSON.stringify({ emoji }),
+    }),
+  unreactMessage: (id: number, emoji: string) =>
+    fetchApi<MessageResponse>(`/api/v1/messages/${id}/reactions`, {
+      method: 'DELETE',
+      body: JSON.stringify({ emoji }),
+    }),
+  updateMessagePreference: (targetType: 'Channel' | 'DirectConversation', targetId: number, muted: boolean) =>
+    fetchApi<MessagePreferenceResponse>('/api/v1/message_preferences', {
+      method: 'PATCH',
+      body: JSON.stringify({ target_type: targetType, target_id: targetId, muted }),
+    }),
+  presignMessageAttachment: (data: { channel_id?: number; direct_conversation_id?: number; filename: string; content_type: string }) =>
+    fetchApi<MessageAttachmentPresignResponse>('/api/v1/message_attachments/presign', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  searchMessages: (q: string, limit = 30) =>
+    fetchApi<MessageSearchResponse>(`/api/v1/messages/search?q=${encodeURIComponent(q)}&limit=${limit}`),
 
   // Profile
   getProfile: () =>

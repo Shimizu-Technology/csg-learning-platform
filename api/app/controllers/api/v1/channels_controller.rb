@@ -24,7 +24,11 @@ module Api
           return
         end
 
-        messages = @channel.messages.visible.includes(:author).chronological.limit(message_limit).to_a
+        messages = @channel.messages.visible
+          .includes(:author, :message_attachments, :message_reactions)
+          .chronological
+          .limit(message_limit)
+          .to_a
         read_state = current_user.channel_read_states.find_by(channel: @channel)
 
         render json: {
@@ -137,43 +141,21 @@ module Api
           visibility: channel.visibility,
           status: channel.status,
           position: channel.position,
+          muted: muted?(channel),
           unread_count: unread_count,
           last_read_at: read_state&.last_read_at,
-          latest_message: latest_message_json(latest_message),
+          latest_message: MessageJson.latest(latest_message),
           created_at: channel.created_at,
           updated_at: channel.updated_at
         }
       end
 
-      def latest_message_json(message)
-        return nil unless message
-
-        {
-          id: message.id,
-          body: message.body,
-          created_at: message.created_at,
-          author_name: message.author.full_name
-        }
+      def muted?(target)
+        MessagePreference.exists?(user: current_user, target: target, muted: true)
       end
 
       def message_json(message)
-        {
-          id: message.id,
-          channel_id: message.channel_id,
-          body: message.body,
-          edited_at: message.edited_at,
-          deleted_at: message.deleted_at,
-          created_at: message.created_at,
-          updated_at: message.updated_at,
-          mine: message.author_id == current_user.id,
-          author: {
-            id: message.author.id,
-            full_name: message.author.full_name,
-            email: message.author.email,
-            role: message.author.role,
-            avatar_url: message.author.avatar_url
-          }
-        }
+        MessageJson.render(message, current_user: current_user, stream_url: true)
       end
     end
   end

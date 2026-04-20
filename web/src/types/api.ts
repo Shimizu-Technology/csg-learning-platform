@@ -233,6 +233,7 @@ export interface ChannelSummary {
   visibility: 'cohort' | 'staff_only';
   status: 'active' | 'archived';
   position: number;
+  muted: boolean;
   unread_count: number;
   last_read_at: string | null;
   latest_message: {
@@ -245,15 +246,36 @@ export interface ChannelSummary {
   updated_at: string;
 }
 
+export interface MessageAttachment {
+  id: number;
+  filename: string;
+  content_type: string;
+  byte_size: number;
+  image: boolean;
+  url?: string;
+}
+
+export interface MessageReaction {
+  emoji: string;
+  count: number;
+  reacted: boolean;
+}
+
 export interface ChannelMessage {
   id: number;
-  channel_id: number;
+  channel_id: number | null;
+  direct_conversation_id: number | null;
+  parent_message_id: number | null;
   body: string;
   edited_at: string | null;
   deleted_at: string | null;
+  pinned_at: string | null;
+  pinned_by_id: number | null;
   created_at: string;
   updated_at: string;
   mine: boolean;
+  attachments: MessageAttachment[];
+  reactions: MessageReaction[];
   author: {
     id: number;
     full_name: string;
@@ -261,6 +283,26 @@ export interface ChannelMessage {
     role: string;
     avatar_url: string | null;
   };
+}
+
+export interface DirectConversationSummary {
+  id: number;
+  cohort_id: number;
+  cohort_name: string;
+  title: string;
+  status: 'active' | 'archived';
+  muted: boolean;
+  unread_count: number;
+  last_read_at: string | null;
+  latest_message: {
+    id: number;
+    body: string;
+    created_at: string;
+    author_name: string;
+  } | null;
+  users: UserSummary[];
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ChannelsResponse {
@@ -278,8 +320,48 @@ export interface MessageResponse {
 
 export interface ChannelMessageEvent {
   event: 'created' | 'updated' | 'deleted';
-  channel_id: number;
+  channel_id: number | null;
+  direct_conversation_id: number | null;
   message: Omit<ChannelMessage, 'mine'>;
+}
+
+export interface DirectConversationsResponse {
+  direct_conversations: DirectConversationSummary[];
+}
+
+export interface DirectConversationResponse {
+  direct_conversation: DirectConversationSummary;
+  messages?: ChannelMessage[];
+}
+
+export interface AvailableDirectUsersResponse {
+  users: UserSummary[];
+}
+
+export interface MessageAttachmentPresignResponse {
+  upload_url: string;
+  fields: Record<string, string>;
+  s3_key: string;
+  max_size: number;
+}
+
+export interface MessagePreferenceResponse {
+  preference: {
+    target_type: string;
+    target_id: number;
+    muted: boolean;
+  };
+}
+
+export interface MessageSearchResponse {
+  results: (ChannelMessage & {
+    context: {
+      type: 'channel' | 'direct_conversation';
+      id: number;
+      label: string;
+      cohort_id: number;
+    };
+  })[];
 }
 
 export interface CohortSummary {

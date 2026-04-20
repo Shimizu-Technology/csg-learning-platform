@@ -3,7 +3,8 @@ module Api
     class MessagesController < ApplicationController
       before_action :authenticate_user!
       before_action :set_channel, only: [ :create ]
-      before_action :set_message, only: [ :update, :destroy ]
+      before_action :set_direct_conversation, only: [ :create_direct ]
+      before_action :set_message, only: [ :update, :destroy, :pin, :unpin, :react, :unreact ]
 
       # POST /api/v1/channels/:channel_id/messages
       def create
@@ -12,17 +13,17 @@ module Api
           return
         end
 
-        message = @channel.messages.new(message_params)
-        message.author = current_user
+        create_message_for(@channel)
+      end
 
-        if message.save
-          current_user.channel_read_states.create_or_find_by!(channel: @channel).mark_read!(message)
-          NotificationDeliveryService.message_created(message, push: send_push?)
-          MessageBroadcastService.created(message)
-          render json: { message: message_json(message) }, status: :created
-        else
-          render json: { errors: message.errors.full_messages }, status: :unprocessable_entity
+      # POST /api/v1/direct_conversations/:direct_conversation_id/messages
+      def create_direct
+        unless @direct_conversation.can_post?(current_user)
+          render_forbidden("Cannot post in this conversation")
+          return
         end
+
+        create_message_for(@direct_conversation)
       end
 
       # PATCH /api/v1/messages/:id
@@ -62,10 +63,62 @@ module Api
         render json: { message: message_json(@message) }
       end
 
+      # PATCH /api/v1/messages/:id/pin
+      def pin
+        unless message_channel_editable?
+          render_forbidden("Cannot pin messages in this conversation")
+          return
+        end
+
+        @message.update!(pinned_at: Time.current, pinned_by: current_user)
+        MessageBroadcastService.updated(@message)
+        render json: { message: message_json(@message) }
+      end
+
+      # DELETE /api/v1/messages/:id/pin
+      def unpin
+        unless message_channel_editable?
+          render_forbidden("Cannot unpin messages in this conversation")
+          return
+        end
+
+        @message.update!(pinned_at: nil, pinned_by: nil)
+        MessageBroadcastService.updated(@message)
+        render json: { message: message_json(@message) }
+      end
+
+      # POST /api/v1/messages/:id/reactions
+      def react
+        unless @message.destination.visible_to?(current_user)
+          render_forbidden("Cannot react to this message")
+          return
+        end
+
+        @message.message_reactions.create_or_find_by!(user: current_user, emoji: reaction_params[:emoji])
+        MessageBroadcastService.updated(@message)
+        render json: { message: message_json(@message.reload) }
+      end
+
+      # DELETE /api/v1/messages/:id/reactions
+      def unreact
+        unless @message.destination.visible_to?(current_user)
+          render_forbidden("Cannot remove reactions from this message")
+          return
+        end
+
+        @message.message_reactions.where(user: current_user, emoji: reaction_params[:emoji]).destroy_all
+        MessageBroadcastService.updated(@message)
+        render json: { message: message_json(@message.reload) }
+      end
+
       private
 
       def set_channel
         @channel = Channel.find(params[:channel_id])
+      end
+
+      def set_direct_conversation
+        @direct_conversation = DirectConversation.find(params[:direct_conversation_id])
       end
 
       def set_message
@@ -73,7 +126,11 @@ module Api
       end
 
       def message_params
-        params.permit(:body, :parent_message_id)
+        params.permit(:body, :parent_message_id, attachments: [ :s3_key, :filename, :content_type, :byte_size ])
+      end
+
+      def reaction_params
+        params.permit(:emoji)
       end
 
       def send_push?
@@ -81,27 +138,82 @@ module Api
       end
 
       def message_channel_editable?
-        @message.channel.active? && @message.channel.visible_to?(current_user)
+        destination = @message.destination
+        destination.active? && destination.visible_to?(current_user)
+      end
+
+      def create_message_for(destination)
+        message = destination.messages.new(
+          body: message_params[:body].to_s,
+          parent_message_id: message_params[:parent_message_id]
+        )
+        message.author = current_user
+
+        Message.transaction do
+          message.save!
+          attach_files!(message)
+        end
+
+        mark_read_for(message)
+        NotificationDeliveryService.message_created(message, push: send_push?)
+        MessageBroadcastService.created(message)
+        render json: { message: message_json(message.reload) }, status: :created
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+      end
+
+      def attach_files!(message)
+        Array(message_params[:attachments]).each do |attachment|
+          validate_uploaded_attachment!(attachment)
+          message.message_attachments.create!(
+            uploaded_by: current_user,
+            s3_key: attachment[:s3_key],
+            filename: attachment[:filename],
+            content_type: attachment[:content_type],
+            byte_size: attachment[:byte_size]
+          )
+        end
+      end
+
+      def validate_uploaded_attachment!(attachment)
+        key = attachment[:s3_key].to_s
+        unless key.start_with?(message_attachment_prefix)
+          raise ActiveRecord::RecordInvalid.new(@message || Message.new.tap { |record| record.errors.add(:base, "Attachment path is not allowed") })
+        end
+
+        return unless S3Service.configured?
+
+        metadata = S3Service.object_metadata(key)
+        unless metadata
+          raise ActiveRecord::RecordInvalid.new(@message || Message.new.tap { |record| record.errors.add(:base, "Attachment upload was not found") })
+        end
+
+        expected_type = attachment[:content_type].to_s.downcase
+        uploaded_type = metadata[:content_type].to_s.downcase.split(";").first.strip
+        if uploaded_type != expected_type
+          raise ActiveRecord::RecordInvalid.new(@message || Message.new.tap { |record| record.errors.add(:base, "Attachment content type does not match upload") })
+        end
+
+        if metadata[:content_length].to_i != attachment[:byte_size].to_i
+          raise ActiveRecord::RecordInvalid.new(@message || Message.new.tap { |record| record.errors.add(:base, "Attachment size does not match upload") })
+        end
+      end
+
+      def message_attachment_prefix
+        destination = @channel || @direct_conversation || @message&.destination
+        destination.is_a?(Channel) ? "message_attachments/channel_#{destination.id}/" : "message_attachments/dm_#{destination.id}/"
+      end
+
+      def mark_read_for(message)
+        if message.channel
+          current_user.channel_read_states.create_or_find_by!(channel: message.channel).mark_read!(message)
+        else
+          message.direct_conversation.direct_conversation_members.find_by!(user: current_user).mark_read!(message)
+        end
       end
 
       def message_json(message)
-        {
-          id: message.id,
-          channel_id: message.channel_id,
-          body: message.body,
-          edited_at: message.edited_at,
-          deleted_at: message.deleted_at,
-          created_at: message.created_at,
-          updated_at: message.updated_at,
-          mine: message.author_id == current_user.id,
-          author: {
-            id: message.author.id,
-            full_name: message.author.full_name,
-            email: message.author.email,
-            role: message.author.role,
-            avatar_url: message.author.avatar_url
-          }
-        }
+        MessageJson.render(message, current_user: current_user, stream_url: true)
       end
     end
   end

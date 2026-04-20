@@ -32,11 +32,14 @@ class WebPushNotificationService
   end
 
   def message_created(message, notifications)
+    title = message.direct_message? ? message.author.full_name : message.channel.name
+    path = message.direct_message? ? "/messages/dm/#{message.direct_conversation_id}" : "/messages/#{message.channel_id}"
+    tag = message.direct_message? ? "dm-#{message.direct_conversation_id}" : "channel-#{message.channel_id}"
     payload = {
-      title: message.channel.name,
-      body: "#{message.author.full_name}: #{message.body.truncate(120)}",
-      path: "/messages/#{message.channel_id}",
-      tag: "channel-#{message.channel_id}"
+      title: title,
+      body: "#{message.author.full_name}: #{message.body.to_s.truncate(120)}",
+      path: path,
+      tag: tag
     }.to_json
 
     deliver_to_notifications(notifications, payload)

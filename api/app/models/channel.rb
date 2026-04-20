@@ -5,6 +5,7 @@ class Channel < ApplicationRecord
   belongs_to :cohort
   has_many :messages, dependent: :destroy
   has_many :channel_read_states, dependent: :destroy
+  has_many :message_preferences, as: :target, dependent: :destroy
 
   validates :name, presence: true, uniqueness: { scope: :cohort_id }
   validates :visibility, presence: true

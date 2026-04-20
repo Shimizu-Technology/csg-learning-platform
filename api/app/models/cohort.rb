@@ -8,6 +8,7 @@ class Cohort < ApplicationRecord
   has_many :recordings, dependent: :destroy
   has_many :announcements, dependent: :destroy
   has_many :channels, dependent: :destroy
+  has_many :direct_conversations, dependent: :destroy
 
   validates :name, presence: true
   validates :start_date, presence: true

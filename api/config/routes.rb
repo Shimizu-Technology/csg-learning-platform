@@ -32,13 +32,32 @@ Rails.application.routes.draw do
       get "push_subscriptions/config", to: "push_subscriptions#config"
       post "push_subscriptions", to: "push_subscriptions#create"
       delete "push_subscriptions", to: "push_subscriptions#destroy"
+      post "message_attachments/presign", to: "message_attachments#presign"
+      patch "message_preferences", to: "message_preferences#update"
+      get "messages/search", to: "messages_search#index"
       resources :channels, only: [ :index, :show, :create, :update, :destroy ] do
         member do
           patch :read, to: "channels#mark_read"
         end
         resources :messages, only: [ :create ]
       end
-      resources :messages, only: [ :update, :destroy ]
+      resources :direct_conversations, only: [ :index, :show, :create ] do
+        collection do
+          get :available_users
+        end
+        member do
+          patch :read, to: "direct_conversations#mark_read"
+        end
+      end
+      post "direct_conversations/:direct_conversation_id/messages", to: "messages#create_direct"
+      resources :messages, only: [ :update, :destroy ] do
+        member do
+          patch :pin
+          delete :pin, action: :unpin
+          post :reactions, action: :react
+          delete :reactions, action: :unreact
+        end
+      end
 
       # Watch progress (student updates their own)
       patch "watch_progress", to: "watch_progresses#update"

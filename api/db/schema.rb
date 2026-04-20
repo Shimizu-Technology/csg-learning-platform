@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_20_102605) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_20_230119) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -243,6 +243,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_20_102605) do
     t.datetime "updated_at", null: false
     t.index ["company_id", "name"], name: "index_departments_on_company_id_and_name", unique: true
     t.index ["company_id"], name: "index_departments_on_company_id"
+  end
+
+  create_table "direct_conversation_members", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "direct_conversation_id", null: false
+    t.datetime "last_read_at"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["direct_conversation_id", "user_id"], name: "idx_direct_members_unique", unique: true
+    t.index ["direct_conversation_id"], name: "index_direct_conversation_members_on_direct_conversation_id"
+    t.index ["user_id", "direct_conversation_id"], name: "idx_direct_members_user_conversation"
+    t.index ["user_id"], name: "index_direct_conversation_members_on_user_id"
+  end
+
+  create_table "direct_conversations", force: :cascade do |t|
+    t.bigint "cohort_id", null: false
+    t.datetime "created_at", null: false
+    t.string "member_key", null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["cohort_id", "member_key"], name: "idx_direct_conversations_member_key", unique: true
+    t.index ["cohort_id"], name: "index_direct_conversations_on_cohort_id"
   end
 
   create_table "districts", force: :cascade do |t|
@@ -560,20 +582,64 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_20_102605) do
     t.index ["module_id"], name: "index_lessons_on_module_id"
   end
 
+  create_table "message_attachments", force: :cascade do |t|
+    t.bigint "byte_size", null: false
+    t.string "content_type", null: false
+    t.datetime "created_at", null: false
+    t.string "filename", null: false
+    t.bigint "message_id", null: false
+    t.string "s3_key", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "uploaded_by_id", null: false
+    t.index ["message_id"], name: "index_message_attachments_on_message_id"
+    t.index ["s3_key"], name: "index_message_attachments_on_s3_key", unique: true
+    t.index ["uploaded_by_id"], name: "index_message_attachments_on_uploaded_by_id"
+  end
+
+  create_table "message_preferences", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.boolean "muted", default: false, null: false
+    t.bigint "target_id", null: false
+    t.string "target_type", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["target_type", "target_id"], name: "index_message_preferences_on_target"
+    t.index ["user_id", "target_type", "target_id"], name: "idx_message_preferences_unique", unique: true
+    t.index ["user_id"], name: "index_message_preferences_on_user_id"
+  end
+
+  create_table "message_reactions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "emoji", null: false
+    t.bigint "message_id", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["message_id", "user_id", "emoji"], name: "idx_message_reactions_unique", unique: true
+    t.index ["message_id"], name: "index_message_reactions_on_message_id"
+    t.index ["user_id"], name: "index_message_reactions_on_user_id"
+  end
+
   create_table "messages", force: :cascade do |t|
     t.bigint "author_id", null: false
-    t.text "body", null: false
-    t.bigint "channel_id", null: false
+    t.text "body"
+    t.bigint "channel_id"
     t.datetime "created_at", null: false
     t.datetime "deleted_at"
+    t.bigint "direct_conversation_id"
     t.datetime "edited_at"
     t.bigint "parent_message_id"
+    t.datetime "pinned_at"
+    t.bigint "pinned_by_id"
     t.datetime "updated_at", null: false
     t.index ["author_id"], name: "index_messages_on_author_id"
     t.index ["channel_id", "created_at"], name: "index_messages_on_channel_id_and_created_at"
     t.index ["channel_id", "deleted_at"], name: "index_messages_on_channel_id_and_deleted_at"
     t.index ["channel_id"], name: "index_messages_on_channel_id"
+    t.index ["direct_conversation_id", "created_at"], name: "idx_messages_on_direct_conversation_created"
+    t.index ["direct_conversation_id"], name: "index_messages_on_direct_conversation_id"
     t.index ["parent_message_id"], name: "index_messages_on_parent_message_id"
+    t.index ["pinned_at"], name: "index_messages_on_pinned_at"
+    t.index ["pinned_by_id"], name: "index_messages_on_pinned_by_id"
   end
 
   create_table "module_assignments", force: :cascade do |t|
@@ -1238,6 +1304,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_20_102605) do
   add_foreign_key "deduction_types", "companies"
   add_foreign_key "department_ytd_totals", "departments"
   add_foreign_key "departments", "companies"
+  add_foreign_key "direct_conversation_members", "direct_conversations"
+  add_foreign_key "direct_conversation_members", "users"
+  add_foreign_key "direct_conversations", "cohorts"
   add_foreign_key "districts", "campaigns"
   add_foreign_key "employee_deductions", "deduction_types"
   add_foreign_key "employee_deductions", "employees"
@@ -1264,9 +1333,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_20_102605) do
   add_foreign_key "lesson_assignments", "enrollments"
   add_foreign_key "lesson_assignments", "lessons"
   add_foreign_key "lessons", "modules"
+  add_foreign_key "message_attachments", "messages"
+  add_foreign_key "message_attachments", "users", column: "uploaded_by_id"
+  add_foreign_key "message_preferences", "users"
+  add_foreign_key "message_reactions", "messages"
+  add_foreign_key "message_reactions", "users"
   add_foreign_key "messages", "channels"
+  add_foreign_key "messages", "direct_conversations"
   add_foreign_key "messages", "messages", column: "parent_message_id"
   add_foreign_key "messages", "users", column: "author_id"
+  add_foreign_key "messages", "users", column: "pinned_by_id"
   add_foreign_key "module_assignments", "enrollments"
   add_foreign_key "module_assignments", "modules"
   add_foreign_key "modules", "curricula", column: "curriculum_id"

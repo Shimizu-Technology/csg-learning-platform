@@ -21,8 +21,9 @@ class NotificationDeliveryService
   def message_created(message, push: false)
     return [] if message.deleted?
 
-    notifications = message.channel.recipients.find_each.filter_map do |user|
+    notifications = message.destination.recipients.find_each.filter_map do |user|
       next if user.id == message.author_id
+      next if muted?(user, message.destination)
 
       message_notification_for(user, message)
     end
@@ -48,12 +49,16 @@ class NotificationDeliveryService
   def message_notification_for(user, message)
     Notification.find_or_create_by!(notifiable: message, user: user) do |notification|
       notification.actor = message.author
-      notification.notification_type = :message
-      notification.title = "#{message.channel.name} has a new message"
-      notification.body = message.body.truncate(180)
-      notification.path = "/messages/#{message.channel_id}"
+      notification.notification_type = message.direct_message? ? :direct_message : :message
+      notification.title = message.direct_message? ? "#{message.author.full_name} sent you a message" : "#{message.channel.name} has a new message"
+    notification.body = message.body.to_s.truncate(180)
+      notification.path = message.direct_message? ? "/messages/dm/#{message.direct_conversation_id}" : "/messages/#{message.channel_id}"
     end
   rescue ActiveRecord::RecordNotUnique
     Notification.find_by!(notifiable: message, user: user)
+  end
+
+  def muted?(user, target)
+    MessagePreference.exists?(user: user, target: target, muted: true)
   end
 end
