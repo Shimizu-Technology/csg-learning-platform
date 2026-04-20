@@ -175,7 +175,7 @@ After first deployment or major changes:
 
 1. Check Render logs for stack trace
 2. Verify `DATABASE_URL` is correct and Neon is accessible
-3. Verify `RAILS_MASTER_KEY` matches `config/master.key`
+3. Verify `RAILS_MASTER_KEY` matches the production value in your password manager
 4. Check if migrations need to run
 
 ### Frontend shows blank page

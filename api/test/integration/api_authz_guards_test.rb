@@ -219,6 +219,31 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
     ClerkAuth.define_singleton_method(:verify, original_verify) if original_verify
   end
 
+  test "production ignores open signup escape hatch" do
+    payload = {
+      "sub" => "clerk_env_signup",
+      "email" => "env-signup@example.com",
+      "first_name" => "Env",
+      "last_name" => "Signup"
+    }
+
+    original_verify = ClerkAuth.method(:verify)
+    original_rails_env = Rails.method(:env)
+    original_open_signups = ENV["ALLOW_OPEN_SIGNUPS"]
+    ClerkAuth.define_singleton_method(:verify) { |_token| payload }
+    Rails.define_singleton_method(:env) { ActiveSupport::StringInquirer.new("production") }
+    ENV["ALLOW_OPEN_SIGNUPS"] = "true"
+
+    post "/api/v1/sessions", headers: auth_headers
+
+    assert_response :unauthorized
+    refute User.exists?(email: "env-signup@example.com")
+  ensure
+    ENV["ALLOW_OPEN_SIGNUPS"] = original_open_signups
+    ClerkAuth.define_singleton_method(:verify, original_verify) if original_verify
+    Rails.define_singleton_method(:env, original_rails_env) if original_rails_env
+  end
+
   test "pending invited user can complete clerk sync" do
     invited = User.create!(
       clerk_id: "pending_#{SecureRandom.uuid}",

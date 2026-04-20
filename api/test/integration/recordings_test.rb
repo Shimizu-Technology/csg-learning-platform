@@ -32,8 +32,8 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @module)
   end
 
-  test "staff can create recording only for uploaded object in cohort prefix" do
-    with_s3_metadata(content_type: "video/mp4", content_length: 1234) do
+  test "staff can create recording when s3 content type includes parameters" do
+    with_s3_metadata(content_type: "video/mp4; charset=binary", content_length: 1234) do
       as_user(@admin) do
         post "/api/v1/cohorts/#{@cohort.id}/recordings",
           params: {

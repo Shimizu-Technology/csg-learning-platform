@@ -271,7 +271,8 @@ module Api
           return "Uploaded video size does not match"
         end
 
-        return nil if metadata[:content_type].to_s.downcase == content_type
+        uploaded_content_type = metadata[:content_type].to_s.split(";").first.to_s.strip.downcase
+        return nil if uploaded_content_type == content_type
 
         "Uploaded video content type does not match"
       end

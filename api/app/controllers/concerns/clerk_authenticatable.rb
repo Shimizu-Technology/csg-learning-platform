@@ -154,10 +154,14 @@ module ClerkAuthenticatable
   end
 
   def allow_auth_bootstrap?
+    return false if Rails.env.production?
+
     Rails.env.development? || Rails.env.test? || ActiveModel::Type::Boolean.new.cast(ENV["ALLOW_AUTH_BOOTSTRAP"])
   end
 
   def allow_open_signup?
+    return false if Rails.env.production?
+
     Rails.env.development? || ActiveModel::Type::Boolean.new.cast(ENV["ALLOW_OPEN_SIGNUPS"])
   end
 

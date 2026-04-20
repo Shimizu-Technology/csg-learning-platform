@@ -130,7 +130,7 @@ export function RichTextEditor({
         />
       </div>
       <p className="mt-1.5 text-xs text-slate-400">
-        Content is saved as sanitized HTML. Use the buttons above to insert common formatting.
+        Content is saved as HTML and sanitized when shown to students. Use the buttons above to insert common formatting.
       </p>
     </div>
   )
