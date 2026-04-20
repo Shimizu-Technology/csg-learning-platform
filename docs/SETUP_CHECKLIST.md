@@ -89,3 +89,12 @@ Notes:
 - iOS push requires installing the site to the home screen first.
 - Push notifications intentionally use safe summary text by default.
 - Users must opt in per browser/device.
+
+## Realtime Messages
+
+Phase 4 channel messages use ActionCable at `/cable`. Make sure the API allows the deployed web origin:
+
+- `FRONTEND_URL` or `ALLOWED_ORIGINS` on Render should include the Netlify app URL.
+- `VITE_API_URL` on Netlify should point at the Render API URL so the PWA opens the matching `wss://.../cable` connection.
+
+The current production cable adapter is in-process `async`, which is fine for one Render web instance. Move to Redis-backed cable before running multiple API instances.

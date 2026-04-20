@@ -329,6 +329,44 @@ Returns resources/links for the current user's active cohort.
 
 Posting a message creates in-app `message` notifications for other visible channel recipients and can enqueue Web Push delivery when push is configured.
 
+### Realtime Channel Messages
+
+The API mounts ActionCable at `/cable`. The web client connects with the signed-in Clerk JWT as a `token` query parameter and subscribes to:
+
+```json
+{
+  "channel": "ChannelMessagesChannel",
+  "channel_id": 12
+}
+```
+
+The server authorizes the subscription against the same channel visibility rules as the REST API. Broadcast payloads look like:
+
+```json
+{
+  "event": "created",
+  "channel_id": 12,
+  "message": {
+    "id": 44,
+    "channel_id": 12,
+    "body": "Can someone share the Zoom link?",
+    "edited_at": null,
+    "deleted_at": null,
+    "created_at": "2026-04-20T10:00:00Z",
+    "updated_at": "2026-04-20T10:00:00Z",
+    "author": {
+      "id": 2,
+      "full_name": "Student One",
+      "email": "student@example.com",
+      "role": "student",
+      "avatar_url": null
+    }
+  }
+}
+```
+
+`event` may be `created`, `updated`, or `deleted`. The REST polling/refetch path remains as a fallback for reconnects and stale tabs.
+
 ---
 
 ## Cohorts

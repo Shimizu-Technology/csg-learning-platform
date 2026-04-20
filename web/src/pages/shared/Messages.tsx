@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Bell, BellOff, Hash, Lock, Plus, RefreshCw, Send } from 'lucide-react'
 import { api } from '../../lib/api'
+import { subscribeToChannelMessages } from '../../lib/realtime'
 import { disablePushNotifications, enablePushNotifications, pushSupported } from '../../lib/pushNotifications'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
-import type { ChannelMessage, ChannelSummary, CohortSummary } from '../../types/api'
+import type { ChannelMessage, ChannelMessageEvent, ChannelSummary, CohortSummary } from '../../types/api'
 
 function formatTime(value: string) {
   return new Date(value).toLocaleString('en-US', {
@@ -26,6 +27,7 @@ export function Messages() {
   const isStaff = Boolean(user?.is_staff)
   const [channels, setChannels] = useState<ChannelSummary[]>([])
   const [cohorts, setCohorts] = useState<CohortSummary[]>([])
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | null>(null)
   const [selectedId, setSelectedId] = useState<number | null>(channelId ? Number(channelId) : null)
   const [messages, setMessages] = useState<ChannelMessage[]>([])
   const [loading, setLoading] = useState(true)
@@ -50,13 +52,35 @@ export function Messages() {
     [channels, selectedId],
   )
 
+  const workspaces = useMemo(() => {
+    const workspaceMap = new Map<number, string>()
+    channels.forEach((channel) => workspaceMap.set(channel.cohort_id, channel.cohort_name))
+    return Array.from(workspaceMap, ([id, name]) => ({ id, name }))
+  }, [channels])
+
+  const visibleChannels = useMemo(
+    () => selectedWorkspaceId ? channels.filter((channel) => channel.cohort_id === selectedWorkspaceId) : channels,
+    [channels, selectedWorkspaceId],
+  )
+
+  const selectedWorkspace = workspaces.find((workspace) => workspace.id === selectedWorkspaceId)
+
   const loadChannels = async () => {
     const res = await api.getChannels()
     if (res.data) {
       setChannels(res.data.channels)
       setSelectedId((current) => current || res.data!.channels[0]?.id || null)
+      setSelectedWorkspaceId((current) => current || res.data!.channels[0]?.cohort_id || null)
     }
     setLoading(false)
+  }
+
+  const channelNeedsRead = (channel: ChannelSummary) => {
+    if (channel.unread_count > 0) return true
+    if (!channel.latest_message) return false
+    if (!channel.last_read_at) return true
+
+    return new Date(channel.latest_message.created_at) > new Date(channel.last_read_at)
   }
 
   const loadChannel = async (id: number, markRead = false) => {
@@ -64,7 +88,7 @@ export function Messages() {
     if (res.data) {
       setMessages(res.data.messages || [])
       setChannels((prev) => prev.map((channel) => channel.id === id ? res.data!.channel : channel))
-      if (markRead) {
+      if (markRead && channelNeedsRead(res.data.channel)) {
         await api.markChannelRead(id)
         setChannels((prev) => prev.map((channel) => channel.id === id ? { ...channel, unread_count: 0, last_read_at: new Date().toISOString() } : channel))
       }
@@ -97,10 +121,14 @@ export function Messages() {
   }, [channelId])
 
   useEffect(() => {
+    if (selected) setSelectedWorkspaceId(selected.cohort_id)
+  }, [selected])
+
+  useEffect(() => {
     if (!selectedId) return
 
     loadChannel(selectedId, true)
-    const interval = window.setInterval(() => loadChannel(selectedId, true), 15000)
+    const interval = window.setInterval(() => loadChannel(selectedId, true), 30000)
     const onFocus = () => loadChannel(selectedId, true)
     window.addEventListener('focus', onFocus)
 
@@ -111,12 +139,79 @@ export function Messages() {
   }, [selectedId])
 
   useEffect(() => {
+    if (!selectedId || !user) return
+
+    let unsubscribe: (() => void) | null = null
+    let active = true
+
+    subscribeToChannelMessages(selectedId, (payload) => {
+      if (!active) return
+      const event = payload as ChannelMessageEvent
+      if (!event.message || event.channel_id !== selectedId) return
+
+      const message = {
+        ...event.message,
+        mine: event.message.author.id === user.id,
+      }
+
+      setMessages((prev) => {
+        if (event.event === 'deleted') {
+          return prev.filter((item) => item.id !== message.id)
+        }
+        if (prev.some((item) => item.id === message.id)) {
+          return prev.map((item) => item.id === message.id ? message : item)
+        }
+        return [...prev, message]
+      })
+
+      setChannels((prev) => prev.map((channel) => {
+        if (channel.id !== selectedId) return channel
+        if (event.event === 'deleted') return channel
+
+        return {
+          ...channel,
+          unread_count: 0,
+          last_read_at: new Date().toISOString(),
+          latest_message: {
+            id: message.id,
+            body: message.body,
+            created_at: message.created_at,
+            author_name: message.author.full_name,
+          },
+        }
+      }))
+
+      if (!message.mine && event.event === 'created') {
+        api.markChannelRead(selectedId).catch(() => {})
+      }
+    }).then((cleanup) => {
+      if (active) {
+        unsubscribe = cleanup
+      } else {
+        cleanup()
+      }
+    })
+
+    return () => {
+      active = false
+      unsubscribe?.()
+    }
+  }, [selectedId, user])
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: 'end' })
   }, [messages.length, selectedId])
 
   const selectChannel = (id: number) => {
     window.history.replaceState(null, '', `/messages/${id}`)
     setSelectedId(id)
+  }
+
+  const selectWorkspace = (id: number) => {
+    setSelectedWorkspaceId(id)
+    setChannelForm((prev) => ({ ...prev, cohort_id: String(id) }))
+    const firstChannel = channels.find((channel) => channel.cohort_id === id)
+    if (firstChannel) selectChannel(firstChannel.id)
   }
 
   const handleSend = async (event: React.FormEvent) => {
@@ -217,10 +312,13 @@ export function Messages() {
         )}
       </div>
 
-      <div className="grid min-h-[640px] overflow-hidden rounded-lg border border-slate-200 bg-white lg:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="grid min-h-[640px] overflow-hidden rounded-lg border border-slate-200 bg-white lg:grid-cols-[360px_minmax(0,1fr)]">
         <aside className="border-b border-slate-200 lg:border-b-0 lg:border-r">
           <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-            <h2 className="text-sm font-semibold text-slate-900">Channels</h2>
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900">{selectedWorkspace?.name || 'Workspaces'}</h2>
+              <p className="text-xs text-slate-500">Cohort workspace</p>
+            </div>
             <div className="flex items-center gap-1">
               {isStaff && (
                 <button
@@ -240,6 +338,21 @@ export function Messages() {
               </button>
             </div>
           </div>
+
+          {workspaces.length > 1 && (
+            <div className="border-b border-slate-200 p-3">
+              <label className="mb-1 block text-xs font-medium text-slate-500">Workspace</label>
+              <select
+                value={selectedWorkspaceId || ''}
+                onChange={(event) => selectWorkspace(Number(event.target.value))}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                {workspaces.map((workspace) => (
+                  <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {isStaff && showChannelForm && (
             <form onSubmit={handleCreateChannel} className="border-b border-slate-200 p-3">
@@ -291,9 +404,9 @@ export function Messages() {
           )}
 
           <div className="max-h-72 overflow-y-auto p-2 lg:max-h-[calc(100vh-11rem)]">
-            {channels.length === 0 ? (
+            {visibleChannels.length === 0 ? (
               <div className="px-3 py-8 text-center text-sm text-slate-500">No channels yet.</div>
-            ) : channels.map((channel) => (
+            ) : visibleChannels.map((channel) => (
               <button
                 key={channel.id}
                 onClick={() => selectChannel(channel.id)}

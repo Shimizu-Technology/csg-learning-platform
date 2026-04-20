@@ -55,6 +55,10 @@ export function setAuthTokenGetter(getter: () => Promise<string | null>) {
   getAuthToken = getter;
 }
 
+export async function getCurrentAuthToken() {
+  return getAuthToken ? getAuthToken() : null;
+}
+
 interface ApiResponse<T> {
   data: T | null;
   error: string | null;

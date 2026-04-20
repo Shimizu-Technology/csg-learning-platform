@@ -271,6 +271,12 @@ export interface MessageResponse {
   message: ChannelMessage;
 }
 
+export interface ChannelMessageEvent {
+  event: 'created' | 'updated' | 'deleted';
+  channel_id: number;
+  message: Omit<ChannelMessage, 'mine'>;
+}
+
 export interface CohortSummary {
   id: number;
   name: string;

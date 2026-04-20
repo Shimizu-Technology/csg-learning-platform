@@ -16,8 +16,9 @@ module Api
         message.author = current_user
 
         if message.save
-          current_user.channel_read_states.find_or_create_by!(channel: @channel).mark_read!(message)
+          current_user.channel_read_states.create_or_find_by!(channel: @channel).mark_read!(message)
           NotificationDeliveryService.message_created(message, push: send_push?)
+          MessageBroadcastService.created(message)
           render json: { message: message_json(message) }, status: :created
         else
           render json: { errors: message.errors.full_messages }, status: :unprocessable_entity
@@ -26,12 +27,18 @@ module Api
 
       # PATCH /api/v1/messages/:id
       def update
+        unless message_channel_editable?
+          render_forbidden("Cannot edit messages in this channel")
+          return
+        end
+
         unless @message.editable_by?(current_user)
           render_forbidden("Cannot edit this message")
           return
         end
 
         if @message.update(body: message_params[:body], edited_at: Time.current)
+          MessageBroadcastService.updated(@message)
           render json: { message: message_json(@message) }
         else
           render json: { errors: @message.errors.full_messages }, status: :unprocessable_entity
@@ -40,12 +47,18 @@ module Api
 
       # DELETE /api/v1/messages/:id
       def destroy
+        unless message_channel_editable?
+          render_forbidden("Cannot delete messages in this channel")
+          return
+        end
+
         unless @message.editable_by?(current_user)
           render_forbidden("Cannot delete this message")
           return
         end
 
         @message.update!(deleted_at: Time.current)
+        MessageBroadcastService.deleted(@message)
         render json: { message: message_json(@message) }
       end
 
@@ -65,6 +78,10 @@ module Api
 
       def send_push?
         ActiveModel::Type::Boolean.new.cast(params.fetch(:send_push, true))
+      end
+
+      def message_channel_editable?
+        @message.channel.active? && @message.channel.visible_to?(current_user)
       end
 
       def message_json(message)

@@ -184,20 +184,22 @@ The platform is **production-ready for its core use case** — managing cohorts,
 ### 4.2 Phase 4b — Cohort Channels (IN PROGRESS)
 - `Channel` model ✅
   - Per-cohort default class channel
+  - Cohort-as-workspace navigation
   - Staff-only channels
   - Alumni/general channels later
 - `Message` model ✅
-  - Author, body, attachments metadata, edited/deleted timestamps
+  - Author, body, edited/deleted timestamps
   - Thread parent support for replies
   - Read receipts or per-channel read cursor
 - Channel UI ✅
   - Message list
   - Composer
   - Unread counts
+  - Workspace switcher for staff moving between cohorts
   - Mobile-first layout that feels like a messaging app inside the PWA
 - Delivery strategy ✅
-  - Start with API polling/refetch-on-focus if that gets value shipped faster
-  - 🔲 Add ActionCable/WebSockets once the domain model is stable
+  - ActionCable/WebSockets for live message create/edit/delete events
+  - API polling/refetch-on-focus remains as a fallback
 - Push notifications for new channel messages ⚠️
   - ✅ Create in-app notifications for new messages
   - ✅ Enqueue Web Push delivery for opted-in recipients
@@ -209,7 +211,9 @@ The platform is **production-ready for its core use case** — managing cohorts,
 
 ### 4.3 Phase 4c — Direct Messages
 - Staff-to-student and student-to-staff direct conversations
+- Student-to-student DMs can be enabled per cohort if CSG wants peer messaging
 - Conversation list with unread counts
+- Real-time message updates through the same ActionCable pattern as channels
 - Push notifications for DMs
 - Mute/notification preferences per conversation
 - Staff-visible context links back to student profile/progress
@@ -217,14 +221,15 @@ The platform is **production-ready for its core use case** — managing cohorts,
 **Definition of done**
 > Staff and students can communicate one-on-one inside the platform without leaving for Slack or email.
 
-### 4.4 Phase 4d — Real-Time + Rich Messaging
-- ActionCable/WebSocket real-time updates
+### 4.4 Phase 4d — Rich Messaging + Files
+- S3-backed image/file attachments for messages and DMs
+- Attachment presign endpoints with channel/conversation authorization
+- Image previews and downloadable file cards
 - Typing indicators
 - Read receipts
 - @mentions
 - Emoji reactions
 - Message search
-- File/image attachments
 - Pinned messages and important links
 - Channel management (create, archive, rename, permissions)
 

@@ -9,7 +9,7 @@ module Api
       def index
         channels = Channel.visible_for(current_user).includes(:cohort).ordered.to_a
         read_states = current_user.channel_read_states.where(channel_id: channels.map(&:id)).index_by(&:channel_id)
-        unread_counts = unread_counts_for(channels, read_states)
+        unread_counts = unread_counts_for(channels)
         latest_messages = latest_messages_for(channels)
 
         render json: {
@@ -68,7 +68,7 @@ module Api
         end
 
         last_message = @channel.messages.visible.order(created_at: :desc, id: :desc).first
-        read_state = current_user.channel_read_states.find_or_initialize_by(channel: @channel)
+        read_state = current_user.channel_read_states.create_or_find_by!(channel: @channel)
         read_state.mark_read!(last_message)
         current_user.notifications.message.where(path: "/messages/#{@channel.id}").unread.update_all(read_at: Time.current, updated_at: Time.current)
 
@@ -89,21 +89,23 @@ module Api
         params.fetch(:message_limit, 100).to_i.clamp(1, 200)
       end
 
-      def unread_counts_for(channels, read_states)
+      def unread_counts_for(channels)
         counts = channels.index_with { 0 }
         return counts if channels.empty?
 
-        messages = Message.visible
+        join_sql = ApplicationRecord.sanitize_sql_array([
+          "LEFT JOIN channel_read_states message_read_states ON message_read_states.channel_id = messages.channel_id AND message_read_states.user_id = ?",
+          current_user.id
+        ])
+
+        Message.visible
           .where(channel_id: channels.map(&:id))
           .where.not(author_id: current_user.id)
-          .pluck(:channel_id, :created_at)
-
-        messages.each do |channel_id, created_at|
-          read_at = read_states[channel_id]&.last_read_at
-          counts[channel_id] += 1 if read_at.blank? || created_at > read_at
-        end
-
-        counts
+          .joins(join_sql)
+          .where("message_read_states.last_read_at IS NULL OR messages.created_at > message_read_states.last_read_at")
+          .group(:channel_id)
+          .count
+          .then { |unread_counts| counts.merge(unread_counts) }
       end
 
       def unread_count_for(channel, read_state)
@@ -118,10 +120,11 @@ module Api
       def latest_messages_for(channels)
         Message.visible
           .includes(:author)
+          .select("DISTINCT ON (messages.channel_id) messages.*")
           .where(channel_id: channels.map(&:id))
-          .order(created_at: :desc, id: :desc)
+          .order(Arel.sql("messages.channel_id, messages.created_at DESC, messages.id DESC"))
           .to_a
-          .each_with_object({}) { |message, index| index[message.channel_id] ||= message }
+          .index_by(&:channel_id)
       end
 
       def channel_json(channel, read_state = nil, unread_count = 0, latest_message = nil)

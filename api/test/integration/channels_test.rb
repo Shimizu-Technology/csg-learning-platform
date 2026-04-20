@@ -103,6 +103,28 @@ class ChannelsTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  test "student cannot edit or delete messages after losing channel access" do
+    message = Message.create!(channel: @channel, author: @student, body: "Before access changed")
+    @student.enrollments.find_by!(cohort: @cohort).update!(status: :dropped)
+
+    as_user(@student) do
+      patch "/api/v1/messages/#{message.id}",
+        params: { body: "After access changed" },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :forbidden
+    assert_equal "Before access changed", message.reload.body
+
+    as_user(@student) do
+      delete "/api/v1/messages/#{message.id}", headers: auth_headers
+    end
+
+    assert_response :forbidden
+    assert_nil message.reload.deleted_at
+  end
+
   private
 
   def auth_headers

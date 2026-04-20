@@ -46,6 +46,8 @@ Rails.application.configure do
   # Use async (in-process threaded) queue adapter — no external queue DB needed.
   config.active_job.queue_adapter = :async
 
+  config.action_cable.allowed_request_origins = ENV.fetch("ALLOWED_ORIGINS", ENV.fetch("FRONTEND_URL", "")).split(",").map(&:strip).reject(&:blank?)
+
   # Enable locale fallbacks for I18n (makes lookups for any locale fall back to
   # the I18n.default_locale when a translation cannot be found).
   config.i18n.fallbacks = true
