@@ -21,6 +21,15 @@ function preview(text: string) {
   return text.length > 80 ? `${text.slice(0, 77)}...` : text
 }
 
+function latestMessageFrom(message: ChannelMessage) {
+  return {
+    id: message.id,
+    body: message.body,
+    created_at: message.created_at,
+    author_name: message.author.full_name,
+  }
+}
+
 export function Messages() {
   const { channelId } = useParams()
   const { user } = useAuthContext()
@@ -226,9 +235,16 @@ export function Messages() {
     const res = await api.createMessage(selectedId, { body: body.trim(), send_push: true })
     if (res.error) {
       setError(res.error)
-    } else {
+    } else if (res.data) {
+      const message = res.data.message
       setBody('')
-      await loadChannel(selectedId, true)
+      setMessages((prev) => prev.some((item) => item.id === message.id) ? prev : [...prev, message])
+      setChannels((prev) => prev.map((channel) => channel.id === selectedId ? {
+        ...channel,
+        unread_count: 0,
+        last_read_at: new Date().toISOString(),
+        latest_message: latestMessageFrom(message),
+      } : channel))
     }
     setSending(false)
   }
