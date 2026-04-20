@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Bell, Check, Megaphone, Pin, Send } from 'lucide-react'
 import { api } from '../../lib/api'
-import { enablePushNotifications, pushSupported } from '../../lib/pushNotifications'
+import { disablePushNotifications, enablePushNotifications, pushSupported } from '../../lib/pushNotifications'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import type { Announcement, CohortSummary } from '../../types/api'
@@ -28,6 +28,8 @@ export function Announcements() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [pushMessage, setPushMessage] = useState('')
+  const [pushEnabled, setPushEnabled] = useState(false)
+  const [formError, setFormError] = useState('')
   const [form, setForm] = useState({
     title: '',
     body: '',
@@ -65,6 +67,15 @@ export function Announcements() {
   }, [isStaff])
 
   useEffect(() => {
+    if (!pushSupported()) return
+
+    navigator.serviceWorker.ready
+      .then((registration) => registration.pushManager.getSubscription())
+      .then((subscription) => setPushEnabled(Boolean(subscription)))
+      .catch(() => setPushEnabled(false))
+  }, [])
+
+  useEffect(() => {
     if (!selectedId) return
 
     api.getAnnouncement(selectedId).then((res) => {
@@ -86,6 +97,7 @@ export function Announcements() {
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault()
     setSaving(true)
+    setFormError('')
 
     const audience = form.audience
     const res = await api.createAnnouncement({
@@ -98,7 +110,9 @@ export function Announcements() {
       send_push: form.send_push,
     })
 
-    if (res.data) {
+    if (res.error) {
+      setFormError(res.error)
+    } else if (res.data) {
       setForm((prev) => ({ ...prev, title: '', body: '', pinned: false }))
       await loadAnnouncements()
     }
@@ -113,8 +127,19 @@ export function Announcements() {
     }
   }
 
-  const handleEnablePush = async () => {
+  const handleTogglePush = async () => {
     setPushMessage('')
+    if (pushEnabled) {
+      try {
+        await disablePushNotifications()
+        setPushEnabled(false)
+        setPushMessage('Class notifications are off for this device.')
+      } catch (error) {
+        setPushMessage(error instanceof Error ? error.message : 'Could not turn off notifications.')
+      }
+      return
+    }
+
     const config = await api.getPushConfig()
     const publicKey = config.data?.public_key || import.meta.env.VITE_WEB_PUSH_PUBLIC_KEY
     if (!config.data?.configured && !publicKey) {
@@ -124,6 +149,7 @@ export function Announcements() {
 
     try {
       await enablePushNotifications(publicKey)
+      setPushEnabled(true)
       setPushMessage('Class notifications are on for this device.')
     } catch (error) {
       setPushMessage(error instanceof Error ? error.message : 'Could not enable notifications.')
@@ -152,11 +178,11 @@ export function Announcements() {
           )}
           {pushSupported() && (
             <button
-              onClick={handleEnablePush}
+              onClick={handleTogglePush}
               className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
             >
               <Bell className="h-4 w-4" />
-              Turn on push
+              {pushEnabled ? 'Turn off push' : 'Turn on push'}
             </button>
           )}
         </div>
@@ -211,6 +237,11 @@ export function Announcements() {
             rows={4}
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
+          {formError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {formError}
+            </div>
+          )}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap gap-4 text-sm text-slate-600">
               <label className="flex items-center gap-2">
