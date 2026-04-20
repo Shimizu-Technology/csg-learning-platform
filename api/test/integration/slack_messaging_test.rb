@@ -102,6 +102,36 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_equal 1, message.message_reactions.where(emoji: "✅", user: @classmate).count
   end
 
+  test "reaction requires an emoji" do
+    message = Message.create!(channel: @channel, author: @student, body: "Ship it")
+
+    as_user(@classmate) do
+      post "/api/v1/messages/#{message.id}/reactions",
+        params: { emoji: "" },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :unprocessable_entity
+    assert_includes JSON.parse(response.body).fetch("errors"), "Emoji is required"
+    assert_equal 0, message.message_reactions.count
+  end
+
+  test "reactions are blocked in archived channels" do
+    message = Message.create!(channel: @channel, author: @student, body: "Old thread")
+    @channel.update!(status: :archived)
+
+    as_user(@classmate) do
+      post "/api/v1/messages/#{message.id}/reactions",
+        params: { emoji: "👍" },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :forbidden
+    assert_equal 0, message.message_reactions.count
+  end
+
   test "students cannot pin messages" do
     message = Message.create!(channel: @channel, author: @admin, body: "Staff decision")
 

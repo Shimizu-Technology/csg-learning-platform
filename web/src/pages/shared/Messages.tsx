@@ -1,5 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
+import { EditorContent, useEditor } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import Placeholder from '@tiptap/extension-placeholder'
+import Link from '@tiptap/extension-link'
+import Underline from '@tiptap/extension-underline'
+import type { Editor, JSONContent } from '@tiptap/core'
 import {
   Bell,
   BellOff,
@@ -37,6 +43,7 @@ import type {
   ChannelSummary,
   CohortSummary,
   DirectConversationSummary,
+  MessageAttachment,
   UserSummary,
 } from '../../types/api'
 
@@ -50,12 +57,13 @@ type PendingAttachment = {
   progress: number
   uploaded: boolean
 }
+type LocalMessage = ChannelMessage & { pending?: boolean; failed?: boolean }
 
 const REACTIONS = ['👍', '❤️', '✅', '🙌']
 const SLASH_COMMANDS = [
-  { command: '/code', label: 'Code block', insert: '```\n\n```' },
-  { command: '/quote', label: 'Quote', insert: '> ' },
-  { command: '/todo', label: 'Checklist', insert: '- [ ] ' },
+  { command: '/code', label: 'Code block' },
+  { command: '/quote', label: 'Quote' },
+  { command: '/todo', label: 'Checklist' },
 ]
 
 function formatTime(value: string) {
@@ -81,6 +89,63 @@ function latestMessageFrom(message: ChannelMessage) {
   }
 }
 
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  return parts.slice(0, 2).map((part) => part[0]).join('').toUpperCase()
+}
+
+function channelInitials(name: string) {
+  const words = name.trim().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return '#'
+  return words.length === 1 ? words[0].slice(0, 2).toUpperCase() : words.slice(0, 2).map((word) => word[0]).join('').toUpperCase()
+}
+
+function editorTextBeforeCursor(editor: Editor) {
+  const from = editor.state.selection.from
+  return editor.state.doc.textBetween(Math.max(0, from - 80), from, '\n', '\n')
+}
+
+function editorJsonToMarkdown(node?: JSONContent): string {
+  if (!node) return ''
+  if (node.type === 'text') {
+    return applyMarks(node.text || '', node.marks || [])
+  }
+
+  const children = (node.content || []).map((child) => editorJsonToMarkdown(child))
+
+  switch (node.type) {
+    case 'doc':
+      return children.join('\n\n').trim()
+    case 'paragraph':
+      return children.join('')
+    case 'hardBreak':
+      return '\n'
+    case 'codeBlock':
+      return `\`\`\`\n${children.join('')}\n\`\`\``
+    case 'blockquote':
+      return children.join('\n').split('\n').map((line) => `> ${line}`).join('\n')
+    case 'bulletList':
+      return children.join('\n')
+    case 'orderedList':
+      return children.map((child, index) => `${index + 1}. ${child.replace(/^\s*[-*]\s*/, '')}`).join('\n')
+    case 'listItem':
+      return `- ${children.join('').replace(/\n/g, '\n  ')}`
+    default:
+      return children.join('')
+  }
+}
+
+function applyMarks(text: string, marks: NonNullable<JSONContent['marks']>) {
+  return marks.reduce((value, mark) => {
+    if (mark.type === 'bold') return `**${value}**`
+    if (mark.type === 'italic') return `_${value}_`
+    if (mark.type === 'code') return `\`${value}\``
+    if (mark.type === 'link') return `[${value}](${mark.attrs?.href || value})`
+    return value
+  }, text)
+}
+
 export function Messages() {
   const { channelId, dmId } = useParams()
   const { user } = useAuthContext()
@@ -91,7 +156,7 @@ export function Messages() {
   const [availableUsers, setAvailableUsers] = useState<UserSummary[]>([])
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | null>(null)
   const [selectedTarget, setSelectedTarget] = useState<Target | null>(dmId ? { type: 'dm', id: Number(dmId) } : channelId ? { type: 'channel', id: Number(channelId) } : null)
-  const [messages, setMessages] = useState<ChannelMessage[]>([])
+  const [messages, setMessages] = useState<LocalMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [creatingChannel, setCreatingChannel] = useState(false)
@@ -101,10 +166,11 @@ export function Messages() {
   const [pushMessage, setPushMessage] = useState('')
   const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'error'>('disconnected')
   const [body, setBody] = useState('')
-  const [composerCursor, setComposerCursor] = useState(0)
+  const [composerTriggerText, setComposerTriggerText] = useState('')
   const [activeMentionIndex, setActiveMentionIndex] = useState(0)
   const [activeCommandIndex, setActiveCommandIndex] = useState(0)
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([])
+  const [lightboxAttachment, setLightboxAttachment] = useState<MessageAttachment | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [replyTo, setReplyTo] = useState<ChannelMessage | null>(null)
   const [editing, setEditing] = useState<ChannelMessage | null>(null)
@@ -122,7 +188,7 @@ export function Messages() {
   })
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const composerFormRef = useRef<HTMLFormElement | null>(null)
 
   const selectedChannel = useMemo(
     () => selectedTarget?.type === 'channel' ? channels.find((channel) => channel.id === selectedTarget.id) || null : null,
@@ -158,13 +224,11 @@ export function Messages() {
 
   const selectedWorkspace = workspaces.find((workspace) => workspace.id === selectedWorkspaceId)
   const mentionToken = useMemo(() => {
-    const beforeCursor = body.slice(0, composerCursor)
-    return beforeCursor.match(/(^|\s)@([^\s@]*)$/)?.[2] ?? null
-  }, [body, composerCursor])
+    return composerTriggerText.match(/(^|\s)@([^\s@]*)$/)?.[2] ?? null
+  }, [composerTriggerText])
   const commandToken = useMemo(() => {
-    const beforeCursor = body.slice(0, composerCursor)
-    return beforeCursor.match(/(^|\n)\/([a-z]*)$/)?.[2] ?? null
-  }, [body, composerCursor])
+    return composerTriggerText.match(/(^|\n)\/([a-z]*)$/)?.[2] ?? null
+  }, [composerTriggerText])
   const mentionSuggestions = useMemo(() => {
     if (mentionToken === null) return []
     const normalized = mentionToken.toLowerCase()
@@ -184,6 +248,46 @@ export function Messages() {
   useEffect(() => {
     setActiveCommandIndex(0)
   }, [commandToken])
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        codeBlock: {
+          HTMLAttributes: {
+            class: 'rounded-lg bg-slate-900 px-3 py-2 text-sm leading-6 text-slate-100',
+          },
+        },
+      }),
+      Underline,
+      Link.configure({ openOnClick: false, autolink: true }),
+      Placeholder.configure({ placeholder: `Message ${selectedLabel}` }),
+    ],
+    editorProps: {
+      attributes: {
+        class: 'message-composer min-h-16 px-3 py-3 text-sm leading-6 text-slate-800 outline-none',
+      },
+      handlePaste: (_view, event) => {
+        const files = Array.from(event.clipboardData?.files || [])
+        if (files.length === 0) return false
+        addFiles(files)
+        return false
+      },
+      handleDrop: (_view, event) => {
+        const files = Array.from(event.dataTransfer?.files || [])
+        if (files.length === 0) return false
+        event.preventDefault()
+        addFiles(files)
+        return true
+      },
+    },
+    onUpdate: ({ editor }) => {
+      setBody(editorJsonToMarkdown(editor.getJSON()).trim())
+      setComposerTriggerText(editorTextBeforeCursor(editor))
+    },
+    onSelectionUpdate: ({ editor }) => {
+      setComposerTriggerText(editorTextBeforeCursor(editor))
+    },
+  })
 
   const loadLists = async () => {
     const [channelRes, dmRes] = await Promise.all([api.getChannels(), api.getDirectConversations()])
@@ -400,11 +504,11 @@ export function Messages() {
     else if (firstDm) selectTarget({ type: 'dm', id: firstDm.id })
   }
 
-  const uploadAttachments = async () => {
+  const uploadAttachments = async (attachmentsToUpload = pendingAttachments) => {
     if (!selectedTarget) return []
 
     const uploaded = []
-    for (const attachment of pendingAttachments) {
+    for (const attachment of attachmentsToUpload) {
       if (attachment.uploaded && attachment.s3_key) {
         uploaded.push({
           s3_key: attachment.s3_key,
@@ -439,29 +543,74 @@ export function Messages() {
 
   const handleSend = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!selectedTarget || (!body.trim() && pendingAttachments.length === 0)) return
+    if (!selectedTarget || !user) return
+
+    const submittedBody = (editor ? editorJsonToMarkdown(editor.getJSON()) : body).trim()
+    const submittedAttachments = pendingAttachments
+    if (!submittedBody && submittedAttachments.length === 0) return
+
+    const tempId = -Date.now()
+    const optimisticAttachments = submittedAttachments.map((attachment, index) => ({
+      id: tempId - index - 1,
+      filename: attachment.filename,
+      content_type: attachment.content_type,
+      byte_size: attachment.byte_size,
+      image: attachment.content_type.startsWith('image/'),
+      url: URL.createObjectURL(attachment.file),
+    }))
+    const optimisticMessage: LocalMessage = {
+      id: tempId,
+      channel_id: selectedTarget.type === 'channel' ? selectedTarget.id : null,
+      direct_conversation_id: selectedTarget.type === 'dm' ? selectedTarget.id : null,
+      parent_message_id: replyTo?.id || null,
+      body: submittedBody,
+      edited_at: null,
+      deleted_at: null,
+      pinned_at: null,
+      pinned_by_id: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      mine: true,
+      pending: true,
+      attachments: optimisticAttachments,
+      reactions: [],
+      author: {
+        id: user.id,
+        full_name: user.full_name,
+        email: user.email,
+        role: user.role,
+        avatar_url: user.avatar_url,
+      },
+    }
+
+    setMessages((prev) => [...prev, optimisticMessage])
+    updateLatestForTarget(optimisticMessage)
+    setBody('')
+    setComposerTriggerText('')
+    editor?.commands.clearContent()
+    setPendingAttachments([])
+    setReplyTo(null)
 
     setSending(true)
     setError('')
     try {
-      const attachments = await uploadAttachments()
-      const payload = { body: body.trim(), parent_message_id: replyTo?.id || null, attachments, send_push: true }
+      const attachments = await uploadAttachments(submittedAttachments)
+      const payload = { body: submittedBody, parent_message_id: optimisticMessage.parent_message_id, attachments, send_push: true }
       const res = selectedTarget.type === 'channel'
         ? await api.createMessage(selectedTarget.id, payload)
         : await api.createDirectMessage(selectedTarget.id, payload)
 
       if (res.error) {
         setError(res.error)
+        setMessages((prev) => prev.map((item) => item.id === tempId ? { ...item, pending: false, failed: true } : item))
       } else if (res.data) {
         const message = res.data.message
-        setBody('')
-        setPendingAttachments([])
-        setReplyTo(null)
-        setMessages((prev) => prev.some((item) => item.id === message.id) ? prev : [...prev, message])
+        setMessages((prev) => [...prev.filter((item) => item.id !== tempId && item.id !== message.id), message])
         updateLatestForTarget(message)
       }
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : 'Could not send message.')
+      setMessages((prev) => prev.map((item) => item.id === tempId ? { ...item, pending: false, failed: true } : item))
     }
     setSending(false)
   }
@@ -537,7 +686,7 @@ export function Messages() {
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  const addFiles = (files: File[]) => {
+  function addFiles(files: File[]) {
     const next = files.map((file) => ({
       file,
       filename: file.name,
@@ -549,13 +698,6 @@ export function Messages() {
     setPendingAttachments((prev) => [...prev, ...next])
   }
 
-  const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
-    const files = Array.from(event.clipboardData.files)
-    if (files.length > 0) {
-      addFiles(files)
-    }
-  }
-
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     const files = Array.from(event.dataTransfer.files)
     if (files.length === 0) return
@@ -565,55 +707,38 @@ export function Messages() {
   }
 
   const insertIntoComposer = (insert: string, replacePattern?: RegExp) => {
-    const textarea = textareaRef.current
-    if (!textarea) {
-      setBody((current) => replacePattern ? current.replace(replacePattern, insert) : `${current}${insert}`)
-      return
+    if (!editor) return
+
+    if (replacePattern) {
+      const match = composerTriggerText.match(replacePattern)
+      if (match) {
+        const from = editor.state.selection.from - match[0].trimStart().length
+        editor.chain().focus().deleteRange({ from, to: editor.state.selection.from }).insertContent(insert).run()
+        return
+      }
     }
 
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-    const before = body.slice(0, start)
-    const after = body.slice(end)
-    const nextBefore = replacePattern ? before.replace(replacePattern, insert) : `${before}${insert}`
-    const next = `${nextBefore}${after}`
-    setBody(next)
-    window.requestAnimationFrame(() => {
-      textarea.focus()
-      const cursor = nextBefore.length
-      textarea.setSelectionRange(cursor, cursor)
-      setComposerCursor(cursor)
-    })
-  }
-
-  const wrapSelection = (prefix: string, suffix = prefix) => {
-    const textarea = textareaRef.current
-    if (!textarea) {
-      setBody((current) => `${current}${prefix}${suffix}`)
-      return
-    }
-
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-    const selectedText = body.slice(start, end) || 'text'
-    const next = `${body.slice(0, start)}${prefix}${selectedText}${suffix}${body.slice(end)}`
-    setBody(next)
-    window.requestAnimationFrame(() => {
-      textarea.focus()
-      textarea.setSelectionRange(start + prefix.length, start + prefix.length + selectedText.length)
-      setComposerCursor(start + prefix.length + selectedText.length)
-    })
+    editor.chain().focus().insertContent(insert).run()
   }
 
   const selectMention = (availableUser: UserSummary) => {
     insertIntoComposer(`@${availableUser.full_name} `, /(^|\s)@[^\s@]*$/)
   }
 
-  const selectCommand = (insert: string) => {
-    insertIntoComposer(insert, /(^|\n)\/[a-z]*$/)
+  const selectCommand = (command: string) => {
+    if (!editor) return
+    const match = composerTriggerText.match(/(^|\n)\/[a-z]*$/)
+    const chain = editor.chain().focus()
+    if (match) {
+      chain.deleteRange({ from: editor.state.selection.from - match[0].trimStart().length, to: editor.state.selection.from })
+    }
+
+    if (command === '/code') chain.toggleCodeBlock().run()
+    else if (command === '/quote') chain.toggleBlockquote().run()
+    else if (command === '/todo') chain.insertContent('- [ ] ').run()
   }
 
-  const handleComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleComposerKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (mentionSuggestions.length > 0) {
       if (event.key === 'ArrowDown') {
         event.preventDefault()
@@ -632,7 +757,7 @@ export function Messages() {
       }
       if (event.key === 'Escape') {
         event.preventDefault()
-        setComposerCursor(-1)
+        setComposerTriggerText('')
         return
       }
     }
@@ -650,18 +775,19 @@ export function Messages() {
       }
       if (event.key === 'Enter' || event.key === 'Tab') {
         event.preventDefault()
-        selectCommand(commandSuggestions[activeCommandIndex].insert)
+        selectCommand(commandSuggestions[activeCommandIndex].command)
         return
       }
       if (event.key === 'Escape') {
         event.preventDefault()
-        setComposerCursor(-1)
+        setComposerTriggerText('')
         return
       }
     }
 
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-      event.currentTarget.form?.requestSubmit()
+      event.preventDefault()
+      composerFormRef.current?.requestSubmit()
     }
   }
 
@@ -820,6 +946,23 @@ export function Messages() {
 
           {isStaff && showChannelForm && (
             <form onSubmit={handleCreateChannel} className="border-b border-slate-200 bg-white p-3">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">Create channel</h3>
+                  <p className="text-xs text-slate-500">Add a shared space to this cohort.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowChannelForm(false)
+                    setChannelError('')
+                  }}
+                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                  aria-label="Cancel channel creation"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
               {channelError && (
                 <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                   {channelError}
@@ -863,12 +1006,36 @@ export function Messages() {
                 >
                   {creatingChannel ? 'Creating...' : 'Create channel'}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowChannelForm(false)
+                    setChannelError('')
+                  }}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
               </div>
             </form>
           )}
 
           {showDmForm && (
             <form onSubmit={handleCreateDm} className="border-b border-slate-200 bg-white p-3">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">Start direct message</h3>
+                  <p className="text-xs text-slate-500">Pick someone in this workspace.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowDmForm(false)}
+                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                  aria-label="Cancel direct message"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
               <div className="space-y-2">
                 <select
                   value={dmUserId}
@@ -885,6 +1052,13 @@ export function Messages() {
                   className="w-full rounded-lg bg-primary-500 px-3 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
                 >
                   Start direct message
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowDmForm(false)}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
                 </button>
               </div>
             </form>
@@ -952,9 +1126,10 @@ export function Messages() {
                   key={channel.id}
                   onClick={() => selectTarget({ type: 'channel', id: channel.id })}
                   title={channel.name}
-                  className={`relative flex h-11 w-full items-center justify-center rounded-lg ${selectedTarget?.type === 'channel' && selectedTarget.id === channel.id ? 'bg-primary-50 text-primary-700' : 'text-slate-500 hover:bg-white hover:text-slate-800'}`}
+                  className={`relative flex h-14 w-full flex-col items-center justify-center rounded-lg text-[10px] font-semibold ${selectedTarget?.type === 'channel' && selectedTarget.id === channel.id ? 'bg-primary-50 text-primary-700' : 'text-slate-500 hover:bg-white hover:text-slate-800'}`}
                 >
-                  {channel.visibility === 'staff_only' ? <Lock className="h-5 w-5" /> : <Hash className="h-5 w-5" />}
+                  {channel.visibility === 'staff_only' ? <Lock className="h-4 w-4" /> : <Hash className="h-4 w-4" />}
+                  <span className="mt-0.5 max-w-12 truncate">{channelInitials(channel.name)}</span>
                   {channel.unread_count > 0 && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-primary-500" />}
                 </button>
               ))}
@@ -964,9 +1139,11 @@ export function Messages() {
                   key={conversation.id}
                   onClick={() => selectTarget({ type: 'dm', id: conversation.id })}
                   title={conversation.title}
-                  className={`relative flex h-11 w-full items-center justify-center rounded-lg ${selectedTarget?.type === 'dm' && selectedTarget.id === conversation.id ? 'bg-primary-50 text-primary-700' : 'text-slate-500 hover:bg-white hover:text-slate-800'}`}
+                  className={`relative flex h-14 w-full flex-col items-center justify-center rounded-lg text-[10px] font-semibold ${selectedTarget?.type === 'dm' && selectedTarget.id === conversation.id ? 'bg-primary-50 text-primary-700' : 'text-slate-500 hover:bg-white hover:text-slate-800'}`}
                 >
-                  <MessageCircle className="h-5 w-5" />
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-xs shadow-sm">
+                    {initials(conversation.title)}
+                  </span>
                   {conversation.unread_count > 0 && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-primary-500" />}
                 </button>
               ))}
@@ -1028,12 +1205,13 @@ export function Messages() {
                     canPin={isStaff}
                     onReply={() => setReplyTo(message)}
                     onReact={(emoji) => toggleReaction(message, emoji)}
+                    onOpenImage={setLightboxAttachment}
                   />
                 ))}
                 <div ref={bottomRef} />
               </div>
 
-              <form onSubmit={handleSend} className="border-t border-slate-200 bg-white p-3">
+              <form ref={composerFormRef} onSubmit={handleSend} className="border-t border-slate-200 bg-white p-3">
                 {error && (
                   <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                     {error}
@@ -1074,44 +1252,23 @@ export function Messages() {
                     <button type="button" onClick={() => fileInputRef.current?.click()} className="rounded-lg p-2 hover:bg-slate-50" aria-label="Attach files">
                       <Paperclip className="h-4 w-4" />
                     </button>
-                    <button type="button" onClick={() => wrapSelection('**')} className="rounded-lg p-2 hover:bg-slate-50" aria-label="Bold">
+                    <button type="button" onClick={() => editor?.chain().focus().toggleBold().run()} className={`rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('bold') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Bold">
                       <Bold className="h-4 w-4" />
                     </button>
-                    <button type="button" onClick={() => wrapSelection('_')} className="rounded-lg p-2 hover:bg-slate-50" aria-label="Italic">
+                    <button type="button" onClick={() => editor?.chain().focus().toggleItalic().run()} className={`rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('italic') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Italic">
                       <Italic className="h-4 w-4" />
                     </button>
-                    <button type="button" onClick={() => wrapSelection('`')} className="rounded-lg p-2 hover:bg-slate-50" aria-label="Inline code">
+                    <button type="button" onClick={() => editor?.chain().focus().toggleCode().run()} className={`rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('code') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Inline code">
                       <Code2 className="h-4 w-4" />
                     </button>
-                    <button type="button" onClick={() => wrapSelection('```\n', '\n```')} className="rounded-lg px-2 py-1 text-sm hover:bg-slate-50">Code block</button>
+                    <button type="button" onClick={() => editor?.chain().focus().toggleCodeBlock().run()} className={`rounded-lg px-2 py-1 text-sm hover:bg-slate-50 ${editor?.isActive('codeBlock') ? 'bg-slate-100 text-slate-900' : ''}`}>Code block</button>
                     <button type="button" onClick={() => insertIntoComposer('@')} className="rounded-lg px-2 py-1 text-sm hover:bg-slate-50">@ mention</button>
                     <button type="button" onClick={() => insertIntoComposer('/')} className="rounded-lg px-2 py-1 text-sm hover:bg-slate-50">/ command</button>
                     <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => handleFiles(event.target.files)} />
                   </div>
                   <div className="flex gap-2 p-2">
                     <div className="min-w-0 flex-1">
-                      {body.trim() && /(`|\*\*|_)/.test(body) && (
-                        <div className="mb-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
-                          <div className="mb-1 text-xs font-medium text-slate-400">Preview</div>
-                          <FormattedMessage body={body} />
-                        </div>
-                      )}
-                      <textarea
-                        ref={textareaRef}
-                        value={body}
-                        onChange={(event) => {
-                          setBody(event.target.value)
-                          setComposerCursor(event.target.selectionStart)
-                        }}
-                        onClick={(event) => setComposerCursor(event.currentTarget.selectionStart)}
-                        onKeyUp={(event) => setComposerCursor(event.currentTarget.selectionStart)}
-                        onSelect={(event) => setComposerCursor(event.currentTarget.selectionStart)}
-                        onPaste={handlePaste}
-                        placeholder={`Message ${selectedLabel}`}
-                        rows={2}
-                        className="min-h-12 w-full resize-none border-0 px-2 py-2 text-sm focus:outline-none focus:ring-0"
-                        onKeyDown={handleComposerKeyDown}
-                      />
+                      <EditorContent editor={editor} onKeyDown={handleComposerKeyDown} />
                     </div>
                     <button
                       type="submit"
@@ -1150,7 +1307,7 @@ export function Messages() {
                         <button
                           key={item.command}
                           type="button"
-                          onClick={() => selectCommand(item.insert)}
+                          onClick={() => selectCommand(item.command)}
                           className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm ${index === activeCommandIndex ? 'bg-primary-50 text-primary-800' : 'hover:bg-slate-50'}`}
                         >
                           <Type className="h-4 w-4 text-slate-400" />
@@ -1173,6 +1330,25 @@ export function Messages() {
           )}
         </section>
       </div>
+      {lightboxAttachment?.url && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true">
+          <button
+            type="button"
+            onClick={() => setLightboxAttachment(null)}
+            className="absolute right-4 top-4 rounded-lg bg-white/10 p-2 text-white hover:bg-white/20"
+            aria-label="Close image preview"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <div className="max-h-full max-w-5xl overflow-hidden rounded-lg bg-white shadow-2xl">
+            <img src={lightboxAttachment.url} alt={lightboxAttachment.filename} className="max-h-[80vh] w-full object-contain" />
+            <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm text-slate-700">
+              <span className="min-w-0 truncate font-medium">{lightboxAttachment.filename}</span>
+              <span className="shrink-0 text-slate-500">{formatFileSize(lightboxAttachment.byte_size)}</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1277,8 +1453,9 @@ function MessageRow({
   canPin,
   onReply,
   onReact,
+  onOpenImage,
 }: {
-  message: ChannelMessage
+  message: LocalMessage
   replyTarget: ChannelMessage | null
   editing: boolean
   editBody: string
@@ -1291,9 +1468,10 @@ function MessageRow({
   canPin: boolean
   onReply: () => void
   onReact: (emoji: string) => void
+  onOpenImage: (attachment: MessageAttachment) => void
 }) {
   return (
-    <div className={`group mb-3 flex gap-3 rounded-lg px-2 py-2 hover:bg-slate-50 ${message.pinned_at ? 'bg-amber-50/70' : ''}`}>
+    <div className={`group mb-3 flex gap-3 rounded-lg px-2 py-2 hover:bg-slate-50 ${message.pinned_at ? 'bg-amber-50/70' : ''} ${message.pending ? 'opacity-75' : ''}`}>
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-200 text-sm font-semibold text-slate-600">
         {message.author.avatar_url ? <img src={message.author.avatar_url} alt="" className="h-9 w-9 rounded-lg object-cover" /> : message.author.full_name.slice(0, 1)}
       </div>
@@ -1302,6 +1480,8 @@ function MessageRow({
           <span className="text-sm font-semibold text-slate-900">{message.author.full_name}</span>
           <span className="text-xs text-slate-400">{formatTime(message.created_at)}</span>
           {message.edited_at && <span className="text-xs text-slate-400">Edited</span>}
+          {message.pending && <span className="text-xs text-slate-400">Sending...</span>}
+          {message.failed && <span className="text-xs font-medium text-red-600">Not sent</span>}
           {message.pinned_at && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700"><Pin className="h-3 w-3" /> Pinned</span>}
         </div>
         {replyTarget && (
@@ -1328,21 +1508,29 @@ function MessageRow({
         {message.attachments.length > 0 && (
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {message.attachments.map((attachment) => (
+              attachment.image && attachment.url ? (
+              <button
+                key={attachment.id}
+                type="button"
+                onClick={() => onOpenImage(attachment)}
+                className="rounded-lg border border-slate-200 bg-white p-2 text-left text-sm text-slate-700 hover:border-primary-200 hover:bg-primary-50"
+              >
+                <img src={attachment.url} alt={attachment.filename} className="mb-2 max-h-56 w-full rounded-lg object-cover" />
+                <div className="truncate font-medium">{attachment.filename}</div>
+                <div className="text-xs text-slate-500">{formatFileSize(attachment.byte_size)}</div>
+              </button>
+              ) : (
               <a
                 key={attachment.id}
                 href={attachment.url}
-                target="_blank"
-                rel="noreferrer"
+                download={attachment.filename}
                 className="rounded-lg border border-slate-200 bg-white p-2 text-sm text-slate-700 hover:border-primary-200 hover:bg-primary-50"
               >
-                {attachment.image && attachment.url ? (
-                  <img src={attachment.url} alt={attachment.filename} className="mb-2 max-h-56 w-full rounded-lg object-cover" />
-                ) : (
-                  <File className="mb-2 h-5 w-5 text-slate-400" />
-                )}
+                <File className="mb-2 h-5 w-5 text-slate-400" />
                 <div className="truncate font-medium">{attachment.filename}</div>
                 <div className="text-xs text-slate-500">{formatFileSize(attachment.byte_size)}</div>
               </a>
+              )
             ))}
           </div>
         )}

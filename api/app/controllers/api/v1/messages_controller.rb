@@ -99,24 +99,32 @@ module Api
 
       # POST /api/v1/messages/:id/reactions
       def react
-        unless @message.destination.visible_to?(current_user)
+        unless message_channel_editable?
           render_forbidden("Cannot react to this message")
           return
         end
 
-        @message.message_reactions.create_or_find_by!(user: current_user, emoji: reaction_params[:emoji])
+        emoji = reaction_emoji
+        return if performed?
+
+        @message.message_reactions.create_or_find_by!(user: current_user, emoji: emoji)
         MessageBroadcastService.updated(@message)
         render json: { message: message_json(@message.reload) }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
       end
 
       # DELETE /api/v1/messages/:id/reactions
       def unreact
-        unless @message.destination.visible_to?(current_user)
+        unless message_channel_editable?
           render_forbidden("Cannot remove reactions from this message")
           return
         end
 
-        @message.message_reactions.where(user: current_user, emoji: reaction_params[:emoji]).destroy_all
+        emoji = reaction_emoji
+        return if performed?
+
+        @message.message_reactions.where(user: current_user, emoji: emoji).destroy_all
         MessageBroadcastService.updated(@message)
         render json: { message: message_json(@message.reload) }
       end
@@ -141,6 +149,16 @@ module Api
 
       def reaction_params
         params.permit(:emoji)
+      end
+
+      def reaction_emoji
+        emoji = reaction_params[:emoji].to_s.strip
+        if emoji.blank?
+          render json: { errors: [ "Emoji is required" ] }, status: :unprocessable_entity
+          return nil
+        end
+
+        emoji
       end
 
       def send_push?
