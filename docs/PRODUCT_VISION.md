@@ -167,15 +167,22 @@ The platform fully supports day-to-day learning workflows:
 - ✅ PostHog analytics integration
 - ✅ CI pipeline (RuboCop, Brakeman, bundler-audit, tests)
 
-### 6.2 Next — Self-hosted recordings (AWS S3)
+### 6.2 Now — Self-hosted recordings (AWS S3) (COMPLETE)
 
-Replace YouTube dependency with direct video uploads to S3:
+The platform now supports direct video uploads to a private S3 bucket:
 
-- Active Storage + S3 for upload and storage
-- HLS streaming via CloudFront for playback
+- Presigned S3 uploads and presigned streaming URLs
 - Granular watch-time tracking (percentage watched, resume position)
-- Staff upload interface within content management
-- Recording library organized by cohort/module/lesson
+- Staff upload interface in cohort management
+- Student recording library with S3 uploads and legacy YouTube links side by side
+- Admin watch-progress matrix by cohort and recording
+- Direct MP4 playback for Guam-scale traffic
+
+Future media optimizations, if needed:
+
+- CloudFront CDN in front of the private S3 bucket
+- HLS transcoding for adaptive bitrate playback
+- Automated thumbnail generation and media processing
 
 ### 6.3 Next — Stripe payment integration
 

@@ -85,6 +85,7 @@ The platform is **production-ready for its core use case** — managing cohorts,
 - ✅ `RecordingsController` — full CRUD + presign endpoint + stream_url + reorder
 - ✅ `WatchProgressController` — update from player + staff views (per-student, per-cohort matrix)
 - ✅ `StudentRecordingsController` — unified endpoint returning both legacy YouTube and S3 recordings
+- ✅ Request/model coverage for recording CRUD guards, stream authorization, watch progress, and staff matrices
 
 ### 2.2 Frontend ✅
 - ✅ Custom HTML5 `VideoPlayer` component with presigned URL streaming

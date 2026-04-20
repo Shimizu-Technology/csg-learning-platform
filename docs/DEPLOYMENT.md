@@ -35,7 +35,7 @@
 
 ```
 RAILS_ENV=production
-RAILS_MASTER_KEY=<from api/config/master.key>
+RAILS_MASTER_KEY=<production Rails master key from your password manager>
 DATABASE_URL=<Neon connection string>
 FRONTEND_URL=https://learn.codeschoolofguam.com
 CLERK_ISSUER=https://<your-clerk-app>.clerk.accounts.dev
@@ -88,7 +88,7 @@ bin/rails console
 | Build command | `npm run build` |
 | Publish directory | `web/dist` |
 | Base directory | `web` |
-| Node version | 20 (set in Netlify environment) |
+| Node version | 20.19+ or 22.12+ (set in Netlify environment) |
 
 ### Environment Variables (Netlify Dashboard)
 
