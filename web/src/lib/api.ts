@@ -135,12 +135,12 @@ export const api = {
     }),
   archiveAnnouncement: (id: number) =>
     fetchApi<AnnouncementResponse>(`/api/v1/announcements/${id}`, { method: 'DELETE' }),
-  getNotifications: (limit = 20) =>
-    fetchApi<NotificationsResponse>(`/api/v1/notifications?limit=${limit}`),
+  getNotifications: (limit = 20, notificationType?: string) =>
+    fetchApi<NotificationsResponse>(`/api/v1/notifications?limit=${limit}${notificationType ? `&notification_type=${notificationType}` : ''}`),
   markNotificationRead: (id: number) =>
     fetchApi<NotificationResponse>(`/api/v1/notifications/${id}/read`, { method: 'PATCH' }),
-  markAllNotificationsRead: () =>
-    fetchApi<MarkAllNotificationsReadResponse>('/api/v1/notifications/mark_all_read', { method: 'PATCH' }),
+  markAllNotificationsRead: (notificationType?: string) =>
+    fetchApi<MarkAllNotificationsReadResponse>(`/api/v1/notifications/mark_all_read${notificationType ? `?notification_type=${notificationType}` : ''}`, { method: 'PATCH' }),
   getPushConfig: () =>
     fetchApi<PushConfigResponse>('/api/v1/push_subscriptions/config'),
   createPushSubscription: (subscription: { endpoint: string; keys: { p256dh: string; auth: string } }) =>

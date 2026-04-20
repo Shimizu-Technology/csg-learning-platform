@@ -19,7 +19,7 @@ module Api
 
         render json: {
           announcements: paged_announcements.map { |announcement| announcement_json(announcement, notification_index[announcement.id]) },
-          unread_count: current_user.notifications.unread.count
+          unread_count: current_user.notifications.announcement.unread.count
         }
       end
 

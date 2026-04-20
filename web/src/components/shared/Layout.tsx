@@ -38,7 +38,7 @@ export function Layout({ children }: LayoutProps) {
   useEffect(() => {
     if (!user) return
 
-    api.getNotifications(1).then((res) => {
+    api.getNotifications(1, 'announcement').then((res) => {
       if (res.data) setUnreadCount(res.data.unread_count)
     })
   }, [user, location.pathname])

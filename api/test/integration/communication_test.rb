@@ -100,6 +100,56 @@ class CommunicationTest < ActionDispatch::IntegrationTest
     assert_equal 0, @student.notifications.unread.count
   end
 
+  test "announcement unread actions do not clear unrelated notification types" do
+    announcement = Announcement.create!(
+      title: "Read me",
+      body: "Please read this",
+      author: @admin,
+      audience: :cohort,
+      cohort: @cohort,
+      status: :published
+    )
+    Notification.create!(
+      user: @student,
+      actor: @admin,
+      notifiable: announcement,
+      notification_type: :announcement,
+      title: "Announcement",
+      path: "/announcements/#{announcement.id}"
+    )
+    system_source = Announcement.create!(
+      title: "System source",
+      body: "Used for notification source",
+      author: @admin,
+      audience: :cohort,
+      cohort: @cohort,
+      status: :published
+    )
+    Notification.create!(
+      user: @student,
+      actor: @admin,
+      notifiable: system_source,
+      notification_type: :system,
+      title: "System update",
+      path: "/profile"
+    )
+
+    as_user(@student) do
+      get "/api/v1/notifications", params: { notification_type: "announcement" }, headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal 1, JSON.parse(response.body).fetch("unread_count")
+
+    as_user(@student) do
+      patch "/api/v1/notifications/mark_all_read", params: { notification_type: "announcement" }, headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal 0, @student.notifications.announcement.unread.count
+    assert_equal 1, @student.notifications.system.unread.count
+  end
+
   test "student cannot create announcement" do
     as_user(@student) do
       post "/api/v1/announcements",

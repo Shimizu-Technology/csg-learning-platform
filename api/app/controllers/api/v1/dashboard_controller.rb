@@ -112,12 +112,13 @@ module Api
               start_date: cohort.start_date,
               status: cohort.status,
               announcements: Announcement.visible_for(current_user)
+                .includes(:cohort)
                 .where(audience: :cohort, cohort_id: cohort.id)
-                .or(Announcement.visible_for(current_user).where(audience: :global))
+                .or(Announcement.visible_for(current_user).includes(:cohort).where(audience: :global))
                 .ordered
                 .limit(5)
                 .map { |announcement| dashboard_announcement_json(announcement) },
-              unread_notifications_count: current_user.notifications.unread.count
+              unread_notifications_count: current_user.notifications.announcement.unread.count
             },
             overall_progress: {
               completed: completed_count,

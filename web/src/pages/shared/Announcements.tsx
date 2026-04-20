@@ -87,7 +87,7 @@ export function Announcements() {
           }
           return [res.data!.announcement, ...prev]
         })
-        api.getNotifications(1).then((notificationsRes) => {
+        api.getNotifications(1, 'announcement').then((notificationsRes) => {
           if (notificationsRes.data) setUnreadCount(notificationsRes.data.unread_count)
         })
       }
@@ -120,7 +120,7 @@ export function Announcements() {
   }
 
   const handleMarkAllRead = async () => {
-    const res = await api.markAllNotificationsRead()
+    const res = await api.markAllNotificationsRead('announcement')
     if (res.data) {
       setUnreadCount(res.data.unread_count)
       setAnnouncements((prev) => prev.map((announcement) => ({ ...announcement, read_at: announcement.read_at || new Date().toISOString() })))

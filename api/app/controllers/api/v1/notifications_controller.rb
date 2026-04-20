@@ -6,11 +6,12 @@ module Api
 
       # GET /api/v1/notifications
       def index
-        notifications = current_user.notifications.includes(:actor, :notifiable).recent.limit(limit_param)
+        notifications_scope = scoped_notifications
+        notifications = notifications_scope.includes(:actor, :notifiable).recent.limit(limit_param)
 
         render json: {
           notifications: notifications.map { |notification| notification_json(notification) },
-          unread_count: current_user.notifications.unread.count
+          unread_count: notifications_scope.unread.count
         }
       end
 
@@ -19,13 +20,13 @@ module Api
         @notification.mark_read!
         render json: {
           notification: notification_json(@notification),
-          unread_count: current_user.notifications.unread.count
+          unread_count: scoped_notifications.unread.count
         }
       end
 
       # PATCH /api/v1/notifications/mark_all_read
       def mark_all_read
-        current_user.notifications.unread.update_all(read_at: Time.current, updated_at: Time.current)
+        scoped_notifications.unread.update_all(read_at: Time.current, updated_at: Time.current)
         render json: { unread_count: 0 }
       end
 
@@ -37,6 +38,14 @@ module Api
 
       def limit_param
         params.fetch(:limit, 50).to_i.clamp(1, 100)
+      end
+
+      def scoped_notifications
+        notifications = current_user.notifications
+        return notifications unless params[:notification_type].present?
+        return notifications unless Notification.notification_types.key?(params[:notification_type])
+
+        notifications.where(notification_type: params[:notification_type])
       end
 
       def notification_json(notification)
