@@ -104,6 +104,11 @@ module Api
           return
         end
 
+        if @message.deleted?
+          render_forbidden("Cannot react to deleted messages")
+          return
+        end
+
         emoji = reaction_emoji
         return if performed?
 
@@ -118,6 +123,11 @@ module Api
       def unreact
         unless message_channel_editable?
           render_forbidden("Cannot remove reactions from this message")
+          return
+        end
+
+        if @message.deleted?
+          render_forbidden("Cannot remove reactions from deleted messages")
           return
         end
 
@@ -171,10 +181,14 @@ module Api
       end
 
       def create_message_for(destination)
-        if message_params[:body].to_s.strip.blank? && Array(message_params[:attachments]).empty?
+        attachments = Array(message_params[:attachments])
+
+        if message_params[:body].to_s.strip.blank? && attachments.empty?
           render json: { errors: [ "Message must include text or an attachment" ] }, status: :unprocessable_entity
           return
         end
+
+        attachments.each { |attachment| validate_uploaded_attachment!(attachment) }
 
         message = destination.messages.new(
           body: message_params[:body].to_s,
@@ -184,7 +198,7 @@ module Api
 
         Message.transaction do
           message.save!
-          attach_files!(message)
+          persist_files!(message, attachments)
         end
 
         mark_read_for(message)
@@ -195,9 +209,8 @@ module Api
         render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
       end
 
-      def attach_files!(message)
-        Array(message_params[:attachments]).each do |attachment|
-          validate_uploaded_attachment!(attachment)
+      def persist_files!(message, attachments)
+        attachments.each do |attachment|
           message.message_attachments.create!(
             uploaded_by: current_user,
             s3_key: attachment[:s3_key],

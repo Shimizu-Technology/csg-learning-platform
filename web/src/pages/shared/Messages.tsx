@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -183,6 +183,7 @@ export function Messages() {
   const [error, setError] = useState('')
   const [channelError, setChannelError] = useState('')
   const [dmUserId, setDmUserId] = useState('')
+  const [, setToolbarTick] = useState(0)
   const [channelForm, setChannelForm] = useState({
     cohort_id: '',
     name: '',
@@ -292,6 +293,9 @@ export function Messages() {
     },
     onSelectionUpdate: ({ editor }) => {
       setComposerTriggerText(editorTextBeforeCursor(editor))
+    },
+    onTransaction: () => {
+      setToolbarTick((current) => current + 1)
     },
   })
 
@@ -771,14 +775,25 @@ export function Messages() {
 
     const { from, to, empty } = editor.state.selection
     const selectedText = empty ? '' : editor.state.doc.textBetween(from, to, '\n', '\n')
-    const content = selectedText ? [{ type: 'text', text: selectedText }] : []
-    const chain = editor.chain().focus()
+    const insertAt = from
 
+    const chain = editor.chain().focus()
     if (!empty) chain.deleteRange({ from, to })
-    chain.insertContent([
-      { type: 'codeBlock', content },
-      { type: 'paragraph' },
-    ]).run()
+    chain.insertContentAt(insertAt, {
+      type: 'codeBlock',
+      ...(selectedText ? { content: [{ type: 'text', text: selectedText }] } : {}),
+    }).run()
+
+    window.requestAnimationFrame(() => {
+      const cursorOffset = selectedText.length > 0 ? selectedText.length + 1 : 1
+      editor.chain().focus().setTextSelection(insertAt + cursorOffset).run()
+    })
+  }
+
+  const runToolbarCommand = (event: MouseEvent<HTMLButtonElement>, command: () => void) => {
+    event.preventDefault()
+    command()
+    setToolbarTick((current) => current + 1)
   }
 
   const selectCommand = (command: string) => {
@@ -1307,34 +1322,36 @@ export function Messages() {
                   onDrop={handleDrop}
                 >
                   <div className="flex items-center gap-1 border-b border-slate-100 px-2 py-2 text-slate-500">
-                    <button type="button" onClick={() => fileInputRef.current?.click()} className="rounded-lg p-2 hover:bg-slate-50" aria-label="Attach files">
+                    <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => fileInputRef.current?.click()} className="rounded-lg p-2 hover:bg-slate-50" aria-label="Attach files">
                       <Paperclip className="h-4 w-4" />
                     </button>
-                    <button type="button" onClick={() => editor?.chain().focus().toggleBold().run()} className={`rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('bold') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Bold">
+                    <button type="button" onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleBold().run())} className={`rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('bold') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Bold">
                       <Bold className="h-4 w-4" />
                     </button>
-                    <button type="button" onClick={() => editor?.chain().focus().toggleItalic().run()} className={`rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('italic') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Italic">
+                    <button type="button" onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleItalic().run())} className={`rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('italic') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Italic">
                       <Italic className="h-4 w-4" />
                     </button>
-                    <button type="button" onClick={() => editor?.chain().focus().toggleCode().run()} className={`rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('code') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Inline code">
+                    <button type="button" onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleCode().run())} className={`rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('code') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Inline code">
                       <Code2 className="h-4 w-4" />
                     </button>
-                    <button type="button" onClick={insertCodeBlock} className="rounded-lg px-2 py-1 text-sm hover:bg-slate-50">Code block</button>
-                    <button type="button" onClick={() => insertIntoComposer('@')} className="rounded-lg px-2 py-1 text-sm hover:bg-slate-50">@ mention</button>
-                    <button type="button" onClick={() => insertIntoComposer('/')} className="rounded-lg px-2 py-1 text-sm hover:bg-slate-50">/ command</button>
+                    <button type="button" onMouseDown={(event) => runToolbarCommand(event, insertCodeBlock)} className={`rounded-lg px-2 py-1 text-sm hover:bg-slate-50 ${editor?.isActive('codeBlock') ? 'bg-slate-100 text-slate-900' : ''}`}>Code block</button>
+                    <button type="button" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('@') }} className="rounded-lg px-2 py-1 text-sm hover:bg-slate-50">@ mention</button>
+                    <button type="button" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('/') }} className="rounded-lg px-2 py-1 text-sm hover:bg-slate-50">/ command</button>
                     <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => handleFiles(event.target.files)} />
                   </div>
-                  <div className="flex items-start gap-2 p-2">
-                    <div className="min-w-0 flex-1">
+                  <div className="min-h-[220px] p-2">
+                    <div className="min-h-[160px] min-w-0">
                       <EditorContent editor={editor} onKeyDown={handleComposerKeyDown} />
                     </div>
+                  </div>
+                  <div className="flex items-center justify-end border-t border-slate-100 px-3 py-3">
                     <button
                       type="submit"
                       disabled={sending || (!body.trim() && pendingAttachments.length === 0)}
-                      className="inline-flex h-16 w-28 shrink-0 items-center justify-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
+                      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-500 text-white shadow-sm transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label={sending ? 'Sending message' : 'Send message'}
                     >
                       <Send className="h-4 w-4" />
-                      {sending ? 'Sending' : 'Send'}
                     </button>
                   </div>
                   {mentionSuggestions.length > 0 && (

@@ -148,6 +148,20 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_equal 0, message.message_reactions.count
   end
 
+  test "reactions are blocked on deleted messages" do
+    message = Message.create!(channel: @channel, author: @student, body: "Gone soon", deleted_at: Time.current)
+
+    as_user(@classmate) do
+      post "/api/v1/messages/#{message.id}/reactions",
+        params: { emoji: "👍" },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :forbidden
+    assert_equal 0, message.message_reactions.count
+  end
+
   test "students cannot pin messages" do
     message = Message.create!(channel: @channel, author: @admin, body: "Staff decision")
 
