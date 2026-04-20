@@ -76,7 +76,7 @@ module Api
 
       def announcement_params
         permitted = params.permit(:title, :body, :audience, :cohort_id, :status, :pinned, :published_at)
-        permitted[:cohort_id] = nil unless permitted[:audience] == "cohort"
+        permitted[:cohort_id] = nil if permitted.key?(:audience) && permitted[:audience] != "cohort"
         permitted
       end
 

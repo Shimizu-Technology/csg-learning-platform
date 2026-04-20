@@ -100,6 +100,30 @@ class CommunicationTest < ActionDispatch::IntegrationTest
     assert_equal 0, @student.notifications.unread.count
   end
 
+  test "staff can patch cohort announcement without resending audience or cohort id" do
+    announcement = Announcement.create!(
+      title: "Original",
+      body: "Please read this",
+      author: @admin,
+      audience: :cohort,
+      cohort: @cohort,
+      status: :published
+    )
+
+    as_user(@admin) do
+      patch "/api/v1/announcements/#{announcement.id}",
+        params: { title: "Updated" },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :success
+    announcement.reload
+    assert_equal "Updated", announcement.title
+    assert_equal "cohort", announcement.audience
+    assert_equal @cohort, announcement.cohort
+  end
+
   test "announcement unread actions do not clear unrelated notification types" do
     announcement = Announcement.create!(
       title: "Read me",
