@@ -9,6 +9,7 @@ import { Recordings } from './pages/student/Recordings'
 import { Resources } from './pages/student/Resources'
 import { Profile } from './pages/student/Profile'
 import { Announcements } from './pages/shared/Announcements'
+import { Messages } from './pages/shared/Messages'
 import { AdminDashboard } from './pages/admin/AdminDashboard'
 import { StudentDetail } from './pages/admin/StudentDetail'
 import { StudentManagement } from './pages/admin/StudentManagement'
@@ -40,6 +41,8 @@ function AppRoutes() {
           <Route path="/resources" element={<Resources />} />
           <Route path="/announcements" element={<Announcements />} />
           <Route path="/announcements/:id" element={<Announcements />} />
+          <Route path="/messages" element={<Messages />} />
+          <Route path="/messages/:channelId" element={<Messages />} />
         </Route>
 
         {/* Staff routes (admin + instructor) */}

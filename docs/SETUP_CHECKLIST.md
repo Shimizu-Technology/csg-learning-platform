@@ -65,7 +65,7 @@ magick favicon-32x32.png favicon-16x16.png favicon.ico
 
 ## PWA Push Notifications
 
-Phase 4 announcements can send browser push notifications after the app has VAPID keys configured.
+Phase 4 announcements and messages can send browser push notifications after the app has VAPID keys configured.
 
 1. Generate keys from the API directory:
 
@@ -83,7 +83,7 @@ Phase 4 announcements can send browser push notifications after the app has VAPI
 
 4. Redeploy API and web.
 
-5. In the installed PWA, sign in and use **Announcements → Turn on push**.
+5. In the installed PWA, sign in and use **Announcements → Turn on push** or **Messages → Turn on push**.
 
 Notes:
 - iOS push requires installing the site to the home screen first.

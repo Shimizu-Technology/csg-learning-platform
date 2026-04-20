@@ -219,6 +219,58 @@ export interface PushSubscriptionResponse {
   };
 }
 
+export interface ChannelSummary {
+  id: number;
+  cohort_id: number;
+  cohort_name: string;
+  name: string;
+  description: string | null;
+  visibility: 'cohort' | 'staff_only';
+  status: 'active' | 'archived';
+  position: number;
+  unread_count: number;
+  last_read_at: string | null;
+  latest_message: {
+    id: number;
+    body: string;
+    created_at: string;
+    author_name: string;
+  } | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChannelMessage {
+  id: number;
+  channel_id: number;
+  body: string;
+  edited_at: string | null;
+  deleted_at: string | null;
+  created_at: string;
+  updated_at: string;
+  mine: boolean;
+  author: {
+    id: number;
+    full_name: string;
+    email: string;
+    role: string;
+    avatar_url: string | null;
+  };
+}
+
+export interface ChannelsResponse {
+  channels: ChannelSummary[];
+}
+
+export interface ChannelResponse {
+  channel: ChannelSummary;
+  messages?: ChannelMessage[];
+}
+
+export interface MessageResponse {
+  message: ChannelMessage;
+}
+
 export interface CohortSummary {
   id: number;
   name: string;

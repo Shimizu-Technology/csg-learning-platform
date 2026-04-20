@@ -181,24 +181,26 @@ The platform is **production-ready for its core use case** — managing cohorts,
 **Definition of done**
 > Staff can publish a cohort or global announcement, enrolled students see it in-app with unread state, and installed PWA users who opted in receive a push notification.
 
-### 4.2 Phase 4b — Cohort Channels
-- `Channel` model
+### 4.2 Phase 4b — Cohort Channels (IN PROGRESS)
+- `Channel` model ✅
   - Per-cohort default class channel
   - Staff-only channels
   - Alumni/general channels later
-- `Message` model
+- `Message` model ✅
   - Author, body, attachments metadata, edited/deleted timestamps
   - Thread parent support for replies
   - Read receipts or per-channel read cursor
-- Channel UI
+- Channel UI ✅
   - Message list
   - Composer
   - Unread counts
   - Mobile-first layout that feels like a messaging app inside the PWA
-- Delivery strategy
+- Delivery strategy ✅
   - Start with API polling/refetch-on-focus if that gets value shipped faster
-  - Add ActionCable/WebSockets once the domain model is stable
-- Push notifications for new channel messages
+  - 🔲 Add ActionCable/WebSockets once the domain model is stable
+- Push notifications for new channel messages ⚠️
+  - ✅ Create in-app notifications for new messages
+  - ✅ Enqueue Web Push delivery for opted-in recipients
   - Respect muted channels and notification preferences
   - Collapse noisy bursts where possible
 

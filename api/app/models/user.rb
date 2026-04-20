@@ -12,6 +12,8 @@ class User < ApplicationRecord
   has_many :notifications, dependent: :destroy
   has_many :acted_notifications, class_name: "Notification", foreign_key: :actor_id, dependent: :nullify
   has_many :push_subscriptions, dependent: :destroy
+  has_many :messages, foreign_key: :author_id, dependent: :nullify
+  has_many :channel_read_states, dependent: :destroy
 
   validates :clerk_id, presence: true, uniqueness: true
   validates :email, presence: true, uniqueness: { case_sensitive: false }

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_20_062126) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_20_102605) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -94,6 +94,33 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_20_062126) do
     t.datetime "updated_at", null: false
     t.text "welcome_sms_template"
     t.index ["status"], name: "index_campaigns_on_status"
+  end
+
+  create_table "channel_read_states", force: :cascade do |t|
+    t.bigint "channel_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "last_read_at"
+    t.bigint "last_read_message_id"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["channel_id"], name: "index_channel_read_states_on_channel_id"
+    t.index ["last_read_message_id"], name: "index_channel_read_states_on_last_read_message_id"
+    t.index ["user_id", "channel_id"], name: "index_channel_read_states_on_user_id_and_channel_id", unique: true
+    t.index ["user_id"], name: "index_channel_read_states_on_user_id"
+  end
+
+  create_table "channels", force: :cascade do |t|
+    t.bigint "cohort_id", null: false
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.string "name", null: false
+    t.integer "position", default: 0, null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.integer "visibility", default: 0, null: false
+    t.index ["cohort_id", "name"], name: "index_channels_on_cohort_id_and_name", unique: true
+    t.index ["cohort_id", "status", "position"], name: "index_channels_on_cohort_id_and_status_and_position"
+    t.index ["cohort_id"], name: "index_channels_on_cohort_id"
   end
 
   create_table "cohorts", force: :cascade do |t|
@@ -531,6 +558,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_20_062126) do
     t.index ["module_id", "position"], name: "index_lessons_on_module_id_and_position"
     t.index ["module_id", "release_day"], name: "index_lessons_on_module_id_and_release_day"
     t.index ["module_id"], name: "index_lessons_on_module_id"
+  end
+
+  create_table "messages", force: :cascade do |t|
+    t.bigint "author_id", null: false
+    t.text "body", null: false
+    t.bigint "channel_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.datetime "edited_at"
+    t.bigint "parent_message_id"
+    t.datetime "updated_at", null: false
+    t.index ["author_id"], name: "index_messages_on_author_id"
+    t.index ["channel_id", "created_at"], name: "index_messages_on_channel_id_and_created_at"
+    t.index ["channel_id", "deleted_at"], name: "index_messages_on_channel_id_and_deleted_at"
+    t.index ["channel_id"], name: "index_messages_on_channel_id"
+    t.index ["parent_message_id"], name: "index_messages_on_parent_message_id"
   end
 
   create_table "module_assignments", force: :cascade do |t|
@@ -1185,6 +1228,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_20_062126) do
   add_foreign_key "announcements", "users", column: "author_id"
   add_foreign_key "audit_logs", "users", column: "actor_user_id"
   add_foreign_key "blocks", "villages"
+  add_foreign_key "channel_read_states", "channels"
+  add_foreign_key "channel_read_states", "messages", column: "last_read_message_id"
+  add_foreign_key "channel_read_states", "users"
+  add_foreign_key "channels", "cohorts"
   add_foreign_key "cohorts", "curricula", column: "curriculum_id"
   add_foreign_key "company_ytd_totals", "companies"
   add_foreign_key "content_blocks", "lessons"
@@ -1217,6 +1264,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_20_062126) do
   add_foreign_key "lesson_assignments", "enrollments"
   add_foreign_key "lesson_assignments", "lessons"
   add_foreign_key "lessons", "modules"
+  add_foreign_key "messages", "channels"
+  add_foreign_key "messages", "messages", column: "parent_message_id"
+  add_foreign_key "messages", "users", column: "author_id"
   add_foreign_key "module_assignments", "enrollments"
   add_foreign_key "module_assignments", "modules"
   add_foreign_key "modules", "curricula", column: "curriculum_id"

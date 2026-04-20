@@ -42,6 +42,9 @@ import type {
   MarkAllNotificationsReadResponse,
   PushConfigResponse,
   PushSubscriptionResponse,
+  ChannelsResponse,
+  ChannelResponse,
+  MessageResponse,
 } from '../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
@@ -153,6 +156,29 @@ export const api = {
       method: 'DELETE',
       body: JSON.stringify({ endpoint }),
     }),
+  getChannels: () =>
+    fetchApi<ChannelsResponse>('/api/v1/channels'),
+  getChannel: (id: number) =>
+    fetchApi<ChannelResponse>(`/api/v1/channels/${id}`),
+  createChannel: (data: { cohort_id: number; name: string; description?: string; visibility?: string }) =>
+    fetchApi<ChannelResponse>('/api/v1/channels', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  markChannelRead: (id: number) =>
+    fetchApi<ChannelResponse>(`/api/v1/channels/${id}/read`, { method: 'PATCH' }),
+  createMessage: (channelId: number, data: { body: string; parent_message_id?: number | null; send_push?: boolean }) =>
+    fetchApi<MessageResponse>(`/api/v1/channels/${channelId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateMessage: (id: number, data: { body: string }) =>
+    fetchApi<MessageResponse>(`/api/v1/messages/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteMessage: (id: number) =>
+    fetchApi<MessageResponse>(`/api/v1/messages/${id}`, { method: 'DELETE' }),
 
   // Profile
   getProfile: () =>

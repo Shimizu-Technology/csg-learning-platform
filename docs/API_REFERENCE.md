@@ -286,6 +286,51 @@ Returns resources/links for the current user's active cohort.
 
 ---
 
+## Channels & Messages
+
+### Channels
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/api/v1/channels` | Any signed-in user | List channels visible to the current user with unread counts |
+| `GET` | `/api/v1/channels/:id` | Channel member / Staff | Show a channel and recent messages |
+| `POST` | `/api/v1/channels` | Staff | Create a cohort or staff-only channel |
+| `PATCH` | `/api/v1/channels/:id` | Staff | Update channel metadata |
+| `DELETE` | `/api/v1/channels/:id` | Staff | Archive a channel |
+| `PATCH` | `/api/v1/channels/:id/read` | Channel member / Staff | Mark a channel read for the current user |
+
+**Create body:**
+```json
+{
+  "cohort_id": 3,
+  "name": "Class Chat",
+  "description": "General class discussion.",
+  "visibility": "cohort"
+}
+```
+
+`visibility` may be `cohort` or `staff_only`. A default `Class Chat` channel is created automatically for every cohort.
+
+### Messages
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `POST` | `/api/v1/channels/:channel_id/messages` | Channel member / Staff | Post a message |
+| `PATCH` | `/api/v1/messages/:id` | Author / Staff | Edit a message |
+| `DELETE` | `/api/v1/messages/:id` | Author / Staff | Soft-delete a message |
+
+**Create body:**
+```json
+{
+  "body": "Can someone share the Zoom link?",
+  "send_push": true
+}
+```
+
+Posting a message creates in-app `message` notifications for other visible channel recipients and can enqueue Web Push delivery when push is configured.
+
+---
+
 ## Cohorts
 
 | Method | Path | Auth | Description |

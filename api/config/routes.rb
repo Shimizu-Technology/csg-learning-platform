@@ -29,6 +29,13 @@ Rails.application.routes.draw do
       get "push_subscriptions/config", to: "push_subscriptions#config"
       post "push_subscriptions", to: "push_subscriptions#create"
       delete "push_subscriptions", to: "push_subscriptions#destroy"
+      resources :channels, only: [ :index, :show, :create, :update, :destroy ] do
+        member do
+          patch :read, to: "channels#mark_read"
+        end
+        resources :messages, only: [ :create ]
+      end
+      resources :messages, only: [ :update, :destroy ]
 
       # Watch progress (student updates their own)
       patch "watch_progress", to: "watch_progresses#update"

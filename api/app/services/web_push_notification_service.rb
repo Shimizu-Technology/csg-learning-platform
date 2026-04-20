@@ -14,6 +14,12 @@ class WebPushNotificationService
     new.announcement_published(announcement, notifications)
   end
 
+  def self.message_created(message, notifications)
+    return false unless configured?
+
+    new.message_created(message, notifications)
+  end
+
   def announcement_published(announcement, notifications)
     payload = {
       title: "New CSG announcement",
@@ -22,13 +28,28 @@ class WebPushNotificationService
       tag: "announcement-#{announcement.id}"
     }.to_json
 
+    deliver_to_notifications(notifications, payload)
+  end
+
+  def message_created(message, notifications)
+    payload = {
+      title: message.channel.name,
+      body: "#{message.author.full_name}: #{message.body.truncate(120)}",
+      path: "/messages/#{message.channel_id}",
+      tag: "channel-#{message.channel_id}"
+    }.to_json
+
+    deliver_to_notifications(notifications, payload)
+  end
+
+  private
+
+  def deliver_to_notifications(notifications, payload)
     user_ids = notifications.map(&:user_id).uniq
     PushSubscription.active.where(user_id: user_ids).find_each do |subscription|
       deliver(subscription, payload)
     end
   end
-
-  private
 
   def deliver(subscription, payload)
     WebPush.payload_send(

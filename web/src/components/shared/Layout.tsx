@@ -15,6 +15,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Bell,
+  MessageCircle,
 } from 'lucide-react'
 import { UserButton } from '@clerk/clerk-react'
 import { useAuthContext } from '../../contexts/AuthContext'
@@ -32,6 +33,7 @@ export function Layout({ children }: LayoutProps) {
   const location = useLocation()
   const { user, isClerkEnabled, isLoading } = useAuthContext()
   const [unreadCount, setUnreadCount] = useState(0)
+  const [messageUnreadCount, setMessageUnreadCount] = useState(0)
   const isStaff = user?.is_staff
   const isFullAdmin = user?.is_admin
 
@@ -40,6 +42,9 @@ export function Layout({ children }: LayoutProps) {
 
     api.getNotifications(1, 'announcement').then((res) => {
       if (res.data) setUnreadCount(res.data.unread_count)
+    })
+    api.getChannels().then((res) => {
+      if (res.data) setMessageUnreadCount(res.data.channels.reduce((sum, channel) => sum + channel.unread_count, 0))
     })
   }, [user, location.pathname])
 
@@ -58,6 +63,7 @@ export function Layout({ children }: LayoutProps) {
     { to: '/admin/cohorts', icon: Layers3, label: 'Cohorts' },
     { to: '/admin/content', icon: FileText, label: 'Content' },
     { to: '/admin/grading', icon: ClipboardCheck, label: 'Grading' },
+    { to: '/messages', icon: MessageCircle, label: 'Messages' },
     { to: '/announcements', icon: Bell, label: 'Announcements' },
     { to: '/admin/team', icon: Users, label: 'Team' },
     { to: '/profile', icon: User, label: 'Profile' },
@@ -67,6 +73,7 @@ export function Layout({ children }: LayoutProps) {
     { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', exact: true },
     { to: '/admin/cohorts', icon: Layers3, label: 'Cohorts' },
     { to: '/admin/grading', icon: ClipboardCheck, label: 'Grading' },
+    { to: '/messages', icon: MessageCircle, label: 'Messages' },
     { to: '/announcements', icon: Bell, label: 'Announcements' },
     { to: '/profile', icon: User, label: 'Profile' },
   ]
@@ -75,6 +82,7 @@ export function Layout({ children }: LayoutProps) {
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/recordings', icon: PlayCircle, label: 'Recordings' },
     { to: '/resources', icon: Link2, label: 'Resources' },
+    { to: '/messages', icon: MessageCircle, label: 'Messages' },
     { to: '/announcements', icon: Bell, label: 'Announcements' },
     { to: '/profile', icon: User, label: 'Profile' },
   ]
@@ -133,6 +141,9 @@ export function Layout({ children }: LayoutProps) {
                   {item.to === '/announcements' && unreadCount > 0 && (
                     <span className="absolute -right-2 -top-2 h-2.5 w-2.5 rounded-full bg-primary-500 ring-2 ring-white" />
                   )}
+                  {item.to === '/messages' && messageUnreadCount > 0 && (
+                    <span className="absolute -right-2 -top-2 h-2.5 w-2.5 rounded-full bg-primary-500 ring-2 ring-white" />
+                  )}
                 </span>
                 {item.label}
               </Link>
@@ -166,11 +177,19 @@ export function Layout({ children }: LayoutProps) {
                   {item.to === '/announcements' && unreadCount > 0 && (
                     <span className="absolute -right-2 -top-2 h-2.5 w-2.5 rounded-full bg-primary-500 ring-2 ring-white" />
                   )}
+                  {item.to === '/messages' && messageUnreadCount > 0 && (
+                    <span className="absolute -right-2 -top-2 h-2.5 w-2.5 rounded-full bg-primary-500 ring-2 ring-white" />
+                  )}
                 </span>
                 {!collapsed && item.label}
                 {!collapsed && item.to === '/announcements' && unreadCount > 0 && (
                   <span className="ml-auto rounded-full bg-primary-100 px-2 py-0.5 text-xs font-semibold text-primary-700">
                     {unreadCount}
+                  </span>
+                )}
+                {!collapsed && item.to === '/messages' && messageUnreadCount > 0 && (
+                  <span className="ml-auto rounded-full bg-primary-100 px-2 py-0.5 text-xs font-semibold text-primary-700">
+                    {messageUnreadCount}
                   </span>
                 )}
               </Link>
