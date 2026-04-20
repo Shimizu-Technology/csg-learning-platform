@@ -35,7 +35,7 @@
 
 ```
 RAILS_ENV=production
-RAILS_MASTER_KEY=<from api/config/master.key>
+RAILS_MASTER_KEY=<production Rails master key from your password manager>
 DATABASE_URL=<Neon connection string>
 FRONTEND_URL=https://learn.codeschoolofguam.com
 CLERK_ISSUER=https://<your-clerk-app>.clerk.accounts.dev
@@ -88,7 +88,7 @@ bin/rails console
 | Build command | `npm run build` |
 | Publish directory | `web/dist` |
 | Base directory | `web` |
-| Node version | 20 (set in Netlify environment) |
+| Node version | 20.19+ or 22.12+ (set in Netlify environment) |
 
 ### Environment Variables (Netlify Dashboard)
 
@@ -175,7 +175,7 @@ After first deployment or major changes:
 
 1. Check Render logs for stack trace
 2. Verify `DATABASE_URL` is correct and Neon is accessible
-3. Verify `RAILS_MASTER_KEY` matches `config/master.key`
+3. Verify `RAILS_MASTER_KEY` matches the production value in your password manager
 4. Check if migrations need to run
 
 ### Frontend shows blank page

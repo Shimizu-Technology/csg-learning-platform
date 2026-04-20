@@ -29,8 +29,8 @@ csg-learning-platform/
 
 ### Prerequisites
 
-- Ruby 3.3+ and Bundler
-- Node.js 20+ and npm
+- Ruby 3.3.7+ and Bundler 4+
+- Node.js 20.19+ or 22.12+ and npm
 - PostgreSQL 16+
 
 ### Backend Setup

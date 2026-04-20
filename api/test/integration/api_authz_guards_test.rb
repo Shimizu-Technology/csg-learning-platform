@@ -200,6 +200,77 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
     assert_response :created
   end
 
+  test "unknown clerk user is rejected instead of auto-enrolled" do
+    payload = {
+      "sub" => "clerk_unknown",
+      "email" => "unknown@example.com",
+      "first_name" => "Unknown",
+      "last_name" => "Student"
+    }
+
+    original_verify = ClerkAuth.method(:verify)
+    ClerkAuth.define_singleton_method(:verify) { |_token| payload }
+
+    post "/api/v1/sessions", headers: auth_headers
+
+    assert_response :unauthorized
+    refute User.exists?(email: "unknown@example.com")
+  ensure
+    ClerkAuth.define_singleton_method(:verify, original_verify) if original_verify
+  end
+
+  test "production ignores open signup escape hatch" do
+    payload = {
+      "sub" => "clerk_env_signup",
+      "email" => "env-signup@example.com",
+      "first_name" => "Env",
+      "last_name" => "Signup"
+    }
+
+    original_verify = ClerkAuth.method(:verify)
+    original_rails_env = Rails.method(:env)
+    original_open_signups = ENV["ALLOW_OPEN_SIGNUPS"]
+    ClerkAuth.define_singleton_method(:verify) { |_token| payload }
+    Rails.define_singleton_method(:env) { ActiveSupport::StringInquirer.new("production") }
+    ENV["ALLOW_OPEN_SIGNUPS"] = "true"
+
+    post "/api/v1/sessions", headers: auth_headers
+
+    assert_response :unauthorized
+    refute User.exists?(email: "env-signup@example.com")
+  ensure
+    ENV["ALLOW_OPEN_SIGNUPS"] = original_open_signups
+    ClerkAuth.define_singleton_method(:verify, original_verify) if original_verify
+    Rails.define_singleton_method(:env, original_rails_env) if original_rails_env
+  end
+
+  test "pending invited user can complete clerk sync" do
+    invited = User.create!(
+      clerk_id: "pending_#{SecureRandom.uuid}",
+      email: "invited@example.com",
+      first_name: "Invited",
+      last_name: "Student",
+      role: :student
+    )
+
+    payload = {
+      "sub" => "clerk_invited",
+      "email" => "invited@example.com",
+      "first_name" => "Invited",
+      "last_name" => "Student"
+    }
+
+    original_verify = ClerkAuth.method(:verify)
+    ClerkAuth.define_singleton_method(:verify) { |_token| payload }
+
+    post "/api/v1/sessions", headers: auth_headers
+
+    assert_response :success
+    assert_equal "clerk_invited", invited.reload.clerk_id
+  ensure
+    ClerkAuth.define_singleton_method(:verify, original_verify) if original_verify
+  end
+
   test "unenrolled student cannot create submission" do
     as_user(@student_two) do
       post "/api/v1/submissions",

@@ -97,7 +97,11 @@ export function ContentManagement() {
 
   const toggleModule = (moduleId: number) => {
     const next = new Set(expandedModules)
-    next.has(moduleId) ? next.delete(moduleId) : next.add(moduleId)
+    if (next.has(moduleId)) {
+      next.delete(moduleId)
+    } else {
+      next.add(moduleId)
+    }
     setExpandedModules(next)
   }
 

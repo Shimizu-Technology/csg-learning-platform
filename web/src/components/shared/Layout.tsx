@@ -35,7 +35,11 @@ export function Layout({ children }: LayoutProps) {
   const toggleCollapsed = () => {
     const next = !collapsed
     setCollapsed(next)
-    try { localStorage.setItem('sidebar-collapsed', String(next)) } catch {}
+    try {
+      localStorage.setItem('sidebar-collapsed', String(next))
+    } catch {
+      // Ignore unavailable storage in private browsing or locked-down WebViews.
+    }
   }
 
   const adminNav = [

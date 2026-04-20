@@ -106,8 +106,10 @@ module ClerkAuthenticatable
       end
     end
 
-    # Auto-create first user as admin
-    if User.count.zero?
+    # Auto-create first user as admin only in local/test bootstrap contexts.
+    # Production should be explicitly seeded/invited, not opened by whoever
+    # signs in first through Clerk.
+    if User.count.zero? && allow_auth_bootstrap?
       user_email = email.presence || "#{clerk_id}@placeholder.local"
       return User.create(
         clerk_id: clerk_id,
@@ -119,8 +121,9 @@ module ClerkAuthenticatable
       )
     end
 
-    # Auto-create new users as students and enroll in active cohort
-    if email.present?
+    # Local development can optionally mimic open signups. Production remains
+    # invite-only: new Clerk identities must match a pending user record above.
+    if email.present? && allow_open_signup?
       user = User.create(
         clerk_id: clerk_id,
         email: email,
@@ -148,6 +151,18 @@ module ClerkAuthenticatable
     end
 
     nil
+  end
+
+  def allow_auth_bootstrap?
+    return false if Rails.env.production?
+
+    Rails.env.development? || Rails.env.test? || ActiveModel::Type::Boolean.new.cast(ENV["ALLOW_AUTH_BOOTSTRAP"])
+  end
+
+  def allow_open_signup?
+    return false if Rails.env.production?
+
+    Rails.env.development? || ActiveModel::Type::Boolean.new.cast(ENV["ALLOW_OPEN_SIGNUPS"])
   end
 
   def render_unauthorized(message = "Unauthorized")

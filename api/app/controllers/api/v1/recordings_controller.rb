@@ -69,6 +69,11 @@ module Api
 
       # POST /api/v1/cohorts/:cohort_id/recordings
       def create
+        unless S3Service.configured?
+          render json: { error: "S3 not configured" }, status: :service_unavailable
+          return
+        end
+
         # Apply the same content_type validation that presign uses so a forged
         # create payload can't persist a non-video MIME (e.g. application/zip)
         # against an s3_key that may have been uploaded under it. Presign is
@@ -76,6 +81,12 @@ module Api
         # record visible to students, so the same regex must hold here.
         content_type = validated_video_content_type(params[:content_type] || "video/mp4")
         return if content_type.nil?
+
+        upload_error = validate_uploaded_object!(content_type)
+        if upload_error
+          render json: { error: upload_error }, status: :unprocessable_entity
+          return
+        end
 
         # Serialize concurrent creates so two simultaneous uploads can't compute
         # the same `next_position` and produce duplicate slots. Locking the cohort
@@ -243,6 +254,27 @@ module Api
         end
 
         json
+      end
+
+      def validate_uploaded_object!(content_type)
+        key = params[:s3_key].to_s
+        return "s3_key is required" if key.blank?
+
+        expected_prefix = "recordings/cohort_#{@cohort.id}/"
+        return "s3_key must belong to this cohort" unless key.start_with?(expected_prefix)
+
+        metadata = S3Service.object_metadata(key)
+        return "Uploaded video was not found in S3" unless metadata
+
+        expected_size = params[:file_size].to_i
+        if expected_size.positive? && metadata[:content_length].to_i != expected_size
+          return "Uploaded video size does not match"
+        end
+
+        uploaded_content_type = metadata[:content_type].to_s.split(";").first.to_s.strip.downcase
+        return nil if uploaded_content_type == content_type
+
+        "Uploaded video content type does not match"
       end
     end
   end
