@@ -125,6 +125,34 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_includes JSON.parse(response.body).fetch("errors"), "Message must include text or an attachment"
   end
 
+  test "mark read reuses existing read state without validation failure" do
+    message = Message.create!(channel: @channel, author: @admin, body: "Read me")
+    ChannelReadState.create!(user: @student, channel: @channel, last_read_at: 1.hour.ago)
+
+    as_user(@student) do
+      patch "/api/v1/channels/#{@channel.id}/read", headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal message, @student.channel_read_states.find_by!(channel: @channel).last_read_message
+  end
+
+  test "attachment presign rejects svg content types" do
+    original_configured = S3Service.method(:configured?)
+    S3Service.define_singleton_method(:configured?) { true }
+
+    as_user(@student) do
+      post "/api/v1/message_attachments/presign",
+        params: { channel_id: @channel.id, filename: "logo.svg", content_type: "image/svg+xml" },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :unprocessable_entity
+  ensure
+    S3Service.define_singleton_method(:configured?, original_configured)
+  end
+
   test "search only returns messages visible to the current user" do
     visible_message = Message.create!(channel: @channel, author: @admin, body: "Searchable cohort note")
     staff_channel = @cohort.channels.create!(name: "Staff Room", visibility: :staff_only)

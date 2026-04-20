@@ -73,7 +73,7 @@ module Api
         end
 
         last_message = @channel.messages.visible.order(created_at: :desc, id: :desc).first
-        read_state = current_user.channel_read_states.create_or_find_by!(channel: @channel)
+        read_state = find_or_create_read_state(@channel)
         read_state.mark_read!(last_message)
         current_user.notifications.message.where(path: "/messages/#{@channel.id}").unread.update_all(read_at: Time.current, updated_at: Time.current)
 
@@ -161,6 +161,12 @@ module Api
         current_user.message_preferences
           .where(target_type: target_type, target_id: target_ids, muted: true)
           .pluck(:target_id)
+      end
+
+      def find_or_create_read_state(channel)
+        current_user.channel_read_states.find_or_create_by!(channel: channel)
+      rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
+        current_user.channel_read_states.find_by!(channel: channel)
       end
 
       def message_json(message)

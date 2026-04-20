@@ -94,7 +94,7 @@ async function fetchApi<T>(
       const errorBody = await response.json().catch(() => ({}));
       return {
         data: null,
-        error: errorBody.error || `Request failed with status ${response.status}`,
+        error: errorBody.error || (Array.isArray(errorBody.errors) ? errorBody.errors.join(', ') : null) || `Request failed with status ${response.status}`,
       };
     }
 

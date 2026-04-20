@@ -2,7 +2,8 @@ module Api
   module V1
     class MessageAttachmentsController < ApplicationController
       MAX_MESSAGE_UPLOAD_SIZE = 25.megabytes
-      ALLOWED_PREFIXES = %r{\A(image/|application/pdf\z|text/plain\z|application/zip\z|application/x-zip-compressed\z)}i
+      ALLOWED_IMAGE_TYPES = %w[image/jpeg image/png image/webp image/gif].freeze
+      ALLOWED_FILE_TYPES = %w[application/pdf text/plain application/zip application/x-zip-compressed].freeze
 
       before_action :authenticate_user!
 
@@ -22,7 +23,7 @@ module Api
         end
 
         content_type = params[:content_type].to_s.strip.downcase
-        unless content_type.match?(ALLOWED_PREFIXES)
+        unless allowed_content_type?(content_type)
           render json: { error: "content_type is not allowed for message attachments" }, status: :unprocessable_entity
           return
         end
@@ -56,6 +57,10 @@ module Api
         safe_name = filename.gsub(/[^a-zA-Z0-9.\-_]/, "_")
         folder = destination.is_a?(Channel) ? "channel_#{destination.id}" : "dm_#{destination.id}"
         "message_attachments/#{folder}/#{SecureRandom.uuid}/#{safe_name}"
+      end
+
+      def allowed_content_type?(content_type)
+        ALLOWED_IMAGE_TYPES.include?(content_type) || ALLOWED_FILE_TYPES.include?(content_type)
       end
     end
   end

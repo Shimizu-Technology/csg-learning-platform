@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   Bell,
@@ -102,6 +102,8 @@ export function Messages() {
   const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'error'>('disconnected')
   const [body, setBody] = useState('')
   const [composerCursor, setComposerCursor] = useState(0)
+  const [activeMentionIndex, setActiveMentionIndex] = useState(0)
+  const [activeCommandIndex, setActiveCommandIndex] = useState(0)
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([])
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [replyTo, setReplyTo] = useState<ChannelMessage | null>(null)
@@ -173,6 +175,14 @@ export function Messages() {
   const commandSuggestions = useMemo(() => {
     if (commandToken === null) return []
     return SLASH_COMMANDS.filter((item) => item.command.slice(1).startsWith(commandToken)).slice(0, 5)
+  }, [commandToken])
+
+  useEffect(() => {
+    setActiveMentionIndex(0)
+  }, [mentionToken])
+
+  useEffect(() => {
+    setActiveCommandIndex(0)
   }, [commandToken])
 
   const loadLists = async () => {
@@ -603,6 +613,58 @@ export function Messages() {
     insertIntoComposer(insert, /(^|\n)\/[a-z]*$/)
   }
 
+  const handleComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mentionSuggestions.length > 0) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        setActiveMentionIndex((current) => (current + 1) % mentionSuggestions.length)
+        return
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        setActiveMentionIndex((current) => (current - 1 + mentionSuggestions.length) % mentionSuggestions.length)
+        return
+      }
+      if (event.key === 'Enter' || event.key === 'Tab') {
+        event.preventDefault()
+        selectMention(mentionSuggestions[activeMentionIndex])
+        return
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setComposerCursor(-1)
+        return
+      }
+    }
+
+    if (commandSuggestions.length > 0) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        setActiveCommandIndex((current) => (current + 1) % commandSuggestions.length)
+        return
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        setActiveCommandIndex((current) => (current - 1 + commandSuggestions.length) % commandSuggestions.length)
+        return
+      }
+      if (event.key === 'Enter' || event.key === 'Tab') {
+        event.preventDefault()
+        selectCommand(commandSuggestions[activeCommandIndex].insert)
+        return
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setComposerCursor(-1)
+        return
+      }
+    }
+
+    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+      event.currentTarget.form?.requestSubmit()
+    }
+  }
+
   const saveEdit = async (message: ChannelMessage) => {
     if (!editBody.trim()) return
 
@@ -689,7 +751,7 @@ export function Messages() {
         )}
       </div>
 
-      <div className={`grid min-h-[680px] overflow-hidden rounded-lg border border-slate-200 bg-white ${sidebarCollapsed ? 'lg:grid-cols-1' : 'lg:grid-cols-[340px_minmax(0,1fr)]'}`}>
+      <div className={`grid min-h-[680px] overflow-hidden rounded-lg border border-slate-200 bg-white ${sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[340px_minmax(0,1fr)]'}`}>
         {!sidebarCollapsed && (
         <aside className="border-b border-slate-200 bg-slate-50 lg:border-b-0 lg:border-r">
           <div className="border-b border-slate-200 bg-white p-3">
@@ -875,6 +937,42 @@ export function Messages() {
           </div>
         </aside>
         )}
+        {sidebarCollapsed && (
+          <aside className="hidden border-r border-slate-200 bg-slate-50 p-2 lg:block">
+            <button
+              onClick={() => setSidebarCollapsed(false)}
+              className="mb-3 flex h-11 w-full items-center justify-center rounded-lg text-slate-500 hover:bg-white hover:text-slate-800"
+              aria-label="Show conversation list"
+            >
+              <PanelLeftOpen className="h-5 w-5" />
+            </button>
+            <div className="space-y-2">
+              {visibleChannels.map((channel) => (
+                <button
+                  key={channel.id}
+                  onClick={() => selectTarget({ type: 'channel', id: channel.id })}
+                  title={channel.name}
+                  className={`relative flex h-11 w-full items-center justify-center rounded-lg ${selectedTarget?.type === 'channel' && selectedTarget.id === channel.id ? 'bg-primary-50 text-primary-700' : 'text-slate-500 hover:bg-white hover:text-slate-800'}`}
+                >
+                  {channel.visibility === 'staff_only' ? <Lock className="h-5 w-5" /> : <Hash className="h-5 w-5" />}
+                  {channel.unread_count > 0 && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-primary-500" />}
+                </button>
+              ))}
+              <div className="my-2 border-t border-slate-200" />
+              {visibleDms.map((conversation) => (
+                <button
+                  key={conversation.id}
+                  onClick={() => selectTarget({ type: 'dm', id: conversation.id })}
+                  title={conversation.title}
+                  className={`relative flex h-11 w-full items-center justify-center rounded-lg ${selectedTarget?.type === 'dm' && selectedTarget.id === conversation.id ? 'bg-primary-50 text-primary-700' : 'text-slate-500 hover:bg-white hover:text-slate-800'}`}
+                >
+                  <MessageCircle className="h-5 w-5" />
+                  {conversation.unread_count > 0 && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-primary-500" />}
+                </button>
+              ))}
+            </div>
+          </aside>
+        )}
 
         <section className="flex min-h-[560px] flex-col">
           {selectedTarget && selected ? (
@@ -991,26 +1089,30 @@ export function Messages() {
                     <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => handleFiles(event.target.files)} />
                   </div>
                   <div className="flex gap-2 p-2">
-                    <textarea
-                      ref={textareaRef}
-                      value={body}
-                      onChange={(event) => {
-                        setBody(event.target.value)
-                        setComposerCursor(event.target.selectionStart)
-                      }}
-                      onClick={(event) => setComposerCursor(event.currentTarget.selectionStart)}
-                      onKeyUp={(event) => setComposerCursor(event.currentTarget.selectionStart)}
-                      onSelect={(event) => setComposerCursor(event.currentTarget.selectionStart)}
-                      onPaste={handlePaste}
-                      placeholder={`Message ${selectedLabel}`}
-                      rows={2}
-                      className="min-h-12 flex-1 resize-none border-0 px-2 py-2 text-sm focus:outline-none focus:ring-0"
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-                          event.currentTarget.form?.requestSubmit()
-                        }
-                      }}
-                    />
+                    <div className="min-w-0 flex-1">
+                      {body.trim() && /(`|\*\*|_)/.test(body) && (
+                        <div className="mb-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                          <div className="mb-1 text-xs font-medium text-slate-400">Preview</div>
+                          <FormattedMessage body={body} />
+                        </div>
+                      )}
+                      <textarea
+                        ref={textareaRef}
+                        value={body}
+                        onChange={(event) => {
+                          setBody(event.target.value)
+                          setComposerCursor(event.target.selectionStart)
+                        }}
+                        onClick={(event) => setComposerCursor(event.currentTarget.selectionStart)}
+                        onKeyUp={(event) => setComposerCursor(event.currentTarget.selectionStart)}
+                        onSelect={(event) => setComposerCursor(event.currentTarget.selectionStart)}
+                        onPaste={handlePaste}
+                        placeholder={`Message ${selectedLabel}`}
+                        rows={2}
+                        className="min-h-12 w-full resize-none border-0 px-2 py-2 text-sm focus:outline-none focus:ring-0"
+                        onKeyDown={handleComposerKeyDown}
+                      />
+                    </div>
                     <button
                       type="submit"
                       disabled={sending || (!body.trim() && pendingAttachments.length === 0)}
@@ -1023,12 +1125,12 @@ export function Messages() {
                   {mentionSuggestions.length > 0 && (
                     <div className="absolute bottom-full left-3 z-30 mb-2 w-72 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
                       <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Mention someone</div>
-                      {mentionSuggestions.map((availableUser) => (
+                      {mentionSuggestions.map((availableUser, index) => (
                         <button
                           key={availableUser.id}
                           type="button"
                           onClick={() => selectMention(availableUser)}
-                          className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-slate-50"
+                          className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm ${index === activeMentionIndex ? 'bg-primary-50 text-primary-800' : 'hover:bg-slate-50'}`}
                         >
                           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-200 text-xs font-semibold text-slate-600">
                             {availableUser.avatar_url ? <img src={availableUser.avatar_url} alt="" className="h-8 w-8 rounded-lg object-cover" /> : availableUser.full_name.slice(0, 1)}
@@ -1044,12 +1146,12 @@ export function Messages() {
                   {commandSuggestions.length > 0 && (
                     <div className="absolute bottom-full left-3 z-30 mb-2 w-72 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
                       <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Commands</div>
-                      {commandSuggestions.map((item) => (
+                      {commandSuggestions.map((item, index) => (
                         <button
                           key={item.command}
                           type="button"
                           onClick={() => selectCommand(item.insert)}
-                          className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-slate-50"
+                          className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm ${index === activeCommandIndex ? 'bg-primary-50 text-primary-800' : 'hover:bg-slate-50'}`}
                         >
                           <Type className="h-4 w-4 text-slate-400" />
                           <span>

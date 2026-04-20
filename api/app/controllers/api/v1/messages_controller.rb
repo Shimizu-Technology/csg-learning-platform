@@ -221,10 +221,16 @@ module Api
 
       def mark_read_for(message)
         if message.channel
-          current_user.channel_read_states.create_or_find_by!(channel: message.channel).mark_read!(message)
+          find_or_create_read_state(message.channel).mark_read!(message)
         else
           message.direct_conversation.direct_conversation_members.find_by!(user: current_user).mark_read!(message)
         end
+      end
+
+      def find_or_create_read_state(channel)
+        current_user.channel_read_states.find_or_create_by!(channel: channel)
+      rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
+        current_user.channel_read_states.find_by!(channel: channel)
       end
 
       def message_json(message)
