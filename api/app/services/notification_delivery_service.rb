@@ -22,11 +22,13 @@ class NotificationDeliveryService
     return [] if message.deleted?
 
     destination = message.destination
-    muted_user_ids = MessagePreference.where(target: destination, muted: true).pluck(:user_id)
+    muted_user_ids = MessagePreference.where(target: destination, muted: true)
+      .pluck(:user_id)
+      .index_with(true)
 
     notifications = message.destination.recipients.find_each.filter_map do |user|
       next if user.id == message.author_id
-      next if muted_user_ids.include?(user.id)
+      next if muted_user_ids.key?(user.id)
 
       message_notification_for(user, message)
     end

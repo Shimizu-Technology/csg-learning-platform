@@ -10,6 +10,8 @@ import {
   Bell,
   BellOff,
   Bold,
+  ChevronLeft,
+  ChevronRight,
   Code2,
   Edit3,
   File,
@@ -170,7 +172,8 @@ export function Messages() {
   const [activeMentionIndex, setActiveMentionIndex] = useState(0)
   const [activeCommandIndex, setActiveCommandIndex] = useState(0)
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([])
-  const [lightboxAttachment, setLightboxAttachment] = useState<MessageAttachment | null>(null)
+  const [lightboxAttachments, setLightboxAttachments] = useState<MessageAttachment[]>([])
+  const [lightboxIndex, setLightboxIndex] = useState(0)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [replyTo, setReplyTo] = useState<ChannelMessage | null>(null)
   const [editing, setEditing] = useState<ChannelMessage | null>(null)
@@ -189,6 +192,7 @@ export function Messages() {
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const composerFormRef = useRef<HTMLFormElement | null>(null)
+  const lightboxTouchStartX = useRef<number | null>(null)
 
   const selectedChannel = useMemo(
     () => selectedTarget?.type === 'channel' ? channels.find((channel) => channel.id === selectedTarget.id) || null : null,
@@ -248,6 +252,8 @@ export function Messages() {
   useEffect(() => {
     setActiveCommandIndex(0)
   }, [commandToken])
+
+  const lightboxAttachment = lightboxAttachments[lightboxIndex] || null
 
   const editor = useEditor({
     extensions: [
@@ -446,6 +452,28 @@ export function Messages() {
   }, [selectedTarget?.type, selectedTarget?.id, user])
 
   useEffect(() => {
+    if (!lightboxAttachment) return
+
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setLightboxAttachments([])
+        setLightboxIndex(0)
+        return
+      }
+      if (event.key === 'ArrowRight') {
+        setLightboxIndex((current) => Math.min(current + 1, lightboxAttachments.length - 1))
+        return
+      }
+      if (event.key === 'ArrowLeft') {
+        setLightboxIndex((current) => Math.max(current - 1, 0))
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [lightboxAttachment, lightboxAttachments.length])
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: 'end' })
   }, [messages.length, selectedTarget?.type, selectedTarget?.id])
 
@@ -502,6 +530,19 @@ export function Messages() {
     const firstDm = directConversations.find((conversation) => conversation.cohort_id === id)
     if (firstChannel) selectTarget({ type: 'channel', id: firstChannel.id })
     else if (firstDm) selectTarget({ type: 'dm', id: firstDm.id })
+  }
+
+  const showPreviousLightboxImage = () => {
+    setLightboxIndex((current) => Math.max(current - 1, 0))
+  }
+
+  const showNextLightboxImage = () => {
+    setLightboxIndex((current) => Math.min(current + 1, lightboxAttachments.length - 1))
+  }
+
+  const closeLightbox = () => {
+    setLightboxAttachments([])
+    setLightboxIndex(0)
   }
 
   const uploadAttachments = async (attachmentsToUpload = pendingAttachments) => {
@@ -725,17 +766,31 @@ export function Messages() {
     insertIntoComposer(`@${availableUser.full_name} `, /(^|\s)@[^\s@]*$/)
   }
 
+  const insertCodeBlock = () => {
+    if (!editor) return
+
+    const { from, to, empty } = editor.state.selection
+    const selectedText = empty ? '' : editor.state.doc.textBetween(from, to, '\n', '\n')
+    const content = selectedText ? [{ type: 'text', text: selectedText }] : []
+    const chain = editor.chain().focus()
+
+    if (!empty) chain.deleteRange({ from, to })
+    chain.insertContent([
+      { type: 'codeBlock', content },
+      { type: 'paragraph' },
+    ]).run()
+  }
+
   const selectCommand = (command: string) => {
     if (!editor) return
     const match = composerTriggerText.match(/(^|\n)\/[a-z]*$/)
-    const chain = editor.chain().focus()
     if (match) {
-      chain.deleteRange({ from: editor.state.selection.from - match[0].trimStart().length, to: editor.state.selection.from })
+      editor.chain().focus().deleteRange({ from: editor.state.selection.from - match[0].trimStart().length, to: editor.state.selection.from }).run()
     }
 
-    if (command === '/code') chain.toggleCodeBlock().run()
-    else if (command === '/quote') chain.toggleBlockquote().run()
-    else if (command === '/todo') chain.insertContent('- [ ] ').run()
+    if (command === '/code') insertCodeBlock()
+    else if (command === '/quote') editor.chain().focus().toggleBlockquote().run()
+    else if (command === '/todo') editor.chain().focus().insertContent('- [ ] ').run()
   }
 
   const handleComposerKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -1205,7 +1260,10 @@ export function Messages() {
                     canPin={isStaff}
                     onReply={() => setReplyTo(message)}
                     onReact={(emoji) => toggleReaction(message, emoji)}
-                    onOpenImage={setLightboxAttachment}
+                    onOpenImage={(attachment, imageAttachments) => {
+                      setLightboxAttachments(imageAttachments)
+                      setLightboxIndex(Math.max(0, imageAttachments.findIndex((item) => item.id === attachment.id)))
+                    }}
                   />
                 ))}
                 <div ref={bottomRef} />
@@ -1261,19 +1319,19 @@ export function Messages() {
                     <button type="button" onClick={() => editor?.chain().focus().toggleCode().run()} className={`rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('code') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Inline code">
                       <Code2 className="h-4 w-4" />
                     </button>
-                    <button type="button" onClick={() => editor?.chain().focus().toggleCodeBlock().run()} className={`rounded-lg px-2 py-1 text-sm hover:bg-slate-50 ${editor?.isActive('codeBlock') ? 'bg-slate-100 text-slate-900' : ''}`}>Code block</button>
+                    <button type="button" onClick={insertCodeBlock} className="rounded-lg px-2 py-1 text-sm hover:bg-slate-50">Code block</button>
                     <button type="button" onClick={() => insertIntoComposer('@')} className="rounded-lg px-2 py-1 text-sm hover:bg-slate-50">@ mention</button>
                     <button type="button" onClick={() => insertIntoComposer('/')} className="rounded-lg px-2 py-1 text-sm hover:bg-slate-50">/ command</button>
                     <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => handleFiles(event.target.files)} />
                   </div>
-                  <div className="flex gap-2 p-2">
+                  <div className="flex items-start gap-2 p-2">
                     <div className="min-w-0 flex-1">
                       <EditorContent editor={editor} onKeyDown={handleComposerKeyDown} />
                     </div>
                     <button
                       type="submit"
                       disabled={sending || (!body.trim() && pendingAttachments.length === 0)}
-                      className="inline-flex min-w-24 items-center justify-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
+                      className="inline-flex h-16 w-28 shrink-0 items-center justify-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
                     >
                       <Send className="h-4 w-4" />
                       {sending ? 'Sending' : 'Send'}
@@ -1331,20 +1389,65 @@ export function Messages() {
         </section>
       </div>
       {lightboxAttachment?.url && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4"
+          role="dialog"
+          aria-modal="true"
+          onTouchStart={(event) => {
+            lightboxTouchStartX.current = event.touches[0]?.clientX ?? null
+          }}
+          onTouchEnd={(event) => {
+            if (lightboxTouchStartX.current === null) return
+            const endX = event.changedTouches[0]?.clientX
+            if (endX === undefined) {
+              lightboxTouchStartX.current = null
+              return
+            }
+            const delta = endX - lightboxTouchStartX.current
+            lightboxTouchStartX.current = null
+            if (Math.abs(delta) < 60) return
+            if (delta < 0) showNextLightboxImage()
+            else showPreviousLightboxImage()
+          }}
+        >
           <button
             type="button"
-            onClick={() => setLightboxAttachment(null)}
+            onClick={closeLightbox}
             className="absolute right-4 top-4 rounded-lg bg-white/10 p-2 text-white hover:bg-white/20"
             aria-label="Close image preview"
           >
             <X className="h-5 w-5" />
           </button>
+          {lightboxAttachments.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={showPreviousLightboxImage}
+                disabled={lightboxIndex === 0}
+                className="absolute left-4 top-1/2 rounded-lg bg-white/10 p-3 text-white hover:bg-white/20 disabled:opacity-30"
+                aria-label="Previous image"
+              >
+                <ChevronLeft className="h-6 w-6" />
+              </button>
+              <button
+                type="button"
+                onClick={showNextLightboxImage}
+                disabled={lightboxIndex === lightboxAttachments.length - 1}
+                className="absolute right-4 top-1/2 rounded-lg bg-white/10 p-3 text-white hover:bg-white/20 disabled:opacity-30"
+                aria-label="Next image"
+              >
+                <ChevronRight className="h-6 w-6" />
+              </button>
+            </>
+          )}
           <div className="max-h-full max-w-5xl overflow-hidden rounded-lg bg-white shadow-2xl">
             <img src={lightboxAttachment.url} alt={lightboxAttachment.filename} className="max-h-[80vh] w-full object-contain" />
             <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm text-slate-700">
               <span className="min-w-0 truncate font-medium">{lightboxAttachment.filename}</span>
-              <span className="shrink-0 text-slate-500">{formatFileSize(lightboxAttachment.byte_size)}</span>
+              <span className="shrink-0 text-slate-500">
+                {lightboxAttachments.length > 1 && `${lightboxIndex + 1} of ${lightboxAttachments.length} · `}
+                {formatFileSize(lightboxAttachment.byte_size)}
+              </span>
             </div>
           </div>
         </div>
@@ -1468,8 +1571,10 @@ function MessageRow({
   canPin: boolean
   onReply: () => void
   onReact: (emoji: string) => void
-  onOpenImage: (attachment: MessageAttachment) => void
+  onOpenImage: (attachment: MessageAttachment, imageAttachments: MessageAttachment[]) => void
 }) {
+  const imageAttachments = message.attachments.filter((attachment) => attachment.image && attachment.url)
+
   return (
     <div className={`group mb-3 flex gap-3 rounded-lg px-2 py-2 hover:bg-slate-50 ${message.pinned_at ? 'bg-amber-50/70' : ''} ${message.pending ? 'opacity-75' : ''}`}>
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-200 text-sm font-semibold text-slate-600">
@@ -1512,7 +1617,7 @@ function MessageRow({
               <button
                 key={attachment.id}
                 type="button"
-                onClick={() => onOpenImage(attachment)}
+                onClick={() => onOpenImage(attachment, imageAttachments)}
                 className="rounded-lg border border-slate-200 bg-white p-2 text-left text-sm text-slate-700 hover:border-primary-200 hover:bg-primary-50"
               >
                 <img src={attachment.url} alt={attachment.filename} className="mb-2 max-h-56 w-full rounded-lg object-cover" />

@@ -23,7 +23,10 @@ class DirectConversation < ApplicationRecord
     user_ids = users.map(&:id).uniq.sort
     member_key = member_key_for(user_ids)
     conversation = cohort.direct_conversations.find_by(member_key: member_key)
-    return conversation if conversation
+    if conversation
+      conversation.update!(status: :active) if conversation.archived?
+      return conversation
+    end
 
     transaction do
       create_or_find_by!(cohort: cohort, member_key: member_key).tap do |conversation_record|

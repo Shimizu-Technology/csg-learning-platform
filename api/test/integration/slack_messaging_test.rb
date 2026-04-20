@@ -58,6 +58,22 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "starting an archived direct conversation reopens it" do
+    conversation = DirectConversation.find_or_create_for!(cohort: @cohort, users: [ @student, @admin ])
+    conversation.update!(status: :archived)
+
+    as_user(@student) do
+      post "/api/v1/direct_conversations",
+        params: { cohort_id: @cohort.id, user_ids: [ @admin.id ] },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :created
+    assert_equal conversation.id, JSON.parse(response.body).dig("direct_conversation", "id")
+    assert conversation.reload.active?
+  end
+
   test "mute preference suppresses channel message notifications" do
     as_user(@classmate) do
       patch "/api/v1/message_preferences",
