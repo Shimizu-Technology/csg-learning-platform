@@ -3,11 +3,16 @@ class PushNotificationJob < ApplicationJob
 
   discard_on ActiveJob::DeserializationError
 
-  def perform(announcement_id, notification_ids)
-    announcement = Announcement.find_by(id: announcement_id)
-    return unless announcement
+  def perform(notifiable_type, notifiable_id, notification_ids)
+    notifiable = notifiable_type.safe_constantize&.find_by(id: notifiable_id)
+    return unless notifiable
 
     notifications = Notification.where(id: notification_ids)
-    WebPushNotificationService.announcement_published(announcement, notifications)
+    case notifiable
+    when Announcement
+      WebPushNotificationService.announcement_published(notifiable, notifications)
+    when Message
+      WebPushNotificationService.message_created(notifiable, notifications)
+    end
   end
 end

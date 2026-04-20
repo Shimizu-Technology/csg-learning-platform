@@ -1,4 +1,6 @@
 Rails.application.routes.draw do
+  mount ActionCable.server => "/cable"
+
   get "up" => "rails/health#show", as: :rails_health_check
   get "health", to: proc { [ 200, { "Content-Type" => "application/json" }, [ '{"status":"ok"}' ] ] }
 
@@ -18,6 +20,7 @@ Rails.application.routes.draw do
 
       # Communication / notifications
       resources :announcements, only: [ :index, :show, :create, :update, :destroy ]
+      post "cable_token", to: "cable_tokens#create"
       resources :notifications, only: [ :index ] do
         member do
           patch :read, to: "notifications#mark_read"
@@ -29,6 +32,13 @@ Rails.application.routes.draw do
       get "push_subscriptions/config", to: "push_subscriptions#config"
       post "push_subscriptions", to: "push_subscriptions#create"
       delete "push_subscriptions", to: "push_subscriptions#destroy"
+      resources :channels, only: [ :index, :show, :create, :update, :destroy ] do
+        member do
+          patch :read, to: "channels#mark_read"
+        end
+        resources :messages, only: [ :create ]
+      end
+      resources :messages, only: [ :update, :destroy ]
 
       # Watch progress (student updates their own)
       patch "watch_progress", to: "watch_progresses#update"

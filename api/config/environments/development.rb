@@ -41,6 +41,8 @@ Rails.application.configure do
   # Highlight code that enqueued background job in logs.
   config.active_job.verbose_enqueue_logs = true
 
+  config.action_cable.allowed_request_origins = ENV.fetch("ALLOWED_ORIGINS", ENV.fetch("FRONTEND_URL", "http://localhost:5173")).split(",").map(&:strip).reject(&:blank?)
+
   # Highlight code that triggered redirect in logs.
   config.action_dispatch.verbose_redirect_logs = true
 

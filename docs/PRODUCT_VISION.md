@@ -203,9 +203,9 @@ The first milestone is not chat. It is the notification foundation that all late
 1. **First-class announcements** — Staff can publish global or cohort-scoped announcements instead of storing notices inside cohort settings.
 2. **In-app notification center** — Students and staff have durable read/unread state for announcements, messages, redos, recordings, and system notices.
 3. **PWA push notifications** — Installed app users can opt into browser push notifications for important class activity.
-4. **Cohort channels** — Per-class message spaces replace the active-cohort Slack channel use case.
-5. **Direct messages** — Staff and students can have one-on-one conversations tied to the learning context.
-6. **Rich messaging** — Mentions, reactions, attachments, search, pins, and real-time behavior are added once the core model is stable.
+4. **Cohort workspaces and channels** — Each cohort behaves like its own class workspace with shared channels for class discussion, announcements, staff coordination, and topic-specific conversations.
+5. **Direct messages** — Staff and students can have one-on-one conversations tied to the learning context, with optional student-to-student messaging if CSG wants that for a cohort.
+6. **Rich messaging** — Real-time delivery, mentions, reactions, S3-backed image/file attachments, search, pins, and notification preferences make the experience feel like a lightweight Slack built into the platform.
 
 The product should feel like a class communication app inside the learning platform: useful every day, mobile-first, installable, and respectful about notification noise.
 
@@ -216,7 +216,7 @@ PWA push requirements:
 - Avoid sensitive content in lock-screen notifications by default.
 - Deep-link notification clicks to the relevant announcement, channel, direct message, recording, or redo.
 
-The eventual real-time layer can use ActionCable/WebSockets, but the first shipped communication milestone should prioritize durable models, unread state, push subscriptions, and a clean mobile UI.
+The real-time layer should use ActionCable/WebSockets for live channel and direct-message updates, while durable REST endpoints remain the source of truth for page loads, reconnects, and stale tabs.
 
 ### 6.5 Later — Extended platform features
 
