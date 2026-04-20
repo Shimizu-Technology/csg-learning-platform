@@ -31,24 +31,46 @@ export async function subscribeToChannelMessages(
     reconnectTimer = null
   }
 
+  const scheduleReconnect = () => {
+    if (closing || reconnectTimer) return
+
+    const delay = RECONNECT_DELAYS[Math.min(reconnectAttempts, RECONNECT_DELAYS.length - 1)]
+    reconnectAttempts += 1
+    reconnectTimer = window.setTimeout(() => {
+      reconnectTimer = null
+      connect().catch(() => {
+        onStatus?.('error')
+        scheduleReconnect()
+      })
+    }, delay)
+  }
+
   const connect = async () => {
     const tokenResponse = await api.createCableToken()
     const token = tokenResponse.data?.token
     if (!token || closing) {
       onStatus?.('error')
+      scheduleReconnect()
       return
     }
 
     socket = new WebSocket(cableUrl(token))
 
     socket.addEventListener('open', () => {
-      reconnectAttempts = 0
       socket?.send(JSON.stringify({ command: 'subscribe', identifier }))
-      onStatus?.('connected')
     })
 
     socket.addEventListener('message', (event) => {
       const payload = JSON.parse(event.data)
+      if (payload.type === 'confirm_subscription' && payload.identifier === identifier) {
+        reconnectAttempts = 0
+        onStatus?.('connected')
+        return
+      }
+      if (payload.type === 'reject_subscription' && payload.identifier === identifier) {
+        onStatus?.('error')
+        return
+      }
       if (!payload.message) return
 
       onMessage(payload.message)
@@ -62,11 +84,7 @@ export async function subscribeToChannelMessages(
       if (closing) return
 
       onStatus?.('disconnected')
-      const delay = RECONNECT_DELAYS[Math.min(reconnectAttempts, RECONNECT_DELAYS.length - 1)]
-      reconnectAttempts += 1
-      reconnectTimer = window.setTimeout(() => {
-        connect().catch(() => onStatus?.('error'))
-      }, delay)
+      scheduleReconnect()
     })
   }
 
