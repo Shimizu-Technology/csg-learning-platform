@@ -70,6 +70,11 @@ module Api
           return
         end
 
+        unless current_user.staff?
+          render_forbidden("Only staff can pin messages")
+          return
+        end
+
         @message.update!(pinned_at: Time.current, pinned_by: current_user)
         MessageBroadcastService.updated(@message)
         render json: { message: message_json(@message) }
@@ -79,6 +84,11 @@ module Api
       def unpin
         unless message_channel_editable?
           render_forbidden("Cannot unpin messages in this conversation")
+          return
+        end
+
+        unless current_user.staff?
+          render_forbidden("Only staff can unpin messages")
           return
         end
 
@@ -143,6 +153,11 @@ module Api
       end
 
       def create_message_for(destination)
+        if message_params[:body].to_s.strip.blank? && Array(message_params[:attachments]).empty?
+          render json: { errors: [ "Message must include text or an attachment" ] }, status: :unprocessable_entity
+          return
+        end
+
         message = destination.messages.new(
           body: message_params[:body].to_s,
           parent_message_id: message_params[:parent_message_id]

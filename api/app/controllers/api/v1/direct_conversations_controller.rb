@@ -13,6 +13,7 @@ module Api
           .index_by(&:direct_conversation_id)
         unread_counts = unread_counts_for(conversations, members)
         latest_messages = latest_messages_for(conversations)
+        muted_ids = muted_target_ids(conversations.map(&:id))
 
         render json: {
           direct_conversations: conversations.map do |conversation|
@@ -20,7 +21,8 @@ module Api
               conversation,
               member: members[conversation.id],
               unread_count: unread_counts[conversation.id] || 0,
-              latest_message: latest_messages[conversation.id]
+              latest_message: latest_messages[conversation.id],
+              muted_ids: muted_ids
             )
           end
         }
@@ -166,14 +168,14 @@ module Api
           .index_by(&:direct_conversation_id)
       end
 
-      def conversation_json(conversation, member: nil, unread_count: 0, latest_message: nil)
+      def conversation_json(conversation, member: nil, unread_count: 0, latest_message: nil, muted_ids: nil)
         {
           id: conversation.id,
           cohort_id: conversation.cohort_id,
           cohort_name: conversation.cohort.name,
           title: conversation.title_for(current_user),
           status: conversation.status,
-          muted: MessagePreference.exists?(user: current_user, target: conversation, muted: true),
+          muted: muted_ids ? muted_ids.include?(conversation.id) : MessagePreference.exists?(user: current_user, target: conversation, muted: true),
           unread_count: unread_count,
           last_read_at: member&.last_read_at,
           latest_message: MessageJson.latest(latest_message),
@@ -193,6 +195,14 @@ module Api
           is_staff: user.staff?,
           is_admin: user.admin?
         }
+      end
+
+      def muted_target_ids(conversation_ids)
+        return [] if conversation_ids.empty?
+
+        current_user.message_preferences
+          .where(target_type: "DirectConversation", target_id: conversation_ids, muted: true)
+          .pluck(:target_id)
       end
     end
   end

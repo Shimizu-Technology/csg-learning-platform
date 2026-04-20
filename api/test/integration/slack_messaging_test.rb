@@ -102,6 +102,29 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_equal 1, message.message_reactions.where(emoji: "✅", user: @classmate).count
   end
 
+  test "students cannot pin messages" do
+    message = Message.create!(channel: @channel, author: @admin, body: "Staff decision")
+
+    as_user(@student) do
+      patch "/api/v1/messages/#{message.id}/pin", headers: auth_headers
+    end
+
+    assert_response :forbidden
+    assert_nil message.reload.pinned_at
+  end
+
+  test "message create requires text or attachment" do
+    as_user(@student) do
+      post "/api/v1/channels/#{@channel.id}/messages",
+        params: { body: "" },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :unprocessable_entity
+    assert_includes JSON.parse(response.body).fetch("errors"), "Message must include text or an attachment"
+  end
+
   test "search only returns messages visible to the current user" do
     visible_message = Message.create!(channel: @channel, author: @admin, body: "Searchable cohort note")
     staff_channel = @cohort.channels.create!(name: "Staff Room", visibility: :staff_only)

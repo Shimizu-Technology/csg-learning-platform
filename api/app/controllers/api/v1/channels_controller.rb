@@ -11,9 +11,10 @@ module Api
         read_states = current_user.channel_read_states.where(channel_id: channels.map(&:id)).index_by(&:channel_id)
         unread_counts = unread_counts_for(channels)
         latest_messages = latest_messages_for(channels)
+        muted_ids = muted_target_ids("Channel", channels.map(&:id))
 
         render json: {
-          channels: channels.map { |channel| channel_json(channel, read_states[channel.id], unread_counts[channel.id] || 0, latest_messages[channel.id]) }
+          channels: channels.map { |channel| channel_json(channel, read_states[channel.id], unread_counts[channel.id] || 0, latest_messages[channel.id], muted_ids: muted_ids) }
         }
       end
 
@@ -131,7 +132,7 @@ module Api
           .index_by(&:channel_id)
       end
 
-      def channel_json(channel, read_state = nil, unread_count = 0, latest_message = nil)
+      def channel_json(channel, read_state = nil, unread_count = 0, latest_message = nil, muted_ids: nil)
         {
           id: channel.id,
           cohort_id: channel.cohort_id,
@@ -141,7 +142,7 @@ module Api
           visibility: channel.visibility,
           status: channel.status,
           position: channel.position,
-          muted: muted?(channel),
+          muted: muted_ids ? muted_ids.include?(channel.id) : muted?(channel),
           unread_count: unread_count,
           last_read_at: read_state&.last_read_at,
           latest_message: MessageJson.latest(latest_message),
@@ -152,6 +153,14 @@ module Api
 
       def muted?(target)
         MessagePreference.exists?(user: current_user, target: target, muted: true)
+      end
+
+      def muted_target_ids(target_type, target_ids)
+        return [] if target_ids.empty?
+
+        current_user.message_preferences
+          .where(target_type: target_type, target_id: target_ids, muted: true)
+          .pluck(:target_id)
       end
 
       def message_json(message)

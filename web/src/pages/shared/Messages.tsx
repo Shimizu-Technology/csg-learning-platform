@@ -1,21 +1,27 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   Bell,
   BellOff,
+  Bold,
+  Code2,
   Edit3,
   File,
   Hash,
+  Italic,
   Lock,
   MessageCircle,
   MoreHorizontal,
   Paperclip,
+  PanelLeftClose,
+  PanelLeftOpen,
   Pin,
   Plus,
   RefreshCw,
   Search,
   Send,
   Trash2,
+  Type,
   UserPlus,
   X,
 } from 'lucide-react'
@@ -46,6 +52,11 @@ type PendingAttachment = {
 }
 
 const REACTIONS = ['👍', '❤️', '✅', '🙌']
+const SLASH_COMMANDS = [
+  { command: '/code', label: 'Code block', insert: '```\n\n```' },
+  { command: '/quote', label: 'Quote', insert: '> ' },
+  { command: '/todo', label: 'Checklist', insert: '- [ ] ' },
+]
 
 function formatTime(value: string) {
   return new Date(value).toLocaleString('en-US', {
@@ -90,7 +101,9 @@ export function Messages() {
   const [pushMessage, setPushMessage] = useState('')
   const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'error'>('disconnected')
   const [body, setBody] = useState('')
+  const [composerCursor, setComposerCursor] = useState(0)
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([])
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [replyTo, setReplyTo] = useState<ChannelMessage | null>(null)
   const [editing, setEditing] = useState<ChannelMessage | null>(null)
   const [editBody, setEditBody] = useState('')
@@ -107,6 +120,7 @@ export function Messages() {
   })
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   const selectedChannel = useMemo(
     () => selectedTarget?.type === 'channel' ? channels.find((channel) => channel.id === selectedTarget.id) || null : null,
@@ -141,6 +155,25 @@ export function Messages() {
   )
 
   const selectedWorkspace = workspaces.find((workspace) => workspace.id === selectedWorkspaceId)
+  const mentionToken = useMemo(() => {
+    const beforeCursor = body.slice(0, composerCursor)
+    return beforeCursor.match(/(^|\s)@([^\s@]*)$/)?.[2] ?? null
+  }, [body, composerCursor])
+  const commandToken = useMemo(() => {
+    const beforeCursor = body.slice(0, composerCursor)
+    return beforeCursor.match(/(^|\n)\/([a-z]*)$/)?.[2] ?? null
+  }, [body, composerCursor])
+  const mentionSuggestions = useMemo(() => {
+    if (mentionToken === null) return []
+    const normalized = mentionToken.toLowerCase()
+    return availableUsers
+      .filter((availableUser) => availableUser.full_name.toLowerCase().includes(normalized) || availableUser.email.toLowerCase().includes(normalized))
+      .slice(0, 8)
+  }, [availableUsers, mentionToken])
+  const commandSuggestions = useMemo(() => {
+    if (commandToken === null) return []
+    return SLASH_COMMANDS.filter((item) => item.command.slice(1).startsWith(commandToken)).slice(0, 5)
+  }, [commandToken])
 
   const loadLists = async () => {
     const [channelRes, dmRes] = await Promise.all([api.getChannels(), api.getDirectConversations()])
@@ -490,7 +523,12 @@ export function Messages() {
 
   const handleFiles = (files: FileList | null) => {
     if (!files) return
-    const next = Array.from(files).map((file) => ({
+    addFiles(Array.from(files))
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const addFiles = (files: File[]) => {
+    const next = files.map((file) => ({
       file,
       filename: file.name,
       content_type: file.type || 'application/octet-stream',
@@ -499,7 +537,70 @@ export function Messages() {
       uploaded: false,
     }))
     setPendingAttachments((prev) => [...prev, ...next])
-    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = Array.from(event.clipboardData.files)
+    if (files.length > 0) {
+      addFiles(files)
+    }
+  }
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    const files = Array.from(event.dataTransfer.files)
+    if (files.length === 0) return
+
+    event.preventDefault()
+    addFiles(files)
+  }
+
+  const insertIntoComposer = (insert: string, replacePattern?: RegExp) => {
+    const textarea = textareaRef.current
+    if (!textarea) {
+      setBody((current) => replacePattern ? current.replace(replacePattern, insert) : `${current}${insert}`)
+      return
+    }
+
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const before = body.slice(0, start)
+    const after = body.slice(end)
+    const nextBefore = replacePattern ? before.replace(replacePattern, insert) : `${before}${insert}`
+    const next = `${nextBefore}${after}`
+    setBody(next)
+    window.requestAnimationFrame(() => {
+      textarea.focus()
+      const cursor = nextBefore.length
+      textarea.setSelectionRange(cursor, cursor)
+      setComposerCursor(cursor)
+    })
+  }
+
+  const wrapSelection = (prefix: string, suffix = prefix) => {
+    const textarea = textareaRef.current
+    if (!textarea) {
+      setBody((current) => `${current}${prefix}${suffix}`)
+      return
+    }
+
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const selectedText = body.slice(start, end) || 'text'
+    const next = `${body.slice(0, start)}${prefix}${selectedText}${suffix}${body.slice(end)}`
+    setBody(next)
+    window.requestAnimationFrame(() => {
+      textarea.focus()
+      textarea.setSelectionRange(start + prefix.length, start + prefix.length + selectedText.length)
+      setComposerCursor(start + prefix.length + selectedText.length)
+    })
+  }
+
+  const selectMention = (availableUser: UserSummary) => {
+    insertIntoComposer(`@${availableUser.full_name} `, /(^|\s)@[^\s@]*$/)
+  }
+
+  const selectCommand = (insert: string) => {
+    insertIntoComposer(insert, /(^|\n)\/[a-z]*$/)
   }
 
   const saveEdit = async (message: ChannelMessage) => {
@@ -588,7 +689,8 @@ export function Messages() {
         )}
       </div>
 
-      <div className="grid min-h-[680px] overflow-hidden rounded-lg border border-slate-200 bg-white lg:grid-cols-[340px_minmax(0,1fr)]">
+      <div className={`grid min-h-[680px] overflow-hidden rounded-lg border border-slate-200 bg-white ${sidebarCollapsed ? 'lg:grid-cols-1' : 'lg:grid-cols-[340px_minmax(0,1fr)]'}`}>
+        {!sidebarCollapsed && (
         <aside className="border-b border-slate-200 bg-slate-50 lg:border-b-0 lg:border-r">
           <div className="border-b border-slate-200 bg-white p-3">
             <div className="mb-3 flex items-center justify-between">
@@ -596,13 +698,22 @@ export function Messages() {
                 <h2 className="text-sm font-semibold text-slate-900">{selectedWorkspace?.name || 'Workspaces'}</h2>
                 <p className="text-xs text-slate-500">Cohort workspace</p>
               </div>
-              <button
-                onClick={loadLists}
-                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                aria-label="Refresh messages"
-              >
-                <RefreshCw className="h-4 w-4" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={loadLists}
+                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                  aria-label="Refresh messages"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setSidebarCollapsed(true)}
+                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                  aria-label="Collapse conversation list"
+                >
+                  <PanelLeftClose className="h-4 w-4" />
+                </button>
+              </div>
             </div>
             {workspaces.length > 1 && (
               <select
@@ -763,6 +874,7 @@ export function Messages() {
             ))}
           </div>
         </aside>
+        )}
 
         <section className="flex min-h-[560px] flex-col">
           {selectedTarget && selected ? (
@@ -770,6 +882,15 @@ export function Messages() {
               <header className="border-b border-slate-200 px-4 py-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-2">
+                    {sidebarCollapsed && (
+                      <button
+                        onClick={() => setSidebarCollapsed(false)}
+                        className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                        aria-label="Show conversation list"
+                      >
+                        <PanelLeftOpen className="h-4 w-4" />
+                      </button>
+                    )}
                     {selectedTarget.type === 'channel'
                       ? selectedChannel?.visibility === 'staff_only'
                         ? <Lock className="h-5 w-5 shrink-0 text-slate-500" />
@@ -806,6 +927,7 @@ export function Messages() {
                     onSaveEdit={() => saveEdit(message)}
                     onDelete={() => deleteMessage(message)}
                     onPin={() => togglePin(message)}
+                    canPin={isStaff}
                     onReply={() => setReplyTo(message)}
                     onReact={(emoji) => toggleReaction(message, emoji)}
                   />
@@ -845,19 +967,41 @@ export function Messages() {
                     ))}
                   </div>
                 )}
-                <div className="rounded-lg border border-slate-200 bg-white">
+                <div
+                  className="relative rounded-lg border border-slate-200 bg-white"
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={handleDrop}
+                >
                   <div className="flex items-center gap-1 border-b border-slate-100 px-2 py-2 text-slate-500">
                     <button type="button" onClick={() => fileInputRef.current?.click()} className="rounded-lg p-2 hover:bg-slate-50" aria-label="Attach files">
                       <Paperclip className="h-4 w-4" />
                     </button>
-                    <button type="button" onClick={() => setBody((current) => `${current}@`)} className="rounded-lg px-2 py-1 text-sm hover:bg-slate-50">@ mention</button>
-                    <button type="button" onClick={() => setBody((current) => `${current}/`)} className="rounded-lg px-2 py-1 text-sm hover:bg-slate-50">/ command</button>
+                    <button type="button" onClick={() => wrapSelection('**')} className="rounded-lg p-2 hover:bg-slate-50" aria-label="Bold">
+                      <Bold className="h-4 w-4" />
+                    </button>
+                    <button type="button" onClick={() => wrapSelection('_')} className="rounded-lg p-2 hover:bg-slate-50" aria-label="Italic">
+                      <Italic className="h-4 w-4" />
+                    </button>
+                    <button type="button" onClick={() => wrapSelection('`')} className="rounded-lg p-2 hover:bg-slate-50" aria-label="Inline code">
+                      <Code2 className="h-4 w-4" />
+                    </button>
+                    <button type="button" onClick={() => wrapSelection('```\n', '\n```')} className="rounded-lg px-2 py-1 text-sm hover:bg-slate-50">Code block</button>
+                    <button type="button" onClick={() => insertIntoComposer('@')} className="rounded-lg px-2 py-1 text-sm hover:bg-slate-50">@ mention</button>
+                    <button type="button" onClick={() => insertIntoComposer('/')} className="rounded-lg px-2 py-1 text-sm hover:bg-slate-50">/ command</button>
                     <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => handleFiles(event.target.files)} />
                   </div>
                   <div className="flex gap-2 p-2">
                     <textarea
+                      ref={textareaRef}
                       value={body}
-                      onChange={(event) => setBody(event.target.value)}
+                      onChange={(event) => {
+                        setBody(event.target.value)
+                        setComposerCursor(event.target.selectionStart)
+                      }}
+                      onClick={(event) => setComposerCursor(event.currentTarget.selectionStart)}
+                      onKeyUp={(event) => setComposerCursor(event.currentTarget.selectionStart)}
+                      onSelect={(event) => setComposerCursor(event.currentTarget.selectionStart)}
+                      onPaste={handlePaste}
                       placeholder={`Message ${selectedLabel}`}
                       rows={2}
                       className="min-h-12 flex-1 resize-none border-0 px-2 py-2 text-sm focus:outline-none focus:ring-0"
@@ -876,8 +1020,48 @@ export function Messages() {
                       {sending ? 'Sending' : 'Send'}
                     </button>
                   </div>
+                  {mentionSuggestions.length > 0 && (
+                    <div className="absolute bottom-full left-3 z-30 mb-2 w-72 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+                      <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Mention someone</div>
+                      {mentionSuggestions.map((availableUser) => (
+                        <button
+                          key={availableUser.id}
+                          type="button"
+                          onClick={() => selectMention(availableUser)}
+                          className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-slate-50"
+                        >
+                          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-200 text-xs font-semibold text-slate-600">
+                            {availableUser.avatar_url ? <img src={availableUser.avatar_url} alt="" className="h-8 w-8 rounded-lg object-cover" /> : availableUser.full_name.slice(0, 1)}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate font-medium text-slate-800">{availableUser.full_name}</span>
+                            <span className="block truncate text-xs text-slate-500">{availableUser.email}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {commandSuggestions.length > 0 && (
+                    <div className="absolute bottom-full left-3 z-30 mb-2 w-72 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+                      <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Commands</div>
+                      {commandSuggestions.map((item) => (
+                        <button
+                          key={item.command}
+                          type="button"
+                          onClick={() => selectCommand(item.insert)}
+                          className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-slate-50"
+                        >
+                          <Type className="h-4 w-4 text-slate-400" />
+                          <span>
+                            <span className="block font-medium text-slate-800">{item.command}</span>
+                            <span className="block text-xs text-slate-500">{item.label}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <p className="mt-2 text-xs text-slate-400">Press Cmd+Enter or Ctrl+Enter to send. Use @ for mentions and attach images or class files.</p>
+                <p className="mt-2 text-xs text-slate-400">Press Cmd+Enter or Ctrl+Enter to send. Paste or drop screenshots, use @ for people, / for snippets, and backticks for code.</p>
               </form>
             </>
           ) : (
@@ -932,6 +1116,51 @@ function ConversationButton({
   )
 }
 
+function FormattedMessage({ body }: { body: string }) {
+  if (!body) return null
+
+  const parts = body.split(/```/g)
+
+  return (
+    <div className="mt-1 space-y-2 text-sm leading-6 text-slate-700">
+      {parts.map((part, index) => {
+        const key = `${index}-${part.slice(0, 12)}`
+        if (index % 2 === 1) {
+          return (
+            <pre key={key} className="overflow-x-auto rounded-lg bg-slate-900 px-3 py-2 text-xs leading-5 text-slate-100">
+              <code>{part.trim()}</code>
+            </pre>
+          )
+        }
+
+        return (
+          <p key={key} className="whitespace-pre-wrap">
+            {formatInline(part)}
+          </p>
+        )
+      })}
+    </div>
+  )
+}
+
+function formatInline(text: string) {
+  const pieces = text.split(/(`[^`]+`|\*\*[^*]+\*\*|_[^_]+_)/g)
+
+  return pieces.map((piece, index) => {
+    const key = `${index}-${piece}`
+    if (piece.startsWith('`') && piece.endsWith('`')) {
+      return <code key={key} className="rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">{piece.slice(1, -1)}</code>
+    }
+    if (piece.startsWith('**') && piece.endsWith('**')) {
+      return <strong key={key}>{piece.slice(2, -2)}</strong>
+    }
+    if (piece.startsWith('_') && piece.endsWith('_')) {
+      return <em key={key}>{piece.slice(1, -1)}</em>
+    }
+    return <span key={key}>{piece}</span>
+  })
+}
+
 function MessageRow({
   message,
   replyTarget,
@@ -943,6 +1172,7 @@ function MessageRow({
   onSaveEdit,
   onDelete,
   onPin,
+  canPin,
   onReply,
   onReact,
 }: {
@@ -956,6 +1186,7 @@ function MessageRow({
   onSaveEdit: () => void
   onDelete: () => void
   onPin: () => void
+  canPin: boolean
   onReply: () => void
   onReact: (emoji: string) => void
 }) {
@@ -990,7 +1221,7 @@ function MessageRow({
             </div>
           </div>
         ) : (
-          <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">{message.body}</p>
+          <FormattedMessage body={message.body} />
         )}
         {message.attachments.length > 0 && (
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -1030,9 +1261,11 @@ function MessageRow({
         </div>
       </div>
       <div className="flex shrink-0 items-start gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
-        <button onClick={onPin} className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-slate-700" aria-label="Pin message">
-          <Pin className="h-4 w-4" />
-        </button>
+        {canPin && (
+          <button onClick={onPin} className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-slate-700" aria-label="Pin message">
+            <Pin className="h-4 w-4" />
+          </button>
+        )}
         {message.mine && (
           <>
             <button onClick={onStartEdit} className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-slate-700" aria-label="Edit message">
