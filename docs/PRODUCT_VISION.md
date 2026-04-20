@@ -194,19 +194,29 @@ Replace manual email → Stripe link flow:
 - Payment status visible in admin dashboard
 - Invoice and receipt generation
 
-### 6.4 Later — In-app messaging
+### 6.4 Next — Communication hub and PWA notifications
 
-Replace Slack as the primary communication channel:
+Replace Slack as the daily class communication loop while keeping the scope intentionally lighter than a full Slack clone.
 
-**Recommended progression:**
+The first milestone is not chat. It is the notification foundation that all later communication features need:
 
-1. **Announcements** — Staff posts visible to cohort
-2. **Per-cohort channels** — Threaded discussions per class
-3. **Alumni channel** — Not tied to a specific cohort
-4. **Direct messages** — Staff ↔ student communication
-5. **General channels** — Cross-cohort or topic-based
+1. **First-class announcements** — Staff can publish global or cohort-scoped announcements instead of storing notices inside cohort settings.
+2. **In-app notification center** — Students and staff have durable read/unread state for announcements, messages, redos, recordings, and system notices.
+3. **PWA push notifications** — Installed app users can opt into browser push notifications for important class activity.
+4. **Cohort channels** — Per-class message spaces replace the active-cohort Slack channel use case.
+5. **Direct messages** — Staff and students can have one-on-one conversations tied to the learning context.
+6. **Rich messaging** — Mentions, reactions, attachments, search, pins, and real-time behavior are added once the core model is stable.
 
-This requires ActionCable/WebSockets for real-time messaging, message persistence, and notification delivery.
+The product should feel like a class communication app inside the learning platform: useful every day, mobile-first, installable, and respectful about notification noise.
+
+PWA push requirements:
+
+- Ask for notification permission only after the user is signed in and shown the value.
+- Support iOS installed-PWA behavior, while documenting that Safari requires adding the app to the home screen.
+- Avoid sensitive content in lock-screen notifications by default.
+- Deep-link notification clicks to the relevant announcement, channel, direct message, recording, or redo.
+
+The eventual real-time layer can use ActionCable/WebSockets, but the first shipped communication milestone should prioritize durable models, unread state, push subscriptions, and a clean mobile UI.
 
 ### 6.5 Later — Extended platform features
 

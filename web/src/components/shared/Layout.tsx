@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -14,9 +14,11 @@ import {
   Layers3,
   PanelLeftClose,
   PanelLeftOpen,
+  Bell,
 } from 'lucide-react'
 import { UserButton } from '@clerk/clerk-react'
 import { useAuthContext } from '../../contexts/AuthContext'
+import { api } from '../../lib/api'
 
 interface LayoutProps {
   children?: React.ReactNode
@@ -29,8 +31,17 @@ export function Layout({ children }: LayoutProps) {
   })
   const location = useLocation()
   const { user, isClerkEnabled, isLoading } = useAuthContext()
+  const [unreadCount, setUnreadCount] = useState(0)
   const isStaff = user?.is_staff
   const isFullAdmin = user?.is_admin
+
+  useEffect(() => {
+    if (!user) return
+
+    api.getNotifications(1, 'announcement').then((res) => {
+      if (res.data) setUnreadCount(res.data.unread_count)
+    })
+  }, [user, location.pathname])
 
   const toggleCollapsed = () => {
     const next = !collapsed
@@ -47,6 +58,7 @@ export function Layout({ children }: LayoutProps) {
     { to: '/admin/cohorts', icon: Layers3, label: 'Cohorts' },
     { to: '/admin/content', icon: FileText, label: 'Content' },
     { to: '/admin/grading', icon: ClipboardCheck, label: 'Grading' },
+    { to: '/announcements', icon: Bell, label: 'Announcements' },
     { to: '/admin/team', icon: Users, label: 'Team' },
     { to: '/profile', icon: User, label: 'Profile' },
   ]
@@ -55,6 +67,7 @@ export function Layout({ children }: LayoutProps) {
     { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', exact: true },
     { to: '/admin/cohorts', icon: Layers3, label: 'Cohorts' },
     { to: '/admin/grading', icon: ClipboardCheck, label: 'Grading' },
+    { to: '/announcements', icon: Bell, label: 'Announcements' },
     { to: '/profile', icon: User, label: 'Profile' },
   ]
 
@@ -62,6 +75,7 @@ export function Layout({ children }: LayoutProps) {
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/recordings', icon: PlayCircle, label: 'Recordings' },
     { to: '/resources', icon: Link2, label: 'Resources' },
+    { to: '/announcements', icon: Bell, label: 'Announcements' },
     { to: '/profile', icon: User, label: 'Profile' },
   ]
 
@@ -114,7 +128,12 @@ export function Layout({ children }: LayoutProps) {
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
-                <item.icon className="h-5 w-5" />
+                <span className="relative">
+                  <item.icon className="h-5 w-5" />
+                  {item.to === '/announcements' && unreadCount > 0 && (
+                    <span className="absolute -right-2 -top-2 h-2.5 w-2.5 rounded-full bg-primary-500 ring-2 ring-white" />
+                  )}
+                </span>
                 {item.label}
               </Link>
             ))}
@@ -142,8 +161,18 @@ export function Layout({ children }: LayoutProps) {
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
-                <item.icon className="h-5 w-5 shrink-0" />
+                <span className="relative shrink-0">
+                  <item.icon className="h-5 w-5" />
+                  {item.to === '/announcements' && unreadCount > 0 && (
+                    <span className="absolute -right-2 -top-2 h-2.5 w-2.5 rounded-full bg-primary-500 ring-2 ring-white" />
+                  )}
+                </span>
                 {!collapsed && item.label}
+                {!collapsed && item.to === '/announcements' && unreadCount > 0 && (
+                  <span className="ml-auto rounded-full bg-primary-100 px-2 py-0.5 text-xs font-semibold text-primary-700">
+                    {unreadCount}
+                  </span>
+                )}
               </Link>
             ))}
           </nav>

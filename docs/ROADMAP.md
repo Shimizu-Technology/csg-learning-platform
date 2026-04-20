@@ -144,38 +144,101 @@ The platform is **production-ready for its core use case** — managing cohorts,
 
 ---
 
-## Phase 4: In-App Messaging (Slack Alternative)
+## Phase 4: Communication Hub + PWA Notifications
 
-> **Goal:** Bring communication into the platform without building a full Slack clone.
+> **Goal:** Make the platform the daily communication home for CSG, with Slack-like class updates, unread state, and installable PWA push notifications.
 
-**Why this is later:** Slack works fine for now. Messaging is the biggest engineering lift and should only happen after the core platform is stable and the previous phases have shipped.
+**Why this is next:** Communication is used every class day. Payments matter, but the current cohort has only a few active payment workflows, while announcements, reminders, recordings, redos, and class messages affect every student and staff member all the time.
 
-### 4.1 Phase 4a — Announcements
-- Announcement model (cohort-scoped + global)
-- Staff announcement creation UI
-- Student-visible announcement feed
-- Push notification support (via service worker)
+### 4.1 Phase 4a — Notification Foundation + First-Class Announcements
+- `Announcement` model instead of storing notices inside `cohort.settings`
+  - Cohort-scoped announcements
+  - Global announcements for all active students/staff
+  - Pinned announcements
+  - Publish/draft/archive lifecycle
+- `Notification` model for reusable in-app notification records
+  - Per-user read/unread state
+  - Source polymorphism for announcements now and messages/DMs later
+  - Notification types for announcements, messages, redos, recordings, and system notices
+- Web Push subscription storage
+  - Per-user browser/device subscriptions
+  - Endpoint/key expiration handling
+  - Opt-in/opt-out controls
+- Staff announcement composer
+  - Create, edit, archive, and pin announcements
+  - Choose audience: global, staff, or a specific cohort
+  - Optional push notification send
+- Student/staff announcement feed
+  - Dedicated "Announcements" / "Inbox" surface
+  - Dashboard summary of latest unread/pinned notices
+  - Mark one or all notifications as read
+- PWA push notification support
+  - Service worker push and click handlers
+  - Permission prompt that appears in context, not on first page load
+  - Push notifications for new announcements
+  - Safe lock-screen copy without sensitive details by default
+
+**Definition of done**
+> Staff can publish a cohort or global announcement, enrolled students see it in-app with unread state, and installed PWA users who opted in receive a push notification.
 
 ### 4.2 Phase 4b — Cohort Channels
-- Channel model (per-cohort, alumni, custom)
-- Message model with threading support
-- ActionCable WebSocket integration for real-time
-- Typing indicators and read receipts
-- File/image attachment support
+- `Channel` model
+  - Per-cohort default class channel
+  - Staff-only channels
+  - Alumni/general channels later
+- `Message` model
+  - Author, body, attachments metadata, edited/deleted timestamps
+  - Thread parent support for replies
+  - Read receipts or per-channel read cursor
+- Channel UI
+  - Message list
+  - Composer
+  - Unread counts
+  - Mobile-first layout that feels like a messaging app inside the PWA
+- Delivery strategy
+  - Start with API polling/refetch-on-focus if that gets value shipped faster
+  - Add ActionCable/WebSockets once the domain model is stable
+- Push notifications for new channel messages
+  - Respect muted channels and notification preferences
+  - Collapse noisy bursts where possible
+
+**Definition of done**
+> Each cohort has a class channel where staff and students can post messages, unread counts work, and opted-in users receive push notifications for new activity.
 
 ### 4.3 Phase 4c — Direct Messages
-- Staff ↔ student direct messaging
-- Message notifications
-- Conversation list UI
+- Staff-to-student and student-to-staff direct conversations
+- Conversation list with unread counts
+- Push notifications for DMs
+- Mute/notification preferences per conversation
+- Staff-visible context links back to student profile/progress
 
-### 4.4 Phase 4d — Rich Features
-- @mentions and notifications
+**Definition of done**
+> Staff and students can communicate one-on-one inside the platform without leaving for Slack or email.
+
+### 4.4 Phase 4d — Real-Time + Rich Messaging
+- ActionCable/WebSocket real-time updates
+- Typing indicators
+- Read receipts
+- @mentions
 - Emoji reactions
-- Search across messages
-- Channel management (create, archive, pin messages)
+- Message search
+- File/image attachments
+- Pinned messages and important links
+- Channel management (create, archive, rename, permissions)
 
-### Definition of done
-> CSG can run day-to-day class communication through the platform instead of Slack, with per-cohort channels and an alumni channel.
+**Definition of done**
+> The installed PWA feels like a lightweight class communication app, with enough Slack-like behavior for day-to-day class operations.
+
+### 4.5 PWA Quality Gates
+- Install flow works on desktop, Android, and iOS home-screen PWA
+- Offline route fallback remains reliable
+- Push opt-in state is visible and reversible
+- Notification clicks deep-link to the relevant announcement, channel, or DM
+- No sensitive student data appears in lock-screen notifications unless explicitly allowed later
+- Browser support is documented, especially iOS installed-PWA requirements
+
+### Overall Definition of Done
+> CSG can run class communication from the platform: announcements, unread notification state, cohort messages, DMs, and PWA push notifications replace the daily Slack loop for active cohorts.
 
 ---
 

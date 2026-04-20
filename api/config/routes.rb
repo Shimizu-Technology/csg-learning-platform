@@ -16,6 +16,20 @@ Rails.application.routes.draw do
       get "recordings", to: "student_recordings#index"
       get "resources", to: "resources#index"
 
+      # Communication / notifications
+      resources :announcements, only: [ :index, :show, :create, :update, :destroy ]
+      resources :notifications, only: [ :index ] do
+        member do
+          patch :read, to: "notifications#mark_read"
+        end
+        collection do
+          patch :mark_all_read
+        end
+      end
+      get "push_subscriptions/config", to: "push_subscriptions#config"
+      post "push_subscriptions", to: "push_subscriptions#create"
+      delete "push_subscriptions", to: "push_subscriptions#destroy"
+
       # Watch progress (student updates their own)
       patch "watch_progress", to: "watch_progresses#update"
       get "watch_progress/student/:user_id", to: "watch_progresses#student_progress"

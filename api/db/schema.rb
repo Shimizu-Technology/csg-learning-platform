@@ -10,10 +10,28 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_17_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_20_062126) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
+
+  create_table "announcements", force: :cascade do |t|
+    t.datetime "archived_at"
+    t.integer "audience", default: 0, null: false
+    t.bigint "author_id", null: false
+    t.text "body", null: false
+    t.bigint "cohort_id"
+    t.datetime "created_at", null: false
+    t.boolean "pinned", default: false, null: false
+    t.datetime "published_at"
+    t.integer "status", default: 1, null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["audience", "cohort_id"], name: "index_announcements_on_audience_and_cohort_id"
+    t.index ["author_id"], name: "index_announcements_on_author_id"
+    t.index ["cohort_id"], name: "index_announcements_on_cohort_id"
+    t.index ["status", "published_at"], name: "index_announcements_on_status_and_published_at"
+  end
 
   create_table "audit_logs", force: :cascade do |t|
     t.string "action", null: false
@@ -542,6 +560,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_17_120000) do
     t.index ["curriculum_id"], name: "index_modules_on_curriculum_id"
   end
 
+  create_table "notifications", force: :cascade do |t|
+    t.bigint "actor_id"
+    t.text "body"
+    t.datetime "created_at", null: false
+    t.bigint "notifiable_id", null: false
+    t.string "notifiable_type", null: false
+    t.integer "notification_type", default: 0, null: false
+    t.string "path", null: false
+    t.datetime "read_at"
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["actor_id"], name: "index_notifications_on_actor_id"
+    t.index ["notifiable_type", "notifiable_id", "user_id"], name: "index_notifications_unique_source_per_user", unique: true
+    t.index ["notifiable_type", "notifiable_id"], name: "index_notifications_on_notifiable"
+    t.index ["user_id", "read_at", "created_at"], name: "index_notifications_on_user_id_and_read_at_and_created_at"
+    t.index ["user_id"], name: "index_notifications_on_user_id"
+  end
+
   create_table "pay_periods", force: :cascade do |t|
     t.bigint "approved_by_id"
     t.datetime "committed_at"
@@ -679,6 +716,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_17_120000) do
     t.bigint "timecard_id", null: false
     t.datetime "updated_at", null: false
     t.index ["timecard_id"], name: "index_punch_entries_on_timecard_id"
+  end
+
+  create_table "push_subscriptions", force: :cascade do |t|
+    t.string "auth", null: false
+    t.datetime "created_at", null: false
+    t.text "endpoint", null: false
+    t.datetime "failed_at"
+    t.datetime "last_seen_at"
+    t.string "p256dh", null: false
+    t.datetime "updated_at", null: false
+    t.string "user_agent"
+    t.bigint "user_id", null: false
+    t.index ["endpoint"], name: "index_push_subscriptions_on_endpoint", unique: true
+    t.index ["user_id", "failed_at"], name: "index_push_subscriptions_on_user_id_and_failed_at"
+    t.index ["user_id"], name: "index_push_subscriptions_on_user_id"
   end
 
   create_table "quota_periods", force: :cascade do |t|
@@ -1129,6 +1181,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_17_120000) do
     t.index ["user_id"], name: "index_watch_progresses_on_user_id"
   end
 
+  add_foreign_key "announcements", "cohorts"
+  add_foreign_key "announcements", "users", column: "author_id"
   add_foreign_key "audit_logs", "users", column: "actor_user_id"
   add_foreign_key "blocks", "villages"
   add_foreign_key "cohorts", "curricula", column: "curriculum_id"
@@ -1166,6 +1220,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_17_120000) do
   add_foreign_key "module_assignments", "enrollments"
   add_foreign_key "module_assignments", "modules"
   add_foreign_key "modules", "curricula", column: "curriculum_id"
+  add_foreign_key "notifications", "users"
+  add_foreign_key "notifications", "users", column: "actor_id"
   add_foreign_key "pay_periods", "companies"
   add_foreign_key "payroll_items", "employees"
   add_foreign_key "payroll_items", "pay_periods"
@@ -1176,6 +1232,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_17_120000) do
   add_foreign_key "progresses", "content_blocks"
   add_foreign_key "progresses", "users"
   add_foreign_key "punch_entries", "timecards"
+  add_foreign_key "push_subscriptions", "users"
   add_foreign_key "quota_periods", "campaign_cycles"
   add_foreign_key "quotas", "campaigns"
   add_foreign_key "quotas", "districts"
