@@ -70,7 +70,7 @@ Updates the current user's profile.
 
 Returns role-appropriate dashboard data.
 
-**Student response:** Current cohort, modules with progress, upcoming lessons.
+**Student response:** Current cohort, latest announcements, unread notification count, modules with progress, upcoming lessons.
 
 **Admin response:** All active cohorts with student progress, at-risk indicators, ungraded counts.
 
@@ -229,6 +229,63 @@ Returns resources/links for the current user's active cohort.
 
 ---
 
+## Communication
+
+### Announcements
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/api/v1/announcements` | Any signed-in user | List announcements visible to the current user |
+| `GET` | `/api/v1/announcements?scope=manage` | Staff | List all announcements for staff management |
+| `GET` | `/api/v1/announcements/:id` | Visible user / Staff | Show announcement and mark its notification read for the current user |
+| `POST` | `/api/v1/announcements` | Staff | Publish or draft an announcement |
+| `PATCH` | `/api/v1/announcements/:id` | Staff | Update an announcement |
+| `DELETE` | `/api/v1/announcements/:id` | Staff | Archive an announcement |
+
+**Create body:**
+```json
+{
+  "title": "Class recording is ready",
+  "body": "Week 3 recording is posted in the recordings tab.",
+  "audience": "cohort",
+  "cohort_id": 3,
+  "status": "published",
+  "pinned": true,
+  "send_push": true
+}
+```
+
+`audience` may be `cohort`, `global`, or `staff`. `send_push` only sends browser pushes when Web Push VAPID env vars are configured and the recipient has opted in on that device.
+
+### Notifications
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/api/v1/notifications` | Any signed-in user | List current user's notifications and unread count |
+| `PATCH` | `/api/v1/notifications/:id/read` | Owner | Mark one notification read |
+| `PATCH` | `/api/v1/notifications/mark_all_read` | Any signed-in user | Mark all current-user notifications read |
+
+### Push Subscriptions
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/api/v1/push_subscriptions/config` | Any signed-in user | Return whether Web Push is configured and the public VAPID key |
+| `POST` | `/api/v1/push_subscriptions` | Any signed-in user | Store the current browser/device push subscription |
+| `DELETE` | `/api/v1/push_subscriptions` | Any signed-in user | Remove a subscription endpoint for this user |
+
+**Create body:**
+```json
+{
+  "endpoint": "https://push.example/subscription",
+  "keys": {
+    "p256dh": "browser-public-key",
+    "auth": "browser-auth-secret"
+  }
+}
+```
+
+---
+
 ## Cohorts
 
 | Method | Path | Auth | Description |
@@ -239,7 +296,7 @@ Returns resources/links for the current user's active cohort.
 | `PATCH` | `/api/v1/cohorts/:id` | Staff | Update cohort |
 | `DELETE` | `/api/v1/cohorts/:id` | Staff | Delete cohort |
 | `PATCH` | `/api/v1/cohorts/:id/module_access` | Staff | Update module access settings |
-| `PATCH` | `/api/v1/cohorts/:id/announcements` | Staff | Update cohort announcements |
+| `PATCH` | `/api/v1/cohorts/:id/announcements` | Staff | Legacy JSON cohort notices; use `/announcements` for Phase 4 communication |
 | `PATCH` | `/api/v1/cohorts/:id/recordings` | Staff | Update cohort recordings list |
 | `PATCH` | `/api/v1/cohorts/:id/class_resources` | Staff | Update cohort resources |
 

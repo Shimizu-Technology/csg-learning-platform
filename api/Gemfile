@@ -68,3 +68,6 @@ gem "resend"
 
 # AWS S3 (video/recording uploads)
 gem "aws-sdk-s3"
+
+# Browser push notifications for installed PWA users
+gem "web-push"

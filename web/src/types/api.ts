@@ -145,10 +145,78 @@ export interface CurriculumDetail extends CurriculumSummary {
 // ─── Cohort / Enrollment ─────────────────────────────────────────────────────
 
 export interface Announcement {
+  id?: number;
   title: string;
   body: string;
   pinned: boolean;
   published_at: string;
+  audience?: 'cohort' | 'global' | 'staff';
+  status?: 'draft' | 'published' | 'archived';
+  cohort_id?: number | null;
+  cohort_name?: string | null;
+  read_at?: string | null;
+  author?: {
+    id: number;
+    full_name: string;
+    email: string;
+  };
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface NotificationEntry {
+  id: number;
+  notification_type: string;
+  title: string;
+  body: string | null;
+  path: string;
+  read_at: string | null;
+  created_at: string;
+  actor: {
+    id: number;
+    full_name: string;
+    email: string;
+  } | null;
+  notifiable: {
+    type: string;
+    id: number;
+  };
+}
+
+export interface AnnouncementsResponse {
+  announcements: Announcement[];
+  unread_count: number;
+}
+
+export interface AnnouncementResponse {
+  announcement: Announcement;
+}
+
+export interface NotificationsResponse {
+  notifications: NotificationEntry[];
+  unread_count: number;
+}
+
+export interface NotificationResponse {
+  notification: NotificationEntry;
+  unread_count: number;
+}
+
+export interface MarkAllNotificationsReadResponse {
+  unread_count: number;
+}
+
+export interface PushConfigResponse {
+  configured: boolean;
+  public_key: string | null;
+}
+
+export interface PushSubscriptionResponse {
+  push_subscription: {
+    id: number;
+    endpoint: string;
+    last_seen_at: string;
+  };
 }
 
 export interface CohortSummary {

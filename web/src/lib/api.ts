@@ -35,6 +35,13 @@ import type {
   CohortLessonVideoProgressResponse,
   StudentWatchProgressResponse,
   StudentLessonVideoProgressResponse,
+  AnnouncementsResponse,
+  AnnouncementResponse,
+  NotificationsResponse,
+  NotificationResponse,
+  MarkAllNotificationsReadResponse,
+  PushConfigResponse,
+  PushSubscriptionResponse,
 } from '../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
@@ -85,7 +92,12 @@ async function fetchApi<T>(
       return { data: null, error: null };
     }
 
-    const data = await response.json();
+    const text = await response.text();
+    if (!text) {
+      return { data: null, error: null };
+    }
+
+    const data = JSON.parse(text);
     return { data, error: null };
   } catch (err) {
     return {
@@ -107,6 +119,40 @@ export const api = {
     fetchApi<RecordingsResponse>('/api/v1/recordings'),
   getResources: () =>
     fetchApi<ResourcesResponse>('/api/v1/resources'),
+  getAnnouncements: (scope?: 'manage') =>
+    fetchApi<AnnouncementsResponse>(`/api/v1/announcements${scope ? `?scope=${scope}` : ''}`),
+  getAnnouncement: (id: number) =>
+    fetchApi<AnnouncementResponse>(`/api/v1/announcements/${id}`),
+  createAnnouncement: (data: { title: string; body: string; audience: string; cohort_id?: number | null; status?: string; pinned?: boolean; send_push?: boolean }) =>
+    fetchApi<AnnouncementResponse>('/api/v1/announcements', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateAnnouncement: (id: number, data: { title?: string; body?: string; audience?: string; cohort_id?: number | null; status?: string; pinned?: boolean; send_push?: boolean }) =>
+    fetchApi<AnnouncementResponse>(`/api/v1/announcements/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  archiveAnnouncement: (id: number) =>
+    fetchApi<AnnouncementResponse>(`/api/v1/announcements/${id}`, { method: 'DELETE' }),
+  getNotifications: (limit = 20) =>
+    fetchApi<NotificationsResponse>(`/api/v1/notifications?limit=${limit}`),
+  markNotificationRead: (id: number) =>
+    fetchApi<NotificationResponse>(`/api/v1/notifications/${id}/read`, { method: 'PATCH' }),
+  markAllNotificationsRead: () =>
+    fetchApi<MarkAllNotificationsReadResponse>('/api/v1/notifications/mark_all_read', { method: 'PATCH' }),
+  getPushConfig: () =>
+    fetchApi<PushConfigResponse>('/api/v1/push_subscriptions/config'),
+  createPushSubscription: (subscription: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+    fetchApi<PushSubscriptionResponse>('/api/v1/push_subscriptions', {
+      method: 'POST',
+      body: JSON.stringify(subscription),
+    }),
+  deletePushSubscription: (endpoint: string) =>
+    fetchApi<null>('/api/v1/push_subscriptions', {
+      method: 'DELETE',
+      body: JSON.stringify({ endpoint }),
+    }),
 
   // Profile
   getProfile: () =>

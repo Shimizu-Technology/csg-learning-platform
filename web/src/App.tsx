@@ -8,6 +8,7 @@ import { LessonView } from './pages/student/LessonView'
 import { Recordings } from './pages/student/Recordings'
 import { Resources } from './pages/student/Resources'
 import { Profile } from './pages/student/Profile'
+import { Announcements } from './pages/shared/Announcements'
 import { AdminDashboard } from './pages/admin/AdminDashboard'
 import { StudentDetail } from './pages/admin/StudentDetail'
 import { StudentManagement } from './pages/admin/StudentManagement'
@@ -37,6 +38,8 @@ function AppRoutes() {
           <Route path="/profile" element={<Profile />} />
           <Route path="/recordings" element={<Recordings />} />
           <Route path="/resources" element={<Resources />} />
+          <Route path="/announcements" element={<Announcements />} />
+          <Route path="/announcements/:id" element={<Announcements />} />
         </Route>
 
         {/* Staff routes (admin + instructor) */}

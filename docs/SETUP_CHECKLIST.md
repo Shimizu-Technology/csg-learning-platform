@@ -62,3 +62,30 @@ magick CSG-Logo.png -resize 32x32 favicon-32x32.png
 magick CSG-Logo.png -resize 16x16 favicon-16x16.png
 magick favicon-32x32.png favicon-16x16.png favicon.ico
 ```
+
+## PWA Push Notifications
+
+Phase 4 announcements can send browser push notifications after the app has VAPID keys configured.
+
+1. Generate keys from the API directory:
+
+   ```bash
+   bundle exec rails runner 'keys = WebPush.generate_key; puts keys.public_key; puts keys.private_key'
+   ```
+
+2. Add the values to Render:
+   - `WEB_PUSH_PUBLIC_KEY`
+   - `WEB_PUSH_PRIVATE_KEY`
+   - `WEB_PUSH_SUBJECT` = `mailto:leon@codeschoolofguam.com`
+
+3. Add the public key to Netlify:
+   - `VITE_WEB_PUSH_PUBLIC_KEY` = the same value as `WEB_PUSH_PUBLIC_KEY`
+
+4. Redeploy API and web.
+
+5. In the installed PWA, sign in and use **Announcements → Turn on push**.
+
+Notes:
+- iOS push requires installing the site to the home screen first.
+- Push notifications intentionally use safe summary text by default.
+- Users must opt in per browser/device.

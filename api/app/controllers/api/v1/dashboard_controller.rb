@@ -111,7 +111,13 @@ module Api
               name: cohort.name,
               start_date: cohort.start_date,
               status: cohort.status,
-              announcements: Array((cohort.settings || {})["announcements"])
+              announcements: Announcement.visible_for(current_user)
+                .where(audience: :cohort, cohort_id: cohort.id)
+                .or(Announcement.visible_for(current_user).where(audience: :global))
+                .ordered
+                .limit(5)
+                .map { |announcement| dashboard_announcement_json(announcement) },
+              unread_notifications_count: current_user.notifications.unread.count
             },
             overall_progress: {
               completed: completed_count,
@@ -122,6 +128,18 @@ module Api
             continue_lesson: continue_lesson,
             action_items: action_items
           }
+        }
+      end
+
+      def dashboard_announcement_json(announcement)
+        {
+          id: announcement.id,
+          title: announcement.title,
+          body: announcement.body,
+          pinned: announcement.pinned,
+          published_at: announcement.published_at,
+          cohort_id: announcement.cohort_id,
+          cohort_name: announcement.cohort&.name
         }
       end
 

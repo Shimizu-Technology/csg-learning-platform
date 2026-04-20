@@ -17,11 +17,14 @@ interface DashboardData {
     start_date: string
     status: string
     announcements?: Array<{
+      id: number
       title: string
       body: string
       pinned: boolean
       published_at: string
+      cohort_name?: string | null
     }>
+    unread_notifications_count?: number
   }
   overall_progress?: { completed: number; total: number; percentage: number }
   modules?: Array<{
@@ -181,12 +184,17 @@ export function Dashboard() {
 
       {data.cohort?.announcements && data.cohort.announcements.length > 0 && (
         <div className="rounded-2xl bg-white border border-slate-200 p-4 space-y-3">
-          <h3 className="text-sm font-semibold text-slate-900">Class Notices</h3>
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-slate-900">Class Notices</h3>
+            <Link to="/announcements" className="text-xs font-medium text-primary-600 hover:text-primary-700">
+              View all
+            </Link>
+          </div>
           {data.cohort.announcements
             .slice()
             .sort((a, b) => Number(b.pinned) - Number(a.pinned) || new Date(b.published_at).getTime() - new Date(a.published_at).getTime())
             .map((announcement, idx) => (
-              <div key={`${announcement.published_at}-${idx}`} className={`rounded-xl border px-4 py-3 ${announcement.pinned ? 'border-primary-200 bg-primary-50' : 'border-slate-200 bg-slate-50'}`}>
+              <Link key={`${announcement.published_at}-${idx}`} to={`/announcements/${announcement.id}`} className={`block rounded-xl border px-4 py-3 ${announcement.pinned ? 'border-primary-200 bg-primary-50' : 'border-slate-200 bg-slate-50'} hover:border-primary-200`}>
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold text-slate-900">{announcement.title || 'Announcement'}</p>
                   {announcement.pinned && (
@@ -194,7 +202,7 @@ export function Dashboard() {
                   )}
                 </div>
                 {announcement.body && <p className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{announcement.body}</p>}
-              </div>
+              </Link>
             ))}
         </div>
       )}
