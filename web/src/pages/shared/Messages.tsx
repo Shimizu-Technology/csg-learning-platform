@@ -36,6 +36,7 @@ export function Messages() {
   const [showChannelForm, setShowChannelForm] = useState(false)
   const [pushEnabled, setPushEnabled] = useState(false)
   const [pushMessage, setPushMessage] = useState('')
+  const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'error'>('disconnected')
   const [body, setBody] = useState('')
   const [error, setError] = useState('')
   const [channelError, setChannelError] = useState('')
@@ -144,6 +145,8 @@ export function Messages() {
     let unsubscribe: (() => void) | null = null
     let active = true
 
+    setRealtimeStatus('disconnected')
+
     subscribeToChannelMessages(selectedId, (payload) => {
       if (!active) return
       const event = payload as ChannelMessageEvent
@@ -184,7 +187,7 @@ export function Messages() {
       if (!message.mine && event.event === 'created') {
         api.markChannelRead(selectedId).catch(() => {})
       }
-    }).then((cleanup) => {
+    }, setRealtimeStatus).then((cleanup) => {
       if (active) {
         unsubscribe = cleanup
       } else {
@@ -226,7 +229,6 @@ export function Messages() {
     } else {
       setBody('')
       await loadChannel(selectedId, true)
-      await loadChannels()
     }
     setSending(false)
   }
@@ -293,7 +295,11 @@ export function Messages() {
         <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">Messages</h1>
-            <p className="mt-1 text-sm text-slate-500">Class channels for quick questions, links, and day-to-day updates.</p>
+            <p className="mt-1 text-sm text-slate-500">
+              Class channels for quick questions, links, and day-to-day updates.
+              {realtimeStatus === 'connected' && <span className="ml-2 text-green-600">Live</span>}
+              {realtimeStatus === 'error' && <span className="ml-2 text-amber-600">Reconnecting with refresh fallback</span>}
+            </p>
           </div>
           {pushSupported() && (
             <button

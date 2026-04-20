@@ -9,15 +9,7 @@ module ApplicationCable
     private
 
     def verified_user
-      decoded = ClerkAuth.verify(request.params[:token])
-      reject_unauthorized_connection unless decoded
-
-      user = User.find_by(clerk_id: decoded["sub"])
-      if user.blank? && decoded["email"].present?
-        user = User.find_by("LOWER(email) = ?", decoded["email"].downcase)
-      end
-
-      user || reject_unauthorized_connection
+      CableToken.consume(request.params[:token]) || reject_unauthorized_connection
     end
   end
 end

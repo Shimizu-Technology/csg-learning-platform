@@ -42,6 +42,7 @@ import type {
   MarkAllNotificationsReadResponse,
   PushConfigResponse,
   PushSubscriptionResponse,
+  CableTokenResponse,
   ChannelsResponse,
   ChannelResponse,
   MessageResponse,
@@ -53,10 +54,6 @@ let getAuthToken: (() => Promise<string | null>) | null = null;
 
 export function setAuthTokenGetter(getter: () => Promise<string | null>) {
   getAuthToken = getter;
-}
-
-export async function getCurrentAuthToken() {
-  return getAuthToken ? getAuthToken() : null;
 }
 
 interface ApiResponse<T> {
@@ -160,6 +157,8 @@ export const api = {
       method: 'DELETE',
       body: JSON.stringify({ endpoint }),
     }),
+  createCableToken: () =>
+    fetchApi<CableTokenResponse>('/api/v1/cable_token', { method: 'POST' }),
   getChannels: () =>
     fetchApi<ChannelsResponse>('/api/v1/channels'),
   getChannel: (id: number) =>

@@ -20,6 +20,7 @@ Rails.application.routes.draw do
 
       # Communication / notifications
       resources :announcements, only: [ :index, :show, :create, :update, :destroy ]
+      post "cable_token", to: "cable_tokens#create"
       resources :notifications, only: [ :index ] do
         member do
           patch :read, to: "notifications#mark_read"

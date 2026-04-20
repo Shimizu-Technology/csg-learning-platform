@@ -331,7 +331,13 @@ Posting a message creates in-app `message` notifications for other visible chann
 
 ### Realtime Channel Messages
 
-The API mounts ActionCable at `/cable`. The web client connects with the signed-in Clerk JWT as a `token` query parameter and subscribes to:
+The API mounts ActionCable at `/cable`. The web client first exchanges its normal API auth for a short-lived cable token:
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `POST` | `/api/v1/cable_token` | Any signed-in user | Issue a short-lived, single-use ActionCable token |
+
+Then it connects to `/cable?token=...` and subscribes to:
 
 ```json
 {

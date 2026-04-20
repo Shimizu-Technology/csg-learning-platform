@@ -219,6 +219,11 @@ export interface PushSubscriptionResponse {
   };
 }
 
+export interface CableTokenResponse {
+  token: string;
+  expires_in: number;
+}
+
 export interface ChannelSummary {
   id: number;
   cohort_id: number;

@@ -92,7 +92,7 @@ Notes:
 
 ## Realtime Messages
 
-Phase 4 channel messages use ActionCable at `/cable`. Make sure the API allows the deployed web origin:
+Phase 4 channel messages use ActionCable at `/cable`. The browser exchanges its normal API auth for a short-lived, single-use cable token before opening the WebSocket. Make sure the API allows the deployed web origin:
 
 - `FRONTEND_URL` or `ALLOWED_ORIGINS` on Render should include the Netlify app URL.
 - `VITE_API_URL` on Netlify should point at the Render API URL so the PWA opens the matching `wss://.../cable` connection.
