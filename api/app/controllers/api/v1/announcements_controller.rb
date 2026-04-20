@@ -12,9 +12,13 @@ module Api
         else
           Announcement.visible_for(current_user).includes(:cohort, :author).ordered
         end
+        paged_announcements = announcements.limit(limit_param).to_a
+        notification_index = current_user.notifications
+          .where(notifiable_type: "Announcement", notifiable_id: paged_announcements.map(&:id))
+          .index_by(&:notifiable_id)
 
         render json: {
-          announcements: announcements.limit(limit_param).map { |announcement| announcement_json(announcement) },
+          announcements: paged_announcements.map { |announcement| announcement_json(announcement, notification_index[announcement.id]) },
           unread_count: current_user.notifications.unread.count
         }
       end
@@ -26,8 +30,9 @@ module Api
           return
         end
 
-        current_user.notifications.find_by(notifiable: @announcement)&.mark_read!
-        render json: { announcement: announcement_json(@announcement) }
+        notification = current_user.notifications.find_by(notifiable: @announcement)
+        notification&.mark_read!
+        render json: { announcement: announcement_json(@announcement, notification) }
       end
 
       # POST /api/v1/announcements
@@ -89,8 +94,7 @@ module Api
         Announcement.visible_for(current_user).where(id: announcement.id).exists?
       end
 
-      def announcement_json(announcement)
-        notification = current_user.notifications.find_by(notifiable: announcement)
+      def announcement_json(announcement, notification = nil)
         {
           id: announcement.id,
           title: announcement.title,

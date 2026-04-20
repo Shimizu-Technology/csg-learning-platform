@@ -1,6 +1,8 @@
 require "test_helper"
 
 class CommunicationTest < ActionDispatch::IntegrationTest
+  include ActiveJob::TestHelper
+
   def setup
     @curriculum = Curriculum.create!(name: "Bootcamp 2026")
     @cohort = Cohort.create!(curriculum: @curriculum, name: "Cohort 3", start_date: Date.current, status: :active)
@@ -15,18 +17,20 @@ class CommunicationTest < ActionDispatch::IntegrationTest
   end
 
   test "staff publishes cohort announcement and creates unread notification for enrolled students" do
-    as_user(@admin) do
-      post "/api/v1/announcements",
-        params: {
-          title: "Recording posted",
-          body: "Class 3 recording is ready.",
-          audience: "cohort",
-          cohort_id: @cohort.id,
-          pinned: true,
-          send_push: true
-        },
-        headers: auth_headers,
-        as: :json
+    assert_enqueued_with(job: PushNotificationJob) do
+      as_user(@admin) do
+        post "/api/v1/announcements",
+          params: {
+            title: "Recording posted",
+            body: "Class 3 recording is ready.",
+            audience: "cohort",
+            cohort_id: @cohort.id,
+            pinned: true,
+            send_push: true
+          },
+          headers: auth_headers,
+          as: :json
+      end
     end
 
     assert_response :created
@@ -107,7 +111,7 @@ class CommunicationTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
-  test "push subscription can be saved and replaced by endpoint" do
+  test "same user can refresh push subscription by endpoint" do
     as_user(@student) do
       post "/api/v1/push_subscriptions",
         params: {
@@ -124,7 +128,7 @@ class CommunicationTest < ActionDispatch::IntegrationTest
     assert_response :created
     assert_equal 1, @student.push_subscriptions.count
 
-    as_user(@admin) do
+    as_user(@student) do
       post "/api/v1/push_subscriptions",
         params: {
           endpoint: "https://push.example/subscription-1",
@@ -139,8 +143,35 @@ class CommunicationTest < ActionDispatch::IntegrationTest
 
     assert_response :created
     subscription = PushSubscription.find_by!(endpoint: "https://push.example/subscription-1")
-    assert_equal @admin, subscription.user
+    assert_equal @student, subscription.user
     assert_equal "new-public-key", subscription.p256dh
+  end
+
+  test "push subscription cannot be claimed by a different user" do
+    PushSubscription.create!(
+      user: @student,
+      endpoint: "https://push.example/subscription-1",
+      p256dh: "public-key",
+      auth: "auth-secret"
+    )
+
+    as_user(@admin) do
+      post "/api/v1/push_subscriptions",
+        params: {
+          endpoint: "https://push.example/subscription-1",
+          keys: {
+            p256dh: "new-public-key",
+            auth: "new-auth-secret"
+          }
+        },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :conflict
+    subscription = PushSubscription.find_by!(endpoint: "https://push.example/subscription-1")
+    assert_equal @student, subscription.user
+    assert_equal "public-key", subscription.p256dh
   end
 
   private

@@ -14,6 +14,11 @@ module Api
       # POST /api/v1/push_subscriptions
       def create
         subscription = PushSubscription.find_or_initialize_by(endpoint: subscription_params[:endpoint])
+        if subscription.persisted? && subscription.user_id != current_user.id
+          head :conflict
+          return
+        end
+
         subscription.user = current_user
         subscription.p256dh = subscription_params[:p256dh]
         subscription.auth = subscription_params[:auth]
