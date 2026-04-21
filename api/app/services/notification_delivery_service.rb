@@ -56,10 +56,21 @@ class NotificationDeliveryService
       notification.actor = message.author
       notification.notification_type = message.direct_message? ? :direct_message : :message
       notification.title = message.direct_message? ? "#{message.author.full_name} sent you a message" : "#{message.channel.name} has a new message"
-      notification.body = message.body.to_s.truncate(180)
+      notification.body = message_notification_body(message)
       notification.path = message.direct_message? ? "/messages/dm/#{message.direct_conversation_id}" : "/messages/#{message.channel_id}"
     end
   rescue ActiveRecord::RecordNotUnique
     Notification.find_by!(notifiable: message, user: user)
+  end
+
+  def message_notification_body(message)
+    body = message.body.to_s.strip
+    return body.truncate(180) if body.present?
+
+    attachment_count = message.message_attachments.size
+    return "Sent an attachment" if attachment_count == 1
+    return "Sent #{attachment_count} attachments" if attachment_count > 1
+
+    "Sent a message"
   end
 end

@@ -55,7 +55,7 @@ module Api
 
         member = @conversation.direct_conversation_members.find_by!(user: current_user)
         messages = @conversation.messages.visible
-          .includes(:author, :message_attachments, :message_reactions)
+          .includes(:author, :message_attachments, message_reactions: :user)
           .chronological
           .limit(message_limit)
           .to_a

@@ -40,6 +40,12 @@ body {
   pointer-events: none;
 }
 
+.message-composer {
+  min-height: 44px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
 .message-composer p {
   margin: 0.25rem 0;
 }

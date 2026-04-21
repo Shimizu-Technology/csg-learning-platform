@@ -16,7 +16,7 @@ module Api
         pattern = "%#{ActiveRecord::Base.sanitize_sql_like(query.downcase)}%"
 
         messages = Message.visible
-          .includes(:author, :channel, { direct_conversation: :users }, :message_attachments, :message_reactions)
+          .includes(:author, :channel, { direct_conversation: :users }, :message_attachments, { message_reactions: :user })
           .where("LOWER(body) LIKE ?", pattern)
           .where(Message.arel_table[:channel_id].in(channel_ids).or(Message.arel_table[:direct_conversation_id].in(direct_ids)))
           .order(created_at: :desc, id: :desc)

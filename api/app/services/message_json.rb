@@ -57,9 +57,18 @@ class MessageJson
         {
           emoji: emoji,
           count: reactions.size,
-          reacted: current_user ? reactions.any? { |reaction| reaction.user_id == current_user.id } : false
+          reacted: current_user ? reactions.any? { |reaction| reaction.user_id == current_user.id } : false,
+          users: reactions.map { |reaction| reaction_user_json(reaction.user) }
         }
       end
+    end
+
+    def reaction_user_json(user)
+      {
+        id: user.id,
+        full_name: user.full_name,
+        avatar_url: user.avatar_url
+      }
     end
 
     def user_json(user)

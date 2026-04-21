@@ -26,7 +26,7 @@ module Api
         end
 
         messages = @channel.messages.visible
-          .includes(:author, :message_attachments, :message_reactions)
+          .includes(:author, :message_attachments, message_reactions: :user)
           .chronological
           .limit(message_limit)
           .to_a

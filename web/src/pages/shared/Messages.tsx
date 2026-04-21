@@ -6,6 +6,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import Link from '@tiptap/extension-link'
 import Underline from '@tiptap/extension-underline'
 import type { Editor, JSONContent } from '@tiptap/core'
+import EmojiPicker, { Theme, type EmojiClickData } from 'emoji-picker-react'
 import {
   Bell,
   BellOff,
@@ -13,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Code2,
+  Download,
   Edit3,
   File,
   Hash,
@@ -28,6 +30,7 @@ import {
   RefreshCw,
   Search,
   Send,
+  SmilePlus,
   Trash2,
   Type,
   UserPlus,
@@ -81,6 +84,7 @@ function preview(text: string) {
   const fallback = (text || 'Attachment')
     .replace(/```[\w-]*\n?/g, '')
     .replace(/```/g, '')
+    .replace(/`{1,3}/g, '')
     .replace(/`([^`]+)`/g, '$1')
     .replace(/\*\*([^*]+)\*\*/g, '$1')
     .replace(/_([^_]+)_/g, '$1')
@@ -110,6 +114,35 @@ function channelInitials(name: string) {
   const words = name.trim().split(/\s+/).filter(Boolean)
   if (words.length === 0) return '#'
   return words.length === 1 ? words[0].slice(0, 2).toUpperCase() : words.slice(0, 2).map((word) => word[0]).join('').toUpperCase()
+}
+
+function rootMessageIdFor(message: ChannelMessage, messagesById: Map<number, ChannelMessage>) {
+  let current: ChannelMessage | undefined = message
+
+  while (current?.parent_message_id) {
+    current = messagesById.get(current.parent_message_id)
+  }
+
+  return current?.id || message.id
+}
+
+function mergeIncomingMessage(existing: LocalMessage, incoming: LocalMessage) {
+  const mergedReactions = incoming.reactions.map((reaction) => {
+    const existingReaction = existing.reactions.find((item) => item.emoji === reaction.emoji)
+    if (existingReaction?.reacted && !reaction.reacted) {
+      return { ...reaction, reacted: true }
+    }
+
+    return reaction
+  })
+
+  return { ...incoming, reactions: mergedReactions }
+}
+
+function messageNotificationHint(configured: boolean, publicKey?: string | null) {
+  if (configured || publicKey) return ''
+
+  return 'Push needs WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, and WEB_PUSH_SUBJECT on the API plus VITE_WEB_PUSH_PUBLIC_KEY on the web app.'
 }
 
 function editorTextBeforeCursor(editor: Editor) {
@@ -184,7 +217,7 @@ export function Messages() {
   const [lightboxAttachments, setLightboxAttachments] = useState<MessageAttachment[]>([])
   const [lightboxIndex, setLightboxIndex] = useState(0)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [replyTo, setReplyTo] = useState<ChannelMessage | null>(null)
+  const [activeThreadRootId, setActiveThreadRootId] = useState<number | null>(null)
   const [editing, setEditing] = useState<ChannelMessage | null>(null)
   const [editBody, setEditBody] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
@@ -217,6 +250,33 @@ export function Messages() {
   const selected = selectedChannel || selectedDm
   const selectedLabel = selectedChannel ? `#${selectedChannel.name}` : selectedDm?.title || 'Messages'
   const selectedMuted = Boolean(selected?.muted)
+  const messagesById = useMemo(() => new Map(messages.map((message) => [message.id, message])), [messages])
+  const threadReplies = useMemo(() => {
+    const replies = new Map<number, LocalMessage[]>()
+
+    messages.forEach((message) => {
+      if (!message.parent_message_id) return
+
+      const rootId = rootMessageIdFor(message, messagesById)
+      replies.set(rootId, [...(replies.get(rootId) || []), message])
+    })
+
+    replies.forEach((items, key) => {
+      replies.set(key, items.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()))
+    })
+
+    return replies
+  }, [messages, messagesById])
+  const rootMessages = useMemo(
+    () => messages.filter((message) => !message.parent_message_id),
+    [messages],
+  )
+  const activeThreadRoot = activeThreadRootId ? messagesById.get(activeThreadRootId) || null : null
+  const activeThreadMessages = useMemo(() => {
+    if (!activeThreadRoot) return []
+
+    return [activeThreadRoot, ...(threadReplies.get(activeThreadRoot.id) || [])]
+  }, [activeThreadRoot, threadReplies])
 
   const workspaces = useMemo(() => {
     const workspaceMap = new Map<number, string>()
@@ -280,7 +340,7 @@ export function Messages() {
     ],
     editorProps: {
       attributes: {
-        class: 'message-composer min-h-[44px] max-h-44 overflow-y-auto px-3 py-3 text-sm leading-6 text-slate-800 outline-none',
+        class: 'message-composer px-3 py-3 text-sm leading-6 text-slate-800 outline-none',
       },
       handlePaste: (_view, event) => {
         const files = Array.from(event.clipboardData?.files || [])
@@ -442,7 +502,9 @@ export function Messages() {
 
       setMessages((prev) => {
         if (event.event === 'deleted') return prev.filter((item) => item.id !== message.id)
-        if (prev.some((item) => item.id === message.id)) return prev.map((item) => item.id === message.id ? message : item)
+        if (prev.some((item) => item.id === message.id)) {
+          return prev.map((item) => item.id === message.id ? mergeIncomingMessage(item, message) : item)
+        }
         return [...prev, message]
       })
 
@@ -463,6 +525,12 @@ export function Messages() {
       unsubscribe?.()
     }
   }, [selectedTarget?.type, selectedTarget?.id, user])
+
+  useEffect(() => {
+    if (activeThreadRootId && !messagesById.has(activeThreadRootId)) {
+      setActiveThreadRootId(null)
+    }
+  }, [activeThreadRootId, messagesById])
 
   useEffect(() => {
     if (!lightboxAttachment) return
@@ -532,7 +600,7 @@ export function Messages() {
   const selectTarget = (target: Target) => {
     window.history.replaceState(null, '', target.type === 'channel' ? `/messages/${target.id}` : `/messages/dm/${target.id}`)
     setSelectedTarget(target)
-    setReplyTo(null)
+    setActiveThreadRootId(null)
     setEditing(null)
   }
 
@@ -620,6 +688,7 @@ export function Messages() {
 
     const submittedBody = (editor ? editorJsonToMarkdown(editor.getJSON()) : body).trim()
     const submittedAttachments = pendingAttachments
+    const threadRoot = activeThreadRoot
     if (!submittedBody && submittedAttachments.length === 0) return
 
     const tempId = -Date.now()
@@ -635,7 +704,7 @@ export function Messages() {
       id: tempId,
       channel_id: selectedTarget.type === 'channel' ? selectedTarget.id : null,
       direct_conversation_id: selectedTarget.type === 'dm' ? selectedTarget.id : null,
-      parent_message_id: replyTo?.id || null,
+      parent_message_id: threadRoot?.id || null,
       body: submittedBody,
       edited_at: null,
       deleted_at: null,
@@ -662,7 +731,6 @@ export function Messages() {
     setComposerTriggerText('')
     editor?.commands.clearContent()
     setPendingAttachments([])
-    setReplyTo(null)
 
     setSending(true)
     setError('')
@@ -740,7 +808,7 @@ export function Messages() {
     const config = await api.getPushConfig()
     const publicKey = config.data?.public_key || import.meta.env.VITE_WEB_PUSH_PUBLIC_KEY
     if (!config.data?.configured && !publicKey) {
-      setPushMessage('Push notifications are not configured yet.')
+      setPushMessage(messageNotificationHint(Boolean(config.data?.configured), publicKey))
       return
     }
 
@@ -1282,33 +1350,61 @@ export function Messages() {
               </header>
 
               <div className="flex-1 overflow-y-auto bg-white px-4 py-4">
-                {messages.length === 0 ? (
-                  <div className="py-16 text-center text-sm text-slate-500">No messages yet. Start the conversation.</div>
-                ) : messages.map((message) => (
-                  <MessageRow
-                    key={message.id}
-                    message={message}
-                    replyTarget={messages.find((item) => item.id === message.parent_message_id) || null}
-                    editing={editing?.id === message.id}
-                    editBody={editBody}
-                    setEditBody={setEditBody}
-                    onStartEdit={() => {
-                      setEditing(message)
-                      setEditBody(message.body)
-                    }}
-                    onCancelEdit={() => setEditing(null)}
-                    onSaveEdit={() => saveEdit(message)}
-                    onDelete={() => deleteMessage(message)}
-                    onPin={() => togglePin(message)}
-                    canPin={isStaff}
-                    onReply={() => setReplyTo(message)}
-                    onReact={(emoji) => toggleReaction(message, emoji)}
-                    onOpenImage={(attachment, imageAttachments) => {
-                      setLightboxAttachments(imageAttachments)
-                      setLightboxIndex(Math.max(0, imageAttachments.findIndex((item) => item.id === attachment.id)))
-                    }}
-                  />
-                ))}
+                {activeThreadRoot && (
+                  <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Thread</p>
+                        <p className="mt-1 text-sm text-slate-600">
+                          {activeThreadMessages.length - 1} {activeThreadMessages.length - 1 === 1 ? 'reply' : 'replies'} under this message
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveThreadRootId(null)}
+                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        Back to channel
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {(activeThreadRoot ? activeThreadMessages : rootMessages).length === 0 ? (
+                  <div className="py-16 text-center text-sm text-slate-500">
+                    {activeThreadRoot ? 'No replies yet. Start the thread.' : 'No messages yet. Start the conversation.'}
+                  </div>
+                ) : (activeThreadRoot ? activeThreadMessages : rootMessages).map((message) => {
+                  const rootId = rootMessageIdFor(message, messagesById)
+                  const replyCount = threadReplies.get(rootId)?.length || 0
+
+                  return (
+                    <MessageRow
+                      key={message.id}
+                      message={message}
+                      editing={editing?.id === message.id}
+                      editBody={editBody}
+                      setEditBody={setEditBody}
+                      onStartEdit={() => {
+                        setEditing(message)
+                        setEditBody(message.body)
+                      }}
+                      onCancelEdit={() => setEditing(null)}
+                      onSaveEdit={() => saveEdit(message)}
+                      onDelete={() => deleteMessage(message)}
+                      onPin={() => togglePin(message)}
+                      canPin={isStaff}
+                      inThreadView={Boolean(activeThreadRoot)}
+                      replyCount={!activeThreadRoot && !message.parent_message_id ? replyCount : 0}
+                      onReply={() => setActiveThreadRootId(rootId)}
+                      onReact={(emoji) => toggleReaction(message, emoji)}
+                      onOpenImage={(attachment, imageAttachments) => {
+                        setLightboxAttachments(imageAttachments)
+                        setLightboxIndex(Math.max(0, imageAttachments.findIndex((item) => item.id === attachment.id)))
+                      }}
+                    />
+                  )
+                })}
                 <div ref={bottomRef} />
               </div>
 
@@ -1318,10 +1414,10 @@ export function Messages() {
                     {error}
                   </div>
                 )}
-                {replyTo && (
+                {activeThreadRoot && (
                   <div className="mb-2 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                    <span>Replying to {replyTo.author.full_name}: {preview(replyTo.body)}</span>
-                    <button type="button" onClick={() => setReplyTo(null)} className="rounded-lg p-1 hover:bg-white">
+                    <span>Replying in thread to {activeThreadRoot.author.full_name}: {preview(activeThreadRoot.body)}</span>
+                    <button type="button" onClick={() => setActiveThreadRootId(null)} className="rounded-lg p-1 hover:bg-white">
                       <X className="h-4 w-4" />
                     </button>
                   </div>
@@ -1372,14 +1468,15 @@ export function Messages() {
                       <EditorContent editor={editor} onKeyDown={handleComposerKeyDown} />
                     </div>
                   </div>
-                  <div className="flex items-center justify-end border-t border-slate-100 px-3 py-3">
+                  <div className="flex items-end justify-end border-t border-slate-100 px-3 py-3">
                     <button
                       type="submit"
                       disabled={sending || (!body.trim() && pendingAttachments.length === 0)}
-                      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-500 text-white shadow-sm transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
                       aria-label={sending ? 'Sending message' : 'Send message'}
                     >
                       <Send className="h-4 w-4" />
+                      <span>Send</span>
                     </button>
                   </div>
                   {mentionSuggestions.length > 0 && (
@@ -1423,7 +1520,9 @@ export function Messages() {
                     </div>
                   )}
                 </div>
-                <p className="mt-2 text-xs text-slate-400">Press Cmd+Enter or Ctrl+Enter to send. Paste or drop screenshots, use @ for people, / for snippets, and backticks for code.</p>
+                <p className="mt-2 text-xs text-slate-400">
+                  Press Cmd+Enter or Ctrl+Enter to send. Paste or drop screenshots, use @ for people, / for snippets, and backticks for code.
+                </p>
               </form>
             </>
           ) : (
@@ -1507,8 +1606,9 @@ export function Messages() {
                 <button
                   type="button"
                   onClick={downloadLightboxAttachment}
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
+                  <Download className="h-4 w-4" />
                   Download
                 </button>
               </div>
@@ -1608,7 +1708,6 @@ function formatInline(text: string) {
 
 function MessageRow({
   message,
-  replyTarget,
   editing,
   editBody,
   setEditBody,
@@ -1618,12 +1717,13 @@ function MessageRow({
   onDelete,
   onPin,
   canPin,
+  inThreadView,
+  replyCount,
   onReply,
   onReact,
   onOpenImage,
 }: {
   message: LocalMessage
-  replyTarget: ChannelMessage | null
   editing: boolean
   editBody: string
   setEditBody: (value: string) => void
@@ -1633,11 +1733,18 @@ function MessageRow({
   onDelete: () => void
   onPin: () => void
   canPin: boolean
+  inThreadView: boolean
+  replyCount: number
   onReply: () => void
   onReact: (emoji: string) => void
   onOpenImage: (attachment: MessageAttachment, imageAttachments: MessageAttachment[]) => void
 }) {
+  const [pickerOpen, setPickerOpen] = useState(false)
   const imageAttachments = message.attachments.filter((attachment) => attachment.image && attachment.url)
+  const renderedReactions = [
+    ...message.reactions.map((reaction) => reaction.emoji),
+    ...REACTIONS.filter((emoji) => !message.reactions.some((reaction) => reaction.emoji === emoji)),
+  ]
 
   return (
     <div className={`group mb-3 flex gap-3 rounded-lg px-2 py-2 hover:bg-slate-50 ${message.pinned_at ? 'bg-amber-50/70' : ''} ${message.pending ? 'opacity-75' : ''}`}>
@@ -1653,11 +1760,6 @@ function MessageRow({
           {message.failed && <span className="text-xs font-medium text-red-600">Not sent</span>}
           {message.pinned_at && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700"><Pin className="h-3 w-3" /> Pinned</span>}
         </div>
-        {replyTarget && (
-          <div className="mt-2 rounded-lg border-l-2 border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-            Reply to {replyTarget.author.full_name}: {preview(replyTarget.body)}
-          </div>
-        )}
         {editing ? (
           <div className="mt-2">
             <textarea
@@ -1704,19 +1806,55 @@ function MessageRow({
           </div>
         )}
         <div className="mt-2 flex flex-wrap items-center gap-1">
-          {REACTIONS.map((emoji) => {
+          {renderedReactions.map((emoji) => {
             const reaction = message.reactions.find((item) => item.emoji === emoji)
             return (
-              <button
-                key={emoji}
-                onClick={() => onReact(emoji)}
-                className={`rounded-lg border px-2 py-1 text-xs ${reaction?.reacted ? 'border-primary-200 bg-primary-50 text-primary-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
-              >
-                {emoji} {reaction?.count || ''}
-              </button>
+              <div key={emoji} className="group/reaction relative">
+                <button
+                  onClick={() => onReact(emoji)}
+                  className={`rounded-lg border px-2 py-1 text-xs ${reaction?.reacted ? 'border-primary-200 bg-primary-50 text-primary-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                >
+                  {emoji} {reaction?.count || ''}
+                </button>
+                {reaction && reaction.users.length > 0 && (
+                  <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden -translate-x-1/2 rounded-lg bg-slate-900 px-3 py-2 text-xs text-white shadow-lg group-hover/reaction:block">
+                    <div className="font-medium">{emoji}</div>
+                    <div className="mt-1 whitespace-nowrap">{reaction.users.map((user) => user.full_name).join(', ')}</div>
+                  </div>
+                )}
+              </div>
             )
           })}
-          <button onClick={onReply} className="rounded-lg px-2 py-1 text-xs text-slate-500 hover:bg-slate-100">Reply</button>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setPickerOpen((current) => !current)}
+              className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50"
+            >
+              <SmilePlus className="h-4 w-4" />
+            </button>
+            {pickerOpen && (
+              <div className="absolute bottom-full left-0 z-30 mb-2 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+                <EmojiPicker
+                  width={320}
+                  height={380}
+                  theme={Theme.LIGHT}
+                  onEmojiClick={(data: EmojiClickData) => {
+                    onReact(data.emoji)
+                    setPickerOpen(false)
+                  }}
+                />
+              </div>
+            )}
+          </div>
+          <button onClick={onReply} className="rounded-lg px-2 py-1 text-xs text-slate-500 hover:bg-slate-100">
+            {inThreadView ? 'Reply in thread' : 'Reply'}
+          </button>
+          {!inThreadView && replyCount > 0 && (
+            <button onClick={onReply} className="rounded-lg px-2 py-1 text-xs font-medium text-primary-700 hover:bg-primary-50">
+              {replyCount} {replyCount === 1 ? 'reply' : 'replies'}
+            </button>
+          )}
         </div>
       </div>
       <div className="flex shrink-0 items-start gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">

@@ -259,6 +259,11 @@ export interface MessageReaction {
   emoji: string;
   count: number;
   reacted: boolean;
+  users: {
+    id: number;
+    full_name: string;
+    avatar_url: string | null;
+  }[];
 }
 
 export interface ChannelMessage {
