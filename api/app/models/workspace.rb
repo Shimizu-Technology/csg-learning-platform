@@ -63,14 +63,25 @@ class Workspace < ApplicationRecord
   end
 
   def self.find_or_create_for_cohort!(cohort)
-    cohort.workspace || create!(
-      cohort: cohort,
-      name: cohort.name,
-      slug: "#{cohort.name.to_s.parameterize.presence || 'workspace'}-#{cohort.id}",
-      workspace_type: :cohort,
-      status: cohort.archived? ? :archived : :active,
-      description: "Workspace for #{cohort.name}"
-    ).tap(&:ensure_default_channels!)
+    cohort.workspace || begin
+      workspace = nil
+
+      transaction do
+        workspace = create!(
+          cohort: cohort,
+          name: cohort.name,
+          slug: "#{cohort.name.to_s.parameterize.presence || 'workspace'}-#{cohort.id}",
+          workspace_type: :cohort,
+          status: cohort.archived? ? :archived : :active,
+          description: "Workspace for #{cohort.name}"
+        )
+        workspace.ensure_default_channels!
+      end
+
+      workspace
+    rescue ActiveRecord::RecordNotUnique
+      cohort.reload.workspace || raise
+    end
   end
 
   def self.build_community_slug(name, attempt: 0)
