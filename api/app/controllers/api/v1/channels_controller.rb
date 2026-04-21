@@ -86,7 +86,7 @@ module Api
       private
 
       def set_channel
-        @channel = Channel.find(params[:id])
+        @channel = Channel.includes(workspace: :cohort).find(params[:id])
       end
 
       def channel_params

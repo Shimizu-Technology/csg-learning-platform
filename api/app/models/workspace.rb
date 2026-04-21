@@ -1,3 +1,5 @@
+require "securerandom"
+
 class Workspace < ApplicationRecord
   enum :workspace_type, { cohort: 0, community: 1 }
   enum :status, { active: 0, archived: 1 }
@@ -71,17 +73,11 @@ class Workspace < ApplicationRecord
     ).tap(&:ensure_default_channels!)
   end
 
-  def self.build_community_slug(name)
+  def self.build_community_slug(name, attempt: 0)
     base = name.to_s.parameterize.presence || "workspace"
-    candidate = base
-    counter = 2
+    return base if attempt.zero?
 
-    while exists?(slug: candidate)
-      candidate = "#{base}-#{counter}"
-      counter += 1
-    end
-
-    candidate
+    "#{base}-#{attempt + 1}-#{SecureRandom.hex(2)}"
   end
 
   def listed_members

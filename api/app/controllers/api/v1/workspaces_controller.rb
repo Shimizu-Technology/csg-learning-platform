@@ -91,7 +91,7 @@ module Api
 
         begin
           attempts += 1
-          workspace.slug = Workspace.build_community_slug(workspace.name)
+          workspace.slug = Workspace.build_community_slug(workspace.name, attempt: attempts - 1)
 
           Workspace.transaction do
             workspace.save!
@@ -101,6 +101,13 @@ module Api
             add_members!(workspace, workspace_member_ids)
             workspace.ensure_default_channels!
           end
+        rescue ActiveRecord::RecordInvalid
+          if attempts < 3 && workspace.errors.of_kind?(:slug, :taken)
+            workspace.errors.delete(:slug)
+            retry
+          end
+
+          raise
         rescue ActiveRecord::RecordNotUnique
           retry if attempts < 3
 

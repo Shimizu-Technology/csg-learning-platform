@@ -250,6 +250,8 @@ export function Messages() {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const composerFormRef = useRef<HTMLFormElement | null>(null)
   const lightboxTouchStartX = useRef<number | null>(null)
+  const optimisticAttachmentUrls = useRef(new Map<number, string[]>())
+  const tempMessageIdRef = useRef(0)
 
   const selectedChannel = useMemo(
     () => selectedTarget?.type === 'channel' ? channels.find((channel) => channel.id === selectedTarget.id) || null : null,
@@ -705,6 +707,14 @@ export function Messages() {
     setLightboxIndex(0)
   }
 
+  const releaseOptimisticAttachmentUrls = (messageId: number) => {
+    const urls = optimisticAttachmentUrls.current.get(messageId)
+    if (!urls) return
+
+    urls.forEach((url) => URL.revokeObjectURL(url))
+    optimisticAttachmentUrls.current.delete(messageId)
+  }
+
   const downloadLightboxAttachment = async () => {
     if (!lightboxAttachment?.url) return
 
@@ -770,15 +780,23 @@ export function Messages() {
     const threadRoot = activeThreadRoot
     if (!submittedBody && submittedAttachments.length === 0) return
 
-    const tempId = -Date.now()
-    const optimisticAttachments = submittedAttachments.map((attachment, index) => ({
-      id: tempId - index - 1,
-      filename: attachment.filename,
-      content_type: attachment.content_type,
-      byte_size: attachment.byte_size,
-      image: attachment.content_type.startsWith('image/'),
-      url: URL.createObjectURL(attachment.file),
-    }))
+    tempMessageIdRef.current -= 1
+    const tempId = tempMessageIdRef.current
+    const optimisticUrls: string[] = []
+    const optimisticAttachments = submittedAttachments.map((attachment, index) => {
+      const url = URL.createObjectURL(attachment.file)
+      optimisticUrls.push(url)
+
+      return {
+        id: tempId - index - 1,
+        filename: attachment.filename,
+        content_type: attachment.content_type,
+        byte_size: attachment.byte_size,
+        image: attachment.content_type.startsWith('image/'),
+        url,
+      }
+    })
+    if (optimisticUrls.length > 0) optimisticAttachmentUrls.current.set(tempId, optimisticUrls)
     const optimisticMessage: LocalMessage = {
       id: tempId,
       channel_id: selectedTarget.type === 'channel' ? selectedTarget.id : null,
@@ -825,6 +843,7 @@ export function Messages() {
         setMessages((prev) => prev.map((item) => item.id === tempId ? { ...item, pending: false, failed: true } : item))
       } else if (res.data) {
         const message = res.data.message
+        releaseOptimisticAttachmentUrls(tempId)
         setMessages((prev) => [...prev.filter((item) => item.id !== tempId && item.id !== message.id), message])
         updateLatestForTarget(message)
       }
@@ -1114,9 +1133,17 @@ export function Messages() {
 
   const deleteMessage = async (message: ChannelMessage) => {
     const res = await api.deleteMessage(message.id)
-    if (res.data) setMessages((prev) => prev.filter((item) => item.id !== message.id))
+    if (res.data) {
+      releaseOptimisticAttachmentUrls(message.id)
+      setMessages((prev) => prev.filter((item) => item.id !== message.id))
+    }
     else if (res.error) setError(res.error)
   }
+
+  useEffect(() => () => {
+    optimisticAttachmentUrls.current.forEach((urls) => urls.forEach((url) => URL.revokeObjectURL(url)))
+    optimisticAttachmentUrls.current.clear()
+  }, [])
 
   const togglePin = async (message: ChannelMessage) => {
     const res = message.pinned_at ? await api.unpinMessage(message.id) : await api.pinMessage(message.id)
