@@ -37,7 +37,7 @@ class WebPushNotificationService
     tag = message.direct_message? ? "dm-#{message.direct_conversation_id}" : "channel-#{message.channel_id}"
     payload = {
       title: title,
-      body: "#{message.author.full_name}: #{message.body.to_s.truncate(120)}",
+      body: "#{message.author.full_name}: #{message_notification_body(message)}",
       path: path,
       tag: tag
     }.to_json
@@ -71,5 +71,16 @@ class WebPushNotificationService
   rescue => e
     Rails.logger.warn("[WebPush] failed for subscription #{subscription.id}: #{e.class} #{e.message}")
     subscription.mark_failed!
+  end
+
+  def message_notification_body(message)
+    body = message.body.to_s.strip
+    return body.truncate(120) if body.present?
+
+    attachment_count = message.message_attachments.size
+    return "Sent an attachment" if attachment_count == 1
+    return "Sent #{attachment_count} attachments" if attachment_count > 1
+
+    "Sent a message"
   end
 end

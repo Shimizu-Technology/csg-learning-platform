@@ -10,6 +10,7 @@ class Workspace < ApplicationRecord
 
   validates :name, presence: true
   validates :slug, presence: true, uniqueness: true
+  validates :cohort_id, uniqueness: true, allow_nil: true
   validates :workspace_type, presence: true
   validates :status, presence: true
   validate :cohort_matches_workspace_type

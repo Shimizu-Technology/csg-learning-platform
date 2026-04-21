@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_21_114000) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_21_123500) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -119,8 +119,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_21_114000) do
     t.datetime "updated_at", null: false
     t.integer "visibility", default: 0, null: false
     t.bigint "workspace_id", null: false
-    t.index ["cohort_id", "name"], name: "index_channels_on_cohort_id_and_name", unique: true
-    t.index ["cohort_id", "status", "position"], name: "index_channels_on_cohort_id_and_status_and_position"
     t.index ["cohort_id"], name: "index_channels_on_cohort_id"
     t.index ["workspace_id", "name"], name: "index_channels_on_workspace_id_and_name", unique: true
     t.index ["workspace_id", "status", "position"], name: "index_channels_on_workspace_id_and_status_and_position"
@@ -268,7 +266,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_21_114000) do
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
     t.bigint "workspace_id", null: false
-    t.index ["cohort_id", "member_key"], name: "idx_direct_conversations_member_key", unique: true
     t.index ["cohort_id"], name: "index_direct_conversations_on_cohort_id"
     t.index ["workspace_id", "member_key"], name: "index_direct_conversations_on_workspace_id_and_member_key", unique: true
     t.index ["workspace_id"], name: "index_direct_conversations_on_workspace_id"
@@ -1318,6 +1315,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_21_114000) do
     t.datetime "updated_at", null: false
     t.integer "workspace_type", default: 0, null: false
     t.index ["cohort_id"], name: "index_workspaces_on_cohort_id"
+    t.index ["cohort_id"], name: "index_workspaces_on_cohort_id_unique", unique: true, where: "(cohort_id IS NOT NULL)"
     t.index ["slug"], name: "index_workspaces_on_slug", unique: true
   end
 
