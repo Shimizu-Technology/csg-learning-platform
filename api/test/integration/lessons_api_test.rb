@@ -1,0 +1,91 @@
+require "test_helper"
+
+class LessonsApiTest < ActionDispatch::IntegrationTest
+  def setup
+    @curriculum = Curriculum.create!(name: "Curriculum")
+    @cohort = Cohort.create!(curriculum: @curriculum, name: "Cohort 3", start_date: Date.current, status: :active)
+    @curriculum_module = CurriculumModule.create!(
+      curriculum: @curriculum,
+      name: "Week 1",
+      position: 0,
+      day_offset: 0,
+      schedule_days: "daily"
+    )
+    @lesson = Lesson.create!(
+      curriculum_module: @curriculum_module,
+      title: "Lesson 1",
+      position: 0,
+      release_day: 0
+    )
+    @video_block = @lesson.content_blocks.create!(
+      block_type: :video,
+      position: 1,
+      title: "Intro",
+      s3_video_key: "content_blocks/cohort_#{@cohort.id}/intro.mp4"
+    )
+
+    @student = User.create!(
+      clerk_id: "clerk_student_lessons_api",
+      email: "student-lessons@example.com",
+      first_name: "Student",
+      last_name: "Viewer",
+      role: :student
+    )
+    @admin = User.create!(
+      clerk_id: "clerk_admin_lessons_api",
+      email: "admin-lessons@example.com",
+      first_name: "Admin",
+      last_name: "Editor",
+      role: :admin
+    )
+
+    @enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+    ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @curriculum_module, unlocked: true)
+  end
+
+  test "student lesson payload includes self-hosted video key" do
+    as_user(@student) do
+      get "/api/v1/lessons/#{@lesson.id}", headers: auth_headers
+    end
+
+    assert_response :success
+    block = JSON.parse(response.body).dig("lesson", "content_blocks").find { |item| item["id"] == @video_block.id }
+    assert_equal @video_block.s3_video_key, block["s3_video_key"]
+    refute block.key?("s3_video_content_type")
+  end
+
+  test "staff lesson payload still includes video metadata" do
+    @video_block.update!(s3_video_content_type: "video/mp4", s3_video_size: 123)
+
+    as_user(@admin) do
+      get "/api/v1/lessons/#{@lesson.id}", headers: auth_headers
+    end
+
+    assert_response :success
+    block = JSON.parse(response.body).dig("lesson", "content_blocks").find { |item| item["id"] == @video_block.id }
+    assert_equal @video_block.s3_video_key, block["s3_video_key"]
+    assert_equal "video/mp4", block["s3_video_content_type"]
+    assert_equal 123, block["s3_video_size"]
+  end
+
+  private
+
+  def auth_headers
+    { "Authorization" => "Bearer test_token" }
+  end
+
+  def as_user(user)
+    payload = {
+      "sub" => user.clerk_id,
+      "email" => user.email,
+      "first_name" => user.first_name,
+      "last_name" => user.last_name
+    }
+
+    original_verify = ClerkAuth.method(:verify)
+    ClerkAuth.define_singleton_method(:verify) { |_token| payload }
+    yield
+  ensure
+    ClerkAuth.define_singleton_method(:verify, original_verify)
+  end
+end

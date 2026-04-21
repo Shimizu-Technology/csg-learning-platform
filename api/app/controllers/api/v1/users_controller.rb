@@ -130,7 +130,7 @@ module Api
       end
 
       def frontend_url
-        ENV.fetch("FRONTEND_URL", "http://localhost:5173").split(",").first.strip
+        FrontendUrlResolver.resolve
       end
 
       def user_json(user)

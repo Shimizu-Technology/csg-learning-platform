@@ -193,13 +193,13 @@ module Api
               title: cb.title,
               body: cb.body,
               video_url: cb.video_url,
+              s3_video_key: cb.s3_video_key,
               filename: cb.filename,
               metadata: cb.metadata,
               has_s3_video: cb.s3_video_key.present?
             }
 
             if current_user.staff?
-              block[:s3_video_key] = cb.s3_video_key
               block[:s3_video_content_type] = cb.s3_video_content_type
               block[:s3_video_size] = cb.s3_video_size
             end

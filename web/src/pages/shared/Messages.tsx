@@ -218,6 +218,8 @@ export function Messages() {
   const [lightboxIndex, setLightboxIndex] = useState(0)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [activeThreadRootId, setActiveThreadRootId] = useState<number | null>(null)
+  const [isDesktop, setIsDesktop] = useState(() => (typeof window === 'undefined' ? true : window.innerWidth >= 1024))
+  const [mobilePane, setMobilePane] = useState<'list' | 'conversation' | 'thread'>(selectedTarget ? 'conversation' : 'list')
   const [editing, setEditing] = useState<ChannelMessage | null>(null)
   const [editBody, setEditBody] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
@@ -462,10 +464,30 @@ export function Messages() {
   }, [channelId, dmId])
 
   useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const mediaQuery = window.matchMedia('(min-width: 1024px)')
+    const sync = () => setIsDesktop(mediaQuery.matches)
+    sync()
+
+    mediaQuery.addEventListener('change', sync)
+    return () => mediaQuery.removeEventListener('change', sync)
+  }, [])
+
+  useEffect(() => {
+    if (!isDesktop) setSidebarCollapsed(false)
+  }, [isDesktop])
+
+  useEffect(() => {
     if (!selectedTarget) return
     const selectedCohort = selectedChannel?.cohort_id || selectedDm?.cohort_id
     if (selectedCohort) setSelectedWorkspaceId(selectedCohort)
   }, [selectedTarget, selectedChannel, selectedDm])
+
+  useEffect(() => {
+    if (isDesktop) return
+    setMobilePane(selectedTarget ? 'conversation' : 'list')
+  }, [isDesktop, selectedTarget?.type, selectedTarget?.id])
 
   useEffect(() => {
     if (!selectedTarget) return
@@ -531,6 +553,12 @@ export function Messages() {
       setActiveThreadRootId(null)
     }
   }, [activeThreadRootId, messagesById])
+
+  useEffect(() => {
+    if (isDesktop) return
+    if (activeThreadRootId) setMobilePane('thread')
+    else if (selectedTarget) setMobilePane('conversation')
+  }, [activeThreadRootId, isDesktop, selectedTarget])
 
   useEffect(() => {
     if (!lightboxAttachment) return
@@ -602,6 +630,7 @@ export function Messages() {
     setSelectedTarget(target)
     setActiveThreadRootId(null)
     setEditing(null)
+    if (!isDesktop) setMobilePane('conversation')
   }
 
   const selectWorkspace = (id: number) => {
@@ -1002,6 +1031,11 @@ export function Messages() {
 
   if (loading) return <LoadingSpinner message="Loading messages..." />
 
+  const showListPane = isDesktop || mobilePane === 'list'
+  const showConversationPane = isDesktop || mobilePane === 'conversation' || mobilePane === 'thread'
+  const showCollapsedRail = isDesktop && sidebarCollapsed
+  const conversationMessages = activeThreadRoot ? activeThreadMessages : rootMessages
+
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-4 lg:h-[calc(100vh-4rem)]">
       <div>
@@ -1043,14 +1077,14 @@ export function Messages() {
         )}
       </div>
 
-      <div className={`grid min-h-[680px] overflow-hidden rounded-lg border border-slate-200 bg-white ${sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[340px_minmax(0,1fr)]'}`}>
-        {!sidebarCollapsed && (
-        <aside className="border-b border-slate-200 bg-slate-50 lg:border-b-0 lg:border-r">
+      <div className={`${isDesktop ? 'grid' : 'block'} min-h-[680px] overflow-hidden rounded-lg border border-slate-200 bg-white ${isDesktop ? (sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[340px_minmax(0,1fr)]') : ''}`}>
+        {showListPane && !sidebarCollapsed && (
+        <aside className={`bg-slate-50 ${isDesktop ? 'border-b border-slate-200 lg:border-b-0 lg:border-r' : ''}`}>
           <div className="border-b border-slate-200 bg-white p-3">
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-semibold text-slate-900">{selectedWorkspace?.name || 'Workspaces'}</h2>
-                <p className="text-xs text-slate-500">Cohort workspace</p>
+                <p className="text-xs text-slate-500">{isDesktop ? 'Cohort workspace' : 'Choose a workspace, channel, or direct message'}</p>
               </div>
               <div className="flex items-center gap-1">
                 <button
@@ -1060,13 +1094,15 @@ export function Messages() {
                 >
                   <RefreshCw className="h-4 w-4" />
                 </button>
-                <button
-                  onClick={() => setSidebarCollapsed(true)}
-                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                  aria-label="Collapse conversation list"
-                >
-                  <PanelLeftClose className="h-4 w-4" />
-                </button>
+                {isDesktop && (
+                  <button
+                    onClick={() => setSidebarCollapsed(true)}
+                    className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                    aria-label="Collapse conversation list"
+                  >
+                    <PanelLeftClose className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             </div>
             {workspaces.length > 1 && (
@@ -1230,7 +1266,7 @@ export function Messages() {
             </form>
           )}
 
-          <div className="max-h-72 overflow-y-auto p-2 lg:max-h-[calc(100vh-13rem)]">
+          <div className={`${isDesktop ? 'max-h-72 overflow-y-auto p-2 lg:max-h-[calc(100vh-13rem)]' : 'p-2'}`}>
             <div className="mb-2 flex items-center justify-between px-2 pt-2">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Channels</h3>
               {isStaff && (
@@ -1277,7 +1313,7 @@ export function Messages() {
           </div>
         </aside>
         )}
-        {sidebarCollapsed && (
+        {showCollapsedRail && (
           <aside className="hidden border-r border-slate-200 bg-slate-50 p-2 lg:block">
             <button
               onClick={() => setSidebarCollapsed(false)}
@@ -1317,19 +1353,29 @@ export function Messages() {
           </aside>
         )}
 
+        {showConversationPane && (
         <section className="flex min-h-[560px] flex-col">
           {selectedTarget && selected ? (
             <>
               <header className="border-b border-slate-200 px-4 py-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-2">
-                    {sidebarCollapsed && (
+                    {isDesktop && sidebarCollapsed && (
                       <button
                         onClick={() => setSidebarCollapsed(false)}
                         className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                         aria-label="Show conversation list"
                       >
                         <PanelLeftOpen className="h-4 w-4" />
+                      </button>
+                    )}
+                    {!isDesktop && (
+                      <button
+                        onClick={() => setMobilePane('list')}
+                        className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                        aria-label="Back to conversations"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
                       </button>
                     )}
                     {selectedTarget.type === 'channel'
@@ -1361,20 +1407,23 @@ export function Messages() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => setActiveThreadRootId(null)}
+                        onClick={() => {
+                          setActiveThreadRootId(null)
+                          if (!isDesktop) setMobilePane('conversation')
+                        }}
                         className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
                       >
                         <ChevronLeft className="h-4 w-4" />
-                        Back to channel
+                        {selectedTarget.type === 'channel' ? 'Back to channel' : 'Back to conversation'}
                       </button>
                     </div>
                   </div>
                 )}
-                {(activeThreadRoot ? activeThreadMessages : rootMessages).length === 0 ? (
+                {conversationMessages.length === 0 ? (
                   <div className="py-16 text-center text-sm text-slate-500">
                     {activeThreadRoot ? 'No replies yet. Start the thread.' : 'No messages yet. Start the conversation.'}
                   </div>
-                ) : (activeThreadRoot ? activeThreadMessages : rootMessages).map((message) => {
+                ) : conversationMessages.map((message) => {
                   const rootId = rootMessageIdFor(message, messagesById)
                   const replyCount = threadReplies.get(rootId)?.length || 0
 
@@ -1396,7 +1445,10 @@ export function Messages() {
                       canPin={isStaff}
                       inThreadView={Boolean(activeThreadRoot)}
                       replyCount={!activeThreadRoot && !message.parent_message_id ? replyCount : 0}
-                      onReply={() => setActiveThreadRootId(rootId)}
+                      onReply={() => {
+                        setActiveThreadRootId(rootId)
+                        if (!isDesktop) setMobilePane('thread')
+                      }}
                       onReact={(emoji) => toggleReaction(message, emoji)}
                       onOpenImage={(attachment, imageAttachments) => {
                         setLightboxAttachments(imageAttachments)
@@ -1531,6 +1583,7 @@ export function Messages() {
             </div>
           )}
         </section>
+        )}
       </div>
       {lightboxAttachment?.url && (
         <div
