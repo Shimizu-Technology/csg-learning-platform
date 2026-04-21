@@ -75,6 +75,11 @@ module Api
           return
         end
 
+        if Array(conversation_params[:user_ids]).map(&:to_i).reject(&:zero?).uniq.empty?
+          render json: { errors: [ "Choose at least one other member" ] }, status: :unprocessable_entity
+          return
+        end
+
         users = direct_users_for(workspace, conversation_params[:user_ids])
         conversation = DirectConversation.find_or_create_for!(workspace: workspace, users: users)
 

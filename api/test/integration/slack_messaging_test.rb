@@ -58,6 +58,18 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "direct conversation requires at least one other member" do
+    as_user(@student) do
+      post "/api/v1/direct_conversations",
+        params: { cohort_id: @cohort.id, user_ids: [] },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :unprocessable_entity
+    assert_includes JSON.parse(response.body).fetch("errors"), "Choose at least one other member"
+  end
+
   test "starting an archived direct conversation reopens it" do
     conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @student, @admin ])
     conversation.update!(status: :archived)
@@ -252,6 +264,25 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     names = JSON.parse(response.body).fetch("workspaces").map { |item| item.fetch("name") }
     assert_includes names, "Cohort 3"
     assert_includes names, "Alumni"
+  end
+
+  test "channel index includes attachment-only latest message previews without extra fetches" do
+    message = Message.create!(channel: @channel, author: @admin, body: nil)
+    message.message_attachments.create!(
+      s3_key: "messages/workspaces/#{@cohort.workspace.id}/channels/#{@channel.id}/example.png",
+      filename: "example.png",
+      content_type: "image/png",
+      byte_size: 1024,
+      uploaded_by: @admin
+    )
+
+    as_user(@student) do
+      get "/api/v1/channels", headers: auth_headers
+    end
+
+    assert_response :success
+    preview = JSON.parse(response.body).fetch("channels").first.fetch("latest_message").fetch("body")
+    assert_equal "Attachment", preview
   end
 
   test "message create requires text or attachment" do

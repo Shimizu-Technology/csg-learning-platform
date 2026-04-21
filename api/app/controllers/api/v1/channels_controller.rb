@@ -127,7 +127,7 @@ module Api
 
       def latest_messages_for(channels)
         Message.visible
-          .includes(:author)
+          .includes(:author, :message_attachments)
           .select("DISTINCT ON (messages.channel_id) messages.*")
           .where(channel_id: channels.map(&:id))
           .order(Arel.sql("messages.channel_id, messages.created_at DESC, messages.id DESC"))

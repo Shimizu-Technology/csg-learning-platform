@@ -6,10 +6,11 @@ module Api
       before_action :require_staff!, only: [ :create, :update ]
 
       def index
-        workspaces = Workspace.visible_for(current_user).includes(:cohort).ordered
+        workspaces = Workspace.visible_for(current_user).includes(:cohort).ordered.to_a
+        member_counts = member_counts_for(workspaces)
 
         render json: {
-          workspaces: workspaces.map { |workspace| workspace_json(workspace) }
+          workspaces: workspaces.map { |workspace| workspace_json(workspace, member_counts: member_counts) }
         }
       end
 
@@ -26,20 +27,11 @@ module Api
 
       def create
         workspace = Workspace.new(workspace_create_params)
-        workspace.slug = Workspace.build_community_slug(workspace.name)
         workspace.workspace_type = :community
         workspace.status ||= :active
 
         begin
-          Workspace.transaction do
-            workspace.save!
-            workspace.workspace_memberships.create_or_find_by!(user: current_user) do |membership|
-              membership.role = :manager
-            end
-            add_members!(workspace, workspace_member_ids)
-            workspace.ensure_default_channels!
-          end
-
+          create_community_workspace!(workspace)
           render json: { workspace: workspace_json(workspace.reload, include_members: true) }, status: :created
         rescue ActiveRecord::RecordInvalid
           render json: { errors: workspace.errors.full_messages.presence || [ "Workspace could not be created" ] }, status: :unprocessable_entity
@@ -94,7 +86,48 @@ module Api
         end
       end
 
-      def workspace_json(workspace, include_members: false)
+      def create_community_workspace!(workspace)
+        attempts = 0
+
+        begin
+          attempts += 1
+          workspace.slug = Workspace.build_community_slug(workspace.name)
+
+          Workspace.transaction do
+            workspace.save!
+            workspace.workspace_memberships.create_or_find_by!(user: current_user) do |membership|
+              membership.role = :manager
+            end
+            add_members!(workspace, workspace_member_ids)
+            workspace.ensure_default_channels!
+          end
+        rescue ActiveRecord::RecordNotUnique
+          retry if attempts < 3
+
+          workspace.errors.add(:slug, "has already been taken")
+          raise ActiveRecord::RecordInvalid, workspace
+        end
+      end
+
+      def member_counts_for(workspaces)
+        return {} if workspaces.empty?
+
+        counts = {}
+
+        cohort_ids = workspaces.select(&:cohort?).map(&:cohort_id)
+        Enrollment.active.where(cohort_id: cohort_ids).group(:cohort_id).count.each do |cohort_id, count|
+          counts[[ :cohort, cohort_id ]] = count
+        end
+
+        community_ids = workspaces.select(&:community?).map(&:id)
+        WorkspaceMembership.where(workspace_id: community_ids).group(:workspace_id).count.each do |workspace_id, count|
+          counts[[ :community, workspace_id ]] = count
+        end
+
+        counts
+      end
+
+      def workspace_json(workspace, include_members: false, member_counts: nil)
         payload = {
           id: workspace.id,
           name: workspace.name,
@@ -104,7 +137,7 @@ module Api
           cohort_id: workspace.cohort_id,
           cohort_name: workspace.cohort&.name,
           description: workspace.description,
-          member_count: workspace.listed_members.count,
+          member_count: workspace_member_count(workspace, member_counts),
           can_manage: current_user.staff? && workspace.community?,
           created_at: workspace.created_at,
           updated_at: workspace.updated_at
@@ -127,6 +160,13 @@ module Api
         end
 
         payload
+      end
+
+      def workspace_member_count(workspace, member_counts)
+        return workspace.listed_members.count unless member_counts
+
+        key = workspace.cohort? ? [ :cohort, workspace.cohort_id ] : [ :community, workspace.id ]
+        member_counts.fetch(key, 0)
       end
     end
   end
