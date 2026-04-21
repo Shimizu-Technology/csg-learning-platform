@@ -32,6 +32,53 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+.message-composer p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.message-composer {
+  min-height: 44px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.message-composer p {
+  margin: 0.25rem 0;
+}
+
+.message-composer ul,
+.message-composer ol {
+  margin: 0.25rem 0;
+  padding-left: 1.25rem;
+}
+
+.message-composer blockquote {
+  border-left: 3px solid #cbd5e1;
+  color: #475569;
+  margin: 0.25rem 0;
+  padding-left: 0.75rem;
+}
+
+.message-composer code {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.25rem;
+  color: #0f172a;
+  font-size: 0.88em;
+  padding: 0.125rem 0.25rem;
+}
+
+.message-composer pre code {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  padding: 0;
+}
+
 /* Quill WYSIWYG editor — match prework grader Trix styling */
 
 /* Height handling: make the editor fill its set height properly */
@@ -299,4 +346,3 @@ body {
   border-top: 1px solid #e2e8f0;
   margin: 1.5rem 0;
 }
-

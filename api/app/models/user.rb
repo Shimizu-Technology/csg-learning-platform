@@ -14,6 +14,13 @@ class User < ApplicationRecord
   has_many :push_subscriptions, dependent: :destroy
   has_many :messages, foreign_key: :author_id, dependent: :nullify
   has_many :channel_read_states, dependent: :destroy
+  has_many :direct_conversation_members, dependent: :destroy
+  has_many :direct_conversations, through: :direct_conversation_members
+  has_many :workspace_memberships, dependent: :destroy
+  has_many :workspaces, through: :workspace_memberships
+  has_many :message_attachments, foreign_key: :uploaded_by_id, dependent: :restrict_with_exception
+  has_many :message_reactions, dependent: :destroy
+  has_many :message_preferences, dependent: :destroy
 
   validates :clerk_id, presence: true, uniqueness: true
   validates :email, presence: true, uniqueness: { case_sensitive: false }

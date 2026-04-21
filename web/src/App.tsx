@@ -42,6 +42,7 @@ function AppRoutes() {
           <Route path="/announcements" element={<Announcements />} />
           <Route path="/announcements/:id" element={<Announcements />} />
           <Route path="/messages" element={<Messages />} />
+          <Route path="/messages/dm/:dmId" element={<Messages />} />
           <Route path="/messages/:channelId" element={<Messages />} />
         </Route>
 

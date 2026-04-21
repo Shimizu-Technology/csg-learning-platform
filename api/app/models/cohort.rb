@@ -7,21 +7,18 @@ class Cohort < ApplicationRecord
   has_many :users, through: :enrollments
   has_many :recordings, dependent: :destroy
   has_many :announcements, dependent: :destroy
+  has_one :workspace, dependent: :destroy
   has_many :channels, dependent: :destroy
+  has_many :direct_conversations, dependent: :destroy
 
   validates :name, presence: true
   validates :start_date, presence: true
 
-  after_create :create_default_channel
+  after_create :provision_workspace
 
   private
 
-  def create_default_channel
-    channels.find_or_create_by!(name: "Class Chat") do |channel|
-      channel.description = "General class discussion for this cohort."
-      channel.visibility = :cohort
-      channel.status = :active
-      channel.position = 0
-    end
+  def provision_workspace
+    Workspace.find_or_create_for_cohort!(self)
   end
 end

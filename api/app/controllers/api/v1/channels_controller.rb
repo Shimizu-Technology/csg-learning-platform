@@ -7,13 +7,14 @@ module Api
 
       # GET /api/v1/channels
       def index
-        channels = Channel.visible_for(current_user).includes(:cohort).ordered.to_a
+        channels = Channel.visible_for(current_user).includes(workspace: :cohort).ordered.to_a
         read_states = current_user.channel_read_states.where(channel_id: channels.map(&:id)).index_by(&:channel_id)
         unread_counts = unread_counts_for(channels)
         latest_messages = latest_messages_for(channels)
+        muted_ids = muted_target_ids("Channel", channels.map(&:id))
 
         render json: {
-          channels: channels.map { |channel| channel_json(channel, read_states[channel.id], unread_counts[channel.id] || 0, latest_messages[channel.id]) }
+          channels: channels.map { |channel| channel_json(channel, read_states[channel.id], unread_counts[channel.id] || 0, latest_messages[channel.id], muted_ids: muted_ids) }
         }
       end
 
@@ -24,7 +25,11 @@ module Api
           return
         end
 
-        messages = @channel.messages.visible.includes(:author).chronological.limit(message_limit).to_a
+        messages = @channel.messages.visible
+          .includes(:author, :message_attachments, message_reactions: :user)
+          .chronological
+          .limit(message_limit)
+          .to_a
         read_state = current_user.channel_read_states.find_by(channel: @channel)
 
         render json: {
@@ -35,8 +40,11 @@ module Api
 
       # POST /api/v1/channels
       def create
-        cohort = Cohort.find(channel_params[:cohort_id])
-        channel = cohort.channels.new(channel_params.except(:cohort_id))
+        workspace = workspace_for_mutation!
+        return unless workspace
+
+        channel = workspace.channels.new(channel_params.except(:cohort_id, :workspace_id))
+        channel.cohort_id = workspace.cohort_id
 
         if channel.save
           render json: { channel: channel_json(channel, nil, 0, nil) }, status: :created
@@ -47,7 +55,7 @@ module Api
 
       # PATCH /api/v1/channels/:id
       def update
-        if @channel.update(channel_params.except(:cohort_id))
+        if @channel.update(channel_params.except(:cohort_id, :workspace_id))
           render json: { channel: channel_json(@channel, nil, 0, nil) }
         else
           render json: { errors: @channel.errors.full_messages }, status: :unprocessable_entity
@@ -68,7 +76,7 @@ module Api
         end
 
         last_message = @channel.messages.visible.order(created_at: :desc, id: :desc).first
-        read_state = current_user.channel_read_states.create_or_find_by!(channel: @channel)
+        read_state = find_or_create_read_state(@channel)
         read_state.mark_read!(last_message)
         current_user.notifications.message.where(path: "/messages/#{@channel.id}").unread.update_all(read_at: Time.current, updated_at: Time.current)
 
@@ -78,11 +86,11 @@ module Api
       private
 
       def set_channel
-        @channel = Channel.find(params[:id])
+        @channel = Channel.includes(workspace: :cohort).find(params[:id])
       end
 
       def channel_params
-        params.permit(:cohort_id, :name, :description, :visibility, :status, :position)
+        params.permit(:cohort_id, :workspace_id, :name, :description, :visibility, :status, :position)
       end
 
       def message_limit
@@ -119,7 +127,7 @@ module Api
 
       def latest_messages_for(channels)
         Message.visible
-          .includes(:author)
+          .includes(:author, :message_attachments)
           .select("DISTINCT ON (messages.channel_id) messages.*")
           .where(channel_id: channels.map(&:id))
           .order(Arel.sql("messages.channel_id, messages.created_at DESC, messages.id DESC"))
@@ -127,53 +135,61 @@ module Api
           .index_by(&:channel_id)
       end
 
-      def channel_json(channel, read_state = nil, unread_count = 0, latest_message = nil)
+      def channel_json(channel, read_state = nil, unread_count = 0, latest_message = nil, muted_ids: nil)
         {
           id: channel.id,
+          workspace_id: channel.workspace_id,
+          workspace_name: channel.workspace.name,
+          workspace_type: channel.workspace.workspace_type,
           cohort_id: channel.cohort_id,
-          cohort_name: channel.cohort.name,
+          cohort_name: channel.cohort&.name,
           name: channel.name,
           description: channel.description,
           visibility: channel.visibility,
           status: channel.status,
           position: channel.position,
+          muted: muted_ids ? muted_ids.include?(channel.id) : muted?(channel),
           unread_count: unread_count,
           last_read_at: read_state&.last_read_at,
-          latest_message: latest_message_json(latest_message),
+          latest_message: MessageJson.latest(latest_message),
           created_at: channel.created_at,
           updated_at: channel.updated_at
         }
       end
 
-      def latest_message_json(message)
-        return nil unless message
+      def muted?(target)
+        MessagePreference.exists?(user: current_user, target: target, muted: true)
+      end
 
-        {
-          id: message.id,
-          body: message.body,
-          created_at: message.created_at,
-          author_name: message.author.full_name
-        }
+      def muted_target_ids(target_type, target_ids)
+        return [] if target_ids.empty?
+
+        current_user.message_preferences
+          .where(target_type: target_type, target_id: target_ids, muted: true)
+          .pluck(:target_id)
+      end
+
+      def find_or_create_read_state(channel)
+        current_user.channel_read_states.find_or_create_by!(channel: channel)
+      rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
+        current_user.channel_read_states.find_by!(channel: channel)
+      end
+
+      def workspace_for_mutation!
+        if channel_params[:workspace_id].present?
+          workspace = Workspace.find(channel_params[:workspace_id])
+          return workspace if workspace.visible_to?(current_user) || current_user.staff?
+
+          render_forbidden("Workspace is not visible")
+          return nil
+        end
+
+        cohort = Cohort.find(channel_params[:cohort_id])
+        Workspace.find_or_create_for_cohort!(cohort)
       end
 
       def message_json(message)
-        {
-          id: message.id,
-          channel_id: message.channel_id,
-          body: message.body,
-          edited_at: message.edited_at,
-          deleted_at: message.deleted_at,
-          created_at: message.created_at,
-          updated_at: message.updated_at,
-          mine: message.author_id == current_user.id,
-          author: {
-            id: message.author.id,
-            full_name: message.author.full_name,
-            email: message.author.email,
-            role: message.author.role,
-            avatar_url: message.author.avatar_url
-          }
-        }
+        MessageJson.render(message, current_user: current_user, stream_url: true)
       end
     end
   end

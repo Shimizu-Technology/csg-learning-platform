@@ -73,8 +73,7 @@ class NotificationEmailService
     end
 
     def frontend_url
-      allowed = ENV.fetch("FRONTEND_URL", "http://localhost:5173")
-      allowed.split(",").first.strip
+      FrontendUrlResolver.resolve
     end
 
     def h(value)

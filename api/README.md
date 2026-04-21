@@ -30,7 +30,9 @@ Test coverage is currently focused on authorization guards (`test/integration/ap
 
 | Variable | Required | Default | Purpose |
 |----------|----------|---------|---------|
-| `FRONTEND_URL` | Yes | `http://localhost:5173` | CORS allowed origin |
+| `PUBLIC_FRONTEND_URL` | Prod recommended | — | Canonical frontend URL used in invite emails and Clerk redirects (for example `https://learn.codeschoolofguam.com`) |
+| `FRONTEND_URL` | Yes | `http://localhost:5173` | Comma-separated frontend origins used for local dev/CORS; production email links fall back to the first non-localhost HTTPS URL when `PUBLIC_FRONTEND_URL` is unset |
+| `ALLOWED_ORIGINS` | No | `FRONTEND_URL` | Explicit comma-separated CORS / ActionCable origins |
 | `CLERK_ISSUER` | Yes | — | Clerk issuer URL for JWT verification |
 | `CLERK_SECRET_KEY` | No | — | Clerk backend key for enriching user data |
 | `CLERK_JWKS_URL` | No | Auto from issuer | Explicit JWKS endpoint override |
@@ -43,6 +45,9 @@ Test coverage is currently focused on authorization guards (`test/integration/ap
 | `AWS_SECRET_ACCESS_KEY` | No | — | AWS IAM secret key for S3 recording uploads |
 | `AWS_REGION` | No | `us-east-1` | AWS region for S3 bucket |
 | `AWS_S3_BUCKET` | No | — | S3 bucket name for recording storage |
+| `WEB_PUSH_PUBLIC_KEY` | No | — | VAPID public key for browser push subscriptions |
+| `WEB_PUSH_PRIVATE_KEY` | No | — | VAPID private key for push delivery |
+| `WEB_PUSH_SUBJECT` | No | — | Contact URI for Web Push (for example `mailto:team@codeschoolofguam.com`) |
 
 ## Data Model
 
