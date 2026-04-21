@@ -16,6 +16,8 @@ class User < ApplicationRecord
   has_many :channel_read_states, dependent: :destroy
   has_many :direct_conversation_members, dependent: :destroy
   has_many :direct_conversations, through: :direct_conversation_members
+  has_many :workspace_memberships, dependent: :destroy
+  has_many :workspaces, through: :workspace_memberships
   has_many :message_attachments, foreign_key: :uploaded_by_id, dependent: :restrict_with_exception
   has_many :message_reactions, dependent: :destroy
   has_many :message_preferences, dependent: :destroy

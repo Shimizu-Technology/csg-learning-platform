@@ -7,7 +7,7 @@ module Api
       # GET /api/v1/direct_conversations
       def index
         conversations = DirectConversation.visible_for(current_user)
-          .includes(:cohort, :users)
+          .includes({ workspace: :cohort }, :users)
           .to_a
         members = DirectConversationMember.where(direct_conversation_id: conversations.map(&:id), user: current_user)
           .index_by(&:direct_conversation_id)
@@ -28,20 +28,15 @@ module Api
         }
       end
 
-      # GET /api/v1/direct_conversations/available_users?cohort_id=1
+      # GET /api/v1/direct_conversations/available_users?workspace_id=1
       def available_users
-        cohort = Cohort.find(params[:cohort_id])
-
-        unless current_user.staff? || current_user.enrollments.active.exists?(cohort: cohort)
-          render_forbidden("Cohort is not visible")
+        workspace = resolved_workspace
+        unless workspace&.visible_to?(current_user) || current_user.staff?
+          render_forbidden("Workspace is not visible")
           return
         end
 
-        student_ids = cohort.enrollments.active.select(:user_id)
-        users = User.where(id: student_ids)
-          .or(User.where(role: [ User.roles[:instructor], User.roles[:admin] ]))
-          .where.not(id: current_user.id)
-          .order(:first_name, :last_name, :email)
+        users = workspace.available_users_for(current_user)
 
         render json: { users: users.map { |user| user_json(user) } }
       end
@@ -73,15 +68,15 @@ module Api
 
       # POST /api/v1/direct_conversations
       def create
-        cohort = Cohort.find(conversation_params[:cohort_id])
+        workspace = resolved_workspace
 
-        unless current_user.staff? || current_user.enrollments.active.exists?(cohort: cohort)
-          render_forbidden("Cohort is not visible")
+        unless workspace&.visible_to?(current_user) || current_user.staff?
+          render_forbidden("Workspace is not visible")
           return
         end
 
-        users = direct_users_for(cohort, conversation_params[:user_ids])
-        conversation = DirectConversation.find_or_create_for!(cohort: cohort, users: users)
+        users = direct_users_for(workspace, conversation_params[:user_ids])
+        conversation = DirectConversation.find_or_create_for!(workspace: workspace, users: users)
 
         render json: {
           direct_conversation: conversation_json(conversation, member: conversation.direct_conversation_members.find_by(user: current_user))
@@ -109,19 +104,19 @@ module Api
       end
 
       def conversation_params
-        params.permit(:cohort_id, user_ids: [])
+        params.permit(:cohort_id, :workspace_id, user_ids: [])
       end
 
       def message_limit
         params.fetch(:message_limit, 100).to_i.clamp(1, 200)
       end
 
-      def direct_users_for(cohort, requested_ids)
+      def direct_users_for(workspace, requested_ids)
         ids = Array(requested_ids).map(&:to_i).reject(&:zero?).uniq
         ids << current_user.id
 
-        allowed_ids = User.where(role: [ User.roles[:instructor], User.roles[:admin] ]).pluck(:id)
-        allowed_ids += cohort.enrollments.active.pluck(:user_id)
+        allowed_ids = workspace.available_users_for(current_user).reorder(nil).pluck(:id)
+        allowed_ids << current_user.id
         allowed_ids.uniq!
 
         unless (ids - allowed_ids).empty?
@@ -171,8 +166,11 @@ module Api
       def conversation_json(conversation, member: nil, unread_count: 0, latest_message: nil, muted_ids: nil)
         {
           id: conversation.id,
+          workspace_id: conversation.workspace_id,
+          workspace_name: conversation.workspace.name,
+          workspace_type: conversation.workspace.workspace_type,
           cohort_id: conversation.cohort_id,
-          cohort_name: conversation.cohort.name,
+          cohort_name: conversation.cohort&.name,
           title: conversation.title_for(current_user),
           status: conversation.status,
           muted: muted_ids ? muted_ids.include?(conversation.id) : MessagePreference.exists?(user: current_user, target: conversation, muted: true),
@@ -203,6 +201,15 @@ module Api
         current_user.message_preferences
           .where(target_type: "DirectConversation", target_id: conversation_ids, muted: true)
           .pluck(:target_id)
+      end
+
+      def resolved_workspace
+        if conversation_params[:workspace_id].present?
+          Workspace.find(conversation_params[:workspace_id])
+        elsif conversation_params[:cohort_id].present?
+          cohort = Cohort.find(conversation_params[:cohort_id])
+          Workspace.find_or_create_for_cohort!(cohort)
+        end
       end
     end
   end

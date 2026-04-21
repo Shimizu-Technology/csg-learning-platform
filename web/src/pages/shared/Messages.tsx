@@ -46,10 +46,11 @@ import type {
   ChannelMessage,
   ChannelMessageEvent,
   ChannelSummary,
-  CohortSummary,
   DirectConversationSummary,
   MessageAttachment,
   UserSummary,
+  WorkspaceDetail,
+  WorkspaceSummary,
 } from '../../types/api'
 
 type Target = { type: 'channel'; id: number } | { type: 'dm'; id: number }
@@ -196,16 +197,21 @@ export function Messages() {
   const isStaff = Boolean(user?.is_staff)
   const [channels, setChannels] = useState<ChannelSummary[]>([])
   const [directConversations, setDirectConversations] = useState<DirectConversationSummary[]>([])
-  const [cohorts, setCohorts] = useState<CohortSummary[]>([])
+  const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([])
+  const [workspaceDetail, setWorkspaceDetail] = useState<WorkspaceDetail | null>(null)
   const [availableUsers, setAvailableUsers] = useState<UserSummary[]>([])
+  const [allUsers, setAllUsers] = useState<UserSummary[]>([])
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | null>(null)
   const [selectedTarget, setSelectedTarget] = useState<Target | null>(dmId ? { type: 'dm', id: Number(dmId) } : channelId ? { type: 'channel', id: Number(channelId) } : null)
   const [messages, setMessages] = useState<LocalMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [creatingChannel, setCreatingChannel] = useState(false)
+  const [creatingWorkspace, setCreatingWorkspace] = useState(false)
   const [showChannelForm, setShowChannelForm] = useState(false)
   const [showDmForm, setShowDmForm] = useState(false)
+  const [showWorkspaceForm, setShowWorkspaceForm] = useState(false)
+  const [showWorkspaceMembers, setShowWorkspaceMembers] = useState(false)
   const [pushEnabled, setPushEnabled] = useState(false)
   const [pushMessage, setPushMessage] = useState('')
   const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'error'>('disconnected')
@@ -225,11 +231,17 @@ export function Messages() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<ChannelMessage[]>([])
   const [error, setError] = useState('')
+  const [workspaceError, setWorkspaceError] = useState('')
   const [channelError, setChannelError] = useState('')
   const [dmUserId, setDmUserId] = useState('')
+  const [memberToAddId, setMemberToAddId] = useState('')
   const [, setToolbarTick] = useState(0)
+  const [workspaceForm, setWorkspaceForm] = useState({
+    name: '',
+    description: '',
+  })
   const [channelForm, setChannelForm] = useState({
-    cohort_id: '',
+    workspace_id: '',
     name: '',
     description: '',
     visibility: 'cohort',
@@ -280,25 +292,21 @@ export function Messages() {
     return [activeThreadRoot, ...(threadReplies.get(activeThreadRoot.id) || [])]
   }, [activeThreadRoot, threadReplies])
 
-  const workspaces = useMemo(() => {
-    const workspaceMap = new Map<number, string>()
-    channels.forEach((channel) => workspaceMap.set(channel.cohort_id, channel.cohort_name))
-    directConversations.forEach((conversation) => workspaceMap.set(conversation.cohort_id, conversation.cohort_name))
-    cohorts.forEach((cohort) => workspaceMap.set(cohort.id, cohort.name))
-    return Array.from(workspaceMap, ([id, name]) => ({ id, name }))
-  }, [channels, directConversations, cohorts])
-
   const visibleChannels = useMemo(
-    () => selectedWorkspaceId ? channels.filter((channel) => channel.cohort_id === selectedWorkspaceId) : channels,
+    () => selectedWorkspaceId ? channels.filter((channel) => channel.workspace_id === selectedWorkspaceId) : channels,
     [channels, selectedWorkspaceId],
   )
 
   const visibleDms = useMemo(
-    () => selectedWorkspaceId ? directConversations.filter((conversation) => conversation.cohort_id === selectedWorkspaceId) : directConversations,
+    () => selectedWorkspaceId ? directConversations.filter((conversation) => conversation.workspace_id === selectedWorkspaceId) : directConversations,
     [directConversations, selectedWorkspaceId],
   )
 
   const selectedWorkspace = workspaces.find((workspace) => workspace.id === selectedWorkspaceId)
+  const memberCandidates = useMemo(() => {
+    const memberIds = new Set((workspaceDetail?.members || []).map((member) => member.id))
+    return allUsers.filter((candidate) => !memberIds.has(candidate.id))
+  }, [allUsers, workspaceDetail?.members])
   const mentionToken = useMemo(() => {
     return composerTriggerText.match(/(^|\s)@([^\s@]*)$/)?.[2] ?? null
   }, [composerTriggerText])
@@ -371,7 +379,8 @@ export function Messages() {
   })
 
   const loadLists = async () => {
-    const [channelRes, dmRes] = await Promise.all([api.getChannels(), api.getDirectConversations()])
+    const [workspaceRes, channelRes, dmRes] = await Promise.all([api.getWorkspaces(), api.getChannels(), api.getDirectConversations()])
+    if (workspaceRes.data) setWorkspaces(workspaceRes.data.workspaces)
     if (channelRes.data) setChannels(channelRes.data.channels)
     if (dmRes.data) setDirectConversations(dmRes.data.direct_conversations)
 
@@ -382,12 +391,36 @@ export function Messages() {
         : null
 
     setSelectedTarget((current) => current || firstTarget)
-    setSelectedWorkspaceId((current) => current || channelRes.data?.channels[0]?.cohort_id || dmRes.data?.direct_conversations[0]?.cohort_id || null)
+    setSelectedWorkspaceId((current) => current || channelRes.data?.channels[0]?.workspace_id || dmRes.data?.direct_conversations[0]?.workspace_id || workspaceRes.data?.workspaces[0]?.id || null)
     setLoading(false)
   }
 
-  const loadAvailableUsers = async (cohortId: number) => {
-    const res = await api.getAvailableDirectUsers(cohortId)
+  const loadWorkspaceDetail = async (workspaceId: number) => {
+    const workspaceRes = await api.getWorkspace(workspaceId)
+    if (!workspaceRes.data) return
+
+    setWorkspaceDetail(workspaceRes.data.workspace)
+
+    if (isStaff && workspaceRes.data.workspace.can_manage) {
+      const usersRes = await api.getUsers()
+      if (usersRes.data) {
+        setAllUsers(usersRes.data.users.map((item) => ({
+          id: item.id,
+          full_name: item.full_name,
+          email: item.email,
+          role: item.role,
+          avatar_url: item.avatar_url,
+          is_admin: item.is_admin,
+          is_staff: item.is_staff,
+        })))
+      }
+    } else {
+      setAllUsers([])
+    }
+  }
+
+  const loadAvailableUsers = async (workspaceId: number) => {
+    const res = await api.getAvailableDirectUsers(workspaceId)
     if (res.data) {
       setAvailableUsers(res.data.users)
       setDmUserId(String(res.data.users[0]?.id || ''))
@@ -437,16 +470,25 @@ export function Messages() {
 
   useEffect(() => {
     loadLists()
-    api.getCohorts().then((res) => {
-      if (res.data) {
-        setCohorts(res.data.cohorts)
-        setChannelForm((prev) => ({ ...prev, cohort_id: String(res.data!.cohorts[0]?.id || '') }))
-      }
-    })
   }, [])
 
   useEffect(() => {
+    if (!channelForm.workspace_id && workspaces.length > 0) {
+      setChannelForm((prev) => ({ ...prev, workspace_id: String(workspaces[0].id) }))
+    }
+  }, [channelForm.workspace_id, workspaces])
+
+  useEffect(() => {
     if (selectedWorkspaceId) loadAvailableUsers(selectedWorkspaceId)
+  }, [selectedWorkspaceId])
+
+  useEffect(() => {
+    if (!selectedWorkspaceId) {
+      setWorkspaceDetail(null)
+      return
+    }
+
+    loadWorkspaceDetail(selectedWorkspaceId)
   }, [selectedWorkspaceId])
 
   useEffect(() => {
@@ -480,8 +522,8 @@ export function Messages() {
 
   useEffect(() => {
     if (!selectedTarget) return
-    const selectedCohort = selectedChannel?.cohort_id || selectedDm?.cohort_id
-    if (selectedCohort) setSelectedWorkspaceId(selectedCohort)
+    const workspaceId = selectedChannel?.workspace_id || selectedDm?.workspace_id
+    if (workspaceId) setSelectedWorkspaceId(workspaceId)
   }, [selectedTarget, selectedChannel, selectedDm])
 
   useEffect(() => {
@@ -635,11 +677,19 @@ export function Messages() {
 
   const selectWorkspace = (id: number) => {
     setSelectedWorkspaceId(id)
-    setChannelForm((prev) => ({ ...prev, cohort_id: String(id) }))
-    const firstChannel = channels.find((channel) => channel.cohort_id === id)
-    const firstDm = directConversations.find((conversation) => conversation.cohort_id === id)
+    setChannelForm((prev) => ({ ...prev, workspace_id: String(id) }))
+    const firstChannel = channels.find((channel) => channel.workspace_id === id)
+    const firstDm = directConversations.find((conversation) => conversation.workspace_id === id)
     if (firstChannel) selectTarget({ type: 'channel', id: firstChannel.id })
     else if (firstDm) selectTarget({ type: 'dm', id: firstDm.id })
+    else {
+      window.history.replaceState(null, '', '/messages')
+      setSelectedTarget(null)
+      setMessages([])
+      setActiveThreadRootId(null)
+      setEditing(null)
+      if (!isDesktop) setMobilePane('list')
+    }
   }
 
   const showPreviousLightboxImage = () => {
@@ -787,12 +837,12 @@ export function Messages() {
 
   const handleCreateChannel = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!channelForm.cohort_id || !channelForm.name.trim()) return
+    if (!channelForm.workspace_id || !channelForm.name.trim()) return
 
     setCreatingChannel(true)
     setChannelError('')
     const res = await api.createChannel({
-      cohort_id: Number(channelForm.cohort_id),
+      workspace_id: Number(channelForm.workspace_id),
       name: channelForm.name.trim(),
       description: channelForm.description.trim() || undefined,
       visibility: channelForm.visibility,
@@ -809,11 +859,75 @@ export function Messages() {
     setCreatingChannel(false)
   }
 
+  const handleCreateWorkspace = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!workspaceForm.name.trim()) return
+
+    setCreatingWorkspace(true)
+    setWorkspaceError('')
+    const res = await api.createWorkspace({
+      name: workspaceForm.name.trim(),
+      description: workspaceForm.description.trim() || undefined,
+    })
+
+    if (res.error) {
+      setWorkspaceError(res.error)
+    } else if (res.data) {
+      setWorkspaceForm({ name: '', description: '' })
+      setShowWorkspaceForm(false)
+      await loadLists()
+      setWorkspaceDetail(res.data.workspace)
+      selectWorkspace(res.data.workspace.id)
+      setShowWorkspaceMembers(true)
+    }
+    setCreatingWorkspace(false)
+  }
+
+  const handleAddWorkspaceMember = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!workspaceDetail || !memberToAddId) return
+
+    setWorkspaceError('')
+    const res = await api.addWorkspaceMembers(workspaceDetail.id, [Number(memberToAddId)])
+    if (res.error) {
+      setWorkspaceError(res.error)
+      return
+    }
+
+    if (res.data) {
+      setWorkspaceDetail(res.data.workspace)
+      setWorkspaces((prev) => prev.map((workspace) => workspace.id === res.data!.workspace.id ? {
+        ...workspace,
+        member_count: res.data!.workspace.member_count,
+      } : workspace))
+      setMemberToAddId('')
+    }
+  }
+
+  const handleRemoveWorkspaceMember = async (userId: number) => {
+    if (!workspaceDetail) return
+
+    setWorkspaceError('')
+    const res = await api.removeWorkspaceMember(workspaceDetail.id, userId)
+    if (res.error) {
+      setWorkspaceError(res.error)
+      return
+    }
+
+    if (res.data) {
+      setWorkspaceDetail(res.data.workspace)
+      setWorkspaces((prev) => prev.map((workspace) => workspace.id === res.data!.workspace.id ? {
+        ...workspace,
+        member_count: res.data!.workspace.member_count,
+      } : workspace))
+    }
+  }
+
   const handleCreateDm = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!selectedWorkspaceId || !dmUserId) return
 
-    const res = await api.createDirectConversation({ cohort_id: selectedWorkspaceId, user_ids: [Number(dmUserId)] })
+    const res = await api.createDirectConversation({ workspace_id: selectedWorkspaceId, user_ids: [Number(dmUserId)] })
     if (res.data) {
       await loadLists()
       setShowDmForm(false)
@@ -1044,7 +1158,7 @@ export function Messages() {
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">Messages</h1>
             <p className="mt-1 text-sm text-slate-500">
-              Cohort workspaces for class channels, direct messages, files, and quick decisions.
+              Workspace messaging for cohorts, alumni, staff groups, direct messages, files, and quick decisions.
               {realtimeStatus === 'connected' && <span className="ml-2 text-green-600">Live</span>}
               {realtimeStatus === 'error' && <span className="ml-2 text-amber-600">Reconnecting with refresh fallback</span>}
             </p>
@@ -1084,9 +1198,21 @@ export function Messages() {
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-semibold text-slate-900">{selectedWorkspace?.name || 'Workspaces'}</h2>
-                <p className="text-xs text-slate-500">{isDesktop ? 'Cohort workspace' : 'Choose a workspace, channel, or direct message'}</p>
+                <p className="text-xs text-slate-500">{isDesktop ? 'Workspace' : 'Choose a workspace, channel, or direct message'}</p>
               </div>
               <div className="flex items-center gap-1">
+                {isStaff && (
+                  <button
+                    onClick={() => {
+                      setShowWorkspaceForm((current) => !current)
+                      setWorkspaceError('')
+                    }}
+                    className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                    aria-label="Create workspace"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                )}
                 <button
                   onClick={loadLists}
                   className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
@@ -1115,6 +1241,35 @@ export function Messages() {
                   <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
                 ))}
               </select>
+            )}
+            {selectedWorkspace && (
+              <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-900">{selectedWorkspace.name}</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {selectedWorkspace.workspace_type === 'community' ? 'Community workspace' : 'Cohort workspace'}
+                      {' · '}
+                      {selectedWorkspace.member_count} {selectedWorkspace.member_count === 1 ? 'member' : 'members'}
+                    </p>
+                  </div>
+                  {workspaceDetail?.can_manage && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowWorkspaceMembers((current) => !current)
+                        setWorkspaceError('')
+                      }}
+                      className="shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                    >
+                      {showWorkspaceMembers ? 'Hide members' : 'Manage'}
+                    </button>
+                  )}
+                </div>
+                {selectedWorkspace.description && (
+                  <p className="mt-2 text-xs text-slate-500">{selectedWorkspace.description}</p>
+                )}
+              </div>
             )}
             <div className="relative mt-3">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -1146,12 +1301,147 @@ export function Messages() {
             </div>
           </div>
 
+          {isStaff && showWorkspaceForm && (
+            <form onSubmit={handleCreateWorkspace} className="border-b border-slate-200 bg-white p-3">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">Create workspace</h3>
+                  <p className="text-xs text-slate-500">Use this for alumni, staff groups, or other shared communities.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowWorkspaceForm(false)
+                    setWorkspaceError('')
+                  }}
+                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                  aria-label="Cancel workspace creation"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              {workspaceError && (
+                <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {workspaceError}
+                </div>
+              )}
+              <div className="space-y-2">
+                <input
+                  value={workspaceForm.name}
+                  onChange={(event) => setWorkspaceForm((prev) => ({ ...prev, name: event.target.value }))}
+                  placeholder="Workspace name"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+                <textarea
+                  value={workspaceForm.description}
+                  onChange={(event) => setWorkspaceForm((prev) => ({ ...prev, description: event.target.value }))}
+                  placeholder="What is this workspace for?"
+                  rows={2}
+                  className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+                <button
+                  type="submit"
+                  disabled={creatingWorkspace || !workspaceForm.name.trim()}
+                  className="w-full rounded-lg bg-primary-500 px-3 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
+                >
+                  {creatingWorkspace ? 'Creating...' : 'Create workspace'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowWorkspaceForm(false)
+                    setWorkspaceError('')
+                  }}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
+
+          {showWorkspaceMembers && workspaceDetail && (
+            <div className="border-b border-slate-200 bg-white p-3">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">Workspace members</h3>
+                  <p className="text-xs text-slate-500">
+                    {workspaceDetail.workspace_type === 'community'
+                      ? 'Manage who can access this workspace.'
+                      : 'This workspace follows active cohort enrollment.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowWorkspaceMembers(false)
+                    setWorkspaceError('')
+                  }}
+                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                  aria-label="Close workspace members"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              {workspaceError && (
+                <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {workspaceError}
+                </div>
+              )}
+              {workspaceDetail.can_manage && workspaceDetail.workspace_type === 'community' && (
+                <form onSubmit={handleAddWorkspaceMember} className="mb-3 flex gap-2">
+                  <select
+                    value={memberToAddId}
+                    onChange={(event) => setMemberToAddId(event.target.value)}
+                    className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="">Add a member</option>
+                    {memberCandidates.map((candidate) => (
+                      <option key={candidate.id} value={candidate.id}>{candidate.full_name}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="submit"
+                    disabled={!memberToAddId}
+                    className="rounded-lg bg-primary-500 px-3 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
+                  >
+                    Add
+                  </button>
+                </form>
+              )}
+              <div className="space-y-2">
+                {workspaceDetail.members.length === 0 ? (
+                  <p className="text-sm text-slate-500">No members listed yet.</p>
+                ) : workspaceDetail.members.map((member) => (
+                  <div key={member.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-slate-900">{member.full_name}</p>
+                      <p className="truncate text-xs text-slate-500">
+                        {member.email}
+                        {member.membership_role && ` · ${member.membership_role}`}
+                      </p>
+                    </div>
+                    {workspaceDetail.can_manage && workspaceDetail.workspace_type === 'community' && member.membership_role !== 'manager' && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveWorkspaceMember(member.id)}
+                        className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {isStaff && showChannelForm && (
             <form onSubmit={handleCreateChannel} className="border-b border-slate-200 bg-white p-3">
               <div className="mb-3 flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-semibold text-slate-900">Create channel</h3>
-                  <p className="text-xs text-slate-500">Add a shared space to this cohort.</p>
+                  <p className="text-xs text-slate-500">Add a shared space inside this workspace.</p>
                 </div>
                 <button
                   type="button"
@@ -1172,12 +1462,12 @@ export function Messages() {
               )}
               <div className="space-y-2">
                 <select
-                  value={channelForm.cohort_id}
-                  onChange={(event) => setChannelForm((prev) => ({ ...prev, cohort_id: event.target.value }))}
+                  value={channelForm.workspace_id}
+                  onChange={(event) => setChannelForm((prev) => ({ ...prev, workspace_id: event.target.value }))}
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
-                  {cohorts.map((cohort) => (
-                    <option key={cohort.id} value={cohort.id}>{cohort.name}</option>
+                  {workspaces.map((workspace) => (
+                    <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
                   ))}
                 </select>
                 <input
@@ -1203,7 +1493,7 @@ export function Messages() {
                 </select>
                 <button
                   type="submit"
-                  disabled={creatingChannel || !channelForm.cohort_id || !channelForm.name.trim()}
+                  disabled={creatingChannel || !channelForm.workspace_id || !channelForm.name.trim()}
                   className="w-full rounded-lg bg-primary-500 px-3 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
                 >
                   {creatingChannel ? 'Creating...' : 'Create channel'}
@@ -1283,7 +1573,7 @@ export function Messages() {
                 active={selectedTarget?.type === 'channel' && selectedTarget.id === channel.id}
                 icon={channel.visibility === 'staff_only' ? <Lock className="h-4 w-4 shrink-0" /> : <Hash className="h-4 w-4 shrink-0" />}
                 title={channel.name}
-                subtitle={channel.latest_message ? `${channel.latest_message.author_name}: ${preview(channel.latest_message.body)}` : channel.description || channel.cohort_name}
+                subtitle={channel.latest_message ? `${channel.latest_message.author_name}: ${preview(channel.latest_message.body)}` : channel.description || channel.workspace_name}
                 unread={channel.unread_count}
                 muted={channel.muted}
                 onClick={() => selectTarget({ type: 'channel', id: channel.id })}
@@ -1304,7 +1594,7 @@ export function Messages() {
                 active={selectedTarget?.type === 'dm' && selectedTarget.id === conversation.id}
                 icon={<MessageCircle className="h-4 w-4 shrink-0" />}
                 title={conversation.title}
-                subtitle={conversation.latest_message ? `${conversation.latest_message.author_name}: ${preview(conversation.latest_message.body)}` : conversation.cohort_name}
+                subtitle={conversation.latest_message ? `${conversation.latest_message.author_name}: ${preview(conversation.latest_message.body)}` : conversation.workspace_name}
                 unread={conversation.unread_count}
                 muted={conversation.muted}
                 onClick={() => selectTarget({ type: 'dm', id: conversation.id })}
@@ -1385,7 +1675,7 @@ export function Messages() {
                       : <MessageCircle className="h-5 w-5 shrink-0 text-slate-500" />}
                     <div className="min-w-0">
                       <h2 className="truncate font-semibold text-slate-900">{selectedLabel}</h2>
-                      <p className="text-xs text-slate-500">{selected.cohort_name}</p>
+                      <p className="text-xs text-slate-500">{selected.workspace_name}</p>
                     </div>
                   </div>
                   {selectedTarget.type === 'channel' && selectedChannel?.visibility === 'staff_only' && (

@@ -35,6 +35,9 @@ Rails.application.routes.draw do
       post "message_attachments/presign", to: "message_attachments#presign"
       patch "message_preferences", to: "message_preferences#update"
       get "messages/search", to: "messages_search#index"
+      resources :workspaces, only: [ :index, :show, :create, :update ] do
+        resources :memberships, only: [ :create, :destroy ], controller: "workspace_memberships"
+      end
       resources :channels, only: [ :index, :show, :create, :update, :destroy ] do
         member do
           patch :read, to: "channels#mark_read"

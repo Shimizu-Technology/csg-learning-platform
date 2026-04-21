@@ -2,12 +2,15 @@ class Channel < ApplicationRecord
   enum :visibility, { cohort: 0, staff_only: 1 }
   enum :status, { active: 0, archived: 1 }
 
-  belongs_to :cohort
+  belongs_to :cohort, optional: true
+  belongs_to :workspace
   has_many :messages, dependent: :destroy
   has_many :channel_read_states, dependent: :destroy
   has_many :message_preferences, as: :target, dependent: :destroy
 
-  validates :name, presence: true, uniqueness: { scope: :cohort_id }
+  before_validation :sync_workspace_links
+
+  validates :name, presence: true, uniqueness: { scope: :workspace_id }
   validates :visibility, presence: true
   validates :status, presence: true
   validates :position, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
@@ -18,8 +21,8 @@ class Channel < ApplicationRecord
     return none unless user
     return active if user.staff?
 
-    cohort_ids = user.enrollments.active.select(:cohort_id)
-    active.cohort.where(cohort_id: cohort_ids)
+    workspace_ids = Workspace.visible_for(user).select(:id)
+    active.where(workspace_id: workspace_ids, visibility: visibilities[:cohort])
   end
 
   def visible_to?(user)
@@ -27,7 +30,7 @@ class Channel < ApplicationRecord
     return true if user.staff?
     return false if staff_only?
 
-    user.enrollments.active.exists?(cohort_id: cohort_id)
+    workspace.visible_to?(user)
   end
 
   def can_post?(user)
@@ -41,9 +44,14 @@ class Channel < ApplicationRecord
     if staff_only?
       User.where(role: [ User.roles[:instructor], User.roles[:admin] ])
     else
-      User.where(id: cohort.enrollments.active.select(:user_id)).or(
-        User.where(role: [ User.roles[:instructor], User.roles[:admin] ])
-      ).distinct
+      workspace.recipient_users
     end
+  end
+
+  private
+
+  def sync_workspace_links
+    self[:cohort_id] ||= workspace&.cohort_id
+    self.workspace ||= cohort&.workspace
   end
 end

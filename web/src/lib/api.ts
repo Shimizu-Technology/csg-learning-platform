@@ -43,6 +43,8 @@ import type {
   PushConfigResponse,
   PushSubscriptionResponse,
   CableTokenResponse,
+  WorkspacesResponse,
+  WorkspaceResponse,
   ChannelsResponse,
   ChannelResponse,
   MessageResponse,
@@ -165,11 +167,34 @@ export const api = {
     }),
   createCableToken: () =>
     fetchApi<CableTokenResponse>('/api/v1/cable_token', { method: 'POST' }),
+  getWorkspaces: () =>
+    fetchApi<WorkspacesResponse>('/api/v1/workspaces'),
+  getWorkspace: (id: number) =>
+    fetchApi<WorkspaceResponse>(`/api/v1/workspaces/${id}`),
+  createWorkspace: (data: { name: string; description?: string; user_ids?: number[] }) =>
+    fetchApi<WorkspaceResponse>('/api/v1/workspaces', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateWorkspace: (id: number, data: { name?: string; description?: string; status?: 'active' | 'archived' }) =>
+    fetchApi<WorkspaceResponse>(`/api/v1/workspaces/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  addWorkspaceMembers: (workspaceId: number, user_ids: number[]) =>
+    fetchApi<WorkspaceResponse>(`/api/v1/workspaces/${workspaceId}/memberships`, {
+      method: 'POST',
+      body: JSON.stringify({ user_ids }),
+    }),
+  removeWorkspaceMember: (workspaceId: number, userId: number) =>
+    fetchApi<WorkspaceResponse>(`/api/v1/workspaces/${workspaceId}/memberships/${userId}`, {
+      method: 'DELETE',
+    }),
   getChannels: () =>
     fetchApi<ChannelsResponse>('/api/v1/channels'),
   getChannel: (id: number) =>
     fetchApi<ChannelResponse>(`/api/v1/channels/${id}`),
-  createChannel: (data: { cohort_id: number; name: string; description?: string; visibility?: string }) =>
+  createChannel: (data: { workspace_id?: number; cohort_id?: number; name: string; description?: string; visibility?: string }) =>
     fetchApi<ChannelResponse>('/api/v1/channels', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -183,11 +208,11 @@ export const api = {
     }),
   getDirectConversations: () =>
     fetchApi<DirectConversationsResponse>('/api/v1/direct_conversations'),
-  getAvailableDirectUsers: (cohortId: number) =>
-    fetchApi<AvailableDirectUsersResponse>(`/api/v1/direct_conversations/available_users?cohort_id=${cohortId}`),
+  getAvailableDirectUsers: (workspaceId: number) =>
+    fetchApi<AvailableDirectUsersResponse>(`/api/v1/direct_conversations/available_users?workspace_id=${workspaceId}`),
   getDirectConversation: (id: number) =>
     fetchApi<DirectConversationResponse>(`/api/v1/direct_conversations/${id}`),
-  createDirectConversation: (data: { cohort_id: number; user_ids: number[] }) =>
+  createDirectConversation: (data: { workspace_id?: number; cohort_id?: number; user_ids: number[] }) =>
     fetchApi<DirectConversationResponse>('/api/v1/direct_conversations', {
       method: 'POST',
       body: JSON.stringify(data),

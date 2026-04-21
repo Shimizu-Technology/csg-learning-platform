@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_20_230119) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_21_114000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -110,7 +110,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_20_230119) do
   end
 
   create_table "channels", force: :cascade do |t|
-    t.bigint "cohort_id", null: false
+    t.bigint "cohort_id"
     t.datetime "created_at", null: false
     t.text "description"
     t.string "name", null: false
@@ -118,9 +118,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_20_230119) do
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
     t.integer "visibility", default: 0, null: false
+    t.bigint "workspace_id", null: false
     t.index ["cohort_id", "name"], name: "index_channels_on_cohort_id_and_name", unique: true
     t.index ["cohort_id", "status", "position"], name: "index_channels_on_cohort_id_and_status_and_position"
     t.index ["cohort_id"], name: "index_channels_on_cohort_id"
+    t.index ["workspace_id", "name"], name: "index_channels_on_workspace_id_and_name", unique: true
+    t.index ["workspace_id", "status", "position"], name: "index_channels_on_workspace_id_and_status_and_position"
+    t.index ["workspace_id"], name: "index_channels_on_workspace_id"
   end
 
   create_table "cohorts", force: :cascade do |t|
@@ -258,13 +262,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_20_230119) do
   end
 
   create_table "direct_conversations", force: :cascade do |t|
-    t.bigint "cohort_id", null: false
+    t.bigint "cohort_id"
     t.datetime "created_at", null: false
     t.string "member_key", null: false
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
+    t.bigint "workspace_id", null: false
     t.index ["cohort_id", "member_key"], name: "idx_direct_conversations_member_key", unique: true
     t.index ["cohort_id"], name: "index_direct_conversations_on_cohort_id"
+    t.index ["workspace_id", "member_key"], name: "index_direct_conversations_on_workspace_id_and_member_key", unique: true
+    t.index ["workspace_id"], name: "index_direct_conversations_on_workspace_id"
   end
 
   create_table "districts", force: :cascade do |t|
@@ -1290,6 +1297,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_20_230119) do
     t.index ["user_id"], name: "index_watch_progresses_on_user_id"
   end
 
+  create_table "workspace_memberships", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "role", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.bigint "workspace_id", null: false
+    t.index ["user_id"], name: "index_workspace_memberships_on_user_id"
+    t.index ["workspace_id", "user_id"], name: "index_workspace_memberships_on_workspace_id_and_user_id", unique: true
+    t.index ["workspace_id"], name: "index_workspace_memberships_on_workspace_id"
+  end
+
+  create_table "workspaces", force: :cascade do |t|
+    t.bigint "cohort_id"
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.string "name", null: false
+    t.string "slug", null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.integer "workspace_type", default: 0, null: false
+    t.index ["cohort_id"], name: "index_workspaces_on_cohort_id"
+    t.index ["slug"], name: "index_workspaces_on_slug", unique: true
+  end
+
   add_foreign_key "announcements", "cohorts"
   add_foreign_key "announcements", "users", column: "author_id"
   add_foreign_key "audit_logs", "users", column: "actor_user_id"
@@ -1298,6 +1329,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_20_230119) do
   add_foreign_key "channel_read_states", "messages", column: "last_read_message_id"
   add_foreign_key "channel_read_states", "users"
   add_foreign_key "channels", "cohorts"
+  add_foreign_key "channels", "workspaces"
   add_foreign_key "cohorts", "curricula", column: "curriculum_id"
   add_foreign_key "company_ytd_totals", "companies"
   add_foreign_key "content_blocks", "lessons"
@@ -1307,6 +1339,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_20_230119) do
   add_foreign_key "direct_conversation_members", "direct_conversations"
   add_foreign_key "direct_conversation_members", "users"
   add_foreign_key "direct_conversations", "cohorts"
+  add_foreign_key "direct_conversations", "workspaces"
   add_foreign_key "districts", "campaigns"
   add_foreign_key "employee_deductions", "deduction_types"
   add_foreign_key "employee_deductions", "employees"
@@ -1395,4 +1428,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_20_230119) do
   add_foreign_key "villages", "districts"
   add_foreign_key "watch_progresses", "recordings"
   add_foreign_key "watch_progresses", "users"
+  add_foreign_key "workspace_memberships", "users"
+  add_foreign_key "workspace_memberships", "workspaces"
+  add_foreign_key "workspaces", "cohorts"
 end

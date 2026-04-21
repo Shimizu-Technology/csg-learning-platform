@@ -59,7 +59,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
   end
 
   test "starting an archived direct conversation reopens it" do
-    conversation = DirectConversation.find_or_create_for!(cohort: @cohort, users: [ @student, @admin ])
+    conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @student, @admin ])
     conversation.update!(status: :archived)
 
     as_user(@student) do
@@ -171,6 +171,87 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
 
     assert_response :forbidden
     assert_nil message.reload.pinned_at
+  end
+
+  test "staff can create a community workspace with default channel and members" do
+    as_user(@admin) do
+      post "/api/v1/workspaces",
+        params: {
+          name: "Alumni",
+          description: "Graduates stay connected here",
+          user_ids: [ @student.id, @classmate.id ]
+        },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :created
+    workspace = Workspace.find_by!(name: "Alumni")
+    assert workspace.community?
+    assert_equal [ @admin.id, @classmate.id, @student.id ].sort, workspace.workspace_memberships.pluck(:user_id).sort
+    assert workspace.channels.find_by!(name: "General").present?
+  end
+
+  test "student cannot create a community workspace" do
+    as_user(@student) do
+      post "/api/v1/workspaces",
+        params: { name: "Secret Club", description: "Nope" },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :forbidden
+  end
+
+  test "staff can add and remove community workspace members" do
+    workspace = Workspace.create!(
+      name: "Alumni",
+      slug: "alumni",
+      workspace_type: :community,
+      status: :active,
+      description: "Graduates stay connected here"
+    )
+    workspace.workspace_memberships.create!(user: @admin, role: :manager)
+    workspace.ensure_default_channels!
+
+    as_user(@admin) do
+      post "/api/v1/workspaces/#{workspace.id}/memberships",
+        params: { user_ids: [ @student.id, @classmate.id ] },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :created
+    assert_equal [ @admin.id, @classmate.id, @student.id ].sort, workspace.reload.workspace_memberships.pluck(:user_id).sort
+
+    as_user(@admin) do
+      delete "/api/v1/workspaces/#{workspace.id}/memberships/#{@classmate.id}",
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :success
+    assert_equal [ @admin.id, @student.id ].sort, workspace.reload.workspace_memberships.pluck(:user_id).sort
+  end
+
+  test "workspace index includes community workspace memberships for members" do
+    workspace = Workspace.create!(
+      name: "Alumni",
+      slug: "alumni",
+      workspace_type: :community,
+      status: :active,
+      description: "Graduates stay connected here"
+    )
+    workspace.workspace_memberships.create!(user: @student, role: :member)
+
+    as_user(@student) do
+      get "/api/v1/workspaces", headers: auth_headers
+    end
+
+    assert_response :success
+    names = JSON.parse(response.body).fetch("workspaces").map { |item| item.fetch("name") }
+    assert_includes names, "Cohort 3"
+    assert_includes names, "Alumni"
   end
 
   test "message create requires text or attachment" do

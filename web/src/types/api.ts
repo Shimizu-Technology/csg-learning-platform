@@ -224,10 +224,41 @@ export interface CableTokenResponse {
   expires_in: number;
 }
 
+export interface WorkspaceSummary {
+  id: number;
+  name: string;
+  slug: string;
+  workspace_type: 'cohort' | 'community';
+  status: 'active' | 'archived';
+  cohort_id: number | null;
+  cohort_name: string | null;
+  description: string | null;
+  member_count: number;
+  can_manage: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkspaceMember {
+  id: number;
+  full_name: string;
+  email: string;
+  role: string;
+  avatar_url: string | null;
+  membership_role: string;
+}
+
+export interface WorkspaceDetail extends WorkspaceSummary {
+  members: WorkspaceMember[];
+}
+
 export interface ChannelSummary {
   id: number;
-  cohort_id: number;
-  cohort_name: string;
+  workspace_id: number;
+  workspace_name: string;
+  workspace_type: 'cohort' | 'community';
+  cohort_id: number | null;
+  cohort_name: string | null;
   name: string;
   description: string | null;
   visibility: 'cohort' | 'staff_only';
@@ -292,8 +323,11 @@ export interface ChannelMessage {
 
 export interface DirectConversationSummary {
   id: number;
-  cohort_id: number;
-  cohort_name: string;
+  workspace_id: number;
+  workspace_name: string;
+  workspace_type: 'cohort' | 'community';
+  cohort_id: number | null;
+  cohort_name: string | null;
   title: string;
   status: 'active' | 'archived';
   muted: boolean;
@@ -339,6 +373,14 @@ export interface DirectConversationResponse {
   messages?: ChannelMessage[];
 }
 
+export interface WorkspacesResponse {
+  workspaces: WorkspaceSummary[];
+}
+
+export interface WorkspaceResponse {
+  workspace: WorkspaceDetail;
+}
+
 export interface AvailableDirectUsersResponse {
   users: UserSummary[];
 }
@@ -364,7 +406,7 @@ export interface MessageSearchResponse {
       type: 'channel' | 'direct_conversation';
       id: number;
       label: string;
-      cohort_id: number;
+      cohort_id: number | null;
     };
   })[];
 }
