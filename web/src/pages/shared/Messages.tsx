@@ -78,7 +78,16 @@ function formatTime(value: string) {
 }
 
 function preview(text: string) {
-  const fallback = text || 'Attachment'
+  const fallback = (text || 'Attachment')
+    .replace(/```[\w-]*\n?/g, '')
+    .replace(/```/g, '')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/_([^_]+)_/g, '$1')
+    .replace(/^\s*>\s?/gm, '')
+    .replace(/^\s*[-*]\s+/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim()
   return fallback.length > 80 ? `${fallback.slice(0, 77)}...` : fallback
 }
 
@@ -271,7 +280,7 @@ export function Messages() {
     ],
     editorProps: {
       attributes: {
-        class: 'message-composer min-h-16 px-3 py-3 text-sm leading-6 text-slate-800 outline-none',
+        class: 'message-composer min-h-[44px] max-h-44 overflow-y-auto px-3 py-3 text-sm leading-6 text-slate-800 outline-none',
       },
       handlePaste: (_view, event) => {
         const files = Array.from(event.clipboardData?.files || [])
@@ -547,6 +556,25 @@ export function Messages() {
   const closeLightbox = () => {
     setLightboxAttachments([])
     setLightboxIndex(0)
+  }
+
+  const downloadLightboxAttachment = async () => {
+    if (!lightboxAttachment?.url) return
+
+    try {
+      const response = await fetch(lightboxAttachment.url)
+      const blob = await response.blob()
+      const objectUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = lightboxAttachment.filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(objectUrl)
+    } catch {
+      window.open(lightboxAttachment.url, '_blank', 'noopener,noreferrer')
+    }
   }
 
   const uploadAttachments = async (attachmentsToUpload = pendingAttachments) => {
@@ -1339,8 +1367,8 @@ export function Messages() {
                     <button type="button" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('/') }} className="rounded-lg px-2 py-1 text-sm hover:bg-slate-50">/ command</button>
                     <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => handleFiles(event.target.files)} />
                   </div>
-                  <div className="min-h-[220px] p-2">
-                    <div className="min-h-[160px] min-w-0">
+                  <div className="p-2">
+                    <div className="min-h-0 min-w-0">
                       <EditorContent editor={editor} onKeyDown={handleComposerKeyDown} />
                     </div>
                   </div>
@@ -1459,12 +1487,31 @@ export function Messages() {
           )}
           <div className="max-h-full max-w-5xl overflow-hidden rounded-lg bg-white shadow-2xl">
             <img src={lightboxAttachment.url} alt={lightboxAttachment.filename} className="max-h-[80vh] w-full object-contain" />
-            <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm text-slate-700">
-              <span className="min-w-0 truncate font-medium">{lightboxAttachment.filename}</span>
-              <span className="shrink-0 text-slate-500">
-                {lightboxAttachments.length > 1 && `${lightboxIndex + 1} of ${lightboxAttachments.length} · `}
-                {formatFileSize(lightboxAttachment.byte_size)}
-              </span>
+            <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 text-sm text-slate-700">
+              <div className="min-w-0">
+                <div className="truncate font-medium">{lightboxAttachment.filename}</div>
+                <div className="text-slate-500">
+                  {lightboxAttachments.length > 1 && `${lightboxIndex + 1} of ${lightboxAttachments.length} · `}
+                  {formatFileSize(lightboxAttachment.byte_size)}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={lightboxAttachment.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Open
+                </a>
+                <button
+                  type="button"
+                  onClick={downloadLightboxAttachment}
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Download
+                </button>
+              </div>
             </div>
           </div>
         </div>

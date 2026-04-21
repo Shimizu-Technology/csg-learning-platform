@@ -19,7 +19,7 @@ class MessageBroadcastService
         event: event,
         channel_id: message.channel_id,
         direct_conversation_id: message.direct_conversation_id,
-        message: MessageJson.render(message)
+        message: MessageJson.render(message, stream_url: true)
       }
 
       if message.channel
