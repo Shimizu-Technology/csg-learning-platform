@@ -54,6 +54,12 @@ module Api
           .chronological
           .limit(message_limit)
           .to_a
+        pinned_messages = @conversation.messages.visible
+          .where.not(pinned_at: nil)
+          .includes(:author, :message_attachments, message_reactions: :user)
+          .order(pinned_at: :desc, created_at: :desc, id: :desc)
+          .limit(25)
+          .to_a
 
         render json: {
           direct_conversation: conversation_json(
@@ -62,7 +68,8 @@ module Api
             unread_count: unread_count_for(@conversation, member),
             latest_message: messages.last
           ),
-          messages: messages.map { |message| MessageJson.render(message, current_user: current_user, stream_url: true) }
+          messages: messages.map { |message| MessageJson.render(message, current_user: current_user, stream_url: true) },
+          pinned_messages: pinned_messages.map { |message| MessageJson.render(message, current_user: current_user, stream_url: true) }
         }
       end
 

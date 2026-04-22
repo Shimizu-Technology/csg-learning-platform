@@ -351,6 +351,7 @@ export interface ChannelsResponse {
 export interface ChannelResponse {
   channel: ChannelSummary;
   messages?: ChannelMessage[];
+  pinned_messages?: ChannelMessage[];
 }
 
 export interface MessageResponse {
@@ -371,6 +372,7 @@ export interface DirectConversationsResponse {
 export interface DirectConversationResponse {
   direct_conversation: DirectConversationSummary;
   messages?: ChannelMessage[];
+  pinned_messages?: ChannelMessage[];
 }
 
 export interface WorkspacesResponse {

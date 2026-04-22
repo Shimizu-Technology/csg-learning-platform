@@ -781,8 +781,53 @@ export function CohortDetail() {
             )
           })()}
 
-          {/* S3 Uploaded Recordings */}
-          <div className="rounded-2xl bg-white border border-slate-200 p-5">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Recording Sources</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Manage self-hosted uploads and external video links separately so it is always clear what students are using.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setShowRecordingsModal(true)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  <PlayCircle className="h-4 w-4 text-primary-500" />
+                  Manage video links
+                </button>
+                <Link
+                  to={`/admin/cohorts/${id}/watch-progress`}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  <Eye className="h-4 w-4 text-primary-500" />
+                  Watch progress
+                </Link>
+              </div>
+            </div>
+
+            <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Self-hosted</p>
+                <p className="mt-2 text-base font-semibold text-slate-900">
+                  Uploaded recordings
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Files uploaded into the platform and streamed from your own storage.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">External</p>
+                <p className="mt-2 text-base font-semibold text-slate-900">
+                  YouTube or video links
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Legacy/external URLs. Remove the link here when you want students to stop using it and switch to uploads instead.
+                </p>
+              </div>
+            </div>
+
             <RecordingUploadManager cohortId={Number(id)} />
             <div className="mt-4 pt-4 border-t border-slate-100">
               <Link
@@ -981,8 +1026,8 @@ export function CohortDetail() {
       <Modal
         open={showRecordingsModal}
         onClose={() => setShowRecordingsModal(false)}
-        title="Class Recordings"
-        subtitle="YouTube links of recorded class sessions for students to review."
+        title="External Video Links"
+        subtitle="Manage YouTube or other hosted URLs. Remove a link here when you want students to stop using the external source."
         icon={<PlayCircle className="h-6 w-6 text-primary-500" />}
         size="xl"
         footer={
@@ -1006,6 +1051,9 @@ export function CohortDetail() {
         }
       >
         <div className="space-y-3">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            Students will only use the links listed here. If you are moving a session to a self-hosted upload, remove the old link here after the upload is ready.
+          </div>
           {recordings.length === 0 ? (
             <p className="text-sm text-slate-400 py-8 text-center">No recordings added yet. Click "Add recording" below to get started.</p>
           ) : recordings.map((rec, idx) => (

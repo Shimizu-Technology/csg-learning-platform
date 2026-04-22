@@ -32,24 +32,28 @@ class WebPushNotificationService
   end
 
   def message_created(message, notifications)
-    title = message.direct_message? ? message.author.full_name : message.channel.name
-    path = message.direct_message? ? "/messages/dm/#{message.direct_conversation_id}" : "/messages/#{message.channel_id}"
-    tag = message.direct_message? ? "dm-#{message.direct_conversation_id}" : "channel-#{message.channel_id}"
-    payload = {
-      title: title,
-      body: "#{message.author.full_name}: #{message_notification_body(message)}",
-      path: path,
-      tag: tag
-    }.to_json
+    notifications.find_each do |notification|
+      payload = {
+        title: notification.title,
+        body: notification.body.presence || message_notification_body(message),
+        path: notification.path,
+        tag: message.direct_message? ? "dm-#{message.direct_conversation_id}" : "channel-#{message.channel_id}"
+      }.to_json
 
-    deliver_to_notifications(notifications, payload)
+      deliver_to_user(notification.user_id, payload)
+    end
   end
 
   private
 
   def deliver_to_notifications(notifications, payload)
-    user_ids = notifications.map(&:user_id).uniq
-    PushSubscription.active.where(user_id: user_ids).find_each do |subscription|
+    notifications.select(:user_id).distinct.find_each do |notification|
+      deliver_to_user(notification.user_id, payload)
+    end
+  end
+
+  def deliver_to_user(user_id, payload)
+    PushSubscription.active.where(user_id: user_id).find_each do |subscription|
       deliver(subscription, payload)
     end
   end

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -42,6 +42,7 @@ import { disablePushNotifications, enablePushNotifications, pushSupported } from
 import { formatFileSize, uploadToS3 } from '../../lib/uploadToS3'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
+import { Modal } from '../../components/shared/Modal'
 import type {
   ChannelMessage,
   ChannelMessageEvent,
@@ -64,6 +65,12 @@ type PendingAttachment = {
   uploaded: boolean
 }
 type LocalMessage = ChannelMessage & { pending?: boolean; failed?: boolean }
+type MentionSuggestion = {
+  id: string
+  label: string
+  subtitle: string
+  kind: 'user' | 'channel'
+}
 
 const REACTIONS = ['👍', '❤️', '✅', '🙌']
 const SLASH_COMMANDS = [
@@ -140,6 +147,34 @@ function mergeIncomingMessage(existing: LocalMessage, incoming: LocalMessage) {
   return { ...incoming, reactions: mergedReactions }
 }
 
+function sortChronologicalMessages<T extends ChannelMessage>(items: T[]) {
+  return [...items].sort((a, b) => {
+    const createdDelta = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    if (createdDelta !== 0) return createdDelta
+    return a.id - b.id
+  })
+}
+
+function sortPinnedMessages<T extends ChannelMessage>(items: T[]) {
+  return [...items].sort((a, b) => {
+    const pinnedDelta = new Date(b.pinned_at || b.created_at).getTime() - new Date(a.pinned_at || a.created_at).getTime()
+    if (pinnedDelta !== 0) return pinnedDelta
+    return b.id - a.id
+  })
+}
+
+function upsertPinnedMessage(prev: LocalMessage[], incoming: LocalMessage) {
+  if (!incoming.pinned_at || incoming.deleted_at) {
+    return prev.filter((item) => item.id !== incoming.id)
+  }
+
+  const next = prev.some((item) => item.id === incoming.id)
+    ? prev.map((item) => item.id === incoming.id ? mergeIncomingMessage(item, incoming) : item)
+    : [...prev, incoming]
+
+  return sortPinnedMessages(next)
+}
+
 function messageNotificationHint(configured: boolean, publicKey?: string | null) {
   if (configured || publicKey) return ''
 
@@ -149,6 +184,10 @@ function messageNotificationHint(configured: boolean, publicKey?: string | null)
 function editorTextBeforeCursor(editor: Editor) {
   const from = editor.state.selection.from
   return editor.state.doc.textBetween(Math.max(0, from - 80), from, '\n', '\n')
+}
+
+function stripMentionLabel(value: string) {
+  return value.replace(/^@/, '').trim().toLowerCase()
 }
 
 function editorJsonToMarkdown(node?: JSONContent): string {
@@ -204,7 +243,9 @@ export function Messages() {
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | null>(null)
   const [selectedTarget, setSelectedTarget] = useState<Target | null>(dmId ? { type: 'dm', id: Number(dmId) } : channelId ? { type: 'channel', id: Number(channelId) } : null)
   const [messages, setMessages] = useState<LocalMessage[]>([])
+  const [pinnedMessages, setPinnedMessages] = useState<LocalMessage[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingTarget, setLoadingTarget] = useState(false)
   const [sending, setSending] = useState(false)
   const [creatingChannel, setCreatingChannel] = useState(false)
   const [creatingWorkspace, setCreatingWorkspace] = useState(false)
@@ -223,6 +264,7 @@ export function Messages() {
   const [lightboxAttachments, setLightboxAttachments] = useState<MessageAttachment[]>([])
   const [lightboxIndex, setLightboxIndex] = useState(0)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [conversationView, setConversationView] = useState<'messages' | 'pins'>('messages')
   const [activeThreadRootId, setActiveThreadRootId] = useState<number | null>(null)
   const [isDesktop, setIsDesktop] = useState(() => (typeof window === 'undefined' ? true : window.innerWidth >= 1024))
   const [mobilePane, setMobilePane] = useState<'list' | 'conversation' | 'thread'>(selectedTarget ? 'conversation' : 'list')
@@ -236,6 +278,7 @@ export function Messages() {
   const [dmUserId, setDmUserId] = useState('')
   const [memberToAddId, setMemberToAddId] = useState('')
   const [, setToolbarTick] = useState(0)
+  const [isNavigationPending, startNavigationTransition] = useTransition()
   const [workspaceForm, setWorkspaceForm] = useState({
     name: '',
     description: '',
@@ -252,6 +295,8 @@ export function Messages() {
   const lightboxTouchStartX = useRef<number | null>(null)
   const optimisticAttachmentUrls = useRef(new Map<number, string[]>())
   const tempMessageIdRef = useRef(0)
+  const targetRequestRef = useRef(0)
+  const deferredSearchQuery = useDeferredValue(searchQuery)
 
   const selectedChannel = useMemo(
     () => selectedTarget?.type === 'channel' ? channels.find((channel) => channel.id === selectedTarget.id) || null : null,
@@ -305,6 +350,10 @@ export function Messages() {
   )
 
   const selectedWorkspace = workspaces.find((workspace) => workspace.id === selectedWorkspaceId)
+  const selectedPinnedMessages = useMemo(
+    () => sortPinnedMessages(pinnedMessages),
+    [pinnedMessages],
+  )
   const memberCandidates = useMemo(() => {
     const memberIds = new Set((workspaceDetail?.members || []).map((member) => member.id))
     return allUsers.filter((candidate) => !memberIds.has(candidate.id))
@@ -315,13 +364,34 @@ export function Messages() {
   const commandToken = useMemo(() => {
     return composerTriggerText.match(/(^|\n)\/([a-z]*)$/)?.[2] ?? null
   }, [composerTriggerText])
-  const mentionSuggestions = useMemo(() => {
+  const mentionSuggestions = useMemo<MentionSuggestion[]>(() => {
     if (mentionToken === null) return []
-    const normalized = mentionToken.toLowerCase()
-    return availableUsers
-      .filter((availableUser) => availableUser.full_name.toLowerCase().includes(normalized) || availableUser.email.toLowerCase().includes(normalized))
-      .slice(0, 8)
-  }, [availableUsers, mentionToken])
+
+    const normalized = stripMentionLabel(mentionToken)
+    const suggestions: MentionSuggestion[] = []
+
+    if (selectedTarget?.type === 'channel' && 'channel'.startsWith(normalized)) {
+      suggestions.push({
+        id: 'channel',
+        label: '@channel',
+        subtitle: 'Notify everyone in this channel',
+        kind: 'channel',
+      })
+    }
+
+    return [
+      ...suggestions,
+      ...availableUsers
+        .filter((availableUser) => availableUser.full_name.toLowerCase().includes(normalized) || availableUser.email.toLowerCase().includes(normalized))
+        .slice(0, 8)
+        .map((availableUser) => ({
+          id: String(availableUser.id),
+          label: `@${availableUser.full_name}`,
+          subtitle: availableUser.email,
+          kind: 'user' as const,
+        })),
+    ]
+  }, [availableUsers, mentionToken, selectedTarget?.type])
   const commandSuggestions = useMemo(() => {
     if (commandToken === null) return []
     return SLASH_COMMANDS.filter((item) => item.command.slice(1).startsWith(commandToken)).slice(0, 5)
@@ -446,28 +516,44 @@ export function Messages() {
   }
 
   const loadTarget = async (target: Target, markRead = false) => {
+    const requestId = targetRequestRef.current + 1
+    targetRequestRef.current = requestId
+    setLoadingTarget(true)
+
     if (target.type === 'channel') {
       const res = await api.getChannel(target.id)
-      if (!res.data) return
+      if (requestId !== targetRequestRef.current) return
+      if (!res.data) {
+        setLoadingTarget(false)
+        return
+      }
 
-      setMessages(res.data.messages || [])
+      setMessages(sortChronologicalMessages(res.data.messages || []))
+      setPinnedMessages(sortPinnedMessages(res.data.pinned_messages || []))
       setChannels((prev) => prev.map((channel) => channel.id === target.id ? res.data!.channel : channel))
       if (markRead && channelNeedsRead(res.data.channel)) {
         await api.markChannelRead(target.id)
         setChannels((prev) => prev.map((channel) => channel.id === target.id ? { ...channel, unread_count: 0, last_read_at: new Date().toISOString() } : channel))
       }
+      setLoadingTarget(false)
       return
     }
 
     const res = await api.getDirectConversation(target.id)
-    if (!res.data) return
+    if (requestId !== targetRequestRef.current) return
+    if (!res.data) {
+      setLoadingTarget(false)
+      return
+    }
 
-    setMessages(res.data.messages || [])
+    setMessages(sortChronologicalMessages(res.data.messages || []))
+    setPinnedMessages(sortPinnedMessages(res.data.pinned_messages || []))
     setDirectConversations((prev) => prev.map((conversation) => conversation.id === target.id ? res.data!.direct_conversation : conversation))
     if (markRead && dmNeedsRead(res.data.direct_conversation)) {
       await api.markDirectConversationRead(target.id)
       setDirectConversations((prev) => prev.map((conversation) => conversation.id === target.id ? { ...conversation, unread_count: 0, last_read_at: new Date().toISOString() } : conversation))
     }
+    setLoadingTarget(false)
   }
 
   useEffect(() => {
@@ -569,9 +655,13 @@ export function Messages() {
       setMessages((prev) => {
         if (event.event === 'deleted') return prev.filter((item) => item.id !== message.id)
         if (prev.some((item) => item.id === message.id)) {
-          return prev.map((item) => item.id === message.id ? mergeIncomingMessage(item, message) : item)
+          return sortChronologicalMessages(prev.map((item) => item.id === message.id ? mergeIncomingMessage(item, message) : item))
         }
-        return [...prev, message]
+        return sortChronologicalMessages([...prev, message])
+      })
+      setPinnedMessages((prev) => {
+        if (event.event === 'deleted') return prev.filter((item) => item.id !== message.id)
+        return upsertPinnedMessage(prev, message)
       })
 
       if (event.event !== 'deleted') {
@@ -597,6 +687,10 @@ export function Messages() {
       setActiveThreadRootId(null)
     }
   }, [activeThreadRootId, messagesById])
+
+  useEffect(() => {
+    setConversationView('messages')
+  }, [selectedTarget?.type, selectedTarget?.id])
 
   useEffect(() => {
     if (isDesktop) return
@@ -631,7 +725,7 @@ export function Messages() {
   }, [messages.length, selectedTarget?.type, selectedTarget?.id])
 
   useEffect(() => {
-    const trimmed = searchQuery.trim()
+    const trimmed = deferredSearchQuery.trim()
     if (trimmed.length < 2) {
       setSearchResults([])
       return
@@ -643,7 +737,7 @@ export function Messages() {
     }, 250)
 
     return () => window.clearTimeout(timer)
-  }, [searchQuery])
+  }, [deferredSearchQuery])
 
   const updateLatestForTarget = (message: ChannelMessage) => {
     if (message.channel_id) {
@@ -671,26 +765,36 @@ export function Messages() {
 
   const selectTarget = (target: Target) => {
     window.history.replaceState(null, '', target.type === 'channel' ? `/messages/${target.id}` : `/messages/dm/${target.id}`)
-    setSelectedTarget(target)
-    setActiveThreadRootId(null)
-    setEditing(null)
-    if (!isDesktop) setMobilePane('conversation')
+    setLoadingTarget(true)
+    startNavigationTransition(() => {
+      setSelectedTarget(target)
+      setActiveThreadRootId(null)
+      setEditing(null)
+      setConversationView('messages')
+      if (!isDesktop) setMobilePane('conversation')
+    })
   }
 
   const selectWorkspace = (id: number) => {
-    setSelectedWorkspaceId(id)
-    setChannelForm((prev) => ({ ...prev, workspace_id: String(id) }))
+    startNavigationTransition(() => {
+      setSelectedWorkspaceId(id)
+      setChannelForm((prev) => ({ ...prev, workspace_id: String(id) }))
+    })
     const firstChannel = channels.find((channel) => channel.workspace_id === id)
     const firstDm = directConversations.find((conversation) => conversation.workspace_id === id)
     if (firstChannel) selectTarget({ type: 'channel', id: firstChannel.id })
     else if (firstDm) selectTarget({ type: 'dm', id: firstDm.id })
     else {
       window.history.replaceState(null, '', '/messages')
-      setSelectedTarget(null)
-      setMessages([])
-      setActiveThreadRootId(null)
-      setEditing(null)
-      if (!isDesktop) setMobilePane('list')
+      startNavigationTransition(() => {
+        setSelectedTarget(null)
+        setMessages([])
+        setPinnedMessages([])
+        setActiveThreadRootId(null)
+        setEditing(null)
+        setConversationView('messages')
+        if (!isDesktop) setMobilePane('list')
+      })
     }
   }
 
@@ -822,7 +926,7 @@ export function Messages() {
       },
     }
 
-    setMessages((prev) => [...prev, optimisticMessage])
+    setMessages((prev) => sortChronologicalMessages([...prev, optimisticMessage]))
     updateLatestForTarget(optimisticMessage)
     setBody('')
     setComposerTriggerText('')
@@ -844,7 +948,7 @@ export function Messages() {
       } else if (res.data) {
         const message = res.data.message
         releaseOptimisticAttachmentUrls(tempId)
-        setMessages((prev) => [...prev.filter((item) => item.id !== tempId && item.id !== message.id), message])
+        setMessages((prev) => sortChronologicalMessages([...prev.filter((item) => item.id !== tempId && item.id !== message.id), message]))
         updateLatestForTarget(message)
       }
     } catch (sendError) {
@@ -1024,8 +1128,8 @@ export function Messages() {
     editor.chain().focus().insertContent(insert).run()
   }
 
-  const selectMention = (availableUser: UserSummary) => {
-    insertIntoComposer(`@${availableUser.full_name} `, /(^|\s)@[^\s@]*$/)
+  const selectMention = (mention: MentionSuggestion) => {
+    insertIntoComposer(`${mention.label} `, /(^|\s)@[^\n]*$/)
   }
 
   const insertCodeBlock = () => {
@@ -1125,6 +1229,7 @@ export function Messages() {
     const res = await api.updateMessage(message.id, { body: editBody.trim() })
     if (res.data) {
       setMessages((prev) => prev.map((item) => item.id === message.id ? res.data!.message : item))
+      setPinnedMessages((prev) => upsertPinnedMessage(prev, res.data!.message))
       setEditing(null)
     } else if (res.error) {
       setError(res.error)
@@ -1136,6 +1241,7 @@ export function Messages() {
     if (res.data) {
       releaseOptimisticAttachmentUrls(message.id)
       setMessages((prev) => prev.filter((item) => item.id !== message.id))
+      setPinnedMessages((prev) => prev.filter((item) => item.id !== message.id))
     }
     else if (res.error) setError(res.error)
   }
@@ -1147,13 +1253,19 @@ export function Messages() {
 
   const togglePin = async (message: ChannelMessage) => {
     const res = message.pinned_at ? await api.unpinMessage(message.id) : await api.pinMessage(message.id)
-    if (res.data) setMessages((prev) => prev.map((item) => item.id === message.id ? res.data!.message : item))
+    if (res.data) {
+      setMessages((prev) => prev.map((item) => item.id === message.id ? res.data!.message : item))
+      setPinnedMessages((prev) => upsertPinnedMessage(prev, res.data!.message))
+    }
   }
 
   const toggleReaction = async (message: ChannelMessage, emoji: string) => {
     const existing = message.reactions.find((reaction) => reaction.emoji === emoji)
     const res = existing?.reacted ? await api.unreactMessage(message.id, emoji) : await api.reactMessage(message.id, emoji)
-    if (res.data) setMessages((prev) => prev.map((item) => item.id === message.id ? res.data!.message : item))
+    if (res.data) {
+      setMessages((prev) => prev.map((item) => item.id === message.id ? res.data!.message : item))
+      setPinnedMessages((prev) => upsertPinnedMessage(prev, res.data!.message))
+    }
   }
 
   const toggleMute = async () => {
@@ -1177,8 +1289,10 @@ export function Messages() {
   const showCollapsedRail = isDesktop && sidebarCollapsed
   const conversationMessages = activeThreadRoot ? activeThreadMessages : rootMessages
 
+  const showComposer = Boolean(selectedTarget) && (conversationView === 'messages' || Boolean(activeThreadRoot))
+
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-4 lg:h-[calc(100vh-4rem)]">
+    <div className="mx-auto flex min-h-[calc(100dvh-5.5rem)] max-w-7xl flex-col gap-4 lg:h-[calc(100dvh-5.5rem)]">
       <div>
         <p className="text-sm font-medium text-primary-600">Communication</p>
         <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -1218,7 +1332,7 @@ export function Messages() {
         )}
       </div>
 
-      <div className={`${isDesktop ? 'grid' : 'block'} min-h-[680px] overflow-hidden rounded-lg border border-slate-200 bg-white ${isDesktop ? (sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[340px_minmax(0,1fr)]') : ''}`}>
+      <div className={`${isDesktop ? 'grid' : 'block'} min-h-0 flex-1 overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_24px_70px_-38px_rgba(15,23,42,0.28)] ${isDesktop ? (sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[360px_minmax(0,1fr)]') : ''}`}>
         {showListPane && !sidebarCollapsed && (
         <aside className={`bg-slate-50 ${isDesktop ? 'border-b border-slate-200 lg:border-b-0 lg:border-r' : ''}`}>
           <div className="border-b border-slate-200 bg-white p-3">
@@ -1231,7 +1345,7 @@ export function Messages() {
                 {isStaff && (
                   <button
                     onClick={() => {
-                      setShowWorkspaceForm((current) => !current)
+                      setShowWorkspaceForm(true)
                       setWorkspaceError('')
                     }}
                     className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
@@ -1284,7 +1398,7 @@ export function Messages() {
                     <button
                       type="button"
                       onClick={() => {
-                        setShowWorkspaceMembers((current) => !current)
+                        setShowWorkspaceMembers(true)
                         setWorkspaceError('')
                       }}
                       className="shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
@@ -1328,266 +1442,11 @@ export function Messages() {
             </div>
           </div>
 
-          {isStaff && showWorkspaceForm && (
-            <form onSubmit={handleCreateWorkspace} className="border-b border-slate-200 bg-white p-3">
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-900">Create workspace</h3>
-                  <p className="text-xs text-slate-500">Use this for alumni, staff groups, or other shared communities.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowWorkspaceForm(false)
-                    setWorkspaceError('')
-                  }}
-                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                  aria-label="Cancel workspace creation"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              {workspaceError && (
-                <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                  {workspaceError}
-                </div>
-              )}
-              <div className="space-y-2">
-                <input
-                  value={workspaceForm.name}
-                  onChange={(event) => setWorkspaceForm((prev) => ({ ...prev, name: event.target.value }))}
-                  placeholder="Workspace name"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-                <textarea
-                  value={workspaceForm.description}
-                  onChange={(event) => setWorkspaceForm((prev) => ({ ...prev, description: event.target.value }))}
-                  placeholder="What is this workspace for?"
-                  rows={2}
-                  className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-                <button
-                  type="submit"
-                  disabled={creatingWorkspace || !workspaceForm.name.trim()}
-                  className="w-full rounded-lg bg-primary-500 px-3 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
-                >
-                  {creatingWorkspace ? 'Creating...' : 'Create workspace'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowWorkspaceForm(false)
-                    setWorkspaceError('')
-                  }}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          )}
-
-          {showWorkspaceMembers && workspaceDetail && (
-            <div className="border-b border-slate-200 bg-white p-3">
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-900">Workspace members</h3>
-                  <p className="text-xs text-slate-500">
-                    {workspaceDetail.workspace_type === 'community'
-                      ? 'Manage who can access this workspace.'
-                      : 'This workspace follows active cohort enrollment.'}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowWorkspaceMembers(false)
-                    setWorkspaceError('')
-                  }}
-                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                  aria-label="Close workspace members"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              {workspaceError && (
-                <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                  {workspaceError}
-                </div>
-              )}
-              {workspaceDetail.can_manage && workspaceDetail.workspace_type === 'community' && (
-                <form onSubmit={handleAddWorkspaceMember} className="mb-3 flex gap-2">
-                  <select
-                    value={memberToAddId}
-                    onChange={(event) => setMemberToAddId(event.target.value)}
-                    className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  >
-                    <option value="">Add a member</option>
-                    {memberCandidates.map((candidate) => (
-                      <option key={candidate.id} value={candidate.id}>{candidate.full_name}</option>
-                    ))}
-                  </select>
-                  <button
-                    type="submit"
-                    disabled={!memberToAddId}
-                    className="rounded-lg bg-primary-500 px-3 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
-                  >
-                    Add
-                  </button>
-                </form>
-              )}
-              <div className="space-y-2">
-                {workspaceDetail.members.length === 0 ? (
-                  <p className="text-sm text-slate-500">No members listed yet.</p>
-                ) : workspaceDetail.members.map((member) => (
-                  <div key={member.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-slate-900">{member.full_name}</p>
-                      <p className="truncate text-xs text-slate-500">
-                        {member.email}
-                        {member.membership_role && ` · ${member.membership_role}`}
-                      </p>
-                    </div>
-                    {workspaceDetail.can_manage && workspaceDetail.workspace_type === 'community' && member.membership_role !== 'manager' && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveWorkspaceMember(member.id)}
-                        className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {isStaff && showChannelForm && (
-            <form onSubmit={handleCreateChannel} className="border-b border-slate-200 bg-white p-3">
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-900">Create channel</h3>
-                  <p className="text-xs text-slate-500">Add a shared space inside this workspace.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowChannelForm(false)
-                    setChannelError('')
-                  }}
-                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                  aria-label="Cancel channel creation"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              {channelError && (
-                <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                  {channelError}
-                </div>
-              )}
-              <div className="space-y-2">
-                <select
-                  value={channelForm.workspace_id}
-                  onChange={(event) => setChannelForm((prev) => ({ ...prev, workspace_id: event.target.value }))}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                >
-                  {workspaces.map((workspace) => (
-                    <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
-                  ))}
-                </select>
-                <input
-                  value={channelForm.name}
-                  onChange={(event) => setChannelForm((prev) => ({ ...prev, name: event.target.value }))}
-                  placeholder="Channel name"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-                <textarea
-                  value={channelForm.description}
-                  onChange={(event) => setChannelForm((prev) => ({ ...prev, description: event.target.value }))}
-                  placeholder="What is this channel for?"
-                  rows={2}
-                  className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-                <select
-                  value={channelForm.visibility}
-                  onChange={(event) => setChannelForm((prev) => ({ ...prev, visibility: event.target.value }))}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="cohort">Students and staff</option>
-                  <option value="staff_only">Staff only</option>
-                </select>
-                <button
-                  type="submit"
-                  disabled={creatingChannel || !channelForm.workspace_id || !channelForm.name.trim()}
-                  className="w-full rounded-lg bg-primary-500 px-3 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
-                >
-                  {creatingChannel ? 'Creating...' : 'Create channel'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowChannelForm(false)
-                    setChannelError('')
-                  }}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          )}
-
-          {showDmForm && (
-            <form onSubmit={handleCreateDm} className="border-b border-slate-200 bg-white p-3">
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-900">Start direct message</h3>
-                  <p className="text-xs text-slate-500">Pick someone in this workspace.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowDmForm(false)}
-                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                  aria-label="Cancel direct message"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="space-y-2">
-                <select
-                  value={dmUserId}
-                  onChange={(event) => setDmUserId(event.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                >
-                  {availableUsers.map((availableUser) => (
-                    <option key={availableUser.id} value={availableUser.id}>{availableUser.full_name}</option>
-                  ))}
-                </select>
-                <button
-                  type="submit"
-                  disabled={!selectedWorkspaceId || !dmUserId}
-                  className="w-full rounded-lg bg-primary-500 px-3 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
-                >
-                  Start direct message
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowDmForm(false)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          )}
-
           <div className={`${isDesktop ? 'max-h-72 overflow-y-auto p-2 lg:max-h-[calc(100vh-13rem)]' : 'p-2'}`}>
             <div className="mb-2 flex items-center justify-between px-2 pt-2">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Channels</h3>
               {isStaff && (
-                <button onClick={() => setShowChannelForm((current) => !current)} className="rounded-lg p-1 text-slate-500 hover:bg-white" aria-label="Create channel">
+                <button onClick={() => { setShowChannelForm(true); setChannelError('') }} className="rounded-lg p-1 text-slate-500 hover:bg-white" aria-label="Create channel">
                   <Plus className="h-4 w-4" />
                 </button>
               )}
@@ -1609,7 +1468,7 @@ export function Messages() {
 
             <div className="mb-2 mt-4 flex items-center justify-between px-2">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Direct messages</h3>
-              <button onClick={() => setShowDmForm((current) => !current)} className="rounded-lg p-1 text-slate-500 hover:bg-white" aria-label="Start direct message">
+              <button onClick={() => setShowDmForm(true)} className="rounded-lg p-1 text-slate-500 hover:bg-white" aria-label="Start direct message">
                 <UserPlus className="h-4 w-4" />
               </button>
             </div>
@@ -1671,10 +1530,10 @@ export function Messages() {
         )}
 
         {showConversationPane && (
-        <section className="flex min-h-[560px] flex-col">
+        <section className="flex min-h-0 flex-1 flex-col bg-[radial-gradient(circle_at_top_right,_rgba(239,68,68,0.08),_transparent_32%),linear-gradient(180deg,_#ffffff_0%,_#fff8f8_100%)]">
           {selectedTarget && selected ? (
             <>
-              <header className="border-b border-slate-200 px-4 py-3">
+              <header className="border-b border-slate-200/80 bg-white/80 px-4 py-4 backdrop-blur-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-2">
                     {isDesktop && sidebarCollapsed && (
@@ -1702,7 +1561,7 @@ export function Messages() {
                       : <MessageCircle className="h-5 w-5 shrink-0 text-slate-500" />}
                     <div className="min-w-0">
                       <h2 className="truncate font-semibold text-slate-900">{selectedLabel}</h2>
-                      <p className="text-xs text-slate-500">{selected.workspace_name}</p>
+                      <p className="text-xs text-slate-500">{selected.workspace_name}{isNavigationPending && ' · updating'}</p>
                     </div>
                   </div>
                   {selectedTarget.type === 'channel' && selectedChannel?.visibility === 'staff_only' && (
@@ -1710,9 +1569,41 @@ export function Messages() {
                   )}
                 </div>
                 {selectedTarget.type === 'channel' && selectedChannel?.description && <p className="mt-2 text-sm text-slate-500">{selectedChannel.description}</p>}
+                {!activeThreadRoot && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setConversationView('messages')}
+                      className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                        conversationView === 'messages'
+                          ? 'bg-slate-900 text-white shadow-sm'
+                          : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" />
+                      Conversation
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConversationView('pins')}
+                      className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                        conversationView === 'pins'
+                          ? 'bg-amber-500 text-white shadow-sm'
+                          : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <Pin className="h-3.5 w-3.5" />
+                      Pinned
+                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${conversationView === 'pins' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'}`}>
+                        {selectedPinnedMessages.length}
+                      </span>
+                    </button>
+                  </div>
+                )}
               </header>
 
-              <div className="flex-1 overflow-y-auto bg-white px-4 py-4">
+              <div className="relative min-h-0 flex-1 overflow-hidden">
+                <div className={`h-full overflow-y-auto px-4 py-4 transition duration-200 ${loadingTarget || isNavigationPending ? 'opacity-60' : 'opacity-100'}`}>
                 {activeThreadRoot && (
                   <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
                     <div className="flex items-center justify-between gap-3">
@@ -1736,11 +1627,20 @@ export function Messages() {
                     </div>
                   </div>
                 )}
-                {conversationMessages.length === 0 ? (
-                  <div className="py-16 text-center text-sm text-slate-500">
-                    {activeThreadRoot ? 'No replies yet. Start the thread.' : 'No messages yet. Start the conversation.'}
+                {!activeThreadRoot && conversationView === 'pins' && (
+                  <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-800">
+                    Pinned messages stay easy to find here for this workspace conversation.
                   </div>
-                ) : conversationMessages.map((message) => {
+                )}
+                {(conversationView === 'pins' && !activeThreadRoot ? selectedPinnedMessages : conversationMessages).length === 0 ? (
+                  <div className="flex min-h-full items-center justify-center py-16 text-center text-sm text-slate-500">
+                    {activeThreadRoot
+                      ? 'No replies yet. Start the thread.'
+                      : conversationView === 'pins'
+                        ? 'No pinned messages yet.'
+                        : 'No messages yet. Start the conversation.'}
+                  </div>
+                ) : (conversationView === 'pins' && !activeThreadRoot ? selectedPinnedMessages : conversationMessages).map((message) => {
                   const rootId = rootMessageIdFor(message, messagesById)
                   const replyCount = threadReplies.get(rootId)?.length || 0
 
@@ -1775,8 +1675,18 @@ export function Messages() {
                   )
                 })}
                 <div ref={bottomRef} />
+                </div>
+                {(loadingTarget || isNavigationPending) && (
+                  <div className="pointer-events-none absolute inset-0 flex items-start justify-center bg-white/20 px-4 py-6">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/95 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm backdrop-blur">
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      Switching conversation…
+                    </div>
+                  </div>
+                )}
               </div>
 
+              {showComposer && (
               <form ref={composerFormRef} onSubmit={handleSend} className="border-t border-slate-200 bg-white p-3">
                 {error && (
                   <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -1814,7 +1724,7 @@ export function Messages() {
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={handleDrop}
                 >
-                  <div className="flex items-center gap-1 border-b border-slate-100 px-2 py-2 text-slate-500">
+                  <div className="flex flex-wrap items-center gap-1 border-b border-slate-100 px-2 py-2 text-slate-500">
                     <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => fileInputRef.current?.click()} className="rounded-lg p-2 hover:bg-slate-50" aria-label="Attach files">
                       <Paperclip className="h-4 w-4" />
                     </button>
@@ -1832,16 +1742,16 @@ export function Messages() {
                     <button type="button" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('/') }} className="rounded-lg px-2 py-1 text-sm hover:bg-slate-50">/ command</button>
                     <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => handleFiles(event.target.files)} />
                   </div>
-                  <div className="p-2">
-                    <div className="min-h-0 min-w-0">
-                      <EditorContent editor={editor} onKeyDown={handleComposerKeyDown} />
+                    <div className="p-2" onKeyDownCapture={handleComposerKeyDown}>
+                      <div className="min-h-0 min-w-0">
+                      <EditorContent editor={editor} />
+                      </div>
                     </div>
-                  </div>
                   <div className="flex items-end justify-end border-t border-slate-100 px-3 py-3">
                     <button
                       type="submit"
                       disabled={sending || (!body.trim() && pendingAttachments.length === 0)}
-                      className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-10 min-w-[120px] shrink-0 items-center justify-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-0"
                       aria-label={sending ? 'Sending message' : 'Send message'}
                     >
                       <Send className="h-4 w-4" />
@@ -1851,19 +1761,21 @@ export function Messages() {
                   {mentionSuggestions.length > 0 && (
                     <div className="absolute bottom-full left-3 z-30 mb-2 w-72 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
                       <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Mention someone</div>
-                      {mentionSuggestions.map((availableUser, index) => (
+                      {mentionSuggestions.map((mention, index) => (
                         <button
-                          key={availableUser.id}
+                          key={mention.id}
                           type="button"
-                          onClick={() => selectMention(availableUser)}
+                          onClick={() => selectMention(mention)}
                           className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm ${index === activeMentionIndex ? 'bg-primary-50 text-primary-800' : 'hover:bg-slate-50'}`}
                         >
-                          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-200 text-xs font-semibold text-slate-600">
-                            {availableUser.avatar_url ? <img src={availableUser.avatar_url} alt="" className="h-8 w-8 rounded-lg object-cover" /> : availableUser.full_name.slice(0, 1)}
+                          <span className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-semibold ${
+                            mention.kind === 'channel' ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-600'
+                          }`}>
+                            {mention.kind === 'channel' ? '#' : mention.label.replace(/^@/, '').slice(0, 1)}
                           </span>
                           <span className="min-w-0">
-                            <span className="block truncate font-medium text-slate-800">{availableUser.full_name}</span>
-                            <span className="block truncate text-xs text-slate-500">{availableUser.email}</span>
+                            <span className="block truncate font-medium text-slate-800">{mention.label}</span>
+                            <span className="block truncate text-xs text-slate-500">{mention.subtitle}</span>
                           </span>
                         </button>
                       ))}
@@ -1893,6 +1805,7 @@ export function Messages() {
                   Press Cmd+Enter or Ctrl+Enter to send. Paste or drop screenshots, use @ for people, / for snippets, and backticks for code.
                 </p>
               </form>
+              )}
             </>
           ) : (
             <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-slate-500">
@@ -1902,6 +1815,239 @@ export function Messages() {
         </section>
         )}
       </div>
+      {isStaff && (
+        <Modal
+          open={showWorkspaceForm}
+          onClose={() => {
+            setShowWorkspaceForm(false)
+            setWorkspaceError('')
+          }}
+          title="Create workspace"
+          subtitle="Use this for alumni, staff groups, or other shared communities."
+          size="lg"
+        >
+          <form onSubmit={handleCreateWorkspace} className="space-y-4">
+            {workspaceError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {workspaceError}
+              </div>
+            )}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-700">Workspace name</label>
+              <input
+                value={workspaceForm.name}
+                onChange={(event) => setWorkspaceForm((prev) => ({ ...prev, name: event.target.value }))}
+                placeholder="Workspace name"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-700">Description</label>
+              <textarea
+                value={workspaceForm.description}
+                onChange={(event) => setWorkspaceForm((prev) => ({ ...prev, description: event.target.value }))}
+                placeholder="What is this workspace for?"
+                rows={3}
+                className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowWorkspaceForm(false)
+                  setWorkspaceError('')
+                }}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={creatingWorkspace || !workspaceForm.name.trim()}
+                className="rounded-xl bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
+              >
+                {creatingWorkspace ? 'Creating…' : 'Create workspace'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {workspaceDetail && (
+        <Modal
+          open={showWorkspaceMembers}
+          onClose={() => {
+            setShowWorkspaceMembers(false)
+            setWorkspaceError('')
+          }}
+          title={`${workspaceDetail.name} members`}
+          subtitle={workspaceDetail.workspace_type === 'community'
+            ? 'Manage who can access this workspace.'
+            : 'This workspace follows active cohort enrollment.'}
+          size="lg"
+        >
+          <div className="space-y-4">
+            {workspaceError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {workspaceError}
+              </div>
+            )}
+            {workspaceDetail.can_manage && workspaceDetail.workspace_type === 'community' && (
+              <form onSubmit={handleAddWorkspaceMember} className="flex flex-col gap-2 sm:flex-row">
+                <select
+                  value={memberToAddId}
+                  onChange={(event) => setMemberToAddId(event.target.value)}
+                  className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="">Add a member</option>
+                  {memberCandidates.map((candidate) => (
+                    <option key={candidate.id} value={candidate.id}>{candidate.full_name}</option>
+                  ))}
+                </select>
+                <button
+                  type="submit"
+                  disabled={!memberToAddId}
+                  className="rounded-xl bg-primary-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
+                >
+                  Add member
+                </button>
+              </form>
+            )}
+            <div className="space-y-2">
+              {workspaceDetail.members.length === 0 ? (
+                <p className="text-sm text-slate-500">No members listed yet.</p>
+              ) : workspaceDetail.members.map((member) => (
+                <div key={member.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-slate-900">{member.full_name}</p>
+                    <p className="truncate text-xs text-slate-500">
+                      {member.email}
+                      {member.membership_role && ` · ${member.membership_role}`}
+                    </p>
+                  </div>
+                  {workspaceDetail.can_manage && workspaceDetail.workspace_type === 'community' && member.membership_role !== 'manager' && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveWorkspaceMember(member.id)}
+                      className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-white"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {isStaff && (
+        <Modal
+          open={showChannelForm}
+          onClose={() => {
+            setShowChannelForm(false)
+            setChannelError('')
+          }}
+          title="Create channel"
+          subtitle="Add a shared space inside this workspace."
+          size="lg"
+        >
+          <form onSubmit={handleCreateChannel} className="space-y-4">
+            {channelError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {channelError}
+              </div>
+            )}
+            <select
+              value={channelForm.workspace_id}
+              onChange={(event) => setChannelForm((prev) => ({ ...prev, workspace_id: event.target.value }))}
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              {workspaces.map((workspace) => (
+                <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
+              ))}
+            </select>
+            <input
+              value={channelForm.name}
+              onChange={(event) => setChannelForm((prev) => ({ ...prev, name: event.target.value }))}
+              placeholder="Channel name"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            <textarea
+              value={channelForm.description}
+              onChange={(event) => setChannelForm((prev) => ({ ...prev, description: event.target.value }))}
+              placeholder="What is this channel for?"
+              rows={3}
+              className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            <select
+              value={channelForm.visibility}
+              onChange={(event) => setChannelForm((prev) => ({ ...prev, visibility: event.target.value }))}
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="cohort">Students and staff</option>
+              <option value="staff_only">Staff only</option>
+            </select>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowChannelForm(false)
+                  setChannelError('')
+                }}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={creatingChannel || !channelForm.workspace_id || !channelForm.name.trim()}
+                className="rounded-xl bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
+              >
+                {creatingChannel ? 'Creating…' : 'Create channel'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      <Modal
+        open={showDmForm}
+        onClose={() => setShowDmForm(false)}
+        title="Start direct message"
+        subtitle="Pick someone in this workspace."
+        size="md"
+      >
+        <form onSubmit={handleCreateDm} className="space-y-4">
+          <select
+            value={dmUserId}
+            onChange={(event) => setDmUserId(event.target.value)}
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+          >
+            {availableUsers.map((availableUser) => (
+              <option key={availableUser.id} value={availableUser.id}>{availableUser.full_name}</option>
+            ))}
+          </select>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setShowDmForm(false)}
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!selectedWorkspaceId || !dmUserId}
+              className="rounded-xl bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
+            >
+              Start direct message
+            </button>
+          </div>
+        </form>
+      </Modal>
+
       {lightboxAttachment?.url && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4"
@@ -2010,8 +2156,10 @@ function ConversationButton({
   return (
     <button
       onClick={onClick}
-      className={`mb-1 w-full rounded-lg px-3 py-3 text-left transition-colors ${
-        active ? 'bg-primary-50 text-primary-800' : 'hover:bg-white'
+      className={`mb-1 w-full rounded-2xl border px-3 py-3 text-left transition-all duration-200 ${
+        active
+          ? 'border-primary-100 bg-primary-50/90 text-primary-800 shadow-sm'
+          : 'border-transparent hover:border-slate-200 hover:bg-white hover:shadow-sm'
       }`}
     >
       <div className="flex items-center justify-between gap-2">
@@ -2059,7 +2207,7 @@ function FormattedMessage({ body }: { body: string }) {
 }
 
 function formatInline(text: string) {
-  const pieces = text.split(/(`[^`]+`|\*\*[^*]+\*\*|_[^_]+_)/g)
+  const pieces = text.split(/(`[^`]+`|\*\*[^*]+\*\*|_[^_]+_|@channel\b|@[A-Za-z0-9._'-]+(?:\s+[A-Za-z0-9._'-]+)*)/g)
 
   return pieces.map((piece, index) => {
     const key = `${index}-${piece}`
@@ -2071,6 +2219,12 @@ function formatInline(text: string) {
     }
     if (piece.startsWith('_') && piece.endsWith('_')) {
       return <em key={key}>{piece.slice(1, -1)}</em>
+    }
+    if (/^@channel$/i.test(piece)) {
+      return <span key={key} className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">{piece}</span>
+    }
+    if (/^@[A-Za-z0-9._'-]+(?:\s+[A-Za-z0-9._'-]+)*$/.test(piece)) {
+      return <span key={key} className="inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-xs font-semibold text-sky-800">{piece}</span>
     }
     return <span key={key}>{piece}</span>
   })
