@@ -38,7 +38,7 @@ import {
 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { subscribeToChannelMessages, subscribeToDirectMessages } from '../../lib/realtime'
-import { disablePushNotifications, enablePushNotifications, pushSupported } from '../../lib/pushNotifications'
+import { disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
 import { formatFileSize, uploadToS3 } from '../../lib/uploadToS3'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -173,12 +173,6 @@ function upsertPinnedMessage(prev: LocalMessage[], incoming: LocalMessage) {
     : [...prev, incoming]
 
   return sortPinnedMessages(next)
-}
-
-function messageNotificationHint(configured: boolean, publicKey?: string | null) {
-  if (configured || publicKey) return ''
-
-  return 'Push needs WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, and WEB_PUSH_SUBJECT on the API plus VITE_WEB_PUSH_PUBLIC_KEY on the web app.'
 }
 
 function editorTextBeforeCursor(editor: Editor) {
@@ -422,7 +416,10 @@ export function Messages() {
     ],
     editorProps: {
       attributes: {
-        class: 'message-composer px-3 py-3 text-sm leading-6 text-slate-800 outline-none',
+        class: 'message-composer px-3 py-3 text-base leading-6 text-slate-800 outline-none sm:text-sm',
+        autocapitalize: 'sentences',
+        autocorrect: 'on',
+        spellcheck: 'true',
       },
       handlePaste: (_view, event) => {
         const files = Array.from(event.clipboardData?.files || [])
@@ -1072,9 +1069,19 @@ export function Messages() {
     }
 
     const config = await api.getPushConfig()
+    if (config.error) {
+      setPushMessage(config.error)
+      return
+    }
+
+    const configured = Boolean(config.data?.configured)
     const publicKey = config.data?.public_key || import.meta.env.VITE_WEB_PUSH_PUBLIC_KEY
-    if (!config.data?.configured && !publicKey) {
-      setPushMessage(messageNotificationHint(Boolean(config.data?.configured), publicKey))
+    if (!configured || !publicKey) {
+      setPushMessage(pushConfigurationHint({
+        configured,
+        missing: config.data?.missing || [],
+        publicKey,
+      }))
       return
     }
 
@@ -1288,11 +1295,13 @@ export function Messages() {
   const showConversationPane = isDesktop || mobilePane === 'conversation' || mobilePane === 'thread'
   const showCollapsedRail = isDesktop && sidebarCollapsed
   const conversationMessages = activeThreadRoot ? activeThreadMessages : rootMessages
-
   const showComposer = Boolean(selectedTarget) && (conversationView === 'messages' || Boolean(activeThreadRoot))
+  const showPageIntro = isDesktop || !selectedTarget
+  const showConversationHeaderPushMessage = Boolean(pushMessage) && !showPageIntro
 
   return (
-    <div className="mx-auto flex min-h-[calc(100dvh-5.5rem)] max-w-7xl flex-col gap-4 lg:h-[calc(100dvh-5.5rem)]">
+    <div className={`mx-auto flex min-h-[calc(100dvh-5.5rem)] max-w-7xl flex-col ${showPageIntro ? 'gap-4' : 'gap-0'} lg:h-[calc(100dvh-5.5rem)]`}>
+      {showPageIntro && (
       <div>
         <p className="text-sm font-medium text-primary-600">Communication</p>
         <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -1331,8 +1340,9 @@ export function Messages() {
           </div>
         )}
       </div>
+      )}
 
-      <div className={`${isDesktop ? 'grid' : 'block'} min-h-0 flex-1 overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_24px_70px_-38px_rgba(15,23,42,0.28)] ${isDesktop ? (sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[360px_minmax(0,1fr)]') : ''}`}>
+      <div className={`${isDesktop ? 'grid rounded-[28px] border border-slate-200/80 bg-white shadow-[0_24px_70px_-38px_rgba(15,23,42,0.28)]' : 'block overflow-hidden border-y border-slate-200 bg-white'} min-h-0 flex-1 ${isDesktop ? (sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[360px_minmax(0,1fr)]') : ''}`}>
         {showListPane && !sidebarCollapsed && (
         <aside className={`bg-slate-50 ${isDesktop ? 'border-b border-slate-200 lg:border-b-0 lg:border-r' : ''}`}>
           <div className="border-b border-slate-200 bg-white p-3">
@@ -1418,7 +1428,7 @@ export function Messages() {
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder="Search messages"
-                className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-base focus:outline-none focus:ring-2 focus:ring-primary-500 sm:text-sm"
               />
               {searchResults.length > 0 && (
                 <div className="absolute z-20 mt-2 max-h-80 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
@@ -1530,10 +1540,10 @@ export function Messages() {
         )}
 
         {showConversationPane && (
-        <section className="flex min-h-0 flex-1 flex-col bg-[radial-gradient(circle_at_top_right,_rgba(239,68,68,0.08),_transparent_32%),linear-gradient(180deg,_#ffffff_0%,_#fff8f8_100%)]">
+        <section className={`flex min-h-0 flex-1 flex-col ${isDesktop ? 'bg-[radial-gradient(circle_at_top_right,_rgba(239,68,68,0.08),_transparent_32%),linear-gradient(180deg,_#ffffff_0%,_#fff8f8_100%)]' : 'bg-white'}`}>
           {selectedTarget && selected ? (
             <>
-              <header className="border-b border-slate-200/80 bg-white/80 px-4 py-4 backdrop-blur-sm">
+              <header className={`border-b border-slate-200/80 px-4 py-3 backdrop-blur-sm ${isDesktop ? 'bg-white/80' : 'sticky top-0 z-10 bg-white'} sm:py-4`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-2">
                     {isDesktop && sidebarCollapsed && (
@@ -1564,11 +1574,38 @@ export function Messages() {
                       <p className="text-xs text-slate-500">{selected.workspace_name}{isNavigationPending && ' · updating'}</p>
                     </div>
                   </div>
-                  {selectedTarget.type === 'channel' && selectedChannel?.visibility === 'staff_only' && (
-                    <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">Staff only</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {!isDesktop && selectedTarget && (
+                      <button
+                        type="button"
+                        onClick={toggleMute}
+                        className="rounded-full border border-slate-200 bg-white p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                        aria-label={selectedMuted ? 'Unmute conversation' : 'Mute conversation'}
+                      >
+                        {selectedMuted ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
+                      </button>
+                    )}
+                    {!isDesktop && pushSupported() && (
+                      <button
+                        type="button"
+                        onClick={handleTogglePush}
+                        className="rounded-full border border-slate-200 bg-white p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                        aria-label={pushEnabled ? 'Turn off push notifications' : 'Turn on push notifications'}
+                      >
+                        {pushEnabled ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
+                      </button>
+                    )}
+                    {selectedTarget.type === 'channel' && selectedChannel?.visibility === 'staff_only' && (
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">Staff only</span>
+                    )}
+                  </div>
                 </div>
                 {selectedTarget.type === 'channel' && selectedChannel?.description && <p className="mt-2 text-sm text-slate-500">{selectedChannel.description}</p>}
+                {showConversationHeaderPushMessage && (
+                  <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                    {pushMessage}
+                  </div>
+                )}
                 {!activeThreadRoot && (
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <button
@@ -1603,7 +1640,7 @@ export function Messages() {
               </header>
 
               <div className="relative min-h-0 flex-1 overflow-hidden">
-                <div className={`h-full overflow-y-auto px-4 py-4 transition duration-200 ${loadingTarget || isNavigationPending ? 'opacity-60' : 'opacity-100'}`}>
+                <div className={`h-full overflow-y-auto px-3 py-3 transition duration-200 sm:px-4 sm:py-4 ${loadingTarget || isNavigationPending ? 'opacity-60' : 'opacity-100'}`}>
                 {activeThreadRoot && (
                   <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
                     <div className="flex items-center justify-between gap-3">
@@ -1687,7 +1724,11 @@ export function Messages() {
               </div>
 
               {showComposer && (
-              <form ref={composerFormRef} onSubmit={handleSend} className="border-t border-slate-200 bg-white p-3">
+              <form
+                ref={composerFormRef}
+                onSubmit={handleSend}
+                className="border-t border-slate-200 bg-white px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 sm:p-3"
+              >
                 {error && (
                   <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                     {error}
@@ -1720,11 +1761,11 @@ export function Messages() {
                   </div>
                 )}
                 <div
-                  className="relative rounded-lg border border-slate-200 bg-white"
+                  className="relative rounded-2xl border border-slate-200 bg-white shadow-[0_12px_32px_-24px_rgba(15,23,42,0.32)]"
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={handleDrop}
                 >
-                  <div className="flex flex-wrap items-center gap-1 border-b border-slate-100 px-2 py-2 text-slate-500">
+                  <div className="messages-toolbar-scroll flex items-center gap-1 overflow-x-auto border-b border-slate-100 px-2 py-2 text-slate-500">
                     <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => fileInputRef.current?.click()} className="rounded-lg p-2 hover:bg-slate-50" aria-label="Attach files">
                       <Paperclip className="h-4 w-4" />
                     </button>
@@ -1737,13 +1778,20 @@ export function Messages() {
                     <button type="button" onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleCode().run())} className={`rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('code') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Inline code">
                       <Code2 className="h-4 w-4" />
                     </button>
-                    <button type="button" onMouseDown={(event) => runToolbarCommand(event, insertCodeBlock)} className={`rounded-lg px-2 py-1 text-sm hover:bg-slate-50 ${editor?.isActive('codeBlock') ? 'bg-slate-100 text-slate-900' : ''}`}>Code block</button>
-                    <button type="button" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('@') }} className="rounded-lg px-2 py-1 text-sm hover:bg-slate-50">@ mention</button>
-                    <button type="button" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('/') }} className="rounded-lg px-2 py-1 text-sm hover:bg-slate-50">/ command</button>
+                    <button
+                      type="button"
+                      onMouseDown={(event) => runToolbarCommand(event, insertCodeBlock)}
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium hover:bg-slate-50 ${editor?.isActive('codeBlock') ? 'bg-slate-100 text-slate-900' : ''}`}
+                    >
+                      <span className="hidden sm:inline">Code block</span>
+                      <span className="sm:hidden">Block</span>
+                    </button>
+                    <button type="button" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('@') }} className="rounded-full px-2.5 py-1 text-xs font-medium hover:bg-slate-50">@ mention</button>
+                    <button type="button" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('/') }} className="rounded-full px-2.5 py-1 text-xs font-medium hover:bg-slate-50">/ command</button>
                     <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => handleFiles(event.target.files)} />
                   </div>
                     <div className="p-2" onKeyDownCapture={handleComposerKeyDown}>
-                      <div className="min-h-0 min-w-0">
+                      <div className="min-h-0 min-w-0 rounded-xl bg-slate-50/70">
                       <EditorContent editor={editor} />
                       </div>
                     </div>
@@ -1801,7 +1849,7 @@ export function Messages() {
                     </div>
                   )}
                 </div>
-                <p className="mt-2 text-xs text-slate-400">
+                <p className="mt-2 hidden text-xs text-slate-400 sm:block">
                   Press Cmd+Enter or Ctrl+Enter to send. Paste or drop screenshots, use @ for people, / for snippets, and backticks for code.
                 </p>
               </form>

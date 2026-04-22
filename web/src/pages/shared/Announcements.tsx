@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Bell, Check, Megaphone, Pin, Send } from 'lucide-react'
 import { api } from '../../lib/api'
-import { disablePushNotifications, enablePushNotifications, pushSupported } from '../../lib/pushNotifications'
+import { disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import type { Announcement, CohortSummary } from '../../types/api'
@@ -141,9 +141,19 @@ export function Announcements() {
     }
 
     const config = await api.getPushConfig()
+    if (config.error) {
+      setPushMessage(config.error)
+      return
+    }
+
+    const configured = Boolean(config.data?.configured)
     const publicKey = config.data?.public_key || import.meta.env.VITE_WEB_PUSH_PUBLIC_KEY
-    if (!config.data?.configured && !publicKey) {
-      setPushMessage('Push notifications are not configured yet.')
+    if (!configured || !publicKey) {
+      setPushMessage(pushConfigurationHint({
+        configured,
+        missing: config.data?.missing || [],
+        publicKey,
+      }))
       return
     }
 

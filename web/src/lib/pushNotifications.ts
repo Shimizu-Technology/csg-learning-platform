@@ -28,6 +28,32 @@ export function pushSupported() {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 }
 
+export function pushConfigurationHint({
+  configured,
+  missing = [],
+  publicKey,
+}: {
+  configured: boolean
+  missing?: string[]
+  publicKey?: string | null
+}) {
+  const notes: string[] = []
+
+  if (!configured) {
+    if (missing.length > 0) notes.push(`API push is missing ${missing.join(', ')}.`)
+    else notes.push('API push is not configured yet.')
+  }
+
+  if (!publicKey) {
+    notes.push('Netlify also needs VITE_WEB_PUSH_PUBLIC_KEY.')
+  }
+
+  if (notes.length === 0) return ''
+
+  notes.push('Redeploy after updating env vars.')
+  return notes.join(' ')
+}
+
 export async function enablePushNotifications(publicKey: string) {
   if (!pushSupported()) {
     throw new Error('Push notifications are not supported in this browser.')

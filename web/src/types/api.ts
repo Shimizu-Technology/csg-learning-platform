@@ -209,6 +209,7 @@ export interface MarkAllNotificationsReadResponse {
 export interface PushConfigResponse {
   configured: boolean;
   public_key: string | null;
+  missing?: string[];
 }
 
 export interface PushSubscriptionResponse {

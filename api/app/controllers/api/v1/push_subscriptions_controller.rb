@@ -5,9 +5,15 @@ module Api
 
       # GET /api/v1/push_subscriptions/config
       def config
+        missing = []
+        missing << "WEB_PUSH_PUBLIC_KEY" unless ENV["WEB_PUSH_PUBLIC_KEY"].present?
+        missing << "WEB_PUSH_PRIVATE_KEY" unless ENV["WEB_PUSH_PRIVATE_KEY"].present?
+        missing << "WEB_PUSH_SUBJECT" unless ENV["WEB_PUSH_SUBJECT"].present?
+
         render json: {
-          configured: WebPushNotificationService.configured?,
-          public_key: ENV["WEB_PUSH_PUBLIC_KEY"]
+          configured: missing.empty?,
+          public_key: ENV["WEB_PUSH_PUBLIC_KEY"],
+          missing: missing
         }
       end
 
