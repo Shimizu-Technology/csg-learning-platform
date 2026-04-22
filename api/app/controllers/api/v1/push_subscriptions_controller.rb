@@ -5,15 +5,25 @@ module Api
 
       # GET /api/v1/push_subscriptions/config
       def config
+        public_key = safe_env_value("WEB_PUSH_PUBLIC_KEY")
+        private_key = safe_env_value("WEB_PUSH_PRIVATE_KEY")
+        subject = safe_env_value("WEB_PUSH_SUBJECT")
         missing = []
-        missing << "WEB_PUSH_PUBLIC_KEY" unless ENV["WEB_PUSH_PUBLIC_KEY"].present?
-        missing << "WEB_PUSH_PRIVATE_KEY" unless ENV["WEB_PUSH_PRIVATE_KEY"].present?
-        missing << "WEB_PUSH_SUBJECT" unless ENV["WEB_PUSH_SUBJECT"].present?
+        missing << "WEB_PUSH_PUBLIC_KEY" if public_key.empty?
+        missing << "WEB_PUSH_PRIVATE_KEY" if private_key.empty?
+        missing << "WEB_PUSH_SUBJECT" if subject.empty?
 
         render json: {
           configured: missing.empty?,
-          public_key: ENV["WEB_PUSH_PUBLIC_KEY"],
+          public_key: public_key.presence,
           missing: missing
+        }
+      rescue => e
+        Rails.logger.error("[PushSubscriptionsController] config failed: #{e.class} #{e.message}")
+        render json: {
+          configured: false,
+          public_key: nil,
+          missing: [ "push_config_error" ]
         }
       end
 
@@ -47,6 +57,10 @@ module Api
       end
 
       private
+
+      def safe_env_value(name)
+        ENV.fetch(name, "").to_s.encode("UTF-8", invalid: :replace, undef: :replace, replace: "").strip
+      end
 
       def subscription_params
         keys = params.require(:keys).permit(:p256dh, :auth)
