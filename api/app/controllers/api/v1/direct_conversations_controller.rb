@@ -54,12 +54,7 @@ module Api
           .chronological
           .limit(message_limit)
           .to_a
-        pinned_messages = @conversation.messages.visible
-          .where.not(pinned_at: nil)
-          .includes(:author, :message_attachments, message_reactions: :user)
-          .order(pinned_at: :desc, created_at: :desc, id: :desc)
-          .limit(25)
-          .to_a
+        pinned_messages = @conversation.messages.pinned_recent.to_a
 
         render json: {
           direct_conversation: conversation_json(

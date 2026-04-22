@@ -133,6 +133,23 @@ export function VideoUploadField({
     setMode('upload')
   }
 
+  const handleModeSelect = (nextMode: 'url' | 'upload') => {
+    if (nextMode === 'url') {
+      if (activeSource === 'upload') {
+        handleSwitchToUrl()
+      } else {
+        setMode('url')
+      }
+      return
+    }
+
+    if (activeSource === 'url') {
+      handleSwitchToUpload()
+    } else {
+      setMode('upload')
+    }
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
@@ -148,7 +165,7 @@ export function VideoUploadField({
           <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
             <button
               type="button"
-              onClick={() => setMode('url')}
+              onClick={() => handleModeSelect('url')}
               className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                 mode === 'url' ? 'bg-primary-50 text-primary-700' : 'text-slate-500 hover:text-slate-700'
               }`}
@@ -158,7 +175,7 @@ export function VideoUploadField({
             </button>
             <button
               type="button"
-              onClick={() => setMode('upload')}
+              onClick={() => handleModeSelect('upload')}
               className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                 mode === 'upload' ? 'bg-primary-50 text-primary-700' : 'text-slate-500 hover:text-slate-700'
               }`}

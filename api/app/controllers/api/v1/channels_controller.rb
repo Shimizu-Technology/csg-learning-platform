@@ -30,12 +30,7 @@ module Api
           .chronological
           .limit(message_limit)
           .to_a
-        pinned_messages = @channel.messages.visible
-          .where.not(pinned_at: nil)
-          .includes(:author, :message_attachments, message_reactions: :user)
-          .order(pinned_at: :desc, created_at: :desc, id: :desc)
-          .limit(25)
-          .to_a
+        pinned_messages = @channel.messages.pinned_recent.to_a
         read_state = current_user.channel_read_states.find_by(channel: @channel)
 
         render json: {

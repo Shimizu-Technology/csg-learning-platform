@@ -32,10 +32,10 @@ class WebPushNotificationService
   end
 
   def message_created(message, notifications)
-    notifications.find_each do |notification|
+    each_notification(notifications) do |notification|
       payload = {
         title: notification.title,
-        body: notification.body.presence || message_notification_body(message),
+        body: notification.body,
         path: notification.path,
         tag: message.direct_message? ? "dm-#{message.direct_conversation_id}" : "channel-#{message.channel_id}"
       }.to_json
@@ -47,8 +47,21 @@ class WebPushNotificationService
   private
 
   def deliver_to_notifications(notifications, payload)
-    notifications.select(:user_id).distinct.find_each do |notification|
+    delivered_user_ids = {}
+
+    each_notification(notifications) do |notification|
+      next if delivered_user_ids[notification.user_id]
+
+      delivered_user_ids[notification.user_id] = true
       deliver_to_user(notification.user_id, payload)
+    end
+  end
+
+  def each_notification(notifications)
+    if notifications.is_a?(ActiveRecord::Relation)
+      notifications.find_each { |notification| yield notification }
+    else
+      Array(notifications).each { |notification| yield notification }
     end
   end
 
@@ -75,16 +88,5 @@ class WebPushNotificationService
   rescue => e
     Rails.logger.warn("[WebPush] failed for subscription #{subscription.id}: #{e.class} #{e.message}")
     subscription.mark_failed!
-  end
-
-  def message_notification_body(message)
-    body = message.body.to_s.strip
-    return body.truncate(120) if body.present?
-
-    attachment_count = message.message_attachments.size
-    return "Sent an attachment" if attachment_count == 1
-    return "Sent #{attachment_count} attachments" if attachment_count > 1
-
-    "Sent a message"
   end
 end
