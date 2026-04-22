@@ -33,6 +33,7 @@ import {
   Search,
   Send,
   SmilePlus,
+  Smartphone,
   Trash2,
   Type,
   UserPlus,
@@ -1749,7 +1750,7 @@ export function Messages() {
                     {pushSupported() && (
                       <ConversationHeaderAction
                         onClick={handleTogglePush}
-                        icon={pushEnabled ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
+                        icon={<Smartphone className="h-4 w-4" />}
                         shortLabel={pushEnabled ? 'Push off' : 'Push on'}
                         fullLabel={pushEnabled ? 'Turn off push' : 'Turn on push'}
                         ariaLabel={pushEnabled ? 'Turn off push notifications' : 'Turn on push notifications'}
