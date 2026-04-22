@@ -5,6 +5,8 @@
 **Deadline:** Monday March 2 (MVP for student login + exercises)
 **Repo:** `csg-learning-platform` (new repo, Rails API + React)
 
+> Historical note: this document captures the original MVP plan. Several assumptions here are now superseded by the live product: Clerk auth is required in all environments, self-hosted S3 recordings are the preferred media path, in-app messaging shipped ahead of Stripe, and Slack is no longer the intended day-to-day class hub. Use `docs/PRODUCT_VISION.md` and `docs/ROADMAP.md` as the current source of truth.
+
 ---
 
 ## Architecture
@@ -36,12 +38,12 @@
 |------|-------|
 | Prework content + exercises | CSG Learning Platform |
 | Live class content + exercises | CSG Learning Platform |
-| Class recordings (unlisted YouTube) | CSG Learning Platform |
+| Class recordings (legacy YouTube at MVP, S3 preferred now) | CSG Learning Platform |
 | Workshop recordings + materials | CSG Learning Platform |
 | Student progress + grading | CSG Learning Platform |
 | Capstone tracking | CSG Learning Platform |
 | Alumni resources | CSG Learning Platform |
-| Real-time chat / questions | Slack |
+| Real-time chat / questions | In-app messaging (Slack was the original MVP assumption) |
 
 ---
 
@@ -105,7 +107,7 @@ content_blocks
 ├── position (integer — sort order within lesson)
 ├── title (string, nullable — for display)
 ├── body (text, nullable — markdown for text/exercise instructions)
-├── video_url (string, nullable — YouTube embed URL)
+├── video_url (string, nullable — legacy YouTube/Vimeo embed URL)
 ├── solution (text, nullable — hidden from students, visible to admins)
 ├── filename (string, nullable — for GitHub submission matching)
 ├── metadata (jsonb, default {}) — flexible storage for extras

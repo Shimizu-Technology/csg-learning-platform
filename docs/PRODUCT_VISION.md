@@ -1,6 +1,6 @@
 # CSG Learning Platform — Product Vision & Direction
 
-**Last updated:** 2026-04-07
+**Last updated:** 2026-04-22
 **Status:** Active north-star document
 **Repo:** `csg-learning-platform`
 
@@ -128,7 +128,9 @@ Unlock logic is foundational: scheduled unlocks by day/date, module-level pacing
 
 ### 5.4 Own the media pipeline
 
-Recordings should be hosted on AWS S3 with CloudFront CDN, not on YouTube. This gives CSG full control over video organization, granular watch-time tracking, resume position, and student progress visibility — without relying on YouTube's iframe API limitations.
+Recordings should be hosted on AWS S3 with CloudFront CDN, not on YouTube, whenever CSG is uploading and managing the media directly. This gives CSG full control over video organization, granular watch-time tracking, resume position, and student progress visibility — without relying on YouTube's iframe API limitations.
+
+Legacy YouTube and Vimeo content can still coexist during migration, but self-hosted S3 recordings are the preferred path going forward.
 
 ### 5.5 Communication belongs in the platform
 
@@ -184,17 +186,7 @@ Future media optimizations, if needed:
 - HLS transcoding for adaptive bitrate playback
 - Automated thumbnail generation and media processing
 
-### 6.3 Next — Stripe payment integration
-
-Replace manual email → Stripe link flow:
-
-- Embedded Stripe Checkout or payment form
-- Payment plans and installment support
-- Auto-enrollment on payment completion
-- Payment status visible in admin dashboard
-- Invoice and receipt generation
-
-### 6.4 Next — Communication hub and PWA notifications
+### 6.3 Now — Communication hub and PWA notifications (Pulled forward ahead of payments)
 
 Replace Slack as the daily class communication loop while keeping the scope intentionally lighter than a full Slack clone.
 
@@ -217,6 +209,18 @@ PWA push requirements:
 - Deep-link notification clicks to the relevant announcement, channel, direct message, recording, or redo.
 
 The real-time layer should use ActionCable/WebSockets for live channel and direct-message updates, while durable REST endpoints remain the source of truth for page loads, reconnects, and stale tabs.
+
+The communication phase was intentionally executed before Stripe because it affects every active cohort every class day, while payments are a more occasional operational workflow.
+
+### 6.4 Next — Stripe payment integration (Deferred until after communication)
+
+Replace manual email → Stripe link flow:
+
+- Embedded Stripe Checkout or payment form
+- Payment plans and installment support
+- Auto-enrollment on payment completion
+- Payment status visible in admin dashboard
+- Invoice and receipt generation
 
 ### 6.5 Later — Extended platform features
 
@@ -243,8 +247,8 @@ The real-time layer should use ActionCable/WebSockets for live channel and direc
 
 ### Future additions
 - Payment (user ↔ cohort enrollment)
-- Message / Channel (cohort-scoped and global)
-- VideoUpload (S3 asset linked to content block)
+- Richer media pipeline for uploads linked directly into lesson content
+- Expanded communication controls and notification preferences
 
 ---
 
