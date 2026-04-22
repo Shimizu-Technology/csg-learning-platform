@@ -1,6 +1,6 @@
 # CSG Learning Platform — Roadmap
 
-**Last updated:** 2026-04-15
+**Last updated:** 2026-04-22
 **Status:** Active execution roadmap  
 **Companion docs:** `docs/PRODUCT_VISION.md`, `docs/DEPLOYMENT.md`, `docs/API_REFERENCE.md`
 
@@ -17,7 +17,7 @@ The platform is **production-ready for its core use case** — managing cohorts,
 - ✅ Unlock engine (day-based scheduling, MWF/TTh/daily/weekday patterns)
 - ✅ Per-student overrides (module and lesson level)
 - ✅ Student dashboard with progress tracking
-- ✅ Video completion tracking (YouTube iframe API + Vimeo player API)
+- ✅ Video completion tracking (S3 preferred, with legacy YouTube/Vimeo support)
 - ✅ Grading workflow (submission queue, A/B/C/R grades, feedback, redo flow)
 - ✅ GitHub integration (repo sync, issue creation for redos)
 - ✅ Rich content editing (WYSIWYG + Monaco code editor + student preview)
@@ -35,7 +35,7 @@ The platform is **production-ready for its core use case** — managing cohorts,
 
 ### What's partially built
 
-- ⚠️ Announcements — backend endpoint exists, frontend display is basic
+- ⚠️ Announcements and messaging are functional, but the UX still needs polish and operational hardening
 - ⚠️ Legacy YouTube recordings — still served from cohort settings JSON alongside new S3 recordings
 
 ---
@@ -76,7 +76,7 @@ The platform is **production-ready for its core use case** — managing cohorts,
 
 ## Phase 2: Self-Hosted Recordings (AWS S3) ✅
 
-> **Goal:** Replace YouTube dependency with direct video uploads and granular tracking.
+> **Goal:** Make S3-hosted recordings the preferred path while preserving legacy YouTube links during migration.
 
 ### 2.1 Backend ✅
 - ✅ `aws-sdk-s3` gem with `S3Service` (presigned POST for upload, presigned GET for streaming, delete)
@@ -115,11 +115,17 @@ The platform is **production-ready for its core use case** — managing cohorts,
 
 ---
 
-## Phase 3: Stripe Payment Integration
+## Execution Note
+
+Phase 3 was intentionally skipped for now. The team pulled Phase 4 forward and built communication first because it matters to every active cohort every class day, while Stripe is a less frequent operational workflow.
+
+---
+
+## Phase 3: Stripe Payment Integration (Deferred)
 
 > **Goal:** Replace manual email → Stripe link flow with in-app payments.
 
-**Why this is next:** It's a relatively low-complexity, high-impact change that eliminates a manual process and improves the enrollment experience.
+**Why this is deferred:** The operational benefit is real, but communication was a higher day-to-day need for active cohorts, so that work shipped first.
 
 ### 3.1 Backend
 - `Payment` model (user, cohort, amount, status, Stripe session ID)
@@ -144,13 +150,13 @@ The platform is **production-ready for its core use case** — managing cohorts,
 
 ---
 
-## Phase 4: Communication Hub + PWA Notifications
+## Phase 4: Communication Hub + PWA Notifications (Pulled Forward)
 
 > **Goal:** Make the platform the daily communication home for CSG, with Slack-like class updates, unread state, and installable PWA push notifications.
 
-**Why this is next:** Communication is used every class day. Payments matter, but the current cohort has only a few active payment workflows, while announcements, reminders, recordings, redos, and class messages affect every student and staff member all the time.
+**Why this shipped before Stripe:** Communication is used every class day. Payments matter, but the current cohort has only a few active payment workflows, while announcements, reminders, recordings, redos, and class messages affect every student and staff member all the time.
 
-### 4.1 Phase 4a — Notification Foundation + First-Class Announcements
+### 4.1 Phase 4a — Notification Foundation + First-Class Announcements ✅
 - `Announcement` model instead of storing notices inside `cohort.settings`
   - Cohort-scoped announcements
   - Global announcements for all active students/staff
@@ -181,7 +187,7 @@ The platform is **production-ready for its core use case** — managing cohorts,
 **Definition of done**
 > Staff can publish a cohort or global announcement, enrolled students see it in-app with unread state, and installed PWA users who opted in receive a push notification.
 
-### 4.2 Phase 4b — Cohort Channels (IN PROGRESS)
+### 4.2 Phase 4b — Cohort Channels ✅
 - `Channel` model ✅
   - Per-cohort default class channel
   - Cohort-as-workspace navigation
@@ -209,7 +215,7 @@ The platform is **production-ready for its core use case** — managing cohorts,
 **Definition of done**
 > Each cohort has a class channel where staff and students can post messages, unread counts work, and opted-in users receive push notifications for new activity.
 
-### 4.3 Phase 4c — Direct Messages
+### 4.3 Phase 4c — Direct Messages ✅
 - Staff-to-student and student-to-staff direct conversations
 - Student-to-student DMs can be enabled per cohort if CSG wants peer messaging
 - Conversation list with unread counts
@@ -221,7 +227,7 @@ The platform is **production-ready for its core use case** — managing cohorts,
 **Definition of done**
 > Staff and students can communicate one-on-one inside the platform without leaving for Slack or email.
 
-### 4.4 Phase 4d — Rich Messaging + Files
+### 4.4 Phase 4d — Rich Messaging + Files (Ongoing Polish)
 - S3-backed image/file attachments for messages and DMs
 - Attachment presign endpoints with channel/conversation authorization
 - Image previews and downloadable file cards
@@ -295,9 +301,9 @@ When deciding what to build next:
 - Documentation is comprehensive and up-to-date
 
 ### Medium-term (Phases 3-4)
-- Students pay through the app
 - Slack bookmarks and resource sharing are no longer necessary
-- Basic in-app communication replaces Slack for class-related messages
+- In-app communication replaces Slack for class-related messages
+- Students pay through the app once Stripe work is resumed
 
 ### Long-term (Phase 5+)
 - The app is the complete CSG operating system

@@ -26,6 +26,8 @@ bundle exec rails test
 
 Test coverage is currently focused on authorization guards (`test/integration/api_authz_guards_test.rb`), covering submissions, module access, lesson locking, progress updates, and permission checks.
 
+Clerk authentication is required in local development too. The current app does not support a frontend auth-bypass mode.
+
 ## Environment Variables
 
 | Variable | Required | Default | Purpose |
@@ -65,7 +67,7 @@ Curriculum (e.g., "CSG Full-Stack Bootcamp 2026")
               └── ContentBlock
                     ├── block_type: video | text | exercise | code_challenge | checkpoint | recording
                     ├── body: HTML/Markdown instructions
-                    ├── video_url: YouTube/Vimeo embed URL
+                    ├── video_url: legacy YouTube/Vimeo embed URL
                     ├── solution: hidden from students
                     └── filename: for GitHub submission matching
 ```
@@ -142,11 +144,16 @@ All controllers are namespaced under `Api::V1` and return JSON.
 
 | Controller | Key Actions | Auth |
 |------------|-------------|------|
-| `sessions` | `create` — sync/create user from Clerk JWT | Public |
+| `sessions` | `create` — sync/create user from Clerk JWT | Authenticated |
 | `profile` | `show`, `update` — current user | Authenticated |
 | `dashboard` | `show` — student or admin dashboard data | Authenticated |
 | `recordings` | `index` — cohort recordings | Authenticated |
 | `resources` | `index` — cohort resources | Authenticated |
+| `announcements` | `index`, `show`, `create`, `update`, `destroy` | Signed-in users / Staff for management |
+| `notifications` | `index`, `read`, `mark_all_read` | Authenticated |
+| `channels` + `messages` | Channel listing, read state, posting, reactions, pins | Authenticated |
+| `direct_conversations` | DM listing, creation, read state | Authenticated |
+| `push_subscriptions` | Push notification opt-in/out and config | Authenticated |
 | `users` | CRUD + `resend_invite` | Admin |
 | `curricula` | CRUD | Staff (index/show), Admin (create/update/destroy) |
 | `modules` | CRUD | Staff |
@@ -172,6 +179,8 @@ All controllers are namespaced under `Api::V1` and return JSON.
 | `httparty` | HTTP client (Clerk JWKS fetching) |
 | `roo` | Spreadsheet parsing for CSV import |
 | `resend` | Transactional email |
+| `aws-sdk-s3` | Self-hosted recording uploads and streaming |
+| `web-push` | Browser push notifications |
 | `kamal` + `thruster` | Deployment tooling |
 | `rubocop-rails-omakase` | Linting |
 | `brakeman` | Security scanning |

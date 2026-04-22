@@ -70,7 +70,7 @@ See [`api/.env.example`](api/.env.example) and [`web/.env.example`](web/.env.exa
 | `DATABASE_URL` | API | Prod only | Neon connection string |
 | `FRONTEND_URL` | API | Yes | CORS allowlist |
 | `VITE_API_URL` | Web | Yes | API base URL |
-| `VITE_CLERK_PUBLISHABLE_KEY` | Web | No | Omit to run without auth in dev |
+| `VITE_CLERK_PUBLISHABLE_KEY` | Web | Yes | Clerk auth for all environments, including local development |
 
 ## Core Domain Model
 
@@ -95,8 +95,10 @@ User
 - **Curriculum Management** — Reusable curricula with modules, lessons, and content blocks
 - **Cohort Operations** — Create cohorts, assign curricula, manage enrollments
 - **Unlock Engine** — Day-based scheduling with cohort-wide and per-student overrides
-- **Progress Tracking** — Video completion (YouTube + Vimeo), exercise marking, per-block granularity
+- **Progress Tracking** — S3 watch progress plus legacy YouTube/Vimeo completion tracking, exercise marking, per-block granularity
 - **Grading & Feedback** — Submission queue, A/B/C/R grading, redo workflow, GitHub issue integration
+- **Communication Hub** — Announcements, cohort channels, direct messages, and push notifications in the same app
+- **Recordings Library** — Self-hosted AWS S3 uploads are the preferred path, with legacy external video support during migration
 - **Role-Based Access** — Student, instructor, and admin roles with appropriate UI and API gates
 - **Mobile-First UI** — Responsive design, collapsible sidebar, PWA support
 - **Analytics** — PostHog integration for page views and feature flags
@@ -109,7 +111,7 @@ User
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | What to build now, next, and later |
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Step-by-step deployment for Render + Netlify |
 | [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md) | All API endpoints with request/response details |
-| [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md) | Original architecture and data model design |
+| [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md) | Historical MVP planning document; current direction lives in the product vision and roadmap |
 | [`docs/FUTURE_IMPROVEMENTS.md`](docs/FUTURE_IMPROVEMENTS.md) | Planned enhancements (GitHub onboarding, etc.) |
 | [`docs/SETUP_CHECKLIST.md`](docs/SETUP_CHECKLIST.md) | Post-deploy setup (Search Console, PostHog, PWA) |
 | [`api/README.md`](api/README.md) | Backend-specific setup, models, and API overview |

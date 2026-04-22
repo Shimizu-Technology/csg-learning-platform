@@ -5,21 +5,21 @@ React 19 + TypeScript + Tailwind v4 + Vite SPA for the CSG Learning Platform.
 ## Setup
 
 ```bash
-cp .env.example .env       # Configure API URL and optional Clerk key
+cp .env.example .env       # Configure API URL and required Clerk key
 npm install
 npm run dev                 # http://localhost:5173
 ```
 
-### Dev Without Auth
+### Auth in Development
 
-Omit `VITE_CLERK_PUBLISHABLE_KEY` from `.env` to run without Clerk authentication. All routes become accessible without login — useful for UI development.
+Local development still uses Clerk authentication. There is no supported auth-bypass mode in this repo anymore, so keep `VITE_CLERK_PUBLISHABLE_KEY` set in `.env`.
 
 ## Environment Variables
 
 | Variable | Required | Default | Purpose |
 |----------|----------|---------|---------|
 | `VITE_API_URL` | Yes | `http://localhost:3000` | Backend API base URL |
-| `VITE_CLERK_PUBLISHABLE_KEY` | No | — | Clerk auth (omit for dev without auth) |
+| `VITE_CLERK_PUBLISHABLE_KEY` | Yes | — | Clerk publishable key for local and deployed environments |
 | `VITE_PUBLIC_POSTHOG_KEY` | No | — | PostHog analytics project key |
 | `VITE_PUBLIC_POSTHOG_HOST` | No | — | PostHog ingest endpoint |
 
@@ -34,6 +34,11 @@ Omit `VITE_CLERK_PUBLISHABLE_KEY` from `.env` to run without Clerk authenticatio
 | `/lessons/:id` | `LessonView` | Lesson content — videos, text, exercises |
 | `/recordings` | `Recordings` | Cohort recordings library |
 | `/resources` | `Resources` | Cohort resources and links |
+| `/announcements` | `Announcements` | In-app announcement feed with read/unread state |
+| `/announcements/:id` | `Announcements` | Announcement detail view |
+| `/messages` | `Messages` | Cohort messaging workspace |
+| `/messages/:channelId` | `Messages` | Specific cohort channel |
+| `/messages/dm/:dmId` | `Messages` | Direct message conversation |
 | `/profile` | `Profile` | Edit profile and GitHub username |
 
 ### Staff Routes (Instructor + Admin)
@@ -45,6 +50,7 @@ Omit `VITE_CLERK_PUBLISHABLE_KEY` from `.env` to run without Clerk authenticatio
 | `/admin/students/:id` | `StudentDetail` | Individual student progress and submissions |
 | `/admin/cohorts` | `CohortManagement` | Cohort CRUD and settings |
 | `/admin/cohorts/:id` | `CohortDetail` | Cohort detail — enrollments, modules, access control |
+| `/admin/cohorts/:id/watch-progress` | `CohortWatchProgress` | Recording watch matrix for a cohort |
 | `/admin/grading` | `Grading` | Grading queue across cohorts |
 | `/admin/cohorts/:cohortId/modules/:moduleId/grading` | `CohortModuleGrading` | Per-module grading with GitHub sync |
 
@@ -60,9 +66,9 @@ Omit `VITE_CLERK_PUBLISHABLE_KEY` from `.env` to run without Clerk authenticatio
 
 The sidebar adapts based on user role:
 
-- **Students**: Dashboard, Recordings, Resources, Profile
-- **Instructors**: Admin Dashboard, Cohorts, Grading, Profile
-- **Admins**: Admin Dashboard, Cohorts, Content, Grading, Team, Profile
+- **Students**: Dashboard, Recordings, Resources, Announcements, Messages, Profile
+- **Instructors**: Admin Dashboard, Cohorts, Grading, Announcements, Messages, Profile
+- **Admins**: Admin Dashboard, Cohorts, Content, Grading, Team, Announcements, Messages, Profile
 
 Sidebar collapse state persists in `localStorage`.
 
@@ -74,11 +80,11 @@ Sidebar collapse state persists in `localStorage`.
 | `react-router-dom` | Client-side routing |
 | `@clerk/clerk-react` | Authentication provider |
 | `@monaco-editor/react` | Code editor for solutions |
-| `react-quill-new` | WYSIWYG rich text editor |
+| `@tiptap/react` + `@tiptap/starter-kit` | Rich text editor surface |
 | `react-markdown` | Markdown rendering for student content |
 | `marked` | Markdown → HTML conversion |
 | `dompurify` | HTML sanitization (XSS protection) |
-| `@vimeo/player` | Vimeo video completion tracking |
+| `@vimeo/player` | Legacy Vimeo video completion tracking |
 | `lucide-react` | Icon library |
 | `posthog-js` | Analytics |
 | `tailwindcss` v4 | Styling |
@@ -87,6 +93,7 @@ Sidebar collapse state persists in `localStorage`.
 
 ```bash
 npm run build               # Production build → dist/
+npm run lint                # ESLint
 npm run preview             # Preview production build locally
 ```
 
