@@ -1,3 +1,5 @@
+require "json"
+
 module Api
   module V1
     class PushSubscriptionsController < ApplicationController
@@ -13,18 +15,18 @@ module Api
         missing << "WEB_PUSH_PRIVATE_KEY" if private_key.empty?
         missing << "WEB_PUSH_SUBJECT" if subject.empty?
 
-        render json: {
+        render_push_config(
           configured: missing.empty?,
-          public_key: public_key.presence,
+          public_key: public_key.empty? ? nil : public_key,
           missing: missing
-        }
+        )
       rescue => e
         Rails.logger.error("[PushSubscriptionsController] config failed: #{e.class} #{e.message}")
-        render json: {
+        render_push_config(
           configured: false,
           public_key: nil,
           missing: [ "push_config_error" ]
-        }
+        )
       end
 
       # POST /api/v1/push_subscriptions
@@ -57,6 +59,12 @@ module Api
       end
 
       private
+
+      def render_push_config(payload)
+        response.status = :ok
+        response.content_type = "application/json"
+        self.response_body = JSON.generate(payload)
+      end
 
       def safe_env_value(name)
         ENV.fetch(name, "").to_s.encode("UTF-8", invalid: :replace, undef: :replace, replace: "").strip
