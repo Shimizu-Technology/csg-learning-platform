@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -502,12 +502,16 @@ export function Messages() {
     const memberIds = new Set((workspaceDetail?.members || []).map((member) => member.id))
     return allUsers.filter((candidate) => !memberIds.has(candidate.id))
   }, [allUsers, workspaceDetail?.members])
+  const mentionableUsers = useMemo(
+    () => selectedTarget?.type === 'channel' ? (workspaceDetail?.members ?? []) : availableUsers,
+    [availableUsers, selectedTarget?.type, workspaceDetail?.members],
+  )
   const mentionPatterns = useMemo(
     () => buildMentionPatterns(
-      workspaceDetail?.members?.map((member) => member.full_name) || availableUsers.map((availableUser) => availableUser.full_name),
+      mentionableUsers.map((mentionableUser) => mentionableUser.full_name),
       selectedTarget?.type === 'channel',
     ),
-    [availableUsers, selectedTarget?.type, workspaceDetail?.members],
+    [mentionableUsers, selectedTarget?.type],
   )
   const mentionPatternsRef = useRef<MentionPattern[]>(mentionPatterns)
   const mentionToken = useMemo(() => {
@@ -533,17 +537,17 @@ export function Messages() {
 
     return [
       ...suggestions,
-      ...availableUsers
-        .filter((availableUser) => availableUser.full_name.toLowerCase().includes(normalized) || availableUser.email.toLowerCase().includes(normalized))
+      ...mentionableUsers
+        .filter((mentionableUser) => mentionableUser.full_name.toLowerCase().includes(normalized) || mentionableUser.email.toLowerCase().includes(normalized))
         .slice(0, 8)
-        .map((availableUser) => ({
-          id: String(availableUser.id),
-          label: `@${availableUser.full_name}`,
-          subtitle: availableUser.email,
+        .map((mentionableUser) => ({
+          id: String(mentionableUser.id),
+          label: `@${mentionableUser.full_name}`,
+          subtitle: mentionableUser.email,
           kind: 'user' as const,
         })),
     ]
-  }, [availableUsers, mentionToken, selectedTarget?.type])
+  }, [mentionToken, mentionableUsers, selectedTarget?.type])
   const commandSuggestions = useMemo(() => {
     if (commandToken === null) return []
     return SLASH_COMMANDS.filter((item) => item.command.slice(1).startsWith(commandToken)).slice(0, 5)
@@ -559,7 +563,9 @@ export function Messages() {
 
   const lightboxAttachment = lightboxAttachments[lightboxIndex] || null
 
-  mentionPatternsRef.current = mentionPatterns
+  useLayoutEffect(() => {
+    mentionPatternsRef.current = mentionPatterns
+  }, [mentionPatterns])
 
   const editor = useEditor({
     extensions: [
