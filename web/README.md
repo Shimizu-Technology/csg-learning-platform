@@ -5,10 +5,15 @@ React 19 + TypeScript + Tailwind v4 + Vite SPA for the CSG Learning Platform.
 ## Setup
 
 ```bash
+cd ..
+nvm use                      # uses .nvmrc from repo root
+cd web
 cp .env.example .env       # Configure API URL and required Clerk key
 npm install
 npm run dev                 # http://localhost:5173
 ```
+
+Use `npm run lint` or `npx eslint .` for linting. Do not use a global `eslint` binary, because an older global install can bypass the repo's local ESLint 9 toolchain.
 
 ### Auth in Development
 
@@ -94,6 +99,8 @@ Sidebar collapse state persists in `localStorage`.
 ```bash
 npm run build               # Production build → dist/
 npm run lint                # ESLint
+npm run typecheck           # TypeScript only
+npm run check               # Lint + typecheck + production build
 npm run preview             # Preview production build locally
 ```
 

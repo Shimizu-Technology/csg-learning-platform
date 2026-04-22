@@ -1,11 +1,13 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Link from '@tiptap/extension-link'
 import Underline from '@tiptap/extension-underline'
-import type { Editor, JSONContent } from '@tiptap/core'
+import { Extension, type Editor, type JSONContent } from '@tiptap/core'
+import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
+import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import EmojiPicker, { Theme, type EmojiClickData } from 'emoji-picker-react'
 import {
   Bell,
@@ -31,6 +33,7 @@ import {
   Search,
   Send,
   SmilePlus,
+  Smartphone,
   Trash2,
   Type,
   UserPlus,
@@ -69,6 +72,11 @@ type MentionSuggestion = {
   id: string
   label: string
   subtitle: string
+  kind: 'user' | 'channel'
+}
+type MentionPattern = {
+  label: string
+  normalized: string
   kind: 'user' | 'channel'
 }
 
@@ -183,6 +191,149 @@ function editorTextBeforeCursor(editor: Editor) {
 function stripMentionLabel(value: string) {
   return value.replace(/^@/, '').trim().toLowerCase()
 }
+
+function isMentionStartBoundary(text: string, index: number) {
+  if (index === 0) return true
+  return /[\s([{'"“‘>]/.test(text[index - 1] || '')
+}
+
+function isMentionEndBoundary(char?: string) {
+  return !char || /[\s)\]}.,!?;:'"”’]/.test(char)
+}
+
+function buildMentionPatterns(names: string[], includeChannel: boolean) {
+  const seen = new Set<string>()
+  const patterns: MentionPattern[] = []
+
+  if (includeChannel) {
+    seen.add('@channel')
+    patterns.push({ label: '@channel', normalized: '@channel', kind: 'channel' })
+  }
+
+  names
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .forEach((name) => {
+      const label = `@${name}`
+      const normalized = label.toLowerCase()
+      if (seen.has(normalized)) return
+      seen.add(normalized)
+      patterns.push({ label, normalized, kind: 'user' })
+    })
+
+  return patterns.sort((left, right) => right.label.length - left.label.length)
+}
+
+function findMentionMatches(text: string, patterns: MentionPattern[]) {
+  const matches: Array<{ from: number; to: number; kind: MentionPattern['kind']; text: string }> = []
+  let index = 0
+
+  while (index < text.length) {
+    if (text[index] !== '@' || !isMentionStartBoundary(text, index)) {
+      index += 1
+      continue
+    }
+
+    const match = patterns.find((pattern) => {
+      if (text.slice(index, index + pattern.label.length).toLowerCase() !== pattern.normalized) return false
+      return isMentionEndBoundary(text[index + pattern.label.length])
+    })
+
+    if (!match) {
+      index += 1
+      continue
+    }
+
+    matches.push({
+      from: index,
+      to: index + match.label.length,
+      kind: match.kind,
+      text: text.slice(index, index + match.label.length),
+    })
+    index += match.label.length
+  }
+
+  return matches
+}
+
+function renderTextWithMentions(text: string, patterns: MentionPattern[]) {
+  const matches = findMentionMatches(text, patterns)
+  if (matches.length === 0) return [<span key="text-0">{text}</span>]
+
+  const nodes: ReactNode[] = []
+  let cursor = 0
+
+  matches.forEach((match, index) => {
+    if (cursor < match.from) {
+      nodes.push(<span key={`text-${index}-${cursor}`}>{text.slice(cursor, match.from)}</span>)
+    }
+
+    nodes.push(
+      <span
+        key={`mention-${index}-${match.from}`}
+        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
+          match.kind === 'channel'
+            ? 'bg-amber-100 text-amber-800'
+            : 'bg-sky-100 text-sky-800'
+        }`}
+      >
+        {match.text}
+      </span>,
+    )
+
+    cursor = match.to
+  })
+
+  if (cursor < text.length) {
+    nodes.push(<span key={`text-tail-${cursor}`}>{text.slice(cursor)}</span>)
+  }
+
+  return nodes
+}
+
+const mentionHighlightPluginKey = new PluginKey('messageMentionHighlight')
+
+const MentionHighlightExtension = Extension.create<{ getPatterns: () => MentionPattern[] }>({
+  name: 'messageMentionHighlight',
+
+  addOptions() {
+    return {
+      getPatterns: () => [],
+    }
+  },
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: mentionHighlightPluginKey,
+        props: {
+          decorations: (state) => {
+            const patterns = this.options.getPatterns()
+            if (patterns.length === 0) return null
+
+            const decorations: Decoration[] = []
+
+            state.doc.descendants((node, pos, parent) => {
+              if (!node.isText || !node.text) return
+              if (parent?.type.name === 'codeBlock') return
+              if (node.marks.some((mark) => mark.type.name === 'code')) return
+
+              findMentionMatches(node.text, patterns).forEach((match) => {
+                decorations.push(Decoration.inline(pos + match.from, pos + match.to, {
+                  class: match.kind === 'channel'
+                    ? 'message-mention message-mention--channel'
+                    : 'message-mention',
+                }))
+              })
+            })
+
+            return decorations.length > 0 ? DecorationSet.create(state.doc, decorations) : null
+          },
+        },
+      }),
+    ]
+  },
+})
 
 function editorJsonToMarkdown(node?: JSONContent): string {
   if (!node) return ''
@@ -352,6 +503,18 @@ export function Messages() {
     const memberIds = new Set((workspaceDetail?.members || []).map((member) => member.id))
     return allUsers.filter((candidate) => !memberIds.has(candidate.id))
   }, [allUsers, workspaceDetail?.members])
+  const mentionableUsers = useMemo(
+    () => selectedTarget?.type === 'channel' ? (workspaceDetail?.members ?? []) : availableUsers,
+    [availableUsers, selectedTarget?.type, workspaceDetail?.members],
+  )
+  const mentionPatterns = useMemo(
+    () => buildMentionPatterns(
+      mentionableUsers.map((mentionableUser) => mentionableUser.full_name),
+      selectedTarget?.type === 'channel',
+    ),
+    [mentionableUsers, selectedTarget?.type],
+  )
+  const mentionPatternsRef = useRef<MentionPattern[]>(mentionPatterns)
   const mentionToken = useMemo(() => {
     return composerTriggerText.match(/(^|\s)@([^\s@]*)$/)?.[2] ?? null
   }, [composerTriggerText])
@@ -375,17 +538,17 @@ export function Messages() {
 
     return [
       ...suggestions,
-      ...availableUsers
-        .filter((availableUser) => availableUser.full_name.toLowerCase().includes(normalized) || availableUser.email.toLowerCase().includes(normalized))
+      ...mentionableUsers
+        .filter((mentionableUser) => mentionableUser.full_name.toLowerCase().includes(normalized) || mentionableUser.email.toLowerCase().includes(normalized))
         .slice(0, 8)
-        .map((availableUser) => ({
-          id: String(availableUser.id),
-          label: `@${availableUser.full_name}`,
-          subtitle: availableUser.email,
+        .map((mentionableUser) => ({
+          id: String(mentionableUser.id),
+          label: `@${mentionableUser.full_name}`,
+          subtitle: mentionableUser.email,
           kind: 'user' as const,
         })),
     ]
-  }, [availableUsers, mentionToken, selectedTarget?.type])
+  }, [mentionToken, mentionableUsers, selectedTarget?.type])
   const commandSuggestions = useMemo(() => {
     if (commandToken === null) return []
     return SLASH_COMMANDS.filter((item) => item.command.slice(1).startsWith(commandToken)).slice(0, 5)
@@ -401,6 +564,10 @@ export function Messages() {
 
   const lightboxAttachment = lightboxAttachments[lightboxIndex] || null
 
+  useLayoutEffect(() => {
+    mentionPatternsRef.current = mentionPatterns
+  }, [mentionPatterns])
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -413,6 +580,9 @@ export function Messages() {
       Underline,
       Link.configure({ openOnClick: false, autolink: true }),
       Placeholder.configure({ placeholder: `Message ${selectedLabel}` }),
+      MentionHighlightExtension.configure({
+        getPatterns: () => mentionPatternsRef.current,
+      }),
     ],
     editorProps: {
       attributes: {
@@ -446,6 +616,11 @@ export function Messages() {
       setToolbarTick((current) => current + 1)
     },
   })
+
+  useEffect(() => {
+    if (!editor) return
+    editor.view.dispatch(editor.state.tr)
+  }, [editor, mentionPatterns])
 
   const loadLists = async () => {
     const [workspaceRes, channelRes, dmRes] = await Promise.all([api.getWorkspaces(), api.getChannels(), api.getDirectConversations()])
@@ -1144,19 +1319,16 @@ export function Messages() {
 
     const { from, to, empty } = editor.state.selection
     const selectedText = empty ? '' : editor.state.doc.textBetween(from, to, '\n', '\n')
-    const insertAt = from
-
-    const chain = editor.chain().focus()
-    if (!empty) chain.deleteRange({ from, to })
-    chain.insertContentAt(insertAt, {
-      type: 'codeBlock',
-      ...(selectedText ? { content: [{ type: 'text', text: selectedText }] } : {}),
-    }).run()
-
-    window.requestAnimationFrame(() => {
-      const cursorOffset = selectedText.length > 0 ? selectedText.length + 1 : 1
-      editor.chain().focus().setTextSelection(insertAt + cursorOffset).run()
-    })
+    const codeBlock = editor.state.schema.nodes.codeBlock.create(
+      undefined,
+      selectedText ? editor.state.schema.text(selectedText) : undefined,
+    )
+    let transaction = editor.state.tr.replaceSelectionWith(codeBlock, false)
+    const mappedFrom = transaction.mapping.map(from)
+    const cursorPosition = mappedFrom + 1 + selectedText.length
+    transaction = transaction.setSelection(TextSelection.create(transaction.doc, cursorPosition))
+    editor.view.dispatch(transaction.scrollIntoView())
+    editor.view.focus()
   }
 
   const runToolbarCommand = (event: MouseEvent<HTMLButtonElement>, command: () => void) => {
@@ -1297,7 +1469,7 @@ export function Messages() {
   const conversationMessages = activeThreadRoot ? activeThreadMessages : rootMessages
   const showComposer = Boolean(selectedTarget) && (conversationView === 'messages' || Boolean(activeThreadRoot))
   const showPageIntro = isDesktop || !selectedTarget
-  const showConversationHeaderPushMessage = Boolean(pushMessage) && !showPageIntro
+  const showConversationHeaderPushMessage = Boolean(pushMessage) && Boolean(selectedTarget)
 
   return (
     <div className={`mx-auto flex min-h-[calc(100dvh-5.5rem)] max-w-7xl flex-col ${showPageIntro ? 'gap-4' : 'gap-0'} lg:h-[calc(100dvh-5.5rem)]`}>
@@ -1314,16 +1486,7 @@ export function Messages() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {selectedTarget && (
-              <button
-                onClick={toggleMute}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                {selectedMuted ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
-                {selectedMuted ? 'Unmute' : 'Mute'}
-              </button>
-            )}
-            {pushSupported() && (
+            {!selectedTarget && pushSupported() && (
               <button
                 onClick={handleTogglePush}
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
@@ -1334,7 +1497,7 @@ export function Messages() {
             )}
           </div>
         </div>
-        {pushMessage && (
+        {pushMessage && !selectedTarget && (
           <div className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
             {pushMessage}
           </div>
@@ -1544,7 +1707,7 @@ export function Messages() {
           {selectedTarget && selected ? (
             <>
               <header className={`border-b border-slate-200/80 px-4 py-3 backdrop-blur-sm ${isDesktop ? 'bg-white/80' : 'sticky top-0 z-10 bg-white'} sm:py-4`}>
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex min-w-0 items-center gap-2">
                     {isDesktop && sidebarCollapsed && (
                       <button
@@ -1574,26 +1737,24 @@ export function Messages() {
                       <p className="text-xs text-slate-500">{selected.workspace_name}{isNavigationPending && ' · updating'}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {!isDesktop && selectedTarget && (
-                      <button
-                        type="button"
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    {selectedTarget && (
+                      <ConversationHeaderAction
                         onClick={toggleMute}
-                        className="rounded-full border border-slate-200 bg-white p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-                        aria-label={selectedMuted ? 'Unmute conversation' : 'Mute conversation'}
-                      >
-                        {selectedMuted ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
-                      </button>
+                        icon={selectedMuted ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
+                        shortLabel={selectedMuted ? 'Unmute' : 'Mute'}
+                        fullLabel={selectedMuted ? 'Unmute conversation' : 'Mute conversation'}
+                        ariaLabel={selectedMuted ? 'Unmute conversation' : 'Mute conversation'}
+                      />
                     )}
-                    {!isDesktop && pushSupported() && (
-                      <button
-                        type="button"
+                    {pushSupported() && (
+                      <ConversationHeaderAction
                         onClick={handleTogglePush}
-                        className="rounded-full border border-slate-200 bg-white p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-                        aria-label={pushEnabled ? 'Turn off push notifications' : 'Turn on push notifications'}
-                      >
-                        {pushEnabled ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
-                      </button>
+                        icon={<Smartphone className="h-4 w-4" />}
+                        shortLabel={pushEnabled ? 'Push off' : 'Push on'}
+                        fullLabel={pushEnabled ? 'Turn off push' : 'Turn on push'}
+                        ariaLabel={pushEnabled ? 'Turn off push notifications' : 'Turn on push notifications'}
+                      />
                     )}
                     {selectedTarget.type === 'channel' && selectedChannel?.visibility === 'staff_only' && (
                       <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">Staff only</span>
@@ -1708,6 +1869,7 @@ export function Messages() {
                         setLightboxAttachments(imageAttachments)
                         setLightboxIndex(Math.max(0, imageAttachments.findIndex((item) => item.id === attachment.id)))
                       }}
+                      mentionPatterns={mentionPatterns}
                     />
                   )
                 })}
@@ -2227,7 +2389,7 @@ function ConversationButton({
   )
 }
 
-function FormattedMessage({ body }: { body: string }) {
+function FormattedMessage({ body, mentionPatterns }: { body: string; mentionPatterns: MentionPattern[] }) {
   if (!body) return null
 
   const parts = body.split(/```/g)
@@ -2246,7 +2408,7 @@ function FormattedMessage({ body }: { body: string }) {
 
         return (
           <p key={key} className="whitespace-pre-wrap">
-            {formatInline(part)}
+            {formatInline(part, mentionPatterns)}
           </p>
         )
       })}
@@ -2254,8 +2416,8 @@ function FormattedMessage({ body }: { body: string }) {
   )
 }
 
-function formatInline(text: string) {
-  const pieces = text.split(/(`[^`]+`|\*\*[^*]+\*\*|_[^_]+_|@channel\b|@[A-Za-z0-9._'-]+(?:\s+[A-Za-z0-9._'-]+)*)/g)
+function formatInline(text: string, mentionPatterns: MentionPattern[]) {
+  const pieces = text.split(/(`[^`]+`|\*\*[^*]+\*\*|_[^_]+_)/g)
 
   return pieces.map((piece, index) => {
     const key = `${index}-${piece}`
@@ -2268,13 +2430,7 @@ function formatInline(text: string) {
     if (piece.startsWith('_') && piece.endsWith('_')) {
       return <em key={key}>{piece.slice(1, -1)}</em>
     }
-    if (/^@channel$/i.test(piece)) {
-      return <span key={key} className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">{piece}</span>
-    }
-    if (/^@[A-Za-z0-9._'-]+(?:\s+[A-Za-z0-9._'-]+)*$/.test(piece)) {
-      return <span key={key} className="inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-xs font-semibold text-sky-800">{piece}</span>
-    }
-    return <span key={key}>{piece}</span>
+    return <span key={key}>{renderTextWithMentions(piece, mentionPatterns)}</span>
   })
 }
 
@@ -2294,6 +2450,7 @@ function MessageRow({
   onReply,
   onReact,
   onOpenImage,
+  mentionPatterns,
 }: {
   message: LocalMessage
   editing: boolean
@@ -2310,6 +2467,7 @@ function MessageRow({
   onReply: () => void
   onReact: (emoji: string) => void
   onOpenImage: (attachment: MessageAttachment, imageAttachments: MessageAttachment[]) => void
+  mentionPatterns: MentionPattern[]
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const imageAttachments = message.attachments.filter((attachment) => attachment.image && attachment.url)
@@ -2346,7 +2504,7 @@ function MessageRow({
             </div>
           </div>
         ) : (
-          <FormattedMessage body={message.body} />
+          <FormattedMessage body={message.body} mentionPatterns={mentionPatterns} />
         )}
         {message.attachments.length > 0 && (
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -2448,5 +2606,32 @@ function MessageRow({
         <MoreHorizontal className="mt-1.5 h-4 w-4 text-slate-300" />
       </div>
     </div>
+  )
+}
+
+function ConversationHeaderAction({
+  onClick,
+  icon,
+  shortLabel,
+  fullLabel,
+  ariaLabel,
+}: {
+  onClick: () => void
+  icon: ReactNode
+  shortLabel: string
+  fullLabel: string
+  ariaLabel: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-800 sm:text-sm"
+      aria-label={ariaLabel}
+    >
+      {icon}
+      <span className="sm:hidden">{shortLabel}</span>
+      <span className="hidden sm:inline">{fullLabel}</span>
+    </button>
   )
 }

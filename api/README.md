@@ -5,6 +5,9 @@ Rails 8.1 API-only backend powering the CSG Learning Platform.
 ## Setup
 
 ```bash
+cd ..
+rbenv local 3.3.7          # or let your Ruby manager pick up .ruby-version
+cd api
 cp .env.example .env       # Configure Clerk, DB, and optional services
 bundle install
 rails db:create db:migrate db:seed
@@ -22,6 +25,13 @@ rails server -p 3000
 
 ```bash
 bundle exec rails test
+```
+
+If `bundle` resolves to system Ruby, confirm the repo is running on Ruby `3.3.7` first:
+
+```bash
+ruby -v
+bundle _4.0.5_ -v
 ```
 
 Test coverage is currently focused on authorization guards (`test/integration/api_authz_guards_test.rb`), covering submissions, module access, lesson locking, progress updates, and permission checks.
