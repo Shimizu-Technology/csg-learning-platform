@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect } from 'react'
-import { Upload, Film, X, Link2, Loader2 } from 'lucide-react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
+import { Upload, Film, X, Link2, Loader2, ArrowRightLeft, CircleOff, CheckCircle2 } from 'lucide-react'
 import { useUpload } from '../../contexts/UploadContext'
 
 interface VideoUploadFieldProps {
@@ -27,7 +27,7 @@ export function VideoUploadField({
   onUploadStarted,
   compact,
 }: VideoUploadFieldProps) {
-  const { startVideoUpload, uploads } = useUpload()
+  const { startVideoUpload, uploads, cancelUpload } = useUpload()
 
   const existingUpload = contentBlockId
     ? uploads.find(u => u.contentBlockId === contentBlockId && u.status !== 'done' && u.status !== 'error')
@@ -42,6 +42,13 @@ export function VideoUploadField({
 
   const activeUpload = uploads.find(u => u.id === uploadId) || existingUpload || null
   const isUploading = activeUpload && activeUpload.status !== 'done' && activeUpload.status !== 'error'
+  const trimmedVideoUrl = videoUrl.trim()
+  const activeSource = useMemo<'url' | 'upload' | null>(() => {
+    if (s3VideoKey || isUploading) return 'upload'
+    if (trimmedVideoUrl) return 'url'
+    return null
+  }, [isUploading, s3VideoKey, trimmedVideoUrl])
+  const activeSourceLabel = activeSource === 'upload' ? 'Self-hosted upload' : activeSource === 'url' ? 'Video link' : 'No source selected'
 
   useEffect(() => {
     if (activeUpload && activeUpload.id !== uploadId) {
@@ -104,55 +111,194 @@ export function VideoUploadField({
   }, [startUpload])
 
   const handleRemoveS3Video = () => {
+    if (activeUpload?.id && activeUpload.status !== 'done' && activeUpload.status !== 'error') {
+      cancelUpload(activeUpload.id)
+    }
     setUploadedFileName(null)
     setUploadId(null)
     onS3VideoRemoved()
   }
 
+  const handleClearUrl = () => {
+    onVideoUrlChange('')
+  }
+
+  const handleSwitchToUrl = () => {
+    handleRemoveS3Video()
+    setMode('url')
+  }
+
+  const handleSwitchToUpload = () => {
+    if (trimmedVideoUrl) handleClearUrl()
+    setMode('upload')
+  }
+
+  const handleModeSelect = (nextMode: 'url' | 'upload') => {
+    if (nextMode === 'url') {
+      if (activeSource === 'upload') {
+        handleSwitchToUrl()
+      } else {
+        setMode('url')
+      }
+      return
+    }
+
+    if (activeSource === 'url') {
+      handleSwitchToUpload()
+    } else {
+      setMode('upload')
+    }
+  }
+
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <label className="block text-sm font-semibold text-slate-700">
-          Video {compact && <span className="font-normal text-slate-400">(optional)</span>}
-        </label>
-        <div className="flex rounded-md border border-slate-200 overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setMode('url')}
-            className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium transition-colors ${
-              mode === 'url' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <Link2 className="h-3 w-3" />
-            URL
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('upload')}
-            className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium transition-colors ${
-              mode === 'upload' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <Upload className="h-3 w-3" />
-            Upload
-          </button>
+    <div className="space-y-3">
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <label className="block text-sm font-semibold text-slate-700">
+              Video {compact && <span className="font-normal text-slate-400">(optional)</span>}
+            </label>
+            <p className="mt-1 text-xs text-slate-500">
+              Pick one source. You can switch between a YouTube/video URL and a self-hosted upload at any time.
+            </p>
+          </div>
+          <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+            <button
+              type="button"
+              onClick={() => handleModeSelect('url')}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                mode === 'url' ? 'bg-primary-50 text-primary-700' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <Link2 className="h-3.5 w-3.5" />
+              Use link
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeSelect('upload')}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                mode === 'upload' ? 'bg-primary-50 text-primary-700' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <Upload className="h-3.5 w-3.5" />
+              Use upload
+            </button>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className={`inline-flex h-8 w-8 items-center justify-center rounded-xl ${
+                  activeSource === 'upload'
+                    ? 'bg-primary-50 text-primary-600'
+                    : activeSource === 'url'
+                      ? 'bg-sky-50 text-sky-600'
+                      : 'bg-slate-100 text-slate-400'
+                }`}>
+                  {activeSource === 'upload' ? <Film className="h-4 w-4" /> : activeSource === 'url' ? <Link2 className="h-4 w-4" /> : <CircleOff className="h-4 w-4" />}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Currently using</p>
+                  <p className="truncate text-sm font-semibold text-slate-900">{activeSourceLabel}</p>
+                </div>
+              </div>
+              <p className="mt-2 truncate text-xs text-slate-500">
+                {activeSource === 'upload'
+                  ? uploadedFileName || 'Uploaded video file'
+                  : activeSource === 'url'
+                    ? trimmedVideoUrl
+                    : 'No video source is attached yet.'}
+              </p>
+            </div>
+            {activeSource && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Active
+              </span>
+            )}
+          </div>
+
+          {activeSource === 'upload' && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleSwitchToUrl}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <ArrowRightLeft className="h-3.5 w-3.5" />
+                Switch to link
+              </button>
+              <button
+                type="button"
+                onClick={handleRemoveS3Video}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+              >
+                <X className="h-3.5 w-3.5" />
+                Stop using upload
+              </button>
+            </div>
+          )}
+
+          {activeSource === 'url' && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleSwitchToUpload}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <ArrowRightLeft className="h-3.5 w-3.5" />
+                Switch to upload
+              </button>
+              <button
+                type="button"
+                onClick={handleClearUrl}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+              >
+                <X className="h-3.5 w-3.5" />
+                Stop using link
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
       {mode === 'url' && (
-        <input
-          type="url"
-          value={videoUrl}
-          onChange={e => onVideoUrlChange(e.target.value)}
-          placeholder="https://youtube.com/watch?v=..."
-          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-        />
+        <div className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Video link</p>
+              <p className="text-xs text-slate-500">Paste a YouTube URL or another embeddable video link.</p>
+            </div>
+            {trimmedVideoUrl && (
+              <button
+                type="button"
+                onClick={handleClearUrl}
+                className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          <input
+            type="url"
+            value={videoUrl}
+            onChange={e => onVideoUrlChange(e.target.value)}
+            placeholder="https://youtube.com/watch?v=..."
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          />
+        </div>
       )}
 
       {mode === 'upload' && (
-        <>
+        <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">Self-hosted upload</p>
+            <p className="text-xs text-slate-500">Upload the class video directly to use the self-hosted player.</p>
+          </div>
           {isUploading && activeUpload ? (
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 space-y-2">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 space-y-2">
               <div className="flex items-center gap-2">
                 <Loader2 className="h-4 w-4 text-primary-500 shrink-0 animate-spin" />
                 <span className="text-sm text-slate-700 truncate flex-1">{uploadedFileName}</span>
@@ -171,10 +317,10 @@ export function VideoUploadField({
               )}
             </div>
           ) : s3VideoKey ? (
-            <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+            <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
               <Film className="h-4 w-4 text-primary-500 shrink-0" />
               <span className="text-sm text-slate-700 truncate flex-1">{uploadedFileName || 'Uploaded video'}</span>
-              <button type="button" onClick={handleRemoveS3Video} className="text-slate-400 hover:text-red-500 shrink-0">
+              <button type="button" onClick={handleRemoveS3Video} className="text-slate-400 hover:text-red-500 shrink-0" aria-label="Remove uploaded video">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -182,7 +328,7 @@ export function VideoUploadField({
             <div
               onDrop={handleDrop}
               onDragOver={(e) => e.preventDefault()}
-              className="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center hover:border-primary-400 transition-colors cursor-pointer"
+              className="border-2 border-dashed border-slate-300 rounded-xl p-4 text-center hover:border-primary-400 transition-colors cursor-pointer"
               onClick={() => {
                 const input = document.createElement('input')
                 input.type = 'file'
@@ -201,7 +347,7 @@ export function VideoUploadField({
               <p className="text-[10px] text-slate-400 mt-0.5">MP4, MOV, WebM — up to 5 GB</p>
             </div>
           )}
-        </>
+        </div>
       )}
 
       {error && <p className="text-xs text-red-600">{error}</p>}

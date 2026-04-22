@@ -30,11 +30,13 @@ module Api
           .chronological
           .limit(message_limit)
           .to_a
+        pinned_messages = @channel.messages.pinned_recent.to_a
         read_state = current_user.channel_read_states.find_by(channel: @channel)
 
         render json: {
           channel: channel_json(@channel, read_state, unread_count_for(@channel, read_state), messages.last),
-          messages: messages.map { |message| message_json(message) }
+          messages: messages.map { |message| message_json(message) },
+          pinned_messages: pinned_messages.map { |message| message_json(message) }
         }
       end
 

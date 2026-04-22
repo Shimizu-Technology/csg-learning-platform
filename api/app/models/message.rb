@@ -1,4 +1,6 @@
 class Message < ApplicationRecord
+  PINNED_LIMIT = 25
+
   belongs_to :channel, optional: true
   belongs_to :direct_conversation, optional: true
   belongs_to :author, class_name: "User"
@@ -17,6 +19,13 @@ class Message < ApplicationRecord
   scope :visible, -> { where(deleted_at: nil) }
   scope :recent, -> { order(created_at: :desc) }
   scope :chronological, -> { order(:created_at, :id) }
+  scope :pinned_recent, lambda {
+    visible
+      .where.not(pinned_at: nil)
+      .includes(:author, :message_attachments, message_reactions: :user)
+      .order(pinned_at: :desc, created_at: :desc, id: :desc)
+      .limit(PINNED_LIMIT)
+  }
 
   def deleted?
     deleted_at.present?

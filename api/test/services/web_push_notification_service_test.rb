@@ -1,7 +1,7 @@
 require "test_helper"
 
 class WebPushNotificationServiceTest < ActiveSupport::TestCase
-  test "attachment only messages use fallback body text" do
+  test "message push payloads use notification body for array inputs" do
     curriculum = Curriculum.create!(name: "Bootcamp 2026")
     cohort = Cohort.create!(curriculum: curriculum, name: "Cohort 3", start_date: Date.current, status: :active)
     channel = cohort.channels.find_by!(name: "Class Chat")
@@ -19,15 +19,15 @@ class WebPushNotificationServiceTest < ActiveSupport::TestCase
     )
 
     payload = nil
-    notification = Notification.new(user: recipient)
+    notification = NotificationDeliveryService.message_created(message).find { |item| item.user_id == recipient.id }
 
     service = WebPushNotificationService.new
-    service.define_singleton_method(:deliver_to_notifications) do |_notifications, raw_payload|
+    service.define_singleton_method(:deliver_to_user) do |_user_id, raw_payload|
       payload = JSON.parse(raw_payload)
     end
 
     service.message_created(message, [ notification ])
 
-    assert_equal "Push Author: Sent an attachment", payload.fetch("body")
+    assert_equal "Sent an attachment", payload.fetch("body")
   end
 end
