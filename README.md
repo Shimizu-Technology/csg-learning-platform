@@ -33,6 +33,26 @@ csg-learning-platform/
 - Node.js 20.19+ or 22.12+ and npm
 - PostgreSQL 16+
 
+### Select the Repo Toolchain First
+
+This repo now includes `.ruby-version`, `.nvmrc`, and `.node-version`.
+
+```bash
+cd csg-learning-platform
+nvm use                    # uses 20.19.5 from .nvmrc
+rbenv local 3.3.7         # or ensure your Ruby manager picks up .ruby-version
+ruby -v
+node -v
+```
+
+Expected local versions:
+
+- Ruby `3.3.7`
+- Bundler `4.0.5+`
+- Node `20.19.5` or `22.12+`
+
+Do not rely on a global `eslint` binary for the frontend. Use the project-local command via `npm run lint`.
+
 ### Backend Setup
 
 ```bash
@@ -57,6 +77,9 @@ npm run dev                  # Starts on http://localhost:5173
 ```bash
 cd api
 bundle exec rails test       # Runs integration + unit tests
+
+cd ../web
+npm run check                # Lint + typecheck + production build
 ```
 
 ## Environment Variables

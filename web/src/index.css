@@ -88,6 +88,19 @@ body {
   padding: 0;
 }
 
+.message-composer .message-mention {
+  background: #e0f2fe;
+  border-radius: 9999px;
+  color: #075985;
+  font-weight: 600;
+  padding: 0.125rem 0.2rem;
+}
+
+.message-composer .message-mention--channel {
+  background: #fef3c7;
+  color: #92400e;
+}
+
 .messages-toolbar-scroll {
   -ms-overflow-style: none;
   scrollbar-width: none;
