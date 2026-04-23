@@ -37,7 +37,8 @@ export function ModuleView() {
   const { id } = useParams<{ id: string }>()
   const [mod, setMod] = useState<ModuleData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [progressData, setProgressData] = useState<Record<number, string>>({})
+  const [progressData, setProgressData] = useState<Record<number, { status: string; completedBlocks: number; totalBlocks: number }>>({})
+  const [moduleProgress, setModuleProgress] = useState<{ completedBlocks: number; totalBlocks: number } | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -52,11 +53,19 @@ export function ModuleView() {
       if (dashRes.data?.dashboard?.modules) {
         const targetMod = dashRes.data.dashboard.modules.find((m: any) => m.id === Number(id))
         if (targetMod) {
-          const map: Record<number, string> = {}
+          const map: Record<number, { status: string; completedBlocks: number; totalBlocks: number }> = {}
           targetMod.lessons.forEach((l: any) => {
-            map[l.id] = l.completed ? 'completed' : l.available ? 'available' : 'locked'
+            map[l.id] = {
+              status: l.completed ? 'completed' : l.available ? 'available' : 'locked',
+              completedBlocks: l.completed_blocks || 0,
+              totalBlocks: l.total_blocks || 0,
+            }
           })
           setProgressData(map)
+          setModuleProgress({
+            completedBlocks: targetMod.completed_blocks || 0,
+            totalBlocks: targetMod.total_blocks || 0,
+          })
         }
       }
 
@@ -79,9 +88,11 @@ export function ModuleView() {
     return acc
   }, {})
 
-  const availableLessons = mod.lessons.filter((l) => (progressData[l.id] || 'available') !== 'locked')
+  const availableLessons = mod.lessons.filter((l) => (progressData[l.id]?.status || 'available') !== 'locked')
   const totalLessons = availableLessons.length
-  const completedLessons = availableLessons.filter((l) => progressData[l.id] === 'completed').length
+  const completedLessons = availableLessons.filter((l) => progressData[l.id]?.status === 'completed').length
+  const progressValue = moduleProgress?.completedBlocks ?? completedLessons
+  const progressMax = moduleProgress?.totalBlocks ?? totalLessons
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -95,7 +106,7 @@ export function ModuleView() {
           <h1 className="text-2xl font-bold text-slate-900">{mod.name}</h1>
           {mod.description && <p className="mt-2 text-slate-500">{mod.description}</p>}
           <div className="mt-4">
-            <ProgressBar value={completedLessons} max={totalLessons} label="Progress" />
+            <ProgressBar value={progressValue} max={progressMax} label="Progress" />
           </div>
         </div>
       </div>
@@ -110,7 +121,7 @@ export function ModuleView() {
             const dayIndices = Object.keys(dayGroups).map(Number).sort((a, b) => a - b)
 
             const hasVisibleLesson = dayIndices.some(di =>
-              dayGroups[di].some(l => (progressData[l.id] || 'available') !== 'locked')
+              dayGroups[di].some(l => (progressData[l.id]?.status || 'available') !== 'locked')
             )
             if (!hasVisibleLesson) return null
 
@@ -120,7 +131,7 @@ export function ModuleView() {
                 <div className="space-y-5">
                   {dayIndices.map((dayIdx) => {
                     const lessons = dayGroups[dayIdx]
-                    const visibleLessons = lessons.filter(l => (progressData[l.id] || 'available') !== 'locked')
+                    const visibleLessons = lessons.filter(l => (progressData[l.id]?.status || 'available') !== 'locked')
                     if (visibleLessons.length === 0) return null
 
                     return (
@@ -130,7 +141,9 @@ export function ModuleView() {
                         </h3>
                         <div className="space-y-2">
                           {visibleLessons.map((lesson) => {
-                            const isCompleted = progressData[lesson.id] === 'completed'
+                            const lessonProgress = progressData[lesson.id]
+                            const isCompleted = lessonProgress?.status === 'completed'
+                            const isPartial = !isCompleted && (lessonProgress?.completedBlocks || 0) > 0
 
                             return (
                               <Link
@@ -147,11 +160,21 @@ export function ModuleView() {
                                   </p>
                                   <div className="flex items-center gap-2 mt-0.5">
                                     <span className="text-xs text-slate-400 capitalize">{lesson.lesson_type}</span>
-                                    <span className="text-xs text-slate-400">· {lesson.content_blocks.length} blocks</span>
+                                    <span className="text-xs text-slate-400">· {(lessonProgress?.totalBlocks || lesson.content_blocks.length)} blocks</span>
+                                    {isPartial && (
+                                      <span className="text-xs font-medium text-amber-600">
+                                        · {lessonProgress?.completedBlocks}/{lessonProgress?.totalBlocks} done
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                                 {isCompleted && (
                                   <span className="text-xs font-medium text-success-600 bg-success-50 px-2 py-0.5 rounded-full">Done</span>
+                                )}
+                                {isPartial && (
+                                  <span className="text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+                                    {lessonProgress?.completedBlocks}/{lessonProgress?.totalBlocks} done
+                                  </span>
                                 )}
                               </Link>
                             )

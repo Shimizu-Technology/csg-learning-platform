@@ -289,7 +289,7 @@ export const api = {
   },
   getSubmission: (id: number) =>
     fetchApi<SubmissionResponse>(`/api/v1/submissions/${id}`),
-  createSubmission: (data: { content_block_id: number; text: string; github_issue_url?: string; github_code_url?: string }) =>
+  createSubmission: (data: { content_block_id: number; text?: string; github_issue_url?: string; github_code_url?: string; repo_url?: string; pr_url?: string; live_url?: string; branch?: string; commit_sha?: string; notes?: string }) =>
     fetchApi<SubmissionResponse>('/api/v1/submissions', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -417,7 +417,7 @@ export const api = {
     fetchApi<null>(`/api/v1/lesson_assignments/${id}`, { method: 'DELETE' }),
 
   // Admin — Content
-  updateContentBlock: (id: number, data: { block_type?: string; position?: number; title?: string; body?: string | null; video_url?: string | null; solution?: string | null; filename?: string | null; metadata?: Record<string, unknown>; s3_video_key?: string | null; s3_video_content_type?: string | null; s3_video_size?: number | null; s3_video_duration_seconds?: number | null }) =>
+  updateContentBlock: (id: number, data: { block_type?: string; position?: number; title?: string; body?: string | null; video_url?: string | null; solution?: string | null; filename?: string | null; submission_type?: string | null; submission_config?: Record<string, unknown>; metadata?: Record<string, unknown>; s3_video_key?: string | null; s3_video_content_type?: string | null; s3_video_size?: number | null; s3_video_duration_seconds?: number | null }) =>
     fetchApi<ContentBlockResponse>(`/api/v1/content_blocks/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -434,7 +434,7 @@ export const api = {
     }),
   deleteLesson: (id: number) =>
     fetchApi<void>(`/api/v1/lessons/${id}`, { method: 'DELETE' }),
-  createExercise: (moduleId: number, data: { title: string; release_day: number; video_url?: string; instructions?: string; solution?: string; filename?: string; requires_submission: boolean; s3_video_key?: string; s3_video_content_type?: string; s3_video_size?: number }) =>
+  createExercise: (moduleId: number, data: { title: string; release_day: number; video_url?: string; instructions?: string; solution?: string; filename?: string; requires_submission?: boolean; submission_type?: string; submission_config?: Record<string, unknown>; s3_video_key?: string; s3_video_content_type?: string; s3_video_size?: number }) =>
     fetchApi<LessonResponse>(`/api/v1/modules/${moduleId}/exercises`, {
       method: 'POST',
       body: JSON.stringify(data),
@@ -444,7 +444,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  createContentBlock: (lessonId: number, data: { block_type: string; position?: number; title?: string; body?: string; video_url?: string; solution?: string; filename?: string; metadata?: Record<string, unknown>; s3_video_key?: string; s3_video_content_type?: string; s3_video_size?: number }) =>
+  createContentBlock: (lessonId: number, data: { block_type: string; position?: number; title?: string; body?: string; video_url?: string; solution?: string; filename?: string; submission_type?: string; submission_config?: Record<string, unknown>; metadata?: Record<string, unknown>; s3_video_key?: string; s3_video_content_type?: string; s3_video_size?: number }) =>
     fetchApi<ContentBlockResponse>(`/api/v1/lessons/${lessonId}/content_blocks`, {
       method: 'POST',
       body: JSON.stringify(data),

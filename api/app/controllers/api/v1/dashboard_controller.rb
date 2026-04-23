@@ -31,7 +31,7 @@ module Api
         end
 
         # Calculate overall progress only across assigned modules
-        all_block_ids = modules.flat_map { |mod| mod.lessons.flat_map { |lesson| lesson.content_blocks.map(&:id) } }
+        all_block_ids = modules.flat_map { |mod| mod.lessons.flat_map(&:completion_block_ids) }
 
         user_progress = current_user.progresses.where(content_block_id: all_block_ids).index_by(&:content_block_id)
         completed_count = user_progress.values.count(&:completed?)
@@ -41,7 +41,7 @@ module Api
         # Build module data with progress
         modules_data = modules.map do |mod|
           assignment = assignments_by_module_id[mod.id]
-          mod_block_ids = mod.lessons.flat_map { |l| l.content_blocks.map(&:id) }
+          mod_block_ids = mod.lessons.flat_map(&:completion_block_ids)
           mod_completed = mod_block_ids.count { |id| user_progress[id]&.completed? }
           mod_total = mod_block_ids.size
           mod_percentage = mod_total > 0 ? (mod_completed.to_f / mod_total * 100).round(1) : 0
@@ -59,7 +59,7 @@ module Api
             available: mod.lessons.any? { |lesson| lesson.available?(cohort, assignment, lesson_assignments_by_lesson_id[lesson.id]) },
             unlock_date: assignment&.next_unlock_date(cohort),
             lessons: mod.lessons.map { |l|
-              lesson_block_ids = l.content_blocks.map(&:id)
+              lesson_block_ids = l.completion_block_ids
               lesson_completed = lesson_block_ids.count { |id| user_progress[id]&.completed? }
               {
                 id: l.id,
@@ -185,9 +185,8 @@ module Api
           }
         end
 
-        all_block_ids = ContentBlock.joins(lesson: :curriculum_module)
-          .where(modules: { curriculum_id: curriculum.id })
-          .pluck(:id)
+        all_block_ids = curriculum.modules.includes(lessons: :content_blocks)
+          .flat_map { |mod| mod.lessons.flat_map(&:completion_block_ids) }
 
         total_blocks = all_block_ids.size
 

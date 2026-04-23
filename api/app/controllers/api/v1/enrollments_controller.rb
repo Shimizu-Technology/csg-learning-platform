@@ -89,15 +89,15 @@ module Api
         if include_progress
           # Calculate progress for this enrollment
           curriculum = enrollment.cohort.curriculum
-          all_blocks = ContentBlock.joins(lesson: :curriculum_module)
-            .where(modules: { curriculum_id: curriculum.id })
+          completion_block_ids = curriculum.modules.includes(lessons: :content_blocks)
+            .flat_map { |mod| mod.lessons.flat_map(&:completion_block_ids) }
 
           completed_blocks = Progress.completed
-            .where(user_id: enrollment.user_id, content_block_id: all_blocks.pluck(:id))
+            .where(user_id: enrollment.user_id, content_block_id: completion_block_ids)
 
-          json[:total_blocks] = all_blocks.count
+          json[:total_blocks] = completion_block_ids.count
           json[:completed_blocks] = completed_blocks.count
-          json[:progress_percentage] = all_blocks.count > 0 ? (completed_blocks.count.to_f / all_blocks.count * 100).round(1) : 0
+          json[:progress_percentage] = completion_block_ids.count > 0 ? (completed_blocks.count.to_f / completion_block_ids.count * 100).round(1) : 0
         end
 
         json

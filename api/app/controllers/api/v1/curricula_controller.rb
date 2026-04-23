@@ -85,6 +85,7 @@ module Api
               week_count: m.week_count,
               lessons_count: m.lessons.size,
               lessons: m.lessons.map { |l|
+                exercise_block = l.content_blocks.find(&:exercise_like?)
                 {
                   id: l.id,
                   title: l.title,
@@ -92,7 +93,8 @@ module Api
                   position: l.position,
                   release_day: l.release_day,
                   required: l.required,
-                  requires_submission: l.requires_submission,
+                  requires_submission: exercise_block ? exercise_block.review_required? : l.requires_submission,
+                  submission_type: exercise_block&.effective_submission_type || "manual_complete",
                   content_blocks_count: l.content_blocks.size
                 }
               }

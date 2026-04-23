@@ -9,14 +9,18 @@ module Api
       # GET /api/v1/cohorts/:cohort_id/modules/:module_id/submissions
       def index
         student_ids = @cohort.enrollments.active.pluck(:user_id)
-        block_ids = ContentBlock.joins(:lesson)
+        exercise_blocks = ContentBlock.joins(:lesson)
           .where(lessons: { module_id: @curriculum_module.id })
           .where(block_type: [ :exercise, :code_challenge ])
-          .pluck(:id)
+          .includes(lesson: :curriculum_module)
+          .order("lessons.release_day ASC, lessons.position ASC, content_blocks.position ASC")
+          .to_a
+        block_ids = exercise_blocks.map(&:id)
 
-        submissions = Submission.includes(:user, { content_block: :lesson }, :grader)
+        submissions = Submission.includes(:user, { content_block: { lesson: :curriculum_module } }, :grader)
           .where(user_id: student_ids, content_block_id: block_ids)
           .order(created_at: :desc)
+        progress_records = Progress.where(user_id: student_ids, content_block_id: block_ids)
 
         students_data = @cohort.enrollments.active.includes(:user).map do |enrollment|
           user = enrollment.user
@@ -36,18 +40,18 @@ module Api
 
         mod_gh = module_github_config
 
-        exercises = ContentBlock.joins(:lesson)
-          .where(id: block_ids)
-          .where.not(filename: [ nil, "" ])
-          .includes(:lesson)
-          .order("lessons.release_day ASC, lessons.position ASC, content_blocks.position ASC")
-          .map do |cb|
+        exercises = exercise_blocks.map do |cb|
+            submission_type = cb.effective_submission_type(requires_github: mod_gh["requires_github"] || false)
             {
               id: cb.id,
               filename: cb.filename,
               title: cb.title,
               release_day: cb.lesson.release_day,
-              lesson_title: cb.lesson.title
+              lesson_title: cb.lesson.title,
+              requires_submission: cb.review_required?(requires_github: mod_gh["requires_github"] || false),
+              submission_type: submission_type,
+              submission_config: cb.submission_config || {},
+              github_sync: submission_type == "prework_github_sync"
             }
           end
 
@@ -57,9 +61,18 @@ module Api
           module_id: @curriculum_module.id,
           module_name: @curriculum_module.name,
           requires_github: mod_gh["requires_github"] || false,
+          supports_github_sync: exercise_blocks.any? { |cb| cb.github_sync_submission?(requires_github: mod_gh["requires_github"] || false) },
           repository_name: mod_gh["repository_name"].presence || @cohort.repository_name,
           students: students_data,
           exercises: exercises,
+          progresses: progress_records.map { |progress|
+            {
+              user_id: progress.user_id,
+              content_block_id: progress.content_block_id,
+              status: progress.status,
+              completed_at: progress.completed_at
+            }
+          },
           submissions: submissions.map { |s| submission_json(s) }
         }
       end
@@ -136,12 +149,14 @@ module Api
       end
 
       def submission_json(submission)
+        submission_type = submission.submission_type.presence || submission.content_block.effective_submission_type
         {
           id: submission.id,
           content_block_id: submission.content_block_id,
           user_id: submission.user_id,
           user_name: submission.user.full_name,
           user_email: submission.user.email,
+          submission_type: submission_type,
           text: submission.text,
           grade: submission.grade,
           feedback: submission.feedback,
@@ -149,6 +164,12 @@ module Api
           graded_at: submission.graded_at,
           github_issue_url: submission.github_issue_url,
           github_code_url: submission.github_code_url,
+          repo_url: submission.repo_url,
+          pr_url: submission.pr_url,
+          live_url: submission.live_url,
+          branch: submission.branch,
+          commit_sha: submission.commit_sha,
+          notes: submission.notes,
           num_submissions: submission.num_submissions,
           created_at: submission.created_at,
           content_block_title: submission.content_block.title,

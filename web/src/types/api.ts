@@ -45,6 +45,9 @@ export interface ContentBlock {
   video_url: string | null;
   solution: string | null;
   filename: string | null;
+  submission_type?: string | null;
+  submission_type_explicit?: string | null;
+  submission_config?: Record<string, unknown>;
   metadata: Record<string, unknown>;
 }
 
@@ -56,6 +59,9 @@ export interface ContentBlockSummary {
   body: string | null;
   video_url: string | null;
   filename: string | null;
+  submission_type?: string | null;
+  submission_type_explicit?: string | null;
+  submission_config?: Record<string, unknown>;
   metadata: Record<string, unknown>;
   solution?: string | null;
   progress?: { status: string; completed_at: string | null };
@@ -70,6 +76,7 @@ export interface LessonSummary {
   release_day: number;
   required: boolean;
   requires_submission: boolean;
+  submission_type?: string;
   content_blocks_count: number;
 }
 
@@ -82,6 +89,7 @@ export interface LessonDetail {
   release_day: number;
   required: boolean;
   requires_submission: boolean;
+  submission_type?: string;
   content_blocks_count: number;
   content_blocks: ContentBlockSummary[];
   prev_lesson: { id: number; title: string } | null;
@@ -520,10 +528,17 @@ export interface LessonAssignment {
 
 export interface SubmissionBrief {
   id: number;
-  text: string;
+  submission_type?: string | null;
+  text: string | null;
   grade: string | null;
   feedback: string | null;
   graded_at: string | null;
+  repo_url?: string | null;
+  pr_url?: string | null;
+  live_url?: string | null;
+  branch?: string | null;
+  commit_sha?: string | null;
+  notes?: string | null;
   num_submissions: number;
   created_at: string;
 }
@@ -533,13 +548,20 @@ export interface Submission {
   content_block_id: number;
   user_id: number;
   user_name: string;
-  text: string;
+  submission_type?: string | null;
+  text: string | null;
   grade: string | null;
   feedback: string | null;
   graded_by: string | null;
   graded_at: string | null;
   github_issue_url: string | null;
   github_code_url: string | null;
+  repo_url?: string | null;
+  pr_url?: string | null;
+  live_url?: string | null;
+  branch?: string | null;
+  commit_sha?: string | null;
+  notes?: string | null;
   num_submissions: number;
   created_at: string;
   content_block_title: string;

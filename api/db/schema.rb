@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_21_123500) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_23_000100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -191,12 +191,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_21_123500) do
     t.string "s3_video_key"
     t.bigint "s3_video_size"
     t.text "solution"
+    t.jsonb "submission_config", default: {}, null: false
+    t.integer "submission_type"
     t.string "title"
     t.datetime "updated_at", null: false
     t.string "video_url"
     t.index ["block_type"], name: "index_content_blocks_on_block_type"
     t.index ["lesson_id", "position"], name: "index_content_blocks_on_lesson_id_and_position"
     t.index ["lesson_id"], name: "index_content_blocks_on_lesson_id"
+    t.index ["submission_type"], name: "index_content_blocks_on_submission_type"
   end
 
   create_table "curricula", force: :cascade do |t|
@@ -1062,6 +1065,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_21_123500) do
   end
 
   create_table "submissions", force: :cascade do |t|
+    t.string "branch"
+    t.string "commit_sha"
     t.bigint "content_block_id", null: false
     t.datetime "created_at", null: false
     t.text "feedback"
@@ -1070,13 +1075,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_21_123500) do
     t.integer "grade"
     t.datetime "graded_at"
     t.bigint "graded_by_id"
+    t.string "live_url"
+    t.text "notes"
     t.integer "num_submissions", default: 1, null: false
+    t.string "pr_url"
+    t.string "repo_url"
+    t.integer "submission_type"
     t.text "text"
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.index ["content_block_id", "user_id"], name: "index_submissions_on_content_block_id_and_user_id"
     t.index ["content_block_id"], name: "index_submissions_on_content_block_id"
     t.index ["graded_by_id"], name: "index_submissions_on_graded_by_id"
+    t.index ["submission_type"], name: "index_submissions_on_submission_type"
     t.index ["user_id"], name: "index_submissions_on_user_id"
   end
 

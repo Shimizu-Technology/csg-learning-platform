@@ -80,7 +80,7 @@ module Api
         lesson_assignments_by_lesson_id = enrollment.lesson_assignments.index_by(&:lesson_id)
 
         # Index all progresses and submissions for this user
-        all_block_ids = modules.flat_map { |m| m.lessons.flat_map { |l| l.content_blocks.map(&:id) } }
+        all_block_ids = modules.flat_map { |m| m.lessons.flat_map(&:completion_block_ids) }
         progress_by_block = user.progresses.where(content_block_id: all_block_ids).index_by(&:content_block_id)
         submissions_by_block = user.submissions.where(content_block_id: all_block_ids)
           .order(created_at: :desc)
@@ -97,7 +97,7 @@ module Api
         overall_percentage = total_blocks > 0 ? (completed_blocks.to_f / total_blocks * 100).round(1) : 0
 
         modules_data = modules.map do |mod|
-          mod_block_ids = mod.lessons.flat_map { |l| l.content_blocks.map(&:id) }
+          mod_block_ids = mod.lessons.flat_map(&:completion_block_ids)
           mod_completed = mod_block_ids.count { |id| progress_by_block[id]&.completed? }
           mod_total = mod_block_ids.size
           mod_pct = mod_total > 0 ? (mod_completed.to_f / mod_total * 100).round(1) : 0
@@ -111,7 +111,7 @@ module Api
             completed_blocks: mod_completed,
             progress_percentage: mod_pct,
             lessons: mod.lessons.sort_by(&:position).map do |lesson|
-              lesson_block_ids = lesson.content_blocks.map(&:id)
+              lesson_block_ids = lesson.completion_block_ids
               lesson_completed = lesson_block_ids.count { |id| progress_by_block[id]&.completed? }
               lesson_total = lesson_block_ids.size
               module_assignment = module_assignments_by_module_id[mod.id]

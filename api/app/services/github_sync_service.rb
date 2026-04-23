@@ -24,6 +24,9 @@ class GithubSyncService
       .where(lessons: { module_id: curriculum_module.id })
       .where(block_type: [ :exercise, :code_challenge ])
       .where.not(filename: [ nil, "" ])
+      .includes(lesson: :curriculum_module)
+      .to_a
+      .select { |block| block.github_sync_submission?(requires_github: true) }
 
     if exercise_blocks.empty?
       return { synced: 0, errors: [] }
@@ -56,6 +59,7 @@ class GithubSyncService
       if existing
         if existing.text != file_text
           attrs = {
+            submission_type: :prework_github_sync,
             text: file_text,
             github_code_url: github_code_url,
             num_submissions: existing.num_submissions + 1
@@ -70,24 +74,21 @@ class GithubSyncService
           end
 
           existing.update!(attrs)
-          unless passing
-            Progress.find_or_create_by!(user: user, content_block_id: block.id) do |p|
-              p.status = :in_progress
-            end
-          end
+          progress = Progress.find_or_initialize_by(user: user, content_block_id: block.id)
+          progress.update!(status: :completed)
           synced_count += 1
         end
       else
         Submission.create!(
           user: user,
           content_block_id: block.id,
+          submission_type: :prework_github_sync,
           text: file_text,
           github_code_url: github_code_url,
           num_submissions: 1
         )
-        Progress.find_or_create_by!(user: user, content_block_id: block.id) do |p|
-          p.status = :in_progress
-        end
+        progress = Progress.find_or_initialize_by(user: user, content_block_id: block.id)
+        progress.update!(status: :completed)
         synced_count += 1
       end
     end

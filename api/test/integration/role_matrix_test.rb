@@ -39,6 +39,36 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
     assert_equal "student", data["user"]["role"]
   end
 
+  test "student dashboard treats assignment block as lesson completion driver when lesson also has video" do
+    enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+    ModuleAssignment.create!(enrollment: enrollment, curriculum_module: @mod, unlocked: true)
+    lesson = Lesson.create!(curriculum_module: @mod, title: "Live Day", position: 0, release_day: 0, requires_submission: true)
+    ContentBlock.create!(lesson: lesson, block_type: :video, position: 0, title: "Watch")
+    exercise_block = ContentBlock.create!(
+      lesson: lesson,
+      block_type: :exercise,
+      position: 1,
+      title: "Submit",
+      submission_type: :repo_url_submission
+    )
+    Progress.create!(user: @student, content_block: exercise_block, status: :completed)
+
+    as_user(@student) do
+      get "/api/v1/dashboard", headers: auth_headers
+    end
+
+    assert_response :success
+    data = JSON.parse(response.body)["dashboard"]
+    module_data = data["modules"].find { |mod| mod["id"] == @mod.id }
+    lesson_data = module_data["lessons"].find { |item| item["id"] == lesson.id }
+
+    assert_equal 1, module_data["total_blocks"]
+    assert_equal 1, module_data["completed_blocks"]
+    assert_equal 1, lesson_data["total_blocks"]
+    assert_equal 1, lesson_data["completed_blocks"]
+    assert_equal true, lesson_data["completed"]
+  end
+
   test "instructor gets admin dashboard" do
     as_user(@instructor) do
       get "/api/v1/dashboard", headers: auth_headers

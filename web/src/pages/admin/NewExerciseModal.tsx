@@ -21,7 +21,9 @@ interface Props {
     instructions?: string
     solution?: string
     filename?: string
-    requires_submission: boolean
+    requires_submission?: boolean
+    submission_type?: string
+    submission_config?: Record<string, unknown>
     s3_video_key?: string
     s3_video_content_type?: string
     s3_video_size?: number
@@ -49,7 +51,7 @@ export function NewExerciseModal({
   const [s3Video, setS3Video] = useState<{ s3_video_key: string; s3_video_content_type: string; s3_video_size: number } | null>(null)
   const [uploadId, setUploadId] = useState<string | null>(null)
   const [filename, setFilename] = useState('')
-  const [requiresSubmission, setRequiresSubmission] = useState(false)
+  const [submissionType, setSubmissionType] = useState('manual_complete')
   const [validationError, setValidationError] = useState('')
 
   const availableDays = useMemo(() => {
@@ -82,7 +84,8 @@ export function NewExerciseModal({
       instructions: instructions.trim() || undefined,
       solution: solution.trim() || undefined,
       filename: filename.trim() || undefined,
-      requires_submission: requiresSubmission,
+      requires_submission: submissionType !== 'manual_complete',
+      submission_type: submissionType,
       ...(s3Video || {}),
       upload_id: uploadId || undefined,
     })
@@ -118,7 +121,7 @@ export function NewExerciseModal({
             />
           </div>
 
-          {/* Row 2: Week, Day, Filename */}
+          {/* Row 2: Week, Day, Filename, Submission */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Week</label>
@@ -150,17 +153,28 @@ export function NewExerciseModal({
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono"
               />
             </div>
-            <div className="flex items-end">
-              <label className="flex items-center gap-2.5 rounded-lg border border-slate-200 px-3 py-2 cursor-pointer hover:bg-slate-50 transition-colors h-[38px] w-full">
-                <input
-                  type="checkbox"
-                  checked={requiresSubmission}
-                  onChange={e => setRequiresSubmission(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                />
-                <span className="text-sm text-slate-700">Requires submission</span>
-              </label>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Submission Type</label>
+              <select
+                value={submissionType}
+                onChange={e => setSubmissionType(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                <option value="manual_complete">Practice only</option>
+                <option value="text_submission">Text/code submission</option>
+                <option value="prework_github_sync">GitHub filename sync</option>
+                <option value="repo_url_submission">Repository submission</option>
+                <option value="repo_and_live_url_submission">Repo + live URL submission</option>
+              </select>
             </div>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+            {submissionType === 'manual_complete' && 'Students mark this as complete themselves. No instructor review queue item is created.'}
+            {submissionType === 'text_submission' && 'Students paste code/text directly into the app for grading.'}
+            {submissionType === 'prework_github_sync' && 'Use this only for prework-style filename sync from GitHub.'}
+            {submissionType === 'repo_url_submission' && 'Students submit a repository URL and optional notes. Extra Git details stay available only when needed.'}
+            {submissionType === 'repo_and_live_url_submission' && 'Students submit a repository URL and a deployed live URL. Notes stay optional.'}
           </div>
 
           {/* Row 3: Video */}
