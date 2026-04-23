@@ -110,6 +110,7 @@ module Api
 
         if include_lessons
           json[:lessons] = mod.lessons.includes(:content_blocks).map { |l|
+            exercise_block = l.content_blocks.find(&:exercise_like?)
             {
               id: l.id,
               title: l.title,
@@ -117,7 +118,8 @@ module Api
               position: l.position,
               release_day: l.release_day,
               required: l.required,
-              requires_submission: l.requires_submission,
+              requires_submission: exercise_block ? exercise_block.review_required? : l.requires_submission,
+              submission_type: exercise_block&.effective_submission_type || "manual_complete",
               content_blocks: l.content_blocks.map { |cb|
                 {
                   id: cb.id,
@@ -127,6 +129,9 @@ module Api
                   body: cb.body,
                   video_url: cb.video_url,
                   filename: cb.filename,
+                  submission_type: cb.effective_submission_type,
+                  submission_type_explicit: cb.submission_type,
+                  submission_config: cb.submission_config || {},
                   metadata: cb.metadata
                 }.tap { |block| block[:solution] = cb.solution if include_solutions }
               }

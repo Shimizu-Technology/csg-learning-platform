@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Player, { type VimeoUrl } from '@vimeo/player'
-import { Play, FileText, Code, CheckCircle2, Circle, ChevronDown, ChevronUp, Send, BadgeCheck, RotateCcw } from 'lucide-react'
+import { Play, FileText, Code, CheckCircle2, Circle, ChevronDown, ChevronUp, Send, BadgeCheck, RotateCcw, ExternalLink, Globe, GitBranch } from 'lucide-react'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { GradeDisplay } from './GradeDisplay'
 import { CodeEditor, detectLanguage } from './CodeEditor'
@@ -15,16 +15,27 @@ interface ContentBlock {
   body: string | null
   video_url: string | null
   filename: string | null
+  submission_type?: string | null
+  submission_config?: Record<string, any>
   solution?: string | null
   metadata: Record<string, any>
   s3_video_key?: string | null
   progress?: { status: string; completed_at: string | null; video_last_position?: number; video_total_watched?: number }
   submissions?: Array<{
     id: number
-    text: string
+    submission_type?: string | null
+    text: string | null
     grade: string | null
     feedback: string | null
     graded_at: string | null
+    github_issue_url?: string | null
+    github_code_url?: string | null
+    repo_url?: string | null
+    pr_url?: string | null
+    live_url?: string | null
+    branch?: string | null
+    commit_sha?: string | null
+    notes?: string | null
     num_submissions: number
     created_at: string
   }>
@@ -58,14 +69,31 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
   const [isCompleted, setIsCompleted] = useState(block.progress?.status === 'completed')
   const [showSolution, setShowSolution] = useState(false)
   const [submissionText, setSubmissionText] = useState('')
+  const [repoUrl, setRepoUrl] = useState('')
+  const [prUrl, setPrUrl] = useState('')
+  const [liveUrl, setLiveUrl] = useState('')
+  const [branchName, setBranchName] = useState('')
+  const [commitSha, setCommitSha] = useState('')
+  const [submissionNotes, setSubmissionNotes] = useState('')
+  const [showAdvancedRepoFields, setShowAdvancedRepoFields] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const vimeoContainerRef = useRef<HTMLDivElement>(null)
   const ytIframeRef = useRef<HTMLIFrameElement>(null)
   const isCompletedRef = useRef(isCompleted)
   useEffect(() => { isCompletedRef.current = isCompleted }, [isCompleted])
+  useEffect(() => {
+    setIsCompleted(block.progress?.status === 'completed')
+  }, [block.id, block.progress?.status])
 
   const isExerciseType = block.block_type === 'exercise' || block.block_type === 'code_challenge'
   const detectedLang = detectLanguage(block.filename, block.metadata?.language)
+  const submissionType = block.submission_type || (requiresSubmission ? (requiresGithub ? 'prework_github_sync' : 'text_submission') : 'manual_complete')
+  const usesManualExerciseCompletion = isExerciseType && submissionType === 'manual_complete'
+  const usesGithubSyncSubmission = isExerciseType && submissionType === 'prework_github_sync'
+  const usesTextSubmission = isExerciseType && submissionType === 'text_submission'
+  const usesRepoArtifactSubmission = isExerciseType && (submissionType === 'repo_url_submission' || submissionType === 'repo_and_live_url_submission')
+  const requiresLiveUrl = submissionType === 'repo_and_live_url_submission'
+  const hasUngradedSubmission = submissions.length > 0 && !hasRedoRequest && !hasPassingGrade
 
   const markVideoCompleted = useCallback(async () => {
     if (isCompletedRef.current) return
@@ -193,17 +221,82 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
   }, [])
 
   const handleSubmit = async () => {
-    if (!submissionText.trim()) return
+    if (usesTextSubmission && !submissionText.trim()) return
+    if (usesRepoArtifactSubmission && !repoUrl.trim()) return
+    if (requiresLiveUrl && !liveUrl.trim()) return
     setIsSubmitting(true)
     const res = await api.createSubmission({
       content_block_id: block.id,
-      text: submissionText,
+      ...(usesTextSubmission ? { text: submissionText } : {}),
+      ...(usesRepoArtifactSubmission ? {
+        repo_url: repoUrl.trim(),
+        pr_url: prUrl.trim() || undefined,
+        live_url: liveUrl.trim() || undefined,
+        branch: branchName.trim() || undefined,
+        commit_sha: commitSha.trim() || undefined,
+        notes: submissionNotes.trim() || undefined,
+      } : {}),
     })
     if (!res.error) {
       setSubmissionText('')
+      setRepoUrl('')
+      setPrUrl('')
+      setLiveUrl('')
+      setBranchName('')
+      setCommitSha('')
+      setSubmissionNotes('')
+      setShowAdvancedRepoFields(false)
       onProgressUpdate?.()
     }
     setIsSubmitting(false)
+  }
+
+  const submissionArtifacts = (sub: typeof latestSubmission) => {
+    if (!sub) return null
+
+    return (
+      <div className="space-y-2">
+        {(sub.github_code_url || sub.repo_url || sub.pr_url || sub.live_url) && (
+          <div className="flex flex-wrap gap-2">
+            {sub.github_code_url && (
+              <a href={sub.github_code_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 hover:border-primary-200 hover:text-primary-600">
+                <Code className="h-3 w-3" />
+                GitHub Code
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+            {sub.repo_url && (
+              <a href={sub.repo_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 hover:border-primary-200 hover:text-primary-600">
+                <Code className="h-3 w-3" />
+                Repo
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+            {sub.pr_url && (
+              <a href={sub.pr_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 hover:border-primary-200 hover:text-primary-600">
+                <GitBranch className="h-3 w-3" />
+                PR
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+            {sub.live_url && (
+              <a href={sub.live_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 hover:border-primary-200 hover:text-primary-600">
+                <Globe className="h-3 w-3" />
+                Live
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+          </div>
+        )}
+        {(sub.branch || sub.commit_sha || sub.notes) && (
+          <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600 space-y-1">
+            {sub.branch && <p><span className="font-medium text-slate-700">Branch:</span> {sub.branch}</p>}
+            {sub.commit_sha && <p><span className="font-medium text-slate-700">Commit:</span> <span className="font-mono">{sub.commit_sha}</span></p>}
+            {sub.notes && <p className="whitespace-pre-wrap"><span className="font-medium text-slate-700">Notes:</span> {sub.notes}</p>}
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -224,8 +317,26 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
             Graded
           </span>
         )}
+        {hasUngradedSubmission && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-xs font-medium text-amber-700">
+            <Send className="h-3.5 w-3.5" />
+            Submitted
+          </span>
+        )}
         <div className="ml-auto">
-          {isExerciseType ? (
+          {usesManualExerciseCompletion ? (
+            <button
+              onClick={handleToggleComplete}
+              className="flex items-center gap-1.5 text-sm transition-colors"
+              aria-label={isCompleted ? 'Mark exercise not done' : 'Mark exercise complete'}
+            >
+              {isCompleted ? (
+                <CheckCircle2 className="h-5 w-5 text-success-500" />
+              ) : (
+                <Circle className="h-5 w-5 text-slate-300 hover:text-slate-400" />
+              )}
+            </button>
+          ) : isExerciseType ? (
             hasPassingGrade ? (
               <CheckCircle2 className="h-5 w-5 text-success-500" />
             ) : hasRedoRequest ? (
@@ -329,7 +440,42 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
           </div>
         )}
 
-        {(block.block_type === 'exercise' || block.block_type === 'code_challenge') && requiresSubmission && (
+        {usesManualExerciseCompletion && (
+          <div className={`mt-4 rounded-xl border px-4 py-3 ${isCompleted ? 'border-success-200 bg-success-50' : 'border-slate-200 bg-slate-50'}`}>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-slate-900">
+                  {isCompleted ? 'Exercise marked complete' : 'Mark this exercise complete when you finish it'}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Use this for practice blocks that do not require a submission.
+                </p>
+              </div>
+              <button
+                onClick={handleToggleComplete}
+                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                  isCompleted
+                    ? 'border border-success-200 bg-white text-success-700 hover:bg-success-50'
+                    : 'bg-primary-500 text-white hover:bg-primary-600'
+                }`}
+              >
+                {isCompleted ? (
+                  <>
+                    <RotateCcw className="h-4 w-4" />
+                    Mark Not Done
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4" />
+                    Mark Complete
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {(block.block_type === 'exercise' || block.block_type === 'code_challenge') && submissionType !== 'manual_complete' && (
           <div className="mt-4 space-y-3">
             {latestSubmission?.grade && (
               <div className={`rounded-xl border px-4 py-3 ${
@@ -400,13 +546,21 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                       </div>
 
                       <div className="mt-2">
-                        <CodeEditor
-                          value={sub.text || 'No text submitted'}
-                          language={detectedLang}
-                          readOnly
-                          minHeight={120}
-                        />
+                        {sub.text ? (
+                          <CodeEditor
+                            value={sub.text}
+                            language={detectedLang}
+                            readOnly
+                            minHeight={120}
+                          />
+                        ) : (
+                          <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500">
+                            No inline code text submitted.
+                          </div>
+                        )}
                       </div>
+
+                      {submissionArtifacts(sub)}
 
                       {isGraded && (sub.feedback || isRedo) && (
                         <div className={`mt-3 rounded-lg border bg-white p-3 ${isRedo ? 'border-orange-200' : 'border-success-200'}`}>
@@ -433,7 +587,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
               </div>
             )}
 
-            {requiresGithub ? (
+            {usesGithubSyncSubmission ? (
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2">
                 <p className="text-sm font-medium text-slate-700">Submit via GitHub</p>
                 <p className="text-sm text-slate-500">
@@ -444,7 +598,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                   Your instructor will sync and review your code from GitHub.
                 </p>
               </div>
-            ) : (
+            ) : usesTextSubmission ? (
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
@@ -478,7 +632,117 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                   </button>
                 </div>
               </div>
-            )}
+            ) : usesRepoArtifactSubmission ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                    {hasRedoRequest ? 'Revise and resubmit' : latestSubmission ? 'Update submission' : 'Submit project'}
+                  </p>
+                  <span className="text-xs text-slate-400">
+                    {requiresLiveUrl ? 'Repo + live URL required' : 'Repository URL required'}
+                  </span>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-slate-600">Repository URL</span>
+                    <input
+                      value={repoUrl}
+                      onChange={(e) => setRepoUrl(e.target.value)}
+                      placeholder="https://github.com/username/project"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </label>
+                  {requiresLiveUrl && (
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-medium text-slate-600">Live URL</span>
+                      <input
+                        value={liveUrl}
+                        onChange={(e) => setLiveUrl(e.target.value)}
+                        placeholder="https://your-app.example.com"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                    </label>
+                  )}
+                </div>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-slate-600">Notes (optional)</span>
+                  <textarea
+                    value={submissionNotes}
+                    onChange={(e) => setSubmissionNotes(e.target.value)}
+                    rows={4}
+                    placeholder="Anything your instructor should know about this submission."
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                </label>
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowAdvancedRepoFields((current) => !current)}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700"
+                  >
+                    {showAdvancedRepoFields ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                    {showAdvancedRepoFields ? 'Hide extra Git details' : 'Add PR / branch / commit details'}
+                  </button>
+                  {showAdvancedRepoFields && (
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {!requiresLiveUrl && (
+                        <label className="block">
+                          <span className="mb-1 block text-xs font-medium text-slate-600">Live URL (optional)</span>
+                          <input
+                            value={liveUrl}
+                            onChange={(e) => setLiveUrl(e.target.value)}
+                            placeholder="https://your-app.example.com"
+                            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          />
+                        </label>
+                      )}
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-medium text-slate-600">Pull Request URL (optional)</span>
+                        <input
+                          value={prUrl}
+                          onChange={(e) => setPrUrl(e.target.value)}
+                          placeholder="https://github.com/.../pull/123"
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-medium text-slate-600">Branch (optional)</span>
+                        <input
+                          value={branchName}
+                          onChange={(e) => setBranchName(e.target.value)}
+                          placeholder="main"
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-medium text-slate-600">Commit SHA (optional)</span>
+                        <input
+                          value={commitSha}
+                          onChange={(e) => setCommitSha(e.target.value)}
+                          placeholder="abc1234"
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </label>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-slate-400">
+                    {requiresLiveUrl
+                      ? 'Share the repo and deployed app you want reviewed.'
+                      : 'Share the repo you want reviewed. Notes are optional.'}
+                  </p>
+                  <button
+                    onClick={handleSubmit}
+                    disabled={isSubmitting || !repoUrl.trim() || (requiresLiveUrl && !liveUrl.trim())}
+                    className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Send className="h-4 w-4" />
+                    {isSubmitting ? 'Submitting…' : 'Submit Links'}
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
 

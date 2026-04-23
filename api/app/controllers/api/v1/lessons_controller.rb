@@ -60,6 +60,8 @@ module Api
 
         ActiveRecord::Base.transaction do
           position = @module.lessons.where(release_day: params[:release_day].to_i).maximum(:position).to_i + 1
+          submission_type = normalized_submission_type_for_create
+          requires_submission = submission_type != "manual_complete"
 
           @lesson = @module.lessons.create!(
             title: params[:title],
@@ -67,7 +69,7 @@ module Api
             position: position,
             release_day: params[:release_day].to_i,
             required: true,
-            requires_submission: ActiveModel::Type::Boolean.new.cast(params[:requires_submission])
+            requires_submission: requires_submission
           )
 
           block_pos = 0
@@ -93,7 +95,9 @@ module Api
               title: params[:title],
               body: params[:instructions],
               solution: params[:solution],
-              filename: params[:filename]
+              filename: params[:filename],
+              submission_type: submission_type,
+              submission_config: submission_config_param
             )
           end
 
@@ -160,6 +164,7 @@ module Api
       end
 
       def lesson_json(lesson, include_content: false, progress_map: {}, submission_map: {})
+        requires_github = false
         json = {
           id: lesson.id,
           module_id: lesson.module_id,
@@ -168,7 +173,8 @@ module Api
           position: lesson.position,
           release_day: lesson.release_day,
           required: lesson.required,
-          requires_submission: lesson.requires_submission,
+          requires_submission: lesson.effective_requires_submission,
+          submission_type: lesson.effective_submission_type,
           content_blocks_count: lesson.content_blocks.size
         }
 
@@ -179,10 +185,14 @@ module Api
           if enrollment
             cohort = enrollment.cohort
             mod_gh = (cohort.settings || {}).dig("module_github_config", lesson.module_id.to_s) || {}
-            json[:requires_github] = mod_gh["requires_github"] || false
+            requires_github = mod_gh["requires_github"] || false
+            json[:requires_github] = requires_github
             json[:repository_name] = mod_gh["repository_name"].presence || cohort.repository_name
           end
         end
+
+        json[:requires_submission] = lesson.effective_requires_submission(requires_github: requires_github)
+        json[:submission_type] = lesson.effective_submission_type(requires_github: requires_github)
 
         if include_content
           json[:content_blocks] = lesson.content_blocks.map { |cb|
@@ -195,6 +205,9 @@ module Api
               video_url: cb.video_url,
               s3_video_key: cb.s3_video_key,
               filename: cb.filename,
+              submission_type: cb.effective_submission_type(requires_github: requires_github),
+              submission_type_explicit: cb.submission_type,
+              submission_config: cb.submission_config || {},
               metadata: cb.metadata,
               has_s3_video: cb.s3_video_key.present?
             }
@@ -223,10 +236,19 @@ module Api
               block[:submissions] = submission_map[cb.id].map { |s|
                 {
                   id: s.id,
+                  submission_type: s.submission_type.presence || cb.effective_submission_type(requires_github: requires_github),
                   text: s.text,
                   grade: s.grade,
                   feedback: s.feedback,
                   graded_at: s.graded_at,
+                  github_issue_url: s.github_issue_url,
+                  github_code_url: s.github_code_url,
+                  repo_url: s.repo_url,
+                  pr_url: s.pr_url,
+                  live_url: s.live_url,
+                  branch: s.branch,
+                  commit_sha: s.commit_sha,
+                  notes: s.notes,
                   num_submissions: s.num_submissions,
                   created_at: s.created_at
                 }
@@ -269,6 +291,19 @@ module Api
         end
 
         json
+      end
+
+      def normalized_submission_type_for_create
+        requested = params[:submission_type].to_s.presence
+        return requested if ContentBlock.submission_types.key?(requested)
+
+        ActiveModel::Type::Boolean.new.cast(params[:requires_submission]) ? "text_submission" : "manual_complete"
+      end
+
+      def submission_config_param
+        return {} unless params[:submission_config].is_a?(ActionController::Parameters)
+
+        params[:submission_config].to_unsafe_h
       end
     end
   end

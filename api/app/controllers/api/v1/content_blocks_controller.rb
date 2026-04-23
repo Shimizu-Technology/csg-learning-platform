@@ -306,8 +306,9 @@ module Api
       end
 
       def block_params
-        params.permit(:block_type, :position, :title, :body, :video_url, :solution, :filename, :metadata,
-                       :s3_video_key, :s3_video_content_type, :s3_video_size, :s3_video_duration_seconds)
+        params.permit(:block_type, :position, :title, :body, :video_url, :solution, :filename, :submission_type,
+                       :metadata, :s3_video_key, :s3_video_content_type, :s3_video_size, :s3_video_duration_seconds,
+                       submission_config: {})
       end
 
       def block_json(cb)
@@ -321,6 +322,9 @@ module Api
           video_url: cb.video_url,
           solution: cb.solution,
           filename: cb.filename,
+          submission_type: cb.effective_submission_type,
+          submission_type_explicit: cb.submission_type,
+          submission_config: cb.submission_config || {},
           metadata: cb.metadata,
           s3_video_key: cb.s3_video_key,
           s3_video_content_type: cb.s3_video_content_type,

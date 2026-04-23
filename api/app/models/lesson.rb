@@ -11,6 +11,30 @@ class Lesson < ApplicationRecord
 
   scope :ordered, -> { order(:position) }
 
+  def primary_assignment_block
+    content_blocks.find(&:exercise_like?)
+  end
+
+  def completion_blocks
+    actionable_blocks = content_blocks.select { |block| block.exercise_like? || block.checkpoint? }
+    actionable_blocks.presence || content_blocks.to_a
+  end
+
+  def completion_block_ids
+    completion_blocks.map(&:id)
+  end
+
+  def effective_requires_submission(requires_github: false)
+    block = primary_assignment_block
+    return requires_submission unless block
+
+    block.review_required?(requires_github: requires_github)
+  end
+
+  def effective_submission_type(requires_github: false)
+    primary_assignment_block&.effective_submission_type(requires_github: requires_github) || "manual_complete"
+  end
+
   def unlock_date(cohort, module_assignment = nil)
     base_date = if module_assignment&.unlock_date_override.present?
                   module_assignment.unlock_date_override

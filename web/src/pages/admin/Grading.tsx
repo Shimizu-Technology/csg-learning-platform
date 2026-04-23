@@ -14,7 +14,7 @@ interface SubmissionItem {
   content_block_id: number
   user_id: number
   user_name: string
-  text: string
+  text: string | null
   grade: string | null
   feedback: string | null
   graded_by: string | null

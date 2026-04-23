@@ -28,12 +28,12 @@ export function LessonView() {
   const [loading, setLoading] = useState(true)
   const { user } = useAuthContext()
 
-  const loadLesson = useCallback(() => {
+  const loadLesson = useCallback((options?: { silent?: boolean }) => {
     if (!id) return
-    setLoading(true)
+    if (!options?.silent) setLoading(true)
     api.getLesson(Number(id)).then((res) => {
       if (res.data) setLesson(res.data.lesson)
-      setLoading(false)
+      if (!options?.silent) setLoading(false)
     })
   }, [id])
 
@@ -91,7 +91,7 @@ export function LessonView() {
             requiresGithub={lesson.requires_github}
             requiresSubmission={lesson.requires_submission}
             repositoryName={lesson.repository_name}
-            onProgressUpdate={loadLesson}
+            onProgressUpdate={() => loadLesson({ silent: true })}
           />
         ))}
       </div>

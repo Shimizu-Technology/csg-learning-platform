@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, RefreshCw, Filter, RotateCcw, Clock, Check, ChevronRight, Github, User, Keyboard } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Filter, RotateCcw, Clock, Check, ChevronRight, Github, User, Keyboard, GitBranch } from 'lucide-react'
 import { api } from '../../lib/api'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { GradeDisplay } from '../../components/shared/GradeDisplay'
@@ -31,7 +31,8 @@ interface SubmissionItem {
   user_id: number
   user_name: string
   user_email?: string
-  text: string
+  submission_type?: string | null
+  text: string | null
   grade: string | null
   feedback: string | null
   graded_by: string | null
@@ -48,6 +49,12 @@ interface SubmissionItem {
   exercise_video_url?: string
   github_issue_url?: string | null
   github_code_url?: string | null
+  repo_url?: string | null
+  pr_url?: string | null
+  live_url?: string | null
+  branch?: string | null
+  commit_sha?: string | null
+  notes?: string | null
 }
 
 interface GitHubIssueData {
@@ -71,6 +78,17 @@ interface ExerciseInfo {
   title: string
   release_day: number
   lesson_title: string
+  requires_submission: boolean
+  submission_type: string
+  submission_config?: Record<string, unknown>
+  github_sync?: boolean
+}
+
+interface ProgressItem {
+  user_id: number
+  content_block_id: number
+  status: string
+  completed_at: string | null
 }
 
 interface GradingData {
@@ -79,10 +97,64 @@ interface GradingData {
   module_id: number
   module_name: string
   requires_github: boolean
+  supports_github_sync?: boolean
   repository_name: string
   students: StudentSummary[]
   exercises: ExerciseInfo[]
+  progresses: ProgressItem[]
   submissions: SubmissionItem[]
+}
+
+function exerciseDisplayLabel(exercise: ExerciseInfo, index: number): string {
+  const rawLabel =
+    exercise.filename?.trim() ||
+    exercise.title?.trim() ||
+    exercise.lesson_title?.trim() ||
+    `Exercise ${index + 1}`
+
+  return rawLabel.length > 14 ? `${rawLabel.slice(0, 12)}…` : rawLabel
+}
+
+function renderSubmissionArtifacts(submission: SubmissionItem) {
+  const links = [
+    submission.github_code_url ? { label: 'GitHub Code', url: submission.github_code_url, icon: Github } : null,
+    submission.repo_url ? { label: 'Repository', url: submission.repo_url, icon: Github } : null,
+    submission.pr_url ? { label: 'Pull Request', url: submission.pr_url, icon: GitBranch } : null,
+    submission.live_url ? { label: 'Live URL', url: submission.live_url, icon: Keyboard } : null,
+  ].filter(Boolean) as Array<{ label: string; url: string; icon: typeof Github }>
+
+  if (links.length === 0 && !submission.branch && !submission.commit_sha && !submission.notes) return null
+
+  return (
+    <div className="space-y-3">
+      {links.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {links.map((link) => {
+            const Icon = link.icon
+            return (
+              <a
+                key={`${link.label}:${link.url}`}
+                href={sanitizeUrl(link.url)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:border-primary-200 hover:text-primary-700"
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {link.label}
+              </a>
+            )
+          })}
+        </div>
+      )}
+      {(submission.branch || submission.commit_sha || submission.notes) && (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 space-y-1">
+          {submission.branch && <p><span className="font-medium text-slate-700">Branch:</span> {submission.branch}</p>}
+          {submission.commit_sha && <p><span className="font-medium text-slate-700">Commit:</span> <span className="font-mono">{submission.commit_sha}</span></p>}
+          {submission.notes && <p className="whitespace-pre-wrap"><span className="font-medium text-slate-700">Notes:</span> {submission.notes}</p>}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function CohortModuleGrading() {
@@ -257,6 +329,33 @@ export function CohortModuleGrading() {
     return lookup
   }, [data])
 
+  const progressLookup = useMemo(() => {
+    if (!data) return new Map<string, ProgressItem>()
+    const lookup = new Map<string, ProgressItem>()
+    data.progresses.forEach((progress) => {
+      lookup.set(`${progress.user_id}:${progress.content_block_id}`, progress)
+    })
+    return lookup
+  }, [data])
+
+  const selectedStudent = useMemo(
+    () => data?.students.find((student) => student.user_id === selectedStudentId) ?? null,
+    [data, selectedStudentId]
+  )
+
+  const selectedStudentExercises = useMemo(() => {
+    if (!data || !selectedStudentId) return []
+
+    return data.exercises.map((exercise) => {
+      const key = `${selectedStudentId}:${exercise.id}`
+      return {
+        exercise,
+        submission: submissionLookup.get(key) ?? null,
+        progress: progressLookup.get(key) ?? null,
+      }
+    })
+  }, [data, selectedStudentId, submissionLookup, progressLookup])
+
   const openGridCell = async (userId: number, exerciseId: number) => {
     const key = `${userId}:${exerciseId}`
     const sub = submissionLookup.get(key)
@@ -358,7 +457,7 @@ export function CohortModuleGrading() {
           </p>
         </div>
 
-        {data.requires_github && (
+        {data.supports_github_sync && (
           <button
             onClick={handleSyncAll}
             disabled={syncing}
@@ -448,7 +547,7 @@ export function CohortModuleGrading() {
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="inline-flex items-center justify-center w-6 h-6 rounded bg-success-100 text-success-700 font-bold text-[10px]">A</span>
-                Passing (A, B, C)
+                Completed / Passing
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="inline-flex items-center justify-center w-6 h-6 rounded bg-orange-100 text-orange-600 font-bold text-[10px]">R</span>
@@ -472,7 +571,8 @@ export function CohortModuleGrading() {
             }).length, 0)
             const completed = exercises.reduce((acc, ex) => acc + data.students.filter((s) => {
               const sub = submissionLookup.get(`${s.user_id}:${ex.id}`)
-              return sub && sub.grade && sub.grade !== 'R'
+              const progress = progressLookup.get(`${s.user_id}:${ex.id}`)
+              return (sub && sub.grade && sub.grade !== 'R') || (!ex.requires_submission && progress?.status === 'completed')
             }).length, 0)
 
             return (
@@ -495,7 +595,7 @@ export function CohortModuleGrading() {
                     {completed > 0 && (
                       <span className="inline-flex items-center gap-1 text-success-600">
                         <span className="rounded-full bg-success-100 px-1.5 py-0.5 text-[10px] font-bold">{completed}</span>
-                        graded
+                        completed
                       </span>
                     )}
                   </div>
@@ -505,9 +605,9 @@ export function CohortModuleGrading() {
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50">
                         <th className="text-left px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider sticky left-0 bg-slate-50 z-10 min-w-[110px]">Student</th>
-                        {exercises.map((ex) => (
-                          <th key={ex.id} className="px-0.5 py-2 text-center min-w-[42px]" title={ex.title}>
-                            <span className="text-[10px] font-medium text-slate-500">{ex.filename}</span>
+                        {exercises.map((ex, index) => (
+                          <th key={ex.id} className="px-0.5 py-2 text-center min-w-[42px]" title={ex.title || ex.lesson_title}>
+                            <span className="text-[10px] font-medium text-slate-500">{exerciseDisplayLabel(ex, index)}</span>
                           </th>
                         ))}
                       </tr>
@@ -524,7 +624,9 @@ export function CohortModuleGrading() {
                             })()}
                           </td>
                           {exercises.map((ex) => {
-                            const sub = submissionLookup.get(`${student.user_id}:${ex.id}`)
+                            const key = `${student.user_id}:${ex.id}`
+                            const sub = submissionLookup.get(key)
+                            const progress = progressLookup.get(key)
                             let cellClass = ''
                             let label = ''
                             let title = ''
@@ -544,6 +646,20 @@ export function CohortModuleGrading() {
                                 cellClass = 'bg-success-100 text-success-700 hover:bg-success-200'
                                 label = sub.grade
                                 title = `Grade: ${sub.grade} — Click to review`
+                              }
+                            } else if (!ex.requires_submission) {
+                              if (progress?.status === 'completed') {
+                                cellClass = 'bg-success-100 text-success-700'
+                                label = '✓'
+                                title = 'Completed by student — no submission required'
+                              } else if (progress?.status === 'in_progress') {
+                                cellClass = 'bg-amber-100 text-amber-700'
+                                label = '•'
+                                title = 'In progress — no submission required'
+                              } else {
+                                cellClass = 'bg-slate-50 text-slate-300'
+                                label = '\u2014'
+                                title = 'Not done yet — no submission required'
                               }
                             } else {
                               cellClass = 'bg-slate-50 text-slate-300'
@@ -674,17 +790,9 @@ export function CohortModuleGrading() {
 
                   {gridModalTab === 'answer' && (
                     <div className="flex flex-col flex-1 min-h-0">
-                      {gridModalSubmission.github_code_url && (
-                        <a
-                          href={sanitizeUrl(gridModalSubmission.github_code_url)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-xs text-primary-600 hover:text-primary-700 mb-3 shrink-0"
-                        >
-                          <Github className="h-3.5 w-3.5" />
-                          View on GitHub
-                        </a>
-                      )}
+                      <div className="mb-3 shrink-0">
+                        {renderSubmissionArtifacts(gridModalSubmission)}
+                      </div>
                       {gridModalSubmission.text ? (
                         <div className="flex-1 min-h-0">
                           <CodeEditor
@@ -696,7 +804,7 @@ export function CohortModuleGrading() {
                           />
                         </div>
                       ) : (
-                        <p className="text-sm text-slate-400 italic">No code submitted</p>
+                        <p className="text-sm text-slate-400 italic">No inline code submitted. Use the links above to review the artifact.</p>
                       )}
                     </div>
                   )}
@@ -927,9 +1035,8 @@ export function CohortModuleGrading() {
                 </button>
               )}
 
-              {selectedStudentId && data.requires_github && (() => {
-                const student = data.students.find((s) => s.user_id === selectedStudentId)
-                if (!student?.github_username) return null
+              {selectedStudentId && data.supports_github_sync && (() => {
+                if (!selectedStudent?.github_username) return null
                 return (
                   <button
                     onClick={() => handleSyncStudent(selectedStudentId)}
@@ -937,12 +1044,83 @@ export function CohortModuleGrading() {
                     className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
                   >
                     <RefreshCw className={`h-3.5 w-3.5 ${syncingStudentId === selectedStudentId ? 'animate-spin' : ''}`} />
-                    {syncingStudentId === selectedStudentId ? 'Syncing...' : `Sync ${student.full_name || student.email}`}
+                    {syncingStudentId === selectedStudentId ? 'Syncing...' : `Sync ${selectedStudent.full_name || selectedStudent.email}`}
                   </button>
                 )
               })()}
 
-              {filteredSubmissions.length === 0 ? (
+              {viewMode === 'students' && selectedStudentId ? (
+                selectedStudentExercises.length === 0 ? (
+                  <EmptyState
+                    icon={Check}
+                    title="No exercises in this module"
+                    description="This module does not have any exercise blocks yet."
+                  />
+                ) : (
+                  selectedStudentExercises.map(({ exercise, submission, progress }) => {
+                    const clickable = Boolean(submission)
+                    const requiresSubmission = exercise.requires_submission
+                    const statusTone = submission
+                      ? selectedSubmission?.id === submission.id
+                        ? 'border-primary-300 bg-primary-50'
+                        : submission.grade === 'R'
+                          ? 'border-orange-200 bg-orange-50 hover:border-orange-300'
+                          : 'border-slate-200 bg-white hover:border-primary-200'
+                      : progress?.status === 'completed'
+                        ? 'border-success-200 bg-success-50'
+                        : 'border-slate-200 bg-white'
+
+                    return (
+                      <button
+                        key={exercise.id}
+                        onClick={() => submission && selectSubmission(submission)}
+                        disabled={!clickable}
+                        className={`w-full text-left rounded-2xl border p-4 transition-all ${statusTone} ${clickable ? '' : 'cursor-default'}`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-slate-900">{exercise.title || exercise.lesson_title}</p>
+                            <p className="mt-1 text-xs text-slate-500">{exercise.lesson_title}</p>
+                            <p className="mt-0.5 text-xs text-slate-400">
+                              {exercise.filename?.trim()
+                                ? `File: ${exercise.filename}`
+                                : requiresSubmission
+                                  ? 'Submission required'
+                                  : 'Practice block — no submission required'}
+                            </p>
+                            {submission && (
+                              <p className="mt-0.5 text-xs text-slate-400">
+                                Submission #{submission.num_submissions} · {new Date(submission.created_at).toLocaleDateString()}
+                              </p>
+                            )}
+                            {!submission && progress?.completed_at && (
+                              <p className="mt-0.5 text-xs text-slate-400">
+                                Completed {new Date(progress.completed_at).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {submission ? (
+                              submission.grade ? <GradeDisplay grade={submission.grade} size="sm" /> : (
+                                <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">Ungraded</span>
+                              )
+                            ) : requiresSubmission ? (
+                              <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">Not submitted</span>
+                            ) : progress?.status === 'completed' ? (
+                              <span className="text-xs font-medium text-success-700 bg-success-100 px-2 py-0.5 rounded-full">Completed</span>
+                            ) : progress?.status === 'in_progress' ? (
+                              <span className="text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">In progress</span>
+                            ) : (
+                              <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">Not done</span>
+                            )}
+                            {clickable && <ChevronRight className="h-4 w-4 text-slate-300" />}
+                          </div>
+                        </div>
+                      </button>
+                    )
+                  })
+                )
+              ) : filteredSubmissions.length === 0 ? (
                 <EmptyState
                   icon={Check}
                   title={selectedStudentId ? 'No submissions yet' : queueFilter === 'ungraded' ? 'All caught up!' : queueFilter === 'redo' ? 'No redo queue' : 'No submissions'}
@@ -1013,22 +1191,13 @@ export function CohortModuleGrading() {
                       <p className="text-xs text-slate-400">
                         {selectedSubmission.content_block_title} · Submission #{selectedSubmission.num_submissions}
                       </p>
-                      {selectedSubmission.github_code_url && (
-                        <a
-                          href={sanitizeUrl(selectedSubmission.github_code_url)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-1 inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700"
-                        >
-                          <Github className="h-3 w-3" />
-                          View on GitHub
-                        </a>
-                      )}
                     </div>
                     {selectedSubmission.grade ? <GradeDisplay grade={selectedSubmission.grade} size="md" /> : (
                       <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full">Ungraded</span>
                     )}
                   </div>
+
+                  {renderSubmissionArtifacts(selectedSubmission)}
 
                   {selectedSubmission.grade === 'R' && selectedSubmission.feedback && (
                     <div className="rounded-xl border border-orange-200 bg-orange-50 p-3">
@@ -1047,7 +1216,7 @@ export function CohortModuleGrading() {
                         minHeight={220}
                       />
                     ) : (
-                      <p className="text-sm text-slate-400 italic">No code submitted</p>
+                      <p className="text-sm text-slate-400 italic">No inline code submitted. Review the links and notes above.</p>
                     )}
                   </div>
 
@@ -1122,8 +1291,14 @@ export function CohortModuleGrading() {
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center min-h-[400px]">
               <div className="text-center">
                 <Check className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-                <p className="text-sm text-slate-500">Select a submission to start grading</p>
-                <p className="text-xs text-slate-400 mt-1">Or click Ungraded Queue above to start grading all</p>
+                <p className="text-sm text-slate-500">
+                  {viewMode === 'students' && selectedStudentId ? 'Select a submission to review' : 'Select a submission to start grading'}
+                </p>
+                <p className="text-xs text-slate-400 mt-1">
+                  {viewMode === 'students' && selectedStudentId
+                    ? 'Exercises without submissions still show their completion state on the left.'
+                    : 'Or click Ungraded Queue above to start grading all'}
+                </p>
               </div>
             </div>
           )}

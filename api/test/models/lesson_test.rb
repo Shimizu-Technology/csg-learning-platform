@@ -104,6 +104,21 @@ class LessonTest < ActiveSupport::TestCase
     end
   end
 
+  test "completion blocks prefer assignment-like blocks over supporting video blocks" do
+    video_block = ContentBlock.create!(lesson: @lesson, block_type: :video, position: 0, title: "Watch this")
+    exercise_block = ContentBlock.create!(lesson: @lesson, block_type: :exercise, position: 1, title: "Do this")
+
+    assert_equal [ exercise_block.id ], @lesson.completion_block_ids
+    assert_includes @lesson.content_blocks.map(&:id), video_block.id
+  end
+
+  test "completion blocks fall back to all blocks when no assignment-like block exists" do
+    video_block = ContentBlock.create!(lesson: @lesson, block_type: :video, position: 0, title: "Watch this")
+    text_block = ContentBlock.create!(lesson: @lesson, block_type: :text, position: 1, title: "Read this")
+
+    assert_equal [ video_block.id, text_block.id ], @lesson.completion_block_ids
+  end
+
   # --- validations ---
 
   test "requires title" do

@@ -18,6 +18,8 @@ interface ContentBlock {
   body: string | null
   video_url: string | null
   filename: string | null
+  submission_type?: string | null
+  submission_config?: Record<string, unknown>
   solution: string | null
   metadata: Record<string, unknown>
   s3_video_key?: string | null
@@ -30,6 +32,7 @@ interface Lesson {
   lesson_type?: string
   release_day: number
   requires_submission?: boolean
+  submission_type?: string
   content_blocks: ContentBlock[]
 }
 
@@ -49,7 +52,7 @@ export function LessonEditor() {
   const [filename, setFilename] = useState('')
   const [instructions, setInstructions] = useState('')
   const [solution, setSolution] = useState('')
-  const [requiresSubmission, setRequiresSubmission] = useState(false)
+  const [submissionType, setSubmissionType] = useState('manual_complete')
   const [s3VideoKey, setS3VideoKey] = useState<string | null>(null)
   const [videoBlockId, setVideoBlockId] = useState<number | null>(null)
 
@@ -83,8 +86,6 @@ export function LessonEditor() {
         const l = data.lesson
         setLesson(l)
         setTitle(l.title || '')
-        setRequiresSubmission(l.requires_submission ?? false)
-
         const videoBlock = l.content_blocks.find(b => b.block_type === 'video' || b.block_type === 'recording')
         if (videoBlock) {
           setVideoUrl(videoBlock.video_url || '')
@@ -97,6 +98,7 @@ export function LessonEditor() {
           setFilename(exerciseBlock.filename || '')
           setInstructions(exerciseBlock.body || '')
           setSolution(exerciseBlock.solution || '')
+          setSubmissionType(exerciseBlock.submission_type || l.submission_type || (l.requires_submission ? 'text_submission' : 'manual_complete'))
         }
       }
       setLoading(false)
@@ -119,7 +121,7 @@ export function LessonEditor() {
     try {
       const lessonRes = await api.updateLesson(lesson.id, {
         title: title.trim(),
-        requires_submission: requiresSubmission,
+        requires_submission: submissionType !== 'manual_complete',
       })
       if (lessonRes.error) {
         setSaveError(lessonRes.error)
@@ -163,6 +165,7 @@ export function LessonEditor() {
           body: instructions.trim() || null,
           solution: solution.trim() || null,
           filename: filename.trim() || null,
+          submission_type: submissionType,
         })
         if (eRes.error) { setSaveError(eRes.error); setSaving(false); return }
       } else if (instructions.trim() || filename.trim()) {
@@ -173,6 +176,7 @@ export function LessonEditor() {
           body: instructions.trim() || undefined,
           solution: solution.trim() || undefined,
           filename: filename.trim() || undefined,
+          submission_type: submissionType,
         })
         if (eRes.error) { setSaveError(eRes.error); setSaving(false); return }
       }
@@ -189,6 +193,8 @@ export function LessonEditor() {
           setVideoBlockId(refreshedVideo.id)
           setS3VideoKey(resolveS3Key(refreshedVideo.id, refreshedVideo.s3_video_key ?? null))
         }
+        const refreshedExercise = data.lesson.content_blocks.find(b => b.block_type === 'exercise' || b.block_type === 'code_challenge')
+        if (refreshedExercise?.submission_type) setSubmissionType(refreshedExercise.submission_type)
       }
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Save failed')
@@ -234,6 +240,7 @@ export function LessonEditor() {
         body: instructions.trim() || null,
         video_url: null,
         filename: filename.trim() || null,
+        submission_type: submissionType,
         solution: null,
         metadata: {},
       })
@@ -341,7 +348,6 @@ export function LessonEditor() {
                 key={block.id}
                 block={block as any}
                 isStaff={false}
-                requiresSubmission={requiresSubmission}
               />
             ))}
           </div>
@@ -392,17 +398,27 @@ export function LessonEditor() {
                 <p className="text-[11px] text-slate-400 mt-1">Leave blank if no submission</p>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">&nbsp;</label>
-                <label className="flex items-center gap-2.5 rounded-lg border border-slate-200 px-3 py-2.5 cursor-pointer hover:bg-slate-50 transition-colors h-[42px]">
-                  <input
-                    type="checkbox"
-                    checked={requiresSubmission}
-                    onChange={e => setRequiresSubmission(e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                  />
-                  <span className="text-sm text-slate-700">Requires submission</span>
-                </label>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Submission Type</label>
+                <select
+                  value={submissionType}
+                  onChange={e => setSubmissionType(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="manual_complete">Practice only</option>
+                  <option value="text_submission">Text/code submission</option>
+                  <option value="prework_github_sync">GitHub filename sync</option>
+                  <option value="repo_url_submission">Repository submission</option>
+                  <option value="repo_and_live_url_submission">Repo + live URL submission</option>
+                </select>
               </div>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+              {submissionType === 'manual_complete' && 'Students mark this complete themselves. This is ideal for daily practice.'}
+              {submissionType === 'text_submission' && 'Students submit code/text directly in the platform for grading.'}
+              {submissionType === 'prework_github_sync' && 'Use this only for the filename-based prework GitHub sync flow.'}
+              {submissionType === 'repo_url_submission' && 'Students submit a repository URL and optional notes. Extra Git details stay available only when needed.'}
+              {submissionType === 'repo_and_live_url_submission' && 'Students submit a repository URL and a live deployed URL. Notes stay optional.'}
             </div>
 
             <AdminVideoPreview

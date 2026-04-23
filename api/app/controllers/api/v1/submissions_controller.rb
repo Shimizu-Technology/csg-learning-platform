@@ -45,7 +45,26 @@ module Api
         authorize_content_block_write!(content_block)
         return if performed?
 
+        submission_type = effective_submission_type_for(content_block)
+
+        if submission_type == "manual_complete"
+          render json: { errors: [ "This block does not accept submissions" ] }, status: :unprocessable_entity
+          return
+        end
+
+        if submission_type == "prework_github_sync"
+          render json: { errors: [ "This block is reviewed through GitHub sync, not manual submission" ] }, status: :unprocessable_entity
+          return
+        end
+
+        validation_error = validate_submission_payload(submission_type)
+        if validation_error
+          render json: { errors: [ validation_error ] }, status: :unprocessable_entity
+          return
+        end
+
         submission = current_user.submissions.new(submission_params)
+        submission.submission_type = submission_type
 
         # Check if resubmission
         existing = Submission.where(user: current_user, content_block_id: submission.content_block_id).order(:created_at).last
@@ -54,10 +73,8 @@ module Api
         end
 
         if submission.save
-          # Auto-mark content block as in_progress
-          Progress.find_or_create_by(user: current_user, content_block_id: submission.content_block_id) do |p|
-            p.status = :in_progress
-          end
+          progress = Progress.find_or_initialize_by(user: current_user, content_block_id: submission.content_block_id)
+          progress.update!(status: :completed)
 
           render json: { submission: submission_json(submission) }, status: :created
         else
@@ -99,6 +116,12 @@ module Api
           )
           progress.update!(status: :completed)
         else
+          progress = Progress.find_or_initialize_by(
+            user_id: @submission.user_id,
+            content_block_id: @submission.content_block_id
+          )
+          progress.update!(status: :in_progress)
+
           NotificationEmailService.send_redo_notification(
             user: @submission.user,
             submission: @submission,
@@ -161,19 +184,23 @@ module Api
       end
 
       def submission_params
-        params.permit(:content_block_id, :text, :github_issue_url, :github_code_url)
+        params.permit(:content_block_id, :text, :github_issue_url, :github_code_url, :repo_url, :pr_url,
+                      :live_url, :branch, :commit_sha, :notes)
       end
 
       def submission_update_params
-        params.permit(:text, :github_issue_url, :github_code_url)
+        params.permit(:text, :github_issue_url, :github_code_url, :repo_url, :pr_url, :live_url, :branch,
+                      :commit_sha, :notes)
       end
 
       def submission_json(submission, include_solution: false)
+        submission_type = submission.submission_type.presence || submission.content_block.effective_submission_type
         json = {
           id: submission.id,
           content_block_id: submission.content_block_id,
           user_id: submission.user_id,
           user_name: submission.user.full_name,
+          submission_type: submission_type,
           text: submission.text,
           grade: submission.grade,
           feedback: submission.feedback,
@@ -181,6 +208,12 @@ module Api
           graded_at: submission.graded_at,
           github_issue_url: submission.github_issue_url,
           github_code_url: submission.github_code_url,
+          repo_url: submission.repo_url,
+          pr_url: submission.pr_url,
+          live_url: submission.live_url,
+          branch: submission.branch,
+          commit_sha: submission.commit_sha,
+          notes: submission.notes,
           num_submissions: submission.num_submissions,
           created_at: submission.created_at,
           content_block_title: submission.content_block.title,
@@ -197,6 +230,28 @@ module Api
         end
 
         json
+      end
+
+      def effective_submission_type_for(content_block)
+        lesson = content_block.lesson
+        enrollment = current_user.enrollments.active
+          .joins(:cohort)
+          .find_by(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
+        mod_gh = enrollment ? ((enrollment.cohort.settings || {}).dig("module_github_config", lesson.module_id.to_s) || {}) : {}
+
+        content_block.effective_submission_type(requires_github: mod_gh["requires_github"] || false)
+      end
+
+      def validate_submission_payload(submission_type)
+        case submission_type
+        when "text_submission"
+          "Submission text is required" if params[:text].to_s.strip.blank?
+        when "repo_url_submission"
+          "Repository URL is required" if params[:repo_url].to_s.strip.blank?
+        when "repo_and_live_url_submission"
+          return "Repository URL is required" if params[:repo_url].to_s.strip.blank?
+          return "Live URL is required" if params[:live_url].to_s.strip.blank?
+        end
       end
     end
   end

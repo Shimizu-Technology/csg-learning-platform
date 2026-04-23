@@ -24,6 +24,7 @@ interface Lesson {
   position: number
   release_day: number
   requires_submission?: boolean
+  submission_type?: string
   content_blocks_count: number
 }
 
@@ -443,9 +444,15 @@ function ModuleSection({
                               >
                                 <Code className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                                 <p className="text-sm text-slate-700 flex-1 min-w-0 truncate">{lesson.title}</p>
-                                {lesson.requires_submission && (
+                                {lesson.submission_type && lesson.submission_type !== 'manual_complete' && (
                                   <span className="text-[10px] font-medium text-primary-500 bg-primary-50 rounded px-1.5 py-0.5 shrink-0">
-                                    submit
+                                    {lesson.submission_type === 'prework_github_sync'
+                                      ? 'github'
+                                      : lesson.submission_type === 'repo_and_live_url_submission'
+                                        ? 'repo+live'
+                                        : lesson.submission_type === 'repo_url_submission'
+                                          ? 'repo'
+                                          : 'submit'}
                                   </span>
                                 )}
                                 {hasFilename && (
