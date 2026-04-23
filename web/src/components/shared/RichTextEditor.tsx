@@ -4,6 +4,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
 import { marked } from 'marked'
+import { sanitizeUrl } from '../../lib/sanitizeUrl'
 
 function isHtml(str: string): boolean {
   if (!str) return false
@@ -116,7 +117,13 @@ export function RichTextEditor({
       return
     }
 
-    editor.chain().focus().extendMarkRange('link').setLink({ href: href.trim() }).run()
+    const sanitizedHref = sanitizeUrl(href.trim())
+    if (sanitizedHref === '#') {
+      window.alert('Please enter a valid http, https, or mailto link.')
+      return
+    }
+
+    editor.chain().focus().extendMarkRange('link').setLink({ href: sanitizedHref }).run()
   }
 
   return (

@@ -6,6 +6,7 @@ import { GradeDisplay } from './GradeDisplay'
 import { CodeEditor, detectLanguage } from './CodeEditor'
 import { VideoPlayer } from './VideoPlayer'
 import { api } from '../../lib/api'
+import { sanitizeUrl } from '../../lib/sanitizeUrl'
 
 interface ContentBlock {
   id: number
@@ -259,28 +260,28 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
         {(sub.github_code_url || sub.repo_url || sub.pr_url || sub.live_url) && (
           <div className="flex flex-wrap gap-2">
             {sub.github_code_url && (
-              <a href={sub.github_code_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 hover:border-primary-200 hover:text-primary-600">
+              <a href={sanitizeUrl(sub.github_code_url)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 hover:border-primary-200 hover:text-primary-600">
                 <Code className="h-3 w-3" />
                 GitHub Code
                 <ExternalLink className="h-3 w-3" />
               </a>
             )}
             {sub.repo_url && (
-              <a href={sub.repo_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 hover:border-primary-200 hover:text-primary-600">
+              <a href={sanitizeUrl(sub.repo_url)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 hover:border-primary-200 hover:text-primary-600">
                 <Code className="h-3 w-3" />
                 Repo
                 <ExternalLink className="h-3 w-3" />
               </a>
             )}
             {sub.pr_url && (
-              <a href={sub.pr_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 hover:border-primary-200 hover:text-primary-600">
+              <a href={sanitizeUrl(sub.pr_url)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 hover:border-primary-200 hover:text-primary-600">
                 <GitBranch className="h-3 w-3" />
                 PR
                 <ExternalLink className="h-3 w-3" />
               </a>
             )}
             {sub.live_url && (
-              <a href={sub.live_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 hover:border-primary-200 hover:text-primary-600">
+              <a href={sanitizeUrl(sub.live_url)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 hover:border-primary-200 hover:text-primary-600">
                 <Globe className="h-3 w-3" />
                 Live
                 <ExternalLink className="h-3 w-3" />
@@ -395,7 +396,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
               }
               return (
                 <div className="flex items-center justify-center h-full text-slate-400">
-                  <a href={block.video_url!} target="_blank" rel="noopener noreferrer" className="text-primary-500 hover:underline">
+                  <a href={sanitizeUrl(block.video_url!)} target="_blank" rel="noopener noreferrer" className="text-primary-500 hover:underline">
                     Open video
                   </a>
                 </div>
