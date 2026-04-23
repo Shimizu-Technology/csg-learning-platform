@@ -36,7 +36,8 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
       position: 0,
       title: "Exercise 1",
       body: "Instructions",
-      solution: "secret solution"
+      solution: "secret solution",
+      submission_type: :text_submission
     )
     ContentBlock.create!(
       lesson: @future_lesson,

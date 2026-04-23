@@ -24,7 +24,7 @@ class GithubSyncService
       .where(lessons: { module_id: curriculum_module.id })
       .where(block_type: [ :exercise, :code_challenge ])
       .where.not(filename: [ nil, "" ])
-      .includes(:lesson)
+      .includes(lesson: :curriculum_module)
       .to_a
       .select { |block| block.github_sync_submission?(requires_github: true) }
 

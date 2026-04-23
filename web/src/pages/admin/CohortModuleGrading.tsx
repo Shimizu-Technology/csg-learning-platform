@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, RefreshCw, Filter, RotateCcw, Clock, Check, ChevronRight, Github, User, Keyboard, GitBranch } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Filter, RotateCcw, Clock, Check, ChevronRight, Github, User, Globe, GitBranch, Keyboard } from 'lucide-react'
 import { api } from '../../lib/api'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { GradeDisplay } from '../../components/shared/GradeDisplay'
@@ -120,7 +120,7 @@ function renderSubmissionArtifacts(submission: SubmissionItem) {
     submission.github_code_url ? { label: 'GitHub Code', url: submission.github_code_url, icon: Github } : null,
     submission.repo_url ? { label: 'Repository', url: submission.repo_url, icon: Github } : null,
     submission.pr_url ? { label: 'Pull Request', url: submission.pr_url, icon: GitBranch } : null,
-    submission.live_url ? { label: 'Live URL', url: submission.live_url, icon: Keyboard } : null,
+    submission.live_url ? { label: 'Live URL', url: submission.live_url, icon: Globe } : null,
   ].filter(Boolean) as Array<{ label: string; url: string; icon: typeof Github }>
 
   if (links.length === 0 && !submission.branch && !submission.commit_sha && !submission.notes) return null

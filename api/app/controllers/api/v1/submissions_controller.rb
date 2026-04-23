@@ -7,7 +7,7 @@ module Api
 
       # GET /api/v1/submissions
       def index
-        submissions = Submission.includes(:user, { content_block: :lesson }, :grader)
+        submissions = Submission.includes(:user, { content_block: { lesson: :curriculum_module } }, :grader)
 
         # Staff can filter by any student; students can only see themselves.
         if current_user.staff?
@@ -249,8 +249,11 @@ module Api
         when "repo_url_submission"
           "Repository URL is required" if params[:repo_url].to_s.strip.blank?
         when "repo_and_live_url_submission"
-          return "Repository URL is required" if params[:repo_url].to_s.strip.blank?
-          return "Live URL is required" if params[:live_url].to_s.strip.blank?
+          if params[:repo_url].to_s.strip.blank?
+            "Repository URL is required"
+          elsif params[:live_url].to_s.strip.blank?
+            "Live URL is required"
+          end
         end
       end
     end

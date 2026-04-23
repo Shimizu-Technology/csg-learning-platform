@@ -1,6 +1,7 @@
 class AddSubmissionTypesAndArtifacts < ActiveRecord::Migration[8.1]
   def change
     add_column :content_blocks, :submission_type, :integer
+    # Reserved for per-submission-mode options the API already exposes to the editor/grading UI.
     add_column :content_blocks, :submission_config, :jsonb, default: {}, null: false
 
     add_column :submissions, :submission_type, :integer

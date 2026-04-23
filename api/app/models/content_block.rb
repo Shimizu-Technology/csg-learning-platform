@@ -49,8 +49,8 @@ class ContentBlock < ApplicationRecord
   def legacy_submission_type(requires_github: false)
     return "manual_complete" unless exercise_like?
     return "prework_github_sync" if requires_github && filename.present?
-    return "prework_github_sync" if lesson&.curriculum_module&.prework? && filename.present? && !lesson&.requires_submission?
     return "text_submission" if lesson&.requires_submission?
+    return "prework_github_sync" if filename.present? && lesson&.curriculum_module&.prework?
 
     "manual_complete"
   end

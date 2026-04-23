@@ -12,12 +12,12 @@ module Api
         exercise_blocks = ContentBlock.joins(:lesson)
           .where(lessons: { module_id: @curriculum_module.id })
           .where(block_type: [ :exercise, :code_challenge ])
-          .includes(:lesson)
+          .includes(lesson: :curriculum_module)
           .order("lessons.release_day ASC, lessons.position ASC, content_blocks.position ASC")
           .to_a
         block_ids = exercise_blocks.map(&:id)
 
-        submissions = Submission.includes(:user, { content_block: :lesson }, :grader)
+        submissions = Submission.includes(:user, { content_block: { lesson: :curriculum_module } }, :grader)
           .where(user_id: student_ids, content_block_id: block_ids)
           .order(created_at: :desc)
         progress_records = Progress.where(user_id: student_ids, content_block_id: block_ids)

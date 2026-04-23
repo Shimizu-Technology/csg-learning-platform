@@ -9,7 +9,7 @@ module Api
 
       # GET /api/v1/modules/:module_id/lessons
       def index
-        lessons = @module.lessons.includes(:content_blocks)
+        lessons = @module.lessons.includes(:curriculum_module, :content_blocks)
         render json: {
           lessons: lessons.map { |l| lesson_json(l) }
         }
@@ -173,8 +173,6 @@ module Api
           position: lesson.position,
           release_day: lesson.release_day,
           required: lesson.required,
-          requires_submission: lesson.effective_requires_submission,
-          submission_type: lesson.effective_submission_type,
           content_blocks_count: lesson.content_blocks.size
         }
 
