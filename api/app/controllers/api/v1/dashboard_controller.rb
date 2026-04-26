@@ -113,23 +113,15 @@ module Api
           .includes(:cohort, :author)
           .where(audience: :cohort, cohort_id: cohort.id)
           .or(Announcement.visible_for(current_user).includes(:cohort, :author).where(audience: :global))
-        notification_join = ActiveRecord::Base.send(
-          :sanitize_sql_array,
-          [
-            <<~SQL.squish,
-              LEFT OUTER JOIN notifications announcement_notifications
-                ON announcement_notifications.notifiable_type = 'Announcement'
-               AND announcement_notifications.notifiable_id = announcements.id
-               AND announcement_notifications.user_id = ?
-               AND announcement_notifications.notification_type = ?
-            SQL
+        visible_announcements = announcement_scope
+          .left_outer_joins(:notifications)
+          .where(
+            "announcements.pinned = ? OR (notifications.user_id = ? AND notifications.notification_type = ? AND notifications.read_at IS NULL)",
+            true,
             current_user.id,
             Notification.notification_types[:announcement]
-          ]
-        )
-        visible_announcements = announcement_scope
-          .joins(notification_join)
-          .where("announcements.pinned = ? OR announcement_notifications.read_at IS NULL", true)
+          )
+          .distinct
           .ordered
           .limit(5)
           .to_a

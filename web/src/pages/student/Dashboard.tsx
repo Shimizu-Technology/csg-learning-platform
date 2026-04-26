@@ -21,7 +21,7 @@ interface DashboardData {
       title: string
       body: string
       pinned: boolean
-      published_at: string
+      published_at?: string | null
       read_at?: string | null
       cohort_name?: string | null
       author?: {
@@ -69,6 +69,11 @@ export function Dashboard() {
   const navigate = useNavigate()
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
+
+  const announcementTimestamp = (dateStr?: string | null) => {
+    if (!dateStr) return 0
+    return new Date(dateStr).getTime()
+  }
 
   useEffect(() => {
     if (user?.is_staff) {
@@ -198,7 +203,7 @@ export function Dashboard() {
           </div>
           {data.cohort.announcements
             .slice()
-            .sort((a, b) => Number(b.pinned) - Number(a.pinned) || new Date(b.published_at).getTime() - new Date(a.published_at).getTime())
+            .sort((a, b) => Number(b.pinned) - Number(a.pinned) || announcementTimestamp(b.published_at) - announcementTimestamp(a.published_at))
             .map((announcement, idx) => (
               <Link key={`${announcement.published_at}-${idx}`} to={`/announcements/${announcement.id}`} className={`block rounded-xl border px-4 py-3 ${announcement.pinned ? 'border-primary-200 bg-primary-50' : 'border-slate-200 bg-slate-50'} hover:border-primary-200`}>
                 <div className="flex items-center gap-2">
