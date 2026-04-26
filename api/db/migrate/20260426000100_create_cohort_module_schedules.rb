@@ -36,6 +36,8 @@ class CreateCohortModuleSchedules < ActiveRecord::Migration[8.1]
               enrollments: { cohort_id: cohort.id },
               module_id: curriculum_module.id
             )
+          next unless assignment_scope.exists?
+
           shared_override_dates = assignment_scope.where.not(unlock_date_override: nil).distinct.pluck(:unlock_date_override)
           start_date = if shared_override_dates.one?
             shared_override_dates.first
@@ -58,9 +60,8 @@ class CreateCohortModuleSchedules < ActiveRecord::Migration[8.1]
   end
 
   def down
-    remove_index :cohort_module_schedules, [ :cohort_id, :module_id ]
-    remove_foreign_key :cohort_module_schedules, column: :module_id
-    drop_table :cohort_module_schedules
+    raise ActiveRecord::IrreversibleMigration,
+      "Cannot reconstruct per-enrollment unlock_date_override values after consolidating them into cohort_module_schedules"
   end
 
   private
