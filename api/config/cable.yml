@@ -5,4 +5,5 @@ test:
   adapter: test
 
 production:
-  adapter: async
+  adapter: postgresql
+  channel_prefix: csg_learning_platform_production

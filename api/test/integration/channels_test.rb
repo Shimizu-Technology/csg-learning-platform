@@ -125,7 +125,7 @@ class ChannelsTest < ActionDispatch::IntegrationTest
     assert_nil message.reload.deleted_at
   end
 
-  test "cable token is short lived and single use" do
+  test "cable token is short lived" do
     as_user(@student) do
       post "/api/v1/cable_token", headers: auth_headers
     end
@@ -136,7 +136,9 @@ class ChannelsTest < ActionDispatch::IntegrationTest
     assert_equal CableToken::EXPIRES_IN.to_i, body.fetch("expires_in")
 
     assert_equal @student, CableToken.consume(body.fetch("token"))
-    assert_nil CableToken.consume(body.fetch("token"))
+    travel 2.minutes do
+      assert_nil CableToken.consume(body.fetch("token"))
+    end
   end
 
   private

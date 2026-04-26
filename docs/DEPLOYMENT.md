@@ -182,7 +182,7 @@ After first deployment or major changes:
 
 1. Check browser console for errors
 2. Verify `VITE_API_URL` points to correct API
-3. Verify `VITE_CLERK_PUBLISHABLE_KEY` is set (or intentionally omitted for no-auth mode)
+3. Verify `VITE_CLERK_PUBLISHABLE_KEY` is set
 4. Check Netlify deploy logs for build errors
 
 ### CORS errors

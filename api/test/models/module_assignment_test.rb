@@ -22,9 +22,14 @@ class ModuleAssignmentTest < ActiveSupport::TestCase
     assert ma.accessible?
   end
 
-  test "accessible? returns false when unlocked is false and no override" do
+  test "accessible? follows the cohort module schedule when unlocked is false" do
     ma = ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @mod, unlocked: false)
-    refute ma.accessible?
+    travel_to Date.new(2026, 4, 5) do
+      refute ma.accessible?
+    end
+    travel_to Date.new(2026, 4, 6) do
+      assert ma.accessible?
+    end
   end
 
   test "accessible? returns true when override date is in the past" do
@@ -47,11 +52,27 @@ class ModuleAssignmentTest < ActiveSupport::TestCase
     end
   end
 
+  test "accessible? uses explicit cohort module start dates when present" do
+    CohortModuleSchedule.create!(cohort: @cohort, curriculum_module: @mod, start_date: Date.new(2026, 4, 20))
+    ma = ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @mod, unlocked: false)
+
+    travel_to Date.new(2026, 4, 19) do
+      refute ma.accessible?
+    end
+
+    travel_to Date.new(2026, 4, 20) do
+      assert ma.accessible?
+    end
+  end
+
   # --- available_for? ---
 
   test "available_for? returns false when not accessible" do
+    CohortModuleSchedule.create!(cohort: @cohort, curriculum_module: @mod, start_date: Date.new(2026, 4, 20))
     ma = ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @mod, unlocked: false)
-    refute ma.available_for?(@cohort)
+    travel_to Date.new(2026, 4, 6) do
+      refute ma.available_for?(@cohort)
+    end
   end
 
   test "available_for? returns true when accessible and module has no lessons" do
@@ -64,7 +85,7 @@ class ModuleAssignmentTest < ActiveSupport::TestCase
 
   test "available_for? returns true when at least one lesson is available" do
     Lesson.create!(curriculum_module: @mod, title: "Available", position: 0, release_day: 0)
-    Lesson.create!(curriculum_module: @mod, title: "Locked", position: 1, release_day: 999)
+    Lesson.create!(curriculum_module: @mod, title: "Locked", position: 1, release_day: 998)
     ma = ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @mod, unlocked: true)
     travel_to Date.new(2026, 4, 6) do
       assert ma.available_for?(@cohort)
@@ -72,8 +93,8 @@ class ModuleAssignmentTest < ActiveSupport::TestCase
   end
 
   test "available_for? returns false when all lessons are locked" do
-    Lesson.create!(curriculum_module: @mod, title: "Future 1", position: 0, release_day: 999)
-    Lesson.create!(curriculum_module: @mod, title: "Future 2", position: 1, release_day: 999)
+    Lesson.create!(curriculum_module: @mod, title: "Future 1", position: 0, release_day: 998)
+    Lesson.create!(curriculum_module: @mod, title: "Future 2", position: 1, release_day: 998)
     ma = ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @mod, unlocked: true)
     travel_to Date.new(2026, 4, 6) do
       refute ma.available_for?(@cohort)
@@ -91,7 +112,7 @@ class ModuleAssignmentTest < ActiveSupport::TestCase
   end
 
   test "next_unlock_date returns earliest unlock date across lessons" do
-    Lesson.create!(curriculum_module: @mod, title: "Day 5", position: 0, release_day: 5)
+    Lesson.create!(curriculum_module: @mod, title: "Day 4", position: 0, release_day: 4)
     Lesson.create!(curriculum_module: @mod, title: "Day 2", position: 1, release_day: 2)
     Lesson.create!(curriculum_module: @mod, title: "Day 8", position: 2, release_day: 8)
     ma = ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @mod, unlocked: true)

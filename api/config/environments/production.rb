@@ -43,8 +43,10 @@ Rails.application.configure do
   # Replace the default in-process memory cache store with a durable alternative.
   config.cache_store = :memory_store
 
-  # Use async (in-process threaded) queue adapter — no external queue DB needed.
-  config.active_job.queue_adapter = :async
+  # Inline delivery is slower than a real background queue, but it is durable
+  # on a single-service deployment and avoids losing invite/push jobs on deploys
+  # or process restarts while we stay intentionally light on infrastructure.
+  config.active_job.queue_adapter = ENV.fetch("ACTIVE_JOB_QUEUE_ADAPTER", "inline").to_sym
 
   config.action_cable.allowed_request_origins = ENV.fetch("ALLOWED_ORIGINS", ENV.fetch("FRONTEND_URL", "")).split(",").map(&:strip).reject(&:blank?)
 

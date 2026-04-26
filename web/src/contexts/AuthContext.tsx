@@ -9,7 +9,6 @@ import type { User } from '../types/api'
 type UserData = User
 
 interface AuthContextType {
-  isClerkEnabled: boolean
   isSignedIn: boolean
   isLoading: boolean
   user: UserData | null
@@ -17,7 +16,6 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType>({
-  isClerkEnabled: false,
   isSignedIn: false,
   isLoading: true,
   user: null,
@@ -81,7 +79,6 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider
       value={{
-        isClerkEnabled: true,
         isSignedIn: isSignedIn ?? false,
         isLoading: !isLoaded || isLoading,
         user,
@@ -93,47 +90,6 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
   )
 }
 
-function NoAuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<UserData | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-
-  const syncSession = useCallback(async () => {
-    try {
-      const res = await api.createSession()
-      if (res.data?.user) setUser(res.data.user)
-    } catch (err) {
-      console.error('Dev session sync failed:', err)
-    }
-  }, [])
-
-  useEffect(() => {
-    setAuthTokenGetter(async () => 'dev_bypass_token')
-    syncSession().finally(() => setIsLoading(false))
-  }, [syncSession])
-
-  return (
-    <AuthContext.Provider
-      value={{
-        isClerkEnabled: false,
-        isSignedIn: !!user,
-        isLoading,
-        user,
-        syncSession,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  )
-}
-
-interface AuthProviderProps {
-  children: ReactNode
-  isClerkEnabled: boolean
-}
-
-export function AuthProvider({ children, isClerkEnabled }: AuthProviderProps) {
-  if (isClerkEnabled) {
-    return <ClerkAuthProvider>{children}</ClerkAuthProvider>
-  }
-  return <NoAuthProvider>{children}</NoAuthProvider>
+export function AuthProvider({ children }: { children: ReactNode }) {
+  return <ClerkAuthProvider>{children}</ClerkAuthProvider>
 }

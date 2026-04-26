@@ -69,6 +69,7 @@ class EnrollmentsAndModuleAccessTest < ActionDispatch::IntegrationTest
     enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
     ma = ModuleAssignment.create!(enrollment: enrollment, curriculum_module: @mod1, unlocked: true)
     LessonAssignment.create!(enrollment: enrollment, lesson: @lesson1, unlocked: true)
+    CohortModuleSchedule.create!(cohort: @cohort, curriculum_module: @mod1, start_date: Date.current)
 
     as_user(@admin) do
       patch "/api/v1/cohorts/#{@cohort.id}/module_access",
@@ -79,6 +80,7 @@ class EnrollmentsAndModuleAccessTest < ActionDispatch::IntegrationTest
     assert_response :success
     refute ModuleAssignment.exists?(id: ma.id)
     refute LessonAssignment.exists?(enrollment: enrollment, lesson: @lesson1)
+    refute CohortModuleSchedule.exists?(cohort: @cohort, curriculum_module: @mod1)
   end
 
   test "module_access with assigned: true creates assignments for all active enrollments" do
@@ -94,6 +96,22 @@ class EnrollmentsAndModuleAccessTest < ActionDispatch::IntegrationTest
     ma = ModuleAssignment.find_by(enrollment: enrollment, module_id: @mod1.id)
     assert_not_nil ma
     assert ma.unlocked?
+    assert_equal Date.current, CohortModuleSchedule.find_by!(cohort: @cohort, curriculum_module: @mod1).start_date
+  end
+
+  test "module_access stores explicit cohort module start dates" do
+    enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+
+    as_user(@admin) do
+      patch "/api/v1/cohorts/#{@cohort.id}/module_access",
+        params: { module_id: @mod1.id, assigned: true, module_start_date: "2026-05-03", unlocked: false },
+        headers: auth_headers, as: :json
+    end
+
+    assert_response :success
+    ma = ModuleAssignment.find_by!(enrollment: enrollment, module_id: @mod1.id)
+    refute ma.unlocked?
+    assert_equal Date.new(2026, 5, 3), CohortModuleSchedule.find_by!(cohort: @cohort, curriculum_module: @mod1).start_date
   end
 
   test "student cannot create enrollments" do

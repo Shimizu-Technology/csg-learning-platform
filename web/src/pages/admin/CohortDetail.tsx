@@ -60,7 +60,8 @@ type CohortData = Record<string, any> & {
     assigned: boolean
     unlocked_count: number
     accessible_count: number
-    unlock_date_overrides: string[]
+    module_start_date: string
+    uses_default_start_date: boolean
     requires_github?: boolean
     repository_name?: string | null
   }>
@@ -80,7 +81,7 @@ export function CohortDetail() {
   const [savingAnnouncements, setSavingAnnouncements] = useState(false)
   const [savingRecordings, setSavingRecordings] = useState(false)
   const [savingResources, setSavingResources] = useState(false)
-  const [forms, setForms] = useState<Record<number, { unlocked: boolean; unlock_date_override: string; requires_github: boolean; repository_name: string }>>({})
+  const [forms, setForms] = useState<Record<number, { unlocked: boolean; module_start_date: string; requires_github: boolean; repository_name: string }>>({})
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [recordings, setRecordings] = useState<Recording[]>([])
   const [classResources, setClassResources] = useState<ClassResource[]>([])
@@ -98,6 +99,7 @@ export function CohortDetail() {
   const [showAddModule, setShowAddModule] = useState(false)
   const [newModuleName, setNewModuleName] = useState('')
   const [newModuleType, setNewModuleType] = useState('prework')
+  const [newModuleScheduleDays, setNewModuleScheduleDays] = useState('weekdays')
   const [addingModule, setAddingModule] = useState(false)
 
   useEffect(() => {
@@ -110,11 +112,11 @@ export function CohortDetail() {
         setRecordings(nextCohort.recordings || [])
         setClassResources(nextCohort.class_resources || [])
         setEditStartDate(toDateInputValue(nextCohort.start_date))
-        const nextForms: Record<number, { unlocked: boolean; unlock_date_override: string; requires_github: boolean; repository_name: string }> = {}
+        const nextForms: Record<number, { unlocked: boolean; module_start_date: string; requires_github: boolean; repository_name: string }> = {}
         nextCohort.modules.forEach((mod: CohortData['modules'][0]) => {
           nextForms[mod.id] = {
             unlocked: mod.assigned && (nextCohort.active_count > 0 ? mod.unlocked_count === nextCohort.active_count : false),
-            unlock_date_override: toDateInputValue(mod.unlock_date_overrides?.[0] || ''),
+            module_start_date: toDateInputValue(mod.module_start_date),
             requires_github: mod.requires_github || false,
             repository_name: mod.repository_name || '',
           }
@@ -134,7 +136,7 @@ export function CohortDetail() {
       setMessage(res.error)
     } else if (res.data?.cohort) {
       setCohort(res.data.cohort)
-      setMessage('Start date updated — exercise unlock schedule recalculated')
+      setMessage('Cohort start date updated')
     }
     setSavingStartDate(false)
   }
@@ -196,7 +198,7 @@ export function CohortDetail() {
     setResendingInviteFor(null)
   }
 
-  const updateForm = (moduleId: number, patch: Partial<{ unlocked: boolean; unlock_date_override: string; requires_github: boolean; repository_name: string }>) => {
+  const updateForm = (moduleId: number, patch: Partial<{ unlocked: boolean; module_start_date: string; requires_github: boolean; repository_name: string }>) => {
     setForms((prev) => ({
       ...prev,
       [moduleId]: {
@@ -217,7 +219,7 @@ export function CohortDetail() {
       module_id: moduleId,
       assigned: true,
       unlocked: form.unlocked,
-      unlock_date_override: form.unlock_date_override || null,
+      module_start_date: form.module_start_date || null,
       requires_github: form.requires_github,
       repository_name: form.repository_name,
     })
@@ -231,11 +233,11 @@ export function CohortDetail() {
     const nextCohort = res.data?.cohort
     if (nextCohort) {
       setCohort(nextCohort)
-      const nextForms: Record<number, { unlocked: boolean; unlock_date_override: string; requires_github: boolean; repository_name: string }> = {}
+      const nextForms: Record<number, { unlocked: boolean; module_start_date: string; requires_github: boolean; repository_name: string }> = {}
       nextCohort.modules.forEach((mod: CohortData['modules'][0]) => {
         nextForms[mod.id] = {
           unlocked: mod.assigned && (nextCohort.active_count > 0 ? mod.unlocked_count === nextCohort.active_count : false),
-          unlock_date_override: toDateInputValue(mod.unlock_date_overrides?.[0] || ''),
+          module_start_date: toDateInputValue(mod.module_start_date),
           requires_github: mod.requires_github || false,
           repository_name: mod.repository_name || '',
         }
@@ -322,6 +324,7 @@ export function CohortDetail() {
       name: newModuleName.trim(),
       module_type: newModuleType,
       position,
+      schedule_days: newModuleScheduleDays,
     })
     if (res.error) {
       setMessage(`Failed to create module: ${res.error}`)
@@ -333,11 +336,11 @@ export function CohortDetail() {
     const nextCohort = cohortRes.data?.cohort
     if (nextCohort) {
       setCohort(nextCohort)
-      const nextForms: Record<number, { unlocked: boolean; unlock_date_override: string; requires_github: boolean; repository_name: string }> = {}
+      const nextForms: Record<number, { unlocked: boolean; module_start_date: string; requires_github: boolean; repository_name: string }> = {}
       nextCohort.modules.forEach((mod: CohortData['modules'][0]) => {
         nextForms[mod.id] = forms[mod.id] || {
           unlocked: mod.assigned && (nextCohort.active_count > 0 ? mod.unlocked_count === nextCohort.active_count : false),
-          unlock_date_override: toDateInputValue(mod.unlock_date_overrides?.[0] || ''),
+          module_start_date: toDateInputValue(mod.module_start_date),
           requires_github: mod.requires_github || false,
           repository_name: mod.repository_name || '',
         }
@@ -348,6 +351,7 @@ export function CohortDetail() {
     setMessage(`Created module "${newModuleName.trim()}"`)
     setNewModuleName('')
     setNewModuleType('prework')
+    setNewModuleScheduleDays('weekdays')
     setAddingModule(false)
     setShowAddModule(false)
   }
@@ -361,7 +365,7 @@ export function CohortDetail() {
       module_id: moduleId,
       assigned: true,
       unlocked: false,
-      unlock_date_override: null,
+      module_start_date: new Date().toISOString().slice(0, 10),
     })
 
     if (res.error) {
@@ -373,11 +377,11 @@ export function CohortDetail() {
     const nextCohort = res.data?.cohort
     if (nextCohort) {
       setCohort(nextCohort)
-      const nextForms: Record<number, { unlocked: boolean; unlock_date_override: string; requires_github: boolean; repository_name: string }> = {}
+      const nextForms: Record<number, { unlocked: boolean; module_start_date: string; requires_github: boolean; repository_name: string }> = {}
       nextCohort.modules.forEach((mod: CohortData['modules'][0]) => {
         nextForms[mod.id] = {
           unlocked: mod.assigned && (nextCohort.active_count > 0 ? mod.unlocked_count === nextCohort.active_count : false),
-          unlock_date_override: toDateInputValue(mod.unlock_date_overrides?.[0] || ''),
+          module_start_date: toDateInputValue(mod.module_start_date),
           requires_github: mod.requires_github || false,
           repository_name: mod.repository_name || '',
         }
@@ -409,11 +413,11 @@ export function CohortDetail() {
     const nextCohort = res.data?.cohort
     if (nextCohort) {
       setCohort(nextCohort)
-      const nextForms: Record<number, { unlocked: boolean; unlock_date_override: string; requires_github: boolean; repository_name: string }> = {}
+      const nextForms: Record<number, { unlocked: boolean; module_start_date: string; requires_github: boolean; repository_name: string }> = {}
       nextCohort.modules.forEach((mod: CohortData['modules'][0]) => {
         nextForms[mod.id] = {
           unlocked: mod.assigned && (nextCohort.active_count > 0 ? mod.unlocked_count === nextCohort.active_count : false),
-          unlock_date_override: toDateInputValue(mod.unlock_date_overrides?.[0] || ''),
+          module_start_date: toDateInputValue(mod.module_start_date),
           requires_github: mod.requires_github || false,
           repository_name: mod.repository_name || '',
         }
@@ -428,9 +432,10 @@ export function CohortDetail() {
   if (loading) return <LoadingSpinner message="Loading cohort..." />
   if (!cohort) return null
 
+  const today = new Date().toISOString().slice(0, 10)
   const upcomingUnlocks = cohort.modules
-    .filter((mod) => mod.assigned && mod.unlock_date_overrides.length > 0)
-    .sort((a, b) => new Date(a.unlock_date_overrides[0]).getTime() - new Date(b.unlock_date_overrides[0]).getTime())
+    .filter((mod) => mod.assigned && mod.module_start_date && mod.module_start_date > today)
+    .sort((a, b) => new Date(a.module_start_date).getTime() - new Date(b.module_start_date).getTime())
     .slice(0, 5)
 
   return (
@@ -582,8 +587,24 @@ export function CohortDetail() {
                 >
                   <option value="prework">Prework</option>
                   <option value="live_class">Live Class</option>
-                  <option value="post_work">Post Work</option>
-                  <option value="supplementary">Supplementary</option>
+                  <option value="capstone">Capstone</option>
+                  <option value="advanced">Advanced</option>
+                  <option value="workshop">Workshop</option>
+                  <option value="recording">Recording</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Schedule Pattern</label>
+                <select
+                  value={newModuleScheduleDays}
+                  onChange={(e) => setNewModuleScheduleDays(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="weekdays">Mon - Fri</option>
+                  <option value="weekdays_sat">Mon - Sat</option>
+                  <option value="mwf">Mon / Wed / Fri</option>
+                  <option value="tth">Tue / Thu</option>
+                  <option value="daily">Every day</option>
                 </select>
               </div>
               <div className="flex items-center gap-2">
@@ -607,14 +628,14 @@ export function CohortDetail() {
 
           <div className="rounded-2xl bg-white border border-slate-200 divide-y divide-slate-100">
             {cohort.modules.map((mod) => {
-              const form = forms[mod.id] || { unlocked: false, unlock_date_override: '', requires_github: false, repository_name: '' }
+              const form = forms[mod.id] || { unlocked: false, module_start_date: '', requires_github: false, repository_name: '' }
               const saving = savingModuleId === mod.id
               return (
                 <div key={mod.id} className="p-4 flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3 min-w-0">
                     {(() => {
-                      const isAccessible = form.unlocked || (form.unlock_date_override && new Date(form.unlock_date_override + 'T00:00:00') <= new Date())
-                      const isScheduled = !form.unlocked && form.unlock_date_override && new Date(form.unlock_date_override + 'T00:00:00') > new Date()
+                      const isAccessible = form.unlocked || (form.module_start_date && new Date(form.module_start_date + 'T00:00:00') <= new Date())
+                      const isScheduled = !form.unlocked && form.module_start_date && new Date(form.module_start_date + 'T00:00:00') > new Date()
                       return (
                         <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${
                           !mod.assigned ? 'bg-slate-100 text-slate-400'
@@ -633,7 +654,7 @@ export function CohortDetail() {
                       <p className="text-sm font-semibold text-slate-900 truncate">{mod.name}</p>
                       <p className="text-xs text-slate-500 capitalize">
                         {mod.module_type.replace('_', ' ')} · {mod.lessons_count} lesson{mod.lessons_count !== 1 ? 's' : ''} · {mod.assigned_count} assigned
-                        {form.unlock_date_override && ` · Starts ${form.unlock_date_override}`}
+                        {form.module_start_date && ` · Starts ${form.module_start_date}`}
                         {form.requires_github && ' · GitHub'}
                       </p>
                     </div>
@@ -674,7 +695,7 @@ export function CohortDetail() {
           {(() => {
             const configureMod = cohort.modules.find((m) => m.id === configureModuleId)
             if (!configureMod) return null
-            const form = forms[configureMod.id] || { unlocked: false, unlock_date_override: '', requires_github: false, repository_name: '' }
+            const form = forms[configureMod.id] || { unlocked: false, module_start_date: '', requires_github: false, repository_name: '' }
             const saving = savingModuleId === configureMod.id
             return (
               <Modal
@@ -732,12 +753,13 @@ export function CohortDetail() {
                     </label>
                     <input
                       type="date"
-                      value={form.unlock_date_override}
-                      onChange={(e) => updateForm(configureMod.id, { unlock_date_override: e.target.value })}
+                      value={form.module_start_date}
+                      onChange={(e) => updateForm(configureMod.id, { module_start_date: e.target.value })}
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                     <p className="mt-1 text-xs text-slate-400">
-                      Lessons unlock progressively based on the module's schedule, starting from this date.
+                      This is the first actual release day of Week 1 for this cohort. Later lessons follow the module schedule from there.
+                      {configureMod.uses_default_start_date ? ' Right now this module is still using the cohort-based fallback.' : ''}
                     </p>
                   </div>
 
@@ -890,13 +912,13 @@ export function CohortDetail() {
               <h2 className="text-lg font-semibold text-slate-900">Upcoming Unlocks</h2>
               <div className="mt-3 space-y-2">
                 {upcomingUnlocks.map((mod) => (
-                  <div key={`${mod.id}-${mod.unlock_date_overrides[0]}`} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                  <div key={`${mod.id}-${mod.module_start_date}`} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-slate-900 truncate">{mod.name}</p>
                       <p className="text-xs text-slate-500 capitalize">{mod.module_type.replace('_', ' ')} · {mod.assigned_count} assigned</p>
                     </div>
                     <span className="text-xs font-medium text-slate-600 shrink-0">
-                      {new Date(mod.unlock_date_overrides[0]).toLocaleDateString()}
+                      {new Date(mod.module_start_date).toLocaleDateString()}
                     </span>
                   </div>
                 ))}

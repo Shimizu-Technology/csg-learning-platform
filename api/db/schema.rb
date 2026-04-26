@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_23_000100) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_26_000100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -123,6 +123,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_23_000100) do
     t.index ["workspace_id", "name"], name: "index_channels_on_workspace_id_and_name", unique: true
     t.index ["workspace_id", "status", "position"], name: "index_channels_on_workspace_id_and_status_and_position"
     t.index ["workspace_id"], name: "index_channels_on_workspace_id"
+  end
+
+  create_table "cohort_module_schedules", force: :cascade do |t|
+    t.bigint "cohort_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "module_id", null: false
+    t.date "start_date", null: false
+    t.datetime "updated_at", null: false
+    t.index ["cohort_id", "module_id"], name: "index_cohort_module_schedules_on_cohort_id_and_module_id", unique: true
+    t.index ["cohort_id"], name: "index_cohort_module_schedules_on_cohort_id"
   end
 
   create_table "cohorts", force: :cascade do |t|
@@ -1339,6 +1349,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_23_000100) do
   add_foreign_key "channel_read_states", "users"
   add_foreign_key "channels", "cohorts"
   add_foreign_key "channels", "workspaces"
+  add_foreign_key "cohort_module_schedules", "cohorts"
+  add_foreign_key "cohort_module_schedules", "modules"
   add_foreign_key "cohorts", "curricula", column: "curriculum_id"
   add_foreign_key "company_ytd_totals", "companies"
   add_foreign_key "content_blocks", "lessons"
