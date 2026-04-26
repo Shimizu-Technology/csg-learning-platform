@@ -458,6 +458,7 @@ export function Messages() {
   const [isDesktop, setIsDesktop] = useState(() => (typeof window === 'undefined' ? true : window.innerWidth >= 1024))
   const [mobilePane, setMobilePane] = useState<'list' | 'conversation' | 'thread'>(selectedTarget ? 'conversation' : 'list')
   const [editing, setEditing] = useState<ChannelMessage | null>(null)
+  const [mobileActionsMessageId, setMobileActionsMessageId] = useState<number | null>(null)
   const [messagePendingDelete, setMessagePendingDelete] = useState<LocalMessage | null>(null)
   const [editBody, setEditBody] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
@@ -523,6 +524,7 @@ export function Messages() {
     [messages],
   )
   const activeThreadRoot = activeThreadRootId ? messagesById.get(activeThreadRootId) || null : null
+  const mobileActionsMessage = mobileActionsMessageId ? messagesById.get(mobileActionsMessageId) || null : null
   const activeThreadMessages = useMemo(() => {
     if (!activeThreadRoot) return []
 
@@ -908,6 +910,12 @@ export function Messages() {
       setActiveThreadRootId(null)
     }
   }, [activeThreadRootId, messagesById])
+
+  useEffect(() => {
+    if (mobileActionsMessageId && !messagesById.has(mobileActionsMessageId)) {
+      setMobileActionsMessageId(null)
+    }
+  }, [messagesById, mobileActionsMessageId])
 
   useEffect(() => {
     setConversationView('messages')
@@ -1918,6 +1926,7 @@ export function Messages() {
                       onCancelEdit={() => setEditing(null)}
                       onSaveEdit={() => saveEdit(message)}
                       onDelete={() => setMessagePendingDelete(message)}
+                      onOpenActions={() => setMobileActionsMessageId(message.id)}
                       onPin={() => togglePin(message)}
                       canPin={isStaff}
                       inThreadView={Boolean(activeThreadRoot)}
@@ -2324,6 +2333,72 @@ export function Messages() {
       </Modal>
 
       <Modal
+        open={Boolean(mobileActionsMessage)}
+        onClose={() => setMobileActionsMessageId(null)}
+        title="Message actions"
+        subtitle={mobileActionsMessage ? `${mobileActionsMessage.author.full_name} · ${formatTime(mobileActionsMessage.created_at)}` : undefined}
+        size="md"
+      >
+        <div className="space-y-2">
+          {isStaff && mobileActionsMessage && (
+            <button
+              type="button"
+              onClick={() => {
+                void togglePin(mobileActionsMessage)
+                setMobileActionsMessageId(null)
+              }}
+              className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              <Pin className="h-4 w-4" />
+              {mobileActionsMessage.pinned_at ? 'Unpin message' : 'Pin message'}
+            </button>
+          )}
+          {mobileActionsMessage && (
+            <button
+              type="button"
+              onClick={() => {
+                const rootId = rootMessageIdFor(mobileActionsMessage, messagesById)
+                setActiveThreadRootId(rootId)
+                if (!isDesktop) setMobilePane('thread')
+                setMobileActionsMessageId(null)
+              }}
+              className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              <MessageCircle className="h-4 w-4" />
+              {activeThreadRootId ? 'Reply in thread' : 'Reply'}
+            </button>
+          )}
+          {mobileActionsMessage?.mine && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditing(mobileActionsMessage)
+                  setEditBody(mobileActionsMessage.body)
+                  setMobileActionsMessageId(null)
+                }}
+                className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <Edit3 className="h-4 w-4" />
+                Edit message
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMessagePendingDelete(mobileActionsMessage)
+                  setMobileActionsMessageId(null)
+                }}
+                className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-red-200 px-4 py-3 text-left text-sm font-medium text-red-600 hover:bg-red-50"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete message
+              </button>
+            </>
+          )}
+        </div>
+      </Modal>
+
+      <Modal
         open={showDmForm}
         onClose={() => setShowDmForm(false)}
         title="Start direct message"
@@ -2544,6 +2619,7 @@ function MessageRow({
   onCancelEdit,
   onSaveEdit,
   onDelete,
+  onOpenActions,
   onPin,
   canPin,
   inThreadView,
@@ -2561,6 +2637,7 @@ function MessageRow({
   onCancelEdit: () => void
   onSaveEdit: () => void
   onDelete: () => void
+  onOpenActions: () => void
   onPin: () => void
   canPin: boolean
   inThreadView: boolean
@@ -2571,7 +2648,6 @@ function MessageRow({
   mentionPatterns: MentionPattern[]
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
-  const [mobileActionsOpen, setMobileActionsOpen] = useState(false)
   const imageAttachments = message.attachments.filter((attachment) => attachment.image && attachment.url)
   const renderedReactions = [
     ...message.reactions.map((reaction) => reaction.emoji),
@@ -2692,13 +2768,13 @@ function MessageRow({
       <div className="flex shrink-0 items-start gap-1">
         <button
           type="button"
-          onClick={() => setMobileActionsOpen(true)}
+          onClick={onOpenActions}
           className="rounded-xl p-2 text-slate-400 hover:bg-white hover:text-slate-700 sm:hidden"
           aria-label="Open message actions"
         >
           <MoreHorizontal className="h-5 w-5" />
         </button>
-      <div className="hidden shrink-0 items-start gap-1 sm:flex sm:opacity-0 sm:group-hover:opacity-100">
+        <div className="hidden shrink-0 items-start gap-1 sm:flex sm:opacity-0 sm:group-hover:opacity-100">
         {canPin && (
           <button onClick={onPin} className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-slate-700" aria-label="Pin message">
             <Pin className="h-4 w-4" />
@@ -2715,69 +2791,8 @@ function MessageRow({
           </>
         )}
         <MoreHorizontal className="mt-1.5 h-4 w-4 text-slate-300" />
-      </div>
-      </div>
-
-      <Modal
-        open={mobileActionsOpen}
-        onClose={() => setMobileActionsOpen(false)}
-        title="Message actions"
-        subtitle={`${message.author.full_name} · ${formatTime(message.created_at)}`}
-        size="md"
-      >
-        <div className="space-y-2">
-          {canPin && (
-            <button
-              type="button"
-              onClick={() => {
-                onPin()
-                setMobileActionsOpen(false)
-              }}
-              className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              <Pin className="h-4 w-4" />
-              {message.pinned_at ? 'Unpin message' : 'Pin message'}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => {
-              onReply()
-              setMobileActionsOpen(false)
-            }}
-            className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 sm:hidden"
-          >
-            <MessageCircle className="h-4 w-4" />
-            {inThreadView ? 'Reply in thread' : 'Reply'}
-          </button>
-          {message.mine && (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  onStartEdit()
-                  setMobileActionsOpen(false)
-                }}
-                className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                <Edit3 className="h-4 w-4" />
-                Edit message
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  onDelete()
-                  setMobileActionsOpen(false)
-                }}
-                className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-red-200 px-4 py-3 text-left text-sm font-medium text-red-600 hover:bg-red-50"
-              >
-                <Trash2 className="h-4 w-4" />
-                Delete message
-              </button>
-            </>
-          )}
         </div>
-      </Modal>
+      </div>
     </div>
   )
 }

@@ -111,6 +111,8 @@ const COHORT_STATUS_OPTIONS = [
   { value: 'archived', label: 'Archived', description: 'Inactive cohort kept only for records and history.' },
 ] as const
 
+type CohortStatusValue = typeof COHORT_STATUS_OPTIONS[number]['value']
+
 export function CohortDetail() {
   const { id } = useParams<{ id: string }>()
   const [cohort, setCohort] = useState<CohortData | null>(null)
@@ -131,6 +133,7 @@ export function CohortDetail() {
   const [editStartDate, setEditStartDate] = useState('')
   const [editStatus, setEditStatus] = useState('active')
   const [savingStatus, setSavingStatus] = useState(false)
+  const [statusPendingConfirmation, setStatusPendingConfirmation] = useState<CohortStatusValue | null>(null)
   const [savingStartDate, setSavingStartDate] = useState(false)
   const [showRecordingsModal, setShowRecordingsModal] = useState(false)
   const [showUploadedRecordingsModal, setShowUploadedRecordingsModal] = useState(false)
@@ -192,13 +195,8 @@ export function CohortDetail() {
     setSavingStartDate(false)
   }
 
-  const handleSaveStatus = async () => {
-    if (!id || !cohort || editStatus === cohort.status) return
-
-    const nextStatus = editStatus
-    if (nextStatus === 'archived' && !window.confirm('Archive this cohort? It will stay available for records, but should be treated as inactive.')) return
-    if (nextStatus === 'completed' && !window.confirm('Mark this cohort as completed?')) return
-
+  const updateCohortStatus = async (nextStatus: string) => {
+    if (!id || !cohort || nextStatus === cohort.status) return
     setSavingStatus(true)
     setMessage('')
     const res = await api.updateCohort(Number(id), { status: nextStatus })
@@ -209,6 +207,17 @@ export function CohortDetail() {
       setMessage(`Cohort marked ${nextStatus}`)
     }
     setSavingStatus(false)
+  }
+
+  const handleSaveStatus = async () => {
+    if (!cohort || editStatus === cohort.status) return
+
+    if (editStatus === 'archived' || editStatus === 'completed') {
+      setStatusPendingConfirmation(editStatus as CohortStatusValue)
+      return
+    }
+
+    await updateCohortStatus(editStatus)
   }
 
   const handleAddStudent = async (e: React.FormEvent) => {
@@ -1084,7 +1093,45 @@ export function CohortDetail() {
         </div>
       </div>
 
-      {/* Recordings Modal */}
+      <Modal
+        open={Boolean(statusPendingConfirmation)}
+        onClose={() => setStatusPendingConfirmation(null)}
+        title={statusPendingConfirmation === 'archived' ? 'Archive cohort?' : 'Mark cohort as completed?'}
+        subtitle={statusPendingConfirmation === 'archived'
+          ? 'Archived cohorts stay available for records, but should be treated as inactive.'
+          : 'Completed cohorts stay visible for replays and history without looking like active classes.'}
+        size="md"
+        footer={
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setStatusPendingConfirmation(null)}
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!statusPendingConfirmation) return
+                void updateCohortStatus(statusPendingConfirmation)
+                setStatusPendingConfirmation(null)
+              }}
+              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+            >
+              Confirm
+            </button>
+          </div>
+        }
+      >
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          {statusPendingConfirmation === 'archived'
+            ? 'Students and staff will still be able to reference this cohort when needed, but it will move into the inactive/archive flow.'
+            : 'This is a good fit for finished cohorts that should remain visible without blending in with currently running classes.'}
+        </div>
+      </Modal>
+
+      {/* Uploaded Recordings Modal */}
       <Modal
         open={showUploadedRecordingsModal}
         onClose={() => setShowUploadedRecordingsModal(false)}
@@ -1097,7 +1144,7 @@ export function CohortDetail() {
         <RecordingUploadManager cohortId={Number(id)} onRecordingsChange={() => { void reloadCohort() }} />
       </Modal>
 
-      {/* Recordings Modal */}
+      {/* External Recordings Modal */}
       <Modal
         open={showRecordingsModal}
         onClose={() => setShowRecordingsModal(false)}
