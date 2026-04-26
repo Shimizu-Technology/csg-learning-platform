@@ -57,6 +57,7 @@ class Lesson < ApplicationRecord
 
   def release_day_matches_module_schedule
     return if curriculum_module.blank?
+    return if release_day.nil?
     return if curriculum_module.valid_release_day?(release_day)
 
     errors.add(:release_day, "must match the module schedule")

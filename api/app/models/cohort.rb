@@ -18,8 +18,11 @@ class Cohort < ApplicationRecord
   after_create :provision_workspace
 
   def module_schedule_for(curriculum_module)
-    cohort_module_schedules.find { |schedule| schedule.module_id == curriculum_module.id } ||
+    if cohort_module_schedules.loaded?
+      cohort_module_schedules.find { |schedule| schedule.module_id == curriculum_module.id }
+    else
       cohort_module_schedules.find_by(module_id: curriculum_module.id)
+    end
   end
 
   private

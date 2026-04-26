@@ -56,6 +56,8 @@ class CurriculumModule < ApplicationRecord
   end
 
   def valid_release_day?(release_day)
+    return false if release_day.nil?
+
     scheduled_weekday_indices.include?(release_day % 7)
   end
 

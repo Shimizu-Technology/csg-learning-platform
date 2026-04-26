@@ -163,4 +163,11 @@ class LessonTest < ActiveSupport::TestCase
     refute lesson.valid?
     assert_includes lesson.errors[:release_day], "must match the module schedule"
   end
+
+  test "blank release_day adds validation errors instead of raising" do
+    lesson = Lesson.new(curriculum_module: @mod, title: "Missing Day", position: 0, release_day: nil)
+
+    refute lesson.valid?
+    assert_includes lesson.errors[:release_day], "can't be blank"
+  end
 end

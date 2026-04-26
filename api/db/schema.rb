@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_26_000100) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_26_000200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -53,6 +53,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_26_000100) do
     t.datetime "updated_at", null: false
     t.bigint "village_id", null: false
     t.index ["village_id"], name: "index_blocks_on_village_id"
+  end
+
+  create_table "cable_token_nonces", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "expires_at", null: false
+    t.string "nonce", null: false
+    t.datetime "updated_at", null: false
+    t.datetime "used_at"
+    t.bigint "user_id", null: false
+    t.index ["expires_at"], name: "index_cable_token_nonces_on_expires_at"
+    t.index ["nonce"], name: "index_cable_token_nonces_on_nonce", unique: true
+    t.index ["user_id"], name: "index_cable_token_nonces_on_user_id"
   end
 
   create_table "campaign_cycles", force: :cascade do |t|
@@ -1344,6 +1356,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_26_000100) do
   add_foreign_key "announcements", "users", column: "author_id"
   add_foreign_key "audit_logs", "users", column: "actor_user_id"
   add_foreign_key "blocks", "villages"
+  add_foreign_key "cable_token_nonces", "users"
   add_foreign_key "channel_read_states", "channels"
   add_foreign_key "channel_read_states", "messages", column: "last_read_message_id"
   add_foreign_key "channel_read_states", "users"
