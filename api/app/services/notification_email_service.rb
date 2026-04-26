@@ -223,7 +223,7 @@ class NotificationEmailService
       name = h(user.first_name.presence || user.email.split("@").first)
       sender = h(message.author.full_name)
       context = h(message_context_label(message))
-      preview = h(message.body.to_s.squish.presence || attachment_preview(message))
+      preview = h(mention_preview(message))
       path = h(frontend_path(message_path(message)))
 
       <<~HTML
@@ -293,6 +293,11 @@ class NotificationEmailService
       return "Sent #{count} attachments" if count > 1
 
       "Sent a message"
+    end
+
+    def mention_preview(message)
+      raw_preview = message.body.to_s.squish.presence || attachment_preview(message)
+      raw_preview.truncate(280)
     end
   end
 end
