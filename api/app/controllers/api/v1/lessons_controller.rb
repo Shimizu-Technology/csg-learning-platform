@@ -142,7 +142,7 @@ module Api
         enrollment = current_user.enrollments
           .active
           .joins(:cohort)
-          .includes(:cohort, :module_assignments)
+          .includes(:module_assignments, cohort: :cohort_module_schedules)
           .find_by(cohorts: { curriculum_id: @lesson.curriculum_module.curriculum_id })
 
         unless enrollment

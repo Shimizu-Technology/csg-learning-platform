@@ -15,7 +15,14 @@ module Api
       private
 
       def render_student_dashboard
-        enrollment = current_user.enrollments.active.includes(:module_assignments, :lesson_assignments, cohort: { curriculum: { modules: { lessons: :content_blocks } } }).first
+        enrollment = current_user.enrollments.active.includes(
+          :module_assignments,
+          :lesson_assignments,
+          cohort: [
+            :cohort_module_schedules,
+            { curriculum: { modules: { lessons: :content_blocks } } }
+          ]
+        ).first
 
         unless enrollment
           render json: { dashboard: { enrolled: false, user: user_summary } }
