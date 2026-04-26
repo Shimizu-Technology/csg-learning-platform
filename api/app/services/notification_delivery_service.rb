@@ -42,6 +42,7 @@ class NotificationDeliveryService
     end
 
     PushNotificationJob.perform_later("Message", message.id, notifications.map(&:id)) if push && notifications.any?
+    MessageMentionEmailJob.perform_later(message.id, mentioned_user_ids) if mentioned_user_ids.any?
     notifications
   end
 
@@ -99,6 +100,11 @@ class NotificationDeliveryService
   end
 
   def mentioned_user_ids_for(message, recipients)
+    raw_explicit_ids = Array(message.mention_user_ids)
+    explicit_ids = raw_explicit_ids.map(&:to_i).uniq
+    allowed_ids = recipients.each_with_object({}) { |user, ids| ids[user.id] = true }
+    explicit_ids.select! { |id| allowed_ids.key?(id) && id != message.author_id }
+    return explicit_ids if raw_explicit_ids.any?
     return [] if message.body.blank?
 
     body = message.body.to_s

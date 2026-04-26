@@ -227,7 +227,7 @@ export const api = {
     }),
   markChannelRead: (id: number) =>
     fetchApi<ChannelResponse>(`/api/v1/channels/${id}/read`, { method: 'PATCH' }),
-  createMessage: (channelId: number, data: { body: string; parent_message_id?: number | null; attachments?: { s3_key: string; filename: string; content_type: string; byte_size: number }[]; send_push?: boolean }) =>
+  createMessage: (channelId: number, data: { body: string; parent_message_id?: number | null; mention_user_ids?: number[]; attachments?: { s3_key: string; filename: string; content_type: string; byte_size: number }[]; send_push?: boolean }) =>
     fetchApi<MessageResponse>(`/api/v1/channels/${channelId}/messages`, {
       method: 'POST',
       body: JSON.stringify(data),
@@ -245,12 +245,12 @@ export const api = {
     }),
   markDirectConversationRead: (id: number) =>
     fetchApi<DirectConversationResponse>(`/api/v1/direct_conversations/${id}/read`, { method: 'PATCH' }),
-  createDirectMessage: (conversationId: number, data: { body: string; parent_message_id?: number | null; attachments?: { s3_key: string; filename: string; content_type: string; byte_size: number }[]; send_push?: boolean }) =>
+  createDirectMessage: (conversationId: number, data: { body: string; parent_message_id?: number | null; mention_user_ids?: number[]; attachments?: { s3_key: string; filename: string; content_type: string; byte_size: number }[]; send_push?: boolean }) =>
     fetchApi<MessageResponse>(`/api/v1/direct_conversations/${conversationId}/messages`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  updateMessage: (id: number, data: { body: string }) =>
+  updateMessage: (id: number, data: { body: string; mention_user_ids?: number[] }) =>
     fetchApi<MessageResponse>(`/api/v1/messages/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),

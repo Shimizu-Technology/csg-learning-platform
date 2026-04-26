@@ -63,6 +63,23 @@ class ChannelsTest < ActionDispatch::IntegrationTest
     assert_equal 1, @admin.notifications.message.unread.count
   end
 
+  test "student post persists mention user ids" do
+    second_student = User.create!(clerk_id: "clerk_mention_second", email: "mention-second@example.com", first_name: "Second", last_name: "Student", role: :student)
+    Enrollment.create!(user: second_student, cohort: @cohort, status: :active)
+
+    as_user(@student) do
+      post "/api/v1/channels/#{@channel.id}/messages",
+        params: { body: "@Second Student can you help?", mention_user_ids: [ second_student.id ] },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :created
+    body = JSON.parse(response.body)
+    assert_equal [ second_student.id ], body.dig("message", "mention_user_ids")
+    assert_equal [ second_student.id ], Message.last.mention_user_ids
+  end
+
   test "mark read clears channel message notifications only" do
     message = Message.create!(channel: @channel, author: @admin, body: "Welcome to chat")
     NotificationDeliveryService.message_created(message)

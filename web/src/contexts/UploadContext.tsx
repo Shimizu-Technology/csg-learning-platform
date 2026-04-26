@@ -10,10 +10,11 @@ interface ActiveUpload {
   fileSize: number
   contentType: string
   progress: number
-  status: 'presigning' | 'uploading' | 'saving' | 'done' | 'error'
+  status: 'presigning' | 'uploading' | 'waiting' | 'saving' | 'done' | 'error'
   error?: string
   s3Key?: string
   contentBlockId?: number
+  cohortRecording?: { cohortId: number; title: string; description?: string; recordedDate?: string }
   linkTo?: string
   linkLabel?: string
   abortController: AbortController
@@ -65,6 +66,51 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     setUploads(prev => prev.filter(u => u.id !== id))
   }, [])
 
+  const completeUpload = useCallback((id: string) => {
+    updateUpload(id, { status: 'done' })
+    setTimeout(() => removeUpload(id), 5000)
+  }, [removeUpload, updateUpload])
+
+  const persistUploadTarget = useCallback(async (
+    uploadId: string,
+    fallbackOpts: UploadStartOpts,
+    s3Key: string,
+    contentType: string,
+    fileSize: number
+  ) => {
+    const liveUpload = uploadsRef.current.find((upload) => upload.id === uploadId)
+    const contentBlockId = liveUpload?.contentBlockId ?? fallbackOpts.contentBlockId
+    const cohortRecording = liveUpload?.cohortRecording ?? fallbackOpts.cohortRecording
+
+    if (contentBlockId) {
+      updateUpload(uploadId, { status: 'saving' })
+      const res = await api.updateContentBlock(contentBlockId, {
+        s3_video_key: s3Key,
+        s3_video_content_type: contentType,
+        s3_video_size: fileSize,
+        video_url: null,
+      })
+      if (res.error) throw new Error(res.error)
+      return true
+    }
+
+    if (cohortRecording) {
+      updateUpload(uploadId, { status: 'saving' })
+      const res = await api.createRecording(cohortRecording.cohortId, {
+        title: cohortRecording.title,
+        description: cohortRecording.description,
+        s3_key: s3Key,
+        content_type: contentType,
+        file_size: fileSize,
+        recorded_date: cohortRecording.recordedDate,
+      })
+      if (res.error) throw new Error(res.error)
+      return true
+    }
+
+    return false
+  }, [updateUpload])
+
   const startVideoUpload = useCallback((
     file: File,
     opts?: UploadStartOpts
@@ -77,6 +123,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
       id, fileName: file.name, fileSize: file.size, contentType,
       progress: 0, status: 'presigning', abortController,
       contentBlockId: opts?.contentBlockId,
+      cohortRecording: opts?.cohortRecording,
       linkTo: opts?.linkTo,
       linkLabel: opts?.linkLabel,
     }
@@ -108,26 +155,13 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         // Past this point the object is in the bucket — if any of the DB
         // writes below fail, we need to clean it up.
         uploadedS3Key = s3_key
-        updateUpload(id, { status: 'saving', progress: 100 })
+        const persisted = await persistUploadTarget(id, opts || {}, s3_key, contentType, file.size)
 
-        if (opts?.contentBlockId) {
-          const res = await api.updateContentBlock(opts.contentBlockId, {
-            s3_video_key: s3_key, s3_video_content_type: contentType,
-            s3_video_size: file.size, video_url: null,
-          })
-          if (res.error) throw new Error(res.error)
-        } else if (opts?.cohortRecording) {
-          const res = await api.createRecording(opts.cohortRecording.cohortId, {
-            title: opts.cohortRecording.title,
-            description: opts.cohortRecording.description,
-            s3_key, content_type: contentType, file_size: file.size,
-            recorded_date: opts.cohortRecording.recordedDate,
-          })
-          if (res.error) throw new Error(res.error)
+        if (persisted) {
+          completeUpload(id)
+        } else {
+          updateUpload(id, { status: 'waiting', progress: 100 })
         }
-
-        updateUpload(id, { status: 'done' })
-        setTimeout(() => removeUpload(id), 5000)
 
         return { s3Key: s3_key, contentType, fileSize: file.size }
       } catch (err) {
@@ -150,17 +184,42 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     })()
 
     return { uploadId: id, result }
-  }, [updateUpload, removeUpload])
+  }, [completeUpload, persistUploadTarget, removeUpload, updateUpload])
 
   const cancelUpload = useCallback((id: string) => {
     const u = uploadsRef.current.find(u => u.id === id)
     if (u) u.abortController.abort()
+    if (u?.status === 'waiting' && u.s3Key) {
+      api.abandonUpload(u.s3Key).catch(() => {})
+    }
     removeUpload(id)
   }, [removeUpload])
 
   const attachUpload = useCallback((id: string, patch: { contentBlockId?: number; linkTo?: string; linkLabel?: string }) => {
+    const current = uploadsRef.current.find((upload) => upload.id === id)
+    const next = current ? { ...current, ...patch } : null
     updateUpload(id, patch)
-  }, [updateUpload])
+
+    if (next?.contentBlockId && next.s3Key && next.status === 'waiting') {
+      const attachedS3Key = next.s3Key
+      void (async () => {
+        try {
+          const persisted = await persistUploadTarget(
+            id,
+            { contentBlockId: next.contentBlockId, linkTo: next.linkTo, linkLabel: next.linkLabel },
+            attachedS3Key,
+            next.contentType,
+            next.fileSize
+          )
+          if (persisted) completeUpload(id)
+        } catch (error) {
+          api.abandonUpload(attachedS3Key).catch(() => {})
+          const message = error instanceof Error ? error.message : 'Upload failed'
+          updateUpload(id, { status: 'error', error: message })
+        }
+      })()
+    }
+  }, [completeUpload, persistUploadTarget, updateUpload])
 
   return (
     <UploadContext.Provider value={{ uploads, startVideoUpload, cancelUpload, attachUpload }}>
@@ -252,6 +311,9 @@ function UploadIndicator({ uploads, onCancel, onDismiss }: {
               )}
               {u.status === 'saving' && (
                 <p className="text-[11px] text-slate-500">Saving...</p>
+              )}
+              {u.status === 'waiting' && (
+                <p className="text-[11px] text-slate-500">Uploaded to storage. Waiting for the exercise to finish attaching...</p>
               )}
               {u.status === 'done' && (
                 <div className="flex items-center gap-1 text-[11px] text-green-600">

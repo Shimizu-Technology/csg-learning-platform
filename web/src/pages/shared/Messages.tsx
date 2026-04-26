@@ -79,6 +79,7 @@ type MentionPattern = {
   normalized: string
   kind: 'user' | 'channel'
 }
+type MentionableUser = Pick<UserSummary, 'id' | 'full_name' | 'email'>
 
 const REACTIONS = ['👍', '❤️', '✅', '🙌']
 const SLASH_COMMANDS = [
@@ -192,6 +193,10 @@ function stripMentionLabel(value: string) {
   return value.replace(/^@/, '').trim().toLowerCase()
 }
 
+function escapeMentionRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 function isMentionStartBoundary(text: string, index: number) {
   if (index === 0) return true
   return /[\s([{'"“‘>]/.test(text[index - 1] || '')
@@ -199,6 +204,44 @@ function isMentionStartBoundary(text: string, index: number) {
 
 function isMentionEndBoundary(char?: string) {
   return !char || /[\s)\]}.,!?;:'"”’]/.test(char)
+}
+
+function messageContainsMention(body: string, fullName: string) {
+  const trimmed = fullName.trim()
+  if (!trimmed) return false
+
+  const pattern = new RegExp(`(^|[^\\w])@${escapeMentionRegExp(trimmed)}(?=$|[\\s)\\]}.,!?;:'"”’])`, 'i')
+  return pattern.test(body)
+}
+
+function resolveMentionedUserIds(body: string, mentionableUsers: MentionableUser[], selectedIds: number[]) {
+  if (!body.trim()) return []
+
+  const usersById = new Map(mentionableUsers.map((user) => [user.id, user]))
+  const nameCounts = mentionableUsers.reduce((counts, user) => {
+    const normalized = user.full_name.trim().toLowerCase()
+    if (!normalized) return counts
+
+    counts.set(normalized, (counts.get(normalized) || 0) + 1)
+    return counts
+  }, new Map<string, number>())
+
+  const resolved = selectedIds.filter((id) => {
+    const user = usersById.get(id)
+    return Boolean(user?.full_name && messageContainsMention(body, user.full_name))
+  })
+
+  mentionableUsers.forEach((user) => {
+    const normalized = user.full_name.trim().toLowerCase()
+    if (!normalized) return
+    if ((nameCounts.get(normalized) || 0) > 1) return
+    if (!messageContainsMention(body, user.full_name)) return
+    if (resolved.includes(user.id)) return
+
+    resolved.push(user.id)
+  })
+
+  return resolved
 }
 
 function buildMentionPatterns(names: string[], includeChannel: boolean) {
@@ -402,6 +445,7 @@ export function Messages() {
   const [pushMessage, setPushMessage] = useState('')
   const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'error'>('disconnected')
   const [body, setBody] = useState('')
+  const [composerMentionUserIds, setComposerMentionUserIds] = useState<number[]>([])
   const [composerTriggerText, setComposerTriggerText] = useState('')
   const [activeMentionIndex, setActiveMentionIndex] = useState(0)
   const [activeCommandIndex, setActiveCommandIndex] = useState(0)
@@ -557,6 +601,10 @@ export function Messages() {
   useEffect(() => {
     setActiveMentionIndex(0)
   }, [mentionToken])
+
+  useEffect(() => {
+    setComposerMentionUserIds([])
+  }, [selectedTarget?.id, selectedTarget?.type])
 
   useEffect(() => {
     setActiveCommandIndex(0)
@@ -1054,6 +1102,7 @@ export function Messages() {
     const submittedBody = (editor ? editorJsonToMarkdown(editor.getJSON()) : body).trim()
     const submittedAttachments = pendingAttachments
     const threadRoot = activeThreadRoot
+    const mentionUserIds = resolveMentionedUserIds(submittedBody, mentionableUsers, composerMentionUserIds)
     if (!submittedBody && submittedAttachments.length === 0) return
 
     tempMessageIdRef.current -= 1
@@ -1079,6 +1128,7 @@ export function Messages() {
       direct_conversation_id: selectedTarget.type === 'dm' ? selectedTarget.id : null,
       parent_message_id: threadRoot?.id || null,
       body: submittedBody,
+      mention_user_ids: mentionUserIds,
       edited_at: null,
       deleted_at: null,
       pinned_at: null,
@@ -1101,6 +1151,7 @@ export function Messages() {
     setMessages((prev) => sortChronologicalMessages([...prev, optimisticMessage]))
     updateLatestForTarget(optimisticMessage)
     setBody('')
+    setComposerMentionUserIds([])
     setComposerTriggerText('')
     editor?.commands.clearContent()
     setPendingAttachments([])
@@ -1109,7 +1160,13 @@ export function Messages() {
     setError('')
     try {
       const attachments = await uploadAttachments(submittedAttachments)
-      const payload = { body: submittedBody, parent_message_id: optimisticMessage.parent_message_id, attachments, send_push: true }
+      const payload = {
+        body: submittedBody,
+        parent_message_id: optimisticMessage.parent_message_id,
+        mention_user_ids: mentionUserIds,
+        attachments,
+        send_push: true,
+      }
       const res = selectedTarget.type === 'channel'
         ? await api.createMessage(selectedTarget.id, payload)
         : await api.createDirectMessage(selectedTarget.id, payload)
@@ -1311,6 +1368,9 @@ export function Messages() {
   }
 
   const selectMention = (mention: MentionSuggestion) => {
+    if (mention.kind === 'user') {
+      setComposerMentionUserIds((current) => current.includes(Number(mention.id)) ? current : [...current, Number(mention.id)])
+    }
     insertIntoComposer(`${mention.label} `, /(^|\s)@[^\n]*$/)
   }
 
@@ -1405,7 +1465,8 @@ export function Messages() {
   const saveEdit = async (message: ChannelMessage) => {
     if (!editBody.trim()) return
 
-    const res = await api.updateMessage(message.id, { body: editBody.trim() })
+    const mentionUserIds = resolveMentionedUserIds(editBody.trim(), mentionableUsers, message.mention_user_ids)
+    const res = await api.updateMessage(message.id, { body: editBody.trim(), mention_user_ids: mentionUserIds })
     if (res.data) {
       setMessages((prev) => prev.map((item) => item.id === message.id ? res.data!.message : item))
       setPinnedMessages((prev) => upsertPinnedMessage(prev, res.data!.message))

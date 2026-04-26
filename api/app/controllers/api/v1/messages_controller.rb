@@ -38,7 +38,11 @@ module Api
           return
         end
 
-        if @message.update(body: message_params[:body], edited_at: Time.current)
+        if @message.update(
+          body: message_params[:body],
+          edited_at: Time.current,
+          mention_user_ids: sanitized_mention_user_ids_for(@message.destination)
+        )
           MessageBroadcastService.updated(@message)
           render json: { message: message_json(@message) }
         else
@@ -154,7 +158,7 @@ module Api
       end
 
       def message_params
-        params.permit(:body, :parent_message_id, attachments: [ :s3_key, :filename, :content_type, :byte_size ])
+        params.permit(:body, :parent_message_id, mention_user_ids: [], attachments: [ :s3_key, :filename, :content_type, :byte_size ])
       end
 
       def reaction_params
@@ -192,7 +196,8 @@ module Api
 
         message = destination.messages.new(
           body: message_params[:body].to_s,
-          parent_message_id: message_params[:parent_message_id]
+          parent_message_id: message_params[:parent_message_id],
+          mention_user_ids: sanitized_mention_user_ids_for(destination)
         )
         message.author = current_user
 
@@ -262,6 +267,18 @@ module Api
         current_user.channel_read_states.find_or_create_by!(channel: channel)
       rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
         current_user.channel_read_states.find_by!(channel: channel)
+      end
+
+      def sanitized_mention_user_ids_for(destination)
+        raw_ids = Array(message_params[:mention_user_ids]).filter_map do |value|
+          next if value.blank?
+
+          value.to_i
+        end.uniq
+        return [] if raw_ids.empty?
+
+        allowed_ids = destination.recipients.reorder(nil).where(id: raw_ids).pluck(:id)
+        allowed_ids.reject { |id| id == current_user.id }
       end
 
       def message_json(message)

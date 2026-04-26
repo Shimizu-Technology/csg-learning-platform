@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_26_000200) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_26_000300) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -656,6 +656,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_26_000200) do
     t.datetime "deleted_at"
     t.bigint "direct_conversation_id"
     t.datetime "edited_at"
+    t.bigint "mention_user_ids", default: [], null: false, array: true
     t.bigint "parent_message_id"
     t.datetime "pinned_at"
     t.bigint "pinned_by_id"

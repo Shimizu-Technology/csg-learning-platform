@@ -12,9 +12,12 @@ class Message < ApplicationRecord
   has_many :message_attachments, dependent: :destroy
   has_many :message_reactions, dependent: :destroy
 
+  before_validation :normalize_mention_user_ids
+
   validates :body, length: { maximum: 5000 }, allow_blank: true
   validate :exactly_one_destination
   validate :parent_message_belongs_to_same_channel
+  validate :mention_user_ids_shape
 
   scope :visible, -> { where(deleted_at: nil) }
   scope :recent, -> { order(created_at: :desc) }
@@ -50,6 +53,19 @@ class Message < ApplicationRecord
   end
 
   private
+
+  def normalize_mention_user_ids
+    return unless mention_user_ids.is_a?(Array)
+
+    self.mention_user_ids = mention_user_ids.map(&:to_i).uniq
+  end
+
+  def mention_user_ids_shape
+    ids = mention_user_ids
+    unless ids.is_a?(Array) && ids.all? { |value| value.is_a?(Integer) || value.to_s.match?(/\A\d+\z/) }
+      errors.add(:mention_user_ids, "must be an array of user ids")
+    end
+  end
 
   def exactly_one_destination
     return if channel_id.present? ^ direct_conversation_id.present?

@@ -295,7 +295,7 @@ export function VideoUploadField({
         <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
           <div>
             <p className="text-sm font-semibold text-slate-900">Self-hosted upload</p>
-            <p className="text-xs text-slate-500">Upload the class video directly to use the self-hosted player.</p>
+            <p className="text-xs text-slate-500">Upload the class video directly to use the self-hosted player. Uploads continue in the background, so you can keep editing or move to another exercise.</p>
           </div>
           {isUploading && activeUpload ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 space-y-2">
@@ -303,17 +303,27 @@ export function VideoUploadField({
                 <Loader2 className="h-4 w-4 text-primary-500 shrink-0 animate-spin" />
                 <span className="text-sm text-slate-700 truncate flex-1">{uploadedFileName}</span>
                 <span className="text-xs text-slate-500 tabular-nums shrink-0">
-                  {activeUpload.status === 'uploading' ? `${activeUpload.progress}%` : activeUpload.status === 'presigning' ? 'Preparing...' : 'Saving...'}
+                  {activeUpload.status === 'uploading'
+                    ? `${activeUpload.progress}%`
+                    : activeUpload.status === 'presigning'
+                      ? 'Preparing...'
+                      : activeUpload.status === 'waiting'
+                        ? 'Waiting...'
+                        : 'Saving...'}
                 </span>
               </div>
               <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-primary-500 rounded-full transition-all duration-300"
-                  style={{ width: `${activeUpload.status === 'uploading' ? activeUpload.progress : activeUpload.status === 'saving' ? 100 : 5}%` }}
+                  style={{ width: `${activeUpload.status === 'uploading' ? activeUpload.progress : activeUpload.status === 'saving' || activeUpload.status === 'waiting' ? 100 : 5}%` }}
                 />
               </div>
               {activeUpload.s3Key && (
-                <p className="text-[10px] text-green-600">Video attached — you can proceed while it uploads</p>
+                <p className="text-[10px] text-green-600">
+                  {activeUpload.status === 'waiting'
+                    ? 'Uploaded to storage. Finish creating the exercise and it will attach automatically.'
+                    : 'Video attached — you can proceed while it uploads.'}
+                </p>
               )}
             </div>
           ) : s3VideoKey ? (
