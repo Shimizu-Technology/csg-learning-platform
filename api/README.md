@@ -61,7 +61,7 @@ Clerk authentication is required in local development too. The current app does 
 | `WEB_PUSH_PRIVATE_KEY` | No | — | VAPID private key for push delivery |
 | `WEB_PUSH_SUBJECT` | No | — | Contact URI for Web Push (for example `mailto:team@codeschoolofguam.com`) |
 
-For direct browser uploads to S3, `AWS_REGION` must match the bucket’s real region exactly, and the bucket’s CORS rules must allow both local development (`http://localhost:5173`) and production (`https://learn.codeschoolofguam.com`) origins. If presign succeeds but the browser upload fails before the recording create request reaches Rails, that is usually an S3 CORS or region mismatch issue rather than an API error.
+For direct browser uploads to S3, `AWS_REGION` must match the bucket’s real region exactly, and the bucket’s CORS rules must allow both local development (`http://localhost:5173`) and production (`https://learn.codeschoolofguam.com`) origins. In production, this setting refers to the S3 bucket region, not the Render app region, so it is valid for uploads to use `ap-southeast-2` even while the API runs in Singapore. If presign succeeds but the browser upload fails before the recording create request reaches Rails, that is usually an S3 CORS or bucket-region mismatch issue rather than an API error.
 
 ## Data Model
 

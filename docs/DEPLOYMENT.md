@@ -61,7 +61,7 @@ That means production uploads can fail even when:
 The two production-critical checks are:
 
 1. `AWS_REGION` on Render must exactly match the actual bucket region.
-This app’s production bucket is expected to live in `ap-southeast-2`. If Render signs uploads for the wrong region, S3 can respond with a redirect/error that the browser surfaces as a generic upload failure.
+This app’s production bucket intentionally lives in `ap-southeast-2`, even though the Render service runs in Singapore. `AWS_REGION` here refers to the S3 bucket region, not the Render app region. If Render signs uploads for the wrong bucket region, S3 can respond with a redirect/error that the browser surfaces as a generic upload failure.
 
 2. The S3 bucket CORS rules must allow the production frontend origin.
 If the bucket allows `http://localhost:5173` but not `https://learn.codeschoolofguam.com`, local uploads can succeed while production uploads fail during the browser → S3 step.
