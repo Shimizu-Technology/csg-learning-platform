@@ -6,13 +6,6 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Modal } from '../../components/shared/Modal'
 import { RecordingUploadManager } from '../../components/admin/RecordingUploadManager'
 
-interface Announcement {
-  title: string
-  body: string
-  pinned: boolean
-  published_at: string
-}
-
 interface Recording {
   title: string
   url: string
@@ -39,7 +32,6 @@ type CohortData = Record<string, any> & {
   requires_github?: boolean
   repository_name?: string | null
   github_organization_name?: string | null
-  announcements: Announcement[]
   recordings?: Recording[]
   class_resources?: ClassResource[]
   students: Array<{
@@ -102,11 +94,9 @@ export function CohortDetail() {
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
   const [savingModuleId, setSavingModuleId] = useState<number | null>(null)
-  const [savingAnnouncements, setSavingAnnouncements] = useState(false)
   const [savingRecordings, setSavingRecordings] = useState(false)
   const [savingResources, setSavingResources] = useState(false)
   const [forms, setForms] = useState<Record<number, { unlocked: boolean; module_start_date: string; requires_github: boolean; repository_name: string }>>({})
-  const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [recordings, setRecordings] = useState<Recording[]>([])
   const [classResources, setClassResources] = useState<ClassResource[]>([])
   const [showAddStudent, setShowAddStudent] = useState(false)
@@ -132,7 +122,6 @@ export function CohortDetail() {
       const nextCohort = res.data?.cohort
       if (nextCohort) {
         setCohort(nextCohort)
-        setAnnouncements(nextCohort.announcements || [])
         setRecordings(nextCohort.recordings || [])
         setClassResources(nextCohort.class_resources || [])
         setEditStartDate(toDateInputValue(nextCohort.start_date))
@@ -200,7 +189,6 @@ export function CohortDetail() {
     const cohortRes = await api.getCohort(Number(id))
     if (cohortRes.data?.cohort) {
       setCohort(cohortRes.data.cohort)
-      setAnnouncements(cohortRes.data.cohort.announcements || [])
     }
 
     setMessage(`Added ${addStudentEmail.trim()} to cohort`)
@@ -272,27 +260,6 @@ export function CohortDetail() {
     const moduleName = cohort?.modules.find((mod) => mod.id === moduleId)?.name || 'module'
     setMessage(`Updated cohort access for ${moduleName}`)
     setSavingModuleId(null)
-  }
-
-  const saveAnnouncements = async () => {
-    if (!id) return
-    setSavingAnnouncements(true)
-    setMessage('')
-
-    const res = await api.updateCohortAnnouncements(Number(id), announcements)
-    if (res.error) {
-      setMessage(res.error)
-      setSavingAnnouncements(false)
-      return
-    }
-
-    const nextCohort = res.data?.cohort
-    if (nextCohort) {
-      setCohort(nextCohort)
-      setAnnouncements(nextCohort.announcements || [])
-    }
-    setMessage('Updated cohort announcements')
-    setSavingAnnouncements(false)
   }
 
   const saveRecordings = async () => {
@@ -511,64 +478,19 @@ export function CohortDetail() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Announcements</h2>
-                <p className="text-sm text-slate-500 mt-1">Short notices that students in this cohort will see on their dashboard.</p>
+                <p className="text-sm text-slate-500 mt-1">Manage this cohort's announcements in the shared announcement center so sender, read state, and history stay consistent.</p>
               </div>
-              <button
-                onClick={() => setAnnouncements((prev) => [...prev, { title: '', body: '', pinned: false, published_at: new Date().toISOString() }])}
+              <Link
+                to={`/announcements?scope=manage&audience=cohort&cohort_id=${cohort.id}`}
                 className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
               >
-                Add notice
-              </button>
+                Open announcement center
+              </Link>
             </div>
-
-            <div className="space-y-3">
-              {announcements.length === 0 ? (
-                <p className="text-sm text-slate-400">No announcements yet.</p>
-              ) : announcements.map((announcement, idx) => (
-                <div key={`${idx}-${announcement.published_at}`} className="rounded-xl border border-slate-200 p-4 space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <label className="flex items-center gap-2 text-sm text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={announcement.pinned}
-                        onChange={(e) => setAnnouncements((prev) => prev.map((item, itemIdx) => itemIdx === idx ? { ...item, pinned: e.target.checked } : item))}
-                        className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                      />
-                      Pin this notice
-                    </label>
-                    <button
-                      onClick={() => setAnnouncements((prev) => prev.filter((_, itemIdx) => itemIdx !== idx))}
-                      className="text-xs font-medium text-red-600 hover:text-red-700"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                  <input
-                    type="text"
-                    value={announcement.title}
-                    onChange={(e) => setAnnouncements((prev) => prev.map((item, itemIdx) => itemIdx === idx ? { ...item, title: e.target.value } : item))}
-                    placeholder="Announcement title"
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  />
-                  <textarea
-                    value={announcement.body}
-                    onChange={(e) => setAnnouncements((prev) => prev.map((item, itemIdx) => itemIdx === idx ? { ...item, body: e.target.value } : item))}
-                    placeholder="What should students know?"
-                    rows={3}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-y"
-                  />
-                </div>
-              ))}
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
+              Cohort-specific announcements now live in the unified announcements feed.
+              Students only get the notices meant for them, and staff can archive, filter, paginate, and see who posted each update.
             </div>
-
-            <button
-              onClick={saveAnnouncements}
-              disabled={savingAnnouncements}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 transition-colors"
-            >
-              <Save className="h-4 w-4" />
-              {savingAnnouncements ? 'Saving...' : 'Save Announcements'}
-            </button>
           </div>
 
           <div className="flex items-center justify-between">

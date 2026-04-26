@@ -131,8 +131,26 @@ export const api = {
     fetchApi<RecordingsResponse>('/api/v1/recordings'),
   getResources: () =>
     fetchApi<ResourcesResponse>('/api/v1/resources'),
-  getAnnouncements: (scope?: 'manage') =>
-    fetchApi<AnnouncementsResponse>(`/api/v1/announcements${scope ? `?scope=${scope}` : ''}`),
+  getAnnouncements: (params?: {
+    scope?: 'manage';
+    page?: number;
+    per_page?: number;
+    audience?: 'cohort' | 'global' | 'staff';
+    status?: 'draft' | 'published' | 'archived';
+    cohort_id?: number | null;
+    read?: 'read' | 'unread';
+    sort?: 'published_desc' | 'published_asc' | 'created_desc' | 'created_asc' | 'updated_desc' | 'updated_asc';
+  }) =>
+    fetchApi<AnnouncementsResponse>(`/api/v1/announcements${(() => {
+      if (!params) return '';
+      const searchParams = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        if (value === undefined || value === null) return;
+        searchParams.set(key, String(value));
+      });
+      const query = searchParams.toString();
+      return query ? `?${query}` : '';
+    })()}`),
   getAnnouncement: (id: number) =>
     fetchApi<AnnouncementResponse>(`/api/v1/announcements/${id}`),
   createAnnouncement: (data: { title: string; body: string; audience: string; cohort_id?: number | null; status?: string; pinned?: boolean; send_push?: boolean }) =>
@@ -147,8 +165,16 @@ export const api = {
     }),
   archiveAnnouncement: (id: number) =>
     fetchApi<AnnouncementResponse>(`/api/v1/announcements/${id}`, { method: 'DELETE' }),
-  getNotifications: (limit = 20, notificationType?: string) =>
-    fetchApi<NotificationsResponse>(`/api/v1/notifications?limit=${limit}${notificationType ? `&notification_type=${notificationType}` : ''}`),
+  getNotifications: (params: { limit?: number; page?: number; per_page?: number; notification_type?: string; read?: 'read' | 'unread'; sort?: 'created_desc' | 'created_asc' | 'read_desc' | 'read_asc' } = {}) =>
+    fetchApi<NotificationsResponse>(`/api/v1/notifications${(() => {
+      const searchParams = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        if (value === undefined || value === null || value === '') return;
+        searchParams.set(key, String(value));
+      });
+      const query = searchParams.toString();
+      return query ? `?${query}` : '';
+    })()}`),
   markNotificationRead: (id: number) =>
     fetchApi<NotificationResponse>(`/api/v1/notifications/${id}/read`, { method: 'PATCH' }),
   markAllNotificationsRead: (notificationType?: string) =>
@@ -358,11 +384,6 @@ export const api = {
     fetchApi<CohortResponse>(`/api/v1/cohorts/${cohortId}/module_access`, {
       method: 'PATCH',
       body: JSON.stringify(data),
-    }),
-  updateCohortAnnouncements: (cohortId: number, announcements: { title: string; body: string; pinned?: boolean; published_at?: string }[]) =>
-    fetchApi<CohortResponse>(`/api/v1/cohorts/${cohortId}/announcements`, {
-      method: 'PATCH',
-      body: JSON.stringify({ announcements }),
     }),
   updateCohortRecordings: (cohortId: number, recordings: { title: string; url: string; date?: string; description?: string }[]) =>
     fetchApi<CohortResponse>(`/api/v1/cohorts/${cohortId}/recordings`, {

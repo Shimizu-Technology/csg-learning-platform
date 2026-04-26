@@ -40,7 +40,7 @@ export function Layout({ children }: LayoutProps) {
   useEffect(() => {
     if (!user) return
 
-    api.getNotifications(1, 'announcement').then((res) => {
+    api.getNotifications({ per_page: 1, notification_type: 'announcement' }).then((res) => {
       if (res.data) setUnreadCount(res.data.unread_count)
     })
     api.getChannels().then((res) => {
@@ -111,26 +111,25 @@ export function Layout({ children }: LayoutProps) {
       </header>
 
       {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="fixed inset-0 bg-slate-900/50" onClick={() => setSidebarOpen(false)} />
-          <div className="fixed inset-y-0 left-0 w-72 bg-white shadow-xl">
-            <div className="flex h-14 items-center justify-between px-4 border-b border-slate-200">
-              <div className="flex items-center gap-2">
-                <GraduationCap className="h-6 w-6 text-primary-500" />
-                <span className="font-semibold text-slate-900">CSG Learning Hub</span>
-              </div>
-              <button onClick={() => setSidebarOpen(false)} className="text-slate-500">
-                <X className="h-5 w-5" />
-              </button>
+      <div className={`fixed inset-0 z-50 lg:hidden transition-opacity duration-300 ${sidebarOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}>
+        <div className="fixed inset-0 bg-slate-900/50 transition-opacity duration-300" onClick={() => setSidebarOpen(false)} />
+        <div className={`fixed inset-y-0 left-0 flex w-72 flex-col bg-white shadow-xl transition-transform duration-300 ease-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+          <div className="flex h-14 items-center justify-between border-b border-slate-200 px-4">
+            <div className="flex items-center gap-2">
+              <GraduationCap className="h-6 w-6 text-primary-500" />
+              <span className="font-semibold text-slate-900">CSG Learning Hub</span>
             </div>
-            <nav className="p-4 space-y-1">
-              {navItems.map((item) => (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  onClick={() => setSidebarOpen(false)}
-                  className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+            <button onClick={() => setSidebarOpen(false)} className="text-slate-500">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <nav className="flex-1 space-y-1 p-4">
+            {navItems.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                onClick={() => setSidebarOpen(false)}
+                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                   isActive(item.to, 'exact' in item ? (item as { exact?: boolean }).exact : undefined)
                     ? 'bg-primary-50 text-primary-700'
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -149,9 +148,24 @@ export function Layout({ children }: LayoutProps) {
               </Link>
             ))}
           </nav>
+          <div className="border-t border-slate-200 p-4">
+            <div className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-3">
+              <UserButton
+                afterSignOutUrl="/sign-in"
+                appearance={{
+                  elements: {
+                    avatarBox: 'h-9 w-9',
+                  }
+                }}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-slate-900">{user?.full_name || user?.email}</p>
+                <p className="truncate text-xs capitalize text-slate-500">{user?.role}</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    )}
 
     <div className="flex">
       {/* Desktop sidebar */}

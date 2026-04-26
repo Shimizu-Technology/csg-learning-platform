@@ -277,7 +277,7 @@ export function LessonEditor() {
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Edit Exercise</h1>
             <p className="text-sm text-slate-500 mt-1">
-              Week {week}, {DAY_NAMES[dayIdx] || `Day ${dayIdx}`} · Release day {lesson.release_day}
+              Week {week}, {DAY_NAMES[dayIdx] || `Day ${dayIdx + 1}`} · Day {lesson.release_day + 1} in the release calendar
             </p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">

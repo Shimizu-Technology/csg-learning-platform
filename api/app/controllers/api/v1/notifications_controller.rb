@@ -6,12 +6,17 @@ module Api
 
       # GET /api/v1/notifications
       def index
-        notifications_scope = scoped_notifications
-        notifications = notifications_scope.includes(:actor, :notifiable).recent.limit(limit_param)
+        notifications_scope = apply_index_filters(scoped_notifications)
+        total_count = notifications_scope.count
+        notifications = notifications_scope
+          .includes(:actor, :notifiable)
+          .offset((page_param - 1) * per_page_param)
+          .limit(per_page_param)
 
         render json: {
           notifications: notifications.map { |notification| notification_json(notification) },
-          unread_count: notifications_scope.unread.count
+          unread_count: scoped_notifications.unread.count,
+          meta: pagination_json(total_count)
         }
       end
 
@@ -36,16 +41,54 @@ module Api
         @notification = current_user.notifications.find(params[:id])
       end
 
-      def limit_param
-        params.fetch(:limit, 50).to_i.clamp(1, 100)
-      end
-
       def scoped_notifications
         notifications = current_user.notifications
         return notifications unless params[:notification_type].present?
         return notifications unless Notification.notification_types.key?(params[:notification_type])
 
         notifications.where(notification_type: params[:notification_type])
+      end
+
+      def apply_index_filters(scope)
+        scoped = scope
+        scoped = scoped.where(read_at: nil) if params[:read] == "unread"
+        scoped = scoped.where.not(read_at: nil) if params[:read] == "read"
+
+        case params[:sort]
+        when "created_asc"
+          scoped.order(created_at: :asc)
+        when "read_desc"
+          scoped.order(read_at: :desc, created_at: :desc)
+        when "read_asc"
+          scoped.order(read_at: :asc, created_at: :asc)
+        else
+          scoped.recent
+        end
+      end
+
+      def page_param
+        params.fetch(:page, 1).to_i.clamp(1, 10_000)
+      end
+
+      def per_page_param
+        if params[:per_page].present?
+          params[:per_page].to_i.clamp(1, 100)
+        else
+          params.fetch(:limit, 50).to_i.clamp(1, 100)
+        end
+      end
+
+      def pagination_json(total_count)
+        total_pages = (total_count.to_f / per_page_param).ceil
+
+        {
+          page: page_param,
+          per_page: per_page_param,
+          total_count: total_count,
+          total_pages: total_pages,
+          has_next_page: page_param < total_pages,
+          has_prev_page: page_param > 1
+        }
       end
 
       def notification_json(notification)

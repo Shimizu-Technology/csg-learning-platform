@@ -100,6 +100,78 @@ class CommunicationTest < ActionDispatch::IntegrationTest
     assert_equal 0, @student.notifications.unread.count
   end
 
+  test "announcement index supports manage filters and pagination metadata" do
+    published = Announcement.create!(
+      title: "Published cohort",
+      body: "Visible now",
+      author: @admin,
+      audience: :cohort,
+      cohort: @cohort,
+      status: :published
+    )
+    draft = Announcement.create!(
+      title: "Draft cohort",
+      body: "Not live yet",
+      author: @admin,
+      audience: :cohort,
+      cohort: @cohort,
+      status: :draft
+    )
+    Announcement.create!(
+      title: "Global update",
+      body: "Visible everywhere",
+      author: @admin,
+      audience: :global,
+      status: :published
+    )
+    NotificationDeliveryService.announcement_published(published)
+    NotificationDeliveryService.announcement_published(draft)
+
+    as_user(@admin) do
+      get "/api/v1/announcements",
+        params: { scope: "manage", audience: "cohort", status: "published", cohort_id: @cohort.id, per_page: 1, page: 1 },
+        headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal [ "Published cohort" ], payload.fetch("announcements").map { |announcement| announcement.fetch("title") }
+    assert_equal 1, payload.fetch("meta").fetch("page")
+    assert_equal 1, payload.fetch("meta").fetch("per_page")
+    assert_equal 1, payload.fetch("meta").fetch("total_count")
+  end
+
+  test "announcement index can filter unread announcements" do
+    read_announcement = Announcement.create!(
+      title: "Read announcement",
+      body: "Already read",
+      author: @admin,
+      audience: :cohort,
+      cohort: @cohort,
+      status: :published
+    )
+    unread_announcement = Announcement.create!(
+      title: "Unread announcement",
+      body: "Still unread",
+      author: @admin,
+      audience: :cohort,
+      cohort: @cohort,
+      status: :published
+    )
+    NotificationDeliveryService.announcement_published(read_announcement)
+    NotificationDeliveryService.announcement_published(unread_announcement)
+    @student.notifications.find_by!(notifiable: read_announcement).mark_read!
+
+    as_user(@student) do
+      get "/api/v1/announcements", params: { read: "unread" }, headers: auth_headers
+    end
+
+    assert_response :success
+    titles = JSON.parse(response.body).fetch("announcements").map { |announcement| announcement.fetch("title") }
+    assert_includes titles, "Unread announcement"
+    refute_includes titles, "Read announcement"
+  end
+
   test "staff can patch cohort announcement without resending audience or cohort id" do
     announcement = Announcement.create!(
       title: "Original",
@@ -172,6 +244,64 @@ class CommunicationTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal 0, @student.notifications.announcement.unread.count
     assert_equal 1, @student.notifications.system.unread.count
+  end
+
+  test "notification index supports read filters, sorting, and pagination metadata" do
+    older = Notification.create!(
+      user: @student,
+      actor: @admin,
+      notifiable: Announcement.create!(
+        title: "Older source",
+        body: "Older source body",
+        author: @admin,
+        audience: :cohort,
+        cohort: @cohort,
+        status: :published
+      ),
+      notification_type: :announcement,
+      title: "Older notification",
+      path: "/announcements/older",
+      created_at: 2.days.ago,
+      updated_at: 2.days.ago
+    )
+    newer = Notification.create!(
+      user: @student,
+      actor: @admin,
+      notifiable: Announcement.create!(
+        title: "Newer source",
+        body: "Newer source body",
+        author: @admin,
+        audience: :cohort,
+        cohort: @cohort,
+        status: :published
+      ),
+      notification_type: :announcement,
+      title: "Newer notification",
+      path: "/announcements/newer",
+      created_at: 1.day.ago,
+      updated_at: 1.day.ago
+    )
+    older.mark_read!
+
+    as_user(@student) do
+      get "/api/v1/notifications",
+        params: {
+          notification_type: "announcement",
+          read: "unread",
+          sort: "created_asc",
+          per_page: 1,
+          page: 1
+        },
+        headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal [ newer.id ], payload.fetch("notifications").map { |notification| notification.fetch("id") }
+    assert_equal 1, payload.fetch("meta").fetch("page")
+    assert_equal 1, payload.fetch("meta").fetch("per_page")
+    assert_equal 1, payload.fetch("meta").fetch("total_count")
+    assert_equal 1, payload.fetch("unread_count")
   end
 
   test "student cannot create announcement" do

@@ -22,7 +22,13 @@ interface DashboardData {
       body: string
       pinned: boolean
       published_at: string
+      read_at?: string | null
       cohort_name?: string | null
+      author?: {
+        id: number
+        full_name: string
+        email: string
+      }
     }>
     unread_notifications_count?: number
   }
@@ -201,6 +207,9 @@ export function Dashboard() {
                     <span className="rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-700">Pinned</span>
                   )}
                 </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  {announcement.author?.full_name || announcement.cohort_name || 'CSG'} · {formatDate(announcement.published_at)}
+                </p>
                 {announcement.body && <p className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{announcement.body}</p>}
               </Link>
             ))}

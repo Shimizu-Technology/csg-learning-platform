@@ -124,7 +124,7 @@ export function NewLessonModal({
             </div>
           </div>
           <p className="text-xs text-slate-400 -mt-2">
-            This places the lesson on Week {week}, {ALL_DAY_NAMES[dayIndex]} (release day {releaseDay})
+            This places the lesson on Week {week}, {ALL_DAY_NAMES[dayIndex]} (Day {releaseDay + 1} in the release calendar)
           </p>
           <input type="hidden" value={position} />
           <div className="flex gap-3 pt-2">

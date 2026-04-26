@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Github, Save, Check } from 'lucide-react'
+import { UserButton } from '@clerk/clerk-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 
@@ -90,6 +91,21 @@ export function Profile() {
               {saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
               {saved ? 'Saved' : 'Save'}
             </button>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <p className="text-sm font-medium text-slate-900">Account session</p>
+          <p className="mt-1 text-sm text-slate-500">Open the account menu here to sign out on mobile or switch accounts.</p>
+          <div className="mt-3">
+            <UserButton
+              afterSignOutUrl="/sign-in"
+              appearance={{
+                elements: {
+                  avatarBox: 'h-10 w-10',
+                }
+              }}
+            />
           </div>
         </div>
       </div>

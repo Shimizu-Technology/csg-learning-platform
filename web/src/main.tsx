@@ -44,8 +44,14 @@ createRoot(document.getElementById('root')!).render(
 )
 
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
+  const registerServiceWorker = () => {
     navigator.serviceWorker.register('/sw.js')
       .catch((err) => console.log('SW registration failed:', err))
-  })
+  }
+
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(registerServiceWorker)
+  } else {
+    globalThis.setTimeout(registerServiceWorker, 1)
+  }
 }

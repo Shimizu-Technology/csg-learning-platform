@@ -157,7 +157,7 @@ export interface Announcement {
   title: string;
   body: string;
   pinned: boolean;
-  published_at: string;
+  published_at?: string | null;
   audience?: 'cohort' | 'global' | 'staff';
   status?: 'draft' | 'published' | 'archived';
   cohort_id?: number | null;
@@ -191,9 +191,19 @@ export interface NotificationEntry {
   };
 }
 
+export interface PaginationMeta {
+  page: number;
+  per_page: number;
+  total_count: number;
+  total_pages: number;
+  has_next_page: boolean;
+  has_prev_page: boolean;
+}
+
 export interface AnnouncementsResponse {
   announcements: Announcement[];
   unread_count: number;
+  meta: PaginationMeta;
 }
 
 export interface AnnouncementResponse {
@@ -203,6 +213,7 @@ export interface AnnouncementResponse {
 export interface NotificationsResponse {
   notifications: NotificationEntry[];
   unread_count: number;
+  meta: PaginationMeta;
 }
 
 export interface NotificationResponse {
