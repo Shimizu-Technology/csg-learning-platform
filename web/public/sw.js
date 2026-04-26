@@ -20,6 +20,13 @@ async function safeCachePut(cacheName, request, response) {
   }
 }
 
+function offlineAssetResponse() {
+  return new Response('', {
+    status: 503,
+    statusText: 'Offline',
+  });
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL_ASSETS))
@@ -77,7 +84,10 @@ self.addEventListener('fetch', (event) => {
             event.waitUntil(safeCachePut(RUNTIME_CACHE, event.request, copy));
             return response;
           })
-          .catch(() => cachedResponse);
+          .catch((error) => {
+            console.warn('[sw] Static asset fetch failed', event.request.url, error);
+            return cachedResponse || offlineAssetResponse();
+          });
 
         return cachedResponse || networkFetch;
       })
