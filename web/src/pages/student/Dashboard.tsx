@@ -21,8 +21,14 @@ interface DashboardData {
       title: string
       body: string
       pinned: boolean
-      published_at: string
+      published_at?: string | null
+      read_at?: string | null
       cohort_name?: string | null
+      author?: {
+        id: number
+        full_name: string
+        email: string
+      }
     }>
     unread_notifications_count?: number
   }
@@ -63,6 +69,11 @@ export function Dashboard() {
   const navigate = useNavigate()
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
+
+  const announcementTimestamp = (dateStr?: string | null) => {
+    if (!dateStr) return 0
+    return new Date(dateStr).getTime()
+  }
 
   useEffect(() => {
     if (user?.is_staff) {
@@ -192,7 +203,7 @@ export function Dashboard() {
           </div>
           {data.cohort.announcements
             .slice()
-            .sort((a, b) => Number(b.pinned) - Number(a.pinned) || new Date(b.published_at).getTime() - new Date(a.published_at).getTime())
+            .sort((a, b) => Number(b.pinned) - Number(a.pinned) || announcementTimestamp(b.published_at) - announcementTimestamp(a.published_at))
             .map((announcement, idx) => (
               <Link key={`${announcement.published_at}-${idx}`} to={`/announcements/${announcement.id}`} className={`block rounded-xl border px-4 py-3 ${announcement.pinned ? 'border-primary-200 bg-primary-50' : 'border-slate-200 bg-slate-50'} hover:border-primary-200`}>
                 <div className="flex items-center gap-2">
@@ -201,6 +212,9 @@ export function Dashboard() {
                     <span className="rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-700">Pinned</span>
                   )}
                 </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  {announcement.author?.full_name || announcement.cohort_name || 'CSG'} · {formatDate(announcement.published_at)}
+                </p>
                 {announcement.body && <p className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{announcement.body}</p>}
               </Link>
             ))}

@@ -14,7 +14,7 @@ import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { NewExerciseModal } from './NewExerciseModal'
 import { NewModuleModal } from './NewModuleModal'
-import { SCHEDULE_DAY_INDICES } from '../../lib/scheduleConstants'
+import { ALL_DAY_NAMES, SCHEDULE_DAY_INDICES } from '../../lib/scheduleConstants'
 import { useUpload } from '../../contexts/UploadContext'
 
 interface Lesson {
@@ -404,7 +404,7 @@ function ModuleSection({
                     {/* Day header */}
                     <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-100">
                       <h4 className="text-sm font-semibold text-slate-700">
-                        Day {dayIdx}
+                        Day {dayIdx + 1} · {ALL_DAY_NAMES[dayIdx]}
                       </h4>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-slate-400">

@@ -39,6 +39,88 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
     assert_equal "student", data["user"]["role"]
   end
 
+  test "student dashboard only shows pinned or unread announcements" do
+    enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+    ModuleAssignment.create!(enrollment: enrollment, curriculum_module: @mod, unlocked: true)
+    pinned_announcement = Announcement.create!(
+      title: "Pinned notice",
+      body: "Keep this visible",
+      author: @admin,
+      audience: :cohort,
+      cohort: @cohort,
+      status: :published,
+      pinned: true
+    )
+    read_announcement = Announcement.create!(
+      title: "Read notice",
+      body: "Should leave the dashboard",
+      author: @admin,
+      audience: :cohort,
+      cohort: @cohort,
+      status: :published
+    )
+    unread_announcement = Announcement.create!(
+      title: "Unread notice",
+      body: "Should stay visible",
+      author: @admin,
+      audience: :cohort,
+      cohort: @cohort,
+      status: :published
+    )
+    NotificationDeliveryService.announcement_published(pinned_announcement)
+    NotificationDeliveryService.announcement_published(read_announcement)
+    NotificationDeliveryService.announcement_published(unread_announcement)
+    @student.notifications.find_by!(notifiable: read_announcement).mark_read!
+
+    as_user(@student) do
+      get "/api/v1/dashboard", headers: auth_headers
+    end
+
+    assert_response :success
+    titles = JSON.parse(response.body).dig("dashboard", "cohort", "announcements").map { |announcement| announcement.fetch("title") }
+    assert_includes titles, "Pinned notice"
+    assert_includes titles, "Unread notice"
+    refute_includes titles, "Read notice"
+  end
+
+  test "student dashboard still surfaces older unread announcements beyond newer read items" do
+    enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+    ModuleAssignment.create!(enrollment: enrollment, curriculum_module: @mod, unlocked: true)
+
+    20.times do |index|
+      announcement = Announcement.create!(
+        title: "Recent read notice #{index}",
+        body: "Already handled",
+        author: @admin,
+        audience: :cohort,
+        cohort: @cohort,
+        status: :published,
+        published_at: (index + 1).minutes.ago
+      )
+      NotificationDeliveryService.announcement_published(announcement)
+      @student.notifications.find_by!(notifiable: announcement).mark_read!
+    end
+
+    older_unread = Announcement.create!(
+      title: "Older unread notice",
+      body: "Should still appear",
+      author: @admin,
+      audience: :cohort,
+      cohort: @cohort,
+      status: :published,
+      published_at: 30.minutes.ago
+    )
+    NotificationDeliveryService.announcement_published(older_unread)
+
+    as_user(@student) do
+      get "/api/v1/dashboard", headers: auth_headers
+    end
+
+    assert_response :success
+    titles = JSON.parse(response.body).dig("dashboard", "cohort", "announcements").map { |announcement| announcement.fetch("title") }
+    assert_includes titles, "Older unread notice"
+  end
+
   test "student dashboard treats assignment block as lesson completion driver when lesson also has video" do
     enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
     ModuleAssignment.create!(enrollment: enrollment, curriculum_module: @mod, unlocked: true)

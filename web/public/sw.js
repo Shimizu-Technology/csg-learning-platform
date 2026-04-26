@@ -1,9 +1,35 @@
-const CACHE_NAME = 'csg-learning-hub-v1';
+const CACHE_NAME = 'csg-learning-hub-v2';
+const RUNTIME_CACHE = 'csg-learning-runtime-v2';
 const OFFLINE_URL = '/offline.html';
+const APP_SHELL_ASSETS = [
+  OFFLINE_URL,
+  '/manifest.json',
+  '/icon-192x192.png',
+  '/icon-512x512.png',
+  '/favicon-32x32.png',
+];
+
+async function safeCachePut(cacheName, request, response) {
+  if (!response || !response.ok) return;
+
+  try {
+    const cache = await caches.open(cacheName);
+    await cache.put(request, response);
+  } catch (error) {
+    console.warn('[sw] Cache write skipped', error);
+  }
+}
+
+function offlineAssetResponse() {
+  return new Response('', {
+    status: 503,
+    statusText: 'Offline',
+  });
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.add(OFFLINE_URL))
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL_ASSETS))
   );
   self.skipWaiting();
 });
@@ -11,16 +37,60 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
+      Promise.all(keys.filter((key) => key !== CACHE_NAME && key !== RUNTIME_CACHE).map((key) => caches.delete(key)))
     )
   );
   self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
+
+  const requestUrl = new URL(event.request.url);
+  const sameOrigin = requestUrl.origin === self.location.origin;
+
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match(OFFLINE_URL))
+      fetch(event.request)
+        .then((response) => {
+          const copy = response.clone();
+          event.waitUntil(safeCachePut(RUNTIME_CACHE, event.request, copy));
+          return response;
+        })
+        .catch(async () => {
+          const cachedPage = await caches.match(event.request);
+          return cachedPage || caches.match(OFFLINE_URL);
+        })
+    );
+    return;
+  }
+
+  if (!sameOrigin) return;
+
+  const isStaticAsset =
+    requestUrl.pathname.startsWith('/assets/') ||
+    requestUrl.pathname === '/manifest.json' ||
+    requestUrl.pathname.endsWith('.png') ||
+    requestUrl.pathname.endsWith('.ico') ||
+    requestUrl.pathname.endsWith('.css') ||
+    requestUrl.pathname.endsWith('.js');
+
+  if (isStaticAsset) {
+    event.respondWith(
+      caches.match(event.request).then((cachedResponse) => {
+        const networkFetch = fetch(event.request)
+          .then((response) => {
+            const copy = response.clone();
+            event.waitUntil(safeCachePut(RUNTIME_CACHE, event.request, copy));
+            return response;
+          })
+          .catch((error) => {
+            console.warn('[sw] Static asset fetch failed', event.request.url, error);
+            return cachedResponse || offlineAssetResponse();
+          });
+
+        return cachedResponse || networkFetch;
+      })
     );
   }
 });

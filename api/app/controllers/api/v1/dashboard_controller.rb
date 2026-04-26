@@ -109,6 +109,24 @@ module Api
           }
         }
 
+        announcement_scope = Announcement.visible_for(current_user)
+          .includes(:cohort, :author)
+          .where(audience: :cohort, cohort_id: cohort.id)
+          .or(Announcement.visible_for(current_user).includes(:cohort, :author).where(audience: :global))
+        unread_announcement_ids = current_user.notifications
+          .announcement
+          .unread
+          .select(:notifiable_id)
+        visible_announcements = announcement_scope
+          .where(pinned: true)
+          .or(announcement_scope.where(id: unread_announcement_ids))
+          .ordered
+          .limit(5)
+          .to_a
+        announcement_notifications = current_user.notifications
+          .where(notifiable_type: "Announcement", notifiable_id: visible_announcements.map(&:id))
+          .index_by(&:notifiable_id)
+
         render json: {
           dashboard: {
             enrolled: true,
@@ -118,13 +136,7 @@ module Api
               name: cohort.name,
               start_date: cohort.start_date,
               status: cohort.status,
-              announcements: Announcement.visible_for(current_user)
-                .includes(:cohort)
-                .where(audience: :cohort, cohort_id: cohort.id)
-                .or(Announcement.visible_for(current_user).includes(:cohort).where(audience: :global))
-                .ordered
-                .limit(5)
-                .map { |announcement| dashboard_announcement_json(announcement) },
+              announcements: visible_announcements.map { |announcement| dashboard_announcement_json(announcement, announcement_notifications[announcement.id]) },
               unread_notifications_count: current_user.notifications.announcement.unread.count
             },
             overall_progress: {
@@ -139,7 +151,7 @@ module Api
         }
       end
 
-      def dashboard_announcement_json(announcement)
+      def dashboard_announcement_json(announcement, notification = nil)
         {
           id: announcement.id,
           title: announcement.title,
@@ -147,7 +159,13 @@ module Api
           pinned: announcement.pinned,
           published_at: announcement.published_at,
           cohort_id: announcement.cohort_id,
-          cohort_name: announcement.cohort&.name
+          cohort_name: announcement.cohort&.name,
+          read_at: notification&.read_at,
+          author: announcement.author && {
+            id: announcement.author.id,
+            full_name: announcement.author.full_name,
+            email: announcement.author.email
+          }
         }
       end
 
