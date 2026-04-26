@@ -43,6 +43,44 @@ CLERK_SECRET_KEY=sk_live_...
 MAILER_FROM_EMAIL=noreply@codeschoolofguam.com
 RESEND_API_KEY=re_...
 GITHUB_ORGANIZATION_ADMIN_TOKEN=ghp_...
+AWS_ACCESS_KEY_ID=<iam access key for S3 uploads>
+AWS_SECRET_ACCESS_KEY=<iam secret for S3 uploads>
+AWS_REGION=ap-southeast-2
+AWS_S3_BUCKET=csg-learning-platform
+```
+
+### S3 Direct Upload Requirements
+
+Recording uploads do **not** stream through Render or Netlify. The API only generates a presigned POST, and the browser then uploads the file directly to S3.
+
+That means production uploads can fail even when:
+- `POST /api/v1/cohorts/:id/recordings_presign` returns `200 OK`
+- Render logs look healthy
+- local uploads still work
+
+The two production-critical checks are:
+
+1. `AWS_REGION` on Render must exactly match the actual bucket region.
+This app’s production bucket intentionally lives in `ap-southeast-2`, even though the Render service runs in Singapore. `AWS_REGION` here refers to the S3 bucket region, not the Render app region. If Render signs uploads for the wrong bucket region, S3 can respond with a redirect/error that the browser surfaces as a generic upload failure.
+
+2. The S3 bucket CORS rules must allow the production frontend origin.
+If the bucket allows `http://localhost:5173` but not `https://learn.codeschoolofguam.com`, local uploads can succeed while production uploads fail during the browser → S3 step.
+
+Recommended bucket CORS:
+
+```json
+[
+  {
+    "AllowedOrigins": [
+      "http://localhost:5173",
+      "https://learn.codeschoolofguam.com"
+    ],
+    "AllowedMethods": ["GET", "HEAD", "POST"],
+    "AllowedHeaders": ["*"],
+    "ExposeHeaders": ["ETag", "Location", "x-amz-request-id", "x-amz-id-2"],
+    "MaxAgeSeconds": 3000
+  }
+]
 ```
 
 ### Deploy Process
@@ -190,6 +228,22 @@ After first deployment or major changes:
 1. Verify `FRONTEND_URL` on Render matches the actual frontend URL exactly
 2. Check for trailing slashes (should not have one)
 3. Verify the API's `rack-cors` configuration
+
+### S3 upload fails after presign succeeds
+
+Symptom pattern:
+- Render logs show `POST /api/v1/cohorts/:id/recordings_presign` returning `200 OK`
+- the browser upload then fails with a generic network / upload error
+- no follow-up `POST /api/v1/cohorts/:id/recordings` appears in Render logs
+
+That points to the browser → S3 hop, not Rails.
+
+Check these in order:
+1. `AWS_REGION` on Render exactly matches the bucket’s actual AWS region.
+2. `AWS_S3_BUCKET` is the expected bucket.
+3. The bucket CORS config includes `https://learn.codeschoolofguam.com`.
+4. The bucket CORS config still includes `http://localhost:5173` for local testing.
+5. Browser devtools for the failed S3 request: if the request never gets an HTTP status and fails as a network error, that usually means CORS or region mismatch rather than an API bug.
 
 ### Clerk auth not working
 

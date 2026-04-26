@@ -42,7 +42,12 @@ export function uploadToS3(
       }
     })
 
-    xhr.addEventListener('error', () => reject(new Error('Upload failed — check your connection')))
+    xhr.addEventListener('error', () => {
+      console.error(
+        'S3 direct upload failed before the file was accepted. Possible causes include a network issue, missing S3 bucket CORS origin, or bucket-region mismatch.'
+      )
+      reject(new Error('Upload failed — the file could not be sent to storage. Check your connection and try again.'))
+    })
     xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')))
 
     if (abortSignal) {
