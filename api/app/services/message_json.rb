@@ -7,6 +7,7 @@ class MessageJson
         direct_conversation_id: message.direct_conversation_id,
         parent_message_id: message.parent_message_id,
         body: message.body.to_s,
+        mention_user_ids: Array(message.mention_user_ids),
         edited_at: message.edited_at,
         deleted_at: message.deleted_at,
         pinned_at: message.pinned_at,

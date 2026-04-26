@@ -1,6 +1,8 @@
 require "test_helper"
 
 class NotificationDeliveryServiceTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   test "attachment only messages get a fallback notification body" do
     curriculum = Curriculum.create!(name: "Bootcamp 2026")
     cohort = Cohort.create!(curriculum: curriculum, name: "Cohort 3", start_date: Date.current, status: :active)
@@ -21,5 +23,33 @@ class NotificationDeliveryServiceTest < ActiveSupport::TestCase
     notification = NotificationDeliveryService.message_created(message).find { |item| item.user_id == recipient.id }
 
     assert_equal "Sent an attachment", notification.body
+  end
+
+  test "explicit mention ids drive mention notifications and email jobs" do
+    curriculum = Curriculum.create!(name: "Bootcamp 2026")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Cohort 3", start_date: Date.current, status: :active)
+    channel = cohort.channels.find_by!(name: "Class Chat")
+    author = User.create!(clerk_id: "mention_author", email: "mention-author@example.com", first_name: "Notify", last_name: "Author", role: :admin)
+    recipient = User.create!(clerk_id: "mention_student", email: "mention-student@example.com", first_name: "Same", last_name: "Name", role: :student)
+    duplicate_name = User.create!(clerk_id: "mention_duplicate", email: "mention-duplicate@example.com", first_name: "Same", last_name: "Name", role: :student)
+    Enrollment.create!(user: recipient, cohort: cohort, status: :active)
+    Enrollment.create!(user: duplicate_name, cohort: cohort, status: :active)
+
+    message = Message.create!(
+      channel: channel,
+      author: author,
+      body: "@Same Name please review this.",
+      mention_user_ids: [ recipient.id ]
+    )
+
+    assert_enqueued_with(job: MessageMentionEmailJob, args: [ message.id, [ recipient.id ] ]) do
+      NotificationDeliveryService.message_created(message)
+    end
+
+    recipient_notification = Notification.find_by!(notifiable: message, user: recipient)
+    duplicate_notification = Notification.find_by!(notifiable: message, user: duplicate_name)
+
+    assert_match "mentioned you", recipient_notification.title
+    refute_match "mentioned you", duplicate_notification.title
   end
 end

@@ -54,6 +54,26 @@ class NotificationEmailService
       false
     end
 
+    def send_message_mention(user:, message:)
+      return false unless configured?
+      return false if user.email.blank?
+
+      response = Resend::Emails.send(
+        {
+          from: from_email,
+          to: user.email,
+          subject: "#{message.author.full_name} mentioned you - #{BRAND_NAME}",
+          html: mention_html(user: user, message: message)
+        }
+      )
+
+      Rails.logger.info("[MentionEmail] sent to #{user.email} for message #{message.id} response=#{response.inspect}")
+      true
+    rescue StandardError => e
+      Rails.logger.error("[MentionEmail] failed for #{user.email}: #{e.class} #{e.message}")
+      false
+    end
+
     def configured?
       if ENV["RESEND_API_KEY"].blank?
         Rails.logger.warn("[NotificationEmail] RESEND_API_KEY not configured; skipping")
@@ -74,6 +94,10 @@ class NotificationEmailService
 
     def frontend_url
       FrontendUrlResolver.resolve
+    end
+
+    def frontend_path(path)
+      "#{frontend_url.to_s.sub(%r{/\z}, "")}#{path}"
     end
 
     def h(value)
@@ -193,6 +217,82 @@ class NotificationEmailService
           </table>
         </td></tr>
       HTML
+    end
+
+    def mention_html(user:, message:)
+      name = h(user.first_name.presence || user.email.split("@").first)
+      sender = h(message.author.full_name)
+      context = h(message_context_label(message))
+      preview = h(message.body.to_s.squish.presence || attachment_preview(message))
+      path = h(frontend_path(message_path(message)))
+
+      <<~HTML
+        <!doctype html>
+        <html>
+          <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+          <body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f1f5f9;">
+              <tr><td align="center" style="padding: 40px 16px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 500px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+                  <tr><td style="height: 4px; background: linear-gradient(90deg, #2563eb, #ef4444); font-size: 0;">&nbsp;</td></tr>
+                  <tr><td style="padding: 32px 32px 0; text-align: center;">
+                    <p style="margin: 0 0 8px; color: #2563eb; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;">New Mention</p>
+                    <h1 style="margin: 0; color: #0f172a; font-size: 22px; font-weight: 700;">#{sender} mentioned you</h1>
+                  </td></tr>
+                  <tr><td style="padding: 20px 32px 0; text-align: center;">
+                    <p style="margin: 0; font-size: 14px; line-height: 1.7; color: #64748b;">
+                      Hey #{name}, you were mentioned in <strong style="color: #0f172a;">#{context}</strong>.
+                    </p>
+                  </td></tr>
+                  <tr><td style="padding: 16px 32px 0;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+                      <tr><td style="padding: 16px;">
+                        <p style="margin: 0 0 4px; color: #2563eb; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;">Message Preview</p>
+                        <p style="margin: 0; font-size: 14px; line-height: 1.7; color: #334155;">#{preview}</p>
+                      </td></tr>
+                    </table>
+                  </td></tr>
+                  <tr><td style="padding: 24px 32px 0;" align="center">
+                    <table role="presentation" cellspacing="0" cellpadding="0">
+                      <tr><td style="border-radius: 8px; background-color: #2563eb;">
+                        <a href="#{path}" target="_blank" style="display: inline-block; padding: 13px 36px; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 700;">
+                          Open Conversation
+                        </a>
+                      </td></tr>
+                    </table>
+                  </td></tr>
+                  <tr><td style="padding: 28px 32px 32px;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                      <tr><td style="height: 1px; background-color: #e2e8f0; font-size: 0;">&nbsp;</td></tr>
+                    </table>
+                    <p style="margin: 16px 0 0; font-size: 11px; color: #94a3b8; text-align: center;">#{h(BRAND_NAME)}</p>
+                  </td></tr>
+                </table>
+              </td></tr>
+            </table>
+          </body>
+        </html>
+      HTML
+    end
+
+    def message_path(message)
+      return "/messages/dm/#{message.direct_conversation_id}" if message.direct_message?
+
+      "/messages/#{message.channel_id}"
+    end
+
+    def message_context_label(message)
+      return "your direct messages" if message.direct_message?
+
+      "##{message.channel&.name || 'channel'}"
+    end
+
+    def attachment_preview(message)
+      count = message.message_attachments.size
+      return "Sent an attachment" if count == 1
+      return "Sent #{count} attachments" if count > 1
+
+      "Sent a message"
     end
   end
 end

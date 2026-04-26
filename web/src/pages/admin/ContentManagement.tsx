@@ -215,8 +215,8 @@ export function ContentManagement() {
               setExerciseSaving(false)
               return
             }
-            // If a video upload is still in flight, attach the new lesson/content_block to it
-            // so the toast can deep-link back here and the editor can reconnect to progress.
+            // If a video upload is still in flight, attach the new lesson/content block to it
+            // so the background uploader can finish persisting the S3 video onto the new row.
             if (upload_id && res.data?.lesson) {
               const lesson = res.data.lesson
               const videoBlock = lesson.content_blocks?.find(cb => cb.block_type === 'video')

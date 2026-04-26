@@ -323,6 +323,7 @@ export interface ChannelMessage {
   direct_conversation_id: number | null;
   parent_message_id: number | null;
   body: string;
+  mention_user_ids: number[];
   edited_at: string | null;
   deleted_at: string | null;
   pinned_at: string | null;
