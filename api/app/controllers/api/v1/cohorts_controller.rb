@@ -298,7 +298,7 @@ module Api
               assigned_count: assignments.size,
               assigned: assignments.size.positive?,
               unlocked_count: assignments.count(&:unlocked?),
-              accessible_count: assignments.count(&:accessible?),
+              accessible_count: assignments.count { |assignment| assignment.accessible?(cohort) },
               module_start_date: module_start_date,
               uses_default_start_date: schedule_index[mod.id].nil?,
               requires_github: mod_gh["requires_github"] || false,

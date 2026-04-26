@@ -4,20 +4,23 @@ class ModuleAssignment < ApplicationRecord
 
   validates :module_id, uniqueness: { scope: :enrollment_id }
 
-  def effective_start_date
-    unlock_date_override.presence || curriculum_module.start_date_for(enrollment.cohort)
+  def effective_start_date(cohort = nil)
+    return unlock_date_override if unlock_date_override.present?
+
+    curriculum_module.start_date_for(cohort || enrollment.cohort)
   end
 
   # True if the module is accessible right now — either force-unlocked
   # or the date-based override has been reached.
-  def accessible?
+  def accessible?(cohort = nil)
     return true if unlocked?
 
-    effective_start_date.present? && Date.current >= effective_start_date
+    start_date = effective_start_date(cohort)
+    start_date.present? && Date.current >= start_date
   end
 
   def available_for?(cohort)
-    return false unless accessible?
+    return false unless accessible?(cohort)
     return true if curriculum_module.lessons.empty?
 
     curriculum_module.lessons.any? { |lesson| lesson.available?(cohort, self) }

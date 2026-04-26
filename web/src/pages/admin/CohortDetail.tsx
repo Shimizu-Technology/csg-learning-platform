@@ -67,9 +67,33 @@ type CohortData = Record<string, any> & {
   }>
 }
 
+function padDatePart(value: number): string {
+  return String(value).padStart(2, '0')
+}
+
+function formatDateInputValue(date: Date): string {
+  return `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(date.getDate())}`
+}
+
+function dateFromDateOnly(value: string): Date {
+  const [year, month, day] = value.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
 function toDateInputValue(dateStr?: string | null): string {
   if (!dateStr) return ''
-  return new Date(dateStr).toISOString().slice(0, 10)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr
+
+  return formatDateInputValue(new Date(dateStr))
+}
+
+function todayDateInputValue(): string {
+  return formatDateInputValue(new Date())
+}
+
+function formatDateLabel(dateStr?: string | null): string {
+  if (!dateStr) return ''
+  return dateFromDateOnly(toDateInputValue(dateStr)).toLocaleDateString()
 }
 
 export function CohortDetail() {
@@ -365,7 +389,7 @@ export function CohortDetail() {
       module_id: moduleId,
       assigned: true,
       unlocked: false,
-      module_start_date: new Date().toISOString().slice(0, 10),
+      module_start_date: todayDateInputValue(),
     })
 
     if (res.error) {
@@ -389,7 +413,7 @@ export function CohortDetail() {
       setForms(nextForms)
     }
     const moduleName = cohort?.modules.find((mod) => mod.id === moduleId)?.name || 'module'
-    setMessage(`Assigned ${moduleName} — open Configure to set a start date`)
+    setMessage(`Assigned ${moduleName} — open Configure to adjust the start date if needed`)
     setSavingModuleId(null)
     setConfigureModuleId(moduleId)
   }
@@ -432,10 +456,10 @@ export function CohortDetail() {
   if (loading) return <LoadingSpinner message="Loading cohort..." />
   if (!cohort) return null
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayDateInputValue()
   const upcomingUnlocks = cohort.modules
     .filter((mod) => mod.assigned && mod.module_start_date && mod.module_start_date > today)
-    .sort((a, b) => new Date(a.module_start_date).getTime() - new Date(b.module_start_date).getTime())
+    .sort((a, b) => dateFromDateOnly(a.module_start_date).getTime() - dateFromDateOnly(b.module_start_date).getTime())
     .slice(0, 5)
 
   return (
@@ -634,8 +658,8 @@ export function CohortDetail() {
                 <div key={mod.id} className="p-4 flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3 min-w-0">
                     {(() => {
-                      const isAccessible = form.unlocked || (form.module_start_date && new Date(form.module_start_date + 'T00:00:00') <= new Date())
-                      const isScheduled = !form.unlocked && form.module_start_date && new Date(form.module_start_date + 'T00:00:00') > new Date()
+                      const isAccessible = form.unlocked || (form.module_start_date && dateFromDateOnly(form.module_start_date) <= new Date())
+                      const isScheduled = !form.unlocked && form.module_start_date && dateFromDateOnly(form.module_start_date) > new Date()
                       return (
                         <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${
                           !mod.assigned ? 'bg-slate-100 text-slate-400'
@@ -909,7 +933,7 @@ export function CohortDetail() {
         <div className="space-y-4">
           {upcomingUnlocks.length > 0 && (
             <div className="rounded-2xl bg-white border border-slate-200 p-4">
-              <h2 className="text-lg font-semibold text-slate-900">Upcoming Unlocks</h2>
+              <h2 className="text-lg font-semibold text-slate-900">Upcoming Module Starts</h2>
               <div className="mt-3 space-y-2">
                 {upcomingUnlocks.map((mod) => (
                   <div key={`${mod.id}-${mod.module_start_date}`} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
@@ -918,7 +942,7 @@ export function CohortDetail() {
                       <p className="text-xs text-slate-500 capitalize">{mod.module_type.replace('_', ' ')} · {mod.assigned_count} assigned</p>
                     </div>
                     <span className="text-xs font-medium text-slate-600 shrink-0">
-                      {new Date(mod.module_start_date).toLocaleDateString()}
+                      {formatDateLabel(mod.module_start_date)}
                     </span>
                   </div>
                 ))}
@@ -1055,7 +1079,7 @@ export function CohortDetail() {
         footer={
           <div className="flex items-center justify-between">
             <button
-              onClick={() => setRecordings((prev) => [...prev, { title: '', url: '', date: new Date().toISOString().slice(0, 10) }])}
+              onClick={() => setRecordings((prev) => [...prev, { title: '', url: '', date: todayDateInputValue() }])}
               className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
             >
               <Plus className="h-3.5 w-3.5" />

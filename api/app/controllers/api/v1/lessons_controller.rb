@@ -153,7 +153,7 @@ module Api
         assignment = enrollment.module_assignments.find_by(module_id: @lesson.module_id)
         lesson_assignment = enrollment.lesson_assignments.find_by(lesson_id: @lesson.id)
 
-        unless assignment&.accessible? || lesson_assignment.present?
+        unless assignment&.accessible?(enrollment.cohort) || lesson_assignment.present?
           render_forbidden("Cannot access this lesson")
           return
         end
