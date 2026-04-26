@@ -260,6 +260,8 @@ module Api
           class_resources: Array((cohort.settings || {})["class_resources"])
         }
 
+        json[:uploaded_recordings_count] = cohort.recordings.count if include_students
+
         if include_students
           json[:students] = cohort.enrollments.includes(:user, module_assignments: :curriculum_module).map { |e|
             {

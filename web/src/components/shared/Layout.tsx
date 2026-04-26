@@ -20,6 +20,7 @@ import {
 import { UserButton } from '@clerk/clerk-react'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { api } from '../../lib/api'
+import { preloadPrimaryRoutes, preloadRoute } from '../../lib/routePreload'
 
 interface LayoutProps {
   children?: React.ReactNode
@@ -89,6 +90,25 @@ export function Layout({ children }: LayoutProps) {
 
   const navItems = isLoading ? [] : isFullAdmin ? adminNav : isStaff ? instructorNav : studentNav
 
+  useEffect(() => {
+    if (navItems.length === 0 || typeof window === 'undefined') return
+
+    const paths = Array.from(new Set(navItems.map((item) => item.to)))
+    const preload = () => preloadPrimaryRoutes(paths)
+    const win = window as Window & typeof globalThis & {
+      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number
+      cancelIdleCallback?: (handle: number) => void
+    }
+
+    if (typeof win.requestIdleCallback === 'function' && typeof win.cancelIdleCallback === 'function') {
+      const handle = win.requestIdleCallback(preload, { timeout: 1200 })
+      return () => win.cancelIdleCallback?.(handle)
+    }
+
+    const timeoutId = globalThis.setTimeout(preload, 200)
+    return () => globalThis.clearTimeout(timeoutId)
+  }, [navItems])
+
   const isActive = (path: string, exact?: boolean) => {
     if (path === '/' || exact) return location.pathname === path
     return location.pathname.startsWith(path)
@@ -96,6 +116,11 @@ export function Layout({ children }: LayoutProps) {
 
   const sidebarWidth = collapsed ? 'w-[68px]' : 'w-64'
   const mainMargin = collapsed ? 'lg:ml-[68px]' : 'lg:ml-64'
+  const getLinkHandlers = (path: string) => ({
+    onMouseEnter: () => preloadRoute(path),
+    onFocus: () => preloadRoute(path),
+    onTouchStart: () => preloadRoute(path),
+  })
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -129,6 +154,7 @@ export function Layout({ children }: LayoutProps) {
                 key={item.to}
                 to={item.to}
                 onClick={() => setSidebarOpen(false)}
+                {...getLinkHandlers(item.to)}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                   isActive(item.to, 'exact' in item ? (item as { exact?: boolean }).exact : undefined)
                     ? 'bg-primary-50 text-primary-700'
@@ -180,6 +206,7 @@ export function Layout({ children }: LayoutProps) {
               key={item.to}
               to={item.to}
               title={collapsed ? item.label : undefined}
+              {...getLinkHandlers(item.to)}
               className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-lg ${collapsed ? 'px-2' : 'px-3'} py-2.5 text-sm font-medium transition-colors ${
                 isActive(item.to, 'exact' in item ? (item as { exact?: boolean }).exact : undefined)
                   ? 'bg-primary-50 text-primary-700'

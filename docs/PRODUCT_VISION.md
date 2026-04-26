@@ -142,11 +142,23 @@ The manual email → Stripe link flow should be replaced with in-app payment pro
 
 ### 5.7 Use external tools where they still make sense
 
-The goal is not to rebuild everything. Examples of tools that stay external:
+The goal is not to rebuild everything. The decision should be based on whether a capability is core to the CSG student experience, or just infrastructure that should be delegated to a specialist provider.
 
-- **Zoom** for live video calls (link stored in class resources)
+Examples of tools that stay external:
+
 - **GitHub** for code hosting and some submission workflows
 - **Clerk** for authentication and identity
+
+### 5.8 Own the classroom experience, not the raw media infrastructure
+
+Live class is core to the student experience, so the long-term product direction is to bring classroom sessions into the platform itself instead of relying on Zoom links in class resources.
+
+However, the platform should still avoid rebuilding low-level media infrastructure. The right strategy is:
+
+- own scheduling, permissions, attendance, replay access, and classroom UI
+- use a specialist realtime media provider underneath for audio/video transport, screen sharing, and recording
+
+That means the product goal is a **CSG-specific classroom platform**, not a full generic meeting SaaS.
 
 ---
 
@@ -228,7 +240,7 @@ Replace manual email → Stripe link flow:
 - Alumni resource access
 - Advanced/AI/remediation modules
 - Notification and reminder system
-- Zoom meeting management via API (if justified)
+- Education-focused live classroom sessions built into the platform
 
 ---
 
@@ -249,6 +261,7 @@ Replace manual email → Stripe link flow:
 - Payment (user ↔ cohort enrollment)
 - Richer media pipeline for uploads linked directly into lesson content
 - Expanded communication controls and notification preferences
+- Live classroom session models, attendance, and replay access
 
 ---
 

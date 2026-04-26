@@ -458,6 +458,8 @@ export function Messages() {
   const [isDesktop, setIsDesktop] = useState(() => (typeof window === 'undefined' ? true : window.innerWidth >= 1024))
   const [mobilePane, setMobilePane] = useState<'list' | 'conversation' | 'thread'>(selectedTarget ? 'conversation' : 'list')
   const [editing, setEditing] = useState<ChannelMessage | null>(null)
+  const [mobileActionsMessageId, setMobileActionsMessageId] = useState<number | null>(null)
+  const [messagePendingDelete, setMessagePendingDelete] = useState<LocalMessage | null>(null)
   const [editBody, setEditBody] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<ChannelMessage[]>([])
@@ -522,6 +524,7 @@ export function Messages() {
     [messages],
   )
   const activeThreadRoot = activeThreadRootId ? messagesById.get(activeThreadRootId) || null : null
+  const mobileActionsMessage = mobileActionsMessageId ? messagesById.get(mobileActionsMessageId) || null : null
   const activeThreadMessages = useMemo(() => {
     if (!activeThreadRoot) return []
 
@@ -907,6 +910,12 @@ export function Messages() {
       setActiveThreadRootId(null)
     }
   }, [activeThreadRootId, messagesById])
+
+  useEffect(() => {
+    if (mobileActionsMessageId && !messagesById.has(mobileActionsMessageId)) {
+      setMobileActionsMessageId(null)
+    }
+  }, [messagesById, mobileActionsMessageId])
 
   useEffect(() => {
     setConversationView('messages')
@@ -1916,7 +1925,8 @@ export function Messages() {
                       }}
                       onCancelEdit={() => setEditing(null)}
                       onSaveEdit={() => saveEdit(message)}
-                      onDelete={() => deleteMessage(message)}
+                      onDelete={() => setMessagePendingDelete(message)}
+                      onOpenActions={() => setMobileActionsMessageId(message.id)}
                       onPin={() => togglePin(message)}
                       canPin={isStaff}
                       inThreadView={Boolean(activeThreadRoot)}
@@ -1988,29 +1998,29 @@ export function Messages() {
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={handleDrop}
                 >
-                  <div className="messages-toolbar-scroll flex items-center gap-1 overflow-x-auto border-b border-slate-100 px-2 py-2 text-slate-500">
-                    <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => fileInputRef.current?.click()} className="rounded-lg p-2 hover:bg-slate-50" aria-label="Attach files">
+                  <div className="messages-toolbar-scroll flex flex-wrap items-center gap-1.5 border-b border-slate-100 px-2 py-2 text-slate-500 sm:flex-nowrap sm:overflow-x-auto">
+                    <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => fileInputRef.current?.click()} className="min-h-10 rounded-lg p-2.5 hover:bg-slate-50" aria-label="Attach files">
                       <Paperclip className="h-4 w-4" />
                     </button>
-                    <button type="button" onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleBold().run())} className={`rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('bold') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Bold">
+                    <button type="button" onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleBold().run())} className={`min-h-10 rounded-lg p-2.5 hover:bg-slate-50 ${editor?.isActive('bold') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Bold">
                       <Bold className="h-4 w-4" />
                     </button>
-                    <button type="button" onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleItalic().run())} className={`rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('italic') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Italic">
+                    <button type="button" onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleItalic().run())} className={`min-h-10 rounded-lg p-2.5 hover:bg-slate-50 ${editor?.isActive('italic') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Italic">
                       <Italic className="h-4 w-4" />
                     </button>
-                    <button type="button" onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleCode().run())} className={`rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('code') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Inline code">
+                    <button type="button" onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleCode().run())} className={`min-h-10 rounded-lg p-2.5 hover:bg-slate-50 ${editor?.isActive('code') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Inline code">
                       <Code2 className="h-4 w-4" />
                     </button>
                     <button
                       type="button"
                       onMouseDown={(event) => runToolbarCommand(event, insertCodeBlock)}
-                      className={`rounded-full px-2.5 py-1 text-xs font-medium hover:bg-slate-50 ${editor?.isActive('codeBlock') ? 'bg-slate-100 text-slate-900' : ''}`}
+                      className={`min-h-10 rounded-full px-3 py-2 text-xs font-medium hover:bg-slate-50 ${editor?.isActive('codeBlock') ? 'bg-slate-100 text-slate-900' : ''}`}
                     >
                       <span className="hidden sm:inline">Code block</span>
                       <span className="sm:hidden">Block</span>
                     </button>
-                    <button type="button" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('@') }} className="rounded-full px-2.5 py-1 text-xs font-medium hover:bg-slate-50">@ mention</button>
-                    <button type="button" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('/') }} className="rounded-full px-2.5 py-1 text-xs font-medium hover:bg-slate-50">/ command</button>
+                    <button type="button" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('@') }} className="min-h-10 rounded-full px-3 py-2 text-xs font-medium hover:bg-slate-50">@ mention</button>
+                    <button type="button" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('/') }} className="min-h-10 rounded-full px-3 py-2 text-xs font-medium hover:bg-slate-50">/ command</button>
                     <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => handleFiles(event.target.files)} />
                   </div>
                     <div className="p-2" onKeyDownCapture={handleComposerKeyDown}>
@@ -2284,6 +2294,111 @@ export function Messages() {
       )}
 
       <Modal
+        open={Boolean(messagePendingDelete)}
+        onClose={() => setMessagePendingDelete(null)}
+        title="Delete message?"
+        subtitle="This removes the message for everyone in the conversation."
+        size="md"
+        footer={
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setMessagePendingDelete(null)}
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!messagePendingDelete) return
+                void deleteMessage(messagePendingDelete)
+                setMessagePendingDelete(null)
+              }}
+              className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+            >
+              Delete message
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            This action cannot be undone.
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            {messagePendingDelete ? preview(messagePendingDelete.body) || 'Attachment-only message' : ''}
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={Boolean(mobileActionsMessage)}
+        onClose={() => setMobileActionsMessageId(null)}
+        title="Message actions"
+        subtitle={mobileActionsMessage ? `${mobileActionsMessage.author.full_name} · ${formatTime(mobileActionsMessage.created_at)}` : undefined}
+        size="md"
+      >
+        <div className="space-y-2">
+          {isStaff && mobileActionsMessage && (
+            <button
+              type="button"
+              onClick={() => {
+                void togglePin(mobileActionsMessage)
+                setMobileActionsMessageId(null)
+              }}
+              className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              <Pin className="h-4 w-4" />
+              {mobileActionsMessage.pinned_at ? 'Unpin message' : 'Pin message'}
+            </button>
+          )}
+          {mobileActionsMessage && (
+            <button
+              type="button"
+              onClick={() => {
+                const rootId = rootMessageIdFor(mobileActionsMessage, messagesById)
+                setActiveThreadRootId(rootId)
+                if (!isDesktop) setMobilePane('thread')
+                setMobileActionsMessageId(null)
+              }}
+              className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              <MessageCircle className="h-4 w-4" />
+              {activeThreadRootId ? 'Reply in thread' : 'Reply'}
+            </button>
+          )}
+          {mobileActionsMessage?.mine && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditing(mobileActionsMessage)
+                  setEditBody(mobileActionsMessage.body)
+                  setMobileActionsMessageId(null)
+                }}
+                className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <Edit3 className="h-4 w-4" />
+                Edit message
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMessagePendingDelete(mobileActionsMessage)
+                  setMobileActionsMessageId(null)
+                }}
+                className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-red-200 px-4 py-3 text-left text-sm font-medium text-red-600 hover:bg-red-50"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete message
+              </button>
+            </>
+          )}
+        </div>
+      </Modal>
+
+      <Modal
         open={showDmForm}
         onClose={() => setShowDmForm(false)}
         title="Start direct message"
@@ -2504,6 +2619,7 @@ function MessageRow({
   onCancelEdit,
   onSaveEdit,
   onDelete,
+  onOpenActions,
   onPin,
   canPin,
   inThreadView,
@@ -2521,6 +2637,7 @@ function MessageRow({
   onCancelEdit: () => void
   onSaveEdit: () => void
   onDelete: () => void
+  onOpenActions: () => void
   onPin: () => void
   canPin: boolean
   inThreadView: boolean
@@ -2596,14 +2713,14 @@ function MessageRow({
             ))}
           </div>
         )}
-        <div className="mt-2 flex flex-wrap items-center gap-1">
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
           {renderedReactions.map((emoji) => {
             const reaction = message.reactions.find((item) => item.emoji === emoji)
             return (
               <div key={emoji} className="group/reaction relative">
                 <button
                   onClick={() => onReact(emoji)}
-                  className={`rounded-lg border px-2 py-1 text-xs ${reaction?.reacted ? 'border-primary-200 bg-primary-50 text-primary-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                  className={`min-h-9 rounded-lg border px-2.5 py-1.5 text-xs ${reaction?.reacted ? 'border-primary-200 bg-primary-50 text-primary-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
                 >
                   {emoji} {reaction?.count || ''}
                 </button>
@@ -2620,7 +2737,7 @@ function MessageRow({
             <button
               type="button"
               onClick={() => setPickerOpen((current) => !current)}
-              className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50"
+              className="min-h-9 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-500 hover:bg-slate-50"
             >
               <SmilePlus className="h-4 w-4" />
             </button>
@@ -2638,17 +2755,26 @@ function MessageRow({
               </div>
             )}
           </div>
-          <button onClick={onReply} className="rounded-lg px-2 py-1 text-xs text-slate-500 hover:bg-slate-100">
+          <button onClick={onReply} className="min-h-9 rounded-lg px-2.5 py-1.5 text-xs text-slate-500 hover:bg-slate-100">
             {inThreadView ? 'Reply in thread' : 'Reply'}
           </button>
           {!inThreadView && replyCount > 0 && (
-            <button onClick={onReply} className="rounded-lg px-2 py-1 text-xs font-medium text-primary-700 hover:bg-primary-50">
+            <button onClick={onReply} className="min-h-9 rounded-lg px-2.5 py-1.5 text-xs font-medium text-primary-700 hover:bg-primary-50">
               {replyCount} {replyCount === 1 ? 'reply' : 'replies'}
             </button>
           )}
         </div>
       </div>
-      <div className="flex shrink-0 items-start gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+      <div className="flex shrink-0 items-start gap-1">
+        <button
+          type="button"
+          onClick={onOpenActions}
+          className="rounded-xl p-2 text-slate-400 hover:bg-white hover:text-slate-700 sm:hidden"
+          aria-label="Open message actions"
+        >
+          <MoreHorizontal className="h-5 w-5" />
+        </button>
+        <div className="hidden shrink-0 items-start gap-1 sm:flex sm:opacity-0 sm:group-hover:opacity-100">
         {canPin && (
           <button onClick={onPin} className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-slate-700" aria-label="Pin message">
             <Pin className="h-4 w-4" />
@@ -2665,6 +2791,7 @@ function MessageRow({
           </>
         )}
         <MoreHorizontal className="mt-1.5 h-4 w-4 text-slate-300" />
+        </div>
       </div>
     </div>
   )

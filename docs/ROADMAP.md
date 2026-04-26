@@ -277,7 +277,44 @@ Already works via the module system — a workshop is just a cohort with a works
 Dedicated workflow for GitHub org invites (see `docs/FUTURE_IMPROVEMENTS.md` for detailed plan).
 
 ### 5.5 Zoom Integration
-Zoom's API supports creating and managing meetings programmatically. If this becomes valuable, the platform could auto-create Zoom meetings for scheduled classes and embed join links. For now, Zoom links live in class resources.
+Zoom integration is no longer the preferred long-term direction. If needed as a temporary bridge, Zoom links can still live in class resources, but the target state is a built-in classroom platform with a specialist realtime media provider underneath.
+
+### 5.6 Classroom Platform (Planned)
+
+> **Goal:** Replace Zoom for CSG's core class workflow without trying to build a full Zoom clone.
+
+Current status:
+
+- documented direction
+- intentionally deferred for now
+- Zoom remains the operational tool until this is revisited
+
+Product scope:
+
+- live video classes
+- screen sharing
+- session recording and replay
+- attendance
+- teacher controls
+- join links
+- breakout rooms
+- office hours and lightweight meetings later
+
+Recommended technical direction:
+
+- keep Rails + React as the product shell
+- add first-class session and attendance models
+- use LiveKit for realtime media, participant permissions, screen sharing, and recording infrastructure
+
+MVP target:
+
+- staff-created class and workshop sessions
+- student join flow from the platform
+- live room experience
+- recording and replay
+- basic host controls
+
+This should ship before any attempt to broaden into open-ended student-created meetings or a large feature surface.
 
 ---
 
