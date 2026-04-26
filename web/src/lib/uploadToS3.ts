@@ -42,7 +42,7 @@ export function uploadToS3(
       }
     })
 
-    xhr.addEventListener('error', () => reject(new Error('Upload failed — check your connection')))
+    xhr.addEventListener('error', () => reject(new Error('Upload failed before S3 accepted the file. Check your network connection, the bucket CORS rules, and that AWS_REGION matches the bucket region in this environment.')))
     xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')))
 
     if (abortSignal) {
