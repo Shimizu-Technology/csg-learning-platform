@@ -73,6 +73,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
   const clearDrafts = useCallback((keepOpen = false) => {
     setUploadDrafts([])
     setError(null)
+    if (!keepOpen) setStatusMessage(null)
     if (!keepOpen) setShowUploadForm(false)
   }, [])
 
@@ -129,7 +130,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
     setUploadDrafts((current) => current.filter((draft) => draft.id !== id))
   }, [])
 
-  const launchDraftUpload = useCallback((draft: RecordingDraft) => {
+  const launchDraftUpload = useCallback((draft: RecordingDraft, options?: { announce?: boolean }) => {
     const trimmedTitle = draft.title.trim()
     if (!trimmedTitle) {
       updateDraft(draft.id, { error: 'Title is required' })
@@ -137,7 +138,9 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
     }
 
     setError(null)
-    setStatusMessage(`Started ${trimmedTitle}. You can leave this page and keep working while it uploads.`)
+    if (options?.announce !== false) {
+      setStatusMessage(`Started ${trimmedTitle}. You can leave this page and keep working while it uploads.`)
+    }
     setUploadDrafts((current) => current.filter((item) => item.id !== draft.id))
 
     const { result } = startVideoUpload(draft.file, {
@@ -164,7 +167,15 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
   }, [cohortId, fetchRecordings, onRecordingsChange, startVideoUpload, updateDraft])
 
   const startAllUploads = () => {
-    uploadDrafts.forEach((draft) => launchDraftUpload(draft))
+    if (uploadDrafts.length === 0) return
+
+    const count = uploadDrafts.length
+    setStatusMessage(
+      count === 1
+        ? `Started ${uploadDrafts[0].title.trim()}. You can leave this page and keep working while it uploads.`
+        : `Started ${count} uploads. You can leave this page and keep working while they upload in the background.`
+    )
+    uploadDrafts.forEach((draft) => launchDraftUpload(draft, { announce: false }))
   }
 
   const handleDelete = async (id: number) => {

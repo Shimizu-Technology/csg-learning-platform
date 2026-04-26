@@ -101,8 +101,8 @@ class NotificationDeliveryService
 
   def mentioned_user_ids_for(message, recipients)
     explicit_ids = Array(message.mention_user_ids).map(&:to_i).uniq
-    allowed_ids = recipients.map(&:id)
-    explicit_ids.select! { |id| allowed_ids.include?(id) && id != message.author_id }
+    allowed_ids = recipients.each_with_object({}) { |user, ids| ids[user.id] = true }
+    explicit_ids.select! { |id| allowed_ids.key?(id) && id != message.author_id }
     return explicit_ids if explicit_ids.any?
     return [] if message.body.blank?
 
