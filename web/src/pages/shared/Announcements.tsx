@@ -454,6 +454,7 @@ export function Announcements() {
               <option value="created_desc">Newest created</option>
               <option value="created_asc">Oldest created</option>
               <option value="updated_desc">Recently updated</option>
+              <option value="updated_asc">Least recently updated</option>
             </select>
             <button
               onClick={() => updateQuery(manageMode

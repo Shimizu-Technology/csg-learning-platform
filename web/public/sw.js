@@ -9,6 +9,17 @@ const APP_SHELL_ASSETS = [
   '/favicon-32x32.png',
 ];
 
+async function safeCachePut(cacheName, request, response) {
+  if (!response || !response.ok) return;
+
+  try {
+    const cache = await caches.open(cacheName);
+    await cache.put(request, response);
+  } catch (error) {
+    console.warn('[sw] Cache write skipped', error);
+  }
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL_ASSETS))
@@ -36,7 +47,7 @@ self.addEventListener('fetch', (event) => {
       fetch(event.request)
         .then((response) => {
           const copy = response.clone();
-          caches.open(RUNTIME_CACHE).then((cache) => cache.put(event.request, copy));
+          event.waitUntil(safeCachePut(RUNTIME_CACHE, event.request, copy));
           return response;
         })
         .catch(async () => {
@@ -63,7 +74,7 @@ self.addEventListener('fetch', (event) => {
         const networkFetch = fetch(event.request)
           .then((response) => {
             const copy = response.clone();
-            caches.open(RUNTIME_CACHE).then((cache) => cache.put(event.request, copy));
+            event.waitUntil(safeCachePut(RUNTIME_CACHE, event.request, copy));
             return response;
           })
           .catch(() => cachedResponse);
