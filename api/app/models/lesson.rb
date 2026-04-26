@@ -37,7 +37,7 @@ class Lesson < ApplicationRecord
   end
 
   def unlock_date(cohort, module_assignment = nil)
-    base_date = module_assignment&.effective_start_date || curriculum_module.start_date_for(cohort)
+    base_date = module_assignment&.effective_start_date(cohort) || curriculum_module.start_date_for(cohort)
     base_date + curriculum_module.calendar_offset_for(release_day)
   end
 
