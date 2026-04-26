@@ -178,7 +178,7 @@ module Api
           archived_at: announcement.archived_at,
           cohort_id: announcement.cohort_id,
           cohort_name: announcement.cohort&.name,
-          author: {
+          author: announcement.author && {
             id: announcement.author.id,
             full_name: announcement.author.full_name,
             email: announcement.author.email
