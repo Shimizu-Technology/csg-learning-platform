@@ -297,7 +297,20 @@ class NotificationEmailService
 
     def mention_preview(message)
       raw_preview = message.body.to_s.squish.presence || attachment_preview(message)
-      raw_preview.truncate(280)
+      strip_markdown(raw_preview).truncate(280)
+    end
+
+    def strip_markdown(value)
+      value
+        .to_s
+        .gsub(/```[\w-]*\n?/, "")
+        .gsub(/```/, "")
+        .gsub(/`([^`]+)`/, '\1')
+        .gsub(/\*\*([^*]+)\*\*/, '\1')
+        .gsub(/_([^_]+)_/, '\1')
+        .gsub(/^\s*>\s?/m, "")
+        .gsub(/^\s*[-*]\s+/m, "")
+        .squish
     end
   end
 end

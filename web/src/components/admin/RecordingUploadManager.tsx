@@ -160,22 +160,21 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
       if (uploadResult) {
         void fetchRecordings()
         onRecordingsChange?.()
-      } else {
-        setError(`Upload failed for ${draft.file.name} — check the upload indicator for details`)
       }
     })
   }, [cohortId, fetchRecordings, onRecordingsChange, startVideoUpload, updateDraft])
 
   const startAllUploads = () => {
-    if (uploadDrafts.length === 0) return
+    const startableDrafts = uploadDrafts.filter((draft) => draft.title.trim())
+    if (startableDrafts.length === 0) return
 
-    const count = uploadDrafts.length
+    const count = startableDrafts.length
     setStatusMessage(
       count === 1
-        ? `Started ${uploadDrafts[0].title.trim()}. You can leave this page and keep working while it uploads.`
+        ? `Started ${startableDrafts[0].title.trim()}. You can leave this page and keep working while it uploads.`
         : `Started ${count} uploads. You can leave this page and keep working while they upload in the background.`
     )
-    uploadDrafts.forEach((draft) => launchDraftUpload(draft, { announce: false }))
+    startableDrafts.forEach((draft) => launchDraftUpload(draft, { announce: false }))
   }
 
   const handleDelete = async (id: number) => {
