@@ -50,7 +50,7 @@ if ('serviceWorker' in navigator) {
   }
 
   if ('requestIdleCallback' in window) {
-    window.requestIdleCallback(registerServiceWorker)
+    window.requestIdleCallback(registerServiceWorker, { timeout: 2000 })
   } else {
     globalThis.setTimeout(registerServiceWorker, 1)
   }

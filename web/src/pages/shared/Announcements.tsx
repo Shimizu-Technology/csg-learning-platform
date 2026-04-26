@@ -202,7 +202,7 @@ export function Announcements() {
     if (res.error) {
       setFormError(res.error)
     } else {
-      await loadAnnouncements()
+      await loadAnnouncements({ background: true })
     }
     setArchivingId(null)
   }
