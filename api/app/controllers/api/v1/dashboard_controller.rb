@@ -113,15 +113,13 @@ module Api
           .includes(:cohort, :author)
           .where(audience: :cohort, cohort_id: cohort.id)
           .or(Announcement.visible_for(current_user).includes(:cohort, :author).where(audience: :global))
+        unread_announcement_ids = current_user.notifications
+          .announcement
+          .unread
+          .select(:notifiable_id)
         visible_announcements = announcement_scope
-          .left_outer_joins(:notifications)
-          .where(
-            "announcements.pinned = ? OR (notifications.user_id = ? AND notifications.notification_type = ? AND notifications.read_at IS NULL)",
-            true,
-            current_user.id,
-            Notification.notification_types[:announcement]
-          )
-          .distinct
+          .where(pinned: true)
+          .or(announcement_scope.where(id: unread_announcement_ids))
           .ordered
           .limit(5)
           .to_a

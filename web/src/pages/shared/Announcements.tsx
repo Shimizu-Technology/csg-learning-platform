@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { Bell, Check, ChevronLeft, ChevronRight, Megaphone, Pin, Send, Sparkles, Trash2 } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -122,9 +122,14 @@ export function Announcements() {
 
     if (!background) setLoading(false)
   }, [manageMode, page, audienceFilter, statusFilter, cohortFilter, readFilter, sortFilter])
+  const loadAnnouncementsRef = useRef(loadAnnouncements)
 
   useEffect(() => {
     loadAnnouncements()
+  }, [loadAnnouncements])
+
+  useEffect(() => {
+    loadAnnouncementsRef.current = loadAnnouncements
   }, [loadAnnouncements])
 
   useEffect(() => {
@@ -159,9 +164,9 @@ export function Announcements() {
         }
         return [res.data!.announcement, ...prev]
       })
-      await loadAnnouncements({ background: true })
+      await loadAnnouncementsRef.current({ background: true })
     })
-  }, [selectedId, loadAnnouncements])
+  }, [selectedId])
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault()
