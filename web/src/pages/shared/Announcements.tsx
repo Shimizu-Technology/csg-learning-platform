@@ -206,7 +206,7 @@ export function Announcements() {
     const res = await api.markAllNotificationsRead('announcement')
     if (res.data) {
       setUnreadCount(res.data.unread_count)
-      await loadAnnouncements()
+      await loadAnnouncements({ background: true })
     }
   }
 

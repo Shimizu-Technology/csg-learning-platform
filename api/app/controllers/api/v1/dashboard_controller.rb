@@ -113,13 +113,29 @@ module Api
           .includes(:cohort, :author)
           .where(audience: :cohort, cohort_id: cohort.id)
           .or(Announcement.visible_for(current_user).includes(:cohort, :author).where(audience: :global))
-        visible_announcements = announcement_scope.ordered.limit(20).to_a
+        notification_join = ActiveRecord::Base.send(
+          :sanitize_sql_array,
+          [
+            <<~SQL.squish,
+              LEFT OUTER JOIN notifications announcement_notifications
+                ON announcement_notifications.notifiable_type = 'Announcement'
+               AND announcement_notifications.notifiable_id = announcements.id
+               AND announcement_notifications.user_id = ?
+               AND announcement_notifications.notification_type = ?
+            SQL
+            current_user.id,
+            Notification.notification_types[:announcement]
+          ]
+        )
+        visible_announcements = announcement_scope
+          .joins(notification_join)
+          .where("announcements.pinned = ? OR announcement_notifications.read_at IS NULL", true)
+          .ordered
+          .limit(5)
+          .to_a
         announcement_notifications = current_user.notifications
           .where(notifiable_type: "Announcement", notifiable_id: visible_announcements.map(&:id))
           .index_by(&:notifiable_id)
-        dashboard_announcements = visible_announcements
-          .select { |announcement| announcement.pinned? || !announcement_notifications[announcement.id]&.read_at.present? }
-          .first(5)
 
         render json: {
           dashboard: {
@@ -130,7 +146,7 @@ module Api
               name: cohort.name,
               start_date: cohort.start_date,
               status: cohort.status,
-              announcements: dashboard_announcements.map { |announcement| dashboard_announcement_json(announcement, announcement_notifications[announcement.id]) },
+              announcements: visible_announcements.map { |announcement| dashboard_announcement_json(announcement, announcement_notifications[announcement.id]) },
               unread_notifications_count: current_user.notifications.announcement.unread.count
             },
             overall_progress: {
