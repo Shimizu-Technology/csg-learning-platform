@@ -73,7 +73,7 @@ module Api
         assignment = enrollment.module_assignments.find_by(module_id: @module.id)
         lesson_assignments = enrollment.lesson_assignments.where(lesson_id: @module.lessons.select(:id)).index_by(&:lesson_id)
 
-        unless assignment&.accessible? || lesson_assignments.any?
+        unless assignment&.accessible?(enrollment.cohort) || lesson_assignments.any?
           render_forbidden("Cannot access this module")
           return
         end
@@ -88,7 +88,7 @@ module Api
         current_user.enrollments
           .active
           .joins(:cohort)
-          .includes(:cohort, :module_assignments)
+          .includes(:module_assignments, cohort: :cohort_module_schedules)
           .find_by(cohorts: { curriculum_id: curriculum_id })
       end
 

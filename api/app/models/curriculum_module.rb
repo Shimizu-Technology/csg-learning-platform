@@ -16,6 +16,7 @@ class CurriculumModule < ApplicationRecord
   belongs_to :curriculum
   has_many :lessons, -> { order(:position) }, foreign_key: :module_id, dependent: :destroy
   has_many :module_assignments, foreign_key: :module_id, dependent: :destroy
+  has_many :cohort_module_schedules, foreign_key: :module_id, dependent: :destroy
 
   validates :name, presence: true
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
@@ -29,6 +30,10 @@ class CurriculumModule < ApplicationRecord
 
   def scheduled_day_names
     scheduled_weekday_indices.map { |i| DAY_NAMES[i] }
+  end
+
+  def first_scheduled_day_index
+    scheduled_weekday_indices.min || 0
   end
 
   def release_day_for(week:, weekday_index:)
@@ -48,5 +53,29 @@ class CurriculumModule < ApplicationRecord
                 lessons.maximum(:release_day) || 0
     end
     (max_day / 7) + 1
+  end
+
+  def valid_release_day?(release_day)
+    return false if release_day.nil?
+
+    scheduled_weekday_indices.include?(release_day % 7)
+  end
+
+  def calendar_offset_for(release_day)
+    release_day - first_scheduled_day_index
+  end
+
+  def next_start_date_on_or_after(date)
+    current_weekday_index = (date.wday + 6) % 7
+    offset = (first_scheduled_day_index - current_weekday_index) % 7
+    date + offset
+  end
+
+  def start_date_for(cohort)
+    cohort.module_schedule_for(self)&.start_date || legacy_start_date_for(cohort)
+  end
+
+  def legacy_start_date_for(cohort)
+    cohort.start_date + day_offset + first_scheduled_day_index
   end
 end

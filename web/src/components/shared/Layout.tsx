@@ -31,7 +31,7 @@ export function Layout({ children }: LayoutProps) {
     try { return localStorage.getItem('sidebar-collapsed') === 'true' } catch { return false }
   })
   const location = useLocation()
-  const { user, isClerkEnabled, isLoading } = useAuthContext()
+  const { user, isLoading } = useAuthContext()
   const [unreadCount, setUnreadCount] = useState(0)
   const [messageUnreadCount, setMessageUnreadCount] = useState(0)
   const isStaff = user?.is_staff
@@ -210,20 +210,14 @@ export function Layout({ children }: LayoutProps) {
 
           <div className={`border-t border-slate-200 ${collapsed ? 'p-2' : 'p-4'}`}>
             <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3 px-3'} py-2`}>
-              {isClerkEnabled ? (
-                <UserButton
-                  afterSignOutUrl="/sign-in"
-                  appearance={{
-                    elements: {
-                      avatarBox: 'h-8 w-8',
-                    }
-                  }}
-                />
-              ) : (
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-primary-700 text-sm font-semibold shrink-0">
-                  {user?.first_name?.[0] || user?.email?.[0] || '?'}
-                </div>
-              )}
+              <UserButton
+                afterSignOutUrl="/sign-in"
+                appearance={{
+                  elements: {
+                    avatarBox: 'h-8 w-8',
+                  }
+                }}
+              />
               {!collapsed && (
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-slate-900 truncate">{user?.full_name || user?.email}</p>

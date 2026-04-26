@@ -8,7 +8,7 @@ module Api
 
       # GET /api/v1/cohorts
       def index
-        cohorts = Cohort.includes(curriculum: :modules).order(start_date: :desc)
+        cohorts = Cohort.includes(:cohort_module_schedules, curriculum: :modules).order(start_date: :desc)
         render json: {
           cohorts: cohorts.map { |c|
             base = cohort_json(c)
@@ -38,7 +38,7 @@ module Api
       # PATCH /api/v1/cohorts/:id
       def update
         if @cohort.update(cohort_params)
-          render json: { cohort: cohort_json(@cohort) }
+          render json: { cohort: cohort_json(@cohort, include_students: true, include_modules: true) }
         else
           render json: { errors: @cohort.errors.full_messages }, status: :unprocessable_entity
         end
@@ -49,7 +49,18 @@ module Api
         curriculum_module = @cohort.curriculum.modules.find(module_access_params[:module_id])
         enrollments = @cohort.enrollments.active.includes(:module_assignments, :lesson_assignments)
         assigned = module_access_params[:assigned]
+        schedule_exists = @cohort.cohort_module_schedules.any? { |schedule| schedule.module_id == curriculum_module.id }
+        assignments_exist = enrollments.any? do |enrollment|
+          enrollment.module_assignments.any? { |assignment| assignment.module_id == curriculum_module.id }
+        end
+        module_already_assigned = schedule_exists || assignments_exist
         lesson_ids = curriculum_module.lessons.pluck(:id)
+        module_start_date = normalized_module_start_date
+        return if performed?
+        if assigned.nil? && !module_already_assigned
+          render json: { errors: [ "Module must be assigned before it can be updated" ] }, status: :unprocessable_entity
+          return
+        end
 
         ActiveRecord::Base.transaction do
           enrollments.each do |enrollment|
@@ -61,8 +72,15 @@ module Api
 
             assignment = enrollment.module_assignments.find_or_initialize_by(module_id: curriculum_module.id)
             assignment.unlocked = module_access_params[:unlocked] unless module_access_params[:unlocked].nil?
-            assignment.unlock_date_override = module_access_params[:unlock_date_override]
             assignment.save!
+          end
+
+          if assigned == false
+            @cohort.cohort_module_schedules.where(module_id: curriculum_module.id).destroy_all
+          elsif assigned == true || module_already_assigned
+            schedule = @cohort.cohort_module_schedules.find_or_initialize_by(module_id: curriculum_module.id)
+            schedule.start_date = module_start_date || schedule.start_date || curriculum_module.next_start_date_on_or_after(Date.current)
+            schedule.save!
           end
 
           permitted = module_access_params
@@ -134,7 +152,7 @@ module Api
       private
 
       def set_cohort
-        @cohort = Cohort.find(params[:id])
+        @cohort = Cohort.includes(:cohort_module_schedules, curriculum: :modules).find(params[:id])
       end
 
       def cohort_params
@@ -143,7 +161,22 @@ module Api
       end
 
       def module_access_params
-        params.permit(:module_id, :assigned, :unlocked, :unlock_date_override, :requires_github, :repository_name)
+        params.permit(:module_id, :assigned, :unlocked, :module_start_date, :unlock_date_override, :requires_github, :repository_name)
+      end
+
+      def normalized_module_start_date
+        raw = if params.key?(:module_start_date)
+          params[:module_start_date]
+        elsif params.key?(:unlock_date_override)
+          params[:unlock_date_override]
+        end
+
+        return nil if raw.blank?
+
+        Date.iso8601(raw.to_s)
+      rescue ArgumentError
+        render json: { errors: [ "Module start date is invalid" ] }, status: :unprocessable_entity
+        nil
       end
 
       def param_to_hash(param)
@@ -253,16 +286,18 @@ module Api
         end
 
         if include_modules
-          active_enrollments = cohort.enrollments.active.includes(:module_assignments)
+          active_enrollments = cohort.enrollments.active.includes(module_assignments: :curriculum_module)
           assignment_index = active_enrollments.each_with_object(Hash.new { |h, k| h[k] = [] }) do |enrollment, hash|
             enrollment.module_assignments.each { |assignment| hash[assignment.module_id] << assignment }
           end
+          schedule_index = cohort.cohort_module_schedules.index_by(&:module_id)
 
           github_config = (cohort.settings || {}).dig("module_github_config") || {}
 
           json[:modules] = cohort.curriculum.modules.map do |mod|
             assignments = assignment_index[mod.id]
             mod_gh = github_config[mod.id.to_s] || {}
+            module_start_date = schedule_index[mod.id]&.start_date || mod.legacy_start_date_for(cohort)
             {
               id: mod.id,
               name: mod.name,
@@ -272,8 +307,9 @@ module Api
               assigned_count: assignments.size,
               assigned: assignments.size.positive?,
               unlocked_count: assignments.count(&:unlocked?),
-              accessible_count: assignments.count(&:accessible?),
-              unlock_date_overrides: assignments.map(&:unlock_date_override).compact.uniq.sort,
+              accessible_count: assignments.count { |assignment| assignment.accessible?(cohort) },
+              module_start_date: module_start_date,
+              uses_default_start_date: schedule_index[mod.id].nil?,
               requires_github: mod_gh["requires_github"] || false,
               repository_name: mod_gh["repository_name"].presence || cohort.repository_name
             }

@@ -8,11 +8,7 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
-  const { isClerkEnabled, isSignedIn, isLoading, user } = useAuthContext()
-
-  if (!isClerkEnabled) {
-    return children ? <>{children}</> : <Outlet />
-  }
+  const { isSignedIn, isLoading, user } = useAuthContext()
 
   if (isLoading) {
     return <LoadingSpinner message="Loading..." fullScreen={false} />

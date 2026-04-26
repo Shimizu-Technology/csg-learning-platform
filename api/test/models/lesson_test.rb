@@ -23,7 +23,7 @@ class LessonTest < ActiveSupport::TestCase
 
   # --- unlock_date ---
 
-  test "unlock_date uses cohort start_date + day_offset + release_day" do
+  test "unlock_date uses the module start date plus the lesson calendar offset" do
     lesson = Lesson.create!(curriculum_module: @mod, title: "Day 3", position: 1, release_day: 3)
     assert_equal Date.new(2026, 4, 9), lesson.unlock_date(@cohort)
   end
@@ -34,7 +34,7 @@ class LessonTest < ActiveSupport::TestCase
     assert_equal Date.new(2026, 5, 3), lesson.unlock_date(@cohort, @module_assignment)
   end
 
-  test "unlock_date without module_assignment uses cohort start_date" do
+  test "unlock_date without module_assignment uses the cohort module schedule start date" do
     lesson = Lesson.create!(curriculum_module: @mod, title: "Day 1", position: 1, release_day: 1)
     assert_equal Date.new(2026, 4, 7), lesson.unlock_date(@cohort, nil)
   end
@@ -45,6 +45,26 @@ class LessonTest < ActiveSupport::TestCase
     )
     lesson = Lesson.create!(curriculum_module: mod2, title: "First Class", position: 0, release_day: 0)
     assert_equal Date.new(2026, 5, 11), lesson.unlock_date(@cohort)
+  end
+
+  test "unlock_date treats tth module start date as the first actual release day" do
+    mod2 = CurriculumModule.create!(
+      curriculum: @curriculum, name: "TTh Live Class", position: 1, day_offset: 0, schedule_days: "tth"
+    )
+    week_one_tuesday = Lesson.create!(curriculum_module: mod2, title: "Week 1 Tuesday", position: 0, release_day: 1)
+    week_one_thursday = Lesson.create!(curriculum_module: mod2, title: "Week 1 Thursday", position: 1, release_day: 3)
+    week_two_tuesday = Lesson.create!(curriculum_module: mod2, title: "Week 2 Tuesday", position: 2, release_day: 8)
+
+    assert_equal Date.new(2026, 4, 7), week_one_tuesday.unlock_date(@cohort)
+    assert_equal Date.new(2026, 4, 9), week_one_thursday.unlock_date(@cohort)
+    assert_equal Date.new(2026, 4, 14), week_two_tuesday.unlock_date(@cohort)
+  end
+
+  test "unlock_date uses explicit cohort module start dates when present" do
+    CohortModuleSchedule.create!(cohort: @cohort, curriculum_module: @mod, start_date: Date.new(2026, 5, 4))
+    lesson = Lesson.create!(curriculum_module: @mod, title: "Shifted", position: 1, release_day: 1)
+
+    assert_equal Date.new(2026, 5, 5), lesson.unlock_date(@cohort)
   end
 
   # --- available? ---
@@ -63,6 +83,7 @@ class LessonTest < ActiveSupport::TestCase
   end
 
   test "available? returns false when module_assignment is not accessible" do
+    CohortModuleSchedule.create!(cohort: @cohort, curriculum_module: @mod, start_date: Date.new(2026, 4, 20))
     @module_assignment.update!(unlocked: false, unlock_date_override: nil)
     travel_to Date.new(2026, 4, 6) do
       refute @lesson.available?(@cohort, @module_assignment)
@@ -70,7 +91,7 @@ class LessonTest < ActiveSupport::TestCase
   end
 
   test "available? with lesson_assignment unlocked overrides everything" do
-    future_lesson = Lesson.create!(curriculum_module: @mod, title: "Far Future", position: 1, release_day: 999)
+    future_lesson = Lesson.create!(curriculum_module: @mod, title: "Far Future", position: 1, release_day: 998)
     la = LessonAssignment.create!(enrollment: @enrollment, lesson: future_lesson, unlocked: true)
     travel_to Date.new(2026, 4, 6) do
       assert future_lesson.available?(@cohort, @module_assignment, la)
@@ -78,7 +99,7 @@ class LessonTest < ActiveSupport::TestCase
   end
 
   test "available? with lesson_assignment unlock_date_override in past" do
-    future_lesson = Lesson.create!(curriculum_module: @mod, title: "Overridden", position: 1, release_day: 999)
+    future_lesson = Lesson.create!(curriculum_module: @mod, title: "Overridden", position: 1, release_day: 998)
     la = LessonAssignment.create!(
       enrollment: @enrollment, lesson: future_lesson,
       unlocked: false, unlock_date_override: Date.new(2026, 4, 1)
@@ -131,5 +152,22 @@ class LessonTest < ActiveSupport::TestCase
     lesson = Lesson.new(curriculum_module: @mod, title: "Bad", position: 0, release_day: -1)
     refute lesson.valid?
     assert_includes lesson.errors[:release_day], "must be greater than or equal to 0"
+  end
+
+  test "release_day must match the module schedule" do
+    tth_mod = CurriculumModule.create!(
+      curriculum: @curriculum, name: "TTh", position: 2, day_offset: 0, schedule_days: "tth"
+    )
+    lesson = Lesson.new(curriculum_module: tth_mod, title: "Bad Day", position: 0, release_day: 0)
+
+    refute lesson.valid?
+    assert_includes lesson.errors[:release_day], "must match the module schedule"
+  end
+
+  test "blank release_day adds validation errors instead of raising" do
+    lesson = Lesson.new(curriculum_module: @mod, title: "Missing Day", position: 0, release_day: nil)
+
+    refute lesson.valid?
+    assert_includes lesson.errors[:release_day], "can't be blank"
   end
 end

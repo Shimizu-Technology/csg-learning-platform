@@ -15,7 +15,14 @@ module Api
       private
 
       def render_student_dashboard
-        enrollment = current_user.enrollments.active.includes(:module_assignments, :lesson_assignments, cohort: { curriculum: { modules: { lessons: :content_blocks } } }).first
+        enrollment = current_user.enrollments.active.includes(
+          :module_assignments,
+          :lesson_assignments,
+          cohort: [
+            :cohort_module_schedules,
+            { curriculum: { modules: { lessons: :content_blocks } } }
+          ]
+        ).first
 
         unless enrollment
           render json: { dashboard: { enrolled: false, user: user_summary } }
@@ -55,7 +62,7 @@ module Api
             completed_blocks: mod_completed,
             progress_percentage: mod_percentage,
             assigned: assignment.present?,
-            unlocked: assignment&.accessible? || false,
+            unlocked: assignment&.accessible?(cohort) || false,
             available: mod.lessons.any? { |lesson| lesson.available?(cohort, assignment, lesson_assignments_by_lesson_id[lesson.id]) },
             unlock_date: assignment&.next_unlock_date(cohort),
             lessons: mod.lessons.map { |l|

@@ -7,30 +7,32 @@ import App from './App'
 import './index.css'
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
-const isClerkEnabled = Boolean(PUBLISHABLE_KEY && PUBLISHABLE_KEY !== 'YOUR_PUBLISHABLE_KEY')
 
-if (!isClerkEnabled) {
-  console.warn('Clerk not configured — running in dev bypass mode. Add VITE_CLERK_PUBLISHABLE_KEY to .env.local')
+function ConfigurationError() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
+      <div className="max-w-md rounded-2xl border border-red-200 bg-white p-6 shadow-sm">
+        <h1 className="text-lg font-semibold text-slate-900">Clerk configuration missing</h1>
+        <p className="mt-2 text-sm text-slate-600">
+          Set <code>VITE_CLERK_PUBLISHABLE_KEY</code> before starting the frontend. This app no longer supports a no-auth bypass mode.
+        </p>
+      </div>
+    </div>
+  )
 }
 
 function Root() {
-  if (isClerkEnabled) {
-    return (
-      <PostHogProvider>
-        <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/">
-          <AuthProvider isClerkEnabled={true}>
-            <App />
-          </AuthProvider>
-        </ClerkProvider>
-      </PostHogProvider>
-    )
+  if (!PUBLISHABLE_KEY || PUBLISHABLE_KEY === 'YOUR_PUBLISHABLE_KEY') {
+    return <ConfigurationError />
   }
 
   return (
     <PostHogProvider>
-      <AuthProvider isClerkEnabled={false}>
-        <App />
-      </AuthProvider>
+      <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/">
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </ClerkProvider>
     </PostHogProvider>
   )
 }

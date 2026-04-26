@@ -10,11 +10,20 @@ class Cohort < ApplicationRecord
   has_one :workspace, dependent: :destroy
   has_many :channels, dependent: :destroy
   has_many :direct_conversations, dependent: :destroy
+  has_many :cohort_module_schedules, dependent: :destroy
 
   validates :name, presence: true
   validates :start_date, presence: true
 
   after_create :provision_workspace
+
+  def module_schedule_for(curriculum_module)
+    if cohort_module_schedules.loaded?
+      cohort_module_schedules.find { |schedule| schedule.module_id == curriculum_module.id }
+    else
+      cohort_module_schedules.find_by(module_id: curriculum_module.id)
+    end
+  end
 
   private
 

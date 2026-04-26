@@ -15,7 +15,8 @@ gem "puma", ">= 5.0"
 # Windows does not include zoneinfo files, so bundle the tzinfo-data gem
 gem "tzinfo-data", platforms: %i[ windows jruby ]
 
-# Not using database-backed cache/queue — using :memory_store and :async instead.
+# Keeping the runtime light for now: cache stays in-memory, production jobs run
+# inline, and ActionCable uses PostgreSQL pub/sub for cross-instance broadcasts.
 # gem "solid_cache"
 # gem "solid_queue"
 

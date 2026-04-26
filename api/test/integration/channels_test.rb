@@ -139,6 +139,19 @@ class ChannelsTest < ActionDispatch::IntegrationTest
     assert_nil CableToken.consume(body.fetch("token"))
   end
 
+  test "expired cable tokens are rejected" do
+    as_user(@student) do
+      post "/api/v1/cable_token", headers: auth_headers
+    end
+
+    assert_response :success
+    body = JSON.parse(response.body)
+
+    travel 2.minutes do
+      assert_nil CableToken.consume(body.fetch("token"))
+    end
+  end
+
   private
 
   def auth_headers

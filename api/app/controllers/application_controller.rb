@@ -28,7 +28,7 @@ class ApplicationController < ActionController::API
     enrollment = current_user.enrollments
       .active
       .joins(:cohort)
-      .includes(:cohort, :module_assignments, :lesson_assignments)
+      .includes(:module_assignments, :lesson_assignments, cohort: :cohort_module_schedules)
       .find_by(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
 
     unless enrollment
@@ -39,7 +39,7 @@ class ApplicationController < ActionController::API
     assignment = enrollment.module_assignments.find { |ma| ma.module_id == lesson.module_id }
     lesson_assignment = enrollment.lesson_assignments.find { |la| la.lesson_id == lesson.id }
 
-    unless assignment&.accessible? || lesson_assignment.present?
+    unless assignment&.accessible?(enrollment.cohort) || lesson_assignment.present?
       render_forbidden("Module is not accessible")
       return
     end

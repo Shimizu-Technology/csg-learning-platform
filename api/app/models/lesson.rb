@@ -8,6 +8,7 @@ class Lesson < ApplicationRecord
   validates :title, presence: true
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :release_day, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+  validate :release_day_matches_module_schedule
 
   scope :ordered, -> { order(:position) }
 
@@ -36,12 +37,8 @@ class Lesson < ApplicationRecord
   end
 
   def unlock_date(cohort, module_assignment = nil)
-    base_date = if module_assignment&.unlock_date_override.present?
-                  module_assignment.unlock_date_override
-    else
-                  cohort.start_date + curriculum_module.day_offset
-    end
-    base_date + release_day
+    base_date = module_assignment&.effective_start_date(cohort) || curriculum_module.start_date_for(cohort)
+    base_date + curriculum_module.calendar_offset_for(release_day)
   end
 
   def available?(cohort, module_assignment = nil, lesson_assignment = nil)
@@ -49,10 +46,20 @@ class Lesson < ApplicationRecord
     return lesson_assignment.unlocked? if lesson_assignment.present?
 
     if module_assignment
-      return false unless module_assignment.accessible?
+      return false unless module_assignment.accessible?(cohort)
       return Date.current >= unlock_date(cohort, module_assignment)
     end
 
     Date.current >= unlock_date(cohort, module_assignment)
+  end
+
+  private
+
+  def release_day_matches_module_schedule
+    return if curriculum_module.blank?
+    return if release_day.nil?
+    return if curriculum_module.valid_release_day?(release_day)
+
+    errors.add(:release_day, "must match the module schedule")
   end
 end

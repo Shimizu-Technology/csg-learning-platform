@@ -468,7 +468,8 @@ export interface CohortModule {
   assigned: boolean;
   unlocked_count: number;
   accessible_count: number;
-  unlock_date_overrides: string[];
+  module_start_date: string;
+  uses_default_start_date: boolean;
   requires_github?: boolean;
   repository_name?: string;
 }
