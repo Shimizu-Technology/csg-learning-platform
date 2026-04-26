@@ -122,6 +122,7 @@ User
 - **Grading & Feedback** — Submission queue, A/B/C/R grading, redo workflow, GitHub issue integration
 - **Communication Hub** — Announcements, cohort channels, direct messages, and push notifications in the same app
 - **Recordings Library** — Self-hosted AWS S3 uploads are the preferred path, with legacy external video support during migration
+- **Live Classroom Platform (Planned)** — Education-focused video sessions for classes, workshops, replays, and lightweight meetings
 - **Role-Based Access** — Student, instructor, and admin roles with appropriate UI and API gates
 - **Mobile-First UI** — Responsive design, collapsible sidebar, PWA support
 - **Analytics** — PostHog integration for page views and feature flags
@@ -135,6 +136,7 @@ User
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Step-by-step deployment for Render + Netlify |
 | [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md) | All API endpoints with request/response details |
 | [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md) | Historical MVP planning document; current direction lives in the product vision and roadmap |
+| [`docs/CLASSROOM_PLATFORM_PLAN.md`](docs/CLASSROOM_PLATFORM_PLAN.md) | Live classroom strategy, scope boundaries, and implementation direction |
 | [`docs/FUTURE_IMPROVEMENTS.md`](docs/FUTURE_IMPROVEMENTS.md) | Planned enhancements (GitHub onboarding, etc.) |
 | [`docs/SETUP_CHECKLIST.md`](docs/SETUP_CHECKLIST.md) | Post-deploy setup (Search Console, PostHog, PWA) |
 | [`api/README.md`](api/README.md) | Backend-specific setup, models, and API overview |

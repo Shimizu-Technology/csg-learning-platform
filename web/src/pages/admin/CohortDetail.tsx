@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Save, Lock, Unlock, UserPlus, Mail, CheckCircle, PlayCircle, Link2, Plus, Trash2, CalendarDays, ExternalLink, Github, Eye } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -29,6 +29,7 @@ type CohortData = Record<string, any> & {
   start_date: string
   status: string
   active_count: number
+  uploaded_recordings_count?: number
   requires_github?: boolean
   repository_name?: string | null
   github_organization_name?: string | null
@@ -88,6 +89,28 @@ function formatDateLabel(dateStr?: string | null): string {
   return dateFromDateOnly(toDateInputValue(dateStr)).toLocaleDateString()
 }
 
+function StatusBadge({ status }: { status: string }) {
+  const styles: Record<string, string> = {
+    active: 'bg-green-100 text-green-700',
+    upcoming: 'bg-blue-100 text-blue-700',
+    completed: 'bg-slate-100 text-slate-700',
+    archived: 'bg-slate-200 text-slate-600',
+  }
+
+  return (
+    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${styles[status] || 'bg-slate-100 text-slate-700'}`}>
+      {status}
+    </span>
+  )
+}
+
+const COHORT_STATUS_OPTIONS = [
+  { value: 'upcoming', label: 'Upcoming', description: 'Visible as planned, but not actively running yet.' },
+  { value: 'active', label: 'Active', description: 'Current live cohort for day-to-day class operations.' },
+  { value: 'completed', label: 'Completed', description: 'Finished cohort that should stay visible for reference and replays.' },
+  { value: 'archived', label: 'Archived', description: 'Inactive cohort kept only for records and history.' },
+] as const
+
 export function CohortDetail() {
   const { id } = useParams<{ id: string }>()
   const [cohort, setCohort] = useState<CohortData | null>(null)
@@ -106,8 +129,11 @@ export function CohortDetail() {
   const [sendInvite, setSendInvite] = useState(true)
   const [resendingInviteFor, setResendingInviteFor] = useState<number | null>(null)
   const [editStartDate, setEditStartDate] = useState('')
+  const [editStatus, setEditStatus] = useState('active')
+  const [savingStatus, setSavingStatus] = useState(false)
   const [savingStartDate, setSavingStartDate] = useState(false)
   const [showRecordingsModal, setShowRecordingsModal] = useState(false)
+  const [showUploadedRecordingsModal, setShowUploadedRecordingsModal] = useState(false)
   const [showResourcesModal, setShowResourcesModal] = useState(false)
   const [configureModuleId, setConfigureModuleId] = useState<number | null>(null)
   const [showAddModule, setShowAddModule] = useState(false)
@@ -116,29 +142,41 @@ export function CohortDetail() {
   const [newModuleScheduleDays, setNewModuleScheduleDays] = useState('weekdays')
   const [addingModule, setAddingModule] = useState(false)
 
-  useEffect(() => {
-    if (!id) return
-    api.getCohort(Number(id)).then((res) => {
-      const nextCohort = res.data?.cohort
-      if (nextCohort) {
-        setCohort(nextCohort)
-        setRecordings(nextCohort.recordings || [])
-        setClassResources(nextCohort.class_resources || [])
-        setEditStartDate(toDateInputValue(nextCohort.start_date))
-        const nextForms: Record<number, { unlocked: boolean; module_start_date: string; requires_github: boolean; repository_name: string }> = {}
-        nextCohort.modules.forEach((mod: CohortData['modules'][0]) => {
-          nextForms[mod.id] = {
-            unlocked: mod.assigned && (nextCohort.active_count > 0 ? mod.unlocked_count === nextCohort.active_count : false),
-            module_start_date: toDateInputValue(mod.module_start_date),
-            requires_github: mod.requires_github || false,
-            repository_name: mod.repository_name || '',
-          }
-        })
-        setForms(nextForms)
+  const buildFormsFromCohort = useCallback((nextCohort: CohortData) => {
+    const nextForms: Record<number, { unlocked: boolean; module_start_date: string; requires_github: boolean; repository_name: string }> = {}
+    nextCohort.modules.forEach((mod: CohortData['modules'][0]) => {
+      nextForms[mod.id] = {
+        unlocked: mod.assigned && (nextCohort.active_count > 0 ? mod.unlocked_count === nextCohort.active_count : false),
+        module_start_date: toDateInputValue(mod.module_start_date),
+        requires_github: mod.requires_github || false,
+        repository_name: mod.repository_name || '',
       }
-      setLoading(false)
     })
-  }, [id])
+    return nextForms
+  }, [])
+
+  const applyCohort = useCallback((nextCohort: CohortData) => {
+    setCohort(nextCohort)
+    setRecordings(nextCohort.recordings || [])
+    setClassResources(nextCohort.class_resources || [])
+    setEditStartDate(toDateInputValue(nextCohort.start_date))
+    setEditStatus(nextCohort.status)
+    setForms(buildFormsFromCohort(nextCohort))
+  }, [buildFormsFromCohort])
+
+  const reloadCohort = useCallback(async () => {
+    if (!id) return null
+
+    const res = await api.getCohort(Number(id))
+    const nextCohort = res.data?.cohort as CohortData | undefined
+    if (nextCohort) applyCohort(nextCohort)
+    setLoading(false)
+    return nextCohort || null
+  }, [applyCohort, id])
+
+  useEffect(() => {
+    void reloadCohort()
+  }, [reloadCohort])
 
   const handleSaveStartDate = async () => {
     if (!id || !editStartDate) return
@@ -148,10 +186,29 @@ export function CohortDetail() {
     if (res.error) {
       setMessage(res.error)
     } else if (res.data?.cohort) {
-      setCohort(res.data.cohort)
+      applyCohort(res.data.cohort as CohortData)
       setMessage('Cohort start date updated')
     }
     setSavingStartDate(false)
+  }
+
+  const handleSaveStatus = async () => {
+    if (!id || !cohort || editStatus === cohort.status) return
+
+    const nextStatus = editStatus
+    if (nextStatus === 'archived' && !window.confirm('Archive this cohort? It will stay available for records, but should be treated as inactive.')) return
+    if (nextStatus === 'completed' && !window.confirm('Mark this cohort as completed?')) return
+
+    setSavingStatus(true)
+    setMessage('')
+    const res = await api.updateCohort(Number(id), { status: nextStatus })
+    if (res.error) {
+      setMessage(res.error)
+    } else if (res.data?.cohort) {
+      applyCohort(res.data.cohort as CohortData)
+      setMessage(`Cohort marked ${nextStatus}`)
+    }
+    setSavingStatus(false)
   }
 
   const handleAddStudent = async (e: React.FormEvent) => {
@@ -186,10 +243,7 @@ export function CohortDetail() {
       return
     }
 
-    const cohortRes = await api.getCohort(Number(id))
-    if (cohortRes.data?.cohort) {
-      setCohort(cohortRes.data.cohort)
-    }
+    await reloadCohort()
 
     setMessage(`Added ${addStudentEmail.trim()} to cohort`)
     setAddStudentEmail('')
@@ -242,20 +296,8 @@ export function CohortDetail() {
       return
     }
 
-    const nextCohort = res.data?.cohort
-    if (nextCohort) {
-      setCohort(nextCohort)
-      const nextForms: Record<number, { unlocked: boolean; module_start_date: string; requires_github: boolean; repository_name: string }> = {}
-      nextCohort.modules.forEach((mod: CohortData['modules'][0]) => {
-        nextForms[mod.id] = {
-          unlocked: mod.assigned && (nextCohort.active_count > 0 ? mod.unlocked_count === nextCohort.active_count : false),
-          module_start_date: toDateInputValue(mod.module_start_date),
-          requires_github: mod.requires_github || false,
-          repository_name: mod.repository_name || '',
-        }
-      })
-      setForms(nextForms)
-    }
+    const nextCohort = res.data?.cohort as CohortData | undefined
+    if (nextCohort) applyCohort(nextCohort)
 
     const moduleName = cohort?.modules.find((mod) => mod.id === moduleId)?.name || 'module'
     setMessage(`Updated cohort access for ${moduleName}`)
@@ -274,11 +316,8 @@ export function CohortDetail() {
       return
     }
 
-    const nextCohort = res.data?.cohort
-    if (nextCohort) {
-      setCohort(nextCohort)
-      setRecordings(nextCohort.recordings || [])
-    }
+    const nextCohort = res.data?.cohort as CohortData | undefined
+    if (nextCohort) applyCohort(nextCohort)
     setMessage('Updated class recordings')
     setSavingRecordings(false)
   }
@@ -295,11 +334,8 @@ export function CohortDetail() {
       return
     }
 
-    const nextCohort = res.data?.cohort
-    if (nextCohort) {
-      setCohort(nextCohort)
-      setClassResources(nextCohort.class_resources || [])
-    }
+    const nextCohort = res.data?.cohort as CohortData | undefined
+    if (nextCohort) applyCohort(nextCohort)
     setMessage('Updated class resources')
     setSavingResources(false)
   }
@@ -323,21 +359,7 @@ export function CohortDetail() {
       return
     }
 
-    const cohortRes = await api.getCohort(Number(id))
-    const nextCohort = cohortRes.data?.cohort
-    if (nextCohort) {
-      setCohort(nextCohort)
-      const nextForms: Record<number, { unlocked: boolean; module_start_date: string; requires_github: boolean; repository_name: string }> = {}
-      nextCohort.modules.forEach((mod: CohortData['modules'][0]) => {
-        nextForms[mod.id] = forms[mod.id] || {
-          unlocked: mod.assigned && (nextCohort.active_count > 0 ? mod.unlocked_count === nextCohort.active_count : false),
-          module_start_date: toDateInputValue(mod.module_start_date),
-          requires_github: mod.requires_github || false,
-          repository_name: mod.repository_name || '',
-        }
-      })
-      setForms(nextForms)
-    }
+    await reloadCohort()
 
     setMessage(`Created module "${newModuleName.trim()}"`)
     setNewModuleName('')
@@ -435,13 +457,58 @@ export function CohortDetail() {
           <ArrowLeft className="h-4 w-4" />
           Cohorts
         </Link>
-        <h1 className="text-2xl font-bold text-slate-900">{cohort.name}</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          {cohort.curriculum_name} · {cohort.active_count} active student{cohort.active_count !== 1 ? 's' : ''}
-        </p>
-        <div className="mt-3 flex items-end gap-3">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <label className="flex items-center gap-1 text-xs font-medium text-slate-600 mb-1">
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-2xl font-bold text-slate-900">{cohort.name}</h1>
+              <StatusBadge status={cohort.status} />
+            </div>
+            <p className="mt-1 text-sm text-slate-500">
+              {cohort.curriculum_name} · {cohort.active_count} active student{cohort.active_count !== 1 ? 's' : ''}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:min-w-[320px]">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Cohort lifecycle</p>
+                <p className="mt-1 text-xs text-slate-500">Archive or complete cohorts so old classes stay organized instead of looking active forever.</p>
+              </div>
+              <StatusBadge status={cohort.status} />
+            </div>
+            <div className="mt-3 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
+                <select
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  {COHORT_STATUS_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-slate-400">
+                  {COHORT_STATUS_OPTIONS.find((option) => option.value === editStatus)?.description}
+                </p>
+              </div>
+              {editStatus !== cohort.status && (
+                <button
+                  onClick={handleSaveStatus}
+                  disabled={savingStatus}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                >
+                  <Save className="h-3.5 w-3.5" />
+                  {savingStatus ? 'Saving...' : 'Update Status'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-end">
+          <div>
+            <label className="mb-1 flex items-center gap-1 text-xs font-medium text-slate-600">
               <CalendarDays className="h-3.5 w-3.5" />
               Cohort Start Date
             </label>
@@ -462,7 +529,7 @@ export function CohortDetail() {
               {savingStartDate ? 'Saving...' : 'Update Date'}
             </button>
           )}
-          <p className="text-xs text-slate-400 pb-2">Fallback start date for modules without their own start date.</p>
+          <p className="pb-2 text-xs text-slate-400">Fallback start date for modules without their own start date.</p>
         </div>
       </div>
 
@@ -783,6 +850,13 @@ export function CohortDetail() {
                 <p className="mt-1 text-sm text-slate-500">
                   Files uploaded into the platform and streamed from your own storage.
                 </p>
+                <button
+                  onClick={() => setShowUploadedRecordingsModal(true)}
+                  className="mt-3 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  <PlayCircle className="h-4 w-4 text-primary-500" />
+                  Manage uploads
+                </button>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">External</p>
@@ -795,7 +869,28 @@ export function CohortDetail() {
               </div>
             </div>
 
-            <RecordingUploadManager cohortId={Number(id)} />
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Uploaded recordings library</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Keep the cohort page tidy and manage the full upload list in a dedicated modal once recordings start piling up.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                    {cohort.uploaded_recordings_count ?? 0} upload{(cohort.uploaded_recordings_count ?? 0) !== 1 ? 's' : ''}
+                  </span>
+                  <button
+                    onClick={() => setShowUploadedRecordingsModal(true)}
+                    className="inline-flex items-center gap-2 rounded-xl bg-primary-500 px-3 py-2 text-sm font-medium text-white hover:bg-primary-600"
+                  >
+                    <PlayCircle className="h-4 w-4" />
+                    Open upload manager
+                  </button>
+                </div>
+              </div>
+            </div>
             <div className="mt-4 pt-4 border-t border-slate-100">
               <Link
                 to={`/admin/cohorts/${id}/watch-progress`}
@@ -988,6 +1083,19 @@ export function CohortDetail() {
           </div>
         </div>
       </div>
+
+      {/* Recordings Modal */}
+      <Modal
+        open={showUploadedRecordingsModal}
+        onClose={() => setShowUploadedRecordingsModal(false)}
+        title="Uploaded Recordings"
+        subtitle="Manage self-hosted class recordings without letting the main cohort page get too tall."
+        icon={<PlayCircle className="h-6 w-6 text-primary-500" />}
+        size="xl"
+        fixedHeight
+      >
+        <RecordingUploadManager cohortId={Number(id)} onRecordingsChange={() => { void reloadCohort() }} />
+      </Modal>
 
       {/* Recordings Modal */}
       <Modal

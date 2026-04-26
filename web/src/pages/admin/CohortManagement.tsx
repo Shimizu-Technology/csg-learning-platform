@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Layers3, Plus, Users, Calendar, ChevronRight } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -42,6 +42,7 @@ export function CohortManagement() {
   const [showCreate, setShowCreate] = useState(false)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState<'current' | 'inactive' | 'all'>('current')
   const [form, setForm] = useState<CreateCohortForm>({
     name: '',
     cohort_type: 'bootcamp',
@@ -57,6 +58,27 @@ export function CohortManagement() {
       setLoading(false)
     })
   }, [])
+
+  const cohortCounts = useMemo(() => ({
+    current: cohorts.filter((cohort) => cohort.status === 'active' || cohort.status === 'upcoming').length,
+    inactive: cohorts.filter((cohort) => cohort.status === 'completed' || cohort.status === 'archived').length,
+    all: cohorts.length,
+  }), [cohorts])
+
+  const visibleCohorts = useMemo(() => {
+    const filtered = cohorts.filter((cohort) => {
+      if (statusFilter === 'all') return true
+      if (statusFilter === 'current') return cohort.status === 'active' || cohort.status === 'upcoming'
+      return cohort.status === 'completed' || cohort.status === 'archived'
+    })
+
+    return [...filtered].sort((a, b) => {
+      const statusOrder: Record<string, number> = { active: 0, upcoming: 1, completed: 2, archived: 3 }
+      const statusDelta = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99)
+      if (statusDelta !== 0) return statusDelta
+      return new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
+    })
+  }, [cohorts, statusFilter])
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -190,8 +212,42 @@ export function CohortManagement() {
           description="Create your first cohort to start enrolling students."
         />
       ) : (
-        <div className="space-y-3">
-          {cohorts.map((cohort) => (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            {([
+              { key: 'current', label: 'Current', count: cohortCounts.current },
+              { key: 'inactive', label: 'Inactive', count: cohortCounts.inactive },
+              { key: 'all', label: 'All', count: cohortCounts.all },
+            ] as const).map((filter) => (
+              <button
+                key={filter.key}
+                type="button"
+                onClick={() => setStatusFilter(filter.key)}
+                className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                  statusFilter === filter.key
+                    ? 'bg-slate-900 text-white'
+                    : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <span>{filter.label}</span>
+                <span className={`rounded-full px-1.5 py-0.5 text-xs ${statusFilter === filter.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                  {filter.count}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {visibleCohorts.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-5 py-8 text-center text-sm text-slate-500">
+              {statusFilter === 'current'
+                ? 'No active or upcoming cohorts right now. Completed and archived cohorts are still available under Inactive.'
+                : statusFilter === 'inactive'
+                  ? 'No completed or archived cohorts yet.'
+                  : 'No cohorts match this filter.'}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {visibleCohorts.map((cohort) => (
             <Link
               key={cohort.id}
               to={`/admin/cohorts/${cohort.id}`}
@@ -217,7 +273,9 @@ export function CohortManagement() {
               </div>
               <ChevronRight className="h-5 w-5 text-slate-300 shrink-0" />
             </Link>
-          ))}
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
