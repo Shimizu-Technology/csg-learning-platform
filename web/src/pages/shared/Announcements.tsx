@@ -100,8 +100,9 @@ export function Announcements() {
     setSearchParams(next)
   }, [searchParams, setSearchParams])
 
-  const loadAnnouncements = useCallback(async () => {
-    setLoading(true)
+  const loadAnnouncements = useCallback(async ({ background = false }: { background?: boolean } = {}) => {
+    if (!background) setLoading(true)
+
     const res = await api.getAnnouncements({
       scope: manageMode ? 'manage' : undefined,
       page,
@@ -118,7 +119,8 @@ export function Announcements() {
       setUnreadCount(res.data.unread_count)
       setPagination(res.data.meta)
     }
-    setLoading(false)
+
+    if (!background) setLoading(false)
   }, [manageMode, page, audienceFilter, statusFilter, cohortFilter, readFilter, sortFilter])
 
   useEffect(() => {
@@ -157,7 +159,7 @@ export function Announcements() {
         }
         return [res.data!.announcement, ...prev]
       })
-      await loadAnnouncements()
+      await loadAnnouncements({ background: true })
     })
   }, [selectedId, loadAnnouncements])
 
