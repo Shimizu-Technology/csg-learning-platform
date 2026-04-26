@@ -165,6 +165,25 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
   }, [cohortId, fetchRecordings, onRecordingsChange, startVideoUpload, updateDraft])
 
   const startAllUploads = () => {
+    const invalidDraftIds = uploadDrafts
+      .filter((draft) => !draft.title.trim())
+      .map((draft) => draft.id)
+
+    if (invalidDraftIds.length > 0) {
+      setUploadDrafts((current) => current.map((draft) => (
+        invalidDraftIds.includes(draft.id)
+          ? { ...draft, error: 'Title is required' }
+          : draft
+      )))
+      setError(
+        invalidDraftIds.length === 1
+          ? 'Add a title for the highlighted recording before starting uploads.'
+          : 'Add titles for the highlighted recordings before starting uploads.'
+      )
+    } else {
+      setError(null)
+    }
+
     const startableDrafts = uploadDrafts.filter((draft) => draft.title.trim())
     if (startableDrafts.length === 0) return
 
