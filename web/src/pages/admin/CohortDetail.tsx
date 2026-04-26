@@ -389,7 +389,6 @@ export function CohortDetail() {
       module_id: moduleId,
       assigned: true,
       unlocked: false,
-      module_start_date: todayDateInputValue(),
     })
 
     if (res.error) {

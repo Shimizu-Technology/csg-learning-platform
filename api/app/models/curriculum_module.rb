@@ -65,6 +65,12 @@ class CurriculumModule < ApplicationRecord
     release_day - first_scheduled_day_index
   end
 
+  def next_start_date_on_or_after(date)
+    current_weekday_index = (date.wday + 6) % 7
+    offset = (first_scheduled_day_index - current_weekday_index) % 7
+    date + offset
+  end
+
   def start_date_for(cohort)
     cohort.module_schedule_for(self)&.start_date || legacy_start_date_for(cohort)
   end

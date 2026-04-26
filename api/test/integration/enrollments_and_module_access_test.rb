@@ -69,7 +69,11 @@ class EnrollmentsAndModuleAccessTest < ActionDispatch::IntegrationTest
     enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
     ma = ModuleAssignment.create!(enrollment: enrollment, curriculum_module: @mod1, unlocked: true)
     LessonAssignment.create!(enrollment: enrollment, lesson: @lesson1, unlocked: true)
-    CohortModuleSchedule.create!(cohort: @cohort, curriculum_module: @mod1, start_date: Date.current)
+    CohortModuleSchedule.create!(
+      cohort: @cohort,
+      curriculum_module: @mod1,
+      start_date: @mod1.next_start_date_on_or_after(Date.current)
+    )
 
     as_user(@admin) do
       patch "/api/v1/cohorts/#{@cohort.id}/module_access",
@@ -96,7 +100,7 @@ class EnrollmentsAndModuleAccessTest < ActionDispatch::IntegrationTest
     ma = ModuleAssignment.find_by(enrollment: enrollment, module_id: @mod1.id)
     assert_not_nil ma
     assert ma.unlocked?
-    assert_equal Date.current, CohortModuleSchedule.find_by!(cohort: @cohort, curriculum_module: @mod1).start_date
+    assert_equal @mod1.next_start_date_on_or_after(Date.current), CohortModuleSchedule.find_by!(cohort: @cohort, curriculum_module: @mod1).start_date
   end
 
   test "module_access stores explicit cohort module start dates" do
@@ -104,14 +108,27 @@ class EnrollmentsAndModuleAccessTest < ActionDispatch::IntegrationTest
 
     as_user(@admin) do
       patch "/api/v1/cohorts/#{@cohort.id}/module_access",
-        params: { module_id: @mod1.id, assigned: true, module_start_date: "2026-05-03", unlocked: false },
+        params: { module_id: @mod1.id, assigned: true, module_start_date: "2026-05-04", unlocked: false },
         headers: auth_headers, as: :json
     end
 
     assert_response :success
     ma = ModuleAssignment.find_by!(enrollment: enrollment, module_id: @mod1.id)
     refute ma.unlocked?
-    assert_equal Date.new(2026, 5, 3), CohortModuleSchedule.find_by!(cohort: @cohort, curriculum_module: @mod1).start_date
+    assert_equal Date.new(2026, 5, 4), CohortModuleSchedule.find_by!(cohort: @cohort, curriculum_module: @mod1).start_date
+  end
+
+  test "module_access without assigned rejects updates for unassigned modules" do
+    Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+
+    as_user(@admin) do
+      patch "/api/v1/cohorts/#{@cohort.id}/module_access",
+        params: { module_id: @mod1.id, module_start_date: "2026-04-14" },
+        headers: auth_headers, as: :json
+    end
+
+    assert_response :unprocessable_entity
+    refute CohortModuleSchedule.exists?(cohort: @cohort, curriculum_module: @mod1)
   end
 
   test "student cannot create enrollments" do

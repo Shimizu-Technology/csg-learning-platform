@@ -49,9 +49,18 @@ module Api
         curriculum_module = @cohort.curriculum.modules.find(module_access_params[:module_id])
         enrollments = @cohort.enrollments.active.includes(:module_assignments, :lesson_assignments)
         assigned = module_access_params[:assigned]
+        schedule_exists = @cohort.cohort_module_schedules.any? { |schedule| schedule.module_id == curriculum_module.id }
+        assignments_exist = enrollments.any? do |enrollment|
+          enrollment.module_assignments.any? { |assignment| assignment.module_id == curriculum_module.id }
+        end
+        module_already_assigned = schedule_exists || assignments_exist
         lesson_ids = curriculum_module.lessons.pluck(:id)
         module_start_date = normalized_module_start_date
         return if performed?
+        if assigned.nil? && !module_already_assigned
+          render json: { errors: [ "Module must be assigned before it can be updated" ] }, status: :unprocessable_entity
+          return
+        end
 
         ActiveRecord::Base.transaction do
           enrollments.each do |enrollment|
@@ -68,9 +77,9 @@ module Api
 
           if assigned == false
             @cohort.cohort_module_schedules.where(module_id: curriculum_module.id).destroy_all
-          else
+          elsif assigned == true || module_already_assigned
             schedule = @cohort.cohort_module_schedules.find_or_initialize_by(module_id: curriculum_module.id)
-            schedule.start_date = module_start_date || schedule.start_date || Date.current
+            schedule.start_date = module_start_date || schedule.start_date || curriculum_module.next_start_date_on_or_after(Date.current)
             schedule.save!
           end
 

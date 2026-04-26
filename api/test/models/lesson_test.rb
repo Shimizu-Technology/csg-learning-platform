@@ -61,10 +61,10 @@ class LessonTest < ActiveSupport::TestCase
   end
 
   test "unlock_date uses explicit cohort module start dates when present" do
-    CohortModuleSchedule.create!(cohort: @cohort, curriculum_module: @mod, start_date: Date.new(2026, 5, 5))
+    CohortModuleSchedule.create!(cohort: @cohort, curriculum_module: @mod, start_date: Date.new(2026, 5, 4))
     lesson = Lesson.create!(curriculum_module: @mod, title: "Shifted", position: 1, release_day: 1)
 
-    assert_equal Date.new(2026, 5, 6), lesson.unlock_date(@cohort)
+    assert_equal Date.new(2026, 5, 5), lesson.unlock_date(@cohort)
   end
 
   # --- available? ---
