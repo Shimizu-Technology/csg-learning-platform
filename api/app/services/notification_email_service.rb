@@ -303,11 +303,15 @@ class NotificationEmailService
     def strip_markdown(value)
       value
         .to_s
+        .gsub(/!\[([^\]]*)\]\([^)]+\)/, '\1')
+        .gsub(/\[([^\]]+)\]\([^)]+\)/, '\1')
         .gsub(/```[\w-]*\n?/, "")
         .gsub(/```/, "")
         .gsub(/`([^`]+)`/, '\1')
         .gsub(/\*\*([^*]+)\*\*/, '\1')
         .gsub(/_([^_]+)_/, '\1')
+        .gsub(/^\s{0,3}#+\s+/m, "")
+        .gsub(/^\s*\d+\.\s+/m, "")
         .gsub(/^\s*>\s?/m, "")
         .gsub(/^\s*[-*]\s+/m, "")
         .squish
