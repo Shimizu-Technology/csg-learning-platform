@@ -280,6 +280,8 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
       last_name: "Owner",
       role: :student
     )
+    original_owner_emails = ENV["OWNER_ADMIN_EMAILS"]
+    ENV["OWNER_ADMIN_EMAILS"] = "codeschoolofguam@gmail.com"
 
     as_user(owner) do
       post "/api/v1/sessions", headers: auth_headers
@@ -288,6 +290,8 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert owner.reload.admin?
     assert JSON.parse(response.body).dig("user", "is_admin")
+  ensure
+    ENV["OWNER_ADMIN_EMAILS"] = original_owner_emails
   end
 
   test "owner email remains admin during open signup" do
@@ -300,8 +304,10 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
 
     original_verify = ClerkAuth.method(:verify)
     original_open_signups = ENV["ALLOW_OPEN_SIGNUPS"]
+    original_owner_emails = ENV["OWNER_ADMIN_EMAILS"]
     ClerkAuth.define_singleton_method(:verify) { |_token| payload }
     ENV["ALLOW_OPEN_SIGNUPS"] = "true"
+    ENV["OWNER_ADMIN_EMAILS"] = "codeschoolofguam@gmail.com"
 
     post "/api/v1/sessions", headers: auth_headers
 
@@ -312,6 +318,7 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
     refute Enrollment.exists?(user: owner)
   ensure
     ENV["ALLOW_OPEN_SIGNUPS"] = original_open_signups
+    ENV["OWNER_ADMIN_EMAILS"] = original_owner_emails
     ClerkAuth.define_singleton_method(:verify, original_verify) if original_verify
   end
 

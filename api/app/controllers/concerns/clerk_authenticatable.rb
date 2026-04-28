@@ -1,8 +1,6 @@
 module ClerkAuthenticatable
   extend ActiveSupport::Concern
 
-  OWNER_ADMIN_EMAILS = [ "codeschoolofguam@gmail.com" ].freeze
-
   private
 
   def authenticate_user!
@@ -174,7 +172,7 @@ module ClerkAuthenticatable
     normalized = email.to_s.strip.downcase
     return false if normalized.blank?
 
-    owner_emails = OWNER_ADMIN_EMAILS + ENV.fetch("OWNER_ADMIN_EMAILS", "").split(",")
+    owner_emails = ENV.fetch("OWNER_ADMIN_EMAILS", "").split(",")
     owner_emails.map { |owner_email| owner_email.to_s.strip.downcase }.include?(normalized)
   end
 
