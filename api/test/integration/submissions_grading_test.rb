@@ -13,8 +13,14 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     @repo_block = ContentBlock.create!(
       lesson: @lesson, block_type: :exercise, position: 1, title: "Project 1", body: "Ship it", submission_type: :repo_and_live_url_submission
     )
+    @repo_only_block = ContentBlock.create!(
+      lesson: @lesson, block_type: :exercise, position: 2, title: "Repo Review", body: "Share the repo", submission_type: :repo_url_submission
+    )
     @manual_block = ContentBlock.create!(
-      lesson: @lesson, block_type: :exercise, position: 2, title: "Practice 1", body: "Do it", submission_type: :manual_complete
+      lesson: @lesson, block_type: :exercise, position: 3, title: "Practice 1", body: "Do it", submission_type: :manual_complete
+    )
+    @challenge_block = ContentBlock.create!(
+      lesson: @lesson, block_type: :code_challenge, position: 4, title: "Challenge 1", body: "Solve it", submission_type: :text_submission
     )
 
     @student = User.create!(
@@ -99,6 +105,45 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     assert progress.completed?
   end
 
+  test "student can submit repo-only artifacts" do
+    as_user(@student) do
+      post "/api/v1/submissions",
+        params: {
+          content_block_id: @repo_only_block.id,
+          repo_url: "https://github.com/student/repo-only",
+          notes: "Backend review requested"
+        },
+        headers: auth_headers, as: :json
+    end
+
+    assert_response :created
+    submission = Submission.order(:created_at).last
+    assert_equal "repo_url_submission", submission.submission_type
+    assert_equal "https://github.com/student/repo-only", submission.repo_url
+    assert_equal "Backend review requested", submission.notes
+
+    progress = Progress.find_by(user: @student, content_block: @repo_only_block)
+    assert_not_nil progress
+    assert progress.completed?
+  end
+
+  test "code challenge text submission works like exercise text submission" do
+    as_user(@student) do
+      post "/api/v1/submissions",
+        params: { content_block_id: @challenge_block.id, text: "def solve; :ok end" },
+        headers: auth_headers, as: :json
+    end
+
+    assert_response :created
+    submission = Submission.order(:created_at).last
+    assert_equal "text_submission", submission.submission_type
+    assert_equal "def solve; :ok end", submission.text
+
+    progress = Progress.find_by(user: @student, content_block: @challenge_block)
+    assert_not_nil progress
+    assert progress.completed?
+  end
+
   test "manual-complete blocks reject direct submission creation" do
     as_user(@student) do
       post "/api/v1/submissions",
@@ -107,6 +152,42 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :unprocessable_entity
+  end
+
+  test "text submission requires text payload" do
+    as_user(@student) do
+      post "/api/v1/submissions",
+        params: { content_block_id: @block.id, text: "   " },
+        headers: auth_headers, as: :json
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "Submission text is required", JSON.parse(response.body).fetch("errors").first
+  end
+
+  test "repo-only submission requires repo url" do
+    as_user(@student) do
+      post "/api/v1/submissions",
+        params: { content_block_id: @repo_only_block.id, notes: "missing repo" },
+        headers: auth_headers, as: :json
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "Repository URL is required", JSON.parse(response.body).fetch("errors").first
+  end
+
+  test "repo and live submission requires live url" do
+    as_user(@student) do
+      post "/api/v1/submissions",
+        params: {
+          content_block_id: @repo_block.id,
+          repo_url: "https://github.com/student/project"
+        },
+        headers: auth_headers, as: :json
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "Live URL is required", JSON.parse(response.body).fetch("errors").first
   end
 
   test "instructor can grade a submission" do
