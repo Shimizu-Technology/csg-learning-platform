@@ -1690,6 +1690,139 @@ export function Messages() {
   const showPageIntro = !selectedTarget
   const showConversationHeaderPushMessage = Boolean(pushMessage) && Boolean(selectedTarget)
   const displayedMessages = conversationView === 'pins' && !activeThreadRoot ? selectedPinnedMessages : conversationMessages
+  const renderComposer = (placement: 'main' | 'thread') => {
+    const inThreadPanel = placement === 'thread'
+
+    return (
+      <form
+        ref={composerFormRef}
+        onSubmit={handleSend}
+        className={`${inThreadPanel ? 'shrink-0 border-t border-slate-200 bg-white p-3' : 'shrink-0 border-t border-slate-200 bg-white px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 sm:px-4'}`}
+      >
+        {error && (
+          <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+        {activeThreadRoot && (
+          <div className="mb-2 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+            <span className="min-w-0 truncate">
+              {inThreadPanel ? 'Replying in thread' : `Replying in thread to ${activeThreadRoot.author.full_name}: ${preview(activeThreadRoot.body)}`}
+            </span>
+            <button type="button" onClick={() => setActiveThreadRootId(null)} className="shrink-0 rounded-lg p-1 hover:bg-white" aria-label="Close thread reply">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+        {pendingAttachments.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-2">
+            {pendingAttachments.map((attachment) => (
+              <div key={`${attachment.filename}-${attachment.byte_size}`} className="inline-flex max-w-full items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                <File className="h-4 w-4 shrink-0" />
+                <span className="truncate">{attachment.filename}</span>
+                <span>{attachment.progress > 0 ? `${attachment.progress}%` : formatFileSize(attachment.byte_size)}</span>
+                <button
+                  type="button"
+                  onClick={() => setPendingAttachments((prev) => prev.filter((item) => item.file !== attachment.file))}
+                  className="rounded-lg p-1 hover:bg-white"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div
+          className="relative overflow-visible rounded-2xl border border-slate-200 bg-white shadow-[0_18px_42px_-30px_rgba(15,23,42,0.38)] transition-shadow focus-within:border-primary-200 focus-within:shadow-[0_20px_54px_-34px_rgba(239,68,68,0.42)]"
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={handleDrop}
+        >
+          <div className="messages-toolbar-scroll flex items-center gap-1.5 overflow-x-auto border-b border-slate-100 px-2 py-1.5 text-slate-500">
+            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => fileInputRef.current?.click()} className="min-h-9 shrink-0 rounded-lg p-2 hover:bg-slate-50" aria-label="Attach files">
+              <Paperclip className="h-4 w-4" />
+            </button>
+            <button type="button" onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleBold().run())} className={`min-h-9 shrink-0 rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('bold') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Bold">
+              <Bold className="h-4 w-4" />
+            </button>
+            <button type="button" onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleItalic().run())} className={`min-h-9 shrink-0 rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('italic') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Italic">
+              <Italic className="h-4 w-4" />
+            </button>
+            <button type="button" onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleCode().run())} className={`min-h-9 shrink-0 rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('code') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Inline code">
+              <Code2 className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onMouseDown={(event) => runToolbarCommand(event, insertCodeBlock)}
+              className={`min-h-9 shrink-0 rounded-lg px-2.5 py-2 text-xs font-medium hover:bg-slate-50 ${editor?.isActive('codeBlock') ? 'bg-slate-100 text-slate-900' : ''}`}
+            >
+              <span>Block</span>
+            </button>
+            <button type="button" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('@') }} className="min-h-9 shrink-0 rounded-lg px-2.5 py-2 text-xs font-medium hover:bg-slate-50">@ mention</button>
+            <button type="button" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('/') }} className="min-h-9 shrink-0 rounded-lg px-2.5 py-2 text-xs font-medium hover:bg-slate-50">/ command</button>
+            <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => handleFiles(event.target.files)} />
+          </div>
+          <div className="p-2" onKeyDownCapture={handleComposerKeyDown}>
+            <div className="min-h-0 min-w-0 rounded-xl bg-slate-50/70">
+              <EditorContent editor={editor} />
+            </div>
+          </div>
+          <div className="flex items-end justify-end border-t border-slate-100 px-3 py-2.5">
+            <button
+              type="submit"
+              disabled={sending || (!body.trim() && pendingAttachments.length === 0)}
+              className="inline-flex h-9 min-w-[104px] shrink-0 items-center justify-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-0"
+              aria-label={sending ? 'Sending message' : 'Send message'}
+            >
+              <Send className="h-4 w-4" />
+              <span>Send</span>
+            </button>
+          </div>
+          {mentionSuggestions.length > 0 && (
+            <div className={`absolute bottom-full z-30 mb-2 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg ${inThreadPanel ? 'left-2 right-2' : 'left-3 w-72'}`}>
+              <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Mention someone</div>
+              {mentionSuggestions.map((mention, index) => (
+                <button
+                  key={mention.id}
+                  type="button"
+                  onClick={() => selectMention(mention)}
+                  className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm ${index === activeMentionIndex ? 'bg-primary-50 text-primary-800' : 'hover:bg-slate-50'}`}
+                >
+                  <span className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-semibold ${
+                    mention.kind === 'channel' ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {mention.kind === 'channel' ? '#' : mention.label.replace(/^@/, '').slice(0, 1)}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium text-slate-800">{mention.label}</span>
+                    <span className="block truncate text-xs text-slate-500">{mention.subtitle}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          {commandSuggestions.length > 0 && (
+            <div className={`absolute bottom-full z-30 mb-2 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg ${inThreadPanel ? 'left-2 right-2' : 'left-3 w-72'}`}>
+              <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Commands</div>
+              {commandSuggestions.map((item, index) => (
+                <button
+                  key={item.command}
+                  type="button"
+                  onClick={() => selectCommand(item.command)}
+                  className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm ${index === activeCommandIndex ? 'bg-primary-50 text-primary-800' : 'hover:bg-slate-50'}`}
+                >
+                  <Type className="h-4 w-4 text-slate-400" />
+                  <span>
+                    <span className="block font-medium text-slate-800">{item.command}</span>
+                    <span className="block text-xs text-slate-500">{item.label}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </form>
+    )
+  }
 
   return (
     <div className={`mx-auto flex w-full max-w-[1500px] flex-col ${showPageIntro ? 'min-h-[calc(100dvh-5.5rem)] gap-4' : 'h-[calc(100dvh-5.5rem)] gap-0 overflow-hidden'} lg:h-[calc(100dvh-5.5rem)] lg:px-4`}>
@@ -2203,6 +2336,7 @@ export function Messages() {
                         )
                       })}
                     </div>
+                    {renderComposer('thread')}
                   </aside>
                 )}
                 {(loadingTarget || isNavigationPending) && (
@@ -2215,133 +2349,7 @@ export function Messages() {
                 )}
               </div>
 
-              {showComposer && (
-              <form
-                ref={composerFormRef}
-                onSubmit={handleSend}
-                className="shrink-0 border-t border-slate-200 bg-white px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 sm:px-4"
-              >
-                {error && (
-                  <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                    {error}
-                  </div>
-                )}
-                {activeThreadRoot && (
-                  <div className="mb-2 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                    <span>Replying in thread to {activeThreadRoot.author.full_name}: {preview(activeThreadRoot.body)}</span>
-                    <button type="button" onClick={() => setActiveThreadRootId(null)} className="rounded-lg p-1 hover:bg-white">
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                )}
-                {pendingAttachments.length > 0 && (
-                  <div className="mb-2 flex flex-wrap gap-2">
-                    {pendingAttachments.map((attachment) => (
-                      <div key={`${attachment.filename}-${attachment.byte_size}`} className="inline-flex max-w-full items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                        <File className="h-4 w-4 shrink-0" />
-                        <span className="truncate">{attachment.filename}</span>
-                        <span>{attachment.progress > 0 ? `${attachment.progress}%` : formatFileSize(attachment.byte_size)}</span>
-                        <button
-                          type="button"
-                          onClick={() => setPendingAttachments((prev) => prev.filter((item) => item.file !== attachment.file))}
-                          className="rounded-lg p-1 hover:bg-white"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div
-                  className="relative overflow-visible rounded-2xl border border-slate-200 bg-white shadow-[0_18px_42px_-30px_rgba(15,23,42,0.38)] transition-shadow focus-within:border-primary-200 focus-within:shadow-[0_20px_54px_-34px_rgba(239,68,68,0.42)]"
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={handleDrop}
-                >
-                  <div className="messages-toolbar-scroll flex items-center gap-1.5 overflow-x-auto border-b border-slate-100 px-2 py-1.5 text-slate-500">
-                    <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => fileInputRef.current?.click()} className="min-h-9 shrink-0 rounded-lg p-2 hover:bg-slate-50" aria-label="Attach files">
-                      <Paperclip className="h-4 w-4" />
-                    </button>
-                    <button type="button" onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleBold().run())} className={`min-h-9 shrink-0 rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('bold') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Bold">
-                      <Bold className="h-4 w-4" />
-                    </button>
-                    <button type="button" onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleItalic().run())} className={`min-h-9 shrink-0 rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('italic') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Italic">
-                      <Italic className="h-4 w-4" />
-                    </button>
-                    <button type="button" onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleCode().run())} className={`min-h-9 shrink-0 rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('code') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Inline code">
-                      <Code2 className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onMouseDown={(event) => runToolbarCommand(event, insertCodeBlock)}
-                      className={`min-h-9 shrink-0 rounded-lg px-2.5 py-2 text-xs font-medium hover:bg-slate-50 ${editor?.isActive('codeBlock') ? 'bg-slate-100 text-slate-900' : ''}`}
-                    >
-                      <span>Block</span>
-                    </button>
-                    <button type="button" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('@') }} className="min-h-9 shrink-0 rounded-lg px-2.5 py-2 text-xs font-medium hover:bg-slate-50">@ mention</button>
-                    <button type="button" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('/') }} className="min-h-9 shrink-0 rounded-lg px-2.5 py-2 text-xs font-medium hover:bg-slate-50">/ command</button>
-                    <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => handleFiles(event.target.files)} />
-                  </div>
-                    <div className="p-2" onKeyDownCapture={handleComposerKeyDown}>
-                      <div className="min-h-0 min-w-0 rounded-xl bg-slate-50/70">
-                      <EditorContent editor={editor} />
-                      </div>
-                    </div>
-                  <div className="flex items-end justify-end border-t border-slate-100 px-3 py-2.5">
-                    <button
-                      type="submit"
-                      disabled={sending || (!body.trim() && pendingAttachments.length === 0)}
-                      className="inline-flex h-9 min-w-[104px] shrink-0 items-center justify-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-0"
-                      aria-label={sending ? 'Sending message' : 'Send message'}
-                    >
-                      <Send className="h-4 w-4" />
-                      <span>Send</span>
-                    </button>
-                  </div>
-                  {mentionSuggestions.length > 0 && (
-                    <div className="absolute bottom-full left-3 z-30 mb-2 w-72 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
-                      <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Mention someone</div>
-                      {mentionSuggestions.map((mention, index) => (
-                        <button
-                          key={mention.id}
-                          type="button"
-                          onClick={() => selectMention(mention)}
-                          className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm ${index === activeMentionIndex ? 'bg-primary-50 text-primary-800' : 'hover:bg-slate-50'}`}
-                        >
-                          <span className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-semibold ${
-                            mention.kind === 'channel' ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-600'
-                          }`}>
-                            {mention.kind === 'channel' ? '#' : mention.label.replace(/^@/, '').slice(0, 1)}
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block truncate font-medium text-slate-800">{mention.label}</span>
-                            <span className="block truncate text-xs text-slate-500">{mention.subtitle}</span>
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {commandSuggestions.length > 0 && (
-                    <div className="absolute bottom-full left-3 z-30 mb-2 w-72 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
-                      <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Commands</div>
-                      {commandSuggestions.map((item, index) => (
-                        <button
-                          key={item.command}
-                          type="button"
-                          onClick={() => selectCommand(item.command)}
-                          className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm ${index === activeCommandIndex ? 'bg-primary-50 text-primary-800' : 'hover:bg-slate-50'}`}
-                        >
-                          <Type className="h-4 w-4 text-slate-400" />
-                          <span>
-                            <span className="block font-medium text-slate-800">{item.command}</span>
-                            <span className="block text-xs text-slate-500">{item.label}</span>
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </form>
-              )}
+              {showComposer && !showThreadPanel && renderComposer('main')}
             </>
           ) : (
             <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-slate-500">
