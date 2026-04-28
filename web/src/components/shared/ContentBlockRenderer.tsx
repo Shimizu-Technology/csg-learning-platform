@@ -78,6 +78,9 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
   const [submissionNotes, setSubmissionNotes] = useState('')
   const [showAdvancedRepoFields, setShowAdvancedRepoFields] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submissionError, setSubmissionError] = useState<string | null>(null)
+  const [submissionSuccess, setSubmissionSuccess] = useState<string | null>(null)
+  const [hasEditedSubmissionDraft, setHasEditedSubmissionDraft] = useState(false)
   const vimeoContainerRef = useRef<HTMLDivElement>(null)
   const ytIframeRef = useRef<HTMLIFrameElement>(null)
   const isCompletedRef = useRef(isCompleted)
@@ -95,6 +98,40 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
   const usesRepoArtifactSubmission = isExerciseType && (submissionType === 'repo_url_submission' || submissionType === 'repo_and_live_url_submission')
   const requiresLiveUrl = submissionType === 'repo_and_live_url_submission'
   const hasUngradedSubmission = submissions.length > 0 && !hasRedoRequest && !hasPassingGrade
+
+  const handleDraftChange = useCallback((updater: () => void) => {
+    setHasEditedSubmissionDraft(true)
+    setSubmissionError(null)
+    setSubmissionSuccess(null)
+    updater()
+  }, [])
+
+  useEffect(() => {
+    if (hasEditedSubmissionDraft) return
+
+    setSubmissionText(usesTextSubmission ? latestSubmission?.text ?? '' : '')
+    setRepoUrl(usesRepoArtifactSubmission ? latestSubmission?.repo_url ?? '' : '')
+    setPrUrl(usesRepoArtifactSubmission ? latestSubmission?.pr_url ?? '' : '')
+    setLiveUrl(usesRepoArtifactSubmission ? latestSubmission?.live_url ?? '' : '')
+    setBranchName(usesRepoArtifactSubmission ? latestSubmission?.branch ?? '' : '')
+    setCommitSha(usesRepoArtifactSubmission ? latestSubmission?.commit_sha ?? '' : '')
+    setSubmissionNotes(usesRepoArtifactSubmission ? latestSubmission?.notes ?? '' : '')
+    setShowAdvancedRepoFields(Boolean(
+      usesRepoArtifactSubmission && (
+        latestSubmission?.pr_url ||
+        latestSubmission?.branch ||
+        latestSubmission?.commit_sha ||
+        latestSubmission?.notes ||
+        (!requiresLiveUrl && latestSubmission?.live_url)
+      )
+    ))
+  }, [block.id, hasEditedSubmissionDraft, latestSubmission?.id, requiresLiveUrl, usesRepoArtifactSubmission, usesTextSubmission])
+
+  useEffect(() => {
+    setHasEditedSubmissionDraft(false)
+    setSubmissionError(null)
+    setSubmissionSuccess(null)
+  }, [block.id])
 
   const markVideoCompleted = useCallback(async () => {
     if (isCompletedRef.current) return
@@ -222,9 +259,22 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
   }, [])
 
   const handleSubmit = async () => {
-    if (usesTextSubmission && !submissionText.trim()) return
-    if (usesRepoArtifactSubmission && !repoUrl.trim()) return
-    if (requiresLiveUrl && !liveUrl.trim()) return
+    setSubmissionError(null)
+    setSubmissionSuccess(null)
+
+    if (usesTextSubmission && !submissionText.trim()) {
+      setSubmissionError('Please enter your solution before submitting.')
+      return
+    }
+    if (usesRepoArtifactSubmission && !repoUrl.trim()) {
+      setSubmissionError('Please provide a repository URL before submitting.')
+      return
+    }
+    if (requiresLiveUrl && !liveUrl.trim()) {
+      setSubmissionError('Please provide a live URL before submitting.')
+      return
+    }
+
     setIsSubmitting(true)
     const res = await api.createSubmission({
       content_block_id: block.id,
@@ -238,15 +288,11 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
         notes: submissionNotes.trim() || undefined,
       } : {}),
     })
-    if (!res.error) {
-      setSubmissionText('')
-      setRepoUrl('')
-      setPrUrl('')
-      setLiveUrl('')
-      setBranchName('')
-      setCommitSha('')
-      setSubmissionNotes('')
-      setShowAdvancedRepoFields(false)
+    if (res.error) {
+      setSubmissionError(res.error)
+    } else {
+      setHasEditedSubmissionDraft(false)
+      setSubmissionSuccess(latestSubmission ? 'Resubmission saved successfully.' : 'Submission saved successfully.')
       onProgressUpdate?.()
     }
     setIsSubmitting(false)
@@ -614,10 +660,22 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                 </div>
                 <CodeEditor
                   value={submissionText}
-                  onChange={setSubmissionText}
+                  onChange={(value) => handleDraftChange(() => setSubmissionText(value))}
                   language={detectedLang}
                   minHeight={240}
                 />
+                {(submissionError || submissionSuccess) && (
+                  <div
+                    aria-live="polite"
+                    className={`rounded-lg border px-3 py-2 text-sm ${
+                      submissionError
+                        ? 'border-red-200 bg-red-50 text-red-700'
+                        : 'border-success-200 bg-success-50 text-success-700'
+                    }`}
+                  >
+                    {submissionError || submissionSuccess}
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-slate-400">
                     {detectedLang.charAt(0).toUpperCase() + detectedLang.slice(1)}
@@ -648,7 +706,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                     <span className="mb-1 block text-xs font-medium text-slate-600">Repository URL</span>
                     <input
                       value={repoUrl}
-                      onChange={(e) => setRepoUrl(e.target.value)}
+                      onChange={(e) => handleDraftChange(() => setRepoUrl(e.target.value))}
                       placeholder="https://github.com/username/project"
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
@@ -658,7 +716,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                       <span className="mb-1 block text-xs font-medium text-slate-600">Live URL</span>
                       <input
                         value={liveUrl}
-                        onChange={(e) => setLiveUrl(e.target.value)}
+                        onChange={(e) => handleDraftChange(() => setLiveUrl(e.target.value))}
                         placeholder="https://your-app.example.com"
                         className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
@@ -669,7 +727,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                   <span className="mb-1 block text-xs font-medium text-slate-600">Notes (optional)</span>
                   <textarea
                     value={submissionNotes}
-                    onChange={(e) => setSubmissionNotes(e.target.value)}
+                    onChange={(e) => handleDraftChange(() => setSubmissionNotes(e.target.value))}
                     rows={4}
                     placeholder="Anything your instructor should know about this submission."
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -691,7 +749,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                           <span className="mb-1 block text-xs font-medium text-slate-600">Live URL (optional)</span>
                           <input
                             value={liveUrl}
-                            onChange={(e) => setLiveUrl(e.target.value)}
+                            onChange={(e) => handleDraftChange(() => setLiveUrl(e.target.value))}
                             placeholder="https://your-app.example.com"
                             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
                           />
@@ -701,7 +759,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                         <span className="mb-1 block text-xs font-medium text-slate-600">Pull Request URL (optional)</span>
                         <input
                           value={prUrl}
-                          onChange={(e) => setPrUrl(e.target.value)}
+                          onChange={(e) => handleDraftChange(() => setPrUrl(e.target.value))}
                           placeholder="https://github.com/.../pull/123"
                           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
@@ -710,7 +768,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                         <span className="mb-1 block text-xs font-medium text-slate-600">Branch (optional)</span>
                         <input
                           value={branchName}
-                          onChange={(e) => setBranchName(e.target.value)}
+                          onChange={(e) => handleDraftChange(() => setBranchName(e.target.value))}
                           placeholder="main"
                           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
@@ -719,7 +777,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                         <span className="mb-1 block text-xs font-medium text-slate-600">Commit SHA (optional)</span>
                         <input
                           value={commitSha}
-                          onChange={(e) => setCommitSha(e.target.value)}
+                          onChange={(e) => handleDraftChange(() => setCommitSha(e.target.value))}
                           placeholder="abc1234"
                           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
@@ -727,6 +785,18 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                     </div>
                   )}
                 </div>
+                {(submissionError || submissionSuccess) && (
+                  <div
+                    aria-live="polite"
+                    className={`rounded-lg border px-3 py-2 text-sm ${
+                      submissionError
+                        ? 'border-red-200 bg-red-50 text-red-700'
+                        : 'border-success-200 bg-success-50 text-success-700'
+                    }`}
+                  >
+                    {submissionError || submissionSuccess}
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-slate-400">
                     {requiresLiveUrl
