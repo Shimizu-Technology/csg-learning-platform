@@ -52,4 +52,21 @@ class NotificationDeliveryServiceTest < ActiveSupport::TestCase
     assert_match "mentioned you", recipient_notification.title
     refute_match "mentioned you", duplicate_notification.title
   end
+
+  test "everyone mention notifies channel recipients" do
+    curriculum = Curriculum.create!(name: "Bootcamp 2026")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Cohort 3", start_date: Date.current, status: :active)
+    channel = cohort.channels.find_by!(name: "Class Chat")
+    author = User.create!(clerk_id: "everyone_author", email: "everyone-author@example.com", first_name: "Notify", last_name: "Author", role: :admin)
+    recipient = User.create!(clerk_id: "everyone_student", email: "everyone-student@example.com", first_name: "Notify", last_name: "Student", role: :student)
+    Enrollment.create!(user: recipient, cohort: cohort, status: :active)
+
+    message = Message.create!(channel: channel, author: author, body: "@everyone please check the schedule.")
+
+    NotificationDeliveryService.message_created(message)
+
+    notification = Notification.find_by!(notifiable: message, user: recipient)
+    assert_match "@everyone message", notification.title
+    assert_match "@everyone:", notification.body
+  end
 end

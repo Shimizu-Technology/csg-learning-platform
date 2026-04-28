@@ -285,6 +285,39 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_equal "Attachment", preview
   end
 
+  test "channel show returns the latest message window in chronological order" do
+    5.times do |index|
+      Message.create!(channel: @channel, author: @admin, body: "Channel message #{index}", created_at: index.minutes.ago)
+    end
+
+    as_user(@student) do
+      get "/api/v1/channels/#{@channel.id}",
+        params: { message_limit: 2 },
+        headers: auth_headers
+    end
+
+    assert_response :success
+    bodies = JSON.parse(response.body).fetch("messages").map { |message| message.fetch("body") }
+    assert_equal [ "Channel message 1", "Channel message 0" ], bodies
+  end
+
+  test "direct conversation show returns a window around a searched message" do
+    conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @student, @admin ])
+    messages = 5.times.map do |index|
+      Message.create!(direct_conversation: conversation, author: @admin, body: "Direct message #{index}", created_at: index.minutes.ago)
+    end
+
+    as_user(@student) do
+      get "/api/v1/direct_conversations/#{conversation.id}",
+        params: { message_limit: 3, around_message_id: messages[3].id },
+        headers: auth_headers
+    end
+
+    assert_response :success
+    bodies = JSON.parse(response.body).fetch("messages").map { |message| message.fetch("body") }
+    assert_equal [ "Direct message 4", "Direct message 3", "Direct message 2" ], bodies
+  end
+
   test "message create requires text or attachment" do
     as_user(@student) do
       post "/api/v1/channels/#{@channel.id}/messages",

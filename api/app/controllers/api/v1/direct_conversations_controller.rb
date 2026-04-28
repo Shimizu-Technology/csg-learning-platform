@@ -1,6 +1,8 @@
 module Api
   module V1
     class DirectConversationsController < ApplicationController
+      include MessageWindowing
+
       before_action :authenticate_user!
       before_action :set_conversation, only: [ :show, :mark_read ]
 
@@ -49,11 +51,7 @@ module Api
         end
 
         member = @conversation.direct_conversation_members.find_by!(user: current_user)
-        messages = @conversation.messages.visible
-          .includes(:author, :message_attachments, message_reactions: :user)
-          .chronological
-          .limit(message_limit)
-          .to_a
+        messages = windowed_messages(@conversation.messages.visible)
         pinned_messages = @conversation.messages.pinned_recent.to_a
 
         render json: {
@@ -112,10 +110,6 @@ module Api
 
       def conversation_params
         params.permit(:cohort_id, :workspace_id, user_ids: [])
-      end
-
-      def message_limit
-        params.fetch(:message_limit, 100).to_i.clamp(1, 200)
       end
 
       def direct_users_for(workspace, requested_ids)
