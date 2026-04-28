@@ -1066,12 +1066,17 @@ export function Messages() {
   useEffect(() => {
     if (!highlightedMessageId) return
 
-    const element = document.getElementById(`message-${highlightedMessageId}`)
-    element?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    const frame = window.requestAnimationFrame(() => {
+      const element = document.getElementById(`message-${highlightedMessageId}`)
+      element?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    })
     const timer = window.setTimeout(() => setHighlightedMessageId(null), 2600)
 
-    return () => window.clearTimeout(timer)
-  }, [highlightedMessageId, messages.length])
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.clearTimeout(timer)
+    }
+  }, [highlightedMessageId])
 
   useEffect(() => {
     const trimmed = deferredSearchQuery.trim()
