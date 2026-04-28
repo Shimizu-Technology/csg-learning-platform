@@ -1,7 +1,7 @@
 puts "Seeding database..."
 
 # Pre-create admin user — placeholder clerk_id gets replaced on first Clerk sign-in (matched by email)
-admin = User.find_or_initialize_by(email: "codeschoolofguam@gmail.com")
+admin = User.where("LOWER(email) = ?", "codeschoolofguam@gmail.com").first_or_initialize(email: "codeschoolofguam@gmail.com")
 admin.assign_attributes(clerk_id: admin.clerk_id.presence || "pending_#{SecureRandom.uuid}", first_name: "Leon", last_name: "Shimizu", role: :admin)
 admin.save!
 puts "  Admin: #{admin.full_name} (#{admin.email})"

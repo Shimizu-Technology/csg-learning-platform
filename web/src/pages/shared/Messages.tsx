@@ -13,6 +13,8 @@ import {
   Bell,
   BellOff,
   Bold,
+  Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Code2,
@@ -37,6 +39,7 @@ import {
   Trash2,
   Type,
   UserPlus,
+  Users,
   X,
 } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -58,6 +61,7 @@ import type {
 } from '../../types/api'
 
 type Target = { type: 'channel'; id: number } | { type: 'dm'; id: number }
+type TargetLoadOptions = { aroundMessageId?: number; highlightedMessageId?: number }
 type PendingAttachment = {
   file: File
   s3_key?: string
@@ -80,8 +84,19 @@ type MentionPattern = {
   kind: 'user' | 'channel'
 }
 type MentionableUser = Pick<UserSummary, 'id' | 'full_name' | 'email'>
+type MessageSearchResult = ChannelMessage & {
+  context?: {
+    type: 'channel' | 'direct_conversation'
+    id: number
+    label: string
+    cohort_id: number | null
+  }
+}
 
 const REACTIONS = ['👍', '❤️', '✅', '🙌']
+const CHANNEL_MENTION_ALIASES = [
+  { label: '@everyone', subtitle: 'Notify everyone in this channel' },
+]
 const SLASH_COMMANDS = [
   { command: '/code', label: 'Code block' },
   { command: '/quote', label: 'Quote' },
@@ -119,6 +134,41 @@ function latestMessageFrom(message: ChannelMessage) {
     created_at: message.created_at,
     author_name: message.author.full_name,
   }
+}
+
+function sameDay(left: string, right: string) {
+  return new Date(left).toDateString() === new Date(right).toDateString()
+}
+
+function closeInTime(left: string, right: string, minutes = 5) {
+  return Math.abs(new Date(left).getTime() - new Date(right).getTime()) <= minutes * 60 * 1000
+}
+
+function shouldCompactMessage(message: ChannelMessage, previousMessage?: ChannelMessage) {
+  return Boolean(
+    previousMessage &&
+    previousMessage.author.id === message.author.id &&
+    !previousMessage.pinned_at &&
+    !message.pinned_at &&
+    sameDay(previousMessage.created_at, message.created_at) &&
+    closeInTime(previousMessage.created_at, message.created_at),
+  )
+}
+
+function formatDayDivider(value: string) {
+  const date = new Date(value)
+  const today = new Date()
+  const yesterday = new Date()
+  yesterday.setDate(today.getDate() - 1)
+
+  if (date.toDateString() === today.toDateString()) return 'Today'
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday'
+
+  return date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  })
 }
 
 function initials(name: string) {
@@ -249,8 +299,11 @@ function buildMentionPatterns(names: string[], includeChannel: boolean) {
   const patterns: MentionPattern[] = []
 
   if (includeChannel) {
-    seen.add('@channel')
-    patterns.push({ label: '@channel', normalized: '@channel', kind: 'channel' })
+    CHANNEL_MENTION_ALIASES.forEach((mention) => {
+      const normalized = mention.label.toLowerCase()
+      seen.add(normalized)
+      patterns.push({ label: mention.label, normalized, kind: 'channel' })
+    })
   }
 
   names
@@ -440,6 +493,7 @@ export function Messages() {
   const [showChannelForm, setShowChannelForm] = useState(false)
   const [showDmForm, setShowDmForm] = useState(false)
   const [showWorkspaceForm, setShowWorkspaceForm] = useState(false)
+  const [showWorkspaceSwitcher, setShowWorkspaceSwitcher] = useState(false)
   const [showWorkspaceMembers, setShowWorkspaceMembers] = useState(false)
   const [pushEnabled, setPushEnabled] = useState(false)
   const [pushMessage, setPushMessage] = useState('')
@@ -453,6 +507,8 @@ export function Messages() {
   const [lightboxAttachments, setLightboxAttachments] = useState<MessageAttachment[]>([])
   const [lightboxIndex, setLightboxIndex] = useState(0)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [channelsCollapsed, setChannelsCollapsed] = useState(false)
+  const [dmsCollapsed, setDmsCollapsed] = useState(false)
   const [conversationView, setConversationView] = useState<'messages' | 'pins'>('messages')
   const [activeThreadRootId, setActiveThreadRootId] = useState<number | null>(null)
   const [isDesktop, setIsDesktop] = useState(() => (typeof window === 'undefined' ? true : window.innerWidth >= 1024))
@@ -462,7 +518,8 @@ export function Messages() {
   const [messagePendingDelete, setMessagePendingDelete] = useState<LocalMessage | null>(null)
   const [editBody, setEditBody] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<ChannelMessage[]>([])
+  const [searchResults, setSearchResults] = useState<MessageSearchResult[]>([])
+  const [highlightedMessageId, setHighlightedMessageId] = useState<number | null>(null)
   const [error, setError] = useState('')
   const [workspaceError, setWorkspaceError] = useState('')
   const [channelError, setChannelError] = useState('')
@@ -481,13 +538,23 @@ export function Messages() {
     visibility: 'cohort',
   })
   const bottomRef = useRef<HTMLDivElement | null>(null)
+  const messageScrollRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const composerFormRef = useRef<HTMLFormElement | null>(null)
   const lightboxTouchStartX = useRef<number | null>(null)
   const optimisticAttachmentUrls = useRef(new Map<number, string[]>())
   const tempMessageIdRef = useRef(0)
   const targetRequestRef = useRef(0)
+  const targetLoadOptionsRef = useRef<TargetLoadOptions>({})
+  const shouldStickToBottomRef = useRef(true)
+  const activeThreadRootIdRef = useRef<number | null>(activeThreadRootId)
+  const isDesktopRef = useRef(isDesktop)
+  const mobilePaneRef = useRef(mobilePane)
   const deferredSearchQuery = useDeferredValue(searchQuery)
+
+  activeThreadRootIdRef.current = activeThreadRootId
+  isDesktopRef.current = isDesktop
+  mobilePaneRef.current = mobilePane
 
   const selectedChannel = useMemo(
     () => selectedTarget?.type === 'channel' ? channels.find((channel) => channel.id === selectedTarget.id) || null : null,
@@ -542,17 +609,44 @@ export function Messages() {
   )
 
   const selectedWorkspace = workspaces.find((workspace) => workspace.id === selectedWorkspaceId)
+  const workspaceCards = useMemo(() => workspaces.map((workspace) => {
+    const workspaceChannels = channels.filter((channel) => channel.workspace_id === workspace.id)
+    const workspaceDms = directConversations.filter((conversation) => conversation.workspace_id === workspace.id)
+    const unreadCount = [
+      ...workspaceChannels.map((channel) => channel.unread_count),
+      ...workspaceDms.map((conversation) => conversation.unread_count),
+    ].reduce((sum, count) => sum + count, 0)
+
+    return {
+      workspace,
+      channelCount: workspaceChannels.length,
+      dmCount: workspaceDms.length,
+      unreadCount,
+    }
+  }), [channels, directConversations, workspaces])
   const selectedPinnedMessages = useMemo(
     () => sortPinnedMessages(pinnedMessages),
     [pinnedMessages],
+  )
+  const channelsUnreadCount = useMemo(
+    () => visibleChannels.reduce((sum, channel) => sum + channel.unread_count, 0),
+    [visibleChannels],
+  )
+  const dmsUnreadCount = useMemo(
+    () => visibleDms.reduce((sum, conversation) => sum + conversation.unread_count, 0),
+    [visibleDms],
   )
   const memberCandidates = useMemo(() => {
     const memberIds = new Set((workspaceDetail?.members || []).map((member) => member.id))
     return allUsers.filter((candidate) => !memberIds.has(candidate.id))
   }, [allUsers, workspaceDetail?.members])
+  const directMentionableUsers = useMemo(
+    () => (selectedDm?.users ?? []).filter((mentionableUser) => mentionableUser.id !== user?.id),
+    [selectedDm?.users, user?.id],
+  )
   const mentionableUsers = useMemo(
-    () => selectedTarget?.type === 'channel' ? (workspaceDetail?.members ?? []) : availableUsers,
-    [availableUsers, selectedTarget?.type, workspaceDetail?.members],
+    () => selectedTarget?.type === 'channel' ? (workspaceDetail?.members ?? []) : directMentionableUsers,
+    [directMentionableUsers, selectedTarget?.type, workspaceDetail?.members],
   )
   const mentionPatterns = useMemo(
     () => buildMentionPatterns(
@@ -574,13 +668,17 @@ export function Messages() {
     const normalized = stripMentionLabel(mentionToken)
     const suggestions: MentionSuggestion[] = []
 
-    if (selectedTarget?.type === 'channel' && 'channel'.startsWith(normalized)) {
-      suggestions.push({
-        id: 'channel',
-        label: '@channel',
-        subtitle: 'Notify everyone in this channel',
-        kind: 'channel',
-      })
+    if (selectedTarget?.type === 'channel') {
+      CHANNEL_MENTION_ALIASES
+        .filter((mention) => stripMentionLabel(mention.label).startsWith(normalized))
+        .forEach((mention) => {
+          suggestions.push({
+            id: mention.label,
+            label: mention.label,
+            subtitle: mention.subtitle,
+            kind: 'channel',
+          })
+        })
     }
 
     return [
@@ -738,13 +836,16 @@ export function Messages() {
     return new Date(conversation.latest_message.created_at) > new Date(conversation.last_read_at)
   }
 
-  const loadTarget = async (target: Target, markRead = false) => {
+  const loadTarget = async (target: Target, markRead = false, options: TargetLoadOptions = {}) => {
     const requestId = targetRequestRef.current + 1
     targetRequestRef.current = requestId
     setLoadingTarget(true)
+    shouldStickToBottomRef.current = !options.aroundMessageId
 
     if (target.type === 'channel') {
-      const res = await api.getChannel(target.id)
+      const res = await api.getChannel(target.id, {
+        around_message_id: options.aroundMessageId,
+      })
       if (requestId !== targetRequestRef.current) return
       if (!res.data) {
         setLoadingTarget(false)
@@ -754,6 +855,7 @@ export function Messages() {
       setMessages(sortChronologicalMessages(res.data.messages || []))
       setPinnedMessages(sortPinnedMessages(res.data.pinned_messages || []))
       setChannels((prev) => prev.map((channel) => channel.id === target.id ? res.data!.channel : channel))
+      setHighlightedMessageId(options.highlightedMessageId || null)
       if (markRead && channelNeedsRead(res.data.channel)) {
         await api.markChannelRead(target.id)
         setChannels((prev) => prev.map((channel) => channel.id === target.id ? { ...channel, unread_count: 0, last_read_at: new Date().toISOString() } : channel))
@@ -762,7 +864,9 @@ export function Messages() {
       return
     }
 
-    const res = await api.getDirectConversation(target.id)
+    const res = await api.getDirectConversation(target.id, {
+      around_message_id: options.aroundMessageId,
+    })
     if (requestId !== targetRequestRef.current) return
     if (!res.data) {
       setLoadingTarget(false)
@@ -772,6 +876,7 @@ export function Messages() {
     setMessages(sortChronologicalMessages(res.data.messages || []))
     setPinnedMessages(sortPinnedMessages(res.data.pinned_messages || []))
     setDirectConversations((prev) => prev.map((conversation) => conversation.id === target.id ? res.data!.direct_conversation : conversation))
+    setHighlightedMessageId(options.highlightedMessageId || null)
     if (markRead && dmNeedsRead(res.data.direct_conversation)) {
       await api.markDirectConversationRead(target.id)
       setDirectConversations((prev) => prev.map((conversation) => conversation.id === target.id ? { ...conversation, unread_count: 0, last_read_at: new Date().toISOString() } : conversation))
@@ -845,9 +950,11 @@ export function Messages() {
   useEffect(() => {
     if (!selectedTarget) return
 
-    loadTarget(selectedTarget, true)
-    const interval = window.setInterval(() => loadTarget(selectedTarget, true), 30000)
-    const onFocus = () => loadTarget(selectedTarget, true)
+    const options = targetLoadOptionsRef.current
+    targetLoadOptionsRef.current = {}
+    loadTarget(selectedTarget, canAutoMarkRead(true), options)
+    const interval = window.setInterval(() => loadTarget(selectedTarget, canAutoMarkRead()), 30000)
+    const onFocus = () => loadTarget(selectedTarget, canAutoMarkRead())
     window.addEventListener('focus', onFocus)
 
     return () => {
@@ -874,6 +981,8 @@ export function Messages() {
       if (!event.message || !belongsToTarget) return
 
       const message = { ...event.message, mine: event.message.author.id === user.id }
+      const shouldMarkIncomingRead = !message.mine && event.event === 'created' && canAutoMarkRead()
+      shouldStickToBottomRef.current = message.mine || shouldMarkIncomingRead || isNearConversationBottom()
 
       setMessages((prev) => {
         if (event.event === 'deleted') return prev.filter((item) => item.id !== message.id)
@@ -888,10 +997,10 @@ export function Messages() {
       })
 
       if (event.event !== 'deleted') {
-        updateLatestForTarget(message)
+        updateLatestForTarget(message, message.mine || shouldMarkIncomingRead)
       }
 
-      if (!message.mine && event.event === 'created') {
+      if (shouldMarkIncomingRead) {
         markRead(selectedTarget).catch(() => {})
       }
     }, setRealtimeStatus).then((cleanup) => {
@@ -903,7 +1012,7 @@ export function Messages() {
       active = false
       unsubscribe?.()
     }
-  }, [selectedTarget?.type, selectedTarget?.id, user])
+  }, [selectedTarget?.type, selectedTarget?.id, user?.id])
 
   useEffect(() => {
     if (activeThreadRootId && !messagesById.has(activeThreadRootId)) {
@@ -950,8 +1059,24 @@ export function Messages() {
   }, [lightboxAttachment, lightboxAttachments.length])
 
   useEffect(() => {
+    if (!shouldStickToBottomRef.current) return
     bottomRef.current?.scrollIntoView({ block: 'end' })
   }, [messages.length, selectedTarget?.type, selectedTarget?.id])
+
+  useEffect(() => {
+    if (!highlightedMessageId) return
+
+    const frame = window.requestAnimationFrame(() => {
+      const element = document.getElementById(`message-${highlightedMessageId}`)
+      element?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    })
+    const timer = window.setTimeout(() => setHighlightedMessageId(null), 2600)
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.clearTimeout(timer)
+    }
+  }, [highlightedMessageId])
 
   useEffect(() => {
     const trimmed = deferredSearchQuery.trim()
@@ -968,20 +1093,21 @@ export function Messages() {
     return () => window.clearTimeout(timer)
   }, [deferredSearchQuery])
 
-  const updateLatestForTarget = (message: ChannelMessage) => {
+  const updateLatestForTarget = (message: ChannelMessage, markRead = true) => {
+    const unreadDelta = message.mine || markRead ? 0 : 1
     if (message.channel_id) {
       setChannels((prev) => prev.map((channel) => channel.id === message.channel_id ? {
         ...channel,
-        unread_count: 0,
-        last_read_at: new Date().toISOString(),
+        unread_count: markRead ? 0 : channel.unread_count + unreadDelta,
+        last_read_at: markRead ? new Date().toISOString() : channel.last_read_at,
         latest_message: latestMessageFrom(message),
       } : channel))
     }
     if (message.direct_conversation_id) {
       setDirectConversations((prev) => prev.map((conversation) => conversation.id === message.direct_conversation_id ? {
         ...conversation,
-        unread_count: 0,
-        last_read_at: new Date().toISOString(),
+        unread_count: markRead ? 0 : conversation.unread_count + unreadDelta,
+        last_read_at: markRead ? new Date().toISOString() : conversation.last_read_at,
         latest_message: latestMessageFrom(message),
       } : conversation))
     }
@@ -992,9 +1118,26 @@ export function Messages() {
     else await api.markDirectConversationRead(target.id)
   }
 
-  const selectTarget = (target: Target) => {
+  const isNearConversationBottom = () => {
+    const element = messageScrollRef.current
+    if (!element) return true
+
+    return element.scrollHeight - element.scrollTop - element.clientHeight < 96
+  }
+
+  const canAutoMarkRead = (ignoreScrollPosition = false) => {
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return false
+    if (!isDesktopRef.current && mobilePaneRef.current !== 'conversation') return false
+    if (activeThreadRootIdRef.current) return false
+
+    return ignoreScrollPosition || isNearConversationBottom()
+  }
+
+  const selectTarget = (target: Target, options: TargetLoadOptions = {}) => {
     window.history.replaceState(null, '', target.type === 'channel' ? `/messages/${target.id}` : `/messages/dm/${target.id}`)
+    targetLoadOptionsRef.current = options
     setLoadingTarget(true)
+    shouldStickToBottomRef.current = !options.aroundMessageId
     startNavigationTransition(() => {
       setSelectedTarget(target)
       setActiveThreadRootId(null)
@@ -1002,6 +1145,10 @@ export function Messages() {
       setConversationView('messages')
       if (!isDesktop) setMobilePane('conversation')
     })
+
+    if (selectedTarget?.type === target.type && selectedTarget.id === target.id) {
+      void loadTarget(target, canAutoMarkRead(true), options)
+    }
   }
 
   const selectWorkspace = (id: number) => {
@@ -1157,6 +1304,7 @@ export function Messages() {
       },
     }
 
+    shouldStickToBottomRef.current = true
     setMessages((prev) => sortChronologicalMessages([...prev, optimisticMessage]))
     updateLatestForTarget(optimisticMessage)
     setBody('')
@@ -1536,13 +1684,148 @@ export function Messages() {
   const showListPane = isDesktop || mobilePane === 'list'
   const showConversationPane = isDesktop || mobilePane === 'conversation' || mobilePane === 'thread'
   const showCollapsedRail = isDesktop && sidebarCollapsed
-  const conversationMessages = activeThreadRoot ? activeThreadMessages : rootMessages
+  const showThreadPanel = Boolean(isDesktop && activeThreadRoot)
+  const conversationMessages = activeThreadRoot && !showThreadPanel ? activeThreadMessages : rootMessages
   const showComposer = Boolean(selectedTarget) && (conversationView === 'messages' || Boolean(activeThreadRoot))
-  const showPageIntro = isDesktop || !selectedTarget
+  const showPageIntro = !selectedTarget
   const showConversationHeaderPushMessage = Boolean(pushMessage) && Boolean(selectedTarget)
+  const displayedMessages = conversationView === 'pins' && !activeThreadRoot ? selectedPinnedMessages : conversationMessages
+  const renderComposer = (placement: 'main' | 'thread') => {
+    const inThreadPanel = placement === 'thread'
+
+    return (
+      <form
+        ref={composerFormRef}
+        onSubmit={handleSend}
+        className={`${inThreadPanel ? 'shrink-0 border-t border-slate-200 bg-white p-3' : 'shrink-0 border-t border-slate-200 bg-white px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 sm:px-4'}`}
+      >
+        {error && (
+          <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+        {activeThreadRoot && (
+          <div className="mb-2 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+            <span className="min-w-0 truncate">
+              {inThreadPanel ? 'Replying in thread' : `Replying in thread to ${activeThreadRoot.author.full_name}: ${preview(activeThreadRoot.body)}`}
+            </span>
+            <button type="button" onClick={() => setActiveThreadRootId(null)} className="shrink-0 rounded-lg p-1 hover:bg-white" aria-label="Close thread reply">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+        {pendingAttachments.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-2">
+            {pendingAttachments.map((attachment) => (
+              <div key={`${attachment.filename}-${attachment.byte_size}`} className="inline-flex max-w-full items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                <File className="h-4 w-4 shrink-0" />
+                <span className="truncate">{attachment.filename}</span>
+                <span>{attachment.progress > 0 ? `${attachment.progress}%` : formatFileSize(attachment.byte_size)}</span>
+                <button
+                  type="button"
+                  onClick={() => setPendingAttachments((prev) => prev.filter((item) => item.file !== attachment.file))}
+                  className="rounded-lg p-1 hover:bg-white"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div
+          className="relative overflow-visible rounded-2xl border border-slate-200 bg-white shadow-[0_18px_42px_-30px_rgba(15,23,42,0.38)] transition-shadow focus-within:border-primary-200 focus-within:shadow-[0_20px_54px_-34px_rgba(239,68,68,0.42)]"
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={handleDrop}
+        >
+          <div className="messages-toolbar-scroll flex items-center gap-1.5 overflow-x-auto border-b border-slate-100 px-2 py-1.5 text-slate-500">
+            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => fileInputRef.current?.click()} className="min-h-9 shrink-0 rounded-lg p-2 hover:bg-slate-50" aria-label="Attach files">
+              <Paperclip className="h-4 w-4" />
+            </button>
+            <button type="button" onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleBold().run())} className={`min-h-9 shrink-0 rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('bold') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Bold">
+              <Bold className="h-4 w-4" />
+            </button>
+            <button type="button" onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleItalic().run())} className={`min-h-9 shrink-0 rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('italic') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Italic">
+              <Italic className="h-4 w-4" />
+            </button>
+            <button type="button" onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleCode().run())} className={`min-h-9 shrink-0 rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('code') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Inline code">
+              <Code2 className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onMouseDown={(event) => runToolbarCommand(event, insertCodeBlock)}
+              className={`min-h-9 shrink-0 rounded-lg px-2.5 py-2 text-xs font-medium hover:bg-slate-50 ${editor?.isActive('codeBlock') ? 'bg-slate-100 text-slate-900' : ''}`}
+            >
+              <span>Block</span>
+            </button>
+            <button type="button" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('@') }} className="min-h-9 shrink-0 rounded-lg px-2.5 py-2 text-xs font-medium hover:bg-slate-50">@ mention</button>
+            <button type="button" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('/') }} className="min-h-9 shrink-0 rounded-lg px-2.5 py-2 text-xs font-medium hover:bg-slate-50">/ command</button>
+            <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => handleFiles(event.target.files)} />
+          </div>
+          <div className="p-2" onKeyDownCapture={handleComposerKeyDown}>
+            <div className="min-h-0 min-w-0 rounded-xl bg-slate-50/70">
+              <EditorContent editor={editor} />
+            </div>
+          </div>
+          <div className="flex items-end justify-end border-t border-slate-100 px-3 py-2.5">
+            <button
+              type="submit"
+              disabled={sending || (!body.trim() && pendingAttachments.length === 0)}
+              className="inline-flex h-9 min-w-[104px] shrink-0 items-center justify-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-0"
+              aria-label={sending ? 'Sending message' : 'Send message'}
+            >
+              <Send className="h-4 w-4" />
+              <span>Send</span>
+            </button>
+          </div>
+          {mentionSuggestions.length > 0 && (
+            <div className={`absolute bottom-full z-30 mb-2 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg ${inThreadPanel ? 'left-2 right-2' : 'left-3 w-72'}`}>
+              <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Mention someone</div>
+              {mentionSuggestions.map((mention, index) => (
+                <button
+                  key={mention.id}
+                  type="button"
+                  onClick={() => selectMention(mention)}
+                  className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm ${index === activeMentionIndex ? 'bg-primary-50 text-primary-800' : 'hover:bg-slate-50'}`}
+                >
+                  <span className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-semibold ${
+                    mention.kind === 'channel' ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {mention.kind === 'channel' ? '#' : mention.label.replace(/^@/, '').slice(0, 1)}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium text-slate-800">{mention.label}</span>
+                    <span className="block truncate text-xs text-slate-500">{mention.subtitle}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          {commandSuggestions.length > 0 && (
+            <div className={`absolute bottom-full z-30 mb-2 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg ${inThreadPanel ? 'left-2 right-2' : 'left-3 w-72'}`}>
+              <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Commands</div>
+              {commandSuggestions.map((item, index) => (
+                <button
+                  key={item.command}
+                  type="button"
+                  onClick={() => selectCommand(item.command)}
+                  className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm ${index === activeCommandIndex ? 'bg-primary-50 text-primary-800' : 'hover:bg-slate-50'}`}
+                >
+                  <Type className="h-4 w-4 text-slate-400" />
+                  <span>
+                    <span className="block font-medium text-slate-800">{item.command}</span>
+                    <span className="block text-xs text-slate-500">{item.label}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </form>
+    )
+  }
 
   return (
-    <div className={`mx-auto flex min-h-[calc(100dvh-5.5rem)] max-w-7xl flex-col ${showPageIntro ? 'gap-4' : 'gap-0'} lg:h-[calc(100dvh-5.5rem)]`}>
+    <div className={`mx-auto flex w-full max-w-[1500px] flex-col ${showPageIntro ? 'min-h-[calc(100dvh-5.5rem)] gap-4' : 'h-[calc(100dvh-5.5rem)] gap-0 overflow-hidden'} lg:h-[calc(100dvh-5.5rem)] lg:px-4`}>
       {showPageIntro && (
       <div>
         <p className="text-sm font-medium text-primary-600">Communication</p>
@@ -1575,10 +1858,10 @@ export function Messages() {
       </div>
       )}
 
-      <div className={`${isDesktop ? 'grid rounded-[28px] border border-slate-200/80 bg-white shadow-[0_24px_70px_-38px_rgba(15,23,42,0.28)]' : 'block overflow-hidden border-y border-slate-200 bg-white'} min-h-0 flex-1 ${isDesktop ? (sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[360px_minmax(0,1fr)]') : ''}`}>
+      <div className={`${isDesktop ? 'grid overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_20px_54px_-42px_rgba(15,23,42,0.55)]' : 'flex overflow-hidden border-y border-slate-200 bg-white'} min-h-0 flex-1 ${isDesktop ? (sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[328px_minmax(0,1fr)]') : ''}`}>
         {showListPane && !sidebarCollapsed && (
-        <aside className={`bg-slate-50 ${isDesktop ? 'border-b border-slate-200 lg:border-b-0 lg:border-r' : ''}`}>
-          <div className="border-b border-slate-200 bg-white p-3">
+        <aside className={`flex min-h-0 flex-1 flex-col bg-slate-50 ${isDesktop ? 'border-b border-slate-200 lg:border-b-0 lg:border-r' : ''}`}>
+          <div className="shrink-0 border-b border-slate-200 bg-white p-3">
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-semibold text-slate-900">{selectedWorkspace?.name || 'Workspaces'}</h2>
@@ -1616,15 +1899,26 @@ export function Messages() {
               </div>
             </div>
             {workspaces.length > 1 && (
-              <select
-                value={selectedWorkspaceId || ''}
-                onChange={(event) => selectWorkspace(Number(event.target.value))}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              <button
+                type="button"
+                onClick={() => setShowWorkspaceSwitcher(true)}
+                className="group flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
-                {workspaces.map((workspace) => (
-                  <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
-                ))}
-              </select>
+                <span className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-xs font-semibold text-white">
+                    {selectedWorkspace ? channelInitials(selectedWorkspace.name) : 'WS'}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold text-slate-900">{selectedWorkspace?.name || 'Choose workspace'}</span>
+                    <span className="mt-0.5 block truncate text-xs text-slate-500">
+                      {selectedWorkspace
+                        ? `${selectedWorkspace.member_count} ${selectedWorkspace.member_count === 1 ? 'member' : 'members'}`
+                        : `${workspaces.length} workspaces`}
+                    </span>
+                  </span>
+                </span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-slate-400 transition group-hover:text-slate-600" />
+              </button>
             )}
             {selectedWorkspace && (
               <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
@@ -1669,7 +1963,10 @@ export function Messages() {
                     <button
                       key={result.id}
                       onClick={() => {
-                        selectTarget(result.channel_id ? { type: 'channel', id: result.channel_id } : { type: 'dm', id: result.direct_conversation_id! })
+                        selectTarget(
+                          result.channel_id ? { type: 'channel', id: result.channel_id } : { type: 'dm', id: result.direct_conversation_id! },
+                          { aroundMessageId: result.id, highlightedMessageId: result.id },
+                        )
                         setSearchQuery('')
                         setSearchResults([])
                       }}
@@ -1685,16 +1982,28 @@ export function Messages() {
             </div>
           </div>
 
-          <div className={`${isDesktop ? 'max-h-72 overflow-y-auto p-2 lg:max-h-[calc(100vh-13rem)]' : 'p-2'}`}>
+          <div className={`${isDesktop ? 'max-h-72 overflow-y-auto p-2 lg:max-h-[calc(100vh-13rem)]' : 'min-h-0 flex-1 overflow-y-auto p-2'}`}>
             <div className="mb-2 flex items-center justify-between px-2 pt-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Channels</h3>
-              {isStaff && (
-                <button onClick={() => { setShowChannelForm(true); setChannelError('') }} className="rounded-lg p-1 text-slate-500 hover:bg-white" aria-label="Create channel">
-                  <Plus className="h-4 w-4" />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setChannelsCollapsed((current) => !current)}
+                className="flex min-w-0 items-center gap-1.5 rounded-lg py-1 pr-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 hover:text-slate-800"
+                aria-expanded={!channelsCollapsed}
+              >
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${channelsCollapsed ? '-rotate-90' : ''}`} />
+                <span>Channels</span>
+                {channelsUnreadCount > 0 && <span className="rounded-full bg-primary-100 px-1.5 py-0.5 text-[10px] text-primary-700">{channelsUnreadCount}</span>}
+              </button>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-slate-400">{visibleChannels.length}</span>
+                {isStaff && (
+                  <button onClick={() => { setShowChannelForm(true); setChannelError('') }} className="rounded-lg p-1 text-slate-500 hover:bg-white" aria-label="Create channel">
+                    <Plus className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
             </div>
-            {visibleChannels.length === 0 ? (
+            {channelsCollapsed ? null : visibleChannels.length === 0 ? (
               <div className="px-3 py-4 text-sm text-slate-500">No channels yet.</div>
             ) : visibleChannels.map((channel) => (
               <ConversationButton
@@ -1710,12 +2019,24 @@ export function Messages() {
             ))}
 
             <div className="mb-2 mt-4 flex items-center justify-between px-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Direct messages</h3>
-              <button onClick={() => setShowDmForm(true)} className="rounded-lg p-1 text-slate-500 hover:bg-white" aria-label="Start direct message">
-                <UserPlus className="h-4 w-4" />
+              <button
+                type="button"
+                onClick={() => setDmsCollapsed((current) => !current)}
+                className="flex min-w-0 items-center gap-1.5 rounded-lg py-1 pr-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 hover:text-slate-800"
+                aria-expanded={!dmsCollapsed}
+              >
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${dmsCollapsed ? '-rotate-90' : ''}`} />
+                <span>Direct messages</span>
+                {dmsUnreadCount > 0 && <span className="rounded-full bg-primary-100 px-1.5 py-0.5 text-[10px] text-primary-700">{dmsUnreadCount}</span>}
               </button>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-slate-400">{visibleDms.length}</span>
+                <button onClick={() => setShowDmForm(true)} className="rounded-lg p-1 text-slate-500 hover:bg-white" aria-label="Start direct message">
+                  <UserPlus className="h-4 w-4" />
+                </button>
+              </div>
             </div>
-            {visibleDms.length === 0 ? (
+            {dmsCollapsed ? null : visibleDms.length === 0 ? (
               <div className="px-3 py-4 text-sm text-slate-500">No DMs yet.</div>
             ) : visibleDms.map((conversation) => (
               <ConversationButton
@@ -1773,10 +2094,10 @@ export function Messages() {
         )}
 
         {showConversationPane && (
-        <section className={`flex min-h-0 flex-1 flex-col ${isDesktop ? 'bg-[radial-gradient(circle_at_top_right,_rgba(239,68,68,0.08),_transparent_32%),linear-gradient(180deg,_#ffffff_0%,_#fff8f8_100%)]' : 'bg-white'}`}>
+        <section className="flex min-h-0 flex-1 flex-col bg-white">
           {selectedTarget && selected ? (
             <>
-              <header className={`border-b border-slate-200/80 px-4 py-3 backdrop-blur-sm ${isDesktop ? 'bg-white/80' : 'sticky top-0 z-10 bg-white'} sm:py-4`}>
+              <header className={`shrink-0 border-b border-slate-200/80 px-4 py-3 backdrop-blur-sm ${isDesktop ? 'bg-white/80' : 'bg-white'} sm:py-4`}>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex min-w-0 items-center gap-2">
                     {isDesktop && sidebarCollapsed && (
@@ -1870,9 +2191,9 @@ export function Messages() {
                 )}
               </header>
 
-              <div className="relative min-h-0 flex-1 overflow-hidden">
-                <div className={`h-full overflow-y-auto px-3 py-3 transition duration-200 sm:px-4 sm:py-4 ${loadingTarget || isNavigationPending ? 'opacity-60' : 'opacity-100'}`}>
-                {activeThreadRoot && (
+              <div className={`relative min-h-0 flex-1 overflow-hidden ${showThreadPanel ? 'grid lg:grid-cols-[minmax(0,1fr)_380px]' : ''}`}>
+                <div ref={messageScrollRef} className={`h-full overflow-y-auto px-3 py-4 transition duration-200 sm:px-5 sm:py-5 ${loadingTarget || isNavigationPending ? 'opacity-60' : 'opacity-100'}`}>
+                {activeThreadRoot && !showThreadPanel && (
                   <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
@@ -1900,7 +2221,7 @@ export function Messages() {
                     Pinned messages stay easy to find here for this workspace conversation.
                   </div>
                 )}
-                {(conversationView === 'pins' && !activeThreadRoot ? selectedPinnedMessages : conversationMessages).length === 0 ? (
+                {displayedMessages.length === 0 ? (
                   <div className="flex min-h-full items-center justify-center py-16 text-center text-sm text-slate-500">
                     {activeThreadRoot
                       ? 'No replies yet. Start the thread.'
@@ -1908,44 +2229,116 @@ export function Messages() {
                         ? 'No pinned messages yet.'
                         : 'No messages yet. Start the conversation.'}
                   </div>
-                ) : (conversationView === 'pins' && !activeThreadRoot ? selectedPinnedMessages : conversationMessages).map((message) => {
+                ) : displayedMessages.map((message, index) => {
+                  const previousMessage = displayedMessages[index - 1]
                   const rootId = rootMessageIdFor(message, messagesById)
                   const replyCount = threadReplies.get(rootId)?.length || 0
+                  const compact = shouldCompactMessage(message, previousMessage)
+                  const showDayDivider = !previousMessage || !sameDay(previousMessage.created_at, message.created_at)
 
                   return (
-                    <MessageRow
-                      key={message.id}
-                      message={message}
-                      editing={editing?.id === message.id}
-                      editBody={editBody}
-                      setEditBody={setEditBody}
-                      onStartEdit={() => {
-                        setEditing(message)
-                        setEditBody(message.body)
-                      }}
-                      onCancelEdit={() => setEditing(null)}
-                      onSaveEdit={() => saveEdit(message)}
-                      onDelete={() => setMessagePendingDelete(message)}
-                      onOpenActions={() => setMobileActionsMessageId(message.id)}
-                      onPin={() => togglePin(message)}
-                      canPin={isStaff}
-                      inThreadView={Boolean(activeThreadRoot)}
-                      replyCount={!activeThreadRoot && !message.parent_message_id ? replyCount : 0}
-                      onReply={() => {
-                        setActiveThreadRootId(rootId)
-                        if (!isDesktop) setMobilePane('thread')
-                      }}
-                      onReact={(emoji) => toggleReaction(message, emoji)}
-                      onOpenImage={(attachment, imageAttachments) => {
-                        setLightboxAttachments(imageAttachments)
-                        setLightboxIndex(Math.max(0, imageAttachments.findIndex((item) => item.id === attachment.id)))
-                      }}
-                      mentionPatterns={mentionPatterns}
-                    />
+                    <div key={message.id}>
+                      {showDayDivider && (
+                        <div className="relative my-5 flex items-center justify-center">
+                          <div className="absolute inset-x-0 top-1/2 border-t border-slate-200" />
+                          <span className="relative rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            {formatDayDivider(message.created_at)}
+                          </span>
+                        </div>
+                      )}
+                      <MessageRow
+                        message={message}
+                        compact={compact}
+                        highlighted={highlightedMessageId === message.id}
+                        editing={editing?.id === message.id}
+                        editBody={editBody}
+                        setEditBody={setEditBody}
+                        onStartEdit={() => {
+                          setEditing(message)
+                          setEditBody(message.body)
+                        }}
+                        onCancelEdit={() => setEditing(null)}
+                        onSaveEdit={() => saveEdit(message)}
+                        onDelete={() => setMessagePendingDelete(message)}
+                        onOpenActions={() => setMobileActionsMessageId(message.id)}
+                        onPin={() => togglePin(message)}
+                        canPin={isStaff}
+                        inThreadView={Boolean(activeThreadRoot)}
+                        replyCount={!activeThreadRoot && !message.parent_message_id ? replyCount : 0}
+                        onReply={() => {
+                          setActiveThreadRootId(rootId)
+                          if (!isDesktop) setMobilePane('thread')
+                        }}
+                        onReact={(emoji) => toggleReaction(message, emoji)}
+                        onOpenImage={(attachment, imageAttachments) => {
+                          setLightboxAttachments(imageAttachments)
+                          setLightboxIndex(Math.max(0, imageAttachments.findIndex((item) => item.id === attachment.id)))
+                        }}
+                        mentionPatterns={mentionPatterns}
+                      />
+                    </div>
                   )
                 })}
                 <div ref={bottomRef} />
                 </div>
+                {showThreadPanel && activeThreadRoot && (
+                  <aside className="hidden min-h-0 border-l border-slate-200 bg-slate-50/70 lg:flex lg:flex-col">
+                    <div className="flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-900">Thread</p>
+                        <p className="mt-0.5 truncate text-xs text-slate-500">
+                          {activeThreadMessages.length - 1} {activeThreadMessages.length - 1 === 1 ? 'reply' : 'replies'} in {selectedLabel}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveThreadRootId(null)}
+                        className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                        aria-label="Close thread"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+                      {activeThreadMessages.map((message, index) => {
+                        const previousMessage = activeThreadMessages[index - 1]
+                        const compact = shouldCompactMessage(message, previousMessage)
+
+                        return (
+                          <MessageRow
+                            key={message.id}
+                            message={message}
+                            compact={compact}
+                            highlighted={highlightedMessageId === message.id}
+                            editing={editing?.id === message.id}
+                            editBody={editBody}
+                            setEditBody={setEditBody}
+                            onStartEdit={() => {
+                              setEditing(message)
+                              setEditBody(message.body)
+                            }}
+                            onCancelEdit={() => setEditing(null)}
+                            onSaveEdit={() => saveEdit(message)}
+                            onDelete={() => setMessagePendingDelete(message)}
+                            onOpenActions={() => setMobileActionsMessageId(message.id)}
+                            onPin={() => togglePin(message)}
+                            canPin={isStaff}
+                            inThreadView
+                            replyCount={0}
+                            onReply={() => setActiveThreadRootId(activeThreadRoot.id)}
+                            onReact={(emoji) => toggleReaction(message, emoji)}
+                            onOpenImage={(attachment, imageAttachments) => {
+                              setLightboxAttachments(imageAttachments)
+                              setLightboxIndex(Math.max(0, imageAttachments.findIndex((item) => item.id === attachment.id)))
+                            }}
+                            mentionPatterns={mentionPatterns}
+                          />
+                        )
+                      })}
+                    </div>
+                    {renderComposer('thread')}
+                  </aside>
+                )}
                 {(loadingTarget || isNavigationPending) && (
                   <div className="pointer-events-none absolute inset-0 flex items-start justify-center bg-white/20 px-4 py-6">
                     <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/95 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm backdrop-blur">
@@ -1956,137 +2349,7 @@ export function Messages() {
                 )}
               </div>
 
-              {showComposer && (
-              <form
-                ref={composerFormRef}
-                onSubmit={handleSend}
-                className="border-t border-slate-200 bg-white px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 sm:p-3"
-              >
-                {error && (
-                  <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                    {error}
-                  </div>
-                )}
-                {activeThreadRoot && (
-                  <div className="mb-2 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                    <span>Replying in thread to {activeThreadRoot.author.full_name}: {preview(activeThreadRoot.body)}</span>
-                    <button type="button" onClick={() => setActiveThreadRootId(null)} className="rounded-lg p-1 hover:bg-white">
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                )}
-                {pendingAttachments.length > 0 && (
-                  <div className="mb-2 flex flex-wrap gap-2">
-                    {pendingAttachments.map((attachment) => (
-                      <div key={`${attachment.filename}-${attachment.byte_size}`} className="inline-flex max-w-full items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                        <File className="h-4 w-4 shrink-0" />
-                        <span className="truncate">{attachment.filename}</span>
-                        <span>{attachment.progress > 0 ? `${attachment.progress}%` : formatFileSize(attachment.byte_size)}</span>
-                        <button
-                          type="button"
-                          onClick={() => setPendingAttachments((prev) => prev.filter((item) => item.file !== attachment.file))}
-                          className="rounded-lg p-1 hover:bg-white"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div
-                  className="relative rounded-2xl border border-slate-200 bg-white shadow-[0_12px_32px_-24px_rgba(15,23,42,0.32)]"
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={handleDrop}
-                >
-                  <div className="messages-toolbar-scroll flex flex-wrap items-center gap-1.5 border-b border-slate-100 px-2 py-2 text-slate-500 sm:flex-nowrap sm:overflow-x-auto">
-                    <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => fileInputRef.current?.click()} className="min-h-10 rounded-lg p-2.5 hover:bg-slate-50" aria-label="Attach files">
-                      <Paperclip className="h-4 w-4" />
-                    </button>
-                    <button type="button" onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleBold().run())} className={`min-h-10 rounded-lg p-2.5 hover:bg-slate-50 ${editor?.isActive('bold') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Bold">
-                      <Bold className="h-4 w-4" />
-                    </button>
-                    <button type="button" onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleItalic().run())} className={`min-h-10 rounded-lg p-2.5 hover:bg-slate-50 ${editor?.isActive('italic') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Italic">
-                      <Italic className="h-4 w-4" />
-                    </button>
-                    <button type="button" onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleCode().run())} className={`min-h-10 rounded-lg p-2.5 hover:bg-slate-50 ${editor?.isActive('code') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Inline code">
-                      <Code2 className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onMouseDown={(event) => runToolbarCommand(event, insertCodeBlock)}
-                      className={`min-h-10 rounded-full px-3 py-2 text-xs font-medium hover:bg-slate-50 ${editor?.isActive('codeBlock') ? 'bg-slate-100 text-slate-900' : ''}`}
-                    >
-                      <span className="hidden sm:inline">Code block</span>
-                      <span className="sm:hidden">Block</span>
-                    </button>
-                    <button type="button" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('@') }} className="min-h-10 rounded-full px-3 py-2 text-xs font-medium hover:bg-slate-50">@ mention</button>
-                    <button type="button" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('/') }} className="min-h-10 rounded-full px-3 py-2 text-xs font-medium hover:bg-slate-50">/ command</button>
-                    <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => handleFiles(event.target.files)} />
-                  </div>
-                    <div className="p-2" onKeyDownCapture={handleComposerKeyDown}>
-                      <div className="min-h-0 min-w-0 rounded-xl bg-slate-50/70">
-                      <EditorContent editor={editor} />
-                      </div>
-                    </div>
-                  <div className="flex items-end justify-end border-t border-slate-100 px-3 py-3">
-                    <button
-                      type="submit"
-                      disabled={sending || (!body.trim() && pendingAttachments.length === 0)}
-                      className="inline-flex h-10 min-w-[120px] shrink-0 items-center justify-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-0"
-                      aria-label={sending ? 'Sending message' : 'Send message'}
-                    >
-                      <Send className="h-4 w-4" />
-                      <span>Send</span>
-                    </button>
-                  </div>
-                  {mentionSuggestions.length > 0 && (
-                    <div className="absolute bottom-full left-3 z-30 mb-2 w-72 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
-                      <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Mention someone</div>
-                      {mentionSuggestions.map((mention, index) => (
-                        <button
-                          key={mention.id}
-                          type="button"
-                          onClick={() => selectMention(mention)}
-                          className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm ${index === activeMentionIndex ? 'bg-primary-50 text-primary-800' : 'hover:bg-slate-50'}`}
-                        >
-                          <span className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-semibold ${
-                            mention.kind === 'channel' ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-600'
-                          }`}>
-                            {mention.kind === 'channel' ? '#' : mention.label.replace(/^@/, '').slice(0, 1)}
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block truncate font-medium text-slate-800">{mention.label}</span>
-                            <span className="block truncate text-xs text-slate-500">{mention.subtitle}</span>
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {commandSuggestions.length > 0 && (
-                    <div className="absolute bottom-full left-3 z-30 mb-2 w-72 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
-                      <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Commands</div>
-                      {commandSuggestions.map((item, index) => (
-                        <button
-                          key={item.command}
-                          type="button"
-                          onClick={() => selectCommand(item.command)}
-                          className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm ${index === activeCommandIndex ? 'bg-primary-50 text-primary-800' : 'hover:bg-slate-50'}`}
-                        >
-                          <Type className="h-4 w-4 text-slate-400" />
-                          <span>
-                            <span className="block font-medium text-slate-800">{item.command}</span>
-                            <span className="block text-xs text-slate-500">{item.label}</span>
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <p className="mt-2 hidden text-xs text-slate-400 sm:block">
-                  Press Cmd+Enter or Ctrl+Enter to send. Paste or drop screenshots, use @ for people, / for snippets, and backticks for code.
-                </p>
-              </form>
-              )}
+              {showComposer && !showThreadPanel && renderComposer('main')}
             </>
           ) : (
             <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-slate-500">
@@ -2096,6 +2359,84 @@ export function Messages() {
         </section>
         )}
       </div>
+      <Modal
+        open={showWorkspaceSwitcher}
+        onClose={() => setShowWorkspaceSwitcher(false)}
+        title="Switch workspace"
+        subtitle="Move between cohorts, communities, channels, and direct messages."
+        size="lg"
+      >
+        <div className="space-y-3">
+          {workspaceCards.map(({ workspace, channelCount, dmCount, unreadCount }) => {
+            const active = workspace.id === selectedWorkspaceId
+
+            return (
+              <button
+                key={workspace.id}
+                type="button"
+                onClick={() => {
+                  selectWorkspace(workspace.id)
+                  setShowWorkspaceSwitcher(false)
+                }}
+                className={`group flex w-full items-center gap-4 rounded-2xl border px-4 py-4 text-left transition ${
+                  active
+                    ? 'border-primary-200 bg-primary-50/70 shadow-sm'
+                    : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-sm font-semibold ${
+                  active ? 'bg-primary-600 text-white' : 'bg-slate-900 text-white'
+                }`}>
+                  {channelInitials(workspace.name)}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-2">
+                    <span className="truncate text-sm font-semibold text-slate-900">{workspace.name}</span>
+                    {active && (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-primary-700 ring-1 ring-primary-100">
+                        <Check className="h-3 w-3" />
+                        Current
+                      </span>
+                    )}
+                  </span>
+                  <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                    <span className="inline-flex items-center gap-1">
+                      <Users className="h-3.5 w-3.5" />
+                      {workspace.member_count} {workspace.member_count === 1 ? 'member' : 'members'}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <Hash className="h-3.5 w-3.5" />
+                      {channelCount} {channelCount === 1 ? 'channel' : 'channels'}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <MessageCircle className="h-3.5 w-3.5" />
+                      {dmCount} {dmCount === 1 ? 'DM' : 'DMs'}
+                    </span>
+                  </span>
+                  {workspace.description && (
+                    <span className="mt-2 block line-clamp-2 text-xs leading-5 text-slate-500">{workspace.description}</span>
+                  )}
+                </span>
+                <span className="flex shrink-0 flex-col items-end gap-2">
+                  <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
+                    workspace.workspace_type === 'community'
+                      ? 'bg-slate-100 text-slate-600'
+                      : 'bg-sky-50 text-sky-700'
+                  }`}>
+                    {workspace.workspace_type === 'community' ? 'Community' : 'Cohort'}
+                  </span>
+                  {unreadCount > 0 && (
+                    <span className="inline-flex min-w-6 justify-center rounded-full bg-primary-600 px-2 py-1 text-[11px] font-semibold text-white">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </Modal>
+
       {isStaff && (
         <Modal
           open={showWorkspaceForm}
@@ -2612,6 +2953,8 @@ function formatInline(text: string, mentionPatterns: MentionPattern[]) {
 
 function MessageRow({
   message,
+  compact,
+  highlighted,
   editing,
   editBody,
   setEditBody,
@@ -2630,6 +2973,8 @@ function MessageRow({
   mentionPatterns,
 }: {
   message: LocalMessage
+  compact: boolean
+  highlighted: boolean
   editing: boolean
   editBody: string
   setEditBody: (value: string) => void
@@ -2649,25 +2994,38 @@ function MessageRow({
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const imageAttachments = message.attachments.filter((attachment) => attachment.image && attachment.url)
-  const renderedReactions = [
-    ...message.reactions.map((reaction) => reaction.emoji),
-    ...REACTIONS.filter((emoji) => !message.reactions.some((reaction) => reaction.emoji === emoji)),
-  ]
 
   return (
-    <div className={`group mb-3 flex gap-3 rounded-lg px-2 py-2 hover:bg-slate-50 ${message.pinned_at ? 'bg-amber-50/70' : ''} ${message.pending ? 'opacity-75' : ''}`}>
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-200 text-sm font-semibold text-slate-600">
-        {message.author.avatar_url ? <img src={message.author.avatar_url} alt="" className="h-9 w-9 rounded-lg object-cover" /> : message.author.full_name.slice(0, 1)}
+    <div
+      id={`message-${message.id}`}
+      className={`message-row group relative flex gap-3 rounded-xl px-2.5 py-1.5 transition-all duration-200 hover:bg-slate-50/90 sm:px-3 ${
+        compact ? 'mt-0.5' : 'mt-3'
+      } ${message.pinned_at ? 'bg-amber-50/70 ring-1 ring-amber-100' : ''} ${message.pending ? 'opacity-75' : ''} ${
+        highlighted ? 'message-row-highlight bg-primary-50 ring-2 ring-primary-200' : ''
+      }`}
+    >
+      <div className="flex w-10 shrink-0 justify-center">
+        {compact ? (
+          <span className="pt-1 text-[11px] font-medium text-slate-300 opacity-0 transition-opacity group-hover:opacity-100">
+            {new Date(message.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+          </span>
+        ) : (
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-200 text-sm font-semibold text-slate-600">
+            {message.author.avatar_url ? <img src={message.author.avatar_url} alt="" className="h-9 w-9 rounded-lg object-cover" /> : message.author.full_name.slice(0, 1)}
+          </div>
+        )}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold text-slate-900">{message.author.full_name}</span>
-          <span className="text-xs text-slate-400">{formatTime(message.created_at)}</span>
-          {message.edited_at && <span className="text-xs text-slate-400">Edited</span>}
-          {message.pending && <span className="text-xs text-slate-400">Sending...</span>}
-          {message.failed && <span className="text-xs font-medium text-red-600">Not sent</span>}
-          {message.pinned_at && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700"><Pin className="h-3 w-3" /> Pinned</span>}
-        </div>
+        {!compact && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-slate-950">{message.author.full_name}</span>
+            <span className="text-xs text-slate-400">{formatTime(message.created_at)}</span>
+            {message.edited_at && <span className="text-xs text-slate-400">Edited</span>}
+            {message.pending && <span className="text-xs text-slate-400">Sending...</span>}
+            {message.failed && <span className="text-xs font-medium text-red-600">Not sent</span>}
+            {message.pinned_at && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700"><Pin className="h-3 w-3" /> Pinned</span>}
+          </div>
+        )}
         {editing ? (
           <div className="mt-2">
             <textarea
@@ -2713,9 +3071,9 @@ function MessageRow({
             ))}
           </div>
         )}
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          {renderedReactions.map((emoji) => {
-            const reaction = message.reactions.find((item) => item.emoji === emoji)
+        <div className={`flex flex-wrap items-center gap-1.5 ${message.reactions.length > 0 ? 'mt-2' : 'mt-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100'}`}>
+          {message.reactions.map((reaction) => {
+            const emoji = reaction.emoji
             return (
               <div key={emoji} className="group/reaction relative">
                 <button
@@ -2733,11 +3091,12 @@ function MessageRow({
               </div>
             )
           })}
-          <div className="relative">
+          <div className="relative hidden sm:block">
             <button
               type="button"
               onClick={() => setPickerOpen((current) => !current)}
-              className="min-h-9 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-500 hover:bg-slate-50"
+              className="min-h-8 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-500 shadow-sm hover:bg-slate-50"
+              aria-label="Add reaction"
             >
               <SmilePlus className="h-4 w-4" />
             </button>
@@ -2755,11 +3114,23 @@ function MessageRow({
               </div>
             )}
           </div>
-          <button onClick={onReply} className="min-h-9 rounded-lg px-2.5 py-1.5 text-xs text-slate-500 hover:bg-slate-100">
+          <div className="hidden items-center gap-1 sm:flex">
+            {REACTIONS.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => onReact(emoji)}
+                className="min-h-8 rounded-lg px-2 py-1 text-xs text-slate-500 hover:bg-slate-100"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+          <button onClick={onReply} className="min-h-8 rounded-lg px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100">
             {inThreadView ? 'Reply in thread' : 'Reply'}
           </button>
           {!inThreadView && replyCount > 0 && (
-            <button onClick={onReply} className="min-h-9 rounded-lg px-2.5 py-1.5 text-xs font-medium text-primary-700 hover:bg-primary-50">
+            <button onClick={onReply} className="min-h-8 rounded-lg px-2.5 py-1 text-xs font-medium text-primary-700 hover:bg-primary-50">
               {replyCount} {replyCount === 1 ? 'reply' : 'replies'}
             </button>
           )}

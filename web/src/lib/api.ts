@@ -119,6 +119,18 @@ async function fetchApi<T>(
   }
 }
 
+function queryString(params?: Record<string, string | number | boolean | null | undefined>) {
+  if (!params) return '';
+
+  const searchParams = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
+    searchParams.set(key, String(value));
+  });
+  const query = searchParams.toString();
+  return query ? `?${query}` : '';
+}
+
 export const api = {
   // Auth
   createSession: () =>
@@ -218,8 +230,8 @@ export const api = {
     }),
   getChannels: () =>
     fetchApi<ChannelsResponse>('/api/v1/channels'),
-  getChannel: (id: number) =>
-    fetchApi<ChannelResponse>(`/api/v1/channels/${id}`),
+  getChannel: (id: number, params?: { message_limit?: number; around_message_id?: number }) =>
+    fetchApi<ChannelResponse>(`/api/v1/channels/${id}${queryString(params)}`),
   createChannel: (data: { workspace_id?: number; cohort_id?: number; name: string; description?: string; visibility?: string }) =>
     fetchApi<ChannelResponse>('/api/v1/channels', {
       method: 'POST',
@@ -236,8 +248,8 @@ export const api = {
     fetchApi<DirectConversationsResponse>('/api/v1/direct_conversations'),
   getAvailableDirectUsers: (workspaceId: number) =>
     fetchApi<AvailableDirectUsersResponse>(`/api/v1/direct_conversations/available_users?workspace_id=${workspaceId}`),
-  getDirectConversation: (id: number) =>
-    fetchApi<DirectConversationResponse>(`/api/v1/direct_conversations/${id}`),
+  getDirectConversation: (id: number, params?: { message_limit?: number; around_message_id?: number }) =>
+    fetchApi<DirectConversationResponse>(`/api/v1/direct_conversations/${id}${queryString(params)}`),
   createDirectConversation: (data: { workspace_id?: number; cohort_id?: number; user_ids: number[] }) =>
     fetchApi<DirectConversationResponse>('/api/v1/direct_conversations', {
       method: 'POST',

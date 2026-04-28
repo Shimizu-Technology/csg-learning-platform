@@ -44,8 +44,10 @@ export function Layout({ children }: LayoutProps) {
     api.getNotifications({ per_page: 1, notification_type: 'announcement' }).then((res) => {
       if (res.data) setUnreadCount(res.data.unread_count)
     })
-    api.getChannels().then((res) => {
-      if (res.data) setMessageUnreadCount(res.data.channels.reduce((sum, channel) => sum + channel.unread_count, 0))
+    Promise.all([api.getChannels(), api.getDirectConversations()]).then(([channelRes, dmRes]) => {
+      const channelUnread = channelRes.data?.channels.reduce((sum, channel) => sum + channel.unread_count, 0) || 0
+      const dmUnread = dmRes.data?.direct_conversations.reduce((sum, conversation) => sum + conversation.unread_count, 0) || 0
+      setMessageUnreadCount(channelUnread + dmUnread)
     })
   }, [user, location.pathname])
 

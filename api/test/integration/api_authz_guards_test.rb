@@ -272,6 +272,56 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
     ClerkAuth.define_singleton_method(:verify, original_verify) if original_verify
   end
 
+  test "owner email is promoted to admin during clerk sync" do
+    owner = User.create!(
+      clerk_id: "clerk_owner_existing",
+      email: "codeschoolofguam@gmail.com",
+      first_name: "Leon",
+      last_name: "Owner",
+      role: :student
+    )
+    original_owner_emails = ENV["OWNER_ADMIN_EMAILS"]
+    ENV["OWNER_ADMIN_EMAILS"] = "codeschoolofguam@gmail.com"
+
+    as_user(owner) do
+      post "/api/v1/sessions", headers: auth_headers
+    end
+
+    assert_response :success
+    assert owner.reload.admin?
+    assert JSON.parse(response.body).dig("user", "is_admin")
+  ensure
+    ENV["OWNER_ADMIN_EMAILS"] = original_owner_emails
+  end
+
+  test "owner email remains admin during open signup" do
+    payload = {
+      "sub" => "clerk_owner_open_signup",
+      "email" => "codeschoolofguam@gmail.com",
+      "first_name" => "Code School",
+      "last_name" => "Owner"
+    }
+
+    original_verify = ClerkAuth.method(:verify)
+    original_open_signups = ENV["ALLOW_OPEN_SIGNUPS"]
+    original_owner_emails = ENV["OWNER_ADMIN_EMAILS"]
+    ClerkAuth.define_singleton_method(:verify) { |_token| payload }
+    ENV["ALLOW_OPEN_SIGNUPS"] = "true"
+    ENV["OWNER_ADMIN_EMAILS"] = "codeschoolofguam@gmail.com"
+
+    post "/api/v1/sessions", headers: auth_headers
+
+    assert_response :success
+    owner = User.find_by!(email: "codeschoolofguam@gmail.com")
+    assert owner.admin?
+    assert JSON.parse(response.body).dig("user", "is_admin")
+    refute Enrollment.exists?(user: owner)
+  ensure
+    ENV["ALLOW_OPEN_SIGNUPS"] = original_open_signups
+    ENV["OWNER_ADMIN_EMAILS"] = original_owner_emails
+    ClerkAuth.define_singleton_method(:verify, original_verify) if original_verify
+  end
+
   test "unenrolled student cannot create submission" do
     as_user(@student_two) do
       post "/api/v1/submissions",

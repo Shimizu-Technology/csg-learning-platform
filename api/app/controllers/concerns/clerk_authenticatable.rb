@@ -91,6 +91,7 @@ module ClerkAuthenticatable
       updates[:email] = email if email.present? && email != user.email
       updates[:first_name] = first_name if first_name.present?
       updates[:last_name] = last_name if last_name.present?
+      updates[:role] = :admin if owner_admin_email?(email || user.email) && !user.admin?
       updates[:last_sign_in_at] = Time.current
       user.update(updates) if updates.any?
       return user
@@ -101,7 +102,14 @@ module ClerkAuthenticatable
       user = User.find_by("LOWER(email) = ?", email.downcase)
 
       if user
-        user.update(clerk_id: clerk_id, first_name: first_name, last_name: last_name, last_sign_in_at: Time.current)
+        updates = {
+          clerk_id: clerk_id,
+          first_name: first_name,
+          last_name: last_name,
+          last_sign_in_at: Time.current
+        }
+        updates[:role] = :admin if owner_admin_email?(email)
+        user.update(updates)
         return user
       end
     end
@@ -124,17 +132,18 @@ module ClerkAuthenticatable
     # Local development can optionally mimic open signups. Production remains
     # invite-only: new Clerk identities must match a pending user record above.
     if email.present? && allow_open_signup?
+      owner_admin = owner_admin_email?(email)
       user = User.create(
         clerk_id: clerk_id,
         email: email,
         first_name: first_name,
         last_name: last_name,
-        role: :student,
+        role: owner_admin ? :admin : :student,
         last_sign_in_at: Time.current
       )
 
       # Auto-enroll in active bootcamp cohort
-      if user.persisted?
+      if user.persisted? && !owner_admin
         active_cohort = Cohort.active.bootcamp.first
         if active_cohort
           enrollment = Enrollment.create(user: user, cohort: active_cohort)
@@ -157,6 +166,14 @@ module ClerkAuthenticatable
     return false if Rails.env.production?
 
     Rails.env.development? || Rails.env.test? || ActiveModel::Type::Boolean.new.cast(ENV["ALLOW_AUTH_BOOTSTRAP"])
+  end
+
+  def owner_admin_email?(email)
+    normalized = email.to_s.strip.downcase
+    return false if normalized.blank?
+
+    owner_emails = ENV.fetch("OWNER_ADMIN_EMAILS", "").split(",")
+    owner_emails.map { |owner_email| owner_email.to_s.strip.downcase }.include?(normalized)
   end
 
   def allow_open_signup?

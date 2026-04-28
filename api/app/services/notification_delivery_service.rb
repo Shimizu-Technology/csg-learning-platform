@@ -75,7 +75,7 @@ class NotificationDeliveryService
   def message_notification_title(message, mentioned: false, channel_mention: false)
     return "#{message.author.full_name} sent you a message" if message.direct_message?
     return "#{message.author.full_name} mentioned you in ##{message.channel.name}" if mentioned
-    return "##{message.channel.name} has an @channel message" if channel_mention
+    return "##{message.channel.name} has an @everyone message" if channel_mention
 
     "#{message.channel.name} has a new message"
   end
@@ -83,7 +83,7 @@ class NotificationDeliveryService
   def message_notification_body(message, mentioned: false, channel_mention: false)
     body = message.body.to_s.strip
     return "Mentioned you: #{body}".truncate(180) if mentioned && body.present?
-    return "@channel: #{body}".truncate(180) if channel_mention && body.present?
+    return "@everyone: #{body}".truncate(180) if channel_mention && body.present?
     return body.truncate(180) if body.present?
 
     attachment_count = message.message_attachments.size
@@ -96,7 +96,7 @@ class NotificationDeliveryService
   def channel_mention?(message)
     return false unless message.channel_id.present?
 
-    message.body.to_s.match?(/(^|[\s(])@channel\b/i)
+    message.body.to_s.match?(/(^|[\s(])@everyone\b/i)
   end
 
   def mentioned_user_ids_for(message, recipients)
