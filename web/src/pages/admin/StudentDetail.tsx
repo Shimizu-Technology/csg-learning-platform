@@ -26,6 +26,7 @@ import { api } from '../../lib/api'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { ProgressRing } from '../../components/shared/ProgressRing'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
+import { useToast } from '../../contexts/ToastContext'
 
 const BLOCK_ICONS: Record<string, React.ElementType> = {
   reading: FileText,
@@ -439,6 +440,7 @@ function LessonRow({
 export function StudentDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const toast = useToast()
   const [data, setData] = useState<ProgressData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -455,6 +457,16 @@ export function StudentDetail() {
   const [savingUser, setSavingUser] = useState(false)
   const [recordingProgress, setRecordingProgress] = useState<RecordingProgress[]>([])
   const [lessonVideoProgress, setLessonVideoProgress] = useState<LessonVideoProgress[]>([])
+
+  const notifySuccess = (message: string) => {
+    setAssignmentMessage(message)
+    toast.success(message)
+  }
+
+  const notifyError = (message: string) => {
+    setAssignmentMessage(message)
+    toast.error(message)
+  }
 
   const lessonVideoProgressByBlockId = useMemo(() => {
     const map = new Map<number, LessonVideoProgress>()
@@ -555,7 +567,7 @@ export function StudentDetail() {
     })
 
     if (res.error) {
-      setAssignmentMessage(res.error)
+      notifyError(res.error)
       setSavingAssignmentId(null)
       return
     }
@@ -584,7 +596,7 @@ export function StudentDetail() {
       })
     }
 
-    setAssignmentMessage(`Saved override for ${assignment.module_name}`)
+    notifySuccess(`Saved override for ${assignment.module_name}`)
     if (id) {
       const refreshed = await api.getStudentProgress(Number(id))
       if (refreshed.data) {
@@ -631,12 +643,12 @@ export function StudentDetail() {
       : await api.createLessonAssignment(enrollment.id, payload)
 
     if (res.error) {
-      setAssignmentMessage(res.error)
+      notifyError(res.error)
       setSavingLessonId(null)
       return
     }
 
-    setAssignmentMessage(`Saved lesson override for ${lesson.title}`)
+    notifySuccess(`Saved lesson override for ${lesson.title}`)
     if (id) {
       const refreshed = await api.getStudentProgress(Number(id))
       if (refreshed.data) {
@@ -683,7 +695,7 @@ export function StudentDetail() {
     setAssignmentMessage('')
     const res = await api.createModuleAssignment(enrollment.id, { module_id: moduleId, unlocked: false })
     if (res.error) {
-      setAssignmentMessage(res.error)
+      notifyError(res.error)
       setCreatingModuleId(null)
       return
     }
@@ -715,7 +727,7 @@ export function StudentDetail() {
     }
 
     const moduleName = modules.find((mod) => mod.id === moduleId)?.name || 'module'
-    setAssignmentMessage(`Assigned ${moduleName} to ${user.full_name}`)
+    notifySuccess(`Assigned ${moduleName} to ${user.full_name}`)
     setCreatingModuleId(null)
   }
 
@@ -724,7 +736,7 @@ export function StudentDetail() {
     setAssignmentMessage('')
     const res = await api.deleteModuleAssignment(assignment.id)
     if (res.error) {
-      setAssignmentMessage(res.error)
+      notifyError(res.error)
       setDeletingAssignmentId(null)
       return
     }
@@ -755,7 +767,7 @@ export function StudentDetail() {
       }
     }
 
-    setAssignmentMessage(`Removed ${assignment.module_name} from ${user.full_name}`)
+    notifySuccess(`Removed ${assignment.module_name} from ${user.full_name}`)
     setDeletingAssignmentId(null)
   }
 
@@ -852,9 +864,9 @@ export function StudentDetail() {
                 github_username: editForm.github_username.trim() || undefined,
               })
               if (res.error) {
-                setAssignmentMessage(`Failed to update: ${res.error}`)
+                notifyError(`Failed to update: ${res.error}`)
               } else {
-                setAssignmentMessage('Student updated')
+                notifySuccess('Student updated')
                 setEditingUser(false)
                 if (id) {
                   const refreshed = await api.getStudentProgress(Number(id))

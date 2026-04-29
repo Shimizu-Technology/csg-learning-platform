@@ -3,6 +3,7 @@ import { Github, Save, Check } from 'lucide-react'
 import { UserButton } from '@clerk/clerk-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
+import { useToast } from '../../contexts/ToastContext'
 
 interface ProfileData {
   user: {
@@ -24,6 +25,7 @@ interface ProfileData {
 }
 
 export function Profile() {
+  const toast = useToast()
   const [data, setData] = useState<ProfileData | null>(null)
   const [loading, setLoading] = useState(true)
   const [githubUsername, setGithubUsername] = useState('')
@@ -45,7 +47,10 @@ export function Profile() {
     const res = await api.updateProfile({ github_username: githubUsername })
     if (!res.error) {
       setSaved(true)
+      toast.success('Profile saved')
       setTimeout(() => setSaved(false), 2000)
+    } else {
+      toast.error(res.error)
     }
     setSaving(false)
   }

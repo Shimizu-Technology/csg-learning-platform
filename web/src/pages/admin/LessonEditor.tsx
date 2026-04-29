@@ -10,6 +10,7 @@ import { VideoUploadField } from '../../components/admin/VideoUploadField'
 import { AdminVideoPreview } from '../../components/admin/AdminVideoPreview'
 import { CodeRunnerSettings } from '../../components/admin/CodeRunnerSettings'
 import { useUpload } from '../../contexts/UploadContext'
+import { useToast } from '../../contexts/ToastContext'
 import {
   buildSubmissionConfigWithRunner,
   codeRunnerLanguageFromEditor,
@@ -48,6 +49,7 @@ const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Satu
 export function LessonEditor() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const toast = useToast()
   const [lesson, setLesson] = useState<Lesson | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -140,6 +142,7 @@ export function LessonEditor() {
       })
       if (lessonRes.error) {
         setSaveError(lessonRes.error)
+        toast.error(lessonRes.error)
         setSaving(false)
         return
       }
@@ -160,7 +163,7 @@ export function LessonEditor() {
         }
         if (!inFlight) updatePayload.s3_video_key = s3VideoKey
         const vRes = await api.updateContentBlock(videoBlock.id, updatePayload)
-        if (vRes.error) { setSaveError(vRes.error); setSaving(false); return }
+        if (vRes.error) { setSaveError(vRes.error); toast.error(vRes.error); setSaving(false); return }
       } else if (videoUrl.trim() || s3VideoKey) {
         const vRes = await api.createContentBlock(lesson.id, {
           block_type: 'video',
@@ -169,7 +172,7 @@ export function LessonEditor() {
           video_url: videoUrl.trim() || undefined,
           s3_video_key: s3VideoKey || undefined,
         })
-        if (vRes.error) { setSaveError(vRes.error); setSaving(false); return }
+        if (vRes.error) { setSaveError(vRes.error); toast.error(vRes.error); setSaving(false); return }
         if (vRes.data?.content_block) setVideoBlockId(vRes.data.content_block.id)
       }
 
@@ -187,7 +190,7 @@ export function LessonEditor() {
           submission_type: submissionType,
           submission_config: submissionConfig,
         })
-        if (eRes.error) { setSaveError(eRes.error); setSaving(false); return }
+        if (eRes.error) { setSaveError(eRes.error); toast.error(eRes.error); setSaving(false); return }
       } else if (instructions.trim() || filename.trim()) {
         const eRes = await api.createContentBlock(lesson.id, {
           block_type: 'exercise',
@@ -199,10 +202,11 @@ export function LessonEditor() {
           submission_type: submissionType,
           submission_config: submissionConfig,
         })
-        if (eRes.error) { setSaveError(eRes.error); setSaving(false); return }
+        if (eRes.error) { setSaveError(eRes.error); toast.error(eRes.error); setSaving(false); return }
       }
 
       setSaveSuccess(true)
+      toast.success('Exercise saved successfully')
       setTimeout(() => setSaveSuccess(false), 3000)
 
       const refreshRes = await api.getLesson(lesson.id)
@@ -224,7 +228,9 @@ export function LessonEditor() {
         }
       }
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Save failed')
+      const message = err instanceof Error ? err.message : 'Save failed'
+      setSaveError(message)
+      toast.error(message)
     } finally {
       setSaving(false)
     }
@@ -236,8 +242,10 @@ export function LessonEditor() {
     const res = await api.deleteLesson(lesson.id)
     if (res.error) {
       setSaveError(res.error)
+      toast.error(res.error)
       setDeleting(false)
     } else {
+      toast.success('Exercise deleted')
       navigate('/admin/content')
     }
   }

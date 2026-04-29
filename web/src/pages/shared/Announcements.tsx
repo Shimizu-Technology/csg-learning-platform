@@ -4,6 +4,7 @@ import { Bell, Check, ChevronLeft, ChevronRight, Megaphone, Pin, Send, Sparkles,
 import { api } from '../../lib/api'
 import { disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
 import { useAuthContext } from '../../contexts/AuthContext'
+import { useToast } from '../../contexts/ToastContext'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import type { Announcement, CohortSummary, PaginationMeta } from '../../types/api'
 
@@ -41,6 +42,7 @@ function emptyPagination(): PaginationMeta {
 
 export function Announcements() {
   const { id } = useParams()
+  const toast = useToast()
   const selectedId = id ? Number(id) : null
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -186,9 +188,11 @@ export function Announcements() {
 
     if (res.error) {
       setFormError(res.error)
+      toast.error(res.error)
     } else if (res.data) {
       setForm((prev) => ({ ...prev, title: '', body: '', pinned: false }))
       await loadAnnouncements()
+      toast.success('Announcement published')
     }
     setSaving(false)
   }
@@ -201,8 +205,10 @@ export function Announcements() {
     const res = await api.archiveAnnouncement(announcement.id)
     if (res.error) {
       setFormError(res.error)
+      toast.error(res.error)
     } else {
       await loadAnnouncements({ background: true })
+      toast.success('Announcement archived')
     }
     setArchivingId(null)
   }

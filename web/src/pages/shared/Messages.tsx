@@ -47,6 +47,7 @@ import { subscribeToChannelMessages, subscribeToDirectMessages } from '../../lib
 import { disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
 import { formatFileSize, uploadToS3 } from '../../lib/uploadToS3'
 import { useAuthContext } from '../../contexts/AuthContext'
+import { useToast } from '../../contexts/ToastContext'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Modal } from '../../components/shared/Modal'
 import type {
@@ -474,6 +475,7 @@ function applyMarks(text: string, marks: NonNullable<JSONContent['marks']>) {
 export function Messages() {
   const { channelId, dmId } = useParams()
   const { user } = useAuthContext()
+  const toast = useToast()
   const isStaff = Boolean(user?.is_staff)
   const [channels, setChannels] = useState<ChannelSummary[]>([])
   const [directConversations, setDirectConversations] = useState<DirectConversationSummary[]>([])
@@ -1330,6 +1332,7 @@ export function Messages() {
 
       if (res.error) {
         setError(res.error)
+        toast.error(res.error)
         setMessages((prev) => prev.map((item) => item.id === tempId ? { ...item, pending: false, failed: true } : item))
       } else if (res.data) {
         const message = res.data.message
@@ -1338,7 +1341,9 @@ export function Messages() {
         updateLatestForTarget(message)
       }
     } catch (sendError) {
-      setError(sendError instanceof Error ? sendError.message : 'Could not send message.')
+      const message = sendError instanceof Error ? sendError.message : 'Could not send message.'
+      setError(message)
+      toast.error(message)
       setMessages((prev) => prev.map((item) => item.id === tempId ? { ...item, pending: false, failed: true } : item))
     }
     setSending(false)
@@ -1359,11 +1364,13 @@ export function Messages() {
 
     if (res.error) {
       setChannelError(res.error)
+      toast.error(res.error)
     } else if (res.data) {
       setChannelForm((prev) => ({ ...prev, name: '', description: '' }))
       setShowChannelForm(false)
       await loadLists()
       selectTarget({ type: 'channel', id: res.data.channel.id })
+      toast.success(`Created channel #${res.data.channel.name}`)
     }
     setCreatingChannel(false)
   }
@@ -1381,6 +1388,7 @@ export function Messages() {
 
     if (res.error) {
       setWorkspaceError(res.error)
+      toast.error(res.error)
     } else if (res.data) {
       setWorkspaceForm({ name: '', description: '' })
       setShowWorkspaceForm(false)
@@ -1388,6 +1396,7 @@ export function Messages() {
       setWorkspaceDetail(res.data.workspace)
       selectWorkspace(res.data.workspace.id)
       setShowWorkspaceMembers(true)
+      toast.success(`Created workspace "${res.data.workspace.name}"`)
     }
     setCreatingWorkspace(false)
   }
@@ -1400,6 +1409,7 @@ export function Messages() {
     const res = await api.addWorkspaceMembers(workspaceDetail.id, [Number(memberToAddId)])
     if (res.error) {
       setWorkspaceError(res.error)
+      toast.error(res.error)
       return
     }
 
@@ -1410,6 +1420,7 @@ export function Messages() {
         member_count: res.data!.workspace.member_count,
       } : workspace))
       setMemberToAddId('')
+      toast.success('Workspace member added')
     }
   }
 
@@ -1420,6 +1431,7 @@ export function Messages() {
     const res = await api.removeWorkspaceMember(workspaceDetail.id, userId)
     if (res.error) {
       setWorkspaceError(res.error)
+      toast.error(res.error)
       return
     }
 
@@ -1429,6 +1441,7 @@ export function Messages() {
         ...workspace,
         member_count: res.data!.workspace.member_count,
       } : workspace))
+      toast.success('Workspace member removed')
     }
   }
 
@@ -1441,6 +1454,8 @@ export function Messages() {
       await loadLists()
       setShowDmForm(false)
       selectTarget({ type: 'dm', id: res.data.direct_conversation.id })
+    } else if (res.error) {
+      toast.error(res.error)
     }
   }
 
@@ -1628,8 +1643,10 @@ export function Messages() {
       setMessages((prev) => prev.map((item) => item.id === message.id ? res.data!.message : item))
       setPinnedMessages((prev) => upsertPinnedMessage(prev, res.data!.message))
       setEditing(null)
+      toast.success('Message updated')
     } else if (res.error) {
       setError(res.error)
+      toast.error(res.error)
     }
   }
 
@@ -1639,8 +1656,12 @@ export function Messages() {
       releaseOptimisticAttachmentUrls(message.id)
       setMessages((prev) => prev.filter((item) => item.id !== message.id))
       setPinnedMessages((prev) => prev.filter((item) => item.id !== message.id))
+      toast.success('Message deleted')
     }
-    else if (res.error) setError(res.error)
+    else if (res.error) {
+      setError(res.error)
+      toast.error(res.error)
+    }
   }
 
   useEffect(() => () => {

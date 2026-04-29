@@ -5,6 +5,7 @@ import { Layout } from './components/shared/Layout'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import { LoadingSpinner } from './components/shared/LoadingSpinner'
 import { UploadProvider } from './contexts/UploadContext'
+import { ToastProvider } from './contexts/ToastContext'
 import {
   AdminDashboard,
   Announcements,
@@ -78,9 +79,11 @@ function AppRoutes() {
 function App() {
   return (
     <BrowserRouter>
-      <UploadProvider>
-        <AppRoutes />
-      </UploadProvider>
+      <ToastProvider>
+        <UploadProvider>
+          <AppRoutes />
+        </UploadProvider>
+      </ToastProvider>
     </BrowserRouter>
   )
 }

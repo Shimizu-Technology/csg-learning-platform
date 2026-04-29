@@ -16,6 +16,7 @@ import { NewExerciseModal } from './NewExerciseModal'
 import { NewModuleModal } from './NewModuleModal'
 import { ALL_DAY_NAMES, SCHEDULE_DAY_INDICES } from '../../lib/scheduleConstants'
 import { useUpload } from '../../contexts/UploadContext'
+import { useToast } from '../../contexts/ToastContext'
 
 interface Lesson {
   id: number
@@ -59,6 +60,7 @@ function groupLessonsByDay(lessons: Lesson[]) {
 export function ContentManagement() {
   const navigate = useNavigate()
   const { attachUpload } = useUpload()
+  const toast = useToast()
   const [curricula, setCurricula] = useState<Curriculum[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set())
@@ -212,6 +214,7 @@ export function ContentManagement() {
             const res = await api.createExercise(exerciseModal.moduleId, payload)
             if (res.error) {
               setExerciseCreateError(res.error)
+              toast.error(res.error)
               setExerciseSaving(false)
               return
             }
@@ -229,6 +232,7 @@ export function ContentManagement() {
             setExerciseSaving(false)
             setExerciseModal(null)
             await loadCurricula()
+            toast.success(`Created exercise "${payload.title}"`)
           }}
         />
       )}
@@ -248,12 +252,14 @@ export function ContentManagement() {
             const createRes = await api.createModule(newModuleModal.curriculumId, data)
             if (createRes.error) {
               setModuleCreateError(createRes.error)
+              toast.error(createRes.error)
               setModuleSaving(false)
               return
             }
             await loadCurricula()
             setModuleSaving(false)
             setNewModuleModal(null)
+            toast.success(`Created module "${data.name}"`)
           }}
         />
       )}

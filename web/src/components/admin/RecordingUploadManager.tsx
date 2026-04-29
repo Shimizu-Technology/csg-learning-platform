@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { Upload, Trash2, Film, Calendar, Clock, Plus, X, Pencil, Loader2 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useUpload } from '../../contexts/UploadContext'
+import { useToast } from '../../contexts/ToastContext'
 
 interface S3Recording {
   id: number
@@ -35,6 +36,7 @@ interface RecordingUploadManagerProps {
 
 export function RecordingUploadManager({ cohortId, onRecordingsChange }: RecordingUploadManagerProps) {
   const { startVideoUpload } = useUpload()
+  const toast = useToast()
   const [recordings, setRecordings] = useState<S3Recording[]>([])
   const [loading, setLoading] = useState(true)
   const [showUploadForm, setShowUploadForm] = useState(false)
@@ -55,6 +57,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
 
     if (res.error) {
       setError(res.error)
+      toast.error(res.error)
     } else if (res.data?.recordings) {
       setRecordings(res.data.recordings)
       setError(null)
@@ -139,7 +142,9 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
 
     setError(null)
     if (options?.announce !== false) {
-      setStatusMessage(`Started ${trimmedTitle}. You can leave this page and keep working while it uploads.`)
+      const message = `Started ${trimmedTitle}. You can leave this page and keep working while it uploads.`
+      setStatusMessage(message)
+      toast.success(message)
     }
     setUploadDrafts((current) => current.filter((item) => item.id !== draft.id))
 
@@ -188,11 +193,12 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
     if (startableDrafts.length === 0) return
 
     const count = startableDrafts.length
-    setStatusMessage(
+    const message =
       count === 1
         ? `Started ${startableDrafts[0].title.trim()}. You can leave this page and keep working while it uploads.`
         : `Started ${count} uploads. You can leave this page and keep working while they upload in the background.`
-    )
+    setStatusMessage(message)
+    toast.success(message)
     startableDrafts.forEach((draft) => launchDraftUpload(draft, { announce: false }))
   }
 
@@ -201,8 +207,10 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
     const res = await api.deleteRecording(cohortId, id)
     if (res.error) {
       setError(res.error)
+      toast.error(res.error)
       return
     }
+    toast.success('Recording deleted')
     void fetchRecordings()
     onRecordingsChange?.()
   }
@@ -226,9 +234,11 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
       })
       if (res.error) {
         setError(res.error)
+        toast.error(res.error)
         return
       }
       setEditingId(null)
+      toast.success('Recording updated')
       void fetchRecordings()
     } finally {
       setSavingEdit(false)

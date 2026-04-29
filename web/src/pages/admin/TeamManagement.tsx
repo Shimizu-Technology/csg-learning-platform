@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Shield, ShieldCheck, UserPlus, Mail, Pencil, Trash2, RotateCcw, X, Check } from 'lucide-react'
+import { Shield, ShieldCheck, UserPlus, Mail, Pencil, Trash2, RotateCcw, Check } from 'lucide-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Modal } from '../../components/shared/Modal'
 import { useAuthContext } from '../../contexts/AuthContext'
+import { useToast } from '../../contexts/ToastContext'
 
 interface TeamMember {
   id: number
@@ -29,6 +30,7 @@ interface EditDraft {
 
 export function TeamManagement() {
   const { user: currentUser } = useAuthContext()
+  const toast = useToast()
   const [members, setMembers] = useState<TeamMember[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -47,18 +49,12 @@ export function TeamManagement() {
 
   const [resendingId, setResendingId] = useState<number | null>(null)
 
-  const [successMsg, setSuccessMsg] = useState('')
-  const [errorMsg, setErrorMsg] = useState('')
-
   const showNotification = (type: 'success' | 'error', msg: string) => {
     if (type === 'success') {
-      setSuccessMsg(msg)
-      setErrorMsg('')
+      toast.success(msg)
     } else {
-      setErrorMsg(msg)
-      setSuccessMsg('')
+      toast.error(msg)
     }
-    setTimeout(() => { setSuccessMsg(''); setErrorMsg('') }, 4000)
   }
 
   const loadTeam = async () => {
@@ -185,19 +181,6 @@ export function TeamManagement() {
           <span className="sm:hidden">Add</span>
         </button>
       </div>
-
-      {successMsg && (
-        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 flex items-center justify-between">
-          {successMsg}
-          <button onClick={() => setSuccessMsg('')} className="text-green-600 hover:text-green-800 shrink-0 ml-2"><X className="h-4 w-4" /></button>
-        </div>
-      )}
-      {errorMsg && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 flex items-center justify-between">
-          {errorMsg}
-          <button onClick={() => setErrorMsg('')} className="text-red-600 hover:text-red-800 shrink-0 ml-2"><X className="h-4 w-4" /></button>
-        </div>
-      )}
 
       <div className="space-y-3">
         {members.length === 0 ? (
