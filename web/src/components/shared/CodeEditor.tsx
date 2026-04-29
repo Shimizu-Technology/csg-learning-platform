@@ -66,6 +66,7 @@ export function CodeEditor({
           padding: { top: 12, bottom: 12 },
           overviewRulerBorder: false,
           hideCursorInOverviewRuler: true,
+          scrollbar: { alwaysConsumeMouseWheel: false },
           renderLineHighlight: 'line',
           contextmenu: true,
           quickSuggestions: !readOnly,

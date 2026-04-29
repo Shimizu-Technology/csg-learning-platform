@@ -581,6 +581,7 @@ export interface Submission {
   content_block_type: string;
   lesson_title: string;
   filename: string | null;
+  submission_config?: Record<string, unknown>;
   language_hint: string | null;
   solution?: string;
   exercise_body?: string;

@@ -8,7 +8,14 @@ import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
 import { ContentBlockRenderer } from '../../components/shared/ContentBlockRenderer'
 import { VideoUploadField } from '../../components/admin/VideoUploadField'
 import { AdminVideoPreview } from '../../components/admin/AdminVideoPreview'
+import { CodeRunnerSettings } from '../../components/admin/CodeRunnerSettings'
 import { useUpload } from '../../contexts/UploadContext'
+import {
+  buildSubmissionConfigWithRunner,
+  codeRunnerLanguageFromEditor,
+  normalizeCodeRunnerConfig,
+  type CodeRunnerConfig,
+} from '../../lib/codeRunner'
 
 interface ContentBlock {
   id: number
@@ -53,6 +60,10 @@ export function LessonEditor() {
   const [instructions, setInstructions] = useState('')
   const [solution, setSolution] = useState('')
   const [submissionType, setSubmissionType] = useState('manual_complete')
+  const [runnerConfig, setRunnerConfig] = useState<CodeRunnerConfig>({
+    enabled: false,
+    language: 'ruby',
+  })
   const [s3VideoKey, setS3VideoKey] = useState<string | null>(null)
   const [videoBlockId, setVideoBlockId] = useState<number | null>(null)
 
@@ -99,6 +110,10 @@ export function LessonEditor() {
           setInstructions(exerciseBlock.body || '')
           setSolution(exerciseBlock.solution || '')
           setSubmissionType(exerciseBlock.submission_type || l.submission_type || (l.requires_submission ? 'text_submission' : 'manual_complete'))
+          setRunnerConfig(normalizeCodeRunnerConfig(
+            exerciseBlock.submission_config,
+            codeRunnerLanguageFromEditor(detectLanguage(exerciseBlock.filename)) || 'ruby'
+          ))
         }
       }
       setLoading(false)
@@ -159,6 +174,10 @@ export function LessonEditor() {
       }
 
       const exerciseBlock = lesson.content_blocks.find(b => b.block_type === 'exercise' || b.block_type === 'code_challenge')
+      const submissionConfig = buildSubmissionConfigWithRunner(
+        exerciseBlock?.submission_config,
+        submissionType === 'text_submission' ? runnerConfig : { ...runnerConfig, enabled: false }
+      )
       if (exerciseBlock) {
         const eRes = await api.updateContentBlock(exerciseBlock.id, {
           title: title.trim(),
@@ -166,6 +185,7 @@ export function LessonEditor() {
           solution: solution.trim() || null,
           filename: filename.trim() || null,
           submission_type: submissionType,
+          submission_config: submissionConfig,
         })
         if (eRes.error) { setSaveError(eRes.error); setSaving(false); return }
       } else if (instructions.trim() || filename.trim()) {
@@ -177,6 +197,7 @@ export function LessonEditor() {
           solution: solution.trim() || undefined,
           filename: filename.trim() || undefined,
           submission_type: submissionType,
+          submission_config: submissionConfig,
         })
         if (eRes.error) { setSaveError(eRes.error); setSaving(false); return }
       }
@@ -195,6 +216,12 @@ export function LessonEditor() {
         }
         const refreshedExercise = data.lesson.content_blocks.find(b => b.block_type === 'exercise' || b.block_type === 'code_challenge')
         if (refreshedExercise?.submission_type) setSubmissionType(refreshedExercise.submission_type)
+        if (refreshedExercise) {
+          setRunnerConfig(normalizeCodeRunnerConfig(
+            refreshedExercise.submission_config,
+            codeRunnerLanguageFromEditor(detectLanguage(refreshedExercise.filename)) || 'ruby'
+          ))
+        }
       }
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Save failed')
@@ -212,6 +239,13 @@ export function LessonEditor() {
       setDeleting(false)
     } else {
       navigate('/admin/content')
+    }
+  }
+
+  const handleSubmissionTypeChange = (nextType: string) => {
+    setSubmissionType(nextType)
+    if (nextType !== 'text_submission') {
+      setRunnerConfig((current) => ({ ...current, enabled: false }))
     }
   }
 
@@ -241,12 +275,16 @@ export function LessonEditor() {
         video_url: null,
         filename: filename.trim() || null,
         submission_type: submissionType,
+        submission_config: buildSubmissionConfigWithRunner(
+          undefined,
+          submissionType === 'text_submission' ? runnerConfig : { ...runnerConfig, enabled: false }
+        ),
         solution: null,
         metadata: {},
       })
     }
     return blocks
-  }, [title, videoUrl, instructions, filename, s3VideoKey, videoBlockId])
+  }, [title, videoUrl, instructions, filename, s3VideoKey, videoBlockId, submissionType, runnerConfig])
 
   if (loading) return <LoadingSpinner message="Loading exercise..." />
   if (error) {
@@ -373,8 +411,8 @@ export function LessonEditor() {
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <div className="sm:col-span-2">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.95fr)]">
+              <div>
                 <VideoUploadField
                   contentBlockId={videoBlockId}
                   lessonId={lesson?.id}
@@ -386,39 +424,51 @@ export function LessonEditor() {
                   onS3VideoRemoved={handleS3VideoRemoved}
                 />
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Filename</label>
-                <input
-                  type="text"
-                  value={filename}
-                  onChange={e => setFilename(e.target.value)}
-                  placeholder="e.g. 111.rb"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono"
-                />
-                <p className="text-[11px] text-slate-400 mt-1">Leave blank if no submission</p>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Submission Type</label>
-                <select
-                  value={submissionType}
-                  onChange={e => setSubmissionType(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="manual_complete">Practice only</option>
-                  <option value="text_submission">Text/code submission</option>
-                  <option value="prework_github_sync">GitHub filename sync</option>
-                  <option value="repo_url_submission">Repository submission</option>
-                  <option value="repo_and_live_url_submission">Repo + live URL submission</option>
-                </select>
-              </div>
-            </div>
+              <div className="space-y-3">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">Filename</label>
+                    <input
+                      type="text"
+                      value={filename}
+                      onChange={e => setFilename(e.target.value)}
+                      placeholder="e.g. 111.rb"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono"
+                    />
+                    <p className="text-[11px] text-slate-400 mt-1">Leave blank if no submission</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">Submission Type</label>
+                    <select
+                      value={submissionType}
+                      onChange={e => handleSubmissionTypeChange(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    >
+                      <option value="manual_complete">Practice only</option>
+                      <option value="text_submission">Text/code submission</option>
+                      <option value="prework_github_sync">GitHub filename sync</option>
+                      <option value="repo_url_submission">Repository submission</option>
+                      <option value="repo_and_live_url_submission">Repo + live URL submission</option>
+                    </select>
+                  </div>
+                </div>
 
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-              {submissionType === 'manual_complete' && 'Students mark this complete themselves. This is ideal for daily practice.'}
-              {submissionType === 'text_submission' && 'Students submit code/text directly in the platform for grading.'}
-              {submissionType === 'prework_github_sync' && 'Use this only for the filename-based prework GitHub sync flow.'}
-              {submissionType === 'repo_url_submission' && 'Students submit a repository URL and optional notes. Extra Git details stay available only when needed.'}
-              {submissionType === 'repo_and_live_url_submission' && 'Students submit a repository URL and a live deployed URL. Notes stay optional.'}
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                  {submissionType === 'manual_complete' && 'Students mark this complete themselves. This is ideal for daily practice.'}
+                  {submissionType === 'text_submission' && 'Students submit code/text directly in the platform for grading.'}
+                  {submissionType === 'prework_github_sync' && 'Use this only for the filename-based prework GitHub sync flow.'}
+                  {submissionType === 'repo_url_submission' && 'Students submit a repository URL and optional notes. Extra Git details stay available only when needed.'}
+                  {submissionType === 'repo_and_live_url_submission' && 'Students submit a repository URL and a live deployed URL. Notes stay optional.'}
+                </div>
+
+                {submissionType === 'text_submission' && (
+                  <CodeRunnerSettings
+                    value={runnerConfig}
+                    onChange={setRunnerConfig}
+                    compact
+                  />
+                )}
+              </div>
             </div>
 
             <AdminVideoPreview

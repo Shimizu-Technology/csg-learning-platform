@@ -4,9 +4,11 @@ import { Play, FileText, Code, CheckCircle2, Circle, ChevronDown, ChevronUp, Sen
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { GradeDisplay } from './GradeDisplay'
 import { CodeEditor, detectLanguage } from './CodeEditor'
+import { CodeRunner } from './CodeRunner'
 import { VideoPlayer } from './VideoPlayer'
 import { api } from '../../lib/api'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
+import { CODE_RUNNER_TIMEOUT_MS, codeRunnerLanguageFromEditor, normalizeCodeRunnerConfig } from '../../lib/codeRunner'
 
 interface ContentBlock {
   id: number
@@ -91,6 +93,8 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
 
   const isExerciseType = block.block_type === 'exercise' || block.block_type === 'code_challenge'
   const detectedLang = detectLanguage(block.filename, block.metadata?.language)
+  const runnerFallbackLanguage = codeRunnerLanguageFromEditor(detectedLang) || 'ruby'
+  const runnerConfig = normalizeCodeRunnerConfig(block.submission_config, runnerFallbackLanguage)
   const submissionType = block.submission_type || (requiresSubmission ? (requiresGithub ? 'prework_github_sync' : 'text_submission') : 'manual_complete')
   const usesManualExerciseCompletion = isExerciseType && submissionType === 'manual_complete'
   const usesGithubSyncSubmission = isExerciseType && submissionType === 'prework_github_sync'
@@ -664,6 +668,13 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                   language={detectedLang}
                   minHeight={240}
                 />
+                {runnerConfig.enabled && (
+                  <CodeRunner
+                    code={submissionText}
+                    language={runnerConfig.language}
+                    timeoutMs={CODE_RUNNER_TIMEOUT_MS}
+                  />
+                )}
                 {(submissionError || submissionSuccess) && (
                   <div
                     aria-live="polite"
