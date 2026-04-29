@@ -23,9 +23,14 @@ interface RunResponse {
 const quickJsModulePromise = newQuickJSWASMModule(
   newVariant(RELEASE_SYNC, { wasmLocation: quickJsWasmUrl })
 )
-const rubyModulePromise = fetch(rubyWasmUrl)
-  .then((response) => response.arrayBuffer())
-  .then((buffer) => WebAssembly.compile(buffer))
+let rubyModulePromise: Promise<WebAssembly.Module> | null = null
+
+function getRubyModule() {
+  rubyModulePromise ??= fetch(rubyWasmUrl)
+    .then((response) => response.arrayBuffer())
+    .then((buffer) => WebAssembly.compile(buffer))
+  return rubyModulePromise
+}
 
 function stringifyQuickJsValue(value: unknown) {
   if (typeof value === 'string') return value
@@ -122,10 +127,14 @@ async function runRuby(id: string, code: string): Promise<{ stdout: string; stde
   }
 
   try {
-    const module = await rubyModulePromise
+    const module = await getRubyModule()
     const { vm } = await DefaultRubyVM(module, { consolePrint: true })
     self.postMessage({ id, type: 'started' })
-    vm.eval(code)
+    try {
+      vm.eval(code)
+    } catch (error: unknown) {
+      captureRubyOutput([error instanceof Error ? error.message : String(error)], stderr)
+    }
   } finally {
     console.log = originalLog
     console.warn = originalWarn
