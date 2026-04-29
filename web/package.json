@@ -18,7 +18,10 @@
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.61.2",
+    "@jitl/quickjs-wasmfile-release-sync": "^0.32.0",
     "@monaco-editor/react": "^4.7.0",
+    "@ruby/3.3-wasm-wasi": "^2.9.3-2.9.4",
+    "@ruby/wasm-wasi": "^2.9.3-2.9.4",
     "@tailwindcss/typography": "^0.5.19",
     "@tiptap/core": "^3.22.4",
     "@tiptap/extension-link": "^3.22.4",
@@ -33,6 +36,7 @@
     "lucide-react": "^0.575.0",
     "marked": "^18.0.0",
     "posthog-js": "^1.365.4",
+    "quickjs-emscripten": "^0.32.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-markdown": "^10.1.0",

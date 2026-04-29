@@ -3,7 +3,14 @@ import { X } from 'lucide-react'
 import { RichTextEditor } from '../../components/shared/RichTextEditor'
 import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
 import { VideoUploadField } from '../../components/admin/VideoUploadField'
+import { CodeRunnerSettings } from '../../components/admin/CodeRunnerSettings'
 import { ALL_DAY_NAMES, SCHEDULE_DAY_INDICES } from '../../lib/scheduleConstants'
+import {
+  buildSubmissionConfigWithRunner,
+  codeRunnerLanguageFromEditor,
+  DEFAULT_CODE_RUNNER_TIMEOUT_MS,
+  type CodeRunnerConfig,
+} from '../../lib/codeRunner'
 
 interface Props {
   moduleName: string
@@ -52,6 +59,11 @@ export function NewExerciseModal({
   const [uploadId, setUploadId] = useState<string | null>(null)
   const [filename, setFilename] = useState('')
   const [submissionType, setSubmissionType] = useState('manual_complete')
+  const [runnerConfig, setRunnerConfig] = useState<CodeRunnerConfig>({
+    enabled: false,
+    language: 'ruby',
+    timeout_ms: DEFAULT_CODE_RUNNER_TIMEOUT_MS,
+  })
   const [validationError, setValidationError] = useState('')
 
   const availableDays = useMemo(() => {
@@ -77,6 +89,10 @@ export function NewExerciseModal({
       return
     }
     setValidationError('')
+    const detectedLanguage = detectLanguage(filename)
+    const runnerLanguage = runnerConfig.enabled
+      ? runnerConfig.language
+      : codeRunnerLanguageFromEditor(detectedLanguage) || runnerConfig.language
     await onCreate({
       title: title.trim(),
       release_day: releaseDay,
@@ -86,6 +102,10 @@ export function NewExerciseModal({
       filename: filename.trim() || undefined,
       requires_submission: submissionType !== 'manual_complete',
       submission_type: submissionType,
+      submission_config: buildSubmissionConfigWithRunner(undefined, {
+        ...runnerConfig,
+        language: runnerLanguage,
+      }),
       ...(s3Video || {}),
       upload_id: uploadId || undefined,
     })
@@ -153,7 +173,7 @@ export function NewExerciseModal({
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono"
               />
             </div>
-            <div>
+            <div className="space-y-3">
               <label className="block text-sm font-medium text-slate-700 mb-1">Submission Type</label>
               <select
                 value={submissionType}
@@ -166,6 +186,13 @@ export function NewExerciseModal({
                 <option value="repo_url_submission">Repository submission</option>
                 <option value="repo_and_live_url_submission">Repo + live URL submission</option>
               </select>
+              {submissionType === 'text_submission' && (
+                <CodeRunnerSettings
+                  value={runnerConfig}
+                  onChange={setRunnerConfig}
+                  compact
+                />
+              )}
             </div>
           </div>
 

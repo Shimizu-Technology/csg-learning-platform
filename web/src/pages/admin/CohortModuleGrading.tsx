@@ -5,10 +5,12 @@ import { api } from '../../lib/api'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { GradeDisplay } from '../../components/shared/GradeDisplay'
 import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
+import { CodeRunner } from '../../components/shared/CodeRunner'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { Modal } from '../../components/shared/Modal'
 import { MarkdownRenderer } from '../../components/shared/MarkdownRenderer'
+import { codeRunnerLanguageFromEditor, normalizeCodeRunnerConfig } from '../../lib/codeRunner'
 
 type QueueFilter = 'ungraded' | 'redo' | 'all'
 type ViewMode = 'students' | 'queue' | 'grid'
@@ -43,6 +45,7 @@ interface SubmissionItem {
   content_block_type: string
   lesson_title: string
   filename?: string | null
+  submission_config?: Record<string, unknown>
   language_hint?: string | null
   solution?: string
   exercise_body?: string
@@ -355,6 +358,14 @@ export function CohortModuleGrading() {
       }
     })
   }, [data, selectedStudentId, submissionLookup, progressLookup])
+
+  const runnerConfigForSubmission = (submission: SubmissionItem) => {
+    const language = detectLanguage(submission.filename, submission.language_hint)
+    return normalizeCodeRunnerConfig(
+      submission.submission_config,
+      codeRunnerLanguageFromEditor(language) || 'ruby'
+    )
+  }
 
   const openGridCell = async (userId: number, exerciseId: number) => {
     const key = `${userId}:${exerciseId}`
@@ -794,14 +805,29 @@ export function CohortModuleGrading() {
                         {renderSubmissionArtifacts(gridModalSubmission)}
                       </div>
                       {gridModalSubmission.text ? (
-                        <div className="flex-1 min-h-0">
-                          <CodeEditor
-                            value={gridModalSubmission.text}
-                            language={detectLanguage(gridModalSubmission.filename, gridModalSubmission.language_hint)}
-                            readOnly
-                            height="100%"
-                            minHeight={520}
-                          />
+                        <div className="flex-1 min-h-0 space-y-3">
+                          {(() => {
+                            const language = detectLanguage(gridModalSubmission.filename, gridModalSubmission.language_hint)
+                            const runnerConfig = runnerConfigForSubmission(gridModalSubmission)
+                            return (
+                              <>
+                                <CodeEditor
+                                  value={gridModalSubmission.text}
+                                  language={language}
+                                  readOnly
+                                  height="100%"
+                                  minHeight={520}
+                                />
+                                {runnerConfig.enabled && (
+                                  <CodeRunner
+                                    code={gridModalSubmission.text}
+                                    language={runnerConfig.language}
+                                    timeoutMs={runnerConfig.timeout_ms}
+                                  />
+                                )}
+                              </>
+                            )
+                          })()}
                         </div>
                       ) : (
                         <p className="text-sm text-slate-400 italic">No inline code submitted. Use the links above to review the artifact.</p>
@@ -1209,12 +1235,29 @@ export function CohortModuleGrading() {
                   <div>
                     <h4 className="text-sm font-medium text-slate-700 mb-2">Student Submission</h4>
                     {selectedSubmission.text ? (
-                      <CodeEditor
-                        value={selectedSubmission.text}
-                        language={detectLanguage(selectedSubmission.filename, selectedSubmission.language_hint)}
-                        readOnly
-                        minHeight={220}
-                      />
+                      <div className="space-y-3">
+                        {(() => {
+                          const language = detectLanguage(selectedSubmission.filename, selectedSubmission.language_hint)
+                          const runnerConfig = runnerConfigForSubmission(selectedSubmission)
+                          return (
+                            <>
+                              <CodeEditor
+                                value={selectedSubmission.text}
+                                language={language}
+                                readOnly
+                                minHeight={220}
+                              />
+                              {runnerConfig.enabled && (
+                                <CodeRunner
+                                  code={selectedSubmission.text}
+                                  language={runnerConfig.language}
+                                  timeoutMs={runnerConfig.timeout_ms}
+                                />
+                              )}
+                            </>
+                          )
+                        })()}
+                      </div>
                     ) : (
                       <p className="text-sm text-slate-400 italic">No inline code submitted. Review the links and notes above.</p>
                     )}

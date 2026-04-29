@@ -4,8 +4,10 @@ import { ArrowLeft, Filter, Check, RotateCcw, Clock, ChevronRight, Layers3 } fro
 import { api } from '../../lib/api'
 import { GradeDisplay } from '../../components/shared/GradeDisplay'
 import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
+import { CodeRunner } from '../../components/shared/CodeRunner'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
+import { codeRunnerLanguageFromEditor, normalizeCodeRunnerConfig } from '../../lib/codeRunner'
 
 type QueueFilter = 'ungraded' | 'redo' | 'all'
 
@@ -26,6 +28,7 @@ interface SubmissionItem {
   lesson_title: string
   solution?: string
   filename?: string | null
+  submission_config?: Record<string, unknown>
   language_hint?: string | null
 }
 
@@ -116,6 +119,15 @@ export function Grading() {
   if (loading) return <LoadingSpinner message="Loading submissions..." />
 
   const activeCohorts = cohorts.filter((c: CohortSummary & { status?: string }) => (c as CohortSummary & { status?: string }).status === 'active' || true)
+  const selectedLanguage = selectedSubmission
+    ? detectLanguage(selectedSubmission.filename, selectedSubmission.language_hint)
+    : 'ruby'
+  const selectedRunnerConfig = selectedSubmission
+    ? normalizeCodeRunnerConfig(
+        selectedSubmission.submission_config,
+        codeRunnerLanguageFromEditor(selectedLanguage) || 'ruby'
+      )
+    : null
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -267,12 +279,21 @@ export function Grading() {
                 <div>
                   <h4 className="text-sm font-medium text-slate-700 mb-2">Student Submission</h4>
                   {selectedSubmission.text ? (
-                    <CodeEditor
-                      value={selectedSubmission.text}
-                      language={detectLanguage(selectedSubmission.filename, selectedSubmission.language_hint)}
-                      readOnly
-                      minHeight={220}
-                    />
+                    <div className="space-y-3">
+                      <CodeEditor
+                        value={selectedSubmission.text}
+                        language={selectedLanguage}
+                        readOnly
+                        minHeight={220}
+                      />
+                      {selectedRunnerConfig?.enabled && (
+                        <CodeRunner
+                          code={selectedSubmission.text}
+                          language={selectedRunnerConfig.language}
+                          timeoutMs={selectedRunnerConfig.timeout_ms}
+                        />
+                      )}
+                    </div>
                   ) : (
                     <p className="text-sm text-slate-400 italic">No code submitted</p>
                   )}
