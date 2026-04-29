@@ -805,7 +805,7 @@ export function CohortModuleGrading() {
                         {renderSubmissionArtifacts(gridModalSubmission)}
                       </div>
                       {gridModalSubmission.text ? (
-                        <div className="flex-1 min-h-0 space-y-3">
+                        <div className="space-y-3">
                           {(() => {
                             const language = detectLanguage(gridModalSubmission.filename, gridModalSubmission.language_hint)
                             const runnerConfig = runnerConfigForSubmission(gridModalSubmission)
@@ -815,8 +815,8 @@ export function CohortModuleGrading() {
                                   value={gridModalSubmission.text}
                                   language={language}
                                   readOnly
-                                  height="100%"
-                                  minHeight={520}
+                                  height="360px"
+                                  minHeight={260}
                                 />
                                 {runnerConfig.enabled && (
                                   <CodeRunner
@@ -836,15 +836,15 @@ export function CohortModuleGrading() {
                   )}
 
                   {gridModalTab === 'solution' && (
-                    <div className="flex flex-col flex-1 min-h-0">
+                    <div className="flex flex-col min-h-0">
                       {gridModalSubmission.solution ? (
-                        <div className="flex-1 min-h-0">
+                        <div>
                           <CodeEditor
                             value={gridModalSubmission.solution}
                             language={detectLanguage(gridModalSubmission.filename, gridModalSubmission.language_hint)}
                             readOnly
-                            height="100%"
-                            minHeight={520}
+                            height="360px"
+                            minHeight={260}
                           />
                         </div>
                       ) : (

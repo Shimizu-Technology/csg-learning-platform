@@ -20,11 +20,12 @@ interface RunResponse {
   durationMs: number
 }
 
-let currentRunId = ''
-
 const quickJsModulePromise = newQuickJSWASMModule(
   newVariant(RELEASE_SYNC, { wasmLocation: quickJsWasmUrl })
 )
+const rubyModulePromise = fetch(rubyWasmUrl)
+  .then((response) => response.arrayBuffer())
+  .then((buffer) => WebAssembly.compile(buffer))
 
 function stringifyQuickJsValue(value: unknown) {
   if (typeof value === 'string') return value
@@ -37,7 +38,7 @@ function stringifyQuickJsValue(value: unknown) {
   }
 }
 
-async function runJavaScript(code: string, timeoutMs: number): Promise<{ stdout: string; stderr: string }> {
+async function runJavaScript(id: string, code: string, timeoutMs: number): Promise<{ stdout: string; stderr: string }> {
   const quickjs = await quickJsModulePromise
   const runtime = quickjs.newRuntime({
     interruptHandler: shouldInterruptAfterDeadline(Date.now() + timeoutMs),
@@ -84,7 +85,7 @@ async function runJavaScript(code: string, timeoutMs: number): Promise<{ stdout:
     printHandle.dispose()
     consoleHandle.dispose()
 
-    self.postMessage({ id: currentRunId, type: 'started' })
+    self.postMessage({ id, type: 'started' })
 
     const result = vm.evalCode(code, 'student.js')
 
@@ -102,24 +103,28 @@ async function runJavaScript(code: string, timeoutMs: number): Promise<{ stdout:
   return { stdout: stdout.join(''), stderr: stderr.join('') }
 }
 
-async function runRuby(code: string): Promise<{ stdout: string; stderr: string }> {
+function captureRubyOutput(args: unknown[], stream: string[]) {
+  const text = args.map(String).join(' ')
+  stream.push(text.endsWith('\n') ? text : `${text}\n`)
+}
+
+async function runRuby(id: string, code: string): Promise<{ stdout: string; stderr: string }> {
   const stdout: string[] = []
   const stderr: string[] = []
   const originalLog = console.log
   const originalWarn = console.warn
 
   console.log = (...args: unknown[]) => {
-    stdout.push(args.map(String).join(' '))
+    captureRubyOutput(args, stdout)
   }
   console.warn = (...args: unknown[]) => {
-    stderr.push(args.map(String).join(' '))
+    captureRubyOutput(args, stderr)
   }
 
   try {
-    const response = await fetch(rubyWasmUrl)
-    const module = await WebAssembly.compile(await response.arrayBuffer())
+    const module = await rubyModulePromise
     const { vm } = await DefaultRubyVM(module, { consolePrint: true })
-    self.postMessage({ id: currentRunId, type: 'started' })
+    self.postMessage({ id, type: 'started' })
     vm.eval(code)
   } finally {
     console.log = originalLog
@@ -132,9 +137,8 @@ async function runRuby(code: string): Promise<{ stdout: string; stderr: string }
 self.onmessage = (event: MessageEvent<RunRequest>) => {
   const startedAt = performance.now()
   const { id, code, language, timeoutMs } = event.data
-  currentRunId = id
 
-  const run = language === 'ruby' ? runRuby(code) : runJavaScript(code, timeoutMs)
+  const run = language === 'ruby' ? runRuby(id, code) : runJavaScript(id, code, timeoutMs)
 
   run
     .then(({ stdout, stderr }) => {

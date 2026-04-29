@@ -12,10 +12,6 @@ export function isRunnableLanguage(language: string): language is CodeRunnerLang
   return language === 'ruby' || language === 'javascript'
 }
 
-export function normalizeCodeRunnerLanguage(language: string | null | undefined): CodeRunnerLanguage {
-  return language === 'javascript' ? 'javascript' : 'ruby'
-}
-
 export function codeRunnerLanguageFromEditor(language: string): CodeRunnerLanguage | null {
   if (language === 'ruby') return 'ruby'
   if (language === 'javascript' || language === 'typescript') return 'javascript'

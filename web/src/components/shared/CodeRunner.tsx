@@ -56,10 +56,10 @@ export function CodeRunner({ code, language, timeoutMs }: CodeRunnerProps) {
   useEffect(() => stopWorker, [])
 
   const handleRun = () => {
-    stopWorker()
+    if (runState.status === 'running') stopWorker()
     const runId = crypto.randomUUID()
     const startedAt = performance.now()
-    const worker = new Worker(new URL('./codeRunner.worker.ts', import.meta.url), { type: 'module' })
+    const worker = workerRef.current || new Worker(new URL('./codeRunner.worker.ts', import.meta.url), { type: 'module' })
 
     workerRef.current = worker
     runIdRef.current = runId
@@ -92,7 +92,11 @@ export function CodeRunner({ code, language, timeoutMs }: CodeRunnerProps) {
       }
 
       const hasError = event.data.stderr.trim().length > 0
-      stopWorker()
+      if (timeoutRef.current) {
+        window.clearTimeout(timeoutRef.current)
+        timeoutRef.current = null
+      }
+      runIdRef.current = null
       setRunState({
         status: hasError ? 'error' : 'success',
         stdout: event.data.stdout,
@@ -103,7 +107,13 @@ export function CodeRunner({ code, language, timeoutMs }: CodeRunnerProps) {
 
     worker.onerror = (event) => {
       if (runId !== runIdRef.current) return
-      stopWorker()
+      if (timeoutRef.current) {
+        window.clearTimeout(timeoutRef.current)
+        timeoutRef.current = null
+      }
+      workerRef.current?.terminate()
+      workerRef.current = null
+      runIdRef.current = null
       setRunState({
         status: 'error',
         stdout: '',
