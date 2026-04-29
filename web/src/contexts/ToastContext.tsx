@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, CheckCircle2, X } from 'lucide-react'
 
 type ToastType = 'success' | 'error'
@@ -18,16 +18,25 @@ const ToastContext = createContext<ToastContextValue | null>(null)
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
+  const timeoutIds = useRef(new Map<number, number>())
 
   const dismiss = useCallback((id: number) => {
+    const timeoutId = timeoutIds.current.get(id)
+    if (timeoutId) window.clearTimeout(timeoutId)
+    timeoutIds.current.delete(id)
     setToasts((current) => current.filter((toast) => toast.id !== id))
   }, [])
 
   const show = useCallback((type: ToastType, message: string) => {
     const id = Date.now() + Math.random()
     setToasts((current) => [...current, { id, type, message }])
-    window.setTimeout(() => dismiss(id), 4500)
+    timeoutIds.current.set(id, window.setTimeout(() => dismiss(id), 4500))
   }, [dismiss])
+
+  useEffect(() => () => {
+    timeoutIds.current.forEach((timeoutId) => window.clearTimeout(timeoutId))
+    timeoutIds.current.clear()
+  }, [])
 
   const value = useMemo<ToastContextValue>(() => ({
     success: (message: string) => show('success', message),
@@ -47,7 +56,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               className={`pointer-events-auto flex items-start gap-3 rounded-xl border bg-white px-4 py-3 text-sm shadow-lg ${
                 isSuccess ? 'border-success-200 text-success-800' : 'border-red-200 text-red-800'
               }`}
-              role="status"
+              role={isSuccess ? 'status' : 'alert'}
             >
               <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${isSuccess ? 'text-success-600' : 'text-red-600'}`} />
               <p className="min-w-0 flex-1 leading-5">{toast.message}</p>
