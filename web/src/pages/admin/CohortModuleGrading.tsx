@@ -11,6 +11,7 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import { Modal } from '../../components/shared/Modal'
 import { MarkdownRenderer } from '../../components/shared/MarkdownRenderer'
 import { CODE_RUNNER_TIMEOUT_MS, codeRunnerLanguageFromEditor, normalizeCodeRunnerConfig } from '../../lib/codeRunner'
+import { useToast } from '../../contexts/ToastContext'
 
 type QueueFilter = 'ungraded' | 'redo' | 'all'
 type ViewMode = 'students' | 'queue' | 'grid'
@@ -163,6 +164,7 @@ function renderSubmissionArtifacts(submission: SubmissionItem) {
 export function CohortModuleGrading() {
   const { cohortId, moduleId } = useParams<{ cohortId: string; moduleId: string }>()
   const navigate = useNavigate()
+  const toast = useToast()
   const [data, setData] = useState<GradingData | null>(null)
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
@@ -247,6 +249,9 @@ export function CohortModuleGrading() {
     if (!res.error) {
       setFeedback('')
       await loadData()
+      toast.success(`Submission graded ${grade}`)
+    } else {
+      toast.error(res.error)
     }
     setGrading(false)
   }
@@ -413,6 +418,9 @@ export function CohortModuleGrading() {
       setGridModalSubmission(null)
       setGridModalOpen(false)
       await loadData()
+      toast.success(`Submission graded ${grade}`)
+    } else {
+      toast.error(res.error)
     }
     setGrading(false)
   }

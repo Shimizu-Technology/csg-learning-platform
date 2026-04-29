@@ -5,6 +5,7 @@ import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Modal } from '../../components/shared/Modal'
 import { RecordingUploadManager } from '../../components/admin/RecordingUploadManager'
+import { useToast } from '../../contexts/ToastContext'
 
 interface Recording {
   title: string
@@ -115,6 +116,7 @@ type CohortStatusValue = typeof COHORT_STATUS_OPTIONS[number]['value']
 
 export function CohortDetail() {
   const { id } = useParams<{ id: string }>()
+  const toast = useToast()
   const [cohort, setCohort] = useState<CohortData | null>(null)
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
@@ -144,6 +146,16 @@ export function CohortDetail() {
   const [newModuleType, setNewModuleType] = useState('prework')
   const [newModuleScheduleDays, setNewModuleScheduleDays] = useState('weekdays')
   const [addingModule, setAddingModule] = useState(false)
+
+  const notifySuccess = (nextMessage: string) => {
+    setMessage(nextMessage)
+    toast.success(nextMessage)
+  }
+
+  const notifyError = (nextMessage: string) => {
+    setMessage(nextMessage)
+    toast.error(nextMessage)
+  }
 
   const buildFormsFromCohort = useCallback((nextCohort: CohortData) => {
     const nextForms: Record<number, { unlocked: boolean; module_start_date: string; requires_github: boolean; repository_name: string }> = {}
@@ -187,10 +199,10 @@ export function CohortDetail() {
     setMessage('')
     const res = await api.updateCohort(Number(id), { start_date: editStartDate })
     if (res.error) {
-      setMessage(res.error)
+      notifyError(res.error)
     } else if (res.data?.cohort) {
       applyCohort(res.data.cohort as CohortData)
-      setMessage('Cohort start date updated')
+      notifySuccess('Cohort start date updated')
     }
     setSavingStartDate(false)
   }
@@ -201,10 +213,10 @@ export function CohortDetail() {
     setMessage('')
     const res = await api.updateCohort(Number(id), { status: nextStatus })
     if (res.error) {
-      setMessage(res.error)
+      notifyError(res.error)
     } else if (res.data?.cohort) {
       applyCohort(res.data.cohort as CohortData)
-      setMessage(`Cohort marked ${nextStatus}`)
+      notifySuccess(`Cohort marked ${nextStatus}`)
     }
     setSavingStatus(false)
   }
@@ -233,28 +245,28 @@ export function CohortDetail() {
       skip_invite: !sendInvite,
     })
     if (createRes.error) {
-      setMessage(createRes.error)
+      notifyError(createRes.error)
       setAddingStudent(false)
       return
     }
 
     const userId = createRes.data?.user?.id
     if (!userId) {
-      setMessage('Failed to create user')
+      notifyError('Failed to create user')
       setAddingStudent(false)
       return
     }
 
     const enrollRes = await api.createEnrollment(Number(id), userId)
     if (enrollRes.error) {
-      setMessage(`User created but enrollment failed: ${enrollRes.error}`)
+      notifyError(`User created but enrollment failed: ${enrollRes.error}`)
       setAddingStudent(false)
       return
     }
 
     await reloadCohort()
 
-    setMessage(`Added ${addStudentEmail.trim()} to cohort`)
+    notifySuccess(`Added ${addStudentEmail.trim()} to cohort`)
     setAddStudentEmail('')
     setAddStudentGithub('')
     setAddingStudent(false)
@@ -266,9 +278,9 @@ export function CohortDetail() {
     setMessage('')
     const res = await api.resendInvite(userId)
     if (res.error) {
-      setMessage(`Failed to resend invite: ${res.error}`)
+      notifyError(`Failed to resend invite: ${res.error}`)
     } else {
-      setMessage(`Invite re-sent to ${email}`)
+      notifySuccess(`Invite re-sent to ${email}`)
     }
     setResendingInviteFor(null)
   }
@@ -300,7 +312,7 @@ export function CohortDetail() {
     })
 
     if (res.error) {
-      setMessage(res.error)
+      notifyError(res.error)
       setSavingModuleId(null)
       return
     }
@@ -309,7 +321,7 @@ export function CohortDetail() {
     if (nextCohort) applyCohort(nextCohort)
 
     const moduleName = cohort?.modules.find((mod) => mod.id === moduleId)?.name || 'module'
-    setMessage(`Updated cohort access for ${moduleName}`)
+    notifySuccess(`Updated cohort access for ${moduleName}`)
     setSavingModuleId(null)
   }
 
@@ -320,14 +332,14 @@ export function CohortDetail() {
 
     const res = await api.updateCohortRecordings(Number(id), recordings)
     if (res.error) {
-      setMessage(res.error)
+      notifyError(res.error)
       setSavingRecordings(false)
       return
     }
 
     const nextCohort = res.data?.cohort as CohortData | undefined
     if (nextCohort) applyCohort(nextCohort)
-    setMessage('Updated class recordings')
+    notifySuccess('Updated class recordings')
     setSavingRecordings(false)
   }
 
@@ -338,14 +350,14 @@ export function CohortDetail() {
 
     const res = await api.updateCohortClassResources(Number(id), classResources)
     if (res.error) {
-      setMessage(res.error)
+      notifyError(res.error)
       setSavingResources(false)
       return
     }
 
     const nextCohort = res.data?.cohort as CohortData | undefined
     if (nextCohort) applyCohort(nextCohort)
-    setMessage('Updated class resources')
+    notifySuccess('Updated class resources')
     setSavingResources(false)
   }
 
@@ -363,14 +375,14 @@ export function CohortDetail() {
       schedule_days: newModuleScheduleDays,
     })
     if (res.error) {
-      setMessage(`Failed to create module: ${res.error}`)
+      notifyError(`Failed to create module: ${res.error}`)
       setAddingModule(false)
       return
     }
 
     await reloadCohort()
 
-    setMessage(`Created module "${newModuleName.trim()}"`)
+    notifySuccess(`Created module "${newModuleName.trim()}"`)
     setNewModuleName('')
     setNewModuleType('prework')
     setNewModuleScheduleDays('weekdays')
@@ -390,7 +402,7 @@ export function CohortDetail() {
     })
 
     if (res.error) {
-      setMessage(res.error)
+      notifyError(res.error)
       setSavingModuleId(null)
       return
     }
@@ -410,7 +422,7 @@ export function CohortDetail() {
       setForms(nextForms)
     }
     const moduleName = cohort?.modules.find((mod) => mod.id === moduleId)?.name || 'module'
-    setMessage(`Assigned ${moduleName} — open Configure to adjust the start date if needed`)
+    notifySuccess(`Assigned ${moduleName}; open Configure to adjust the start date if needed`)
     setSavingModuleId(null)
     setConfigureModuleId(moduleId)
   }
@@ -426,7 +438,7 @@ export function CohortDetail() {
     })
 
     if (res.error) {
-      setMessage(res.error)
+      notifyError(res.error)
       setSavingModuleId(null)
       return
     }
@@ -446,7 +458,7 @@ export function CohortDetail() {
       setForms(nextForms)
     }
     const moduleName = cohort?.modules.find((mod) => mod.id === moduleId)?.name || 'module'
-    setMessage(`Removed ${moduleName} from cohort assignments`)
+    notifySuccess(`Removed ${moduleName} from cohort assignments`)
     setSavingModuleId(null)
   }
 

@@ -9,6 +9,7 @@ import { VideoPlayer } from './VideoPlayer'
 import { api } from '../../lib/api'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { CODE_RUNNER_TIMEOUT_MS, codeRunnerLanguageFromEditor, normalizeCodeRunnerConfig } from '../../lib/codeRunner'
+import { useToast } from '../../contexts/ToastContext'
 
 interface ContentBlock {
   id: number
@@ -65,6 +66,7 @@ function getVimeoEmbed(url: string): { id: string; hash?: string } | null {
 }
 
 export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresSubmission = true, repositoryName, onProgressUpdate }: ContentBlockRendererProps) {
+  const toast = useToast()
   const submissions = block.submissions ?? []
   const latestSubmission = submissions[0] || null
   const hasRedoRequest = latestSubmission?.grade === 'R'
@@ -237,6 +239,9 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
     if (!res.error) {
       setIsCompleted(!isCompleted)
       onProgressUpdate?.()
+      toast.success(newStatus === 'completed' ? 'Marked complete' : 'Marked incomplete')
+    } else {
+      toast.error(res.error)
     }
   }
 
@@ -294,9 +299,12 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
     })
     if (res.error) {
       setSubmissionError(res.error)
+      toast.error(res.error)
     } else {
       setHasEditedSubmissionDraft(false)
-      setSubmissionSuccess(latestSubmission ? 'Resubmission saved successfully.' : 'Submission saved successfully.')
+      const message = latestSubmission ? 'Resubmission saved successfully.' : 'Submission saved successfully.'
+      setSubmissionSuccess(message)
+      toast.success(message)
       onProgressUpdate?.()
     }
     setIsSubmitting(false)

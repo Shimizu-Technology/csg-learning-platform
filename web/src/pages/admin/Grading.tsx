@@ -8,6 +8,7 @@ import { CodeRunner } from '../../components/shared/CodeRunner'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { CODE_RUNNER_TIMEOUT_MS, codeRunnerLanguageFromEditor, normalizeCodeRunnerConfig } from '../../lib/codeRunner'
+import { useToast } from '../../contexts/ToastContext'
 
 type QueueFilter = 'ungraded' | 'redo' | 'all'
 
@@ -40,6 +41,7 @@ interface CohortSummary {
 }
 
 export function Grading() {
+  const toast = useToast()
   const [submissions, setSubmissions] = useState<SubmissionItem[]>([])
   const [cohorts, setCohorts] = useState<CohortSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -112,6 +114,9 @@ export function Grading() {
       setSelectedSubmission(null)
       setFeedback('')
       loadSubmissions()
+      toast.success(`Submission graded ${grade}`)
+    } else {
+      toast.error(res.error)
     }
     setGrading(false)
   }

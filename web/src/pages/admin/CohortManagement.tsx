@@ -4,6 +4,7 @@ import { Layers3, Plus, Users, Calendar, ChevronRight } from 'lucide-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
+import { useToast } from '../../contexts/ToastContext'
 import type { CohortSummary, CurriculumSummary } from '../../types/api'
 
 interface CreateCohortForm {
@@ -36,6 +37,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export function CohortManagement() {
   const navigate = useNavigate()
+  const toast = useToast()
   const [cohorts, setCohorts] = useState<CohortSummary[]>([])
   const [curricula, setCurricula] = useState<CurriculumSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -97,9 +99,12 @@ export function CohortManagement() {
     })
 
     if (res.data) {
+      toast.success(`Created cohort "${form.name}"`)
       navigate(`/admin/cohorts/${res.data.cohort.id}`)
     } else {
-      setError(res.error || 'Failed to create cohort')
+      const message = res.error || 'Failed to create cohort'
+      setError(message)
+      toast.error(message)
       setCreating(false)
     }
   }
