@@ -8,7 +8,7 @@ import { CodeRunner } from './CodeRunner'
 import { VideoPlayer } from './VideoPlayer'
 import { api } from '../../lib/api'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
-import { codeRunnerLanguageFromEditor, normalizeCodeRunnerConfig } from '../../lib/codeRunner'
+import { CODE_RUNNER_TIMEOUT_MS, codeRunnerLanguageFromEditor, normalizeCodeRunnerConfig } from '../../lib/codeRunner'
 
 interface ContentBlock {
   id: number
@@ -672,7 +672,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                   <CodeRunner
                     code={submissionText}
                     language={runnerConfig.language}
-                    timeoutMs={runnerConfig.timeout_ms}
+                    timeoutMs={CODE_RUNNER_TIMEOUT_MS}
                   />
                 )}
                 {(submissionError || submissionSuccess) && (

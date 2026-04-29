@@ -13,7 +13,6 @@ import { useUpload } from '../../contexts/UploadContext'
 import {
   buildSubmissionConfigWithRunner,
   codeRunnerLanguageFromEditor,
-  DEFAULT_CODE_RUNNER_TIMEOUT_MS,
   normalizeCodeRunnerConfig,
   type CodeRunnerConfig,
 } from '../../lib/codeRunner'
@@ -64,7 +63,6 @@ export function LessonEditor() {
   const [runnerConfig, setRunnerConfig] = useState<CodeRunnerConfig>({
     enabled: false,
     language: 'ruby',
-    timeout_ms: DEFAULT_CODE_RUNNER_TIMEOUT_MS,
   })
   const [s3VideoKey, setS3VideoKey] = useState<string | null>(null)
   const [videoBlockId, setVideoBlockId] = useState<number | null>(null)
@@ -176,7 +174,10 @@ export function LessonEditor() {
       }
 
       const exerciseBlock = lesson.content_blocks.find(b => b.block_type === 'exercise' || b.block_type === 'code_challenge')
-      const submissionConfig = buildSubmissionConfigWithRunner(exerciseBlock?.submission_config, runnerConfig)
+      const submissionConfig = buildSubmissionConfigWithRunner(
+        exerciseBlock?.submission_config,
+        submissionType === 'text_submission' ? runnerConfig : { ...runnerConfig, enabled: false }
+      )
       if (exerciseBlock) {
         const eRes = await api.updateContentBlock(exerciseBlock.id, {
           title: title.trim(),
@@ -241,6 +242,13 @@ export function LessonEditor() {
     }
   }
 
+  const handleSubmissionTypeChange = (nextType: string) => {
+    setSubmissionType(nextType)
+    if (nextType !== 'text_submission') {
+      setRunnerConfig((current) => ({ ...current, enabled: false }))
+    }
+  }
+
   const previewBlocks = useMemo(() => {
     const blocks: ContentBlock[] = []
     if (videoUrl.trim() || s3VideoKey) {
@@ -267,7 +275,10 @@ export function LessonEditor() {
         video_url: null,
         filename: filename.trim() || null,
         submission_type: submissionType,
-        submission_config: buildSubmissionConfigWithRunner(undefined, runnerConfig),
+        submission_config: buildSubmissionConfigWithRunner(
+          undefined,
+          submissionType === 'text_submission' ? runnerConfig : { ...runnerConfig, enabled: false }
+        ),
         solution: null,
         metadata: {},
       })
@@ -430,7 +441,7 @@ export function LessonEditor() {
                     <label className="block text-sm font-semibold text-slate-700 mb-1.5">Submission Type</label>
                     <select
                       value={submissionType}
-                      onChange={e => setSubmissionType(e.target.value)}
+                      onChange={e => handleSubmissionTypeChange(e.target.value)}
                       className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
                     >
                       <option value="manual_complete">Practice only</option>

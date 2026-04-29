@@ -10,7 +10,7 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { Modal } from '../../components/shared/Modal'
 import { MarkdownRenderer } from '../../components/shared/MarkdownRenderer'
-import { codeRunnerLanguageFromEditor, normalizeCodeRunnerConfig } from '../../lib/codeRunner'
+import { CODE_RUNNER_TIMEOUT_MS, codeRunnerLanguageFromEditor, normalizeCodeRunnerConfig } from '../../lib/codeRunner'
 
 type QueueFilter = 'ungraded' | 'redo' | 'all'
 type ViewMode = 'students' | 'queue' | 'grid'
@@ -822,7 +822,7 @@ export function CohortModuleGrading() {
                                   <CodeRunner
                                     code={gridModalSubmission.text}
                                     language={runnerConfig.language}
-                                    timeoutMs={runnerConfig.timeout_ms}
+                                    timeoutMs={CODE_RUNNER_TIMEOUT_MS}
                                   />
                                 )}
                               </>
@@ -1251,7 +1251,7 @@ export function CohortModuleGrading() {
                                 <CodeRunner
                                   code={selectedSubmission.text}
                                   language={runnerConfig.language}
-                                  timeoutMs={runnerConfig.timeout_ms}
+                                  timeoutMs={CODE_RUNNER_TIMEOUT_MS}
                                 />
                               )}
                             </>

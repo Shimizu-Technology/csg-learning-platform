@@ -7,7 +7,7 @@ import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
 import { CodeRunner } from '../../components/shared/CodeRunner'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
-import { codeRunnerLanguageFromEditor, normalizeCodeRunnerConfig } from '../../lib/codeRunner'
+import { CODE_RUNNER_TIMEOUT_MS, codeRunnerLanguageFromEditor, normalizeCodeRunnerConfig } from '../../lib/codeRunner'
 
 type QueueFilter = 'ungraded' | 'redo' | 'all'
 
@@ -290,7 +290,7 @@ export function Grading() {
                         <CodeRunner
                           code={selectedSubmission.text}
                           language={selectedRunnerConfig.language}
-                          timeoutMs={selectedRunnerConfig.timeout_ms}
+                          timeoutMs={CODE_RUNNER_TIMEOUT_MS}
                         />
                       )}
                     </div>

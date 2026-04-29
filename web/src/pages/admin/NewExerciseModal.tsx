@@ -8,7 +8,6 @@ import { ALL_DAY_NAMES, SCHEDULE_DAY_INDICES } from '../../lib/scheduleConstants
 import {
   buildSubmissionConfigWithRunner,
   codeRunnerLanguageFromEditor,
-  DEFAULT_CODE_RUNNER_TIMEOUT_MS,
   type CodeRunnerConfig,
 } from '../../lib/codeRunner'
 
@@ -62,7 +61,6 @@ export function NewExerciseModal({
   const [runnerConfig, setRunnerConfig] = useState<CodeRunnerConfig>({
     enabled: false,
     language: 'ruby',
-    timeout_ms: DEFAULT_CODE_RUNNER_TIMEOUT_MS,
   })
   const [validationError, setValidationError] = useState('')
 
@@ -93,6 +91,9 @@ export function NewExerciseModal({
     const runnerLanguage = runnerConfig.enabled
       ? runnerConfig.language
       : codeRunnerLanguageFromEditor(detectedLanguage) || runnerConfig.language
+    const submissionRunnerConfig = submissionType === 'text_submission'
+      ? { ...runnerConfig, language: runnerLanguage }
+      : { ...runnerConfig, enabled: false, language: runnerLanguage }
     await onCreate({
       title: title.trim(),
       release_day: releaseDay,
@@ -102,13 +103,17 @@ export function NewExerciseModal({
       filename: filename.trim() || undefined,
       requires_submission: submissionType !== 'manual_complete',
       submission_type: submissionType,
-      submission_config: buildSubmissionConfigWithRunner(undefined, {
-        ...runnerConfig,
-        language: runnerLanguage,
-      }),
+      submission_config: buildSubmissionConfigWithRunner(undefined, submissionRunnerConfig),
       ...(s3Video || {}),
       upload_id: uploadId || undefined,
     })
+  }
+
+  const handleSubmissionTypeChange = (nextType: string) => {
+    setSubmissionType(nextType)
+    if (nextType !== 'text_submission') {
+      setRunnerConfig((current) => ({ ...current, enabled: false }))
+    }
   }
 
   return (
@@ -177,7 +182,7 @@ export function NewExerciseModal({
               <label className="block text-sm font-medium text-slate-700 mb-1">Submission Type</label>
               <select
                 value={submissionType}
-                onChange={e => setSubmissionType(e.target.value)}
+                onChange={e => handleSubmissionTypeChange(e.target.value)}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="manual_complete">Practice only</option>

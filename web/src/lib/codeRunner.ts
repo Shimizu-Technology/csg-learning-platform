@@ -3,10 +3,9 @@ export type CodeRunnerLanguage = 'ruby' | 'javascript'
 export interface CodeRunnerConfig {
   enabled: boolean
   language: CodeRunnerLanguage
-  timeout_ms: number
 }
 
-export const DEFAULT_CODE_RUNNER_TIMEOUT_MS = 3000
+export const CODE_RUNNER_TIMEOUT_MS = 3000
 
 export function isRunnableLanguage(language: string): language is CodeRunnerLanguage {
   return language === 'ruby' || language === 'javascript'
@@ -26,7 +25,6 @@ export function normalizeCodeRunnerConfig(
     return {
       enabled: false,
       language: fallbackLanguage,
-      timeout_ms: DEFAULT_CODE_RUNNER_TIMEOUT_MS,
     }
   }
 
@@ -35,7 +33,6 @@ export function normalizeCodeRunnerConfig(
     return {
       enabled: false,
       language: fallbackLanguage,
-      timeout_ms: DEFAULT_CODE_RUNNER_TIMEOUT_MS,
     }
   }
 
@@ -43,7 +40,6 @@ export function normalizeCodeRunnerConfig(
   return {
     enabled: Boolean(candidate.enabled),
     language: isRunnableLanguage(String(candidate.language)) ? candidate.language as CodeRunnerLanguage : fallbackLanguage,
-    timeout_ms: DEFAULT_CODE_RUNNER_TIMEOUT_MS,
   }
 }
 
@@ -56,7 +52,6 @@ export function buildSubmissionConfigWithRunner(
     runner: {
       enabled: runner.enabled,
       language: runner.language,
-      timeout_ms: DEFAULT_CODE_RUNNER_TIMEOUT_MS,
     },
   }
 }
