@@ -13,6 +13,7 @@ function lazyWithPreload<T extends ComponentType<unknown>>(loader: Loader<T>): L
 }
 
 const dashboardLoader = () => import('../pages/student/Dashboard').then((module) => ({ default: module.Dashboard }))
+const materialsLoader = () => import('../pages/student/Materials').then((module) => ({ default: module.Materials }))
 const moduleViewLoader = () => import('../pages/student/ModuleView').then((module) => ({ default: module.ModuleView }))
 const lessonViewLoader = () => import('../pages/student/LessonView').then((module) => ({ default: module.LessonView }))
 const recordingsLoader = () => import('../pages/student/Recordings').then((module) => ({ default: module.Recordings }))
@@ -34,6 +35,7 @@ const teamManagementLoader = () => import('../pages/admin/TeamManagement').then(
 const signInLoader = () => import('../pages/SignIn').then((module) => ({ default: module.SignInPage }))
 
 export const Dashboard = lazyWithPreload(dashboardLoader)
+export const Materials = lazyWithPreload(materialsLoader)
 export const ModuleView = lazyWithPreload(moduleViewLoader)
 export const LessonView = lazyWithPreload(lessonViewLoader)
 export const Recordings = lazyWithPreload(recordingsLoader)
@@ -56,6 +58,7 @@ export const SignInPage = lazyWithPreload(signInLoader)
 
 const routePreloaders: Record<string, Array<() => Promise<unknown>>> = {
   '/': [dashboardLoader],
+  '/materials': [materialsLoader, moduleViewLoader, lessonViewLoader],
   '/recordings': [recordingsLoader],
   '/resources': [resourcesLoader],
   '/profile': [profileLoader],
