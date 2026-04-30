@@ -55,7 +55,7 @@ class UploadsTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     body = JSON.parse(response.body)
-    assert_match %r{\Acontent_videos/block_#{@content_block.id}/}, body.fetch("s3_key")
+    assert_match %r{\Acontent_videos/block_#{@content_block.id}/\d{14}_[0-9a-f]{8}_Lesson_Clip\.mov\z}, body.fetch("s3_key")
   end
 
   test "multipart part url rejects invalid s3 key prefixes" do
@@ -140,6 +140,53 @@ class UploadsTest < ActionDispatch::IntegrationTest
 
     assert_response :unprocessable_entity
     assert_equal "part_number must be between 1 and 10000", JSON.parse(response.body).fetch("error")
+  end
+
+  test "multipart initiate returns bad gateway when s3 rejects create" do
+    with_s3_multipart_stubs do
+      S3Service.define_singleton_method(:create_multipart_upload) do |_key, _content_type|
+        raise Aws::S3::Errors::ServiceError.new(nil, "upstream error")
+      end
+
+      as_user(@admin) do
+        post "/api/v1/uploads/multipart/initiate",
+          params: {
+            cohort_id: @cohort.id,
+            filename: "Day 2 Zoom.mp4",
+            content_type: "video/mp4",
+            file_size: 516.megabytes
+          },
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :bad_gateway
+    assert_equal "Could not start multipart upload. Please try again.", JSON.parse(response.body).fetch("error")
+  end
+
+  test "multipart complete returns bad gateway when s3 rejects completion" do
+    with_s3_multipart_stubs do
+      S3Service.define_singleton_method(:complete_multipart_upload) do |_key, _upload_id, _parts|
+        raise Aws::S3::Errors::ServiceError.new(nil, "upstream error")
+      end
+
+      as_user(@admin) do
+        post "/api/v1/uploads/multipart/complete",
+          params: {
+            s3_key: "recordings/cohort_#{@cohort.id}/video.mp4",
+            upload_id: "multipart-upload-id",
+            parts: [
+              { part_number: 1, etag: "\"etag-1\"" }
+            ]
+          },
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :bad_gateway
+    assert_equal "Could not complete multipart upload. Please try again.", JSON.parse(response.body).fetch("error")
   end
 
   private

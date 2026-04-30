@@ -50,6 +50,8 @@ module Api
 
         upload_id = S3Service.create_multipart_upload(key, content_type)
         render json: { s3_key: key, upload_id: upload_id }
+      rescue Aws::S3::Errors::ServiceError => e
+        render_s3_error(e, "start multipart upload")
       end
 
       # POST /api/v1/uploads/multipart/part_url
@@ -95,6 +97,8 @@ module Api
 
         S3Service.complete_multipart_upload(params[:s3_key], upload_id, parts)
         head :no_content
+      rescue Aws::S3::Errors::ServiceError => e
+        render_s3_error(e, "complete multipart upload")
       end
 
       # DELETE /api/v1/uploads/multipart/abort
@@ -146,7 +150,7 @@ module Api
 
         if params[:content_block_id].present?
           content_block = ContentBlock.find(params[:content_block_id])
-          return "content_videos/block_#{content_block.id}/#{timestamp}_#{safe_name}"
+          return "content_videos/block_#{content_block.id}/#{timestamp}_#{SecureRandom.hex(4)}_#{safe_name}"
         end
 
         "content_videos/#{SecureRandom.uuid}/#{safe_name}"
@@ -168,6 +172,11 @@ module Api
         end
 
         true
+      end
+
+      def render_s3_error(error, action)
+        Rails.logger.error("[UploadsController] Failed to #{action}: #{error.class} #{error.message}")
+        render json: { error: "Could not #{action}. Please try again." }, status: :bad_gateway
       end
 
       def admin_only_multipart_target?
