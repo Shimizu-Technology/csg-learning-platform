@@ -87,6 +87,12 @@ module Api
           return
         end
 
+        invalid_part = parts.find { |part| !part[:part_number].between?(1, MAX_MULTIPART_PARTS) }
+        if invalid_part
+          render json: { error: "part_number must be between 1 and #{MAX_MULTIPART_PARTS}" }, status: :unprocessable_entity
+          return
+        end
+
         S3Service.complete_multipart_upload(params[:s3_key], upload_id, parts)
         head :no_content
       end

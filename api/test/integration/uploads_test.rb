@@ -121,6 +121,27 @@ class UploadsTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "multipart complete rejects out of range part numbers" do
+    with_s3_multipart_stubs do
+      as_user(@admin) do
+        post "/api/v1/uploads/multipart/complete",
+          params: {
+            s3_key: "recordings/cohort_#{@cohort.id}/video.mp4",
+            upload_id: "multipart-upload-id",
+            parts: [
+              { part_number: 0, etag: "\"etag-0\"" },
+              { part_number: 1, etag: "\"etag-1\"" }
+            ]
+          },
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "part_number must be between 1 and 10000", JSON.parse(response.body).fetch("error")
+  end
+
   private
 
   def auth_headers
