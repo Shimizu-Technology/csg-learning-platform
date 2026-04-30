@@ -83,6 +83,13 @@ export async function uploadMultipartToS3(
   abortSignal?: AbortSignal
 ): Promise<void> {
   await handlers.initiate()
+  const internalAbortController = new AbortController()
+  const handleExternalAbort = () => internalAbortController.abort()
+  if (abortSignal?.aborted) {
+    internalAbortController.abort()
+  } else {
+    abortSignal?.addEventListener('abort', handleExternalAbort, { once: true })
+  }
   const parts = buildParts(file)
   const loadedByPart = new Map<number, number>()
   const completedParts: MultipartUploadPart[] = []
@@ -112,7 +119,7 @@ export async function uploadMultipartToS3(
             loadedByPart.set(part.number, loaded)
             reportProgress()
           },
-          abortSignal
+          internalAbortController.signal
         )
 
         loadedByPart.set(part.number, part.end - part.start)
@@ -124,8 +131,11 @@ export async function uploadMultipartToS3(
     await handlers.complete(completedParts)
     onProgress?.({ loaded: file.size, total: file.size, percent: 100 })
   } catch (error) {
+    internalAbortController.abort()
     await handlers.abort().catch(() => {})
     throw error
+  } finally {
+    abortSignal?.removeEventListener('abort', handleExternalAbort)
   }
 }
 
