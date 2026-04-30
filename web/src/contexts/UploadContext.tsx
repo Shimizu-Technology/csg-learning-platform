@@ -179,7 +179,6 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
               multipartUploadId = res.data.upload_id
               multipartS3Key = res.data.s3_key
               updateUpload(id, { status: 'uploading', s3Key: res.data.s3_key })
-              return { uploadId: res.data.upload_id, s3Key: res.data.s3_key }
             },
             getPartUrl: async (partNumber: number) => {
               if (!multipartUploadId || !multipartS3Key) throw new Error('Multipart upload is not ready')

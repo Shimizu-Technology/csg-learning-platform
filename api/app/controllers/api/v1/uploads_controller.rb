@@ -75,6 +75,8 @@ module Api
         render json: {
           upload_url: S3Service.generate_presigned_upload_part_url(params[:s3_key], upload_id, part_number)
         }
+      rescue Aws::S3::Errors::ServiceError => e
+        render_s3_error(e, "prepare upload part")
       end
 
       # POST /api/v1/uploads/multipart/complete
@@ -115,8 +117,11 @@ module Api
           return
         end
 
-        S3Service.abort_multipart_upload(params[:s3_key], upload_id)
-        head :no_content
+        if S3Service.abort_multipart_upload(params[:s3_key], upload_id)
+          head :no_content
+        else
+          render json: { error: "Could not abort multipart upload. Please try again." }, status: :bad_gateway
+        end
       end
 
       private

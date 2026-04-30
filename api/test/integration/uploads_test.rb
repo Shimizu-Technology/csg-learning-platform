@@ -257,6 +257,47 @@ class UploadsTest < ActionDispatch::IntegrationTest
     assert_equal "Could not complete multipart upload. Please try again.", JSON.parse(response.body).fetch("error")
   end
 
+  test "multipart part url returns bad gateway when s3 rejects presign" do
+    with_s3_multipart_stubs do
+      S3Service.define_singleton_method(:generate_presigned_upload_part_url) do |_key, _upload_id, _part_number|
+        raise Aws::S3::Errors::ServiceError.new(nil, "upstream error")
+      end
+
+      as_user(@admin) do
+        post "/api/v1/uploads/multipart/part_url",
+          params: {
+            s3_key: "recordings/cohort_#{@cohort.id}/video.mp4",
+            upload_id: "multipart-upload-id",
+            part_number: 1
+          },
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :bad_gateway
+    assert_equal "Could not prepare upload part. Please try again.", JSON.parse(response.body).fetch("error")
+  end
+
+  test "multipart abort returns bad gateway when s3 abort fails" do
+    with_s3_multipart_stubs do
+      S3Service.define_singleton_method(:abort_multipart_upload) { |_key, _upload_id| false }
+
+      as_user(@admin) do
+        delete "/api/v1/uploads/multipart/abort",
+          params: {
+            s3_key: "recordings/cohort_#{@cohort.id}/video.mp4",
+            upload_id: "multipart-upload-id"
+          },
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :bad_gateway
+    assert_equal "Could not abort multipart upload. Please try again.", JSON.parse(response.body).fetch("error")
+  end
+
   private
 
   def auth_headers

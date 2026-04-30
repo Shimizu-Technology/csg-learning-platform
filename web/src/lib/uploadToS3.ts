@@ -10,7 +10,7 @@ export interface MultipartUploadPart {
 }
 
 export interface MultipartUploadHandlers {
-  initiate: () => Promise<{ s3Key: string; uploadId: string }>
+  initiate: () => Promise<void>
   getPartUrl: (partNumber: number) => Promise<string>
   complete: (parts: MultipartUploadPart[]) => Promise<void>
   abort: () => Promise<void>
