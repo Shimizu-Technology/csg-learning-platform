@@ -83,6 +83,18 @@ Recommended bucket CORS:
 ]
 ```
 
+Recommended bucket lifecycle rule:
+
+- Rule status: enabled
+- Scope: all objects in the upload bucket
+- Action: abort incomplete multipart uploads after 1 day
+
+This is a production backstop for interrupted browser uploads. The app already
+aborts multipart uploads when it can, but a tab close, laptop sleep, dead
+battery, or network drop can still leave an incomplete upload in S3. The
+lifecycle rule lets S3 clean those parts automatically instead of keeping
+orphaned storage indefinitely.
+
 ### Deploy Process
 
 1. Push to `main` triggers auto-deploy on Render
