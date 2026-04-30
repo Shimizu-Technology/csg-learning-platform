@@ -66,6 +66,7 @@ export function Materials() {
   const navigate = useNavigate()
   const [data, setData] = useState<MaterialsData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<MaterialFilter>('ready')
 
@@ -75,10 +76,21 @@ export function Materials() {
       return
     }
 
-    api.getDashboard().then((res) => {
-      if (res.data?.dashboard) setData(res.data.dashboard)
-      setLoading(false)
-    })
+    setLoading(true)
+    setLoadError(null)
+
+    api.getDashboard()
+      .then((res) => {
+        if (res.data?.dashboard) {
+          setData(res.data.dashboard)
+        } else {
+          setLoadError(res.error || 'Unable to load your materials right now.')
+        }
+      })
+      .catch((error: unknown) => {
+        setLoadError(error instanceof Error ? error.message : 'Unable to load your materials right now.')
+      })
+      .finally(() => setLoading(false))
   }, [navigate, user])
 
   const derived = useMemo(() => {
@@ -129,6 +141,16 @@ export function Materials() {
   }, [data, filter, query])
 
   if (loading) return <LoadingSpinner message="Loading materials..." />
+
+  if (loadError) {
+    return (
+      <EmptyState
+        icon={BookOpen}
+        title="Could not load materials"
+        description={loadError}
+      />
+    )
+  }
 
   if (!data?.enrolled) {
     return (
