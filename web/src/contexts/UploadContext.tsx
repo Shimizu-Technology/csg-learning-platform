@@ -167,26 +167,26 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
           let multipartS3Key: string | null = null
 
           await uploadMultipartToS3(file, {
-            initiate: async () => {
+            initiate: async (signal?: AbortSignal) => {
               const res = await api.initiateMultipartUpload({
                 filename: file.name,
                 content_type: contentType,
                 file_size: file.size,
                 content_block_id: opts?.contentBlockId,
                 cohort_id: opts?.cohortRecording?.cohortId,
-              })
+              }, signal)
               if (!res.data) throw new Error(res.error || 'Failed to start multipart upload')
               multipartUploadId = res.data.upload_id
               multipartS3Key = res.data.s3_key
               updateUpload(id, { status: 'uploading', s3Key: res.data.s3_key })
             },
-            getPartUrl: async (partNumber: number) => {
+            getPartUrl: async (partNumber: number, signal?: AbortSignal) => {
               if (!multipartUploadId || !multipartS3Key) throw new Error('Multipart upload is not ready')
               const res = await api.getMultipartUploadPartUrl({
                 s3_key: multipartS3Key,
                 upload_id: multipartUploadId,
                 part_number: partNumber,
-              })
+              }, signal)
               if (!res.data) throw new Error(res.error || 'Failed to prepare upload chunk')
               return res.data.upload_url
             },

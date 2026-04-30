@@ -10,8 +10,8 @@ export interface MultipartUploadPart {
 }
 
 export interface MultipartUploadHandlers {
-  initiate: () => Promise<void>
-  getPartUrl: (partNumber: number) => Promise<string>
+  initiate: (abortSignal?: AbortSignal) => Promise<void>
+  getPartUrl: (partNumber: number, abortSignal?: AbortSignal) => Promise<string>
   complete: (parts: MultipartUploadPart[]) => Promise<void>
   abort: () => Promise<void>
 }
@@ -82,7 +82,6 @@ export async function uploadMultipartToS3(
   onProgress?: (progress: UploadProgress) => void,
   abortSignal?: AbortSignal
 ): Promise<void> {
-  await handlers.initiate()
   const internalAbortController = new AbortController()
   const handleExternalAbort = () => internalAbortController.abort()
   if (abortSignal?.aborted) {
@@ -90,6 +89,7 @@ export async function uploadMultipartToS3(
   } else {
     abortSignal?.addEventListener('abort', handleExternalAbort, { once: true })
   }
+
   const parts = buildParts(file)
   const loadedByPart = new Map<number, number>()
   const completedParts: MultipartUploadPart[] = []
@@ -106,6 +106,8 @@ export async function uploadMultipartToS3(
   let cursor = 0
 
   try {
+    await handlers.initiate(internalAbortController.signal)
+
     await Promise.all(Array.from({ length: Math.min(MULTIPART_CONCURRENCY, parts.length) }, async () => {
       while (cursor < parts.length) {
         const part = parts[cursor]
@@ -114,7 +116,7 @@ export async function uploadMultipartToS3(
         const etag = await uploadPartWithRetry(
           file.slice(part.start, part.end),
           part.number,
-          () => handlers.getPartUrl(part.number),
+          (signal) => handlers.getPartUrl(part.number, signal),
           (loaded) => {
             loadedByPart.set(part.number, loaded)
             reportProgress()
@@ -150,7 +152,7 @@ function buildParts(file: File) {
 async function uploadPartWithRetry(
   blob: Blob,
   partNumber: number,
-  getPartUrl: () => Promise<string>,
+  getPartUrl: (abortSignal?: AbortSignal) => Promise<string>,
   onProgress: (loaded: number) => void,
   abortSignal?: AbortSignal
 ): Promise<string> {
@@ -158,7 +160,8 @@ async function uploadPartWithRetry(
 
   for (let attempt = 1; attempt <= MULTIPART_MAX_ATTEMPTS; attempt += 1) {
     try {
-      const url = await getPartUrl()
+      if (abortSignal?.aborted) throw new Error('Upload cancelled')
+      const url = await getPartUrl(abortSignal)
       return await uploadPart(url, blob, onProgress, abortSignal)
     } catch (error) {
       if (abortSignal?.aborted) throw error
