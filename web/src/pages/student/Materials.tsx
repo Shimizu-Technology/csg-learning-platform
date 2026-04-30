@@ -104,9 +104,9 @@ export function Materials() {
           const status = lessonStatus(lesson)
           const matchesQuery = !q || [
             mod.name,
-            mod.module_type,
+            formatTypeLabel(mod.module_type),
             lesson.title,
-            lesson.lesson_type,
+            formatTypeLabel(lesson.lesson_type),
           ].some((value) => value.toLowerCase().includes(q))
 
           if (!matchesQuery) return false
