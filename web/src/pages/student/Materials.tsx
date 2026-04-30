@@ -57,6 +57,10 @@ function lessonStatus(lesson: LessonItem) {
   return 'ready'
 }
 
+function formatTypeLabel(value: string) {
+  return value.replaceAll('_', ' ')
+}
+
 export function Materials() {
   const { user } = useAuthContext()
   const navigate = useNavigate()
@@ -114,6 +118,7 @@ export function Materials() {
 
     return {
       visibleModules,
+      redoLessonIds,
       readyCount,
       readyOrRedoCount,
       completedCount,
@@ -244,7 +249,7 @@ export function Materials() {
                     )}
                   </div>
                   <p className="mt-0.5 text-sm capitalize text-slate-500">
-                    {mod.module_type.replace('_', ' ')}
+                    {formatTypeLabel(mod.module_type)}
                     {!mod.available && mod.unlock_date ? ` · unlocks ${formatDate(mod.unlock_date)}` : ''}
                   </p>
                 </div>
@@ -259,19 +264,13 @@ export function Materials() {
               <div className="mt-4 divide-y divide-slate-100">
                 {mod.lessons.map((lesson) => {
                   const status = lessonStatus(lesson)
-                  const isRedo = (data.action_items || []).some((item) => item.lesson_id === lesson.id)
+                  const isRedo = derived.redoLessonIds.has(lesson.id)
                   const isPartial = status === 'ready' && lesson.completed_blocks > 0
-                  return (
-                    <Link
-                      key={lesson.id}
-                      to={lesson.available ? `/lessons/${lesson.id}` : '#'}
-                      onClick={(event) => {
-                        if (!lesson.available) event.preventDefault()
-                      }}
-                      className={`flex items-center gap-3 py-3 ${
-                        lesson.available ? 'hover:bg-slate-50' : 'cursor-not-allowed opacity-70'
-                      }`}
-                    >
+                  const rowClassName = `flex items-center gap-3 py-3 ${
+                    lesson.available ? 'hover:bg-slate-50' : 'cursor-not-allowed opacity-70'
+                  }`
+                  const rowContent = (
+                    <>
                       <div className={`shrink-0 ${
                         isRedo ? 'text-orange-500' : status === 'completed' ? 'text-success-500' : status === 'locked' ? 'text-slate-400' : 'text-primary-500'
                       }`}>
@@ -280,7 +279,7 @@ export function Materials() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-slate-900">{lesson.title}</p>
                         <p className="mt-0.5 text-xs capitalize text-slate-500">
-                          {lesson.lesson_type.replace('_', ' ')}
+                          {formatTypeLabel(lesson.lesson_type)}
                           {status === 'locked' ? ` · unlocks ${formatDate(lesson.unlock_date)}` : ` · ${lesson.completed_blocks}/${lesson.total_blocks} blocks`}
                         </p>
                       </div>
@@ -290,7 +289,21 @@ export function Materials() {
                         {status === 'completed' && <span className="rounded-full bg-success-50 px-2 py-0.5 text-xs font-medium text-success-700">Done</span>}
                         {lesson.available && <ArrowRight className="h-4 w-4 text-slate-300" />}
                       </div>
+                    </>
+                  )
+
+                  return lesson.available ? (
+                    <Link
+                      key={lesson.id}
+                      to={`/lessons/${lesson.id}`}
+                      className={rowClassName}
+                    >
+                      {rowContent}
                     </Link>
+                  ) : (
+                    <div key={lesson.id} className={rowClassName} aria-disabled="true">
+                      {rowContent}
+                    </div>
                   )
                 })}
               </div>
