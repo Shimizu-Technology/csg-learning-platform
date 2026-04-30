@@ -31,6 +31,8 @@ interface ContentBlock {
   solution: string | null
   metadata: Record<string, unknown>
   s3_video_key?: string | null
+  s3_video_uploaded_at?: string | null
+  s3_video_uploaded_by?: string | null
 }
 
 interface Lesson {
@@ -67,6 +69,8 @@ export function LessonEditor() {
     language: 'ruby',
   })
   const [s3VideoKey, setS3VideoKey] = useState<string | null>(null)
+  const [s3VideoUploadedAt, setS3VideoUploadedAt] = useState<string | null>(null)
+  const [s3VideoUploadedBy, setS3VideoUploadedBy] = useState<string | null>(null)
   const [videoBlockId, setVideoBlockId] = useState<number | null>(null)
 
   const [saving, setSaving] = useState(false)
@@ -104,6 +108,8 @@ export function LessonEditor() {
           setVideoUrl(videoBlock.video_url || '')
           setVideoBlockId(videoBlock.id)
           setS3VideoKey(resolveS3Key(videoBlock.id, videoBlock.s3_video_key ?? null))
+          setS3VideoUploadedAt(videoBlock.s3_video_uploaded_at ?? null)
+          setS3VideoUploadedBy(videoBlock.s3_video_uploaded_by ?? null)
         }
 
         const exerciseBlock = l.content_blocks.find(b => b.block_type === 'exercise' || b.block_type === 'code_challenge')
@@ -124,10 +130,18 @@ export function LessonEditor() {
 
   // Stable callbacks so VideoUploadField's effect deps don't churn every render.
   const handleS3VideoUploaded = useCallback(
-    (data: { s3_video_key: string }) => setS3VideoKey(data.s3_video_key),
+    (data: { s3_video_key: string }) => {
+      setS3VideoKey(data.s3_video_key)
+      setS3VideoUploadedAt(null)
+      setS3VideoUploadedBy(null)
+    },
     []
   )
-  const handleS3VideoRemoved = useCallback(() => setS3VideoKey(null), [])
+  const handleS3VideoRemoved = useCallback(() => {
+    setS3VideoKey(null)
+    setS3VideoUploadedAt(null)
+    setS3VideoUploadedBy(null)
+  }, [])
 
   const handleSave = async () => {
     if (!lesson) return
@@ -217,6 +231,8 @@ export function LessonEditor() {
         if (refreshedVideo) {
           setVideoBlockId(refreshedVideo.id)
           setS3VideoKey(resolveS3Key(refreshedVideo.id, refreshedVideo.s3_video_key ?? null))
+          setS3VideoUploadedAt(refreshedVideo.s3_video_uploaded_at ?? null)
+          setS3VideoUploadedBy(refreshedVideo.s3_video_uploaded_by ?? null)
         }
         const refreshedExercise = data.lesson.content_blocks.find(b => b.block_type === 'exercise' || b.block_type === 'code_challenge')
         if (refreshedExercise?.submission_type) setSubmissionType(refreshedExercise.submission_type)
@@ -428,6 +444,8 @@ export function LessonEditor() {
                   videoUrl={videoUrl}
                   onVideoUrlChange={setVideoUrl}
                   s3VideoKey={s3VideoKey}
+                  s3VideoUploadedAt={s3VideoUploadedAt}
+                  s3VideoUploadedBy={s3VideoUploadedBy}
                   onS3VideoUploaded={handleS3VideoUploaded}
                   onS3VideoRemoved={handleS3VideoRemoved}
                 />

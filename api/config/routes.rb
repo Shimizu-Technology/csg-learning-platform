@@ -96,6 +96,10 @@ Rails.application.routes.draw do
       # Orphan S3 cleanup: called by the upload UI when a presigned PUT
       # succeeds but the follow-up DB write fails.
       delete "uploads/abandon", to: "uploads#abandon"
+      post "uploads/multipart/initiate", to: "uploads#multipart_initiate"
+      post "uploads/multipart/part_url", to: "uploads#multipart_part_url"
+      post "uploads/multipart/complete", to: "uploads#multipart_complete"
+      delete "uploads/multipart/abort", to: "uploads#multipart_abort"
 
       # Content blocks (shallow) with video endpoints
       resources :content_blocks, only: [ :show, :update, :destroy ] do

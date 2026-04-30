@@ -9,6 +9,7 @@ class ContentBlock < ApplicationRecord
   }, prefix: true
 
   belongs_to :lesson
+  belongs_to :s3_video_uploaded_by, class_name: "User", optional: true
   has_many :progresses, dependent: :destroy
   has_many :submissions, dependent: :destroy
 

@@ -8,6 +8,7 @@ class User < ApplicationRecord
   has_many :graded_submissions, class_name: "Submission", foreign_key: :graded_by_id, dependent: :nullify
   has_many :watch_progresses, dependent: :destroy
   has_many :uploaded_recordings, class_name: "Recording", foreign_key: :uploaded_by_id, dependent: :nullify
+  has_many :uploaded_content_block_videos, class_name: "ContentBlock", foreign_key: :s3_video_uploaded_by_id, dependent: :nullify
   has_many :announcements, foreign_key: :author_id, dependent: :nullify
   has_many :notifications, dependent: :destroy
   has_many :acted_notifications, class_name: "Notification", foreign_key: :actor_id, dependent: :nullify

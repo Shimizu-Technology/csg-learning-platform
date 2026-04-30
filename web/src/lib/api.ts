@@ -544,6 +544,22 @@ export const api = {
     fetchApi<null>('/api/v1/uploads/abandon', {
       method: 'DELETE', body: JSON.stringify({ s3_key: s3Key }),
     }),
+  initiateMultipartUpload: (data: { filename: string; content_type: string; file_size: number; cohort_id?: number; content_block_id?: number }, signal?: AbortSignal) =>
+    fetchApi<{ s3_key: string; upload_id: string }>('/api/v1/uploads/multipart/initiate', {
+      method: 'POST', body: JSON.stringify(data), signal,
+    }),
+  getMultipartUploadPartUrl: (data: { s3_key: string; upload_id: string; part_number: number }, signal?: AbortSignal) =>
+    fetchApi<{ upload_url: string }>('/api/v1/uploads/multipart/part_url', {
+      method: 'POST', body: JSON.stringify(data), signal,
+    }),
+  completeMultipartUpload: (data: { s3_key: string; upload_id: string; parts: Array<{ part_number: number; etag: string }> }) =>
+    fetchApi<null>('/api/v1/uploads/multipart/complete', {
+      method: 'POST', body: JSON.stringify(data),
+    }),
+  abortMultipartUpload: (data: { s3_key: string; upload_id: string }) =>
+    fetchApi<null>('/api/v1/uploads/multipart/abort', {
+      method: 'DELETE', body: JSON.stringify(data),
+    }),
 
   // Watch Progress
   updateWatchProgress: (data: { recording_id: number; last_position_seconds: number; total_watched_seconds: number; duration_seconds?: number }) =>

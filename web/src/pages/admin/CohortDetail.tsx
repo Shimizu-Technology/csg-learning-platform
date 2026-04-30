@@ -138,7 +138,6 @@ export function CohortDetail() {
   const [statusPendingConfirmation, setStatusPendingConfirmation] = useState<CohortStatusValue | null>(null)
   const [savingStartDate, setSavingStartDate] = useState(false)
   const [showRecordingsModal, setShowRecordingsModal] = useState(false)
-  const [showUploadedRecordingsModal, setShowUploadedRecordingsModal] = useState(false)
   const [showResourcesModal, setShowResourcesModal] = useState(false)
   const [configureModuleId, setConfigureModuleId] = useState<number | null>(null)
   const [showAddModule, setShowAddModule] = useState(false)
@@ -839,9 +838,9 @@ export function CohortDetail() {
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
             <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">Recording Sources</h2>
+                <h2 className="text-lg font-semibold text-slate-900">Class Recordings</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Manage self-hosted uploads and external video links separately so it is always clear what students are using.
+                  Manage self-hosted uploads and external video links in one place.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -850,7 +849,7 @@ export function CohortDetail() {
                   className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
                   <PlayCircle className="h-4 w-4 text-primary-500" />
-                  Manage video links
+                  Manage recordings
                 </button>
                 <Link
                   to={`/admin/cohorts/${id}/watch-progress`}
@@ -872,7 +871,7 @@ export function CohortDetail() {
                   Files uploaded into the platform and streamed from your own storage.
                 </p>
                 <button
-                  onClick={() => setShowUploadedRecordingsModal(true)}
+                  onClick={() => setShowRecordingsModal(true)}
                   className="mt-3 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
                   <PlayCircle className="h-4 w-4 text-primary-500" />
@@ -903,7 +902,7 @@ export function CohortDetail() {
                     {cohort.uploaded_recordings_count ?? 0} upload{(cohort.uploaded_recordings_count ?? 0) !== 1 ? 's' : ''}
                   </span>
                   <button
-                    onClick={() => setShowUploadedRecordingsModal(true)}
+                    onClick={() => setShowRecordingsModal(true)}
                     className="inline-flex items-center gap-2 rounded-xl bg-primary-500 px-3 py-2 text-sm font-medium text-white hover:bg-primary-600"
                   >
                     <PlayCircle className="h-4 w-4" />
@@ -1143,25 +1142,12 @@ export function CohortDetail() {
         </div>
       </Modal>
 
-      {/* Uploaded Recordings Modal */}
-      <Modal
-        open={showUploadedRecordingsModal}
-        onClose={() => setShowUploadedRecordingsModal(false)}
-        title="Uploaded Recordings"
-        subtitle="Manage self-hosted class recordings without letting the main cohort page get too tall."
-        icon={<PlayCircle className="h-6 w-6 text-primary-500" />}
-        size="xl"
-        fixedHeight
-      >
-        <RecordingUploadManager cohortId={Number(id)} onRecordingsChange={() => { void reloadCohort() }} />
-      </Modal>
-
-      {/* External Recordings Modal */}
+      {/* Class Recordings Modal */}
       <Modal
         open={showRecordingsModal}
         onClose={() => setShowRecordingsModal(false)}
-        title="External Video Links"
-        subtitle="Manage YouTube or other hosted URLs. Remove a link here when you want students to stop using the external source."
+        title="Class Recordings"
+        subtitle="Manage self-hosted uploads and external video links from one place."
         icon={<PlayCircle className="h-6 w-6 text-primary-500" />}
         size="xl"
         footer={
@@ -1184,7 +1170,17 @@ export function CohortDetail() {
           </div>
         }
       >
-        <div className="space-y-3">
+        <div className="space-y-5">
+          <RecordingUploadManager cohortId={Number(id)} onRecordingsChange={() => { void reloadCohort() }} />
+
+          <div className="border-t border-slate-100 pt-5 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">External Video Links</h3>
+                <p className="mt-1 text-xs text-slate-500">Use this for YouTube or other hosted URLs.</p>
+              </div>
+              <span className="text-xs text-slate-400">({recordings.length})</span>
+            </div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
             Students will only use the links listed here. If you are moving a session to a self-hosted upload, remove the old link here after the upload is ready.
           </div>
@@ -1235,6 +1231,7 @@ export function CohortDetail() {
               />
             </div>
           ))}
+          </div>
         </div>
       </Modal>
 

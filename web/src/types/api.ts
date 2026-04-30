@@ -49,6 +49,12 @@ export interface ContentBlock {
   submission_type_explicit?: string | null;
   submission_config?: Record<string, unknown>;
   metadata: Record<string, unknown>;
+  s3_video_key?: string | null;
+  s3_video_content_type?: string | null;
+  s3_video_size?: number | null;
+  s3_video_duration_seconds?: number | null;
+  s3_video_uploaded_at?: string | null;
+  s3_video_uploaded_by?: string | null;
 }
 
 export interface ContentBlockSummary {
