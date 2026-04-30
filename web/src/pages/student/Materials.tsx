@@ -163,7 +163,7 @@ export function Materials() {
   }
 
   const filters: Array<{ key: MaterialFilter; label: string; count: number }> = [
-    { key: 'ready', label: 'Ready', count: derived.readyOrRedoCount },
+    { key: 'ready', label: 'To do', count: derived.readyOrRedoCount },
     { key: 'all', label: 'All', count: derived.totalLessons },
     { key: 'redo', label: 'Redo', count: derived.redoCount },
     { key: 'completed', label: 'Done', count: derived.completedCount },
