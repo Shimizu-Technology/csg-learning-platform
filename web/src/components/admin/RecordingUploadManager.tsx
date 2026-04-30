@@ -35,7 +35,7 @@ interface RecordingUploadManagerProps {
 }
 
 export function RecordingUploadManager({ cohortId, onRecordingsChange }: RecordingUploadManagerProps) {
-  const { startVideoUpload } = useUpload()
+  const { startVideoUpload, uploads, cancelUpload } = useUpload()
   const toast = useToast()
   const [recordings, setRecordings] = useState<S3Recording[]>([])
   const [loading, setLoading] = useState(true)
@@ -251,6 +251,23 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
     return `${(bytes / 1024).toFixed(1)} KB`
   }
 
+  const formatUploadedAt = (value?: string | null) => {
+    if (!value) return 'Upload time unknown'
+    return new Date(value).toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+  }
+
+  const activeUploads = uploads.filter((upload) => (
+    upload.cohortRecording?.cohortId === cohortId &&
+    upload.status !== 'done' &&
+    upload.status !== 'error'
+  ))
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -412,6 +429,47 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
       )}
       {error && <p className="text-xs text-red-600">{error}</p>}
 
+      {activeUploads.length > 0 && (
+        <div className="space-y-2 rounded-xl border border-primary-200 bg-primary-50/50 p-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary-700">Uploading now</p>
+          {activeUploads.map((upload) => (
+            <div key={upload.id} className="rounded-xl border border-primary-100 bg-white p-3">
+              <div className="flex items-start gap-3">
+                <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary-500" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-slate-900">
+                    {upload.cohortRecording?.title || upload.fileName}
+                  </p>
+                  <p className="mt-0.5 truncate text-xs text-slate-500">
+                    {formatSize(upload.fileSize)} · {upload.fileName}
+                  </p>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full bg-primary-500 transition-all duration-300"
+                      style={{ width: `${upload.status === 'uploading' ? upload.progress : upload.status === 'presigning' ? 5 : 100}%` }}
+                    />
+                  </div>
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    {upload.status === 'presigning'
+                      ? 'Preparing upload...'
+                      : upload.status === 'saving'
+                        ? 'Saving recording...'
+                        : `${upload.progress}% uploaded`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => cancelUpload(upload.id)}
+                  className="text-xs font-medium text-slate-500 hover:text-red-600"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {recordings.length === 0 ? (
         <div className="text-center py-6 text-xs text-slate-400">
           No uploaded recordings yet. Click "Upload" to add one.
@@ -482,6 +540,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
                         </span>
                       )}
                       <span>{rec.file_size_display}</span>
+                      <span className="text-slate-400">Uploaded {formatUploadedAt(rec.created_at)}</span>
                       <span className="text-slate-400">by {rec.uploaded_by || 'Unknown'}</span>
                     </div>
                     {rec.description && (

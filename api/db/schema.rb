@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_28_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_30_000100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -212,6 +212,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_28_110000) do
     t.integer "s3_video_duration_seconds"
     t.string "s3_video_key"
     t.bigint "s3_video_size"
+    t.datetime "s3_video_uploaded_at"
+    t.bigint "s3_video_uploaded_by_id"
     t.text "solution"
     t.jsonb "submission_config", default: {}, null: false
     t.integer "submission_type"
@@ -221,6 +223,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_28_110000) do
     t.index ["block_type"], name: "index_content_blocks_on_block_type"
     t.index ["lesson_id", "position"], name: "index_content_blocks_on_lesson_id_and_position"
     t.index ["lesson_id"], name: "index_content_blocks_on_lesson_id"
+    t.index ["s3_video_uploaded_by_id"], name: "index_content_blocks_on_s3_video_uploaded_by_id"
     t.index ["submission_type"], name: "index_content_blocks_on_submission_type"
   end
 
@@ -1368,6 +1371,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_28_110000) do
   add_foreign_key "cohorts", "curricula", column: "curriculum_id"
   add_foreign_key "company_ytd_totals", "companies"
   add_foreign_key "content_blocks", "lessons"
+  add_foreign_key "content_blocks", "users", column: "s3_video_uploaded_by_id"
   add_foreign_key "deduction_types", "companies"
   add_foreign_key "department_ytd_totals", "departments"
   add_foreign_key "departments", "companies"

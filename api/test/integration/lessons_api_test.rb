@@ -55,7 +55,12 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
   end
 
   test "staff lesson payload still includes video metadata" do
-    @video_block.update!(s3_video_content_type: "video/mp4", s3_video_size: 123)
+    @video_block.update!(
+      s3_video_content_type: "video/mp4",
+      s3_video_size: 123,
+      s3_video_uploaded_by: @admin,
+      s3_video_uploaded_at: Time.zone.parse("2026-04-29 16:30")
+    )
 
     as_user(@admin) do
       get "/api/v1/lessons/#{@lesson.id}", headers: auth_headers
@@ -66,6 +71,28 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert_equal @video_block.s3_video_key, block["s3_video_key"]
     assert_equal "video/mp4", block["s3_video_content_type"]
     assert_equal 123, block["s3_video_size"]
+    assert_equal @admin.full_name, block["s3_video_uploaded_by"]
+    assert block["s3_video_uploaded_at"].present?
+  end
+
+  test "staff content block update stamps self-hosted video upload metadata" do
+    @video_block.update!(s3_video_key: nil)
+
+    as_user(@admin) do
+      patch "/api/v1/content_blocks/#{@video_block.id}",
+            params: {
+              s3_video_key: "content_videos/block_#{@video_block.id}/class.mp4",
+              s3_video_content_type: "video/mp4",
+              s3_video_size: 123
+            },
+            headers: auth_headers
+    end
+
+    assert_response :success
+    body = JSON.parse(response.body).fetch("content_block")
+    assert_equal "content_videos/block_#{@video_block.id}/class.mp4", body.fetch("s3_video_key")
+    assert_equal @admin.full_name, body.fetch("s3_video_uploaded_by")
+    assert body.fetch("s3_video_uploaded_at").present?
   end
 
   private

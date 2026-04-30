@@ -22,6 +22,7 @@ module Api
       # POST /api/v1/lessons/:lesson_id/content_blocks
       def create
         block = @lesson.content_blocks.new(block_params)
+        stamp_s3_video_upload_metadata(block) if block.s3_video_key.present?
         if block.save
           render json: { content_block: block_json(block) }, status: :created
         else
@@ -66,6 +67,16 @@ module Api
               completed_at: nil,
               updated_at: Time.current
             )
+          end
+
+          if @content_block.s3_video_key != old_s3_key
+            if @content_block.s3_video_key.present?
+              stamp_s3_video_upload_metadata(@content_block)
+            else
+              @content_block.s3_video_uploaded_by = nil
+              @content_block.s3_video_uploaded_at = nil
+            end
+            @content_block.save!
           end
         end
         return if performed?
@@ -331,8 +342,15 @@ module Api
           s3_video_size: cb.s3_video_size,
           # Surface the authoritative server-side duration so the editor can show
           # it without round-tripping through video_stream / video_progress.
-          s3_video_duration_seconds: cb.s3_video_duration_seconds
+          s3_video_duration_seconds: cb.s3_video_duration_seconds,
+          s3_video_uploaded_at: cb.s3_video_uploaded_at,
+          s3_video_uploaded_by: cb.s3_video_uploaded_by&.full_name
         }
+      end
+
+      def stamp_s3_video_upload_metadata(block)
+        block.s3_video_uploaded_by = current_user
+        block.s3_video_uploaded_at = Time.current
       end
     end
   end

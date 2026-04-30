@@ -83,7 +83,9 @@ module Api
               video_url: params[:video_url].presence,
               s3_video_key: params[:s3_video_key].presence,
               s3_video_content_type: s3_video_content_type,
-              s3_video_size: params[:s3_video_size].presence
+              s3_video_size: params[:s3_video_size].presence,
+              s3_video_uploaded_by: params[:s3_video_key].present? ? current_user : nil,
+              s3_video_uploaded_at: params[:s3_video_key].present? ? Time.current : nil
             )
           end
 
@@ -213,6 +215,8 @@ module Api
             if current_user.staff?
               block[:s3_video_content_type] = cb.s3_video_content_type
               block[:s3_video_size] = cb.s3_video_size
+              block[:s3_video_uploaded_at] = cb.s3_video_uploaded_at
+              block[:s3_video_uploaded_by] = cb.s3_video_uploaded_by&.full_name
             end
 
             # Include solution only for staff

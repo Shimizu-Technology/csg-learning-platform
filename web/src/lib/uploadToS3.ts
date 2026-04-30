@@ -118,7 +118,7 @@ export async function uploadMultipartToS3(
           part.number,
           (signal) => handlers.getPartUrl(part.number, signal),
           (loaded) => {
-            loadedByPart.set(part.number, loaded)
+            loadedByPart.set(part.number, Math.max(loadedByPart.get(part.number) || 0, loaded))
             reportProgress()
           },
           internalAbortController.signal
