@@ -82,7 +82,7 @@ export async function uploadMultipartToS3(
   onProgress?: (progress: UploadProgress) => void,
   abortSignal?: AbortSignal
 ): Promise<void> {
-  const { uploadId } = await handlers.initiate()
+  await handlers.initiate()
   const parts = buildParts(file)
   const loadedByPart = new Map<number, number>()
   const completedParts: MultipartUploadPart[] = []
@@ -124,9 +124,7 @@ export async function uploadMultipartToS3(
     await handlers.complete(completedParts)
     onProgress?.({ loaded: file.size, total: file.size, percent: 100 })
   } catch (error) {
-    if (uploadId) {
-      await handlers.abort().catch(() => {})
-    }
+    await handlers.abort().catch(() => {})
     throw error
   }
 }
@@ -155,7 +153,6 @@ async function uploadPartWithRetry(
     } catch (error) {
       if (abortSignal?.aborted) throw error
       lastError = error
-      onProgress(0)
       if (attempt < MULTIPART_MAX_ATTEMPTS) {
         await wait(750 * attempt * attempt, abortSignal)
       }
