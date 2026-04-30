@@ -5,6 +5,7 @@ import {
   User,
   Users,
   FileText,
+  BookOpenText,
   ClipboardCheck,
   Menu,
   X,
@@ -83,6 +84,7 @@ export function Layout({ children }: LayoutProps) {
 
   const studentNav = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/materials', icon: BookOpenText, label: 'Materials' },
     { to: '/recordings', icon: PlayCircle, label: 'Recordings' },
     { to: '/resources', icon: Link2, label: 'Resources' },
     { to: '/messages', icon: MessageCircle, label: 'Messages' },

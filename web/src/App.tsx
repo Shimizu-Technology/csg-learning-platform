@@ -18,6 +18,7 @@ import {
   Grading,
   LessonEditor,
   LessonView,
+  Materials,
   Messages,
   ModuleView,
   Profile,
@@ -40,6 +41,7 @@ function AppRoutes() {
         <Route element={<Layout />}>
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/materials" element={<Materials />} />
             <Route path="/modules/:id" element={<ModuleView />} />
             <Route path="/lessons/:id" element={<LessonView />} />
             <Route path="/profile" element={<Profile />} />
