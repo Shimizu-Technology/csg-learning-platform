@@ -58,6 +58,7 @@ module Api
       def multipart_part_url
         return render_s3_unavailable unless S3Service.configured?
         return unless validate_multipart_key!
+        return if admin_only_multipart_key? && !authorize_admin_multipart_target!
 
         part_number = params[:part_number].to_i
         unless part_number.between?(1, MAX_MULTIPART_PARTS)
@@ -80,6 +81,7 @@ module Api
       def multipart_complete
         return render_s3_unavailable unless S3Service.configured?
         return unless validate_multipart_key!
+        return if admin_only_multipart_key? && !authorize_admin_multipart_target!
 
         upload_id = params[:upload_id].to_s
         parts = normalize_multipart_parts(params[:parts])
@@ -105,6 +107,7 @@ module Api
       def multipart_abort
         return render_s3_unavailable unless S3Service.configured?
         return unless validate_multipart_key!
+        return if admin_only_multipart_key? && !authorize_admin_multipart_target!
 
         upload_id = params[:upload_id].to_s
         if upload_id.blank?
@@ -181,6 +184,10 @@ module Api
 
       def admin_only_multipart_target?
         params[:cohort_id].blank?
+      end
+
+      def admin_only_multipart_key?
+        params[:s3_key].to_s.start_with?("content_videos/")
       end
 
       def authorize_admin_multipart_target!

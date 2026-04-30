@@ -14,6 +14,13 @@ class UploadsTest < ActionDispatch::IntegrationTest
       last_name: "User",
       role: :admin
     )
+    @instructor = User.create!(
+      clerk_id: "clerk_instructor",
+      email: "instructor@example.com",
+      first_name: "Instructor",
+      last_name: "User",
+      role: :instructor
+    )
   end
 
   test "staff can initiate cohort recording multipart upload" do
@@ -73,6 +80,67 @@ class UploadsTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :bad_request
+  end
+
+  test "instructors can sign recording parts but not content video parts" do
+    with_s3_multipart_stubs do
+      as_user(@instructor) do
+        post "/api/v1/uploads/multipart/part_url",
+          params: {
+            s3_key: "recordings/cohort_#{@cohort.id}/video.mp4",
+            upload_id: "multipart-upload-id",
+            part_number: 1
+          },
+          headers: auth_headers,
+          as: :json
+      end
+
+      assert_response :success
+
+      as_user(@instructor) do
+        post "/api/v1/uploads/multipart/part_url",
+          params: {
+            s3_key: "content_videos/block_#{@content_block.id}/video.mp4",
+            upload_id: "multipart-upload-id",
+            part_number: 1
+          },
+          headers: auth_headers,
+          as: :json
+      end
+
+      assert_response :forbidden
+    end
+  end
+
+  test "instructors cannot complete or abort content video multipart uploads" do
+    with_s3_multipart_stubs do
+      as_user(@instructor) do
+        post "/api/v1/uploads/multipart/complete",
+          params: {
+            s3_key: "content_videos/block_#{@content_block.id}/video.mp4",
+            upload_id: "multipart-upload-id",
+            parts: [
+              { part_number: 1, etag: "\"etag-1\"" }
+            ]
+          },
+          headers: auth_headers,
+          as: :json
+      end
+
+      assert_response :forbidden
+
+      as_user(@instructor) do
+        delete "/api/v1/uploads/multipart/abort",
+          params: {
+            s3_key: "content_videos/block_#{@content_block.id}/video.mp4",
+            upload_id: "multipart-upload-id"
+          },
+          headers: auth_headers,
+          as: :json
+      end
+
+      assert_response :forbidden
+    end
   end
 
   test "staff can sign complete and abort multipart uploads" do
