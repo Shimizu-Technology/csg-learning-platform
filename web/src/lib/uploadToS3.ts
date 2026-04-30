@@ -130,6 +130,10 @@ export async function uploadMultipartToS3(
       }
     }))
 
+    if (internalAbortController.signal.aborted) {
+      throw new Error('Upload cancelled')
+    }
+
     await handlers.complete(completedParts)
     onProgress?.({ loaded: file.size, total: file.size, percent: 100 })
   } catch (error) {
