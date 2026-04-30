@@ -1,7 +1,14 @@
-import { createContext, useContext, useState, useCallback, useRef } from 'react'
+import { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Upload, X, CheckCircle2, AlertCircle, Film, ChevronDown, ChevronUp } from 'lucide-react'
-import { uploadToS3, formatFileSize, type UploadProgress } from '../lib/uploadToS3'
+import {
+  MULTIPART_UPLOAD_THRESHOLD,
+  uploadMultipartToS3,
+  uploadToS3,
+  formatFileSize,
+  type MultipartUploadPart,
+  type UploadProgress,
+} from '../lib/uploadToS3'
 import { api } from '../lib/api'
 
 interface ActiveUpload {
@@ -71,6 +78,25 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     setTimeout(() => removeUpload(id), 5000)
   }, [removeUpload, updateUpload])
 
+  useEffect(() => {
+    const hasActiveUploads = uploads.some((upload) => (
+      upload.status === 'presigning' ||
+      upload.status === 'uploading' ||
+      upload.status === 'saving' ||
+      upload.status === 'waiting'
+    ))
+
+    if (!hasActiveUploads) return
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [uploads])
+
   const persistUploadTarget = useCallback(async (
     uploadId: string,
     fallbackOpts: UploadStartOpts,
@@ -134,28 +160,81 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
       // clean up an orphaned object if the subsequent DB write fails.
       let uploadedS3Key: string | null = null
       try {
-        let presignRes
-        if (opts?.contentBlockId) {
-          presignRes = await api.presignContentBlockVideo(opts.contentBlockId, file.name, contentType)
-        } else if (opts?.cohortRecording) {
-          presignRes = await api.presignRecordingUpload(opts.cohortRecording.cohortId, file.name, contentType)
+        let s3Key: string
+
+        if (file.size >= MULTIPART_UPLOAD_THRESHOLD) {
+          let multipartUploadId: string | null = null
+          let multipartS3Key: string | null = null
+
+          await uploadMultipartToS3(file, {
+            initiate: async () => {
+              const res = await api.initiateMultipartUpload({
+                filename: file.name,
+                content_type: contentType,
+                file_size: file.size,
+                content_block_id: opts?.contentBlockId,
+                cohort_id: opts?.cohortRecording?.cohortId,
+              })
+              if (!res.data) throw new Error(res.error || 'Failed to start multipart upload')
+              multipartUploadId = res.data.upload_id
+              multipartS3Key = res.data.s3_key
+              updateUpload(id, { status: 'uploading', s3Key: res.data.s3_key })
+              return { uploadId: res.data.upload_id, s3Key: res.data.s3_key }
+            },
+            getPartUrl: async (partNumber: number) => {
+              if (!multipartUploadId || !multipartS3Key) throw new Error('Multipart upload is not ready')
+              const res = await api.getMultipartUploadPartUrl({
+                s3_key: multipartS3Key,
+                upload_id: multipartUploadId,
+                part_number: partNumber,
+              })
+              if (!res.data) throw new Error(res.error || 'Failed to prepare upload chunk')
+              return res.data.upload_url
+            },
+            complete: async (parts: MultipartUploadPart[]) => {
+              if (!multipartUploadId || !multipartS3Key) throw new Error('Multipart upload is not ready')
+              const res = await api.completeMultipartUpload({
+                s3_key: multipartS3Key,
+                upload_id: multipartUploadId,
+                parts,
+              })
+              if (res.error) throw new Error(res.error)
+            },
+            abort: async () => {
+              if (!multipartUploadId || !multipartS3Key) return
+              await api.abortMultipartUpload({ s3_key: multipartS3Key, upload_id: multipartUploadId })
+            },
+          }, (p: UploadProgress) => {
+            updateUpload(id, { progress: p.percent })
+          }, abortController.signal)
+
+          if (!multipartS3Key) throw new Error('Multipart upload did not return an S3 key')
+          s3Key = multipartS3Key
         } else {
-          presignRes = await api.presignGenericVideo(file.name, contentType)
+          let presignRes
+          if (opts?.contentBlockId) {
+            presignRes = await api.presignContentBlockVideo(opts.contentBlockId, file.name, contentType)
+          } else if (opts?.cohortRecording) {
+            presignRes = await api.presignRecordingUpload(opts.cohortRecording.cohortId, file.name, contentType)
+          } else {
+            presignRes = await api.presignGenericVideo(file.name, contentType)
+          }
+
+          if (!presignRes.data) throw new Error(presignRes.error || 'Failed to get upload URL')
+
+          const { upload_url, fields, s3_key } = presignRes.data
+          s3Key = s3_key
+          updateUpload(id, { status: 'uploading', s3Key: s3_key })
+
+          await uploadToS3(upload_url, fields, file, (p: UploadProgress) => {
+            updateUpload(id, { progress: p.percent })
+          }, abortController.signal)
         }
-
-        if (!presignRes.data) throw new Error(presignRes.error || 'Failed to get upload URL')
-
-        const { upload_url, fields, s3_key } = presignRes.data
-        updateUpload(id, { status: 'uploading', s3Key: s3_key })
-
-        await uploadToS3(upload_url, fields, file, (p: UploadProgress) => {
-          updateUpload(id, { progress: p.percent })
-        }, abortController.signal)
 
         // Past this point the object is in the bucket — if any of the DB
         // writes below fail, we need to clean it up.
-        uploadedS3Key = s3_key
-        const persisted = await persistUploadTarget(id, opts || {}, s3_key, contentType, file.size)
+        uploadedS3Key = s3Key
+        const persisted = await persistUploadTarget(id, opts || {}, s3Key, contentType, file.size)
 
         if (persisted) {
           completeUpload(id)
@@ -163,7 +242,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
           updateUpload(id, { status: 'waiting', progress: 100 })
         }
 
-        return { s3Key: s3_key, contentType, fileSize: file.size }
+        return { s3Key, contentType, fileSize: file.size }
       } catch (err) {
         if (abortController.signal.aborted) {
           // Cancellation after a successful S3 PUT also leaves an orphan —
@@ -304,6 +383,7 @@ function UploadIndicator({ uploads, onCancel, onDismiss }: {
                     />
                   </div>
                   <p className="text-[11px] text-slate-500 text-right">{u.progress}%</p>
+                  <p className="text-[11px] text-slate-400">Keep this tab open until upload completes.</p>
                 </div>
               )}
               {u.status === 'presigning' && (

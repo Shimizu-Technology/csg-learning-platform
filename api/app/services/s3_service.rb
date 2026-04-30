@@ -1,6 +1,7 @@
 class S3Service
   MAX_UPLOAD_SIZE = 5.gigabytes
   PRESIGN_EXPIRY = 3600 # 1 hour
+  MULTIPART_PRESIGN_EXPIRY = 24.hours.to_i
 
   class << self
     def configured?
@@ -30,6 +31,54 @@ class S3Service
         key: key,
         expires_in: expires_in
       )
+    end
+
+    def create_multipart_upload(key, content_type)
+      s3_client.create_multipart_upload(
+        bucket: bucket_name,
+        key: key,
+        content_type: content_type
+      ).upload_id
+    end
+
+    def generate_presigned_upload_part_url(key, upload_id, part_number, expires_in: MULTIPART_PRESIGN_EXPIRY)
+      presigner = Aws::S3::Presigner.new(client: s3_client)
+      presigner.presigned_url(
+        :upload_part,
+        bucket: bucket_name,
+        key: key,
+        upload_id: upload_id,
+        part_number: part_number,
+        expires_in: expires_in
+      )
+    end
+
+    def complete_multipart_upload(key, upload_id, parts)
+      s3_client.complete_multipart_upload(
+        bucket: bucket_name,
+        key: key,
+        upload_id: upload_id,
+        multipart_upload: {
+          parts: parts
+            .sort_by { |part| part.fetch(:part_number).to_i }
+            .map { |part| { part_number: part.fetch(:part_number).to_i, etag: part.fetch(:etag).to_s } }
+        }
+      )
+      true
+    end
+
+    def abort_multipart_upload(key, upload_id)
+      s3_client.abort_multipart_upload(
+        bucket: bucket_name,
+        key: key,
+        upload_id: upload_id
+      )
+      true
+    rescue Aws::S3::Errors::NoSuchUpload
+      true
+    rescue Aws::S3::Errors::ServiceError => e
+      Rails.logger.error("[S3Service] multipart abort error: #{e.message}")
+      false
     end
 
     def delete_object(key)

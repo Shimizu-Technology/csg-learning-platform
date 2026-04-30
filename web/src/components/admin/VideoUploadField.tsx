@@ -295,7 +295,7 @@ export function VideoUploadField({
         <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
           <div>
             <p className="text-sm font-semibold text-slate-900">Self-hosted upload</p>
-            <p className="text-xs text-slate-500">Upload the class video directly to use the self-hosted player. Uploads continue in the background, so you can keep editing or move to another exercise.</p>
+              <p className="text-xs text-slate-500">Upload the class video directly to use the self-hosted player. You can keep editing or move to another exercise, but keep this browser tab open until uploads complete.</p>
           </div>
           {isUploading && activeUpload ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 space-y-2">

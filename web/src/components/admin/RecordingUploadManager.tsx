@@ -142,7 +142,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
 
     setError(null)
     if (options?.announce !== false) {
-      const message = `Started ${trimmedTitle}. You can leave this page and keep working while it uploads.`
+      const message = `Started ${trimmedTitle}. You can use the app while it uploads, but keep this browser tab open.`
       setStatusMessage(message)
       toast.success(message)
     }
@@ -195,8 +195,8 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
     const count = startableDrafts.length
     const message =
       count === 1
-        ? `Started ${startableDrafts[0].title.trim()}. You can leave this page and keep working while it uploads.`
-        : `Started ${count} uploads. You can leave this page and keep working while they upload in the background.`
+        ? `Started ${startableDrafts[0].title.trim()}. You can use the app while it uploads, but keep this browser tab open.`
+        : `Started ${count} uploads. You can use the app while they upload, but keep this browser tab open.`
     setStatusMessage(message)
     toast.success(message)
     startableDrafts.forEach((draft) => launchDraftUpload(draft, { announce: false }))
@@ -294,7 +294,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
             <div>
               <h4 className="text-sm font-medium text-slate-900">Queue Recording Uploads</h4>
               <p className="text-xs text-slate-500 mt-1">
-                Start one or many uploads, then keep using the app while they finish in the background.
+                Start one or many uploads, then keep using the app while they finish. Keep this browser tab open until uploads complete.
               </p>
             </div>
             <button onClick={() => clearDrafts()} className="text-slate-400 hover:text-slate-600">
