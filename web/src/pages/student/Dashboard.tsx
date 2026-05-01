@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowRight, BookOpen, Clock, Lock, PlayCircle, CalendarDays, CheckCircle2, RotateCcw } from 'lucide-react'
+import { ArrowRight, BookOpen, Clock, Lock, PlayCircle, CalendarDays, CheckCircle2, RotateCcw, RefreshCw, WifiOff } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { ProgressRing } from '../../components/shared/ProgressRing'
@@ -69,25 +69,55 @@ export function Dashboard() {
   const navigate = useNavigate()
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [showingSavedData, setShowingSavedData] = useState(false)
 
   const announcementTimestamp = (dateStr?: string | null) => {
     if (!dateStr) return 0
     return new Date(dateStr).getTime()
   }
 
-  useEffect(() => {
+  const loadDashboard = useCallback(() => {
     if (user?.is_staff) {
       navigate('/admin', { replace: true })
       return
     }
 
-    api.getDashboard().then((res) => {
-      if (res.data) {
-        setData(res.data.dashboard)
-      }
-      setLoading(false)
-    })
+    setLoading(true)
+    setLoadError(null)
+    setShowingSavedData(false)
+
+    api.getDashboard()
+      .then((res) => {
+        if (res.data) {
+          setData(res.data.dashboard)
+          setShowingSavedData(Boolean(res.fromCache))
+          setLoadError(res.fromCache ? res.error : null)
+          return
+        }
+
+        setLoadError(res.error || 'Unable to load your dashboard right now.')
+      })
+      .catch((error: unknown) => {
+        setLoadError(error instanceof Error ? error.message : 'Unable to load your dashboard right now.')
+      })
+      .finally(() => setLoading(false))
   }, [user, navigate])
+
+  useEffect(() => {
+    loadDashboard()
+  }, [loadDashboard])
+
+  const retryAction = (
+    <button
+      type="button"
+      onClick={loadDashboard}
+      className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-600"
+    >
+      <RefreshCw className="h-4 w-4" />
+      Try again
+    </button>
+  )
 
   const derived = useMemo(() => {
     const modules = data?.modules || []
@@ -123,6 +153,17 @@ export function Dashboard() {
 
   if (loading) return <LoadingSpinner message="Loading dashboard..." />
 
+  if (loadError && !data) {
+    return (
+      <EmptyState
+        icon={WifiOff}
+        title="Could not load dashboard"
+        description={loadError}
+        action={retryAction}
+      />
+    )
+  }
+
   if (!data?.enrolled) {
     return (
       <EmptyState
@@ -137,6 +178,11 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
+      {showingSavedData && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Showing saved dashboard data while your connection catches up.
+        </div>
+      )}
       <div className="rounded-2xl bg-white border border-slate-200 p-6">
         <div className="flex flex-col lg:flex-row lg:items-center gap-6">
           <div className="flex-1">

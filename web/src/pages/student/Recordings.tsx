@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, PlayCircle, ExternalLink, CalendarDays, Search, ChevronDown, ChevronUp, CheckCircle2, Clock, Film } from 'lucide-react'
+import { ArrowLeft, PlayCircle, ExternalLink, CalendarDays, Search, ChevronDown, ChevronUp, CheckCircle2, Clock, Film, RefreshCw, WifiOff } from 'lucide-react'
 import { api } from '../../lib/api'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -61,12 +61,18 @@ export function Recordings() {
   const [legacyRecordings, setLegacyRecordings] = useState<LegacyRecording[]>([])
   const [s3Recordings, setS3Recordings] = useState<S3Recording[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [showingSavedData, setShowingSavedData] = useState(false)
   const [selectedItem, setSelectedItem] = useState<RecordingItem | null>(null)
   const [query, setQuery] = useState('')
   const [playlistCollapsed, setPlaylistCollapsed] = useState(false)
   const [activeTab, setActiveTab] = useState<'all' | 'uploaded' | 'youtube'>('all')
 
-  useEffect(() => {
+  const loadRecordings = useCallback(() => {
+    setLoading(true)
+    setLoadError(null)
+    setShowingSavedData(false)
+
     api.getRecordings().then((res) => {
       if (res.data) {
         const legacy: LegacyRecording[] = (res.data.recordings || []).map((r) => ({
@@ -91,10 +97,21 @@ export function Recordings() {
         setS3Recordings(s3)
         const first = s3.length > 0 ? s3[0] : legacy.length > 0 ? legacy[0] : null
         setSelectedItem(first)
+        setShowingSavedData(Boolean(res.fromCache))
+        setLoadError(res.fromCache ? res.error : null)
+      } else {
+        setLoadError(res.error || 'Unable to load recordings right now.')
       }
+      setLoading(false)
+    }).catch((error: unknown) => {
+      setLoadError(error instanceof Error ? error.message : 'Unable to load recordings right now.')
       setLoading(false)
     })
   }, [])
+
+  useEffect(() => {
+    loadRecordings()
+  }, [loadRecordings])
 
   const allRecordings = useMemo<RecordingItem[]>(() => {
     if (activeTab === 'uploaded') return s3Recordings
@@ -147,6 +164,26 @@ export function Recordings() {
   if (loading) return <LoadingSpinner message="Loading recordings..." />
 
   const totalCount = s3Recordings.length + legacyRecordings.length
+  if (loadError && totalCount === 0) {
+    return (
+      <EmptyState
+        icon={WifiOff}
+        title="Could not load recordings"
+        description={loadError}
+        action={
+          <button
+            type="button"
+            onClick={loadRecordings}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-600"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Try again
+          </button>
+        }
+      />
+    )
+  }
+
   if (totalCount === 0) {
     return (
       <EmptyState
@@ -161,6 +198,11 @@ export function Recordings() {
 
   return (
     <div className="space-y-5 max-w-6xl mx-auto">
+      {showingSavedData && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Showing saved recordings while your connection catches up.
+        </div>
+      )}
       <div>
         <Link to="/" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-2">
           <ArrowLeft className="h-4 w-4" />

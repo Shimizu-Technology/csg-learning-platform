@@ -34,7 +34,8 @@ port ENV.fetch("PORT", 3000)
 # Allow puma to be restarted by `bin/rails restart` command.
 plugin :tmp_restart
 
-# Not using Solid Queue — using :async job adapter instead.
+# Solid Queue runs in a separate Render worker by default. The Puma plugin can
+# still be enabled for compact single-process deployments.
 # plugin :solid_queue if ENV["SOLID_QUEUE_IN_PUMA"]
 
 # Specify the PID file. Defaults to tmp/pids/server.pid in development.

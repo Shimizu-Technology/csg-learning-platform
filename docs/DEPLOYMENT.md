@@ -31,6 +31,31 @@
 | Root directory | `api` |
 | Health check path | `/up` |
 
+Create a second Render service for background jobs before switching production
+job delivery to Solid Queue:
+
+| Setting | Value |
+|---------|-------|
+| Service type | Background Worker |
+| Region | Singapore |
+| Runtime | Docker |
+| Root directory | `api` |
+| Start command | `bin/jobs` |
+
+Production defaults to inline jobs so invite emails, push notifications, and
+mention emails still deliver if the worker has not been provisioned yet. After
+the worker service is created and running, set these variables on the web service
+and the worker service:
+
+```
+ACTIVE_JOB_QUEUE_ADAPTER=solid_queue
+SOLID_QUEUE_WORKER_PROVISIONED=true
+```
+
+Rails will fail boot if `ACTIVE_JOB_QUEUE_ADAPTER=solid_queue` is enabled
+without either `SOLID_QUEUE_WORKER_PROVISIONED=true` or
+`SOLID_QUEUE_IN_PUMA=true`, so jobs cannot silently enqueue with no worker.
+
 ### Environment Variables (Render Dashboard)
 
 ```

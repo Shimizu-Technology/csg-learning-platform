@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, ExternalLink, Link2, Search, Video, MessageSquare, Github, FileText, Globe } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Link2, Search, Video, MessageSquare, Github, FileText, Globe, RefreshCw, WifiOff } from 'lucide-react'
 import { api } from '../../lib/api'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -25,14 +25,35 @@ const categoryConfig: Record<string, { label: string; icon: typeof Globe; color:
 export function Resources() {
   const [resources, setResources] = useState<ResourceItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [showingSavedData, setShowingSavedData] = useState(false)
   const [query, setQuery] = useState('')
 
-  useEffect(() => {
-    api.getResources().then((res) => {
-      if (res.data?.resources) setResources(res.data.resources)
-      setLoading(false)
-    })
+  const loadResources = useCallback(() => {
+    setLoading(true)
+    setLoadError(null)
+    setShowingSavedData(false)
+
+    api.getResources()
+      .then((res) => {
+        if (res.data?.resources) {
+          setResources(res.data.resources)
+          setShowingSavedData(Boolean(res.fromCache))
+          setLoadError(res.fromCache ? res.error : null)
+          return
+        }
+
+        setLoadError(res.error || 'Unable to load resources right now.')
+      })
+      .catch((error: unknown) => {
+        setLoadError(error instanceof Error ? error.message : 'Unable to load resources right now.')
+      })
+      .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    loadResources()
+  }, [loadResources])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -47,6 +68,26 @@ export function Resources() {
 
   if (loading) return <LoadingSpinner message="Loading resources..." />
 
+  if (loadError && resources.length === 0) {
+    return (
+      <EmptyState
+        icon={WifiOff}
+        title="Could not load resources"
+        description={loadError}
+        action={
+          <button
+            type="button"
+            onClick={loadResources}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-600"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Try again
+          </button>
+        }
+      />
+    )
+  }
+
   if (resources.length === 0) {
     return (
       <EmptyState
@@ -59,6 +100,11 @@ export function Resources() {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
+      {showingSavedData && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Showing saved resources while your connection catches up.
+        </div>
+      )}
       <div>
         <Link to="/" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-2">
           <ArrowLeft className="h-4 w-4" />
