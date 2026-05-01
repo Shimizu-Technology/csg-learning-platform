@@ -43,10 +43,16 @@ Rails.application.configure do
   # Replace the default in-process memory cache store with a durable alternative.
   config.cache_store = :memory_store
 
-  # Inline delivery is slower than a real background queue, but it is durable
-  # on a single-service deployment and avoids losing invite/push jobs on deploys
-  # or process restarts while we stay intentionally light on infrastructure.
-  config.active_job.queue_adapter = ENV.fetch("ACTIVE_JOB_QUEUE_ADAPTER", "inline").to_sym
+  # Keep notification, invite, and push work out of request latency only after a
+  # worker is provisioned. Defaulting to inline is slower, but it prevents
+  # silently queued emails and notifications from sitting undelivered.
+  active_job_queue_adapter = ENV.fetch("ACTIVE_JOB_QUEUE_ADAPTER", "inline")
+  if active_job_queue_adapter == "solid_queue" &&
+      ENV["SOLID_QUEUE_WORKER_PROVISIONED"] != "true" &&
+      ENV["SOLID_QUEUE_IN_PUMA"] != "true"
+    raise "ACTIVE_JOB_QUEUE_ADAPTER=solid_queue requires SOLID_QUEUE_WORKER_PROVISIONED=true or SOLID_QUEUE_IN_PUMA=true"
+  end
+  config.active_job.queue_adapter = active_job_queue_adapter.to_sym
 
   config.action_cable.allowed_request_origins = ENV.fetch("ALLOWED_ORIGINS", ENV.fetch("FRONTEND_URL", "")).split(",").map(&:strip).reject(&:blank?)
 

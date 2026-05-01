@@ -15,10 +15,11 @@ gem "puma", ">= 5.0"
 # Windows does not include zoneinfo files, so bundle the tzinfo-data gem
 gem "tzinfo-data", platforms: %i[ windows jruby ]
 
-# Keeping the runtime light for now: cache stays in-memory, production jobs run
-# inline, and ActionCable uses PostgreSQL pub/sub for cross-instance broadcasts.
+# Keeping cache in-memory for now. ActionCable uses PostgreSQL pub/sub for
+# cross-instance broadcasts, and Solid Queue keeps slow notification/email work
+# out of user-facing request latency.
 # gem "solid_cache"
-# gem "solid_queue"
+gem "solid_queue"
 
 # Reduces boot times through caching; required in config/boot.rb
 gem "bootsnap", require: false

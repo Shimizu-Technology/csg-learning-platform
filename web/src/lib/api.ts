@@ -57,16 +57,48 @@ import type {
 } from '../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+const REQUEST_TIMEOUT_MS = 12_000;
+const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
+const CACHE_FALLBACK_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
+const CACHE_PREFIX = 'csg-api-cache:';
+const CACHE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 7;
 
-let getAuthToken: (() => Promise<string | null>) | null = null;
+type AuthTokenGetter = (forceRefresh?: boolean) => Promise<string | null>;
 
-export function setAuthTokenGetter(getter: () => Promise<string | null>) {
+let getAuthToken: AuthTokenGetter | null = null;
+let apiCacheScope: string | null = null;
+
+export function setAuthTokenGetter(getter: AuthTokenGetter) {
   getAuthToken = getter;
 }
 
-interface ApiResponse<T> {
+export function setApiCacheScope(scope: string | null) {
+  apiCacheScope = scope;
+}
+
+export function clearApiCache(scope = apiCacheScope) {
+  if (!scope) return;
+
+  try {
+    const scopedPrefix = `${CACHE_PREFIX}${scope}:`;
+    const invalidScopePrefix = `${CACHE_PREFIX}null:`;
+    Object.keys(localStorage)
+      .filter((key) => key.startsWith(scopedPrefix) || key.startsWith(invalidScopePrefix))
+      .forEach((key) => localStorage.removeItem(key));
+  } catch {
+    // Storage can be unavailable in private browsing or locked-down WebViews.
+  }
+}
+
+export type ApiErrorKind = 'auth' | 'forbidden' | 'not_found' | 'server' | 'network' | 'timeout' | 'unknown';
+
+export interface ApiResponse<T> {
   data: T | null;
   error: string | null;
+  status?: number;
+  errorKind?: ApiErrorKind;
+  fromCache?: boolean;
+  cacheAgeMs?: number;
 }
 
 async function fetchApi<T>(
@@ -74,48 +106,207 @@ async function fetchApi<T>(
   options: RequestInit = {},
   requireAuth: boolean = true
 ): Promise<ApiResponse<T>> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
-  };
+  const method = (options.method || 'GET').toUpperCase();
+  const canRetry = method === 'GET' || method === 'HEAD';
+  const cacheScope = apiCacheScope;
+  const canUseCache = requireAuth && method === 'GET' && Boolean(cacheScope);
+  const maxAttempts = canRetry ? 3 : 1;
+  let shouldForceTokenRefresh = false;
+  let didRetryUnauthorized = false;
 
-  if (requireAuth && getAuthToken) {
-    const token = await getAuthToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string>),
+    };
+
+    if (requireAuth && getAuthToken) {
+      const token = await getAuthToken(shouldForceTokenRefresh);
+      shouldForceTokenRefresh = false;
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    }
+
+    try {
+      const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
+        ...options,
+        headers,
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        const error = errorMessage(errorBody, response.status);
+        const retryUnauthorized = canRetry && response.status === 401 && !didRetryUnauthorized;
+        const retryTransient = canRetry && RETRYABLE_STATUSES.has(response.status);
+
+        if (retryUnauthorized && attempt < maxAttempts) {
+          didRetryUnauthorized = true;
+          shouldForceTokenRefresh = true;
+          await waitForRetry(attempt);
+          continue;
+        }
+
+        if (retryTransient && attempt < maxAttempts) {
+          await waitForRetry(attempt);
+          continue;
+        }
+
+        if (canUseCache && CACHE_FALLBACK_STATUSES.has(response.status)) {
+          const cached = readCachedResponse<T>(cacheScope, endpoint);
+          if (cached) {
+            return { ...cached, error, status: response.status, errorKind: errorKindForStatus(response.status) };
+          }
+        }
+
+        return {
+          data: null,
+          error,
+          status: response.status,
+          errorKind: errorKindForStatus(response.status),
+        };
+      }
+
+      if (response.status === 204) {
+        return { data: null, error: null, status: response.status };
+      }
+
+      const text = await response.text();
+      if (!text) {
+        return { data: null, error: null, status: response.status };
+      }
+
+      const data = JSON.parse(text) as T;
+      if (canUseCache && shouldCacheResponse(endpoint, data)) writeCachedResponse(cacheScope, endpoint, data);
+      return { data, error: null, status: response.status };
+    } catch (err) {
+      const kind = err instanceof DOMException && err.name === 'AbortError' ? 'timeout' : 'network';
+      const message = kind === 'timeout' ? 'Request timed out. Check your connection and try again.' : networkErrorMessage(err);
+
+      if (canRetry && attempt < maxAttempts) {
+        await waitForRetry(attempt);
+        continue;
+      }
+
+      if (canUseCache) {
+        const cached = readCachedResponse<T>(cacheScope, endpoint);
+        if (cached) {
+          return { ...cached, error: message, errorKind: kind };
+        }
+      }
+
+      return {
+        data: null,
+        error: message,
+        errorKind: kind,
+      };
     }
   }
 
+  return { data: null, error: 'Request failed', errorKind: 'unknown' };
+}
+
+function fetchWithTimeout(url: string, options: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const externalSignal = options.signal;
+
+  if (externalSignal?.aborted) controller.abort();
+  const abortFromExternalSignal = () => controller.abort();
+  externalSignal?.addEventListener('abort', abortFromExternalSignal, { once: true });
+
+  return fetch(url, { ...options, signal: controller.signal }).finally(() => {
+    globalThis.clearTimeout(timeoutId);
+    externalSignal?.removeEventListener('abort', abortFromExternalSignal);
+  });
+}
+
+function errorMessage(errorBody: unknown, status: number) {
+  if (errorBody && typeof errorBody === 'object') {
+    const body = errorBody as { error?: unknown; errors?: unknown };
+    if (typeof body.error === 'string') return body.error;
+    if (Array.isArray(body.errors)) return body.errors.join(', ');
+  }
+
+  return `Request failed with status ${status}`;
+}
+
+function errorKindForStatus(status: number): ApiErrorKind {
+  if (status === 401) return 'auth';
+  if (status === 403) return 'forbidden';
+  if (status === 404) return 'not_found';
+  if (status >= 500) return 'server';
+  return 'unknown';
+}
+
+function networkErrorMessage(err: unknown) {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return 'You appear to be offline. Showing saved data when available.';
+  }
+
+  return err instanceof Error ? err.message : 'Network error';
+}
+
+function waitForRetry(attempt: number) {
+  const jitter = Math.floor(Math.random() * 250);
+  return new Promise<void>((resolve) => {
+    globalThis.setTimeout(resolve, 400 * attempt * attempt + jitter);
+  });
+}
+
+function cacheKey(scope: string | null, endpoint: string) {
+  return `${CACHE_PREFIX}${scope}:${endpoint}`;
+}
+
+function writeCachedResponse<T>(scope: string | null, endpoint: string, data: T) {
+  if (!scope) return;
+
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      ...options,
-      headers,
-    });
+    localStorage.setItem(cacheKey(scope, endpoint), JSON.stringify({ data, savedAt: Date.now() }));
+  } catch {
+    // Storage can be unavailable in private browsing or locked-down WebViews.
+  }
+}
 
-    if (!response.ok) {
-      const errorBody = await response.json().catch(() => ({}));
-      return {
-        data: null,
-        error: errorBody.error || (Array.isArray(errorBody.errors) ? errorBody.errors.join(', ') : null) || `Request failed with status ${response.status}`,
-      };
-    }
+function shouldCacheResponse<T>(endpoint: string, data: T) {
+  if (!data || typeof data !== 'object') return false;
 
-    if (response.status === 204) {
-      return { data: null, error: null };
-    }
+  if (endpoint === '/api/v1/dashboard') {
+    const dashboard = (data as { dashboard?: { enrolled?: boolean } }).dashboard;
+    return typeof dashboard?.enrolled === 'boolean';
+  }
 
-    const text = await response.text();
-    if (!text) {
-      return { data: null, error: null };
-    }
+  if (endpoint === '/api/v1/resources') {
+    const resources = (data as { resources?: unknown[] }).resources;
+    return Array.isArray(resources);
+  }
 
-    const data = JSON.parse(text);
-    return { data, error: null };
-  } catch (err) {
+  if (endpoint === '/api/v1/recordings') {
+    const response = data as { recordings?: unknown[]; s3_recordings?: unknown[] };
+    return Array.isArray(response.recordings) || Array.isArray(response.s3_recordings);
+  }
+
+  return true;
+}
+
+function readCachedResponse<T>(scope: string | null, endpoint: string): ApiResponse<T> | null {
+  if (!scope) return null;
+
+  try {
+    const raw = localStorage.getItem(cacheKey(scope, endpoint));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { data?: T; savedAt?: number };
+    if (!parsed.savedAt || Date.now() - parsed.savedAt > CACHE_MAX_AGE_MS) return null;
+    if (!shouldCacheResponse(endpoint, parsed.data as T)) return null;
+
     return {
-      data: null,
-      error: err instanceof Error ? err.message : 'Network error',
+      data: parsed.data ?? null,
+      error: null,
+      fromCache: true,
+      cacheAgeMs: Date.now() - parsed.savedAt,
     };
+  } catch {
+    return null;
   }
 }
 

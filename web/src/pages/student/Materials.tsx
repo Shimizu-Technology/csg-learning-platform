@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowRight, BookOpen, CheckCircle2, Clock, Lock, RotateCcw, Search } from 'lucide-react'
+import { ArrowRight, BookOpen, CheckCircle2, Clock, Lock, RefreshCw, RotateCcw, Search, WifiOff } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { EmptyState } from '../../components/shared/EmptyState'
@@ -67,10 +67,11 @@ export function Materials() {
   const [data, setData] = useState<MaterialsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [showingSavedData, setShowingSavedData] = useState(false)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<MaterialFilter>('ready')
 
-  useEffect(() => {
+  const loadMaterials = useCallback(() => {
     if (user?.is_staff) {
       navigate('/admin', { replace: true })
       return
@@ -78,11 +79,14 @@ export function Materials() {
 
     setLoading(true)
     setLoadError(null)
+    setShowingSavedData(false)
 
     api.getDashboard()
       .then((res) => {
         if (res.data?.dashboard) {
           setData(res.data.dashboard)
+          setShowingSavedData(Boolean(res.fromCache))
+          setLoadError(res.fromCache ? res.error : null)
         } else {
           setLoadError(res.error || 'Unable to load your materials right now.')
         }
@@ -92,6 +96,10 @@ export function Materials() {
       })
       .finally(() => setLoading(false))
   }, [navigate, user])
+
+  useEffect(() => {
+    loadMaterials()
+  }, [loadMaterials])
 
   const derived = useMemo(() => {
     const modules = data?.modules || []
@@ -142,12 +150,22 @@ export function Materials() {
 
   if (loading) return <LoadingSpinner message="Loading materials..." />
 
-  if (loadError) {
+  if (loadError && !data) {
     return (
       <EmptyState
-        icon={BookOpen}
+        icon={WifiOff}
         title="Could not load materials"
         description={loadError}
+        action={
+          <button
+            type="button"
+            onClick={loadMaterials}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-600"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Try again
+          </button>
+        }
       />
     )
   }
@@ -172,6 +190,11 @@ export function Materials() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
+      {showingSavedData && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Showing saved materials while your connection catches up.
+        </div>
+      )}
       <div className="rounded-2xl border border-slate-200 bg-white p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
