@@ -1,4 +1,5 @@
 require "json"
+require "set"
 
 class PreworkGraderArchiveImporter
   KNOWN_GRADES = {
@@ -30,6 +31,7 @@ class PreworkGraderArchiveImporter
     import_students
     import_submissions
 
+    finalize_report!
     report
   end
 
@@ -46,7 +48,7 @@ class PreworkGraderArchiveImporter
       students: {
         matched: 0,
         created: 0,
-        missing: [],
+        missing: Set.new,
         enrolled: 0,
         enrollment_missing: 0
       },
@@ -124,9 +126,13 @@ class PreworkGraderArchiveImporter
       end
     report[:exercises][:content_blocks_indexed] = content_blocks_by_filename.size
 
-    users = User.all.to_a
-    @users_by_email = users.select { |user| user.email.present? }.index_by { |user| normalize_key(user.email) }
-    @users_by_github = users.select { |user| user.github_username.present? }.index_by { |user| normalize_key(user.github_username) }
+    @users_by_email = {}
+    @users_by_github = {}
+
+    User.where(id: destination_user_ids).find_each do |user|
+      users_by_email[normalize_key(user.email)] = user if user.email.present?
+      users_by_github[normalize_key(user.github_username)] = user if user.github_username.present?
+    end
   end
 
   def import_students
@@ -141,7 +147,7 @@ class PreworkGraderArchiveImporter
         report[:students][:created] += 1
         create_user(student_data)
       else
-        report[:students][:missing] << student_identifier(student_data)
+        add_missing_student(student_data)
       end
     end
   end
@@ -243,7 +249,7 @@ class PreworkGraderArchiveImporter
   def report_skip(submission_data, filename, user, block)
     report[:submissions][:skipped] += 1
     report[:exercises][:unmatched_filenames][submission_data["exercise_filename"].to_s] += 1 if filename.present? && !block
-    report[:students][:missing] << student_identifier(submission_data) unless user
+    add_missing_student(submission_data) unless user
   end
 
   def update_existing_submission(existing, submission_data, grade)
@@ -258,8 +264,9 @@ class PreworkGraderArchiveImporter
     report[:submissions][:updated] += 1
     return if @dry_run
 
+    effective_grade = attrs.key?(:grade) ? attrs[:grade].to_s : existing.grade
     existing.update!(attrs)
-    update_progress(existing.user, existing.content_block, grade, submission_data)
+    update_progress(existing.user, existing.content_block, effective_grade, submission_data)
   end
 
   def create_submission(user, block, submission_data, grade)
@@ -267,7 +274,7 @@ class PreworkGraderArchiveImporter
     return if @dry_run
 
     submission = Submission.create!(
-      submission_attrs(submission_data, grade).merge(
+      submission_attrs(submission_data, grade, new_record: true).merge(
         user: user,
         content_block: block,
         created_at: parse_time(submission_data["created_at"]) || Time.current,
@@ -277,8 +284,9 @@ class PreworkGraderArchiveImporter
     update_progress(submission.user, submission.content_block, grade, submission_data)
   end
 
-  def submission_attrs(submission_data, grade, existing: nil)
-    attrs = { submission_type: :prework_github_sync }
+  def submission_attrs(submission_data, grade, existing: nil, new_record: false)
+    attrs = {}
+    attrs[:submission_type] = :prework_github_sync if new_record || @overwrite || existing&.submission_type.blank?
 
     assign_if_allowed(attrs, :text, existing&.text, submission_data["text"])
     assign_if_allowed(attrs, :github_code_url, existing&.github_code_url, submission_data["github_code_url"])
@@ -341,8 +349,36 @@ class PreworkGraderArchiveImporter
     value.to_s.strip.downcase.presence
   end
 
+  def destination_user_ids
+    ids = cohort.enrollments.pluck(:user_id)
+    emails = archive_student_values("email") + archive_submission_values("student_email")
+    githubs = archive_student_values("github_username") + archive_submission_values("student_github_username")
+
+    ids.concat(User.where("LOWER(email) IN (?)", emails).pluck(:id)) if emails.any?
+    ids.concat(User.where("LOWER(github_username) IN (?)", githubs).pluck(:id)) if githubs.any?
+    ids.compact.uniq
+  end
+
+  def archive_student_values(key)
+    archive.fetch("students", []).filter_map { |row| normalize_key(row[key]) }.uniq
+  end
+
+  def archive_submission_values(key)
+    archive.fetch("submissions", []).filter_map { |row| normalize_key(row[key]) }.uniq
+  end
+
+  def add_missing_student(data)
+    report[:students][:missing] << student_identifier(data)
+  end
+
   def student_identifier(data)
     data["student_email"].presence || data["email"].presence || data["student_github_username"].presence || data["github_username"].presence || "unknown student"
+  end
+
+  def finalize_report!
+    report[:students][:missing] = report[:students][:missing].to_a.sort
+    report[:exercises][:unmatched_filenames] = report[:exercises][:unmatched_filenames].sort.to_h
+    report[:submissions][:unknown_grades] = report[:submissions][:unknown_grades].sort.to_h
   end
 
   def parse_time(value)

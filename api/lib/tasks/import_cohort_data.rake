@@ -342,7 +342,7 @@ end
 namespace :prework_grader do
   desc "Dry-run or import a csg-prework-grader cohort archive into an existing learning-platform cohort/module"
   task import_archive: :environment do
-    json_path = ENV.fetch("JSON_PATH", Rails.root.join("..", "scripts", "cohort3_prework_archive.json"))
+    json_path = ENV["JSON_PATH"].presence
     target_cohort = ENV["TARGET_COHORT_ID"].presence || ENV["TARGET_COHORT_NAME"].presence
     module_name = ENV.fetch("MODULE_NAME", "Prework")
     dry_run = ActiveModel::Type::Boolean.new.cast(ENV.fetch("DRY_RUN", "true"))
@@ -350,10 +350,10 @@ namespace :prework_grader do
     create_missing_users = ActiveModel::Type::Boolean.new.cast(ENV.fetch("CREATE_MISSING_USERS", "false"))
     create_missing_enrollments = ActiveModel::Type::Boolean.new.cast(ENV.fetch("CREATE_MISSING_ENROLLMENTS", "false"))
 
-    unless target_cohort.present?
-      puts "ERROR: TARGET_COHORT_ID or TARGET_COHORT_NAME is required."
+    unless json_path.present? && target_cohort.present?
+      puts "ERROR: JSON_PATH and TARGET_COHORT_ID or TARGET_COHORT_NAME are required."
       puts "Example dry-run:"
-      puts "  DRY_RUN=true TARGET_COHORT_NAME='Cohort 3' JSON_PATH=../scripts/cohort3_prework_archive.json bin/rails prework_grader:import_archive"
+      puts "  DRY_RUN=true TARGET_COHORT_NAME='Cohort 3' JSON_PATH=/rails/tmp/cohort3_prework_archive.json bin/rails prework_grader:import_archive"
       exit 1
     end
 

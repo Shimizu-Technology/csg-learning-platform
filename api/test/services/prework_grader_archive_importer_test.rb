@@ -124,6 +124,62 @@ class PreworkGraderArchiveImporterTest < ActiveSupport::TestCase
     FileUtils.rm_f(path) if path
   end
 
+  test "merge mode reports unchanged when existing submission already matches archive" do
+    Submission.create!(
+      user: @student,
+      content_block: @block,
+      submission_type: :prework_github_sync,
+      text: "puts 'hello'",
+      grade: :A,
+      github_issue_url: "https://github.com/student-one/prework-exercises/issues/1",
+      github_code_url: "https://github.com/student-one/prework-exercises/blob/abc/111.rb#L1-L1",
+      num_submissions: 2,
+      graded_by_id: @admin.id,
+      graded_at: 1.day.ago
+    )
+    path = write_archive
+
+    importer = PreworkGraderArchiveImporter.new(
+      json_path: path,
+      target_cohort: @cohort.id,
+      dry_run: false,
+      overwrite: false
+    )
+    report = importer.call
+
+    assert_equal 0, report[:submissions][:updated]
+    assert_equal 1, report[:submissions][:unchanged]
+    assert_equal 0, Progress.count
+  ensure
+    FileUtils.rm_f(path) if path
+  end
+
+  test "merge mode keeps progress consistent with retained existing grade" do
+    Submission.create!(
+      user: @student,
+      content_block: @block,
+      submission_type: :prework_github_sync,
+      text: "redo version",
+      grade: :R,
+      num_submissions: 1
+    )
+    path = write_archive
+
+    importer = PreworkGraderArchiveImporter.new(
+      json_path: path,
+      target_cohort: @cohort.id,
+      dry_run: false,
+      overwrite: false
+    )
+    importer.call
+
+    progress = Progress.find_by!(user: @student, content_block: @block)
+    assert progress.in_progress?
+    assert_nil progress.completed_at
+  ensure
+    FileUtils.rm_f(path) if path
+  end
+
   private
 
   def write_archive
