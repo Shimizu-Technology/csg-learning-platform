@@ -102,6 +102,28 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     assert_equal "https://signed.example/video.mp4", JSON.parse(response.body).fetch("stream_url")
   end
 
+  test "student recordings endpoint returns one normalized recording list" do
+    create_recording!(title: "Uploaded Class")
+    @cohort.update!(
+      settings: {
+        "recordings" => [
+          { "title" => "YouTube Class", "url" => "https://youtube.com/watch?v=abc123", "date" => "2026-05-01" },
+          { "title" => "External Replay", "url" => "https://vimeo.com/123", "date" => "2026-05-02" }
+        ]
+      }
+    )
+
+    as_user(@student) do
+      get "/api/v1/recordings", headers: auth_headers
+    end
+
+    assert_response :success
+    items = JSON.parse(response.body).fetch("items")
+    assert_equal [ "uploaded", "youtube", "external" ], items.map { |item| item.fetch("source") }
+    assert_equal [ "Uploaded Class", "YouTube Class", "External Replay" ], items.map { |item| item.fetch("title") }
+    assert items.all? { |item| item.fetch("item_key").present? }
+  end
+
   test "unenrolled student cannot stream recording" do
     recording = create_recording!
 

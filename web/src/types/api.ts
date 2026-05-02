@@ -619,7 +619,26 @@ export interface RecordingEntry {
   title: string;
   url: string;
   date: string | null;
+  recorded_date?: string | null;
   description: string | null;
+  source?: 'youtube' | 'external';
+}
+
+export interface RecordingItem {
+  item_key: string;
+  id: number | string;
+  cohort_id?: number;
+  title: string;
+  description: string | null;
+  source: 'uploaded' | 'youtube' | 'external';
+  url?: string;
+  date?: string | null;
+  recorded_date?: string | null;
+  created_at?: string;
+  duration_seconds?: number | null;
+  duration_display?: string | null;
+  file_size_display?: string;
+  watch_progress?: S3RecordingWatchProgress | null;
 }
 
 export interface ResourceEntry {
@@ -952,6 +971,7 @@ export interface ProgressUpdateResponse {
 export interface RecordingsResponse {
   recordings: RecordingEntry[];
   s3_recordings?: S3Recording[];
+  items?: RecordingItem[];
 }
 
 export interface ResourcesResponse {

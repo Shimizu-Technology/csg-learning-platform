@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Upload, Trash2, Film, Calendar, Clock, Plus, X, Pencil, Loader2, Eye } from 'lucide-react'
+import { Upload, Trash2, Film, Calendar, Clock, Plus, X, Pencil, Loader2, Eye, ExternalLink, Link2 } from 'lucide-react'
 import { api } from '../../lib/api'
+import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { useUpload } from '../../contexts/UploadContext'
 import { useToast } from '../../contexts/ToastContext'
 import { VideoPlayer } from '../shared/VideoPlayer'
@@ -30,12 +31,20 @@ interface RecordingDraft {
   error?: string
 }
 
+interface ExternalRecording {
+  title: string
+  url: string
+  date?: string
+  description?: string
+}
+
 interface RecordingUploadManagerProps {
   cohortId: number
+  externalRecordings?: ExternalRecording[]
   onRecordingsChange?: () => void
 }
 
-export function RecordingUploadManager({ cohortId, onRecordingsChange }: RecordingUploadManagerProps) {
+export function RecordingUploadManager({ cohortId, externalRecordings = [], onRecordingsChange }: RecordingUploadManagerProps) {
   const { startVideoUpload, uploads, cancelUpload } = useUpload()
   const toast = useToast()
   const [recordings, setRecordings] = useState<S3Recording[]>([])
@@ -276,6 +285,29 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
     return res.data?.stream_url || null
   }, [cohortId, previewRecording])
 
+  const libraryItems = [
+    ...recordings.map((recording) => ({
+      key: `uploaded-${recording.id}`,
+      title: recording.title,
+      description: recording.description,
+      source: 'Uploaded' as const,
+      date: recording.recorded_date,
+      meta: [recording.duration_display, recording.file_size_display].filter(Boolean).join(' · '),
+      recording,
+      url: null,
+    })),
+    ...externalRecordings.map((recording, index) => ({
+      key: `external-${index}`,
+      title: recording.title || 'Untitled recording',
+      description: recording.description || null,
+      source: externalRecordingSource(recording.url),
+      date: recording.date || null,
+      meta: recording.url,
+      recording: null,
+      url: recording.url,
+    })),
+  ]
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -478,6 +510,60 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
         </div>
       )}
 
+      {libraryItems.length > 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
+          <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Student recording library</p>
+              <p className="text-xs text-slate-500">The combined list students see, with source labels for each item.</p>
+            </div>
+            <span className="text-xs font-medium text-slate-500">
+              {libraryItems.length} recording{libraryItems.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <div className="grid gap-2 md:grid-cols-2">
+            {libraryItems.map((item) => (
+              <div key={item.key} className="rounded-xl border border-slate-200 bg-white p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${sourceBadgeClass(item.source)}`}>
+                        {item.source === 'Uploaded' ? <Upload className="h-3 w-3" /> : item.source === 'YouTube' ? <Film className="h-3 w-3" /> : <Link2 className="h-3 w-3" />}
+                        {item.source}
+                      </span>
+                      {item.date && <span className="text-[11px] text-slate-400">{formatDateLabel(item.date)}</span>}
+                    </div>
+                    <p className="mt-2 truncate text-sm font-semibold text-slate-900">{item.title}</p>
+                    {item.description && <p className="mt-1 text-xs text-slate-500">{item.description}</p>}
+                    {item.meta && <p className="mt-1 truncate text-[11px] text-slate-400">{item.meta}</p>}
+                  </div>
+                  {item.recording ? (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewRecording(item.recording)}
+                      className="rounded-lg p-1.5 text-slate-400 hover:bg-primary-50 hover:text-primary-600"
+                      title="Preview uploaded recording"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
+                  ) : item.url ? (
+                    <a
+                      href={sanitizeUrl(item.url)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-lg p-1.5 text-slate-400 hover:bg-primary-50 hover:text-primary-600"
+                      title="Open external recording"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {previewRecording && (
         <div className="rounded-2xl border border-primary-200 bg-primary-50/40 p-3">
           <div className="mb-3 flex items-start justify-between gap-3">
@@ -612,4 +698,24 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
       )}
     </div>
   )
+}
+
+function externalRecordingSource(url: string): 'YouTube' | 'External' {
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    if (host.includes('youtube.com') || host.includes('youtu.be')) return 'YouTube'
+  } catch {
+    // Fall through to External for malformed or draft URLs.
+  }
+  return 'External'
+}
+
+function sourceBadgeClass(source: 'Uploaded' | 'YouTube' | 'External') {
+  if (source === 'Uploaded') return 'border-primary-200 bg-primary-50 text-primary-700'
+  if (source === 'YouTube') return 'border-red-200 bg-red-50 text-red-700'
+  return 'border-slate-200 bg-slate-50 text-slate-600'
+}
+
+function formatDateLabel(dateStr: string) {
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }

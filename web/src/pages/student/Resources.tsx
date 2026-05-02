@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, ExternalLink, Link2, Search, Video, MessageSquare, Github, FileText, Globe, RefreshCw, WifiOff, Keyboard } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Link2, Search, Video, MessageSquare, Github, FileText, Globe, RefreshCw, WifiOff, Keyboard, Copy, Check } from 'lucide-react'
 import { api } from '../../lib/api'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -30,6 +30,7 @@ export function Resources() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showingSavedData, setShowingSavedData] = useState(false)
   const [query, setQuery] = useState('')
+  const [copiedResourceId, setCopiedResourceId] = useState<number | null>(null)
 
   const loadResources = useCallback(() => {
     setLoading(true)
@@ -73,6 +74,15 @@ export function Resources() {
     const regular = filtered.filter((resource) => !['hotkeys', 'shortcuts'].includes(resource.category))
     return { hotkeys, regular }
   }, [filtered])
+
+  const copyResource = useCallback((resource: ResourceItem) => {
+    if (!navigator.clipboard) return
+
+    void navigator.clipboard.writeText(resource.url).then(() => {
+      setCopiedResourceId(resource.id)
+      window.setTimeout(() => setCopiedResourceId((current) => current === resource.id ? null : current), 1800)
+    })
+  }, [])
 
   if (loading) return <LoadingSpinner message="Loading resources..." />
 
@@ -143,7 +153,12 @@ export function Resources() {
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {grouped.hotkeys.map((resource) => (
-              <ResourceCard key={resource.id} resource={resource} compact />
+              <HotkeyCard
+                key={resource.id}
+                resource={resource}
+                copied={copiedResourceId === resource.id}
+                onCopy={() => copyResource(resource)}
+              />
             ))}
           </div>
         </section>
@@ -153,6 +168,52 @@ export function Resources() {
         {grouped.regular.map((resource) => (
           <ResourceCard key={resource.id} resource={resource} />
         ))}
+      </div>
+    </div>
+  )
+}
+
+function HotkeyCard({
+  resource,
+  copied,
+  onCopy,
+}: {
+  resource: ResourceItem
+  copied: boolean
+  onCopy: () => void
+}) {
+  return (
+    <div className="rounded-2xl border border-primary-200 bg-white p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <Keyboard className="h-4 w-4 text-primary-600" />
+            <h2 className="text-sm font-semibold text-slate-900">{resource.title}</h2>
+          </div>
+          {resource.description && (
+            <p className="mt-2 text-sm leading-6 text-slate-600">{resource.description}</p>
+          )}
+          <p className="mt-2 break-all text-xs text-slate-400">{resource.url}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={onCopy}
+            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-primary-50 hover:text-primary-600"
+            title="Copy shortcut link"
+          >
+            {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+          </button>
+          <a
+            href={sanitizeUrl(resource.url)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-primary-50 hover:text-primary-600"
+            title="Open shortcut resource"
+          >
+            <ExternalLink className="h-4 w-4" />
+          </a>
+        </div>
       </div>
     </div>
   )

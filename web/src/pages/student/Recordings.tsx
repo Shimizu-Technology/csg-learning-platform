@@ -6,6 +6,7 @@ import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { VideoPlayer } from '../../components/shared/VideoPlayer'
+import type { RecordingEntry, RecordingItem as ApiRecordingItem, S3Recording as ApiS3Recording } from '../../types/api'
 
 interface LegacyRecording {
   id: string
@@ -14,7 +15,7 @@ interface LegacyRecording {
   url: string
   date: string | null
   description: string | null
-  source: 'youtube'
+  source: 'youtube' | 'external'
 }
 
 interface S3Recording {
@@ -27,7 +28,7 @@ interface S3Recording {
   file_size_display: string
   recorded_date: string | null
   created_at: string
-  source: 's3'
+  source: 'uploaded'
   watch_progress: {
     last_position_seconds: number
     total_watched_seconds: number
@@ -38,6 +39,7 @@ interface S3Recording {
 }
 
 type RecordingItem = LegacyRecording | S3Recording
+type RecordingTab = 'all' | 'uploaded' | 'youtube' | 'external'
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return null
@@ -57,6 +59,36 @@ function extractYouTubeId(url: string): string | null {
   return null
 }
 
+function normalizeLegacyRecording(recording: RecordingEntry | ApiRecordingItem): LegacyRecording {
+  const url = 'url' in recording ? recording.url || '' : ''
+  const source = recording.source === 'external' ? 'external' : extractYouTubeId(url) ? 'youtube' : 'external'
+  return {
+    id: String(recording.id),
+    cohort_id: recording.cohort_id,
+    title: recording.title,
+    url,
+    date: recording.date ?? recording.recorded_date ?? null,
+    description: recording.description,
+    source,
+  }
+}
+
+function normalizeUploadedRecording(recording: ApiS3Recording | ApiRecordingItem): S3Recording {
+  return {
+    id: Number(recording.id),
+    cohort_id: recording.cohort_id,
+    title: recording.title,
+    description: recording.description,
+    duration_seconds: recording.duration_seconds ?? null,
+    duration_display: recording.duration_display ?? null,
+    file_size_display: recording.file_size_display ?? '',
+    recorded_date: recording.recorded_date ?? null,
+    created_at: recording.created_at ?? '',
+    source: 'uploaded',
+    watch_progress: recording.watch_progress ?? null,
+  }
+}
+
 export function Recordings() {
   const [legacyRecordings, setLegacyRecordings] = useState<LegacyRecording[]>([])
   const [s3Recordings, setS3Recordings] = useState<S3Recording[]>([])
@@ -66,7 +98,7 @@ export function Recordings() {
   const [selectedItem, setSelectedItem] = useState<RecordingItem | null>(null)
   const [query, setQuery] = useState('')
   const [playlistCollapsed, setPlaylistCollapsed] = useState(false)
-  const [activeTab, setActiveTab] = useState<'all' | 'uploaded' | 'youtube'>('all')
+  const [activeTab, setActiveTab] = useState<RecordingTab>('all')
 
   const loadRecordings = useCallback(() => {
     setLoading(true)
@@ -75,24 +107,17 @@ export function Recordings() {
 
     api.getRecordings().then((res) => {
       if (res.data) {
-        const legacy: LegacyRecording[] = (res.data.recordings || []).map((r) => ({
-          ...r,
-          source: 'youtube',
-        }))
-        // Adapt the API row into the discriminated-union shape this view uses.
-        const s3: S3Recording[] = (res.data.s3_recordings || []).map((r) => ({
-          id: r.id,
-          cohort_id: r.cohort_id,
-          title: r.title,
-          description: r.description,
-          duration_seconds: r.duration_seconds,
-          duration_display: r.duration_display,
-          file_size_display: r.file_size_display,
-          recorded_date: r.recorded_date,
-          created_at: r.created_at,
-          source: 's3',
-          watch_progress: r.watch_progress ?? null,
-        }))
+        const normalizedItems = res.data.items || []
+        const legacy: LegacyRecording[] = normalizedItems.length > 0
+          ? normalizedItems
+              .filter((recording) => recording.source !== 'uploaded')
+              .map(normalizeLegacyRecording)
+          : (res.data.recordings || []).map(normalizeLegacyRecording)
+        const s3: S3Recording[] = normalizedItems.length > 0
+          ? normalizedItems
+              .filter((recording) => recording.source === 'uploaded')
+              .map(normalizeUploadedRecording)
+          : (res.data.s3_recordings || []).map(normalizeUploadedRecording)
         setLegacyRecordings(legacy)
         setS3Recordings(s3)
         const first = s3.length > 0 ? s3[0] : legacy.length > 0 ? legacy[0] : null
@@ -115,7 +140,8 @@ export function Recordings() {
 
   const allRecordings = useMemo<RecordingItem[]>(() => {
     if (activeTab === 'uploaded') return s3Recordings
-    if (activeTab === 'youtube') return legacyRecordings
+    if (activeTab === 'youtube') return legacyRecordings.filter((recording) => recording.source === 'youtube')
+    if (activeTab === 'external') return legacyRecordings.filter((recording) => recording.source === 'external')
     return [...s3Recordings, ...legacyRecordings]
   }, [s3Recordings, legacyRecordings, activeTab])
 
@@ -129,7 +155,7 @@ export function Recordings() {
   }, [allRecordings, query])
 
   const handleProgressUpdate = useCallback((data: Partial<NonNullable<S3Recording['watch_progress']>>) => {
-    if (!selectedItem || selectedItem.source !== 's3') return
+    if (!selectedItem || selectedItem.source !== 'uploaded') return
     setS3Recordings(prev => prev.map(r => {
       if (r.id !== selectedItem.id) return r
       const base = r.watch_progress || { last_position_seconds: 0, total_watched_seconds: 0, progress_percentage: 0, completed: false, last_watched_at: null }
@@ -139,14 +165,14 @@ export function Recordings() {
 
   const liveSelectedItem = useMemo<RecordingItem | null>(() => {
     if (!selectedItem) return null
-    if (selectedItem.source === 's3') {
+    if (selectedItem.source === 'uploaded') {
       return s3Recordings.find(r => r.id === selectedItem.id) || selectedItem
     }
     return selectedItem
   }, [selectedItem, s3Recordings])
 
-  const selectedId = liveSelectedItem?.source === 's3' ? liveSelectedItem.id : null
-  const selectedCohortId = liveSelectedItem?.source === 's3' ? liveSelectedItem.cohort_id ?? null : null
+  const selectedId = liveSelectedItem?.source === 'uploaded' ? liveSelectedItem.id : null
+  const selectedCohortId = liveSelectedItem?.source === 'uploaded' ? liveSelectedItem.cohort_id ?? null : null
 
   const fetchSelectedStreamUrl = useCallback(async () => {
     if (!selectedCohortId || !selectedId) return null
@@ -194,7 +220,12 @@ export function Recordings() {
     )
   }
 
-  const showTabs = s3Recordings.length > 0 && legacyRecordings.length > 0
+  const sourceGroupCount = [
+    s3Recordings.length > 0,
+    legacyRecordings.some((recording) => recording.source === 'youtube'),
+    legacyRecordings.some((recording) => recording.source === 'external'),
+  ].filter(Boolean).length
+  const showTabs = sourceGroupCount > 1
 
   return (
     <div className="space-y-5 max-w-6xl mx-auto">
@@ -218,7 +249,7 @@ export function Recordings() {
       <div className="flex flex-col lg:flex-row gap-5">
         {/* Player area */}
         <div className="flex-1 min-w-0">
-          {liveSelectedItem && liveSelectedItem.source === 's3' && selectedCohortId ? (
+          {liveSelectedItem && liveSelectedItem.source === 'uploaded' && selectedCohortId ? (
             <div className="space-y-4">
               <VideoPlayer
                 key={liveSelectedItem.id}
@@ -271,7 +302,7 @@ export function Recordings() {
                 )}
               </div>
             </div>
-          ) : liveSelectedItem && liveSelectedItem.source === 'youtube' ? (
+          ) : liveSelectedItem && (liveSelectedItem.source === 'youtube' || liveSelectedItem.source === 'external') ? (
             <LegacyPlayer recording={liveSelectedItem as LegacyRecording} />
           ) : null}
         </div>
@@ -294,7 +325,9 @@ export function Recordings() {
             <div className={`${playlistCollapsed ? 'hidden' : 'block'} lg:block`}>
               {showTabs && (
                 <div className="flex border-b border-slate-100">
-                  {(['all', 'uploaded', 'youtube'] as const).map(tab => (
+                  {(['all', 'uploaded', 'youtube', 'external'] as const)
+                    .filter((tab) => tab === 'all' || allRecordingsForTab(tab, s3Recordings, legacyRecordings).length > 0)
+                    .map(tab => (
                     <button
                       key={tab}
                       onClick={() => setActiveTab(tab)}
@@ -302,7 +335,7 @@ export function Recordings() {
                         activeTab === tab ? 'text-primary-600 border-b-2 border-primary-500' : 'text-slate-500 hover:text-slate-700'
                       }`}
                     >
-                      {tab === 'all' ? 'All' : tab === 'uploaded' ? 'Uploaded' : 'YouTube'}
+                      {tab === 'all' ? 'All' : tab === 'uploaded' ? 'Uploaded' : tab === 'youtube' ? 'YouTube' : 'External'}
                     </button>
                   ))}
                 </div>
@@ -330,7 +363,7 @@ export function Recordings() {
                   <div className="space-y-1">
                     {filtered.map((recording, idx) => {
                       const isActive = selectedItem?.id === recording.id && selectedItem?.source === recording.source
-                      const isS3 = recording.source === 's3'
+                      const isS3 = recording.source === 'uploaded'
                       const s3Rec = isS3 ? recording as S3Recording : null
                       return (
                         <button
@@ -363,7 +396,7 @@ export function Recordings() {
                                 {!isS3 && (
                                   <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
                                     <ExternalLink className="h-2.5 w-2.5" />
-                                    YouTube
+                                    {recording.source === 'youtube' ? 'YouTube' : 'External'}
                                   </span>
                                 )}
                               </div>
@@ -424,7 +457,7 @@ function LegacyPlayer({ recording }: { recording: LegacyRecording }) {
               className="inline-flex items-center gap-1 text-primary-600 hover:text-primary-700 transition-colors"
             >
               <ExternalLink className="h-3.5 w-3.5" />
-              Watch on YouTube
+              {recording.source === 'youtube' ? 'Watch on YouTube' : 'Open Recording'}
             </a>
           </div>
           {recording.description && (
@@ -460,4 +493,11 @@ function LegacyPlayer({ recording }: { recording: LegacyRecording }) {
       </div>
     </div>
   )
+}
+
+function allRecordingsForTab(tab: RecordingTab, uploaded: S3Recording[], legacy: LegacyRecording[]): RecordingItem[] {
+  if (tab === 'uploaded') return uploaded
+  if (tab === 'youtube') return legacy.filter((recording) => recording.source === 'youtube')
+  if (tab === 'external') return legacy.filter((recording) => recording.source === 'external')
+  return [...uploaded, ...legacy]
 }
