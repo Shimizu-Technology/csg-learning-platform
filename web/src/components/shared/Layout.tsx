@@ -55,12 +55,27 @@ export function Layout({ children }: LayoutProps) {
   useEffect(() => {
     if (!user) return
 
-    void api.updatePresence()
-    const intervalId = globalThis.setInterval(() => {
+    const updatePresence = () => {
       void api.updatePresence()
+    }
+
+    updatePresence()
+    const intervalId = globalThis.setInterval(() => {
+      updatePresence()
     }, 60_000)
 
-    return () => globalThis.clearInterval(intervalId)
+    const updatePresenceWhenVisible = () => {
+      if (document.visibilityState === 'visible') updatePresence()
+    }
+
+    window.addEventListener('focus', updatePresence)
+    document.addEventListener('visibilitychange', updatePresenceWhenVisible)
+
+    return () => {
+      globalThis.clearInterval(intervalId)
+      window.removeEventListener('focus', updatePresence)
+      document.removeEventListener('visibilitychange', updatePresenceWhenVisible)
+    }
   }, [user])
 
   const toggleCollapsed = () => {

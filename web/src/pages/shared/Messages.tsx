@@ -94,6 +94,20 @@ type MessageSearchResult = ChannelMessage & {
   }
 }
 
+type ReadReceipts = NonNullable<ChannelMessage['read_receipts']>
+
+function readReceiptLabel(readReceipts: ReadReceipts): string {
+  if (readReceipts.count === 1) return readReceipts.users[0]?.full_name || '1 person'
+  return `${readReceipts.count} people`
+}
+
+function readReceiptTitle(readReceipts: ReadReceipts): string {
+  const names = readReceipts.users.map((user) => user.full_name)
+  const hiddenCount = readReceipts.count - names.length
+  if (hiddenCount > 0) names.push(`${hiddenCount} more`)
+  return names.join(', ')
+}
+
 const REACTIONS = ['👍', '❤️', '✅', '🙌']
 const CHANNEL_MENTION_ALIASES = [
   { label: '@everyone', subtitle: 'Notify everyone in this channel' },
@@ -3095,11 +3109,9 @@ function MessageRow({
         {message.mine && message.read_receipts && message.read_receipts.count > 0 && (
           <div
             className="mt-1 text-[11px] text-slate-400"
-            title={message.read_receipts.users.map((user) => user.full_name).join(', ')}
+            title={readReceiptTitle(message.read_receipts)}
           >
-            Seen by {message.read_receipts.count === 1
-              ? message.read_receipts.users[0]?.full_name || '1 person'
-              : `${message.read_receipts.count} people`}
+            Seen by {readReceiptLabel(message.read_receipts)}
           </div>
         )}
         <div className={`flex flex-wrap items-center gap-1.5 ${message.reactions.length > 0 ? 'mt-2' : 'mt-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100'}`}>

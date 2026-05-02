@@ -61,6 +61,17 @@ function formatTypeLabel(value: string) {
   return value.replaceAll('_', ' ')
 }
 
+function readCollapsedModuleIds(cohortId: number | undefined): Set<number> {
+  if (!cohortId) return new Set()
+
+  try {
+    const raw = localStorage.getItem(`csg-materials-collapsed:${cohortId}`)
+    return raw ? new Set(JSON.parse(raw) as number[]) : new Set()
+  } catch {
+    return new Set()
+  }
+}
+
 export function Materials() {
   const { user } = useAuthContext()
   const navigate = useNavigate()
@@ -85,7 +96,9 @@ export function Materials() {
     api.getDashboard()
       .then((res) => {
         if (res.data?.dashboard) {
-          setData(res.data.dashboard)
+          const dashboard = res.data.dashboard
+          setCollapsedModules(readCollapsedModuleIds(dashboard.cohort?.id))
+          setData(dashboard)
           setShowingSavedData(Boolean(res.fromCache))
           setLoadError(res.fromCache ? res.error : null)
         } else {
@@ -101,18 +114,6 @@ export function Materials() {
   useEffect(() => {
     loadMaterials()
   }, [loadMaterials])
-
-  useEffect(() => {
-    const cohortId = data?.cohort?.id
-    if (!cohortId) return
-
-    try {
-      const raw = localStorage.getItem(`csg-materials-collapsed:${cohortId}`)
-      if (raw) setCollapsedModules(new Set(JSON.parse(raw) as number[]))
-    } catch {
-      // Ignore unavailable storage in private browsing or locked-down WebViews.
-    }
-  }, [data?.cohort?.id])
 
   const persistCollapsedModules = useCallback((next: Set<number>) => {
     setCollapsedModules(next)
