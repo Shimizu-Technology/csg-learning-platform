@@ -253,6 +253,7 @@ module Api
             completed_blocks: completed,
             total_blocks: total_blocks,
             last_sign_in_at: user.last_sign_in_at,
+            last_seen_at: user.last_seen_at,
             last_activity_at: last_activity,
             blocks_this_week: blocks_this_week,
             submissions_this_week: submissions_this_week,

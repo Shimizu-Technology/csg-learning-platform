@@ -92,7 +92,9 @@ module ClerkAuthenticatable
       updates[:first_name] = first_name if first_name.present?
       updates[:last_name] = last_name if last_name.present?
       updates[:role] = :admin if owner_admin_email?(email || user.email) && !user.admin?
-      updates[:last_sign_in_at] = Time.current
+      # Every authenticated API request counts as activity; sign-in time is
+      # advanced only by sessions#create so admin reporting can distinguish them.
+      updates[:last_seen_at] = Time.current
       user.update(updates) if updates.any?
       return user
     end
@@ -106,7 +108,8 @@ module ClerkAuthenticatable
           clerk_id: clerk_id,
           first_name: first_name,
           last_name: last_name,
-          last_sign_in_at: Time.current
+          last_sign_in_at: Time.current,
+          last_seen_at: Time.current
         }
         updates[:role] = :admin if owner_admin_email?(email)
         user.update(updates)
@@ -125,7 +128,8 @@ module ClerkAuthenticatable
         first_name: first_name,
         last_name: last_name,
         role: :admin,
-        last_sign_in_at: Time.current
+        last_sign_in_at: Time.current,
+        last_seen_at: Time.current
       )
     end
 
@@ -139,7 +143,8 @@ module ClerkAuthenticatable
         first_name: first_name,
         last_name: last_name,
         role: owner_admin ? :admin : :student,
-        last_sign_in_at: Time.current
+        last_sign_in_at: Time.current,
+        last_seen_at: Time.current
       )
 
       # Auto-enroll in active bootcamp cohort

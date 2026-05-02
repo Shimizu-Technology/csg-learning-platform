@@ -53,6 +53,7 @@ module Api
         member = @conversation.direct_conversation_members.find_by!(user: current_user)
         messages = windowed_messages(@conversation.messages.visible)
         pinned_messages = @conversation.messages.pinned_recent.to_a
+        read_receipts = read_receipts_for(messages)
 
         render json: {
           direct_conversation: conversation_json(
@@ -61,7 +62,7 @@ module Api
             unread_count: unread_count_for(@conversation, member),
             latest_message: messages.last
           ),
-          messages: messages.map { |message| MessageJson.render(message, current_user: current_user, stream_url: true) },
+          messages: messages.map { |message| MessageJson.render(message, current_user: current_user, stream_url: true, read_receipts: read_receipts[message.id]) },
           pinned_messages: pinned_messages.map { |message| MessageJson.render(message, current_user: current_user, stream_url: true) }
         }
       end
@@ -181,6 +182,27 @@ module Api
           users: conversation.users.map { |user| user_json(user) },
           created_at: conversation.created_at,
           updated_at: conversation.updated_at
+        }
+      end
+
+      def read_receipts_for(messages)
+        return {} if messages.empty?
+
+        members = @conversation.direct_conversation_members.includes(:user).where.not(last_read_at: nil).to_a
+        messages.to_h do |message|
+          readers = members.select { |member| member.user_id != message.author_id && member.last_read_at && member.last_read_at >= message.created_at }
+          [ message.id, {
+            count: readers.size,
+            users: readers.first(5).map { |member| receipt_user_json(member.user) }
+          } ]
+        end
+      end
+
+      def receipt_user_json(user)
+        {
+          id: user.id,
+          full_name: user.full_name,
+          avatar_url: user.avatar_url
         }
       end
 

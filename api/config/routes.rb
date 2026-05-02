@@ -8,6 +8,7 @@ Rails.application.routes.draw do
     namespace :v1 do
       # Auth
       post "sessions", to: "sessions#create"
+      post "presence", to: "presence#create"
 
       # Profile (current user)
       get "profile", to: "profile#show"

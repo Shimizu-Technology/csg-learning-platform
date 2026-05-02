@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_01_000100) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_02_000100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1283,6 +1283,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_01_000100) do
     t.string "first_name"
     t.string "github_username"
     t.string "last_name"
+    t.datetime "last_seen_at"
     t.datetime "last_sign_in_at"
     t.string "name"
     t.string "phone"
@@ -1290,6 +1291,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_01_000100) do
     t.datetime "updated_at", null: false
     t.index ["clerk_id"], name: "index_users_on_clerk_id", unique: true
     t.index ["email"], name: "index_users_on_email", unique: true
+    t.index ["last_seen_at"], name: "index_users_on_last_seen_at"
     t.index ["role"], name: "index_users_on_role"
   end
 

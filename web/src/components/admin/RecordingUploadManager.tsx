@@ -1,8 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Upload, Trash2, Film, Calendar, Clock, Plus, X, Pencil, Loader2 } from 'lucide-react'
+import { Upload, Trash2, Film, Calendar, Clock, Plus, X, Pencil, Loader2, Eye } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useUpload } from '../../contexts/UploadContext'
 import { useToast } from '../../contexts/ToastContext'
+import { VideoPlayer } from '../shared/VideoPlayer'
 
 interface S3Recording {
   id: number
@@ -48,6 +49,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
   const [editTitle, setEditTitle] = useState('')
   const [editDescription, setEditDescription] = useState('')
   const [editDate, setEditDate] = useState('')
+  const [previewRecording, setPreviewRecording] = useState<S3Recording | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const mountedRef = useRef(false)
 
@@ -268,6 +270,12 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
     upload.status !== 'error'
   ))
 
+  const fetchPreviewStreamUrl = useCallback(async () => {
+    if (!previewRecording) return null
+    const res = await api.getRecordingStreamUrl(cohortId, previewRecording.id)
+    return res.data?.stream_url || null
+  }, [cohortId, previewRecording])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -470,6 +478,31 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
         </div>
       )}
 
+      {previewRecording && (
+        <div className="rounded-2xl border border-primary-200 bg-primary-50/40 p-3">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-900">Previewing {previewRecording.title}</p>
+              <p className="text-xs text-slate-500">This admin preview does not update any student watch progress.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPreviewRecording(null)}
+              className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-slate-700"
+              aria-label="Close preview"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <VideoPlayer
+            key={previewRecording.id}
+            title={previewRecording.title}
+            fetchStreamUrl={fetchPreviewStreamUrl}
+            onSaveProgress={() => {}}
+          />
+        </div>
+      )}
+
       {recordings.length === 0 ? (
         <div className="text-center py-6 text-xs text-slate-400">
           No uploaded recordings yet. Click "Upload" to add one.
@@ -548,6 +581,14 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
                     )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewRecording(rec)}
+                      className="rounded-lg p-1.5 text-slate-400 hover:bg-primary-50 hover:text-primary-600 transition-colors"
+                      title="Preview"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
                     <button
                       onClick={() => startEdit(rec)}
                       className="rounded-lg p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"

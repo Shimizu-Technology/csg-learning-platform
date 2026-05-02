@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -32,6 +32,7 @@ export function Layout({ children }: LayoutProps) {
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('sidebar-collapsed') === 'true' } catch { return false }
   })
+  const lastPresenceUpdateAtRef = useRef(0)
   const location = useLocation()
   const { user, isLoading } = useAuthContext()
   const [unreadCount, setUnreadCount] = useState(0)
@@ -51,6 +52,36 @@ export function Layout({ children }: LayoutProps) {
       setMessageUnreadCount(channelUnread + dmUnread)
     })
   }, [user, location.pathname])
+
+  useEffect(() => {
+    if (!user) return
+
+    const updatePresence = () => {
+      const now = Date.now()
+      if (now - lastPresenceUpdateAtRef.current < 5_000) return
+
+      lastPresenceUpdateAtRef.current = now
+      void api.updatePresence()
+    }
+
+    updatePresence()
+    const intervalId = globalThis.setInterval(() => {
+      updatePresence()
+    }, 60_000)
+
+    const updatePresenceWhenVisible = () => {
+      if (document.visibilityState === 'visible') updatePresence()
+    }
+
+    window.addEventListener('focus', updatePresence)
+    document.addEventListener('visibilitychange', updatePresenceWhenVisible)
+
+    return () => {
+      globalThis.clearInterval(intervalId)
+      window.removeEventListener('focus', updatePresence)
+      document.removeEventListener('visibilitychange', updatePresenceWhenVisible)
+    }
+  }, [user])
 
   const toggleCollapsed = () => {
     const next = !collapsed
@@ -83,7 +114,7 @@ export function Layout({ children }: LayoutProps) {
   ]
 
   const studentNav = [
-    { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/materials', icon: BookOpenText, label: 'Materials' },
     { to: '/recordings', icon: PlayCircle, label: 'Recordings' },
     { to: '/resources', icon: Link2, label: 'Resources' },
@@ -114,7 +145,7 @@ export function Layout({ children }: LayoutProps) {
   }, [navItems])
 
   const isActive = (path: string, exact?: boolean) => {
-    if (path === '/' || exact) return location.pathname === path
+    if (path === '/dashboard' || exact) return location.pathname === path
     return location.pathname.startsWith(path)
   }
 

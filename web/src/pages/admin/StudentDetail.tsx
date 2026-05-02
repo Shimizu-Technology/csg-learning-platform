@@ -27,6 +27,7 @@ import { ProgressBar } from '../../components/shared/ProgressBar'
 import { ProgressRing } from '../../components/shared/ProgressRing'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { useToast } from '../../contexts/ToastContext'
+import { isRecentlyOnline, usePresenceNow } from '../../lib/presence'
 
 const BLOCK_ICONS: Record<string, React.ElementType> = {
   reading: FileText,
@@ -77,6 +78,7 @@ interface ProgressData {
     github_username: string | null
     avatar_url: string | null
     last_sign_in_at: string | null
+    last_seen_at: string | null
   }
   cohort: {
     id: number
@@ -441,6 +443,7 @@ export function StudentDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const toast = useToast()
+  const presenceNow = usePresenceNow()
   const [data, setData] = useState<ProgressData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -799,6 +802,12 @@ export function StudentDetail() {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-slate-900">{user.full_name}</h1>
+              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+                isRecentlyOnline(user.last_seen_at, presenceNow) ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500'
+              }`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${isRecentlyOnline(user.last_seen_at, presenceNow) ? 'bg-green-500' : 'bg-slate-400'}`} />
+                {isRecentlyOnline(user.last_seen_at, presenceNow) ? 'Online' : 'Offline'}
+              </span>
               {!editingUser && (
                 <button
                   onClick={() => {
@@ -837,7 +846,7 @@ export function StudentDetail() {
               )}
               <span className="inline-flex items-center gap-1.5">
                 <Clock className="h-3.5 w-3.5" />
-                Last active: {formatRelative(user.last_sign_in_at)}
+                Last sign-in: {formatRelative(user.last_sign_in_at)}
               </span>
             </div>
             <p className="mt-1 text-xs text-slate-400">
@@ -849,6 +858,13 @@ export function StudentDetail() {
             <p className="mt-1 text-xs text-slate-500">
               {overall_progress.completed}/{overall_progress.total} blocks
             </p>
+            <Link
+              to={`/admin/students/${user.id}/preview`}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-xs font-medium text-primary-700 hover:bg-primary-100"
+            >
+              <Eye className="h-3.5 w-3.5" />
+              Student view
+            </Link>
           </div>
         </div>
 

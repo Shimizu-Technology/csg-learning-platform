@@ -27,7 +27,7 @@ function RedirectIfSignedIn({ children }: { children: ReactNode }) {
   const { isSignedIn } = useAuthContext()
 
   if (isSignedIn) {
-    return <Navigate to="/" replace />
+    return <Navigate to="/dashboard" replace />
   }
 
   return children
@@ -48,7 +48,7 @@ export function SignInPage() {
           appearance={authAppearance}
           routing="hash"
           signUpUrl="/sign-up"
-          afterSignInUrl="/"
+          fallbackRedirectUrl="/dashboard"
         />
       </AuthShell>
     </RedirectIfSignedIn>
@@ -63,7 +63,7 @@ export function SignUpPage() {
           appearance={authAppearance}
           routing="hash"
           signInUrl="/sign-in"
-          afterSignUpUrl="/"
+          fallbackRedirectUrl="/dashboard"
         />
       </AuthShell>
     </RedirectIfSignedIn>

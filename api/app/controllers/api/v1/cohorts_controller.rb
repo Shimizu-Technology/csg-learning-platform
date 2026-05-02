@@ -273,6 +273,7 @@ module Api
               status: e.status,
               enrolled_at: e.enrolled_at,
               last_sign_in_at: e.user.last_sign_in_at,
+              last_seen_at: e.user.last_seen_at,
               invite_pending: e.user.clerk_id&.start_with?("pending_") || false,
               module_assignments: e.module_assignments.map { |assignment|
                 {

@@ -59,7 +59,7 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
       user.role === requiredRole
 
     if (!hasAccess) {
-      return <Navigate to="/" replace />
+      return <Navigate to="/dashboard" replace />
     }
   }
 

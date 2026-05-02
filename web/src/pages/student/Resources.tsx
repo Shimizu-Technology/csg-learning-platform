@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, ExternalLink, Link2, Search, Video, MessageSquare, Github, FileText, Globe, RefreshCw, WifiOff } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Link2, Search, Video, MessageSquare, Github, FileText, Globe, RefreshCw, WifiOff, Keyboard } from 'lucide-react'
 import { api } from '../../lib/api'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -19,6 +19,8 @@ const categoryConfig: Record<string, { label: string; icon: typeof Globe; color:
   github: { label: 'GitHub', icon: Github, color: 'bg-slate-50 text-slate-700 border-slate-200' },
   communication: { label: 'Communication', icon: MessageSquare, color: 'bg-green-50 text-green-700 border-green-200' },
   documentation: { label: 'Docs', icon: FileText, color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  hotkeys: { label: 'Hotkeys', icon: Keyboard, color: 'bg-primary-50 text-primary-700 border-primary-200' },
+  shortcuts: { label: 'Hotkeys', icon: Keyboard, color: 'bg-primary-50 text-primary-700 border-primary-200' },
   general: { label: 'General', icon: Globe, color: 'bg-slate-50 text-slate-600 border-slate-200' },
 }
 
@@ -66,6 +68,12 @@ export function Resources() {
     )
   }, [resources, query])
 
+  const grouped = useMemo(() => {
+    const hotkeys = filtered.filter((resource) => ['hotkeys', 'shortcuts'].includes(resource.category))
+    const regular = filtered.filter((resource) => !['hotkeys', 'shortcuts'].includes(resource.category))
+    return { hotkeys, regular }
+  }, [filtered])
+
   if (loading) return <LoadingSpinner message="Loading resources..." />
 
   if (loadError && resources.length === 0) {
@@ -106,7 +114,7 @@ export function Resources() {
         </div>
       )}
       <div>
-        <Link to="/" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-2">
+        <Link to="/dashboard" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-2">
           <ArrowLeft className="h-4 w-4" />
           Back to Dashboard
         </Link>
@@ -127,17 +135,38 @@ export function Resources() {
         </div>
       )}
 
+      {grouped.hotkeys.length > 0 && (
+        <section className="rounded-2xl border border-primary-200 bg-primary-50/50 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <Keyboard className="h-4 w-4 text-primary-600" />
+            <h2 className="text-sm font-semibold text-slate-900">Hotkeys and shortcuts</h2>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {grouped.hotkeys.map((resource) => (
+              <ResourceCard key={resource.id} resource={resource} compact />
+            ))}
+          </div>
+        </section>
+      )}
+
       <div className="space-y-3">
-        {filtered.map((resource) => {
+        {grouped.regular.map((resource) => (
+          <ResourceCard key={resource.id} resource={resource} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ResourceCard({ resource, compact = false }: { resource: ResourceItem; compact?: boolean }) {
           const cat = categoryConfig[resource.category] || categoryConfig.general
           const Icon = cat.icon
           return (
             <a
-              key={resource.id}
               href={sanitizeUrl(resource.url)}
               target="_blank"
               rel="noopener noreferrer"
-              className="block rounded-2xl border border-slate-200 bg-white p-5 hover:border-primary-200 hover:shadow-sm transition-all"
+      className={`block rounded-2xl border border-slate-200 bg-white ${compact ? 'p-4' : 'p-5'} transition-all hover:border-primary-200 hover:shadow-sm`}
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3 min-w-0">
@@ -159,8 +188,4 @@ export function Resources() {
               </div>
             </a>
           )
-        })}
-      </div>
-    </div>
-  )
 }

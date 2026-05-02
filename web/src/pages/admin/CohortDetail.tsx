@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Save, Lock, Unlock, UserPlus, Mail, CheckCircle, PlayCircle, Link2, Plus, Trash2, CalendarDays, ExternalLink, Github, Eye } from 'lucide-react'
+import { ArrowLeft, Save, Lock, Unlock, UserPlus, Mail, CheckCircle, PlayCircle, Link2, Plus, Trash2, CalendarDays, ExternalLink, Github, Eye, Keyboard } from 'lucide-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Modal } from '../../components/shared/Modal'
 import { RecordingUploadManager } from '../../components/admin/RecordingUploadManager'
 import { useToast } from '../../contexts/ToastContext'
+import { sanitizeUrl } from '../../lib/sanitizeUrl'
 
 interface Recording {
   title: string
@@ -112,6 +113,20 @@ const COHORT_STATUS_OPTIONS = [
   { value: 'archived', label: 'Archived', description: 'Inactive cohort kept only for records and history.' },
 ] as const
 
+const RESOURCE_CATEGORY_OPTIONS = [
+  { value: 'general', label: 'General' },
+  { value: 'meeting', label: 'Meeting Link' },
+  { value: 'github', label: 'GitHub' },
+  { value: 'communication', label: 'Communication' },
+  { value: 'documentation', label: 'Documentation' },
+  { value: 'hotkeys', label: 'Hotkeys / Shortcuts' },
+]
+
+const RESOURCE_CATEGORY_LABELS = RESOURCE_CATEGORY_OPTIONS.reduce<Record<string, string>>((labels, option) => {
+  labels[option.value] = option.label
+  return labels
+}, {})
+
 type CohortStatusValue = typeof COHORT_STATUS_OPTIONS[number]['value']
 
 export function CohortDetail() {
@@ -139,6 +154,7 @@ export function CohortDetail() {
   const [savingStartDate, setSavingStartDate] = useState(false)
   const [showRecordingsModal, setShowRecordingsModal] = useState(false)
   const [showResourcesModal, setShowResourcesModal] = useState(false)
+  const [resourcesMode, setResourcesMode] = useState<'view' | 'edit'>('view')
   const [configureModuleId, setConfigureModuleId] = useState<number | null>(null)
   const [showAddModule, setShowAddModule] = useState(false)
   const [newModuleName, setNewModuleName] = useState('')
@@ -1240,7 +1256,7 @@ export function CohortDetail() {
         open={showResourcesModal}
         onClose={() => setShowResourcesModal(false)}
         title="Class Resources"
-        subtitle="Important links for this cohort — Zoom, GitHub, Slack, etc."
+        subtitle="Open resources when you need them, or switch to edit mode to maintain the list."
         icon={<Link2 className="h-6 w-6 text-primary-500" />}
         size="xl"
         footer={
@@ -1263,8 +1279,61 @@ export function CohortDetail() {
           </div>
         }
       >
-        <div className="space-y-3">
-          {classResources.length === 0 ? (
+        <div className="space-y-4">
+          <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+            {(['view', 'edit'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setResourcesMode(mode)}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium capitalize transition-colors ${
+                  resourcesMode === mode ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+
+          {resourcesMode === 'view' ? (
+            classResources.length === 0 ? (
+              <p className="text-sm text-slate-400 py-8 text-center">No resources added yet. Switch to edit mode to add the first one.</p>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2">
+                {classResources.map((resource, idx) => {
+                  const isHotkey = ['hotkeys', 'shortcuts'].includes(resource.category || '')
+                  return (
+                    <a
+                      key={`${resource.url}-${idx}`}
+                      href={sanitizeUrl(resource.url)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`rounded-2xl border bg-white p-4 transition-all hover:border-primary-200 hover:shadow-sm ${
+                        isHotkey ? 'border-primary-200 bg-primary-50/40' : 'border-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {isHotkey && <Keyboard className="h-4 w-4 text-primary-600" />}
+                            <h3 className="text-sm font-semibold text-slate-900">{resource.title || 'Untitled resource'}</h3>
+                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                              {RESOURCE_CATEGORY_LABELS[resource.category || 'general'] || 'General'}
+                            </span>
+                          </div>
+                          {resource.description && <p className="mt-1 text-sm text-slate-600">{resource.description}</p>}
+                          <p className="mt-1 break-all text-xs text-slate-400">{resource.url}</p>
+                        </div>
+                        <ExternalLink className="mt-1 h-4 w-4 shrink-0 text-slate-400" />
+                      </div>
+                    </a>
+                  )
+                })}
+              </div>
+            )
+          ) : (
+          <div className="space-y-3">
+            {classResources.length === 0 ? (
             <p className="text-sm text-slate-400 py-8 text-center">No resources added yet. Click "Add resource" below to get started.</p>
           ) : classResources.map((res, idx) => (
             <div key={idx} className="rounded-xl border border-slate-200 p-4 space-y-3">
@@ -1293,11 +1362,9 @@ export function CohortDetail() {
                   onChange={(e) => setClassResources((prev) => prev.map((item, i) => i === idx ? { ...item, category: e.target.value } : item))}
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
-                  <option value="general">General</option>
-                  <option value="meeting">Meeting Link</option>
-                  <option value="github">GitHub</option>
-                  <option value="communication">Communication</option>
-                  <option value="documentation">Documentation</option>
+                  {RESOURCE_CATEGORY_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
                 </select>
               </div>
               <input
@@ -1316,6 +1383,8 @@ export function CohortDetail() {
               />
             </div>
           ))}
+          </div>
+          )}
         </div>
       </Modal>
     </div>

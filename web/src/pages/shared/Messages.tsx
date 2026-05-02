@@ -94,6 +94,20 @@ type MessageSearchResult = ChannelMessage & {
   }
 }
 
+type ReadReceipts = NonNullable<ChannelMessage['read_receipts']>
+
+function readReceiptLabel(readReceipts: ReadReceipts): string {
+  if (readReceipts.count === 1) return readReceipts.users[0]?.full_name || '1 person'
+  return `${readReceipts.count} people`
+}
+
+function readReceiptTitle(readReceipts: ReadReceipts): string {
+  const names = readReceipts.users.map((user) => user.full_name)
+  const hiddenCount = readReceipts.count - names.length
+  if (hiddenCount > 0) names.push(`${hiddenCount} more`)
+  return names.join(', ')
+}
+
 const REACTIONS = ['👍', '❤️', '✅', '🙌']
 const CHANNEL_MENTION_ALIASES = [
   { label: '@everyone', subtitle: 'Notify everyone in this channel' },
@@ -2115,7 +2129,7 @@ export function Messages() {
         )}
 
         {showConversationPane && (
-        <section className="flex min-h-0 flex-1 flex-col bg-white">
+        <section className="flex min-w-0 min-h-0 flex-1 flex-col bg-white">
           {selectedTarget && selected ? (
             <>
               <header className={`shrink-0 border-b border-slate-200/80 px-4 py-3 backdrop-blur-sm ${isDesktop ? 'bg-white/80' : 'bg-white'} sm:py-4`}>
@@ -2212,8 +2226,8 @@ export function Messages() {
                 )}
               </header>
 
-              <div className={`relative min-h-0 flex-1 overflow-hidden ${showThreadPanel ? 'grid lg:grid-cols-[minmax(0,1fr)_380px]' : ''}`}>
-                <div ref={messageScrollRef} className={`h-full overflow-y-auto px-3 py-4 transition duration-200 sm:px-5 sm:py-5 ${loadingTarget || isNavigationPending ? 'opacity-60' : 'opacity-100'}`}>
+              <div className={`relative min-w-0 min-h-0 flex-1 overflow-hidden ${showThreadPanel ? 'grid lg:grid-cols-[minmax(0,1fr)_380px]' : ''}`}>
+                <div ref={messageScrollRef} className={`h-full min-w-0 overflow-y-auto overflow-x-hidden px-3 py-4 transition duration-200 sm:px-5 sm:py-5 ${loadingTarget || isNavigationPending ? 'opacity-60' : 'opacity-100'}`}>
                 {activeThreadRoot && !showThreadPanel && (
                   <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
                     <div className="flex items-center justify-between gap-3">
@@ -2933,12 +2947,12 @@ function FormattedMessage({ body, mentionPatterns }: { body: string; mentionPatt
   const parts = body.split(/```/g)
 
   return (
-    <div className="mt-1 space-y-2 text-sm leading-6 text-slate-700">
+    <div className="mt-1 max-w-full space-y-2 overflow-hidden break-words text-sm leading-6 text-slate-700 [overflow-wrap:anywhere]">
       {parts.map((part, index) => {
         const key = `${index}-${part.slice(0, 12)}`
         if (index % 2 === 1) {
           return (
-            <pre key={key} className="overflow-x-auto rounded-lg bg-slate-900 px-3 py-2 text-xs leading-5 text-slate-100">
+            <pre key={key} className="max-w-full overflow-x-auto rounded-lg bg-slate-900 px-3 py-2 text-xs leading-5 text-slate-100">
               <code>{part.trim()}</code>
             </pre>
           )
@@ -3019,24 +3033,24 @@ function MessageRow({
   return (
     <div
       id={`message-${message.id}`}
-      className={`message-row group relative flex gap-3 rounded-xl px-2.5 py-1.5 transition-all duration-200 hover:bg-slate-50/90 sm:px-3 ${
+      className={`message-row group relative flex w-full max-w-full gap-2 rounded-xl px-2 py-1.5 transition-all duration-200 hover:bg-slate-50/90 sm:gap-3 sm:px-3 ${
         compact ? 'mt-0.5' : 'mt-3'
       } ${message.pinned_at ? 'bg-amber-50/70 ring-1 ring-amber-100' : ''} ${message.pending ? 'opacity-75' : ''} ${
         highlighted ? 'message-row-highlight bg-primary-50 ring-2 ring-primary-200' : ''
       }`}
     >
-      <div className="flex w-10 shrink-0 justify-center">
+      <div className="flex w-8 shrink-0 justify-center sm:w-10">
         {compact ? (
           <span className="pt-1 text-[11px] font-medium text-slate-300 opacity-0 transition-opacity group-hover:opacity-100">
             {new Date(message.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
           </span>
         ) : (
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-200 text-sm font-semibold text-slate-600">
-            {message.author.avatar_url ? <img src={message.author.avatar_url} alt="" className="h-9 w-9 rounded-lg object-cover" /> : message.author.full_name.slice(0, 1)}
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-200 text-sm font-semibold text-slate-600 sm:h-9 sm:w-9">
+            {message.author.avatar_url ? <img src={message.author.avatar_url} alt="" className="h-8 w-8 rounded-lg object-cover sm:h-9 sm:w-9" /> : message.author.full_name.slice(0, 1)}
           </div>
         )}
       </div>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 overflow-hidden">
         {!compact && (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-semibold text-slate-950">{message.author.full_name}</span>
@@ -3064,14 +3078,14 @@ function MessageRow({
           <FormattedMessage body={message.body} mentionPatterns={mentionPatterns} />
         )}
         {message.attachments.length > 0 && (
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div className="mt-3 grid max-w-full min-w-0 gap-2 sm:grid-cols-2">
             {message.attachments.map((attachment) => (
               attachment.image && attachment.url ? (
               <button
                 key={attachment.id}
                 type="button"
                 onClick={() => onOpenImage(attachment, imageAttachments)}
-                className="rounded-lg border border-slate-200 bg-white p-2 text-left text-sm text-slate-700 hover:border-primary-200 hover:bg-primary-50"
+                className="min-w-0 rounded-lg border border-slate-200 bg-white p-2 text-left text-sm text-slate-700 hover:border-primary-200 hover:bg-primary-50"
               >
                 <img src={attachment.url} alt={attachment.filename} className="mb-2 max-h-56 w-full rounded-lg object-cover" />
                 <div className="truncate font-medium">{attachment.filename}</div>
@@ -3082,7 +3096,7 @@ function MessageRow({
                 key={attachment.id}
                 href={attachment.url}
                 download={attachment.filename}
-                className="rounded-lg border border-slate-200 bg-white p-2 text-sm text-slate-700 hover:border-primary-200 hover:bg-primary-50"
+                className="min-w-0 rounded-lg border border-slate-200 bg-white p-2 text-sm text-slate-700 hover:border-primary-200 hover:bg-primary-50"
               >
                 <File className="mb-2 h-5 w-5 text-slate-400" />
                 <div className="truncate font-medium">{attachment.filename}</div>
@@ -3090,6 +3104,14 @@ function MessageRow({
               </a>
               )
             ))}
+          </div>
+        )}
+        {message.mine && message.read_receipts && message.read_receipts.count > 0 && (
+          <div
+            className="mt-1 text-[11px] text-slate-400"
+            title={readReceiptTitle(message.read_receipts)}
+          >
+            Seen by {readReceiptLabel(message.read_receipts)}
           </div>
         )}
         <div className={`flex flex-wrap items-center gap-1.5 ${message.reactions.length > 0 ? 'mt-2' : 'mt-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100'}`}>

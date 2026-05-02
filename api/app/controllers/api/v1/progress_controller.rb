@@ -202,7 +202,8 @@ module Api
             email: user.email,
             github_username: user.github_username,
             avatar_url: user.avatar_url,
-            last_sign_in_at: user.last_sign_in_at
+            last_sign_in_at: user.last_sign_in_at,
+            last_seen_at: user.last_seen_at
           },
           cohort: {
             id: cohort.id,

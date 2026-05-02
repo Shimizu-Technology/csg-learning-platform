@@ -5,6 +5,7 @@ import { api } from '../../lib/api'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
+import { isRecentlyOnline, usePresenceNow } from '../../lib/presence'
 
 interface Student {
   user_id: number
@@ -15,6 +16,7 @@ interface Student {
   completed_blocks: number
   total_blocks: number
   last_sign_in_at: string | null
+  last_seen_at: string | null
   last_activity_at: string | null
   blocks_this_week: number
   submissions_this_week: number
@@ -76,6 +78,7 @@ function formatLastActivity(dateStr: string | null): string {
 
 export function StudentManagement() {
   const navigate = useNavigate()
+  const presenceNow = usePresenceNow()
   const [cohortGroups, setCohortGroups] = useState<CohortGroup[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -249,7 +252,10 @@ export function StudentManagement() {
                               onClick={() => navigate(`/admin/students/${student.user_id}`)}
                             >
                               <td className="px-6 py-3">
-                                <p className="text-sm font-medium text-slate-900">{student.full_name}</p>
+                                <div className="flex items-center gap-2">
+                                  <span className={`h-2 w-2 rounded-full ${isRecentlyOnline(student.last_seen_at, presenceNow) ? 'bg-green-500' : 'bg-slate-300'}`} />
+                                  <p className="text-sm font-medium text-slate-900">{student.full_name}</p>
+                                </div>
                                 <p className="text-xs text-slate-500">{student.email}</p>
                                 {student.github_username && (
                                   <a
