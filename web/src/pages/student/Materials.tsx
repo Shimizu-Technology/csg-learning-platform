@@ -146,12 +146,13 @@ export function Materials() {
     const modules = data?.modules || []
     const redoLessonIds = new Set((data?.action_items || []).map((item) => item.lesson_id))
     const q = query.trim().toLowerCase()
+    const hasActiveSearch = q.length > 0
 
     const visibleModules = modules
       .map((mod) => {
         const lessons = mod.lessons.filter((lesson) => {
           const status = lessonStatus(lesson)
-          const matchesQuery = !q || [
+          const matchesQuery = !hasActiveSearch || [
             mod.name,
             formatTypeLabel(mod.module_type),
             lesson.title,
@@ -180,6 +181,7 @@ export function Materials() {
     return {
       visibleModules,
       redoLessonIds,
+      hasActiveSearch,
       readyCount,
       readyOrRedoCount,
       completedCount,
@@ -295,6 +297,7 @@ export function Materials() {
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
           <p className="text-sm text-slate-500">
             {derived.visibleModules.length} module{derived.visibleModules.length !== 1 ? 's' : ''} in view
+            {derived.hasActiveSearch ? ' · search results expanded' : ''}
           </p>
           <div className="flex items-center gap-2">
             <button
@@ -346,7 +349,7 @@ export function Materials() {
       ) : (
         <div className="space-y-4">
           {derived.visibleModules.map((mod) => {
-            const isCollapsed = collapsedModules.has(mod.id)
+            const isCollapsed = !derived.hasActiveSearch && collapsedModules.has(mod.id)
 
             return (
             <section key={mod.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -32,6 +32,7 @@ export function Layout({ children }: LayoutProps) {
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('sidebar-collapsed') === 'true' } catch { return false }
   })
+  const lastPresenceUpdateAtRef = useRef(0)
   const location = useLocation()
   const { user, isLoading } = useAuthContext()
   const [unreadCount, setUnreadCount] = useState(0)
@@ -56,6 +57,10 @@ export function Layout({ children }: LayoutProps) {
     if (!user) return
 
     const updatePresence = () => {
+      const now = Date.now()
+      if (now - lastPresenceUpdateAtRef.current < 5_000) return
+
+      lastPresenceUpdateAtRef.current = now
       void api.updatePresence()
     }
 
