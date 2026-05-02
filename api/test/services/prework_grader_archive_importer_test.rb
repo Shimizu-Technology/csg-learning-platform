@@ -180,16 +180,34 @@ class PreworkGraderArchiveImporterTest < ActiveSupport::TestCase
     FileUtils.rm_f(path) if path
   end
 
+  test "ungraded archive submission does not mark progress completed" do
+    path = write_archive(submission_overrides: { grade: "+" })
+
+    importer = PreworkGraderArchiveImporter.new(
+      json_path: path,
+      target_cohort: @cohort.id,
+      dry_run: false
+    )
+    report = importer.call
+
+    assert_equal 1, report[:submissions][:created]
+    submission = Submission.find_by!(user: @student, content_block: @block)
+    assert_nil submission.grade
+    assert_nil Progress.find_by(user: @student, content_block: @block)
+  ensure
+    FileUtils.rm_f(path) if path
+  end
+
   private
 
-  def write_archive
+  def write_archive(submission_overrides: {})
     file = Tempfile.new([ "prework-archive", ".json" ])
-    file.write(JSON.pretty_generate(archive_payload))
+    file.write(JSON.pretty_generate(archive_payload(submission_overrides: submission_overrides)))
     file.close
     file.path
   end
 
-  def archive_payload
+  def archive_payload(submission_overrides: {})
     {
       metadata: {
         archive_type: "csg_prework_grader_cohort_archive",
@@ -237,7 +255,7 @@ class PreworkGraderArchiveImporterTest < ActiveSupport::TestCase
           num_submissions: 2,
           created_at: 2.days.ago.iso8601,
           updated_at: 1.day.ago.iso8601
-        }
+        }.merge(submission_overrides.stringify_keys)
       ],
       email_logs: []
     }

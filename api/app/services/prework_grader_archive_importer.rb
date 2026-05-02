@@ -326,6 +326,8 @@ class PreworkGraderArchiveImporter
   end
 
   def update_progress(user, block, grade, submission_data)
+    return if grade.blank?
+
     status = grade == "R" ? :in_progress : :completed
     progress = Progress.find_or_initialize_by(user: user, content_block: block)
     progress.status = status
