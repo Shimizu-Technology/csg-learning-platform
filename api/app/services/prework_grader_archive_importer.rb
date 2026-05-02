@@ -286,7 +286,7 @@ class PreworkGraderArchiveImporter
 
   def submission_attrs(submission_data, grade, existing: nil, new_record: false)
     attrs = {}
-    attrs[:submission_type] = :prework_github_sync if new_record || @overwrite || existing&.submission_type.blank?
+    attrs[:submission_type] = :prework_github_sync if new_record || @overwrite
 
     assign_if_allowed(attrs, :text, existing&.text, submission_data["text"])
     assign_if_allowed(attrs, :github_code_url, existing&.github_code_url, submission_data["github_code_url"])
@@ -326,7 +326,7 @@ class PreworkGraderArchiveImporter
   end
 
   def update_progress(user, block, grade, submission_data)
-    return if grade.blank?
+    return unless grade.present?
 
     status = grade == "R" ? :in_progress : :completed
     progress = Progress.find_or_initialize_by(user: user, content_block: block)

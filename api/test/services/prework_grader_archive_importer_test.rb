@@ -198,16 +198,63 @@ class PreworkGraderArchiveImporterTest < ActiveSupport::TestCase
     FileUtils.rm_f(path) if path
   end
 
+  test "blank existing submission type alone does not count as an update" do
+    Submission.create!(
+      user: @student,
+      content_block: @block,
+      text: "puts 'hello'",
+      grade: :A,
+      github_issue_url: "https://github.com/student-one/prework-exercises/issues/1",
+      github_code_url: "https://github.com/student-one/prework-exercises/blob/abc/111.rb#L1-L1",
+      num_submissions: 2,
+      graded_by_id: @admin.id,
+      graded_at: 1.day.ago
+    )
+    path = write_archive
+
+    importer = PreworkGraderArchiveImporter.new(
+      json_path: path,
+      target_cohort: @cohort.id,
+      dry_run: false,
+      overwrite: false
+    )
+    report = importer.call
+
+    assert_equal 0, report[:submissions][:updated]
+    assert_equal 1, report[:submissions][:unchanged]
+  ensure
+    FileUtils.rm_f(path) if path
+  end
+
+  test "missing students are deduplicated across student and submission rows" do
+    path = write_archive(
+      student_overrides: { email: "missing@example.com", github_username: "missing-user" },
+      submission_overrides: { student_email: "missing@example.com", student_github_username: "missing-user" }
+    )
+
+    importer = PreworkGraderArchiveImporter.new(
+      json_path: path,
+      target_cohort: @cohort.id,
+      dry_run: true
+    )
+    report = importer.call
+
+    assert_equal [ "missing@example.com" ], report[:students][:missing]
+    assert_equal 1, report[:submissions][:skipped]
+  ensure
+    FileUtils.rm_f(path) if path
+  end
+
   private
 
-  def write_archive(submission_overrides: {})
+  def write_archive(student_overrides: {}, submission_overrides: {})
     file = Tempfile.new([ "prework-archive", ".json" ])
-    file.write(JSON.pretty_generate(archive_payload(submission_overrides: submission_overrides)))
+    file.write(JSON.pretty_generate(archive_payload(student_overrides: student_overrides, submission_overrides: submission_overrides)))
     file.close
     file.path
   end
 
-  def archive_payload(submission_overrides: {})
+  def archive_payload(student_overrides: {}, submission_overrides: {})
     {
       metadata: {
         archive_type: "csg_prework_grader_cohort_archive",
@@ -229,7 +276,7 @@ class PreworkGraderArchiveImporterTest < ActiveSupport::TestCase
           email: "student@example.com",
           github_username: "student-one",
           active: true
-        }
+        }.merge(student_overrides.stringify_keys)
       ],
       exercises: [
         {
