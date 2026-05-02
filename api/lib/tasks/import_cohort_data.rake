@@ -338,3 +338,45 @@ namespace :cohort do
     puts "Done!"
   end
 end
+
+namespace :prework_grader do
+  desc "Dry-run or import a csg-prework-grader cohort archive into an existing learning-platform cohort/module"
+  task import_archive: :environment do
+    json_path = ENV["JSON_PATH"].presence
+    target_cohort = ENV["TARGET_COHORT_ID"].presence || ENV["TARGET_COHORT_NAME"].presence
+    module_name = ENV.fetch("MODULE_NAME", "Prework")
+    dry_run = ActiveModel::Type::Boolean.new.cast(ENV.fetch("DRY_RUN", "true"))
+    overwrite = ActiveModel::Type::Boolean.new.cast(ENV.fetch("OVERWRITE", "false"))
+    create_missing_users = ActiveModel::Type::Boolean.new.cast(ENV.fetch("CREATE_MISSING_USERS", "false"))
+    create_missing_enrollments = ActiveModel::Type::Boolean.new.cast(ENV.fetch("CREATE_MISSING_ENROLLMENTS", "false"))
+
+    unless json_path.present? && target_cohort.present?
+      puts "ERROR: JSON_PATH and TARGET_COHORT_ID or TARGET_COHORT_NAME are required."
+      puts "Example dry-run:"
+      puts "  DRY_RUN=true TARGET_COHORT_NAME='Cohort 3' JSON_PATH=/rails/tmp/cohort3_prework_archive.json bin/rails prework_grader:import_archive"
+      exit 1
+    end
+
+    importer = PreworkGraderArchiveImporter.new(
+      json_path: json_path,
+      target_cohort: target_cohort,
+      module_name: module_name,
+      dry_run: dry_run,
+      overwrite: overwrite,
+      create_missing_users: create_missing_users,
+      create_missing_enrollments: create_missing_enrollments
+    )
+
+    report = importer.call
+    puts JSON.pretty_generate(report)
+
+    if dry_run
+      puts ""
+      puts "DRY_RUN=true, so no database changes were made."
+      puts "When the report looks correct, rerun with DRY_RUN=false."
+    else
+      puts ""
+      puts "Import complete. Review the summary above before decommissioning csg-prework-grader."
+    end
+  end
+end
