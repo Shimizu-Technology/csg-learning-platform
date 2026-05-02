@@ -49,19 +49,23 @@ function formatDate(dateStr: string | null) {
 function extractYouTubeId(url: string): string | null {
   try {
     const u = new URL(url)
-    if (u.hostname.includes('youtu.be')) return u.pathname.slice(1).split('/')[0]
-    if (u.hostname.includes('youtube.com')) {
-      if (u.pathname.startsWith('/embed/')) return u.pathname.split('/')[2]
-      if (u.pathname.startsWith('/shorts/')) return u.pathname.split('/')[2]
-      return u.searchParams.get('v')
-    }
+    const host = u.hostname.toLowerCase()
+    const pathParts = u.pathname.split('/').filter(Boolean)
+
+    if (host.includes('youtu.be')) return pathParts[0] || null
+    if (!host.includes('youtube.com')) return null
+
+    if (u.searchParams.get('v')) return u.searchParams.get('v')
+    if (['embed', 'shorts', 'live'].includes(pathParts[0])) return pathParts[1] || null
   } catch { /* not a valid URL */ }
   return null
 }
 
 function normalizeLegacyRecording(recording: RecordingEntry | ApiRecordingItem): LegacyRecording {
   const url = 'url' in recording ? recording.url || '' : ''
-  const source = recording.source === 'external' ? 'external' : extractYouTubeId(url) ? 'youtube' : 'external'
+  const source = recording.source === 'youtube' || recording.source === 'external'
+    ? recording.source
+    : extractYouTubeId(url) ? 'youtube' : 'external'
   return {
     id: String(recording.id),
     cohort_id: recording.cohort_id,
