@@ -189,12 +189,12 @@ module Api
         return {} if messages.empty?
 
         members = @conversation.direct_conversation_members.includes(:user).where.not(last_read_at: nil).to_a
-        messages.index_with do |message|
+        messages.to_h do |message|
           readers = members.select { |member| member.user_id != message.author_id && member.last_read_at && member.last_read_at >= message.created_at }
-          {
+          [ message.id, {
             count: readers.size,
             users: readers.first(5).map { |member| receipt_user_json(member.user) }
-          }
+          } ]
         end
       end
 

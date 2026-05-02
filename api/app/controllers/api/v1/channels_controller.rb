@@ -194,12 +194,12 @@ module Api
           .where.not(last_read_at: nil)
           .to_a
 
-        messages.index_with do |message|
+        messages.to_h do |message|
           readers = states.select { |state| state.user_id != message.author_id && state.last_read_at && state.last_read_at >= message.created_at }
-          {
+          [ message.id, {
             count: readers.size,
             users: readers.first(5).map { |state| receipt_user_json(state.user) }
-          }
+          } ]
         end
       end
 

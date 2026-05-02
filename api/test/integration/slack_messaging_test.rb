@@ -342,6 +342,37 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_equal message, @student.channel_read_states.find_by!(channel: @channel).last_read_message
   end
 
+  test "channel show includes read receipts keyed by message id" do
+    message = Message.create!(channel: @channel, author: @student, body: "Seen in channel", created_at: 5.minutes.ago)
+    ChannelReadState.create!(user: @classmate, channel: @channel, last_read_at: 1.minute.ago)
+
+    as_user(@student) do
+      get "/api/v1/channels/#{@channel.id}", headers: auth_headers
+    end
+
+    assert_response :success
+    message_json = JSON.parse(response.body).fetch("messages").find { |item| item.fetch("id") == message.id }
+    receipts = message_json.fetch("read_receipts")
+    assert_equal 1, receipts.fetch("count")
+    assert_equal [ @classmate.id ], receipts.fetch("users").map { |user| user.fetch("id") }
+  end
+
+  test "direct conversation show includes read receipts keyed by message id" do
+    conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @student, @admin ])
+    message = Message.create!(direct_conversation: conversation, author: @student, body: "Seen in DM", created_at: 5.minutes.ago)
+    conversation.direct_conversation_members.find_by!(user: @admin).update!(last_read_at: 1.minute.ago)
+
+    as_user(@student) do
+      get "/api/v1/direct_conversations/#{conversation.id}", headers: auth_headers
+    end
+
+    assert_response :success
+    message_json = JSON.parse(response.body).fetch("messages").find { |item| item.fetch("id") == message.id }
+    receipts = message_json.fetch("read_receipts")
+    assert_equal 1, receipts.fetch("count")
+    assert_equal [ @admin.id ], receipts.fetch("users").map { |user| user.fetch("id") }
+  end
+
   test "attachment presign rejects svg content types" do
     original_configured = S3Service.method(:configured?)
     S3Service.define_singleton_method(:configured?) { true }
