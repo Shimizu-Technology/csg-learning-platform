@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Navigate, Routes, Route } from 'react-router-dom'
 import { PostHogPageView } from './providers/PostHogProvider'
 import { Layout } from './components/shared/Layout'
 import ProtectedRoute from './components/auth/ProtectedRoute'
@@ -25,6 +25,7 @@ import {
   Recordings,
   Resources,
   SignInPage,
+  SignUpPage,
   StudentDetail,
   StudentManagement,
   TeamManagement,
@@ -36,6 +37,7 @@ function AppRoutes() {
       <PostHogPageView />
       <Routes>
         <Route path="/sign-in" element={<SignInPage />} />
+        <Route path="/sign-up" element={<SignUpPage />} />
 
         {/* Authenticated routes with shared layout */}
         <Route element={<Layout />}>
@@ -73,6 +75,7 @@ function AppRoutes() {
             <Route path="/admin/lessons/:id/edit" element={<LessonEditor />} />
           </Route>
         </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
   )
