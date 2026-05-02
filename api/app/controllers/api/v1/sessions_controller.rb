@@ -5,7 +5,9 @@ module Api
 
       # POST /api/v1/sessions — Clerk auth sync
       def create
-        current_user.update_columns(last_sign_in_at: Time.current, last_seen_at: Time.current)
+        # authenticate_user! records activity via last_seen_at; this explicit
+        # frontend session sync is the moment we count as a sign-in.
+        current_user.update_column(:last_sign_in_at, Time.current)
 
         render json: {
           user: user_json(current_user),

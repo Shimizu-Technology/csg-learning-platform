@@ -582,6 +582,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <button
+                      type="button"
                       onClick={() => setPreviewRecording(rec)}
                       className="rounded-lg p-1.5 text-slate-400 hover:bg-primary-50 hover:text-primary-600 transition-colors"
                       title="Preview"

@@ -27,6 +27,7 @@ import { ProgressBar } from '../../components/shared/ProgressBar'
 import { ProgressRing } from '../../components/shared/ProgressRing'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { useToast } from '../../contexts/ToastContext'
+import { isRecentlyOnline, usePresenceNow } from '../../lib/presence'
 
 const BLOCK_ICONS: Record<string, React.ElementType> = {
   reading: FileText,
@@ -205,11 +206,6 @@ function formatLastActive(iso: string | null | undefined): string {
   const days = Math.floor(hours / 24)
   if (days < 30) return `${days}d ago`
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
-function isOnline(lastSeenAt: string | null | undefined): boolean {
-  if (!lastSeenAt) return false
-  return Date.now() - new Date(lastSeenAt).getTime() < 2 * 60 * 1000
 }
 
 interface WatchProgressDetailsProps {
@@ -447,6 +443,7 @@ export function StudentDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const toast = useToast()
+  const presenceNow = usePresenceNow()
   const [data, setData] = useState<ProgressData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -806,10 +803,10 @@ export function StudentDetail() {
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-slate-900">{user.full_name}</h1>
               <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
-                isOnline(user.last_seen_at) ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500'
+                isRecentlyOnline(user.last_seen_at, presenceNow) ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500'
               }`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${isOnline(user.last_seen_at) ? 'bg-green-500' : 'bg-slate-400'}`} />
-                {isOnline(user.last_seen_at) ? 'Online' : 'Offline'}
+                <span className={`h-1.5 w-1.5 rounded-full ${isRecentlyOnline(user.last_seen_at, presenceNow) ? 'bg-green-500' : 'bg-slate-400'}`} />
+                {isRecentlyOnline(user.last_seen_at, presenceNow) ? 'Online' : 'Offline'}
               </span>
               {!editingUser && (
                 <button

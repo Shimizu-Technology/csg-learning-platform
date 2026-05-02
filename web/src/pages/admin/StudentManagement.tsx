@@ -5,6 +5,7 @@ import { api } from '../../lib/api'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
+import { isRecentlyOnline, usePresenceNow } from '../../lib/presence'
 
 interface Student {
   user_id: number
@@ -75,13 +76,9 @@ function formatLastActivity(dateStr: string | null): string {
   return date.toLocaleDateString()
 }
 
-function isOnline(lastSeenAt: string | null): boolean {
-  if (!lastSeenAt) return false
-  return Date.now() - new Date(lastSeenAt).getTime() < 2 * 60 * 1000
-}
-
 export function StudentManagement() {
   const navigate = useNavigate()
+  const presenceNow = usePresenceNow()
   const [cohortGroups, setCohortGroups] = useState<CohortGroup[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -256,7 +253,7 @@ export function StudentManagement() {
                             >
                               <td className="px-6 py-3">
                                 <div className="flex items-center gap-2">
-                                  <span className={`h-2 w-2 rounded-full ${isOnline(student.last_seen_at) ? 'bg-green-500' : 'bg-slate-300'}`} />
+                                  <span className={`h-2 w-2 rounded-full ${isRecentlyOnline(student.last_seen_at, presenceNow) ? 'bg-green-500' : 'bg-slate-300'}`} />
                                   <p className="text-sm font-medium text-slate-900">{student.full_name}</p>
                                 </div>
                                 <p className="text-xs text-slate-500">{student.email}</p>
