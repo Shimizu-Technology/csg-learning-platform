@@ -26,7 +26,8 @@ module Api
               url: r["url"],
               date: r["date"],
               description: r["description"],
-              source: "youtube"
+              recorded_date: r["date"],
+              source: recording_source_for(r["url"])
             }
           end
         end
@@ -48,7 +49,7 @@ module Api
             file_size_display: r.file_size_display,
             recorded_date: r.recorded_date&.strftime("%Y-%m-%d"),
             created_at: r.created_at,
-            source: "s3",
+            source: "uploaded",
             watch_progress: wp ? {
               last_position_seconds: wp.last_position_seconds,
               total_watched_seconds: wp.total_watched_seconds,
@@ -61,8 +62,38 @@ module Api
 
         render json: {
           recordings: legacy,
-          s3_recordings: s3_list
+          s3_recordings: s3_list,
+          items: normalized_recording_items(s3_list, legacy)
         }
+      end
+
+      private
+
+      def normalized_recording_items(uploaded, external)
+        uploaded_items = uploaded.map do |recording|
+          recording.merge(
+            item_key: "uploaded-#{recording[:id]}",
+            source: "uploaded"
+          )
+        end
+
+        external_items = external.map do |recording|
+          recording.merge(
+            item_key: recording[:id],
+            source: recording[:source]
+          )
+        end
+
+        uploaded_items + external_items
+      end
+
+      def recording_source_for(url)
+        host = URI.parse(url.to_s).host.to_s.downcase
+        return "youtube" if host.include?("youtube.com") || host.include?("youtu.be")
+      rescue URI::InvalidURIError
+        "external"
+      else
+        "external"
       end
     end
   end

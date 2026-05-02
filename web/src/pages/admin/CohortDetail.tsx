@@ -1187,7 +1187,11 @@ export function CohortDetail() {
         }
       >
         <div className="space-y-5">
-          <RecordingUploadManager cohortId={Number(id)} onRecordingsChange={() => { void reloadCohort() }} />
+          <RecordingUploadManager
+            cohortId={Number(id)}
+            externalRecordings={recordings}
+            onRecordingsChange={() => { void reloadCohort() }}
+          />
 
           <div className="border-t border-slate-100 pt-5 space-y-3">
             <div className="flex items-center justify-between gap-3">
