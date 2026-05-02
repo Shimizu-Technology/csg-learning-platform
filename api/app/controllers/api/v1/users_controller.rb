@@ -144,6 +144,7 @@ module Api
           github_username: user.github_username,
           avatar_url: user.avatar_url,
           last_sign_in_at: user.last_sign_in_at,
+          last_seen_at: user.last_seen_at,
           invite_pending: user.clerk_id&.start_with?("pending_") || false,
           created_at: user.created_at
         }

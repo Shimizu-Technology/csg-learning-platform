@@ -30,10 +30,11 @@ module Api
         messages = windowed_messages(@channel.messages.visible)
         pinned_messages = @channel.messages.pinned_recent.to_a
         read_state = current_user.channel_read_states.find_by(channel: @channel)
+        read_receipts = read_receipts_for(messages)
 
         render json: {
           channel: channel_json(@channel, read_state, unread_count_for(@channel, read_state), messages.last),
-          messages: messages.map { |message| message_json(message) },
+          messages: messages.map { |message| message_json(message, read_receipts: read_receipts[message.id]) },
           pinned_messages: pinned_messages.map { |message| message_json(message) }
         }
       end
@@ -184,8 +185,34 @@ module Api
         Workspace.find_or_create_for_cohort!(cohort)
       end
 
-      def message_json(message)
-        MessageJson.render(message, current_user: current_user, stream_url: true)
+      def read_receipts_for(messages)
+        return {} if messages.empty?
+
+        member_ids = @channel.workspace.recipient_users.reorder(nil).pluck(:id)
+        states = ChannelReadState.includes(:user)
+          .where(channel: @channel, user_id: member_ids)
+          .where.not(last_read_at: nil)
+          .to_a
+
+        messages.index_with do |message|
+          readers = states.select { |state| state.user_id != message.author_id && state.last_read_at && state.last_read_at >= message.created_at }
+          {
+            count: readers.size,
+            users: readers.first(5).map { |state| receipt_user_json(state.user) }
+          }
+        end
+      end
+
+      def receipt_user_json(user)
+        {
+          id: user.id,
+          full_name: user.full_name,
+          avatar_url: user.avatar_url
+        }
+      end
+
+      def message_json(message, read_receipts: nil)
+        MessageJson.render(message, current_user: current_user, stream_url: true, read_receipts: read_receipts)
       end
     end
   end

@@ -16,6 +16,7 @@ import {
   ContentManagement,
   Dashboard,
   Grading,
+  HomePage,
   LessonEditor,
   LessonView,
   Materials,
@@ -28,6 +29,7 @@ import {
   SignUpPage,
   StudentDetail,
   StudentManagement,
+  StudentPreview,
   TeamManagement,
 } from './lib/routePreload'
 
@@ -36,13 +38,14 @@ function AppRoutes() {
     <Suspense fallback={<LoadingSpinner message="Loading..." />}>
       <PostHogPageView />
       <Routes>
+        <Route path="/" element={<HomePage />} />
         <Route path="/sign-in" element={<SignInPage />} />
         <Route path="/sign-up" element={<SignUpPage />} />
 
         {/* Authenticated routes with shared layout */}
         <Route element={<Layout />}>
           <Route element={<ProtectedRoute />}>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/materials" element={<Materials />} />
             <Route path="/modules/:id" element={<ModuleView />} />
             <Route path="/lessons/:id" element={<LessonView />} />
@@ -61,6 +64,7 @@ function AppRoutes() {
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/students" element={<StudentManagement />} />
             <Route path="/admin/students/:id" element={<StudentDetail />} />
+            <Route path="/admin/students/:id/preview" element={<StudentPreview />} />
             <Route path="/admin/cohorts" element={<CohortManagement />} />
             <Route path="/admin/cohorts/:id" element={<CohortDetail />} />
             <Route path="/admin/cohorts/:id/watch-progress" element={<CohortWatchProgress />} />

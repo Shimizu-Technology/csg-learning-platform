@@ -326,6 +326,8 @@ export const api = {
   // Auth
   createSession: () =>
     fetchApi<SessionResponse>('/api/v1/sessions', { method: 'POST' }),
+  updatePresence: () =>
+    fetchApi<{ last_seen_at: string }>('/api/v1/presence', { method: 'POST' }),
 
   // Dashboard
   getDashboard: () =>

@@ -9,6 +9,7 @@ export interface User {
   role: string;
   github_username: string | null;
   avatar_url: string | null;
+  last_seen_at?: string | null;
   is_admin: boolean;
   is_staff: boolean;
 }
@@ -19,6 +20,7 @@ export interface UserWithMeta extends User {
 
 export interface UserListItem extends User {
   last_sign_in_at: string | null;
+  last_seen_at: string | null;
   invite_pending: boolean;
   created_at: string;
 }
@@ -339,6 +341,14 @@ export interface ChannelMessage {
   mine: boolean;
   attachments: MessageAttachment[];
   reactions: MessageReaction[];
+  read_receipts?: {
+    count: number;
+    users: {
+      id: number;
+      full_name: string;
+      avatar_url: string | null;
+    }[];
+  };
   author: {
     id: number;
     full_name: string;
@@ -881,6 +891,7 @@ export interface StudentProgressResponse {
     github_username: string | null;
     avatar_url: string | null;
     last_sign_in_at: string | null;
+    last_seen_at: string | null;
   };
   cohort: { id: number; name: string; start_date: string; status: string };
   overall_progress: { completed: number; total: number; percentage: number };

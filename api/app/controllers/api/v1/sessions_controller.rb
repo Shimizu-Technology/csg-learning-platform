@@ -5,6 +5,8 @@ module Api
 
       # POST /api/v1/sessions — Clerk auth sync
       def create
+        current_user.update_columns(last_sign_in_at: Time.current, last_seen_at: Time.current)
+
         render json: {
           user: user_json(current_user),
           enrollments: current_user.enrollments.includes(cohort: { curriculum: :modules }).map { |e|
@@ -37,6 +39,7 @@ module Api
           role: user.role,
           github_username: user.github_username,
           avatar_url: user.avatar_url,
+          last_seen_at: user.last_seen_at,
           is_admin: user.admin?,
           is_staff: user.staff?
         }

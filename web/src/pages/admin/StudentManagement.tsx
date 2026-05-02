@@ -15,6 +15,7 @@ interface Student {
   completed_blocks: number
   total_blocks: number
   last_sign_in_at: string | null
+  last_seen_at: string | null
   last_activity_at: string | null
   blocks_this_week: number
   submissions_this_week: number
@@ -72,6 +73,11 @@ function formatLastActivity(dateStr: string | null): string {
   if (diffDays === 1) return 'Yesterday'
   if (diffDays < 7) return `${diffDays}d ago`
   return date.toLocaleDateString()
+}
+
+function isOnline(lastSeenAt: string | null): boolean {
+  if (!lastSeenAt) return false
+  return Date.now() - new Date(lastSeenAt).getTime() < 2 * 60 * 1000
 }
 
 export function StudentManagement() {
@@ -249,7 +255,10 @@ export function StudentManagement() {
                               onClick={() => navigate(`/admin/students/${student.user_id}`)}
                             >
                               <td className="px-6 py-3">
-                                <p className="text-sm font-medium text-slate-900">{student.full_name}</p>
+                                <div className="flex items-center gap-2">
+                                  <span className={`h-2 w-2 rounded-full ${isOnline(student.last_seen_at) ? 'bg-green-500' : 'bg-slate-300'}`} />
+                                  <p className="text-sm font-medium text-slate-900">{student.full_name}</p>
+                                </div>
                                 <p className="text-xs text-slate-500">{student.email}</p>
                                 {student.github_username && (
                                   <a

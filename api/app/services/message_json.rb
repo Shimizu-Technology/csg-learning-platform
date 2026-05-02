@@ -1,6 +1,6 @@
 class MessageJson
   class << self
-    def render(message, current_user: nil, stream_url: false)
+    def render(message, current_user: nil, stream_url: false, read_receipts: nil)
       {
         id: message.id,
         channel_id: message.channel_id,
@@ -18,7 +18,9 @@ class MessageJson
         author: user_json(message.author),
         attachments: message.message_attachments.map { |attachment| attachment_json(attachment, stream_url: stream_url) },
         reactions: reaction_json(message, current_user)
-      }
+      }.tap do |json|
+        json[:read_receipts] = read_receipts if read_receipts
+      end
     end
 
     def latest(message)

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowRight, BookOpen, CheckCircle2, Clock, Lock, RefreshCw, RotateCcw, Search, WifiOff } from 'lucide-react'
+import { ArrowRight, BookOpen, CheckCircle2, ChevronDown, ChevronRight, Clock, Lock, RefreshCw, RotateCcw, Search, WifiOff } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { EmptyState } from '../../components/shared/EmptyState'
@@ -70,6 +70,7 @@ export function Materials() {
   const [showingSavedData, setShowingSavedData] = useState(false)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<MaterialFilter>('ready')
+  const [collapsedModules, setCollapsedModules] = useState<Set<number>>(() => new Set())
 
   const loadMaterials = useCallback(() => {
     if (user?.is_staff) {
@@ -100,6 +101,45 @@ export function Materials() {
   useEffect(() => {
     loadMaterials()
   }, [loadMaterials])
+
+  useEffect(() => {
+    const cohortId = data?.cohort?.id
+    if (!cohortId) return
+
+    try {
+      const raw = localStorage.getItem(`csg-materials-collapsed:${cohortId}`)
+      if (raw) setCollapsedModules(new Set(JSON.parse(raw) as number[]))
+    } catch {
+      // Ignore unavailable storage in private browsing or locked-down WebViews.
+    }
+  }, [data?.cohort?.id])
+
+  const persistCollapsedModules = useCallback((next: Set<number>) => {
+    setCollapsedModules(next)
+    const cohortId = data?.cohort?.id
+    if (!cohortId) return
+
+    try {
+      localStorage.setItem(`csg-materials-collapsed:${cohortId}`, JSON.stringify(Array.from(next)))
+    } catch {
+      // Ignore unavailable storage in private browsing or locked-down WebViews.
+    }
+  }, [data?.cohort?.id])
+
+  const toggleModuleCollapsed = useCallback((moduleId: number) => {
+    const next = new Set(collapsedModules)
+    if (next.has(moduleId)) next.delete(moduleId)
+    else next.add(moduleId)
+    persistCollapsedModules(next)
+  }, [collapsedModules, persistCollapsedModules])
+
+  const collapseAllModules = useCallback((moduleIds: number[]) => {
+    persistCollapsedModules(new Set(moduleIds))
+  }, [persistCollapsedModules])
+
+  const expandAllModules = useCallback(() => {
+    persistCollapsedModules(new Set())
+  }, [persistCollapsedModules])
 
   const derived = useMemo(() => {
     const modules = data?.modules || []
@@ -250,6 +290,29 @@ export function Materials() {
           ))}
         </div>
       </div>
+      {derived.visibleModules.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+          <p className="text-sm text-slate-500">
+            {derived.visibleModules.length} module{derived.visibleModules.length !== 1 ? 's' : ''} in view
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={expandAllModules}
+              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            >
+              Expand all
+            </button>
+            <button
+              type="button"
+              onClick={() => collapseAllModules(derived.visibleModules.map((mod) => mod.id))}
+              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            >
+              Collapse all
+            </button>
+          </div>
+        </div>
+      )}
 
       {data.action_items && data.action_items.length > 0 && (
         <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
@@ -281,11 +344,23 @@ export function Materials() {
         />
       ) : (
         <div className="space-y-4">
-          {derived.visibleModules.map((mod) => (
-            <section key={mod.id} className="rounded-2xl border border-slate-200 bg-white p-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
+          {derived.visibleModules.map((mod) => {
+            const isCollapsed = collapsedModules.has(mod.id)
+
+            return (
+            <section key={mod.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+              <button
+                type="button"
+                onClick={() => toggleModuleCollapsed(mod.id)}
+                className="flex w-full flex-col gap-3 p-5 text-left hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <div className="flex min-w-0 items-center gap-2">
+                    {isCollapsed ? (
+                      <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
+                    )}
                     <h2 className="font-semibold text-slate-900">{mod.name}</h2>
                     {!mod.available && (
                       <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
@@ -304,9 +379,10 @@ export function Materials() {
                     {mod.completed_blocks}/{mod.total_blocks} blocks
                   </p>
                 </div>
-              </div>
+              </button>
 
-              <div className="mt-4 divide-y divide-slate-100">
+              {!isCollapsed && (
+              <div className="divide-y divide-slate-100 px-5 pb-5">
                 {mod.lessons.map((lesson) => {
                   const status = lessonStatus(lesson)
                   const isRedo = derived.redoLessonIds.has(lesson.id)
@@ -352,8 +428,9 @@ export function Materials() {
                   )
                 })}
               </div>
+              )}
             </section>
-          ))}
+          )})}
         </div>
       )}
     </div>

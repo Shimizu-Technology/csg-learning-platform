@@ -52,6 +52,17 @@ export function Layout({ children }: LayoutProps) {
     })
   }, [user, location.pathname])
 
+  useEffect(() => {
+    if (!user) return
+
+    void api.updatePresence()
+    const intervalId = globalThis.setInterval(() => {
+      void api.updatePresence()
+    }, 60_000)
+
+    return () => globalThis.clearInterval(intervalId)
+  }, [user])
+
   const toggleCollapsed = () => {
     const next = !collapsed
     setCollapsed(next)
@@ -83,7 +94,7 @@ export function Layout({ children }: LayoutProps) {
   ]
 
   const studentNav = [
-    { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/materials', icon: BookOpenText, label: 'Materials' },
     { to: '/recordings', icon: PlayCircle, label: 'Recordings' },
     { to: '/resources', icon: Link2, label: 'Resources' },
@@ -114,7 +125,7 @@ export function Layout({ children }: LayoutProps) {
   }, [navItems])
 
   const isActive = (path: string, exact?: boolean) => {
-    if (path === '/' || exact) return location.pathname === path
+    if (path === '/dashboard' || exact) return location.pathname === path
     return location.pathname.startsWith(path)
   }
 
