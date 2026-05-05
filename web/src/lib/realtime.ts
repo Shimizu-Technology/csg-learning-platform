@@ -39,6 +39,14 @@ export async function subscribeToDirectMessages(
   return subscribe(identifier, onMessage, onStatus)
 }
 
+export async function subscribeToUserMessages(
+  onMessage: (payload: unknown) => void,
+  onStatus?: (status: RealtimeStatus) => void,
+) {
+  const identifier = JSON.stringify({ channel: 'UserMessagesChannel' })
+  return subscribe(identifier, onMessage, onStatus)
+}
+
 export async function subscribeToStaffPresence(
   onMessage: (payload: PresenceUpdateEvent) => void,
   onStatus?: (status: RealtimeStatus) => void,

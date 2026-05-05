@@ -6,7 +6,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import Link from '@tiptap/extension-link'
 import Underline from '@tiptap/extension-underline'
 import { Extension, type Editor, type JSONContent } from '@tiptap/core'
-import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
+import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import EmojiPicker, { Theme, type EmojiClickData } from 'emoji-picker-react'
 import {
@@ -44,7 +44,7 @@ import {
   X,
 } from 'lucide-react'
 import { api } from '../../lib/api'
-import { subscribeToChannelMessages, subscribeToDirectMessages } from '../../lib/realtime'
+import { subscribeToUserMessages } from '../../lib/realtime'
 import { disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
 import { formatFileSize, uploadToS3 } from '../../lib/uploadToS3'
 import { useAuthContext } from '../../contexts/AuthContext'
@@ -567,11 +567,13 @@ export function Messages() {
   const activeThreadRootIdRef = useRef<number | null>(activeThreadRootId)
   const isDesktopRef = useRef(isDesktop)
   const mobilePaneRef = useRef(mobilePane)
+  const selectedTargetRef = useRef<Target | null>(selectedTarget)
   const deferredSearchQuery = useDeferredValue(searchQuery)
 
   activeThreadRootIdRef.current = activeThreadRootId
   isDesktopRef.current = isDesktop
   mobilePaneRef.current = mobilePane
+  selectedTargetRef.current = selectedTarget
 
   const selectedChannel = useMemo(
     () => selectedTarget?.type === 'channel' ? channels.find((channel) => channel.id === selectedTarget.id) || null : null,
@@ -745,7 +747,7 @@ export function Messages() {
       }),
       Underline,
       Link.configure({ openOnClick: false, autolink: true }),
-      Placeholder.configure({ placeholder: `Message ${selectedLabel}` }),
+      Placeholder.configure({ placeholder: 'Write a message' }),
       MentionHighlightExtension.configure({
         getPatterns: () => mentionPatternsRef.current,
       }),
@@ -981,44 +983,47 @@ export function Messages() {
   }, [selectedTarget?.type, selectedTarget?.id])
 
   useEffect(() => {
-    if (!selectedTarget || !user) return
+    if (!user) return
 
     let unsubscribe: (() => void) | null = null
     let active = true
 
     setRealtimeStatus('disconnected')
 
-    const subscribe = selectedTarget.type === 'channel' ? subscribeToChannelMessages : subscribeToDirectMessages
-    subscribe(selectedTarget.id, (payload) => {
+    subscribeToUserMessages((payload) => {
       if (!active) return
       const event = payload as ChannelMessageEvent
-      const belongsToTarget = selectedTarget.type === 'channel'
-        ? event.channel_id === selectedTarget.id
-        : event.direct_conversation_id === selectedTarget.id
-      if (!event.message || !belongsToTarget) return
+      if (!event.message) return
 
-      const message = { ...event.message, mine: event.message.author.id === user.id }
-      const shouldMarkIncomingRead = !message.mine && event.event === 'created' && canAutoMarkRead()
-      shouldStickToBottomRef.current = message.mine || shouldMarkIncomingRead || isNearConversationBottom()
+      const currentTarget = selectedTargetRef.current
+      const belongsToTarget = Boolean(currentTarget) && (
+        currentTarget!.type === 'channel'
+          ? event.channel_id === currentTarget!.id
+          : event.direct_conversation_id === currentTarget!.id
+      )
+      const message = { ...event.message, mine: event.message.mine ?? event.message.author.id === user.id }
+      const shouldMarkIncomingRead = Boolean(belongsToTarget && !message.mine && event.event === 'created' && canAutoMarkRead())
 
-      setMessages((prev) => {
-        if (event.event === 'deleted') return prev.filter((item) => item.id !== message.id)
-        if (prev.some((item) => item.id === message.id)) {
-          return sortChronologicalMessages(prev.map((item) => item.id === message.id ? mergeIncomingMessage(item, message) : item))
+      updateTargetSummaryFromEvent(event, message, message.mine || shouldMarkIncomingRead)
+
+      if (belongsToTarget) {
+        shouldStickToBottomRef.current = message.mine || shouldMarkIncomingRead || isNearConversationBottom()
+
+        setMessages((prev) => {
+          if (event.event === 'deleted') return prev.filter((item) => item.id !== message.id)
+          if (prev.some((item) => item.id === message.id)) {
+            return sortChronologicalMessages(prev.map((item) => item.id === message.id ? mergeIncomingMessage(item, message) : item))
+          }
+          return sortChronologicalMessages([...prev, message])
+        })
+        setPinnedMessages((prev) => {
+          if (event.event === 'deleted') return prev.filter((item) => item.id !== message.id)
+          return upsertPinnedMessage(prev, message)
+        })
+
+        if (shouldMarkIncomingRead && currentTarget) {
+          markRead(currentTarget).catch(() => {})
         }
-        return sortChronologicalMessages([...prev, message])
-      })
-      setPinnedMessages((prev) => {
-        if (event.event === 'deleted') return prev.filter((item) => item.id !== message.id)
-        return upsertPinnedMessage(prev, message)
-      })
-
-      if (event.event !== 'deleted') {
-        updateLatestForTarget(message, message.mine || shouldMarkIncomingRead)
-      }
-
-      if (shouldMarkIncomingRead) {
-        markRead(selectedTarget).catch(() => {})
       }
     }, setRealtimeStatus).then((cleanup) => {
       if (active) unsubscribe = cleanup
@@ -1029,7 +1034,7 @@ export function Messages() {
       active = false
       unsubscribe?.()
     }
-  }, [selectedTarget?.type, selectedTarget?.id, user?.id])
+  }, [user?.id])
 
   useEffect(() => {
     if (activeThreadRootId && !messagesById.has(activeThreadRootId)) {
@@ -1127,6 +1132,32 @@ export function Messages() {
         last_read_at: markRead ? new Date().toISOString() : conversation.last_read_at,
         latest_message: latestMessageFrom(message),
       } : conversation))
+    }
+  }
+
+  const updateTargetSummaryFromEvent = (event: ChannelMessageEvent, message: ChannelMessage, markRead = false) => {
+    if (event.channel) {
+      setChannels((prev) => {
+        const next = markRead ? { ...event.channel!, unread_count: 0, last_read_at: new Date().toISOString() } : event.channel!
+        return prev.some((channel) => channel.id === next.id)
+          ? prev.map((channel) => channel.id === next.id ? next : channel)
+          : [...prev, next].sort((left, right) => left.position - right.position || left.name.localeCompare(right.name))
+      })
+      return
+    }
+
+    if (event.direct_conversation) {
+      setDirectConversations((prev) => {
+        const next = markRead ? { ...event.direct_conversation!, unread_count: 0, last_read_at: new Date().toISOString() } : event.direct_conversation!
+        return prev.some((conversation) => conversation.id === next.id)
+          ? prev.map((conversation) => conversation.id === next.id ? next : conversation)
+          : [next, ...prev]
+      })
+      return
+    }
+
+    if (event.event !== 'deleted') {
+      updateLatestForTarget(message, markRead)
     }
   }
 
@@ -1480,7 +1511,7 @@ export function Messages() {
       try {
         await disablePushNotifications()
         setPushEnabled(false)
-        setPushMessage('Message notifications are off for this device.')
+        setPushMessage('Push notifications are off for this device.')
       } catch (toggleError) {
         setPushMessage(toggleError instanceof Error ? toggleError.message : 'Could not turn off notifications.')
       }
@@ -1507,7 +1538,7 @@ export function Messages() {
     try {
       await enablePushNotifications(publicKey)
       setPushEnabled(true)
-      setPushMessage('Message notifications are on for this device.')
+      setPushMessage('Push notifications are on for every unmuted conversation in this workspace.')
     } catch (toggleError) {
       setPushMessage(toggleError instanceof Error ? toggleError.message : 'Could not enable notifications.')
     }
@@ -1564,18 +1595,7 @@ export function Messages() {
   const insertCodeBlock = () => {
     if (!editor) return
 
-    const { from, to, empty } = editor.state.selection
-    const selectedText = empty ? '' : editor.state.doc.textBetween(from, to, '\n', '\n')
-    const codeBlock = editor.state.schema.nodes.codeBlock.create(
-      undefined,
-      selectedText ? editor.state.schema.text(selectedText) : undefined,
-    )
-    let transaction = editor.state.tr.replaceSelectionWith(codeBlock, false)
-    const mappedFrom = transaction.mapping.map(from)
-    const cursorPosition = mappedFrom + 1 + selectedText.length
-    transaction = transaction.setSelection(TextSelection.create(transaction.doc, cursorPosition))
-    editor.view.dispatch(transaction.scrollIntoView())
-    editor.view.focus()
+    editor.chain().focus().toggleCodeBlock().run()
   }
 
   const runToolbarCommand = (event: MouseEvent<HTMLButtonElement>, command: () => void) => {
@@ -1877,11 +1897,12 @@ export function Messages() {
           <div className="flex flex-wrap gap-2">
             {!selectedTarget && pushSupported() && (
               <button
+                type="button"
                 onClick={handleTogglePush}
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 {pushEnabled ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
-                {pushEnabled ? 'Turn off push' : 'Turn on push'}
+                {pushEnabled ? 'Turn off push globally' : 'Turn on push globally'}
               </button>
             )}
           </div>
@@ -2178,8 +2199,8 @@ export function Messages() {
                       <ConversationHeaderAction
                         onClick={handleTogglePush}
                         icon={<Smartphone className="h-4 w-4" />}
-                        shortLabel={pushEnabled ? 'Push off' : 'Push on'}
-                        fullLabel={pushEnabled ? 'Turn off push' : 'Turn on push'}
+                        shortLabel={pushEnabled ? 'Push on' : 'Push off'}
+                        fullLabel={pushEnabled ? 'Turn off push globally' : 'Turn on push globally'}
                         ariaLabel={pushEnabled ? 'Turn off push notifications' : 'Turn on push notifications'}
                       />
                     )}
@@ -2948,7 +2969,7 @@ function FormattedMessage({ body, mentionPatterns }: { body: string; mentionPatt
   const parts = body.split(/```/g)
 
   return (
-    <div className="mt-1 max-w-full space-y-2 overflow-hidden break-words text-sm leading-6 text-slate-700 [overflow-wrap:anywhere]">
+    <div className="mt-0.5 max-w-full space-y-1.5 overflow-hidden break-words text-sm leading-5 text-slate-700 [overflow-wrap:anywhere]">
       {parts.map((part, index) => {
         const key = `${index}-${part.slice(0, 12)}`
         if (index % 2 === 1) {
@@ -3034,8 +3055,8 @@ function MessageRow({
   return (
     <div
       id={`message-${message.id}`}
-      className={`message-row group relative flex w-full max-w-full gap-2 rounded-xl px-2 py-1.5 transition-all duration-200 hover:bg-slate-50/90 sm:gap-3 sm:px-3 ${
-        compact ? 'mt-0.5' : 'mt-3'
+      className={`message-row group relative flex w-full max-w-full gap-2 rounded-xl px-2 py-1 transition-all duration-200 hover:bg-slate-50/90 sm:gap-3 sm:px-3 ${
+        compact ? 'mt-0' : 'mt-2'
       } ${message.pinned_at ? 'bg-amber-50/70 ring-1 ring-amber-100' : ''} ${message.pending ? 'opacity-75' : ''} ${
         highlighted ? 'message-row-highlight bg-primary-50 ring-2 ring-primary-200' : ''
       }`}
