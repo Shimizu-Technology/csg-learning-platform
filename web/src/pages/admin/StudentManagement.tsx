@@ -37,6 +37,7 @@ interface CohortGroup {
 }
 
 type ActivityStatus = 'active' | 'quiet' | 'at-risk' | 'new'
+type StudentFilter = 'all' | ActivityStatus | 'online' | 'never-signed-in'
 
 function getActivityStatus(student: Student): ActivityStatus {
   if (student.last_activity_at == null) return 'new'
@@ -82,7 +83,7 @@ export function StudentManagement() {
   const [cohortGroups, setCohortGroups] = useState<CohortGroup[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<'all' | ActivityStatus>('all')
+  const [filter, setFilter] = useState<StudentFilter>('all')
   const [collapsedCohorts, setCollapsedCohorts] = useState<Set<number>>(new Set())
 
   useEffect(() => {
@@ -108,13 +109,19 @@ export function StudentManagement() {
   const atRiskCount = allStudents.filter(s => s.activityStatus === 'at-risk').length
   const quietCount = allStudents.filter(s => s.activityStatus === 'quiet').length
   const activeCount = allStudents.filter(s => s.activityStatus === 'active').length
+  const onlineCount = allStudents.filter(s => isRecentlyOnline(s.last_seen_at, presenceNow)).length
+  const neverSignedInCount = allStudents.filter(s => !s.last_sign_in_at).length
 
   const matchesFilters = (s: Student & { activityStatus: ActivityStatus }) => {
     const matchesSearch =
       s.full_name.toLowerCase().includes(search.toLowerCase()) ||
       s.email.toLowerCase().includes(search.toLowerCase()) ||
       (s.github_username && s.github_username.toLowerCase().includes(search.toLowerCase()))
-    const matchesFilter = filter === 'all' || s.activityStatus === filter
+    const matchesFilter =
+      filter === 'all' ||
+      s.activityStatus === filter ||
+      (filter === 'online' && isRecentlyOnline(s.last_seen_at, presenceNow)) ||
+      (filter === 'never-signed-in' && !s.last_sign_in_at)
     return matchesSearch && matchesFilter
   }
 
@@ -152,7 +159,14 @@ export function StudentManagement() {
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <button
+          onClick={() => setFilter(filter === 'online' ? 'all' : 'online')}
+          className={`rounded-xl border p-3 text-left transition-all ${filter === 'online' ? 'border-green-400 bg-green-50' : 'border-slate-200 bg-white hover:border-green-300'}`}
+        >
+          <p className="text-xl font-bold text-green-700">{onlineCount}</p>
+          <p className="text-xs text-slate-500">Online now</p>
+        </button>
         <button
           onClick={() => setFilter(filter === 'active' ? 'all' : 'active')}
           className={`rounded-xl border p-3 text-left transition-all ${filter === 'active' ? 'border-success-400 bg-success-50' : 'border-slate-200 bg-white hover:border-success-300'}`}
@@ -173,6 +187,13 @@ export function StudentManagement() {
         >
           <p className="text-xl font-bold text-red-700">{atRiskCount}</p>
           <p className="text-xs text-slate-500">At risk (7+ days)</p>
+        </button>
+        <button
+          onClick={() => setFilter(filter === 'never-signed-in' ? 'all' : 'never-signed-in')}
+          className={`rounded-xl border p-3 text-left transition-all ${filter === 'never-signed-in' ? 'border-slate-400 bg-slate-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+        >
+          <p className="text-xl font-bold text-slate-700">{neverSignedInCount}</p>
+          <p className="text-xs text-slate-500">Never signed in</p>
         </button>
       </div>
 

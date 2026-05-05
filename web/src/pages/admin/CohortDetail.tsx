@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Save, Lock, Unlock, UserPlus, Mail, CheckCircle, PlayCircle, Link2, Plus, Trash2, CalendarDays, ExternalLink, Github, Eye, Keyboard } from 'lucide-react'
+import { ArrowLeft, Save, Lock, Unlock, UserPlus, Mail, CheckCircle, PlayCircle, Link2, Plus, Trash2, CalendarDays, ExternalLink, Github, Eye, Keyboard, Clock, Circle } from 'lucide-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Modal } from '../../components/shared/Modal'
 import { RecordingUploadManager } from '../../components/admin/RecordingUploadManager'
 import { useToast } from '../../contexts/ToastContext'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
+import { isRecentlyOnline, usePresenceNow } from '../../lib/presence'
 
 interface Recording {
   title: string
@@ -43,6 +44,8 @@ type CohortData = Record<string, any> & {
     full_name: string
     email: string
     status: string
+    last_sign_in_at?: string | null
+    last_seen_at?: string | null
     invite_pending?: boolean
   }>
   modules: Array<{
@@ -91,6 +94,26 @@ function formatDateLabel(dateStr?: string | null): string {
   return dateFromDateOnly(toDateInputValue(dateStr)).toLocaleDateString()
 }
 
+function formatRelativeDateTime(dateStr?: string | null): string {
+  if (!dateStr) return 'Never'
+
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return 'Unknown'
+
+  const diffMs = Date.now() - date.getTime()
+  const diffMinutes = Math.floor(diffMs / (1000 * 60))
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+  if (diffMinutes < 1) return 'Just now'
+  if (diffMinutes < 60) return `${diffMinutes}m ago`
+  if (diffHours < 24) return `${diffHours}h ago`
+  if (diffDays === 1) return 'Yesterday'
+  if (diffDays < 7) return `${diffDays}d ago`
+
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
     active: 'bg-green-100 text-green-700',
@@ -132,6 +155,7 @@ type CohortStatusValue = typeof COHORT_STATUS_OPTIONS[number]['value']
 export function CohortDetail() {
   const { id } = useParams<{ id: string }>()
   const toast = useToast()
+  const presenceNow = usePresenceNow()
   const [cohort, setCohort] = useState<CohortData | null>(null)
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
@@ -485,6 +509,8 @@ export function CohortDetail() {
     .filter((mod) => mod.assigned && mod.module_start_date && mod.module_start_date > today)
     .sort((a, b) => dateFromDateOnly(a.module_start_date).getTime() - dateFromDateOnly(b.module_start_date).getTime())
     .slice(0, 5)
+  const signedInStudentsCount = cohort.students.filter((student) => !student.invite_pending).length
+  const onlineStudentsCount = cohort.students.filter((student) => isRecentlyOnline(student.last_seen_at ?? null, presenceNow)).length
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -950,9 +976,9 @@ export function CohortDetail() {
                     <PlayCircle className="h-5 w-5" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-slate-900">YouTube Recordings</h3>
+                    <h3 className="text-sm font-semibold text-slate-900">External Recordings</h3>
                     <p className="text-xs text-slate-500">
-                      {recordings.length === 0 ? 'No YouTube links yet' : `${recordings.length} YouTube link${recordings.length !== 1 ? 's' : ''}`}
+                      {recordings.length === 0 ? 'No external links yet' : `${recordings.length} external link${recordings.length !== 1 ? 's' : ''}`}
                     </p>
                   </div>
                 </div>
@@ -1005,7 +1031,12 @@ export function CohortDetail() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">Enrolled Students</h2>
-              <p className="text-sm text-slate-500 mt-1">{cohort.students.length} student{cohort.students.length !== 1 ? 's' : ''} enrolled</p>
+              <p className="text-sm text-slate-500 mt-1">
+                {cohort.students.length} student{cohort.students.length !== 1 ? 's' : ''} enrolled
+                {cohort.students.length > 0 && (
+                  <> · {signedInStudentsCount} signed in · {onlineStudentsCount} online now</>
+                )}
+              </p>
             </div>
             <button
               onClick={() => setShowAddStudent(!showAddStudent)}
@@ -1078,7 +1109,7 @@ export function CohortDetail() {
             ) : cohort.students.map((student) => (
               <div
                 key={student.enrollment_id}
-                className="flex items-center justify-between gap-3 p-4"
+                className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
               >
                 <Link
                   to={`/admin/students/${student.user_id}`}
@@ -1090,8 +1121,18 @@ export function CohortDetail() {
                   {student.full_name && (
                     <p className="text-xs text-slate-500 truncate">{student.email}</p>
                   )}
+                  <div className="mt-2 grid gap-1 text-xs text-slate-500">
+                    <span className="inline-flex items-center gap-1">
+                      <Clock className="h-3.5 w-3.5 text-slate-400" />
+                      Last sign-in: {formatRelativeDateTime(student.last_sign_in_at)}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <Circle className={`h-2.5 w-2.5 ${isRecentlyOnline(student.last_seen_at ?? null, presenceNow) ? 'fill-green-500 text-green-500' : 'fill-slate-300 text-slate-300'}`} />
+                      Last seen: {formatRelativeDateTime(student.last_seen_at)}
+                    </span>
+                  </div>
                 </Link>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
                   {student.invite_pending ? (
                     <>
                       <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-1 text-xs font-medium text-amber-700">
@@ -1108,10 +1149,18 @@ export function CohortDetail() {
                       </button>
                     </>
                   ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-green-50 border border-green-200 px-2 py-1 text-xs font-medium text-green-700">
-                      <CheckCircle className="h-3 w-3" />
-                      Signed in
-                    </span>
+                    <>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-green-50 border border-green-200 px-2 py-1 text-xs font-medium text-green-700">
+                        <CheckCircle className="h-3 w-3" />
+                        Signed in
+                      </span>
+                      {isRecentlyOnline(student.last_seen_at ?? null, presenceNow) && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-green-50 border border-green-200 px-2 py-1 text-xs font-medium text-green-700">
+                          <Circle className="h-2.5 w-2.5 fill-green-500" />
+                          Online
+                        </span>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
