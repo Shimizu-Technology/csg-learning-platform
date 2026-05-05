@@ -164,10 +164,10 @@ export function Layout({ children }: LayoutProps) {
         <button onClick={() => setSidebarOpen(true)} className="text-slate-500 hover:text-slate-700">
           <Menu className="h-6 w-6" />
         </button>
-        <div className="flex items-center gap-2">
+        <Link to="/" className="flex min-w-0 items-center gap-2 rounded-lg hover:opacity-80" aria-label="Go to homepage">
           <GraduationCap className="h-6 w-6 text-primary-500" />
-          <span className="font-semibold text-slate-900">CSG Learning Hub</span>
-        </div>
+          <span className="truncate font-semibold text-slate-900">CSG Learning Hub</span>
+        </Link>
       </header>
 
       {/* Mobile sidebar overlay */}
@@ -175,10 +175,10 @@ export function Layout({ children }: LayoutProps) {
         <div className="fixed inset-0 bg-slate-900/50 transition-opacity duration-300" onClick={() => setSidebarOpen(false)} />
         <div className={`fixed inset-y-0 left-0 flex w-72 flex-col bg-white shadow-xl transition-transform duration-300 ease-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
           <div className="flex h-14 items-center justify-between border-b border-slate-200 px-4">
-            <div className="flex items-center gap-2">
+            <Link to="/" onClick={() => setSidebarOpen(false)} className="flex min-w-0 items-center gap-2 rounded-lg hover:opacity-80" aria-label="Go to homepage">
               <GraduationCap className="h-6 w-6 text-primary-500" />
-              <span className="font-semibold text-slate-900">CSG Learning Hub</span>
-            </div>
+              <span className="truncate font-semibold text-slate-900">CSG Learning Hub</span>
+            </Link>
             <button onClick={() => setSidebarOpen(false)} className="text-slate-500">
               <X className="h-5 w-5" />
             </button>
@@ -231,9 +231,16 @@ export function Layout({ children }: LayoutProps) {
     <div className="flex">
       {/* Desktop sidebar */}
       <aside className={`hidden lg:flex lg:flex-col ${sidebarWidth} lg:fixed lg:inset-y-0 border-r border-slate-200 bg-white transition-all duration-200`}>
-        <div className={`flex h-14 items-center ${collapsed ? 'justify-center px-2' : 'gap-2 px-6'} border-b border-slate-200`}>
+        <div className={`flex h-14 items-center ${collapsed ? 'justify-center px-2' : 'px-6'} border-b border-slate-200`}>
+          <Link
+            to="/"
+            title="Go to homepage"
+            className={`flex min-w-0 items-center rounded-lg text-slate-900 hover:opacity-80 ${collapsed ? 'justify-center' : 'gap-2'}`}
+            aria-label="Go to homepage"
+          >
           <GraduationCap className="h-6 w-6 text-primary-500 shrink-0" />
-          {!collapsed && <span className="font-semibold text-slate-900">CSG Learning Hub</span>}
+            {!collapsed && <span className="truncate font-semibold text-slate-900">CSG Learning Hub</span>}
+          </Link>
         </div>
         <nav className={`flex-1 ${collapsed ? 'p-2' : 'p-4'} space-y-1`}>
           {navItems.map((item) => (

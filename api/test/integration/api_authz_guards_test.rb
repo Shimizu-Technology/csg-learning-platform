@@ -109,6 +109,21 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "staff cohort show includes student sign in and presence timestamps" do
+    last_sign_in_at = 2.days.ago.change(usec: 0)
+    last_seen_at = 5.minutes.ago.change(usec: 0)
+    @student_one.update!(last_sign_in_at: last_sign_in_at, last_seen_at: last_seen_at)
+
+    as_user(@admin) do
+      get "/api/v1/cohorts/#{@cohort.id}", headers: auth_headers
+    end
+
+    assert_response :success
+    student = JSON.parse(response.body).dig("cohort", "students").find { |item| item["user_id"] == @student_one.id }
+    assert_equal last_sign_in_at.iso8601(3), Time.zone.parse(student.fetch("last_sign_in_at")).iso8601(3)
+    assert_equal last_seen_at.iso8601(3), Time.zone.parse(student.fetch("last_seen_at")).iso8601(3)
+  end
+
   test "student module show hides solutions" do
     as_user(@student_one) do
       get "/api/v1/modules/#{@module.id}", headers: auth_headers

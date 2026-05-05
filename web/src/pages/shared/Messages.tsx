@@ -14,6 +14,7 @@ import {
   BellOff,
   Bold,
   Check,
+  CheckCheck,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -3108,9 +3109,11 @@ function MessageRow({
         )}
         {message.mine && message.read_receipts && message.read_receipts.count > 0 && (
           <div
-            className="mt-1 text-[11px] text-slate-400"
+            className="mt-1 inline-flex max-w-full items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-500"
             title={readReceiptTitle(message.read_receipts)}
+            aria-label={`Seen by ${readReceiptTitle(message.read_receipts)}`}
           >
+            <CheckCheck className="h-3 w-3 shrink-0 text-green-600" />
             Seen by {readReceiptLabel(message.read_receipts)}
           </div>
         )}
