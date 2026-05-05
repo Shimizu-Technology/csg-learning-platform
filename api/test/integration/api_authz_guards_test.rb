@@ -133,6 +133,22 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "presence heartbeat updates activity and broadcasts staff visibility" do
+    broadcast_user = nil
+    original_broadcast = PresenceBroadcastService.method(:user_seen)
+    PresenceBroadcastService.define_singleton_method(:user_seen) { |user| broadcast_user = user }
+
+    as_user(@student_one) do
+      post "/api/v1/presence", headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal @student_one, broadcast_user
+    assert @student_one.reload.last_seen_at.present?
+  ensure
+    PresenceBroadcastService.define_singleton_method(:user_seen, original_broadcast) if original_broadcast
+  end
+
   test "student module show hides solutions" do
     as_user(@student_one) do
       get "/api/v1/modules/#{@module.id}", headers: auth_headers

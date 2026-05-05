@@ -5,7 +5,8 @@ import { api } from '../../lib/api'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
-import { isRecentlyOnline, usePresenceNow } from '../../lib/presence'
+import { isRecentlyOnline, presenceStatus, usePresenceNow, type PresenceStatus } from '../../lib/presence'
+import { subscribeToStaffPresence } from '../../lib/realtime'
 
 interface Student {
   user_id: number
@@ -77,6 +78,22 @@ function formatLastActivity(dateStr: string | null): string {
   return date.toLocaleDateString()
 }
 
+function PresenceBadge({ status }: { status: PresenceStatus }) {
+  const config = {
+    online: { label: 'Online', className: 'bg-green-50 text-green-700 border-green-200', dot: 'bg-green-500' },
+    'recently-active': { label: 'Recently active', className: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
+    offline: { label: 'Offline', className: 'bg-slate-50 text-slate-500 border-slate-200', dot: 'bg-slate-300' },
+  }
+  const item = config[status]
+
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium ${item.className}`}>
+      <span className={`h-2 w-2 rounded-full ${item.dot}`} />
+      {item.label}
+    </span>
+  )
+}
+
 export function StudentManagement() {
   const navigate = useNavigate()
   const presenceNow = usePresenceNow()
@@ -100,6 +117,34 @@ export function StudentManagement() {
       }
       setLoading(false)
     })
+  }, [])
+
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined
+    let active = true
+
+    subscribeToStaffPresence((event) => {
+      if (!active) return
+
+      setCohortGroups((groups) => groups.map((group) => ({
+        ...group,
+        students: group.students.map((student) => (
+          student.user_id === event.user_id
+            ? { ...student, last_seen_at: event.last_seen_at }
+            : student
+        )),
+      })))
+    }).then((nextUnsubscribe) => {
+      if (active) unsubscribe = nextUnsubscribe
+      else nextUnsubscribe()
+    }).catch(() => {
+      // Existing dashboard loads and heartbeat timestamps remain the fallback.
+    })
+
+    return () => {
+      active = false
+      unsubscribe?.()
+    }
   }, [])
 
   const allStudents = cohortGroups.flatMap(g =>
@@ -260,13 +305,17 @@ export function StudentManagement() {
                             <th className="px-6 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase">Student</th>
                             <th className="px-6 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase">Progress</th>
                             <th className="px-6 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">This Week</th>
-                            <th className="px-6 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">Last Active</th>
+                            <th className="px-6 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">Course Activity</th>
                             <th className="px-6 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">Status</th>
                             <th className="px-3 py-2.5 w-8" />
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                           {groupStudents.map(student => (
+                            (() => {
+                              const status = presenceStatus(student.last_seen_at, presenceNow)
+
+                              return (
                             <tr
                               key={student.user_id}
                               className={`hover:bg-slate-50 cursor-pointer ${student.activityStatus === 'at-risk' ? 'bg-red-50/30' : ''}`}
@@ -274,10 +323,13 @@ export function StudentManagement() {
                             >
                               <td className="px-6 py-3">
                                 <div className="flex items-center gap-2">
-                                  <span className={`h-2 w-2 rounded-full ${isRecentlyOnline(student.last_seen_at, presenceNow) ? 'bg-green-500' : 'bg-slate-300'}`} />
                                   <p className="text-sm font-medium text-slate-900">{student.full_name}</p>
                                 </div>
                                 <p className="text-xs text-slate-500">{student.email}</p>
+                                <div className="mt-1 flex flex-wrap items-center gap-2">
+                                  <PresenceBadge status={status} />
+                                  <span className="text-xs text-slate-500">Last active: {formatLastActivity(student.last_seen_at)}</span>
+                                </div>
                                 {student.github_username && (
                                   <a
                                     href={`https://github.com/${student.github_username}`}
@@ -317,6 +369,8 @@ export function StudentManagement() {
                                 <ChevronRight className="h-4 w-4 text-slate-300" />
                               </td>
                             </tr>
+                              )
+                            })()
                           ))}
                         </tbody>
                       </table>

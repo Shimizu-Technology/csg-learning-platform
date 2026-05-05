@@ -27,7 +27,8 @@ import { ProgressBar } from '../../components/shared/ProgressBar'
 import { ProgressRing } from '../../components/shared/ProgressRing'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { useToast } from '../../contexts/ToastContext'
-import { isRecentlyOnline, usePresenceNow } from '../../lib/presence'
+import { presenceStatus, usePresenceNow, type PresenceStatus } from '../../lib/presence'
+import { subscribeToStaffPresence } from '../../lib/realtime'
 
 const BLOCK_ICONS: Record<string, React.ElementType> = {
   reading: FileText,
@@ -52,6 +53,24 @@ const GRADE_STYLES: Record<string, string> = {
   B: 'bg-blue-100 text-blue-700 border-blue-200',
   C: 'bg-amber-100 text-amber-700 border-amber-200',
   R: 'bg-red-100 text-red-700 border-red-200',
+}
+
+function presenceBadgeClasses(status: PresenceStatus): string {
+  if (status === 'online') return 'bg-green-50 text-green-700'
+  if (status === 'recently-active') return 'bg-blue-50 text-blue-700'
+  return 'bg-slate-100 text-slate-500'
+}
+
+function presenceDotClasses(status: PresenceStatus): string {
+  if (status === 'online') return 'bg-green-500'
+  if (status === 'recently-active') return 'bg-blue-500'
+  return 'bg-slate-400'
+}
+
+function presenceLabel(status: PresenceStatus): string {
+  if (status === 'online') return 'Online'
+  if (status === 'recently-active') return 'Recently active'
+  return 'Offline'
 }
 
 interface ModuleAssignment {
@@ -529,6 +548,40 @@ export function StudentDetail() {
     })
   }, [id])
 
+  useEffect(() => {
+    if (!id) return
+
+    let unsubscribe: (() => void) | undefined
+    let active = true
+    const studentId = Number(id)
+
+    subscribeToStaffPresence((event) => {
+      if (!active || event.user_id !== studentId) return
+
+      setData((current) => {
+        if (!current) return current
+
+        return {
+          ...current,
+          user: {
+            ...current.user,
+            last_seen_at: event.last_seen_at,
+          },
+        }
+      })
+    }).then((nextUnsubscribe) => {
+      if (active) unsubscribe = nextUnsubscribe
+      else nextUnsubscribe()
+    }).catch(() => {
+      // Student progress refetches and heartbeat timestamps remain the fallback.
+    })
+
+    return () => {
+      active = false
+      unsubscribe?.()
+    }
+  }, [id])
+
   const toggleModule = (moduleId: number) => {
     setExpandedModules((prev) => {
       const next = new Set(prev)
@@ -692,6 +745,7 @@ export function StudentDetail() {
   const { enrollment, user, cohort, overall_progress, modules, recent_activity } = data
   const assignedModuleIds = new Set(enrollment.module_assignments.map((assignment) => assignment.module_id))
   const assignableModules = modules.filter((mod) => !assignedModuleIds.has(mod.id))
+  const status = presenceStatus(user.last_seen_at, presenceNow)
 
   const createModuleAssignment = async (moduleId: number) => {
     setCreatingModuleId(moduleId)
@@ -802,11 +856,9 @@ export function StudentDetail() {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-slate-900">{user.full_name}</h1>
-              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
-                isRecentlyOnline(user.last_seen_at, presenceNow) ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500'
-              }`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${isRecentlyOnline(user.last_seen_at, presenceNow) ? 'bg-green-500' : 'bg-slate-400'}`} />
-                {isRecentlyOnline(user.last_seen_at, presenceNow) ? 'Online' : 'Offline'}
+              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${presenceBadgeClasses(status)}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${presenceDotClasses(status)}`} />
+                {presenceLabel(status)}
               </span>
               {!editingUser && (
                 <button
@@ -846,7 +898,11 @@ export function StudentDetail() {
               )}
               <span className="inline-flex items-center gap-1.5">
                 <Clock className="h-3.5 w-3.5" />
-                Last sign-in: {formatRelative(user.last_sign_in_at)}
+                Last login: {formatRelative(user.last_sign_in_at)}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Circle className={`h-3.5 w-3.5 ${status === 'online' ? 'fill-green-500 text-green-500' : status === 'recently-active' ? 'fill-blue-400 text-blue-400' : 'fill-slate-300 text-slate-300'}`} />
+                Last active: {formatRelative(user.last_seen_at)}
               </span>
             </div>
             <p className="mt-1 text-xs text-slate-400">
