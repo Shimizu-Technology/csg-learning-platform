@@ -8,5 +8,7 @@ class PresenceBroadcastService
         last_seen_at: user.last_seen_at
       }
     )
+  rescue StandardError => e
+    Rails.logger.warn("PresenceBroadcastService: broadcast failed: #{e.class}: #{e.message}")
   end
 end
