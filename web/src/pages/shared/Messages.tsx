@@ -2810,7 +2810,9 @@ export function Messages() {
             className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
             {availableUsers.map((availableUser) => (
-              <option key={availableUser.id} value={availableUser.id}>{availableUser.full_name}</option>
+              <option key={availableUser.id} value={availableUser.id}>
+                {availableUser.full_name} - {availableUser.email} ({availableUser.role})
+              </option>
             ))}
           </select>
           <div className="flex justify-end gap-2 pt-2">

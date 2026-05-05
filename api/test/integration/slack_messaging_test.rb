@@ -47,6 +47,50 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_equal 0, @student.notifications.direct_message.count
   end
 
+  test "staff direct messages appear in the recipient conversation list after refresh" do
+    instructor = User.create!(
+      clerk_id: "clerk_instructor_dm",
+      email: "instructor-dm@example.com",
+      first_name: "Instructor",
+      last_name: "User",
+      role: :instructor
+    )
+
+    as_user(@admin) do
+      post "/api/v1/direct_conversations",
+        params: { workspace_id: @cohort.workspace.id, user_ids: [ instructor.id ] },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :created
+    conversation_id = JSON.parse(response.body).dig("direct_conversation", "id")
+
+    as_user(@admin) do
+      post "/api/v1/direct_conversations/#{conversation_id}/messages",
+        params: { body: "Can you see this direct message?" },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :created
+    assert_equal 1, instructor.notifications.direct_message.unread.count
+
+    as_user(instructor) do
+      get "/api/v1/direct_conversations", headers: auth_headers
+    end
+
+    assert_response :success
+    conversations = JSON.parse(response.body).fetch("direct_conversations")
+    conversation = conversations.find { |item| item.fetch("id") == conversation_id }
+
+    assert conversation, "expected instructor DM index to include the admin-created conversation"
+    assert_equal 1, conversation.fetch("unread_count")
+    assert_equal @cohort.workspace.id, conversation.fetch("workspace_id")
+    assert_equal "Can you see this direct message?", conversation.dig("latest_message", "body")
+    assert conversation.fetch("users").any? { |user| user.fetch("id") == @admin.id }
+  end
+
   test "direct conversation rejects users outside the cohort workspace" do
     as_user(@student) do
       post "/api/v1/direct_conversations",
