@@ -5,6 +5,12 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || ''
 type RealtimeStatus = 'connected' | 'disconnected' | 'error'
 type Unsubscribe = () => void
 
+export type PresenceUpdateEvent = {
+  event: 'presence.updated'
+  user_id: number
+  last_seen_at: string
+}
+
 const RECONNECT_DELAYS = [1000, 2500, 5000, 10000]
 
 function cableUrl(token: string) {
@@ -31,6 +37,33 @@ export async function subscribeToDirectMessages(
 ) {
   const identifier = JSON.stringify({ channel: 'DirectMessagesChannel', direct_conversation_id: directConversationId })
   return subscribe(identifier, onMessage, onStatus)
+}
+
+export async function subscribeToUserMessages(
+  onMessage: (payload: unknown) => void,
+  onStatus?: (status: RealtimeStatus) => void,
+) {
+  const identifier = JSON.stringify({ channel: 'UserMessagesChannel' })
+  return subscribe(identifier, onMessage, onStatus)
+}
+
+export async function subscribeToStaffPresence(
+  onMessage: (payload: PresenceUpdateEvent) => void,
+  onStatus?: (status: RealtimeStatus) => void,
+) {
+  const identifier = JSON.stringify({ channel: 'PresenceChannel' })
+  return subscribe(identifier, (payload) => {
+    if (isPresenceUpdateEvent(payload)) onMessage(payload)
+  }, onStatus)
+}
+
+function isPresenceUpdateEvent(payload: unknown): payload is PresenceUpdateEvent {
+  if (!payload || typeof payload !== 'object') return false
+
+  const event = payload as Partial<PresenceUpdateEvent>
+  return event.event === 'presence.updated' &&
+    typeof event.user_id === 'number' &&
+    typeof event.last_seen_at === 'string'
 }
 
 async function subscribe(

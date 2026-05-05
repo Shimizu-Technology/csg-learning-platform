@@ -97,8 +97,10 @@ module Api
         end
 
         member = @conversation.direct_conversation_members.find_by!(user: current_user)
+        previous_last_read_at = member.last_read_at
         member.mark_read!
         current_user.notifications.direct_message.where(path: "/messages/dm/#{@conversation.id}").unread.update_all(read_at: Time.current, updated_at: Time.current)
+        ReadReceiptBroadcastJob.perform_later(@conversation, current_user.id, previous_last_read_at)
 
         render json: { direct_conversation: conversation_json(@conversation, member: member, unread_count: 0, latest_message: latest_messages_for([ @conversation ])[@conversation.id]) }
       end

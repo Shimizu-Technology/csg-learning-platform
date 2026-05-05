@@ -399,7 +399,9 @@ export interface ChannelMessageEvent {
   event: 'created' | 'updated' | 'deleted';
   channel_id: number | null;
   direct_conversation_id: number | null;
-  message: Omit<ChannelMessage, 'mine'>;
+  message: ChannelMessage;
+  channel?: ChannelSummary | null;
+  direct_conversation?: DirectConversationSummary | null;
 }
 
 export interface DirectConversationsResponse {

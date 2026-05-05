@@ -144,7 +144,7 @@ export function AdminDashboard() {
                 <tr className="border-b border-slate-200 bg-slate-50">
                   <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Student</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Progress</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">Last Active</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">Last Login</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">Status</th>
                 </tr>
               </thead>

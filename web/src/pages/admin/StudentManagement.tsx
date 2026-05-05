@@ -5,7 +5,9 @@ import { api } from '../../lib/api'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
-import { isRecentlyOnline, usePresenceNow } from '../../lib/presence'
+import { presenceStatus, usePresenceNow, type PresenceStatus } from '../../lib/presence'
+import { subscribeToStaffPresence } from '../../lib/realtime'
+import { PresenceBadge } from '../../components/shared/PresenceBadge'
 
 interface Student {
   user_id: number
@@ -38,6 +40,10 @@ interface CohortGroup {
 
 type ActivityStatus = 'active' | 'quiet' | 'at-risk' | 'new'
 type StudentFilter = 'all' | ActivityStatus | 'online' | 'never-signed-in'
+type StudentWithStatus = Student & {
+  activityStatus: ActivityStatus
+  presence: PresenceStatus
+}
 
 function getActivityStatus(student: Student): ActivityStatus {
   if (student.last_activity_at == null) return 'new'
@@ -102,17 +108,50 @@ export function StudentManagement() {
     })
   }, [])
 
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined
+    let active = true
+
+    subscribeToStaffPresence((event) => {
+      if (!active) return
+
+      setCohortGroups((groups) => groups.map((group) => ({
+        ...group,
+        students: group.students.map((student) => (
+          student.user_id === event.user_id
+            ? { ...student, last_seen_at: event.last_seen_at }
+            : student
+        )),
+      })))
+    }).then((nextUnsubscribe) => {
+      if (active) unsubscribe = nextUnsubscribe
+      else nextUnsubscribe()
+    }).catch(() => {
+      // Existing dashboard loads and heartbeat timestamps remain the fallback.
+    })
+
+    return () => {
+      active = false
+      unsubscribe?.()
+    }
+  }, [])
+
   const allStudents = cohortGroups.flatMap(g =>
-    g.students.map(s => ({ ...s, activityStatus: getActivityStatus(s), cohortId: g.cohort.id }))
+    g.students.map(s => ({
+      ...s,
+      activityStatus: getActivityStatus(s),
+      presence: presenceStatus(s.last_seen_at, presenceNow),
+      cohortId: g.cohort.id,
+    }))
   )
 
   const atRiskCount = allStudents.filter(s => s.activityStatus === 'at-risk').length
   const quietCount = allStudents.filter(s => s.activityStatus === 'quiet').length
   const activeCount = allStudents.filter(s => s.activityStatus === 'active').length
-  const onlineCount = allStudents.filter(s => isRecentlyOnline(s.last_seen_at, presenceNow)).length
+  const onlineCount = allStudents.filter(s => s.presence === 'online').length
   const neverSignedInCount = allStudents.filter(s => !s.last_sign_in_at).length
 
-  const matchesFilters = (s: Student & { activityStatus: ActivityStatus }) => {
+  const matchesFilters = (s: StudentWithStatus) => {
     const matchesSearch =
       s.full_name.toLowerCase().includes(search.toLowerCase()) ||
       s.email.toLowerCase().includes(search.toLowerCase()) ||
@@ -120,7 +159,7 @@ export function StudentManagement() {
     const matchesFilter =
       filter === 'all' ||
       s.activityStatus === filter ||
-      (filter === 'online' && isRecentlyOnline(s.last_seen_at, presenceNow)) ||
+      (filter === 'online' && s.presence === 'online') ||
       (filter === 'never-signed-in' && !s.last_sign_in_at)
     return matchesSearch && matchesFilter
   }
@@ -216,7 +255,11 @@ export function StudentManagement() {
         <div className="space-y-4">
           {cohortGroups.map(group => {
             const groupStudents = group.students
-              .map(s => ({ ...s, activityStatus: getActivityStatus(s) }))
+              .map(s => ({
+                ...s,
+                activityStatus: getActivityStatus(s),
+                presence: presenceStatus(s.last_seen_at, presenceNow),
+              }))
               .filter(matchesFilters)
             const isCollapsed = collapsedCohorts.has(group.cohort.id)
 
@@ -260,7 +303,7 @@ export function StudentManagement() {
                             <th className="px-6 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase">Student</th>
                             <th className="px-6 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase">Progress</th>
                             <th className="px-6 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">This Week</th>
-                            <th className="px-6 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">Last Active</th>
+                            <th className="px-6 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">Course Activity</th>
                             <th className="px-6 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">Status</th>
                             <th className="px-3 py-2.5 w-8" />
                           </tr>
@@ -274,10 +317,13 @@ export function StudentManagement() {
                             >
                               <td className="px-6 py-3">
                                 <div className="flex items-center gap-2">
-                                  <span className={`h-2 w-2 rounded-full ${isRecentlyOnline(student.last_seen_at, presenceNow) ? 'bg-green-500' : 'bg-slate-300'}`} />
                                   <p className="text-sm font-medium text-slate-900">{student.full_name}</p>
                                 </div>
                                 <p className="text-xs text-slate-500">{student.email}</p>
+                                <div className="mt-1 flex flex-wrap items-center gap-2">
+                                  <PresenceBadge status={student.presence} />
+                                  <span className="text-xs text-slate-500">Last active: {formatLastActivity(student.last_seen_at)}</span>
+                                </div>
                                 {student.github_username && (
                                   <a
                                     href={`https://github.com/${student.github_username}`}

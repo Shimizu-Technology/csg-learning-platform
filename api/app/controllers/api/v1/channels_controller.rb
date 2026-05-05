@@ -78,8 +78,10 @@ module Api
 
         last_message = @channel.messages.visible.order(created_at: :desc, id: :desc).first
         read_state = find_or_create_read_state(@channel)
+        previous_last_read_at = read_state.last_read_at
         read_state.mark_read!(last_message)
         current_user.notifications.message.where(path: "/messages/#{@channel.id}").unread.update_all(read_at: Time.current, updated_at: Time.current)
+        ReadReceiptBroadcastJob.perform_later(@channel, current_user.id, previous_last_read_at)
 
         render json: { channel: channel_json(@channel, read_state, 0, last_message) }
       end

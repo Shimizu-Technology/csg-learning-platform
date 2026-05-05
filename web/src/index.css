@@ -51,15 +51,16 @@ body {
 
 .message-composer {
   font-size: 16px;
-  min-height: 42px;
-  max-height: 132px;
+  min-height: 72px;
+  max-height: 180px;
   overflow-y: auto;
 }
 
 @media (min-width: 640px) {
   .message-composer {
     font-size: 0.875rem;
-    max-height: 144px;
+    min-height: 96px;
+    max-height: 260px;
   }
 }
 
