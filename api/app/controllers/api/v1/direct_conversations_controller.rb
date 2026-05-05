@@ -100,7 +100,7 @@ module Api
         previous_last_read_at = member.last_read_at
         member.mark_read!
         current_user.notifications.direct_message.where(path: "/messages/dm/#{@conversation.id}").unread.update_all(read_at: Time.current, updated_at: Time.current)
-        broadcast_read_receipt_updates(@conversation.messages.visible, previous_last_read_at)
+        ReadReceiptBroadcastJob.perform_later(@conversation, current_user.id, previous_last_read_at)
 
         render json: { direct_conversation: conversation_json(@conversation, member: member, unread_count: 0, latest_message: latest_messages_for([ @conversation ])[@conversation.id]) }
       end
@@ -226,14 +226,6 @@ module Api
         current_user.message_preferences
           .where(target_type: "DirectConversation", target_id: conversation_ids, muted: true)
           .pluck(:target_id)
-      end
-
-      def broadcast_read_receipt_updates(scope, previous_last_read_at)
-        messages = scope.where.not(author_id: current_user.id)
-        messages = messages.where("created_at > ?", previous_last_read_at) if previous_last_read_at
-        messages.order(created_at: :desc, id: :desc).limit(50).each do |message|
-          MessageBroadcastService.updated(message)
-        end
       end
 
       def resolved_workspace

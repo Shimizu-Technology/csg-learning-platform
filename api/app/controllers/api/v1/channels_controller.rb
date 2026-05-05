@@ -81,7 +81,7 @@ module Api
         previous_last_read_at = read_state.last_read_at
         read_state.mark_read!(last_message)
         current_user.notifications.message.where(path: "/messages/#{@channel.id}").unread.update_all(read_at: Time.current, updated_at: Time.current)
-        broadcast_read_receipt_updates(@channel.messages.visible, previous_last_read_at)
+        ReadReceiptBroadcastJob.perform_later(@channel, current_user.id, previous_last_read_at)
 
         render json: { channel: channel_json(@channel, read_state, 0, last_message) }
       end
@@ -172,14 +172,6 @@ module Api
         current_user.channel_read_states.find_or_create_by!(channel: channel)
       rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
         current_user.channel_read_states.find_by!(channel: channel)
-      end
-
-      def broadcast_read_receipt_updates(scope, previous_last_read_at)
-        messages = scope.where.not(author_id: current_user.id)
-        messages = messages.where("created_at > ?", previous_last_read_at) if previous_last_read_at
-        messages.order(created_at: :desc, id: :desc).limit(50).each do |message|
-          MessageBroadcastService.updated(message)
-        end
       end
 
       def workspace_for_mutation!

@@ -2199,7 +2199,7 @@ export function Messages() {
                       <ConversationHeaderAction
                         onClick={handleTogglePush}
                         icon={<Smartphone className="h-4 w-4" />}
-                        shortLabel={pushEnabled ? 'Push on' : 'Push off'}
+                        shortLabel={pushEnabled ? 'Push off' : 'Push on'}
                         fullLabel={pushEnabled ? 'Turn off push globally' : 'Turn on push globally'}
                         ariaLabel={pushEnabled ? 'Turn off push notifications' : 'Turn on push notifications'}
                       />
