@@ -5,8 +5,9 @@ import { api } from '../../lib/api'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
-import { isRecentlyOnline, presenceStatus, usePresenceNow, type PresenceStatus } from '../../lib/presence'
+import { presenceStatus, usePresenceNow, type PresenceStatus } from '../../lib/presence'
 import { subscribeToStaffPresence } from '../../lib/realtime'
+import { PresenceBadge } from '../../components/shared/PresenceBadge'
 
 interface Student {
   user_id: number
@@ -39,6 +40,10 @@ interface CohortGroup {
 
 type ActivityStatus = 'active' | 'quiet' | 'at-risk' | 'new'
 type StudentFilter = 'all' | ActivityStatus | 'online' | 'never-signed-in'
+type StudentWithStatus = Student & {
+  activityStatus: ActivityStatus
+  presence: PresenceStatus
+}
 
 function getActivityStatus(student: Student): ActivityStatus {
   if (student.last_activity_at == null) return 'new'
@@ -76,22 +81,6 @@ function formatLastActivity(dateStr: string | null): string {
   if (diffDays === 1) return 'Yesterday'
   if (diffDays < 7) return `${diffDays}d ago`
   return date.toLocaleDateString()
-}
-
-function PresenceBadge({ status }: { status: PresenceStatus }) {
-  const config = {
-    online: { label: 'Online', className: 'bg-green-50 text-green-700 border-green-200', dot: 'bg-green-500' },
-    'recently-active': { label: 'Recently active', className: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
-    offline: { label: 'Offline', className: 'bg-slate-50 text-slate-500 border-slate-200', dot: 'bg-slate-300' },
-  }
-  const item = config[status]
-
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium ${item.className}`}>
-      <span className={`h-2 w-2 rounded-full ${item.dot}`} />
-      {item.label}
-    </span>
-  )
 }
 
 export function StudentManagement() {
@@ -148,16 +137,21 @@ export function StudentManagement() {
   }, [])
 
   const allStudents = cohortGroups.flatMap(g =>
-    g.students.map(s => ({ ...s, activityStatus: getActivityStatus(s), cohortId: g.cohort.id }))
+    g.students.map(s => ({
+      ...s,
+      activityStatus: getActivityStatus(s),
+      presence: presenceStatus(s.last_seen_at, presenceNow),
+      cohortId: g.cohort.id,
+    }))
   )
 
   const atRiskCount = allStudents.filter(s => s.activityStatus === 'at-risk').length
   const quietCount = allStudents.filter(s => s.activityStatus === 'quiet').length
   const activeCount = allStudents.filter(s => s.activityStatus === 'active').length
-  const onlineCount = allStudents.filter(s => isRecentlyOnline(s.last_seen_at, presenceNow)).length
+  const onlineCount = allStudents.filter(s => s.presence === 'online').length
   const neverSignedInCount = allStudents.filter(s => !s.last_sign_in_at).length
 
-  const matchesFilters = (s: Student & { activityStatus: ActivityStatus }) => {
+  const matchesFilters = (s: StudentWithStatus) => {
     const matchesSearch =
       s.full_name.toLowerCase().includes(search.toLowerCase()) ||
       s.email.toLowerCase().includes(search.toLowerCase()) ||
@@ -165,7 +159,7 @@ export function StudentManagement() {
     const matchesFilter =
       filter === 'all' ||
       s.activityStatus === filter ||
-      (filter === 'online' && isRecentlyOnline(s.last_seen_at, presenceNow)) ||
+      (filter === 'online' && s.presence === 'online') ||
       (filter === 'never-signed-in' && !s.last_sign_in_at)
     return matchesSearch && matchesFilter
   }
@@ -261,7 +255,11 @@ export function StudentManagement() {
         <div className="space-y-4">
           {cohortGroups.map(group => {
             const groupStudents = group.students
-              .map(s => ({ ...s, activityStatus: getActivityStatus(s) }))
+              .map(s => ({
+                ...s,
+                activityStatus: getActivityStatus(s),
+                presence: presenceStatus(s.last_seen_at, presenceNow),
+              }))
               .filter(matchesFilters)
             const isCollapsed = collapsedCohorts.has(group.cohort.id)
 
@@ -312,10 +310,6 @@ export function StudentManagement() {
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                           {groupStudents.map(student => (
-                            (() => {
-                              const status = presenceStatus(student.last_seen_at, presenceNow)
-
-                              return (
                             <tr
                               key={student.user_id}
                               className={`hover:bg-slate-50 cursor-pointer ${student.activityStatus === 'at-risk' ? 'bg-red-50/30' : ''}`}
@@ -327,7 +321,7 @@ export function StudentManagement() {
                                 </div>
                                 <p className="text-xs text-slate-500">{student.email}</p>
                                 <div className="mt-1 flex flex-wrap items-center gap-2">
-                                  <PresenceBadge status={status} />
+                                  <PresenceBadge status={student.presence} />
                                   <span className="text-xs text-slate-500">Last active: {formatLastActivity(student.last_seen_at)}</span>
                                 </div>
                                 {student.github_username && (
@@ -369,8 +363,6 @@ export function StudentManagement() {
                                 <ChevronRight className="h-4 w-4 text-slate-300" />
                               </td>
                             </tr>
-                              )
-                            })()
                           ))}
                         </tbody>
                       </table>

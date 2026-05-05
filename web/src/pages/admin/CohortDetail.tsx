@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Save, Lock, Unlock, UserPlus, Mail, CheckCircle, PlayCircle, Link2, Plus, Trash2, CalendarDays, ExternalLink, Github, Eye, Keyboard, Clock, Circle } from 'lucide-react'
+import { ArrowLeft, Save, Lock, Unlock, UserPlus, Mail, CheckCircle, PlayCircle, Link2, Plus, Trash2, CalendarDays, ExternalLink, Github, Eye, Keyboard, Clock } from 'lucide-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Modal } from '../../components/shared/Modal'
 import { RecordingUploadManager } from '../../components/admin/RecordingUploadManager'
 import { useToast } from '../../contexts/ToastContext'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
-import { isRecentlyOnline, presenceStatus, usePresenceNow, type PresenceStatus } from '../../lib/presence'
+import { presenceStatus, usePresenceNow } from '../../lib/presence'
 import { subscribeToStaffPresence } from '../../lib/realtime'
+import { PresenceBadge, PresenceDot } from '../../components/shared/PresenceBadge'
 
 interface Recording {
   title: string
@@ -113,24 +114,6 @@ function formatRelativeDateTime(dateStr?: string | null): string {
   if (diffDays < 7) return `${diffDays}d ago`
 
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
-function presenceBadgeClasses(status: PresenceStatus): string {
-  if (status === 'online') return 'bg-green-50 border-green-200 text-green-700'
-  if (status === 'recently-active') return 'bg-blue-50 border-blue-200 text-blue-700'
-  return 'bg-slate-50 border-slate-200 text-slate-500'
-}
-
-function presenceDotClasses(status: PresenceStatus): string {
-  if (status === 'online') return 'fill-green-500 text-green-500'
-  if (status === 'recently-active') return 'fill-blue-400 text-blue-400'
-  return 'fill-slate-300 text-slate-300'
-}
-
-function presenceLabel(status: PresenceStatus): string {
-  if (status === 'online') return 'Online'
-  if (status === 'recently-active') return 'Recently active'
-  return 'Offline'
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -561,7 +544,11 @@ export function CohortDetail() {
     .sort((a, b) => dateFromDateOnly(a.module_start_date).getTime() - dateFromDateOnly(b.module_start_date).getTime())
     .slice(0, 5)
   const signedInStudentsCount = cohort.students.filter((student) => !student.invite_pending).length
-  const onlineStudentsCount = cohort.students.filter((student) => isRecentlyOnline(student.last_seen_at ?? null, presenceNow)).length
+  const studentsWithPresence = cohort.students.map((student) => ({
+    student,
+    presence: presenceStatus(student.last_seen_at, presenceNow),
+  }))
+  const onlineStudentsCount = studentsWithPresence.filter(({ presence }) => presence === 'online').length
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -1157,11 +1144,7 @@ export function CohortDetail() {
               <div className="p-6 text-center text-sm text-slate-500">
                 No students enrolled yet. Use the Add Student button above.
               </div>
-            ) : cohort.students.map((student) => (
-              (() => {
-                const status = presenceStatus(student.last_seen_at, presenceNow)
-
-                return (
+            ) : studentsWithPresence.map(({ student, presence }) => (
               <div
                 key={student.enrollment_id}
                 className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
@@ -1182,7 +1165,7 @@ export function CohortDetail() {
                       Last login: {formatRelativeDateTime(student.last_sign_in_at)}
                     </span>
                     <span className="inline-flex items-center gap-1">
-                      <Circle className={`h-2.5 w-2.5 ${presenceDotClasses(status)}`} />
+                      <PresenceDot status={presence} />
                       Last active: {formatRelativeDateTime(student.last_seen_at)}
                     </span>
                   </div>
@@ -1209,16 +1192,11 @@ export function CohortDetail() {
                         <CheckCircle className="h-3 w-3" />
                         Signed in
                       </span>
-                      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium ${presenceBadgeClasses(status)}`}>
-                        <Circle className={`h-2.5 w-2.5 ${presenceDotClasses(status)}`} />
-                        {presenceLabel(status)}
-                      </span>
+                      <PresenceBadge status={presence} />
                     </>
                   )}
                 </div>
               </div>
-                )
-              })()
             ))}
           </div>
         </div>
