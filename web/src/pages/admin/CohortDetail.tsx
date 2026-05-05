@@ -98,12 +98,13 @@ function formatRelativeDateTime(dateStr?: string | null): string {
   if (!dateStr) return 'Never'
 
   const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return 'Unknown'
+
   const diffMs = Date.now() - date.getTime()
   const diffMinutes = Math.floor(diffMs / (1000 * 60))
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
 
-  if (Number.isNaN(date.getTime())) return 'Unknown'
   if (diffMinutes < 1) return 'Just now'
   if (diffMinutes < 60) return `${diffMinutes}m ago`
   if (diffHours < 24) return `${diffHours}h ago`
@@ -508,7 +509,7 @@ export function CohortDetail() {
     .filter((mod) => mod.assigned && mod.module_start_date && mod.module_start_date > today)
     .sort((a, b) => dateFromDateOnly(a.module_start_date).getTime() - dateFromDateOnly(b.module_start_date).getTime())
     .slice(0, 5)
-  const signedInStudentsCount = cohort.students.filter((student) => !student.invite_pending && student.last_sign_in_at).length
+  const signedInStudentsCount = cohort.students.filter((student) => !student.invite_pending).length
   const onlineStudentsCount = cohort.students.filter((student) => isRecentlyOnline(student.last_seen_at ?? null, presenceNow)).length
 
   return (

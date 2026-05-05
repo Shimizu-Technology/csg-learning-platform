@@ -69,6 +69,13 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
       last_name: "User",
       role: :admin
     )
+    @instructor = User.create!(
+      clerk_id: "clerk_instructor_1",
+      email: "instructor@example.com",
+      first_name: "Instructor",
+      last_name: "User",
+      role: :instructor
+    )
 
     @cohort = Cohort.create!(
       curriculum: @curriculum,
@@ -114,14 +121,16 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
     last_seen_at = 5.minutes.ago.change(usec: 0)
     @student_one.update!(last_sign_in_at: last_sign_in_at, last_seen_at: last_seen_at)
 
-    as_user(@admin) do
-      get "/api/v1/cohorts/#{@cohort.id}", headers: auth_headers
-    end
+    [ @admin, @instructor ].each do |staff_user|
+      as_user(staff_user) do
+        get "/api/v1/cohorts/#{@cohort.id}", headers: auth_headers
+      end
 
-    assert_response :success
-    student = JSON.parse(response.body).dig("cohort", "students").find { |item| item["user_id"] == @student_one.id }
-    assert_equal last_sign_in_at.iso8601(3), Time.zone.parse(student.fetch("last_sign_in_at")).iso8601(3)
-    assert_equal last_seen_at.iso8601(3), Time.zone.parse(student.fetch("last_seen_at")).iso8601(3)
+      assert_response :success
+      student = JSON.parse(response.body).dig("cohort", "students").find { |item| item["user_id"] == @student_one.id }
+      assert_equal last_sign_in_at.iso8601(3), Time.zone.parse(student.fetch("last_sign_in_at")).iso8601(3)
+      assert_equal last_seen_at.iso8601(3), Time.zone.parse(student.fetch("last_seen_at")).iso8601(3)
+    end
   end
 
   test "student module show hides solutions" do
