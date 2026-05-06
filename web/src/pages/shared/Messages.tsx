@@ -89,6 +89,7 @@ type MentionableUser = Pick<UserSummary, 'id' | 'full_name' | 'email'>
 type MessageSegment =
   | { type: 'text'; text: string }
   | { type: 'code'; code: string; language: string }
+  | { type: 'spacer' }
 type MessageSearchResult = ChannelMessage & {
   context?: {
     type: 'channel' | 'direct_conversation'
@@ -411,11 +412,30 @@ function parseMessageSegments(body: string): MessageSegment[] {
   const fencePattern = /```([^\n`]*)\n?([\s\S]*?)(?:```|$)/g
   let cursor = 0
   let match: RegExpExecArray | null
+  const pushTextSegment = (text: string) => {
+    const hasText = text.trim().length > 0
+    const hasBlankGap = /\n[ \t]*\n/.test(text)
+
+    if (!hasText) {
+      if (hasBlankGap) segments.push({ type: 'spacer' })
+      return
+    }
+
+    if (/^[ \t]*\n[ \t]*\n/.test(text)) {
+      segments.push({ type: 'spacer' })
+    }
+
+    const normalized = text.replace(/^[ \t]*\n+/, '').replace(/\n+[ \t]*$/, '')
+    if (normalized.trim()) segments.push({ type: 'text', text: normalized })
+
+    if (/\n[ \t]*\n[ \t]*$/.test(text)) {
+      segments.push({ type: 'spacer' })
+    }
+  }
 
   while ((match = fencePattern.exec(body)) !== null) {
     if (match.index > cursor) {
-      const text = body.slice(cursor, match.index)
-      if (text.trim()) segments.push({ type: 'text', text })
+      pushTextSegment(body.slice(cursor, match.index))
     }
 
     segments.push({
@@ -427,8 +447,7 @@ function parseMessageSegments(body: string): MessageSegment[] {
   }
 
   if (cursor < body.length) {
-    const text = body.slice(cursor)
-    if (text.trim()) segments.push({ type: 'text', text })
+    pushTextSegment(body.slice(cursor))
   }
 
   return segments.length > 0 ? segments : [{ type: 'text', text: body }]
@@ -3072,7 +3091,17 @@ function FormattedMessage({ body, mentionPatterns }: { body: string; mentionPatt
   return (
     <div className="mt-0.5 max-w-full space-y-1 overflow-hidden break-words text-sm leading-5 text-slate-700 [overflow-wrap:anywhere]">
       {segments.map((segment, index) => {
-        const key = `${index}-${segment.type === 'code' ? segment.code.slice(0, 12) : segment.text.slice(0, 12)}`
+        const key = `${index}-${
+          segment.type === 'code'
+            ? segment.code.slice(0, 12)
+            : segment.type === 'text'
+              ? segment.text.slice(0, 12)
+              : 'spacer'
+        }`
+        if (segment.type === 'spacer') {
+          return <div key={key} className="h-1" aria-hidden="true" />
+        }
+
         if (segment.type === 'code') {
           return (
             <div key={key} className="max-w-full overflow-hidden rounded-lg bg-slate-900">
@@ -3090,7 +3119,7 @@ function FormattedMessage({ body, mentionPatterns }: { body: string; mentionPatt
 
         return (
           <p key={key} className="whitespace-pre-wrap">
-            {formatInline(segment.text.trim(), mentionPatterns)}
+            {formatInline(segment.text, mentionPatterns)}
           </p>
         )
       })}
