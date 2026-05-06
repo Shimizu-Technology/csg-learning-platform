@@ -49,7 +49,7 @@ import { disablePushNotifications, enablePushNotifications, pushConfigurationHin
 import { formatFileSize, uploadToS3 } from '../../lib/uploadToS3'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
-import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
+import { MessagesLoadingShell } from '../../components/shared/MessagesLoadingShell'
 import { Modal } from '../../components/shared/Modal'
 import type {
   ChannelMessage,
@@ -1818,7 +1818,7 @@ export function Messages() {
     }
   }
 
-  if (loading) return <LoadingSpinner message="Loading messages..." />
+  if (loading) return <MessagesLoadingShell />
 
   const showListPane = isDesktop || mobilePane === 'list'
   const showConversationPane = isDesktop || mobilePane === 'conversation' || mobilePane === 'thread'

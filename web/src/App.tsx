@@ -1,9 +1,10 @@
 import { Suspense } from 'react'
-import { BrowserRouter, Navigate, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Navigate, Routes, Route, useLocation } from 'react-router-dom'
 import { PostHogPageView } from './providers/PostHogProvider'
 import { Layout } from './components/shared/Layout'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import { LoadingSpinner } from './components/shared/LoadingSpinner'
+import { MessagesLoadingShell } from './components/shared/MessagesLoadingShell'
 import { UploadProvider } from './contexts/UploadContext'
 import { ToastProvider } from './contexts/ToastContext'
 import {
@@ -33,9 +34,19 @@ import {
   TeamManagement,
 } from './lib/routePreload'
 
+function RouteLoadingFallback() {
+  const location = useLocation()
+
+  if (location.pathname.startsWith('/messages')) {
+    return <MessagesLoadingShell />
+  }
+
+  return <LoadingSpinner message="Loading..." />
+}
+
 function AppRoutes() {
   return (
-    <Suspense fallback={<LoadingSpinner message="Loading..." />}>
+    <Suspense fallback={<RouteLoadingFallback />}>
       <PostHogPageView />
       <Routes>
         <Route path="/" element={<HomePage />} />
