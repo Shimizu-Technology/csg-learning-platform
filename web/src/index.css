@@ -51,16 +51,16 @@ body {
 
 .message-composer {
   font-size: 16px;
-  min-height: 72px;
-  max-height: 180px;
+  min-height: 88px;
+  max-height: 220px;
   overflow-y: auto;
 }
 
 @media (min-width: 640px) {
   .message-composer {
     font-size: 0.875rem;
-    min-height: 96px;
-    max-height: 260px;
+    min-height: 120px;
+    max-height: 360px;
   }
 }
 
@@ -92,6 +92,13 @@ body {
   color: #475569;
   margin: 0.25rem 0;
   padding-left: 0.75rem;
+}
+
+.message-composer pre {
+  cursor: text;
+  min-height: 3rem;
+  margin: 0.375rem 0;
+  white-space: pre-wrap;
 }
 
 .message-composer code {
