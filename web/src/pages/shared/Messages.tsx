@@ -596,6 +596,9 @@ export function Messages() {
   const targetRequestRef = useRef(0)
   const targetLoadOptionsRef = useRef<TargetLoadOptions>({})
   const shouldStickToBottomRef = useRef(true)
+  const programmaticScrollUntilRef = useRef(0)
+  const programmaticScrollTimerRef = useRef<number | null>(null)
+  const lastAutoScrollTargetKeyRef = useRef('')
   const activeThreadRootIdRef = useRef<number | null>(activeThreadRootId)
   const isDesktopRef = useRef(isDesktop)
   const mobilePaneRef = useRef(mobilePane)
@@ -1119,7 +1122,10 @@ export function Messages() {
 
   useEffect(() => {
     if (!shouldStickToBottomRef.current) return
-    bottomRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' })
+    const targetKey = selectedTarget ? `${selectedTarget.type}:${selectedTarget.id}` : ''
+    const targetChanged = lastAutoScrollTargetKeyRef.current !== targetKey
+    lastAutoScrollTargetKeyRef.current = targetKey
+    scrollToBottom(targetChanged ? 'auto' : 'smooth')
   }, [messages.length, selectedTarget?.type, selectedTarget?.id])
 
   useEffect(() => {
@@ -1203,10 +1209,23 @@ export function Messages() {
     else await api.markDirectConversationRead(target.id)
   }
 
-  const scrollToLatestMessage = () => {
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     shouldStickToBottomRef.current = true
+    if (programmaticScrollTimerRef.current) {
+      window.clearTimeout(programmaticScrollTimerRef.current)
+    }
+
+    programmaticScrollUntilRef.current = window.performance.now() + (behavior === 'smooth' ? 600 : 80)
+    bottomRef.current?.scrollIntoView({ block: 'end', behavior })
+    programmaticScrollTimerRef.current = window.setTimeout(() => {
+      programmaticScrollUntilRef.current = 0
+      programmaticScrollTimerRef.current = null
+    }, behavior === 'smooth' ? 650 : 100)
+  }
+
+  const scrollToLatestMessage = () => {
     setHasUnreadBelow(false)
-    bottomRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' })
+    scrollToBottom('smooth')
     if (selectedTarget && canAutoMarkRead(true)) {
       markRead(selectedTarget).catch(() => {})
     }
@@ -1220,8 +1239,18 @@ export function Messages() {
   }
 
   const handleConversationScroll = () => {
-    shouldStickToBottomRef.current = isNearConversationBottom()
-    if (shouldStickToBottomRef.current) setHasUnreadBelow(false)
+    const nearBottom = isNearConversationBottom()
+    if (nearBottom) {
+      shouldStickToBottomRef.current = true
+      setHasUnreadBelow(false)
+      return
+    }
+
+    if (shouldStickToBottomRef.current && window.performance.now() < programmaticScrollUntilRef.current) {
+      return
+    }
+
+    shouldStickToBottomRef.current = false
   }
 
   const canAutoMarkRead = (ignoreScrollPosition = false) => {
@@ -1751,6 +1780,9 @@ export function Messages() {
   }
 
   useEffect(() => () => {
+    if (programmaticScrollTimerRef.current) {
+      window.clearTimeout(programmaticScrollTimerRef.current)
+    }
     optimisticAttachmentUrls.current.forEach((urls) => urls.forEach((url) => URL.revokeObjectURL(url)))
     optimisticAttachmentUrls.current.clear()
   }, [])
@@ -2305,7 +2337,7 @@ export function Messages() {
                 <div
                   ref={messageScrollRef}
                   onScroll={handleConversationScroll}
-                  className={`h-full min-w-0 overflow-y-auto overflow-x-hidden scroll-smooth px-3 py-4 transition duration-200 sm:px-5 sm:py-5 ${loadingTarget || isNavigationPending ? 'opacity-60' : 'opacity-100'}`}
+                  className={`h-full min-w-0 overflow-y-auto overflow-x-hidden px-3 py-4 transition duration-200 sm:px-5 sm:py-5 ${loadingTarget || isNavigationPending ? 'opacity-60' : 'opacity-100'}`}
                 >
                 {activeThreadRoot && !showThreadPanel && (
                   <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
