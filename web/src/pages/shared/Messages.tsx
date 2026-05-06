@@ -1064,7 +1064,7 @@ export function Messages() {
 
       if (belongsToTarget) {
         shouldStickToBottomRef.current = message.mine || shouldMarkIncomingRead || isNearConversationBottom()
-        if (event.event === 'created' && !message.mine && !shouldStickToBottomRef.current) {
+        if (event.event === 'created' && !message.mine && !message.parent_message_id && !shouldStickToBottomRef.current) {
           setHasUnreadBelow(true)
         }
 
