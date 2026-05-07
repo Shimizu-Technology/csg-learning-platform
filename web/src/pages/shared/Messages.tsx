@@ -3093,9 +3093,9 @@ function ConversationButton({
 }
 
 function FormattedMessage({ body, mentionPatterns }: { body: string; mentionPatterns: MentionPattern[] }) {
-  if (!body) return null
+  const segments = useMemo(() => parseMessageSegments(body), [body])
 
-  const segments = parseMessageSegments(body)
+  if (!body) return null
 
   return (
     <div className="mt-0.5 max-w-full space-y-1 overflow-hidden break-words text-sm leading-5 text-slate-700 [overflow-wrap:anywhere]">
