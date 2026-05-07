@@ -1063,7 +1063,11 @@ export function Messages() {
       updateTargetSummaryFromEvent(event, message, message.mine || shouldMarkIncomingRead)
 
       if (belongsToTarget) {
-        shouldStickToBottomRef.current = message.mine || shouldMarkIncomingRead || isNearConversationBottom()
+        const duringProgrammaticScroll = shouldStickToBottomRef.current && window.performance.now() < programmaticScrollUntilRef.current
+        if (!duringProgrammaticScroll) {
+          shouldStickToBottomRef.current = message.mine || shouldMarkIncomingRead || isNearConversationBottom()
+        }
+
         if (event.event === 'created' && !message.mine && !message.parent_message_id && !shouldStickToBottomRef.current) {
           setHasUnreadBelow(true)
         }
