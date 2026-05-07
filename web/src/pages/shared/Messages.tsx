@@ -446,7 +446,7 @@ function parseMessageSegments(body: string): MessageSegment[] {
     segments.push({
       type: 'code',
       language: match[1].trim(),
-      code: match[2].replace(/^\n|\n$/g, ''),
+      code: match[2].replace(/^\n+|\n+$/g, ''),
     })
     cursor = fencePattern.lastIndex
   }
