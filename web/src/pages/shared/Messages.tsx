@@ -412,24 +412,29 @@ function parseMessageSegments(body: string): MessageSegment[] {
   const fencePattern = /```([^\n`]*)\n?([\s\S]*?)(?:```|$)/g
   let cursor = 0
   let match: RegExpExecArray | null
+  const pushSpacerSegment = () => {
+    if (segments.at(-1)?.type !== 'spacer') {
+      segments.push({ type: 'spacer' })
+    }
+  }
   const pushTextSegment = (text: string) => {
     const hasText = text.trim().length > 0
     const hasBlankGap = /\n[ \t]*\n/.test(text)
 
     if (!hasText) {
-      if (hasBlankGap) segments.push({ type: 'spacer' })
+      if (hasBlankGap) pushSpacerSegment()
       return
     }
 
     if (/^[ \t]*\n[ \t]*\n/.test(text)) {
-      segments.push({ type: 'spacer' })
+      pushSpacerSegment()
     }
 
     const normalized = text.replace(/^[ \t]*\n+/, '').replace(/\n+[ \t]*$/, '')
     if (normalized.trim()) segments.push({ type: 'text', text: normalized })
 
     if (/\n[ \t]*\n[ \t]*$/.test(text)) {
-      segments.push({ type: 'spacer' })
+      pushSpacerSegment()
     }
   }
 
