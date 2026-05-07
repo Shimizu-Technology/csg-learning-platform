@@ -49,7 +49,7 @@ import { disablePushNotifications, enablePushNotifications, pushConfigurationHin
 import { formatFileSize, uploadToS3 } from '../../lib/uploadToS3'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
-import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
+import { MessagesLoadingShell } from '../../components/shared/MessagesLoadingShell'
 import { Modal } from '../../components/shared/Modal'
 import type {
   ChannelMessage,
@@ -86,6 +86,10 @@ type MentionPattern = {
   kind: 'user' | 'channel'
 }
 type MentionableUser = Pick<UserSummary, 'id' | 'full_name' | 'email'>
+type MessageSegment =
+  | { type: 'text'; text: string }
+  | { type: 'code'; code: string; language: string }
+  | { type: 'spacer' }
 type MessageSearchResult = ChannelMessage & {
   context?: {
     type: 'channel' | 'direct_conversation'
@@ -403,6 +407,57 @@ function renderTextWithMentions(text: string, patterns: MentionPattern[]) {
   return nodes
 }
 
+function parseMessageSegments(body: string): MessageSegment[] {
+  const segments: MessageSegment[] = []
+  const fencePattern = /```([^\n`]*)\n?([\s\S]*?)(?:```|$)/g
+  let cursor = 0
+  let match: RegExpExecArray | null
+  const pushSpacerSegment = () => {
+    if (segments.at(-1)?.type !== 'spacer') {
+      segments.push({ type: 'spacer' })
+    }
+  }
+  const pushTextSegment = (text: string) => {
+    const hasText = text.trim().length > 0
+    const hasBlankGap = /\n[ \t]*\n/.test(text)
+
+    if (!hasText) {
+      if (hasBlankGap) pushSpacerSegment()
+      return
+    }
+
+    if (/^[ \t]*\n[ \t]*\n/.test(text)) {
+      pushSpacerSegment()
+    }
+
+    const normalized = text.replace(/^[ \t]*\n+/, '').replace(/\n+[ \t]*$/, '')
+    if (normalized.trim()) segments.push({ type: 'text', text: normalized })
+
+    if (/\n[ \t]*\n[ \t]*$/.test(text)) {
+      pushSpacerSegment()
+    }
+  }
+
+  while ((match = fencePattern.exec(body)) !== null) {
+    if (match.index > cursor) {
+      pushTextSegment(body.slice(cursor, match.index))
+    }
+
+    segments.push({
+      type: 'code',
+      language: match[1].trim(),
+      code: match[2].replace(/^\n+|\n+$/g, ''),
+    })
+    cursor = fencePattern.lastIndex
+  }
+
+  if (cursor < body.length) {
+    pushTextSegment(body.slice(cursor))
+  }
+
+  return segments.length > 0 ? segments : [{ type: 'text', text: body }]
+}
+
 const mentionHighlightPluginKey = new PluginKey('messageMentionHighlight')
 
 const MentionHighlightExtension = Extension.create<{ getPatterns: () => MentionPattern[] }>({
@@ -514,6 +569,7 @@ export function Messages() {
   const [showWorkspaceMembers, setShowWorkspaceMembers] = useState(false)
   const [pushEnabled, setPushEnabled] = useState(false)
   const [pushMessage, setPushMessage] = useState('')
+  const [hasUnreadBelow, setHasUnreadBelow] = useState(false)
   const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'error'>('disconnected')
   const [body, setBody] = useState('')
   const [composerMentionUserIds, setComposerMentionUserIds] = useState<number[]>([])
@@ -564,6 +620,9 @@ export function Messages() {
   const targetRequestRef = useRef(0)
   const targetLoadOptionsRef = useRef<TargetLoadOptions>({})
   const shouldStickToBottomRef = useRef(true)
+  const programmaticScrollUntilRef = useRef(0)
+  const programmaticScrollTimerRef = useRef<number | null>(null)
+  const lastAutoScrollTargetKeyRef = useRef('')
   const activeThreadRootIdRef = useRef<number | null>(activeThreadRootId)
   const isDesktopRef = useRef(isDesktop)
   const mobilePaneRef = useRef(mobilePane)
@@ -859,6 +918,7 @@ export function Messages() {
     const requestId = targetRequestRef.current + 1
     targetRequestRef.current = requestId
     setLoadingTarget(true)
+    setHasUnreadBelow(false)
     shouldStickToBottomRef.current = !options.aroundMessageId
 
     if (target.type === 'channel') {
@@ -968,6 +1028,7 @@ export function Messages() {
 
   useEffect(() => {
     if (!selectedTarget) return
+    setHasUnreadBelow(false)
 
     const options = targetLoadOptionsRef.current
     targetLoadOptionsRef.current = {}
@@ -1007,7 +1068,14 @@ export function Messages() {
       updateTargetSummaryFromEvent(event, message, message.mine || shouldMarkIncomingRead)
 
       if (belongsToTarget) {
-        shouldStickToBottomRef.current = message.mine || shouldMarkIncomingRead || isNearConversationBottom()
+        const duringProgrammaticScroll = shouldStickToBottomRef.current && window.performance.now() < programmaticScrollUntilRef.current
+        if (!duringProgrammaticScroll) {
+          shouldStickToBottomRef.current = message.mine || shouldMarkIncomingRead || isNearConversationBottom()
+        }
+
+        if (event.event === 'created' && !message.mine && !message.parent_message_id && !shouldStickToBottomRef.current) {
+          setHasUnreadBelow(true)
+        }
 
         setMessages((prev) => {
           if (event.event === 'deleted') return prev.filter((item) => item.id !== message.id)
@@ -1082,7 +1150,10 @@ export function Messages() {
 
   useEffect(() => {
     if (!shouldStickToBottomRef.current) return
-    bottomRef.current?.scrollIntoView({ block: 'end' })
+    const targetKey = selectedTarget ? `${selectedTarget.type}:${selectedTarget.id}` : ''
+    const targetChanged = lastAutoScrollTargetKeyRef.current !== targetKey
+    lastAutoScrollTargetKeyRef.current = targetKey
+    scrollToBottom(targetChanged ? 'auto' : 'smooth')
   }, [messages.length, selectedTarget?.type, selectedTarget?.id])
 
   useEffect(() => {
@@ -1166,11 +1237,48 @@ export function Messages() {
     else await api.markDirectConversationRead(target.id)
   }
 
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    shouldStickToBottomRef.current = true
+    if (programmaticScrollTimerRef.current) {
+      window.clearTimeout(programmaticScrollTimerRef.current)
+    }
+
+    programmaticScrollUntilRef.current = window.performance.now() + (behavior === 'smooth' ? 600 : 80)
+    bottomRef.current?.scrollIntoView({ block: 'end', behavior })
+    programmaticScrollTimerRef.current = window.setTimeout(() => {
+      programmaticScrollUntilRef.current = 0
+      programmaticScrollTimerRef.current = null
+    }, behavior === 'smooth' ? 650 : 100)
+  }
+
+  const scrollToLatestMessage = () => {
+    setHasUnreadBelow(false)
+    scrollToBottom('smooth')
+    if (selectedTarget && canAutoMarkRead(true)) {
+      markRead(selectedTarget).catch(() => {})
+    }
+  }
+
   const isNearConversationBottom = () => {
     const element = messageScrollRef.current
     if (!element) return true
 
     return element.scrollHeight - element.scrollTop - element.clientHeight < 96
+  }
+
+  const handleConversationScroll = () => {
+    const nearBottom = isNearConversationBottom()
+    if (nearBottom) {
+      shouldStickToBottomRef.current = true
+      setHasUnreadBelow(false)
+      return
+    }
+
+    if (shouldStickToBottomRef.current && window.performance.now() < programmaticScrollUntilRef.current) {
+      return
+    }
+
+    shouldStickToBottomRef.current = false
   }
 
   const canAutoMarkRead = (ignoreScrollPosition = false) => {
@@ -1700,6 +1808,9 @@ export function Messages() {
   }
 
   useEffect(() => () => {
+    if (programmaticScrollTimerRef.current) {
+      window.clearTimeout(programmaticScrollTimerRef.current)
+    }
     optimisticAttachmentUrls.current.forEach((urls) => urls.forEach((url) => URL.revokeObjectURL(url)))
     optimisticAttachmentUrls.current.clear()
   }, [])
@@ -1735,7 +1846,7 @@ export function Messages() {
     }
   }
 
-  if (loading) return <LoadingSpinner message="Loading messages..." />
+  if (loading) return <MessagesLoadingShell />
 
   const showListPane = isDesktop || mobilePane === 'list'
   const showConversationPane = isDesktop || mobilePane === 'conversation' || mobilePane === 'thread'
@@ -1809,9 +1920,11 @@ export function Messages() {
             <button
               type="button"
               onMouseDown={(event) => runToolbarCommand(event, insertCodeBlock)}
-              className={`min-h-9 shrink-0 rounded-lg px-2.5 py-2 text-xs font-medium hover:bg-slate-50 ${editor?.isActive('codeBlock') ? 'bg-slate-100 text-slate-900' : ''}`}
+              className={`min-h-9 shrink-0 rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('codeBlock') ? 'bg-slate-100 text-slate-900' : ''}`}
+              aria-label="Code block"
+              title="Code block"
             >
-              <span>Block</span>
+              <Code2 className="h-4 w-4" />
             </button>
             <button type="button" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('@') }} className="min-h-9 shrink-0 rounded-lg px-2.5 py-2 text-xs font-medium hover:bg-slate-50">@ mention</button>
             <button type="button" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('/') }} className="min-h-9 shrink-0 rounded-lg px-2.5 py-2 text-xs font-medium hover:bg-slate-50">/ command</button>
@@ -2249,94 +2362,110 @@ export function Messages() {
               </header>
 
               <div className={`relative min-w-0 min-h-0 flex-1 overflow-hidden ${showThreadPanel ? 'grid lg:grid-cols-[minmax(0,1fr)_380px]' : ''}`}>
-                <div ref={messageScrollRef} className={`h-full min-w-0 overflow-y-auto overflow-x-hidden px-3 py-4 transition duration-200 sm:px-5 sm:py-5 ${loadingTarget || isNavigationPending ? 'opacity-60' : 'opacity-100'}`}>
-                {activeThreadRoot && !showThreadPanel && (
-                  <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Thread</p>
-                        <p className="mt-1 text-sm text-slate-600">
-                          {activeThreadMessages.length - 1} {activeThreadMessages.length - 1 === 1 ? 'reply' : 'replies'} under this message
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveThreadRootId(null)
-                          if (!isDesktop) setMobilePane('conversation')
-                        }}
-                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                        {selectedTarget.type === 'channel' ? 'Back to channel' : 'Back to conversation'}
-                      </button>
-                    </div>
-                  </div>
-                )}
-                {!activeThreadRoot && conversationView === 'pins' && (
-                  <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-800">
-                    Pinned messages stay easy to find here for this workspace conversation.
-                  </div>
-                )}
-                {displayedMessages.length === 0 ? (
-                  <div className="flex min-h-full items-center justify-center py-16 text-center text-sm text-slate-500">
-                    {activeThreadRoot
-                      ? 'No replies yet. Start the thread.'
-                      : conversationView === 'pins'
-                        ? 'No pinned messages yet.'
-                        : 'No messages yet. Start the conversation.'}
-                  </div>
-                ) : displayedMessages.map((message, index) => {
-                  const previousMessage = displayedMessages[index - 1]
-                  const rootId = rootMessageIdFor(message, messagesById)
-                  const replyCount = threadReplies.get(rootId)?.length || 0
-                  const compact = shouldCompactMessage(message, previousMessage)
-                  const showDayDivider = !previousMessage || !sameDay(previousMessage.created_at, message.created_at)
-
-                  return (
-                    <div key={message.id}>
-                      {showDayDivider && (
-                        <div className="relative my-5 flex items-center justify-center">
-                          <div className="absolute inset-x-0 top-1/2 border-t border-slate-200" />
-                          <span className="relative rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                            {formatDayDivider(message.created_at)}
-                          </span>
+                <div className="relative min-h-0 min-w-0">
+                  <div
+                    ref={messageScrollRef}
+                    onScroll={handleConversationScroll}
+                    className={`h-full min-w-0 overflow-y-auto overflow-x-hidden px-3 py-4 transition duration-200 sm:px-5 sm:py-5 ${loadingTarget || isNavigationPending ? 'opacity-60' : 'opacity-100'}`}
+                  >
+                  {activeThreadRoot && !showThreadPanel && (
+                    <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Thread</p>
+                          <p className="mt-1 text-sm text-slate-600">
+                            {activeThreadMessages.length - 1} {activeThreadMessages.length - 1 === 1 ? 'reply' : 'replies'} under this message
+                          </p>
                         </div>
-                      )}
-                      <MessageRow
-                        message={message}
-                        compact={compact}
-                        highlighted={highlightedMessageId === message.id}
-                        editing={editing?.id === message.id}
-                        editBody={editBody}
-                        setEditBody={setEditBody}
-                        onStartEdit={() => {
-                          setEditing(message)
-                          setEditBody(message.body)
-                        }}
-                        onCancelEdit={() => setEditing(null)}
-                        onSaveEdit={() => saveEdit(message)}
-                        onDelete={() => setMessagePendingDelete(message)}
-                        onOpenActions={() => setMobileActionsMessageId(message.id)}
-                        onPin={() => togglePin(message)}
-                        canPin={isStaff}
-                        inThreadView={Boolean(activeThreadRoot)}
-                        replyCount={!activeThreadRoot && !message.parent_message_id ? replyCount : 0}
-                        onReply={() => {
-                          setActiveThreadRootId(rootId)
-                          if (!isDesktop) setMobilePane('thread')
-                        }}
-                        onReact={(emoji) => toggleReaction(message, emoji)}
-                        onOpenImage={(attachment, imageAttachments) => {
-                          setLightboxAttachments(imageAttachments)
-                          setLightboxIndex(Math.max(0, imageAttachments.findIndex((item) => item.id === attachment.id)))
-                        }}
-                        mentionPatterns={mentionPatterns}
-                      />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveThreadRootId(null)
+                            if (!isDesktop) setMobilePane('conversation')
+                          }}
+                          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          {selectedTarget.type === 'channel' ? 'Back to channel' : 'Back to conversation'}
+                        </button>
+                      </div>
                     </div>
-                  )
-                })}
-                <div ref={bottomRef} />
+                  )}
+                  {!activeThreadRoot && conversationView === 'pins' && (
+                    <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-800">
+                      Pinned messages stay easy to find here for this workspace conversation.
+                    </div>
+                  )}
+                  {displayedMessages.length === 0 ? (
+                    <div className="flex min-h-full items-center justify-center py-16 text-center text-sm text-slate-500">
+                      {activeThreadRoot
+                        ? 'No replies yet. Start the thread.'
+                        : conversationView === 'pins'
+                          ? 'No pinned messages yet.'
+                          : 'No messages yet. Start the conversation.'}
+                    </div>
+                  ) : displayedMessages.map((message, index) => {
+                    const previousMessage = displayedMessages[index - 1]
+                    const rootId = rootMessageIdFor(message, messagesById)
+                    const replyCount = threadReplies.get(rootId)?.length || 0
+                    const compact = shouldCompactMessage(message, previousMessage)
+                    const showDayDivider = !previousMessage || !sameDay(previousMessage.created_at, message.created_at)
+
+                    return (
+                      <div key={message.id}>
+                        {showDayDivider && (
+                          <div className="relative my-5 flex items-center justify-center">
+                            <div className="absolute inset-x-0 top-1/2 border-t border-slate-200" />
+                            <span className="relative rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                              {formatDayDivider(message.created_at)}
+                            </span>
+                          </div>
+                        )}
+                        <MessageRow
+                          message={message}
+                          compact={compact}
+                          highlighted={highlightedMessageId === message.id}
+                          editing={editing?.id === message.id}
+                          editBody={editBody}
+                          setEditBody={setEditBody}
+                          onStartEdit={() => {
+                            setEditing(message)
+                            setEditBody(message.body)
+                          }}
+                          onCancelEdit={() => setEditing(null)}
+                          onSaveEdit={() => saveEdit(message)}
+                          onDelete={() => setMessagePendingDelete(message)}
+                          onOpenActions={() => setMobileActionsMessageId(message.id)}
+                          onPin={() => togglePin(message)}
+                          canPin={isStaff}
+                          inThreadView={Boolean(activeThreadRoot)}
+                          replyCount={!activeThreadRoot && !message.parent_message_id ? replyCount : 0}
+                          onReply={() => {
+                            setActiveThreadRootId(rootId)
+                            if (!isDesktop) setMobilePane('thread')
+                          }}
+                          onReact={(emoji) => toggleReaction(message, emoji)}
+                          onOpenImage={(attachment, imageAttachments) => {
+                            setLightboxAttachments(imageAttachments)
+                            setLightboxIndex(Math.max(0, imageAttachments.findIndex((item) => item.id === attachment.id)))
+                          }}
+                          mentionPatterns={mentionPatterns}
+                        />
+                      </div>
+                    )
+                  })}
+                  <div ref={bottomRef} />
+                  </div>
+                  {hasUnreadBelow && conversationView === 'messages' && (
+                    <button
+                      type="button"
+                      onClick={scrollToLatestMessage}
+                      className="absolute bottom-4 left-1/2 z-20 inline-flex -translate-x-1/2 items-center gap-2 rounded-full border border-primary-100 bg-white px-3 py-2 text-xs font-semibold text-primary-700 shadow-lg shadow-slate-900/10 transition hover:-translate-y-0.5 hover:border-primary-200 hover:bg-primary-50"
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                      New messages
+                    </button>
+                  )}
                 </div>
                 {showThreadPanel && activeThreadRoot && (
                   <aside className="hidden min-h-0 border-l border-slate-200 bg-slate-50/70 lg:flex lg:flex-col">
@@ -2942,7 +3071,7 @@ function ConversationButton({
   return (
     <button
       onClick={onClick}
-      className={`mb-1 w-full rounded-2xl border px-3 py-3 text-left transition-all duration-200 ${
+      className={`mb-1 w-full rounded-2xl border px-3 py-3 text-left transition-all duration-200 hover:-translate-y-px ${
         active
           ? 'border-primary-100 bg-primary-50/90 text-primary-800 shadow-sm'
           : 'border-transparent hover:border-slate-200 hover:bg-white hover:shadow-sm'
@@ -2966,25 +3095,42 @@ function ConversationButton({
 }
 
 function FormattedMessage({ body, mentionPatterns }: { body: string; mentionPatterns: MentionPattern[] }) {
+  const segments = useMemo(() => parseMessageSegments(body), [body])
+
   if (!body) return null
 
-  const parts = body.split(/```/g)
-
   return (
-    <div className="mt-0.5 max-w-full space-y-1.5 overflow-hidden break-words text-sm leading-5 text-slate-700 [overflow-wrap:anywhere]">
-      {parts.map((part, index) => {
-        const key = `${index}-${part.slice(0, 12)}`
-        if (index % 2 === 1) {
+    <div className="mt-0.5 max-w-full space-y-1 overflow-hidden break-words text-sm leading-5 text-slate-700 [overflow-wrap:anywhere]">
+      {segments.map((segment, index) => {
+        const key = `${index}-${
+          segment.type === 'code'
+            ? segment.code.slice(0, 12)
+            : segment.type === 'text'
+              ? segment.text.slice(0, 12)
+              : 'spacer'
+        }`
+        if (segment.type === 'spacer') {
+          return <div key={key} className="h-1" aria-hidden="true" />
+        }
+
+        if (segment.type === 'code') {
           return (
-            <pre key={key} className="max-w-full overflow-x-auto rounded-lg bg-slate-900 px-3 py-2 text-xs leading-5 text-slate-100">
-              <code>{part.trim()}</code>
-            </pre>
+            <div key={key} className="max-w-full overflow-hidden rounded-lg bg-slate-900">
+              {segment.language && (
+                <div className="border-b border-white/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                  {segment.language}
+                </div>
+              )}
+              <pre className="max-w-full overflow-x-auto px-3 py-2 text-xs leading-5 text-slate-100">
+                <code>{segment.code}</code>
+              </pre>
+            </div>
           )
         }
 
         return (
           <p key={key} className="whitespace-pre-wrap">
-            {formatInline(part, mentionPatterns)}
+            {formatInline(segment.text, mentionPatterns)}
           </p>
         )
       })}

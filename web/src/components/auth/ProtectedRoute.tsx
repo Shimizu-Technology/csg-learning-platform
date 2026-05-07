@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Navigate, Outlet } from 'react-router-dom'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { Loader2, RefreshCw, WifiOff } from 'lucide-react'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { LoadingSpinner } from '../shared/LoadingSpinner'
+import { MessagesLoadingShell } from '../shared/MessagesLoadingShell'
 import { EmptyState } from '../shared/EmptyState'
 
 interface ProtectedRouteProps {
@@ -12,6 +13,7 @@ interface ProtectedRouteProps {
 
 export default function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
   const { isSignedIn, isLoading, user, sessionError, syncSession } = useAuthContext()
+  const location = useLocation()
   const [retrying, setRetrying] = useState(false)
 
   const handleRetry = async () => {
@@ -24,6 +26,10 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
   }
 
   if (isLoading) {
+    if (location.pathname.startsWith('/messages')) {
+      return <MessagesLoadingShell />
+    }
+
     return <LoadingSpinner message="Loading..." fullScreen={false} />
   }
 
