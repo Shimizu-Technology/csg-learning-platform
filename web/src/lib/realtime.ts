@@ -107,6 +107,10 @@ async function subscribe(
     socket = new WebSocket(cableUrl(token))
 
     socket.addEventListener('open', () => {
+      if (closing) {
+        socket?.close()
+        return
+      }
       socket?.send(JSON.stringify({ command: 'subscribe', identifier }))
     })
 
@@ -145,6 +149,8 @@ async function subscribe(
     clearReconnect()
     if (socket?.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ command: 'unsubscribe', identifier }))
+      socket.close()
+      return
     }
     socket?.close()
   }

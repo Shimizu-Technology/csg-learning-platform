@@ -43,9 +43,6 @@ interface PostHogProviderProps {
 
 export function PostHogProvider({ children }: PostHogProviderProps) {
   if (!isPostHogEnabled) {
-    if (import.meta.env.DEV) {
-      console.info('PostHog not configured — analytics disabled')
-    }
     return <>{children}</>
   }
 

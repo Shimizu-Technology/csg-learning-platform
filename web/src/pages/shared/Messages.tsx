@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
-import Link from '@tiptap/extension-link'
+import TiptapLink from '@tiptap/extension-link'
 import Underline from '@tiptap/extension-underline'
 import { Extension, type Editor, type JSONContent } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
@@ -13,6 +13,7 @@ import {
   Bell,
   BellOff,
   Bold,
+  Braces,
   Check,
   CheckCheck,
   ChevronDown,
@@ -24,6 +25,7 @@ import {
   File,
   Hash,
   Italic,
+  Link2,
   Lock,
   MessageCircle,
   MoreHorizontal,
@@ -38,7 +40,6 @@ import {
   SmilePlus,
   Smartphone,
   Trash2,
-  Type,
   UserPlus,
   Users,
   X,
@@ -117,12 +118,30 @@ const REACTIONS = ['👍', '❤️', '✅', '🙌']
 const CHANNEL_MENTION_ALIASES = [
   { label: '@everyone', subtitle: 'Notify everyone in this channel' },
 ]
-const SLASH_COMMANDS = [
-  { command: '/code', label: 'Code block' },
-  { command: '/quote', label: 'Quote' },
-  { command: '/todo', label: 'Checklist' },
-]
-
+const COMMON_FILE_EXTENSIONS = new Set([
+  'css',
+  'gif',
+  'htm',
+  'html',
+  'jpeg',
+  'jpg',
+  'js',
+  'json',
+  'md',
+  'pdf',
+  'php',
+  'png',
+  'py',
+  'rb',
+  'svg',
+  'ts',
+  'tsx',
+  'txt',
+  'webp',
+  'yaml',
+  'yml',
+  'zip',
+])
 function formatTime(value: string) {
   return new Date(value).toLocaleString('en-US', {
     month: 'short',
@@ -137,6 +156,7 @@ function preview(text: string) {
     .replace(/```[\w-]*\n?/g, '')
     .replace(/```/g, '')
     .replace(/`{1,3}/g, '')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1')
     .replace(/`([^`]+)`/g, '$1')
     .replace(/\*\*([^*]+)\*\*/g, '$1')
     .replace(/_([^_]+)_/g, '$1')
@@ -407,6 +427,140 @@ function renderTextWithMentions(text: string, patterns: MentionPattern[]) {
   return nodes
 }
 
+function normalizeLinkHref(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (/^(https?:\/\/|mailto:)/i.test(trimmed)) return trimmed
+  if (/^www\./i.test(trimmed)) return `https://${trimmed}`
+
+  const bareDomainMatch = trimmed.match(/^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)([/?#].*)?$/i)
+  if (!bareDomainMatch) return ''
+
+  const tld = bareDomainMatch[1].split('.').pop()?.toLowerCase() || ''
+  if (!/^[a-z]{2,24}$/.test(tld) || COMMON_FILE_EXTENSIONS.has(tld)) return ''
+
+  return `https://${trimmed}`
+}
+
+function splitTrailingUrlPunctuation(value: string) {
+  let href = value
+  let trailing = ''
+
+  while (/[.,!?;:]$/.test(href)) {
+    trailing = `${href.slice(-1)}${trailing}`
+    href = href.slice(0, -1)
+  }
+
+  if (href.endsWith(')') && !href.includes('(')) {
+    trailing = `)${trailing}`
+    href = href.slice(0, -1)
+  }
+
+  return { href, trailing }
+}
+
+function renderLinkNode(text: string, href: string, key: string) {
+  const normalizedHref = normalizeLinkHref(href)
+  if (!normalizedHref) return <span key={key}>{text}</span>
+
+  return (
+    <a
+      key={key}
+      href={normalizedHref}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="font-medium text-primary-700 underline decoration-primary-300 underline-offset-2 transition-colors hover:text-primary-800 hover:decoration-primary-500"
+    >
+      {text}
+    </a>
+  )
+}
+
+function renderTextWithLinksAndMentions(text: string, patterns: MentionPattern[], keyPrefix = 'link-text') {
+  const markdownLinkPattern = /\[([^\]]+)\]\(([^)\s]+)\)/g
+  const bareUrlPattern = /(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi
+  const nodes: ReactNode[] = []
+
+  const appendBareLinks = (chunk: string, prefix: string) => {
+    let cursor = 0
+    let match: RegExpExecArray | null
+
+    bareUrlPattern.lastIndex = 0
+    while ((match = bareUrlPattern.exec(chunk)) !== null) {
+      if (cursor < match.index) {
+        nodes.push(...renderTextWithMentions(chunk.slice(cursor, match.index), patterns).map((node, index) => (
+          <span key={`${prefix}-mention-${cursor}-${index}`}>{node}</span>
+        )))
+      }
+
+      const { href, trailing } = splitTrailingUrlPunctuation(match[0])
+      nodes.push(renderLinkNode(href, href, `${prefix}-url-${match.index}`))
+      if (trailing) nodes.push(<span key={`${prefix}-url-trailing-${match.index}`}>{trailing}</span>)
+      cursor = match.index + match[0].length
+    }
+
+    if (cursor < chunk.length) {
+      nodes.push(...renderTextWithMentions(chunk.slice(cursor), patterns).map((node, index) => (
+        <span key={`${prefix}-tail-${cursor}-${index}`}>{node}</span>
+      )))
+    }
+  }
+
+  let cursor = 0
+  let match: RegExpExecArray | null
+
+  while ((match = markdownLinkPattern.exec(text)) !== null) {
+    if (cursor < match.index) {
+      appendBareLinks(text.slice(cursor, match.index), `${keyPrefix}-${cursor}`)
+    }
+
+    nodes.push(renderLinkNode(match[1], match[2], `${keyPrefix}-markdown-${match.index}`))
+    cursor = match.index + match[0].length
+  }
+
+  if (cursor < text.length) {
+    appendBareLinks(text.slice(cursor), `${keyPrefix}-${cursor}`)
+  }
+
+  return nodes
+}
+
+function ComposerToolbarButton({
+  label,
+  shortcut,
+  active = false,
+  children,
+  className = '',
+  onClick,
+  onMouseDown,
+}: {
+  label: string
+  shortcut?: string
+  active?: boolean
+  children: ReactNode
+  className?: string
+  onClick?: () => void
+  onMouseDown?: (event: MouseEvent<HTMLButtonElement>) => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseDown={onMouseDown}
+      className={`group/toolbar relative min-h-9 shrink-0 rounded-lg p-2 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
+        active ? 'bg-slate-100 text-slate-900' : ''
+      } ${className}`}
+      aria-label={shortcut ? `${label} (${shortcut})` : label}
+    >
+      {children}
+      <span className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded-lg bg-slate-950 px-2.5 py-1.5 text-xs font-semibold text-white shadow-lg group-hover/toolbar:block group-focus-visible/toolbar:block">
+        {label}
+        {shortcut && <span className="ml-2 font-medium text-slate-300">{shortcut}</span>}
+      </span>
+    </button>
+  )
+}
+
 function parseMessageSegments(body: string): MessageSegment[] {
   const segments: MessageSegment[] = []
   const fencePattern = /```([^\n`]*)\n?([\s\S]*?)(?:```|$)/g
@@ -575,7 +729,6 @@ export function Messages() {
   const [composerMentionUserIds, setComposerMentionUserIds] = useState<number[]>([])
   const [composerTriggerText, setComposerTriggerText] = useState('')
   const [activeMentionIndex, setActiveMentionIndex] = useState(0)
-  const [activeCommandIndex, setActiveCommandIndex] = useState(0)
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([])
   const [lightboxAttachments, setLightboxAttachments] = useState<MessageAttachment[]>([])
   const [lightboxIndex, setLightboxIndex] = useState(0)
@@ -590,6 +743,10 @@ export function Messages() {
   const [mobileActionsMessageId, setMobileActionsMessageId] = useState<number | null>(null)
   const [messagePendingDelete, setMessagePendingDelete] = useState<LocalMessage | null>(null)
   const [editBody, setEditBody] = useState('')
+  const [showLinkForm, setShowLinkForm] = useState(false)
+  const [linkText, setLinkText] = useState('')
+  const [linkHref, setLinkHref] = useState('')
+  const [linkError, setLinkError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<MessageSearchResult[]>([])
   const [highlightedMessageId, setHighlightedMessageId] = useState<number | null>(null)
@@ -737,9 +894,6 @@ export function Messages() {
   const mentionToken = useMemo(() => {
     return composerTriggerText.match(/(^|\s)@([^\s@]*)$/)?.[2] ?? null
   }, [composerTriggerText])
-  const commandToken = useMemo(() => {
-    return composerTriggerText.match(/(^|\n)\/([a-z]*)$/)?.[2] ?? null
-  }, [composerTriggerText])
   const mentionSuggestions = useMemo<MentionSuggestion[]>(() => {
     if (mentionToken === null) return []
 
@@ -772,11 +926,6 @@ export function Messages() {
         })),
     ]
   }, [mentionToken, mentionableUsers, selectedTarget?.type])
-  const commandSuggestions = useMemo(() => {
-    if (commandToken === null) return []
-    return SLASH_COMMANDS.filter((item) => item.command.slice(1).startsWith(commandToken)).slice(0, 5)
-  }, [commandToken])
-
   useEffect(() => {
     setActiveMentionIndex(0)
   }, [mentionToken])
@@ -784,10 +933,6 @@ export function Messages() {
   useEffect(() => {
     setComposerMentionUserIds([])
   }, [selectedTarget?.id, selectedTarget?.type])
-
-  useEffect(() => {
-    setActiveCommandIndex(0)
-  }, [commandToken])
 
   const lightboxAttachment = lightboxAttachments[lightboxIndex] || null
 
@@ -798,6 +943,8 @@ export function Messages() {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
+        link: false,
+        underline: false,
         codeBlock: {
           HTMLAttributes: {
             class: 'rounded-lg bg-slate-900 px-3 py-2 text-sm leading-6 text-slate-100',
@@ -805,7 +952,7 @@ export function Messages() {
         },
       }),
       Underline,
-      Link.configure({ openOnClick: false, autolink: true }),
+      TiptapLink.configure({ openOnClick: false, autolink: true }),
       Placeholder.configure({ placeholder: 'Write a message' }),
       MentionHighlightExtension.configure({
         getPatterns: () => mentionPatternsRef.current,
@@ -1706,25 +1853,95 @@ export function Messages() {
     editor.chain().focus().toggleCodeBlock().run()
   }
 
+  const openLinkForm = () => {
+    if (!editor) return
+
+    const { from, to } = editor.state.selection
+    const selectedText = editor.state.doc.textBetween(from, to, ' ').trim()
+    const currentHref = editor.getAttributes('link').href || ''
+
+    setLinkText(selectedText)
+    setLinkHref(currentHref)
+    setLinkError('')
+    setShowLinkForm(true)
+  }
+
+  const closeLinkForm = () => {
+    setShowLinkForm(false)
+    setLinkText('')
+    setLinkHref('')
+    setLinkError('')
+  }
+
+  const applyLink = (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!editor) return
+
+    const href = normalizeLinkHref(linkHref)
+    if (!href) {
+      setLinkError('Enter a valid website or email link, like https://example.com or example.com.')
+      return
+    }
+
+    const { empty } = editor.state.selection
+    const customText = linkText.trim()
+    const displayText = customText || href
+
+    if (empty && editor.isActive('link')) {
+      if (customText) {
+        editor.chain().focus().extendMarkRange('link').deleteSelection().insertContent({
+          type: 'text',
+          text: displayText,
+          marks: [{ type: 'link', attrs: { href } }],
+        }).run()
+      } else {
+        editor.chain().focus().extendMarkRange('link').setLink({ href }).run()
+      }
+    } else if (empty) {
+      editor.chain().focus().insertContent({
+        type: 'text',
+        text: displayText,
+        marks: [{ type: 'link', attrs: { href } }],
+      }).run()
+    } else {
+      editor.chain().focus().deleteSelection().insertContent({
+        type: 'text',
+        text: displayText,
+        marks: [{ type: 'link', attrs: { href } }],
+      }).run()
+    }
+
+    closeLinkForm()
+  }
+
   const runToolbarCommand = (event: MouseEvent<HTMLButtonElement>, command: () => void) => {
     event.preventDefault()
     command()
     setToolbarTick((current) => current + 1)
   }
 
-  const selectCommand = (command: string) => {
-    if (!editor) return
-    const match = composerTriggerText.match(/(^|\n)\/[a-z]*$/)
-    if (match) {
-      editor.chain().focus().deleteRange({ from: editor.state.selection.from - match[0].trimStart().length, to: editor.state.selection.from }).run()
+  const handleComposerKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const modifier = event.metaKey || event.ctrlKey
+    const key = event.key.toLowerCase()
+
+    if (modifier && event.shiftKey && key === 'u') {
+      event.preventDefault()
+      openLinkForm()
+      return
     }
 
-    if (command === '/code') insertCodeBlock()
-    else if (command === '/quote') editor.chain().focus().toggleBlockquote().run()
-    else if (command === '/todo') editor.chain().focus().insertContent('- [ ] ').run()
-  }
+    if (modifier && event.shiftKey && event.altKey && key === 'c') {
+      event.preventDefault()
+      insertCodeBlock()
+      return
+    }
 
-  const handleComposerKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (modifier && event.shiftKey && !event.altKey && key === 'c') {
+      event.preventDefault()
+      editor?.chain().focus().toggleCode().run()
+      return
+    }
+
     if (mentionSuggestions.length > 0) {
       if (event.key === 'ArrowDown') {
         event.preventDefault()
@@ -1739,29 +1956,6 @@ export function Messages() {
       if (event.key === 'Enter' || event.key === 'Tab') {
         event.preventDefault()
         selectMention(mentionSuggestions[activeMentionIndex])
-        return
-      }
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        setComposerTriggerText('')
-        return
-      }
-    }
-
-    if (commandSuggestions.length > 0) {
-      if (event.key === 'ArrowDown') {
-        event.preventDefault()
-        setActiveCommandIndex((current) => (current + 1) % commandSuggestions.length)
-        return
-      }
-      if (event.key === 'ArrowUp') {
-        event.preventDefault()
-        setActiveCommandIndex((current) => (current - 1 + commandSuggestions.length) % commandSuggestions.length)
-        return
-      }
-      if (event.key === 'Enter' || event.key === 'Tab') {
-        event.preventDefault()
-        selectCommand(commandSuggestions[activeCommandIndex].command)
         return
       }
       if (event.key === 'Escape') {
@@ -1905,29 +2099,27 @@ export function Messages() {
           onDrop={handleDrop}
         >
           <div className="messages-toolbar-scroll flex items-center gap-1.5 overflow-x-auto border-b border-slate-100 px-2 py-1.5 text-slate-500">
-            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => fileInputRef.current?.click()} className="min-h-9 shrink-0 rounded-lg p-2 hover:bg-slate-50" aria-label="Attach files">
+            <ComposerToolbarButton label="Attach files" onMouseDown={(event) => event.preventDefault()} onClick={() => fileInputRef.current?.click()}>
               <Paperclip className="h-4 w-4" />
-            </button>
-            <button type="button" onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleBold().run())} className={`min-h-9 shrink-0 rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('bold') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Bold">
+            </ComposerToolbarButton>
+            <ComposerToolbarButton label="Bold" shortcut="⌘B" active={Boolean(editor?.isActive('bold'))} onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleBold().run())}>
               <Bold className="h-4 w-4" />
-            </button>
-            <button type="button" onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleItalic().run())} className={`min-h-9 shrink-0 rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('italic') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Italic">
+            </ComposerToolbarButton>
+            <ComposerToolbarButton label="Italic" shortcut="⌘I" active={Boolean(editor?.isActive('italic'))} onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleItalic().run())}>
               <Italic className="h-4 w-4" />
-            </button>
-            <button type="button" onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleCode().run())} className={`min-h-9 shrink-0 rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('code') ? 'bg-slate-100 text-slate-900' : ''}`} aria-label="Inline code">
+            </ComposerToolbarButton>
+            <ComposerToolbarButton label="Link" shortcut="⌘⇧U" active={Boolean(editor?.isActive('link'))} onMouseDown={(event) => runToolbarCommand(event, openLinkForm)}>
+              <Link2 className="h-4 w-4" />
+            </ComposerToolbarButton>
+            <ComposerToolbarButton label="Inline code" shortcut="⌘⇧C" active={Boolean(editor?.isActive('code'))} onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleCode().run())}>
               <Code2 className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onMouseDown={(event) => runToolbarCommand(event, insertCodeBlock)}
-              className={`min-h-9 shrink-0 rounded-lg p-2 hover:bg-slate-50 ${editor?.isActive('codeBlock') ? 'bg-slate-100 text-slate-900' : ''}`}
-              aria-label="Code block"
-              title="Code block"
-            >
-              <Code2 className="h-4 w-4" />
-            </button>
-            <button type="button" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('@') }} className="min-h-9 shrink-0 rounded-lg px-2.5 py-2 text-xs font-medium hover:bg-slate-50">@ mention</button>
-            <button type="button" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('/') }} className="min-h-9 shrink-0 rounded-lg px-2.5 py-2 text-xs font-medium hover:bg-slate-50">/ command</button>
+            </ComposerToolbarButton>
+            <ComposerToolbarButton label="Code block" shortcut="⌘⌥⇧C" active={Boolean(editor?.isActive('codeBlock'))} onMouseDown={(event) => runToolbarCommand(event, insertCodeBlock)}>
+              <Braces className="h-4 w-4" />
+            </ComposerToolbarButton>
+            <ComposerToolbarButton label="Mention" shortcut="@" className="px-2.5 text-xs font-medium" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('@') }}>
+              @ mention
+            </ComposerToolbarButton>
             <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => handleFiles(event.target.files)} />
           </div>
           <div className="p-2" onKeyDownCapture={handleComposerKeyDown}>
@@ -1969,32 +2161,13 @@ export function Messages() {
               ))}
             </div>
           )}
-          {commandSuggestions.length > 0 && (
-            <div className={`absolute bottom-full z-30 mb-2 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg ${inThreadPanel ? 'left-2 right-2' : 'left-3 w-72'}`}>
-              <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Commands</div>
-              {commandSuggestions.map((item, index) => (
-                <button
-                  key={item.command}
-                  type="button"
-                  onClick={() => selectCommand(item.command)}
-                  className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm ${index === activeCommandIndex ? 'bg-primary-50 text-primary-800' : 'hover:bg-slate-50'}`}
-                >
-                  <Type className="h-4 w-4 text-slate-400" />
-                  <span>
-                    <span className="block font-medium text-slate-800">{item.command}</span>
-                    <span className="block text-xs text-slate-500">{item.label}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       </form>
     )
   }
 
   return (
-    <div className={`mx-auto flex w-full max-w-[1500px] flex-col ${showPageIntro ? 'min-h-[calc(100dvh-5.5rem)] gap-4' : 'h-[calc(100dvh-5.5rem)] gap-0 overflow-hidden'} lg:h-[calc(100dvh-5.5rem)] lg:px-4`}>
+    <div className={`mx-auto flex w-full max-w-[1500px] flex-col ${showPageIntro ? 'min-h-[calc(100dvh-5.5rem)] gap-4' : 'h-[calc(100dvh-5.5rem)] min-h-0 gap-0 overflow-hidden'} lg:h-[calc(100dvh-5.5rem)] lg:min-h-0 lg:overflow-hidden lg:px-4`}>
       {showPageIntro && (
       <div>
         <p className="text-sm font-medium text-primary-600">Communication</p>
@@ -2152,7 +2325,7 @@ export function Messages() {
             </div>
           </div>
 
-          <div className={`${isDesktop ? 'max-h-72 overflow-y-auto p-2 lg:max-h-[calc(100vh-13rem)]' : 'min-h-0 flex-1 overflow-y-auto p-2'}`}>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
             <div className="mb-2 flex items-center justify-between px-2 pt-2">
               <button
                 type="button"
@@ -2264,7 +2437,7 @@ export function Messages() {
         )}
 
         {showConversationPane && (
-        <section className="flex min-w-0 min-h-0 flex-1 flex-col bg-white">
+        <section className="flex h-full min-w-0 min-h-0 flex-1 flex-col overflow-hidden bg-white">
           {selectedTarget && selected ? (
             <>
               <header className={`shrink-0 border-b border-slate-200/80 px-4 py-3 backdrop-blur-sm ${isDesktop ? 'bg-white/80' : 'bg-white'} sm:py-4`}>
@@ -2361,12 +2534,12 @@ export function Messages() {
                 )}
               </header>
 
-              <div className={`relative min-w-0 min-h-0 flex-1 overflow-hidden ${showThreadPanel ? 'grid lg:grid-cols-[minmax(0,1fr)_380px]' : ''}`}>
-                <div className="relative min-h-0 min-w-0">
+              <div className={`relative min-w-0 min-h-0 flex-1 overflow-hidden ${showThreadPanel ? 'grid lg:grid-cols-[minmax(0,1fr)_380px]' : 'flex'}`}>
+                <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                   <div
                     ref={messageScrollRef}
                     onScroll={handleConversationScroll}
-                    className={`h-full min-w-0 overflow-y-auto overflow-x-hidden px-3 py-4 transition duration-200 sm:px-5 sm:py-5 ${loadingTarget || isNavigationPending ? 'opacity-60' : 'opacity-100'}`}
+                    className={`min-h-0 flex-1 min-w-0 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-4 transition duration-200 sm:px-5 sm:py-5 ${loadingTarget || isNavigationPending ? 'opacity-60' : 'opacity-100'}`}
                   >
                   {activeThreadRoot && !showThreadPanel && (
                     <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
@@ -2485,7 +2658,7 @@ export function Messages() {
                         <X className="h-4 w-4" />
                       </button>
                     </div>
-                    <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+                    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4">
                       {activeThreadMessages.map((message, index) => {
                         const previousMessage = activeThreadMessages[index - 1]
                         const compact = shouldCompactMessage(message, previousMessage)
@@ -2963,6 +3136,72 @@ export function Messages() {
         </form>
       </Modal>
 
+      <Modal
+        open={showLinkForm}
+        onClose={closeLinkForm}
+        title="Add link"
+        subtitle="Add display text and the destination URL."
+        size="md"
+      >
+        <form onSubmit={applyLink} className="space-y-4">
+          <div>
+            <label htmlFor="message-link-text" className="text-sm font-medium text-slate-700">
+              Text
+            </label>
+            <input
+              id="message-link-text"
+              value={linkText}
+              onChange={(event) => setLinkText(event.target.value)}
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              placeholder="Text to show"
+              autoFocus
+            />
+          </div>
+          <div>
+            <label htmlFor="message-link-href" className="text-sm font-medium text-slate-700">
+              Link
+            </label>
+            <input
+              id="message-link-href"
+              value={linkHref}
+              onChange={(event) => {
+                setLinkHref(event.target.value)
+                setLinkError('')
+              }}
+              className={`mt-1 w-full rounded-xl border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 ${
+                linkError
+                  ? 'border-red-200 focus:ring-red-500'
+                  : 'border-slate-200 focus:ring-primary-500'
+              }`}
+              placeholder="https://example.com"
+              aria-invalid={Boolean(linkError)}
+              aria-describedby={linkError ? 'message-link-error' : undefined}
+            />
+            {linkError && (
+              <p id="message-link-error" className="mt-1.5 text-xs font-medium text-red-600">
+                {linkError}
+              </p>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={closeLinkForm}
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!linkHref.trim()}
+              className="rounded-xl bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
+            >
+              Save link
+            </button>
+          </div>
+        </form>
+      </Modal>
+
       {lightboxAttachment?.url && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4"
@@ -3152,7 +3391,7 @@ function formatInline(text: string, mentionPatterns: MentionPattern[]) {
     if (piece.startsWith('_') && piece.endsWith('_')) {
       return <em key={key}>{piece.slice(1, -1)}</em>
     }
-    return <span key={key}>{renderTextWithMentions(piece, mentionPatterns)}</span>
+    return <span key={key}>{renderTextWithLinksAndMentions(piece, mentionPatterns, `inline-${index}`)}</span>
   })
 }
 
@@ -3203,15 +3442,15 @@ function MessageRow({
   return (
     <div
       id={`message-${message.id}`}
-      className={`message-row group relative flex w-full max-w-full gap-2 rounded-xl px-2 py-1 transition-all duration-200 hover:bg-slate-50/90 sm:gap-3 sm:px-3 ${
-        compact ? 'mt-0' : 'mt-2'
+      className={`message-row group relative flex w-full max-w-full gap-2 rounded-xl px-2 py-0.5 transition-all duration-200 hover:bg-slate-50/90 sm:gap-3 sm:px-3 ${
+        compact ? 'mt-0' : 'mt-1.5'
       } ${message.pinned_at ? 'bg-amber-50/70 ring-1 ring-amber-100' : ''} ${message.pending ? 'opacity-75' : ''} ${
         highlighted ? 'message-row-highlight bg-primary-50 ring-2 ring-primary-200' : ''
       }`}
     >
       <div className="flex w-8 shrink-0 justify-center sm:w-10">
         {compact ? (
-          <span className="pt-1 text-[11px] font-medium text-slate-300 opacity-0 transition-opacity group-hover:opacity-100">
+          <span className="pt-1 text-[11px] font-medium text-slate-300 transition-colors group-hover:text-slate-400">
             {new Date(message.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
           </span>
         ) : (
@@ -3286,14 +3525,16 @@ function MessageRow({
             Seen by {readReceiptLabel(message.read_receipts)}
           </div>
         )}
-        <div className={`flex flex-wrap items-center gap-1.5 ${message.reactions.length > 0 ? 'mt-2' : 'mt-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100'}`}>
+        {(message.reactions.length > 0 || (!inThreadView && replyCount > 0)) && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           {message.reactions.map((reaction) => {
             const emoji = reaction.emoji
             return (
               <div key={emoji} className="group/reaction relative">
                 <button
+                  type="button"
                   onClick={() => onReact(emoji)}
-                  className={`min-h-9 rounded-lg border px-2.5 py-1.5 text-xs ${reaction?.reacted ? 'border-primary-200 bg-primary-50 text-primary-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                  className={`min-h-7 rounded-lg border px-2 py-1 text-xs ${reaction?.reacted ? 'border-primary-200 bg-primary-50 text-primary-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
                 >
                   {emoji} {reaction?.count || ''}
                 </button>
@@ -3306,52 +3547,15 @@ function MessageRow({
               </div>
             )
           })}
-          <div className="relative hidden sm:block">
-            <button
-              type="button"
-              onClick={() => setPickerOpen((current) => !current)}
-              className="min-h-8 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-500 shadow-sm hover:bg-slate-50"
-              aria-label="Add reaction"
-            >
-              <SmilePlus className="h-4 w-4" />
-            </button>
-            {pickerOpen && (
-              <div className="absolute bottom-full left-0 z-30 mb-2 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
-                <EmojiPicker
-                  width={320}
-                  height={380}
-                  theme={Theme.LIGHT}
-                  onEmojiClick={(data: EmojiClickData) => {
-                    onReact(data.emoji)
-                    setPickerOpen(false)
-                  }}
-                />
-              </div>
-            )}
-          </div>
-          <div className="hidden items-center gap-1 sm:flex">
-            {REACTIONS.map((emoji) => (
-              <button
-                key={emoji}
-                type="button"
-                onClick={() => onReact(emoji)}
-                className="min-h-8 rounded-lg px-2 py-1 text-xs text-slate-500 hover:bg-slate-100"
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
-          <button onClick={onReply} className="min-h-8 rounded-lg px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100">
-            {inThreadView ? 'Reply in thread' : 'Reply'}
-          </button>
           {!inThreadView && replyCount > 0 && (
-            <button onClick={onReply} className="min-h-8 rounded-lg px-2.5 py-1 text-xs font-medium text-primary-700 hover:bg-primary-50">
+            <button type="button" onClick={onReply} className="min-h-7 rounded-lg px-2 py-1 text-xs font-medium text-primary-700 hover:bg-primary-50">
               {replyCount} {replyCount === 1 ? 'reply' : 'replies'}
             </button>
           )}
         </div>
+        )}
       </div>
-      <div className="flex shrink-0 items-start gap-1">
+      <div className="ml-auto flex shrink-0 items-start gap-1 sm:hidden">
         <button
           type="button"
           onClick={onOpenActions}
@@ -3360,24 +3564,63 @@ function MessageRow({
         >
           <MoreHorizontal className="h-5 w-5" />
         </button>
-        <div className="hidden shrink-0 items-start gap-1 sm:flex sm:opacity-0 sm:group-hover:opacity-100">
+      </div>
+      <div className="absolute right-2 top-1 z-10 hidden items-center gap-0.5 rounded-xl border border-slate-200 bg-white px-1.5 py-1 shadow-lg opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 sm:flex">
+        {REACTIONS.map((emoji) => (
+          <button
+            key={emoji}
+            type="button"
+            onClick={() => onReact(emoji)}
+            className="min-h-8 rounded-lg px-2 py-1 text-xs text-slate-500 hover:bg-slate-100"
+            aria-label={`React with ${emoji}`}
+          >
+            {emoji}
+          </button>
+        ))}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setPickerOpen((current) => !current)}
+            className="min-h-8 rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            aria-label="Add reaction"
+          >
+            <SmilePlus className="h-4 w-4" />
+          </button>
+          {pickerOpen && (
+            <div className="absolute right-0 top-full z-30 mt-2 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+              <EmojiPicker
+                width={320}
+                height={380}
+                theme={Theme.LIGHT}
+                onEmojiClick={(data: EmojiClickData) => {
+                  onReact(data.emoji)
+                  setPickerOpen(false)
+                }}
+              />
+            </div>
+          )}
+        </div>
+        <button type="button" onClick={onReply} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={inThreadView ? 'Reply in thread' : 'Reply'}>
+          <MessageCircle className="h-4 w-4" />
+        </button>
         {canPin && (
-          <button onClick={onPin} className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-slate-700" aria-label="Pin message">
+          <button type="button" onClick={onPin} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Pin message">
             <Pin className="h-4 w-4" />
           </button>
         )}
         {message.mine && (
           <>
-            <button onClick={onStartEdit} className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-slate-700" aria-label="Edit message">
+            <button type="button" onClick={onStartEdit} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Edit message">
               <Edit3 className="h-4 w-4" />
             </button>
-            <button onClick={onDelete} className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-red-600" aria-label="Delete message">
+            <button type="button" onClick={onDelete} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-red-600" aria-label="Delete message">
               <Trash2 className="h-4 w-4" />
             </button>
           </>
         )}
-        <MoreHorizontal className="mt-1.5 h-4 w-4 text-slate-300" />
-        </div>
+        <button type="button" onClick={onOpenActions} className="rounded-lg p-1.5 text-slate-300 hover:bg-slate-100 hover:text-slate-600" aria-label="More message actions">
+          <MoreHorizontal className="h-4 w-4" />
+        </button>
       </div>
     </div>
   )
