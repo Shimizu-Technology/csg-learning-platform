@@ -2362,109 +2362,111 @@ export function Messages() {
               </header>
 
               <div className={`relative min-w-0 min-h-0 flex-1 overflow-hidden ${showThreadPanel ? 'grid lg:grid-cols-[minmax(0,1fr)_380px]' : ''}`}>
-                <div
-                  ref={messageScrollRef}
-                  onScroll={handleConversationScroll}
-                  className={`h-full min-w-0 overflow-y-auto overflow-x-hidden px-3 py-4 transition duration-200 sm:px-5 sm:py-5 ${loadingTarget || isNavigationPending ? 'opacity-60' : 'opacity-100'}`}
-                >
-                {activeThreadRoot && !showThreadPanel && (
-                  <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Thread</p>
-                        <p className="mt-1 text-sm text-slate-600">
-                          {activeThreadMessages.length - 1} {activeThreadMessages.length - 1 === 1 ? 'reply' : 'replies'} under this message
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveThreadRootId(null)
-                          if (!isDesktop) setMobilePane('conversation')
-                        }}
-                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                        {selectedTarget.type === 'channel' ? 'Back to channel' : 'Back to conversation'}
-                      </button>
-                    </div>
-                  </div>
-                )}
-                {!activeThreadRoot && conversationView === 'pins' && (
-                  <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-800">
-                    Pinned messages stay easy to find here for this workspace conversation.
-                  </div>
-                )}
-                {displayedMessages.length === 0 ? (
-                  <div className="flex min-h-full items-center justify-center py-16 text-center text-sm text-slate-500">
-                    {activeThreadRoot
-                      ? 'No replies yet. Start the thread.'
-                      : conversationView === 'pins'
-                        ? 'No pinned messages yet.'
-                        : 'No messages yet. Start the conversation.'}
-                  </div>
-                ) : displayedMessages.map((message, index) => {
-                  const previousMessage = displayedMessages[index - 1]
-                  const rootId = rootMessageIdFor(message, messagesById)
-                  const replyCount = threadReplies.get(rootId)?.length || 0
-                  const compact = shouldCompactMessage(message, previousMessage)
-                  const showDayDivider = !previousMessage || !sameDay(previousMessage.created_at, message.created_at)
-
-                  return (
-                    <div key={message.id}>
-                      {showDayDivider && (
-                        <div className="relative my-5 flex items-center justify-center">
-                          <div className="absolute inset-x-0 top-1/2 border-t border-slate-200" />
-                          <span className="relative rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                            {formatDayDivider(message.created_at)}
-                          </span>
-                        </div>
-                      )}
-                      <MessageRow
-                        message={message}
-                        compact={compact}
-                        highlighted={highlightedMessageId === message.id}
-                        editing={editing?.id === message.id}
-                        editBody={editBody}
-                        setEditBody={setEditBody}
-                        onStartEdit={() => {
-                          setEditing(message)
-                          setEditBody(message.body)
-                        }}
-                        onCancelEdit={() => setEditing(null)}
-                        onSaveEdit={() => saveEdit(message)}
-                        onDelete={() => setMessagePendingDelete(message)}
-                        onOpenActions={() => setMobileActionsMessageId(message.id)}
-                        onPin={() => togglePin(message)}
-                        canPin={isStaff}
-                        inThreadView={Boolean(activeThreadRoot)}
-                        replyCount={!activeThreadRoot && !message.parent_message_id ? replyCount : 0}
-                        onReply={() => {
-                          setActiveThreadRootId(rootId)
-                          if (!isDesktop) setMobilePane('thread')
-                        }}
-                        onReact={(emoji) => toggleReaction(message, emoji)}
-                        onOpenImage={(attachment, imageAttachments) => {
-                          setLightboxAttachments(imageAttachments)
-                          setLightboxIndex(Math.max(0, imageAttachments.findIndex((item) => item.id === attachment.id)))
-                        }}
-                        mentionPatterns={mentionPatterns}
-                      />
-                    </div>
-                  )
-                })}
-                <div ref={bottomRef} />
-                </div>
-                {hasUnreadBelow && conversationView === 'messages' && (
-                  <button
-                    type="button"
-                    onClick={scrollToLatestMessage}
-                    className="absolute bottom-4 left-1/2 z-20 inline-flex -translate-x-1/2 items-center gap-2 rounded-full border border-primary-100 bg-white px-3 py-2 text-xs font-semibold text-primary-700 shadow-lg shadow-slate-900/10 transition hover:-translate-y-0.5 hover:border-primary-200 hover:bg-primary-50"
+                <div className="relative min-h-0 min-w-0">
+                  <div
+                    ref={messageScrollRef}
+                    onScroll={handleConversationScroll}
+                    className={`h-full min-w-0 overflow-y-auto overflow-x-hidden px-3 py-4 transition duration-200 sm:px-5 sm:py-5 ${loadingTarget || isNavigationPending ? 'opacity-60' : 'opacity-100'}`}
                   >
-                    <ChevronDown className="h-4 w-4" />
-                    New messages
-                  </button>
-                )}
+                  {activeThreadRoot && !showThreadPanel && (
+                    <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Thread</p>
+                          <p className="mt-1 text-sm text-slate-600">
+                            {activeThreadMessages.length - 1} {activeThreadMessages.length - 1 === 1 ? 'reply' : 'replies'} under this message
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveThreadRootId(null)
+                            if (!isDesktop) setMobilePane('conversation')
+                          }}
+                          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          {selectedTarget.type === 'channel' ? 'Back to channel' : 'Back to conversation'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {!activeThreadRoot && conversationView === 'pins' && (
+                    <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-800">
+                      Pinned messages stay easy to find here for this workspace conversation.
+                    </div>
+                  )}
+                  {displayedMessages.length === 0 ? (
+                    <div className="flex min-h-full items-center justify-center py-16 text-center text-sm text-slate-500">
+                      {activeThreadRoot
+                        ? 'No replies yet. Start the thread.'
+                        : conversationView === 'pins'
+                          ? 'No pinned messages yet.'
+                          : 'No messages yet. Start the conversation.'}
+                    </div>
+                  ) : displayedMessages.map((message, index) => {
+                    const previousMessage = displayedMessages[index - 1]
+                    const rootId = rootMessageIdFor(message, messagesById)
+                    const replyCount = threadReplies.get(rootId)?.length || 0
+                    const compact = shouldCompactMessage(message, previousMessage)
+                    const showDayDivider = !previousMessage || !sameDay(previousMessage.created_at, message.created_at)
+
+                    return (
+                      <div key={message.id}>
+                        {showDayDivider && (
+                          <div className="relative my-5 flex items-center justify-center">
+                            <div className="absolute inset-x-0 top-1/2 border-t border-slate-200" />
+                            <span className="relative rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                              {formatDayDivider(message.created_at)}
+                            </span>
+                          </div>
+                        )}
+                        <MessageRow
+                          message={message}
+                          compact={compact}
+                          highlighted={highlightedMessageId === message.id}
+                          editing={editing?.id === message.id}
+                          editBody={editBody}
+                          setEditBody={setEditBody}
+                          onStartEdit={() => {
+                            setEditing(message)
+                            setEditBody(message.body)
+                          }}
+                          onCancelEdit={() => setEditing(null)}
+                          onSaveEdit={() => saveEdit(message)}
+                          onDelete={() => setMessagePendingDelete(message)}
+                          onOpenActions={() => setMobileActionsMessageId(message.id)}
+                          onPin={() => togglePin(message)}
+                          canPin={isStaff}
+                          inThreadView={Boolean(activeThreadRoot)}
+                          replyCount={!activeThreadRoot && !message.parent_message_id ? replyCount : 0}
+                          onReply={() => {
+                            setActiveThreadRootId(rootId)
+                            if (!isDesktop) setMobilePane('thread')
+                          }}
+                          onReact={(emoji) => toggleReaction(message, emoji)}
+                          onOpenImage={(attachment, imageAttachments) => {
+                            setLightboxAttachments(imageAttachments)
+                            setLightboxIndex(Math.max(0, imageAttachments.findIndex((item) => item.id === attachment.id)))
+                          }}
+                          mentionPatterns={mentionPatterns}
+                        />
+                      </div>
+                    )
+                  })}
+                  <div ref={bottomRef} />
+                  </div>
+                  {hasUnreadBelow && conversationView === 'messages' && (
+                    <button
+                      type="button"
+                      onClick={scrollToLatestMessage}
+                      className="absolute bottom-4 left-1/2 z-20 inline-flex -translate-x-1/2 items-center gap-2 rounded-full border border-primary-100 bg-white px-3 py-2 text-xs font-semibold text-primary-700 shadow-lg shadow-slate-900/10 transition hover:-translate-y-0.5 hover:border-primary-200 hover:bg-primary-50"
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                      New messages
+                    </button>
+                  )}
+                </div>
                 {showThreadPanel && activeThreadRoot && (
                   <aside className="hidden min-h-0 border-l border-slate-200 bg-slate-50/70 lg:flex lg:flex-col">
                     <div className="flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
