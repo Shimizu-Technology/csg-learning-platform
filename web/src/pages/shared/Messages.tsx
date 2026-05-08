@@ -3345,21 +3345,16 @@ function FormattedMessage({ body, mentionPatterns }: { body: string; mentionPatt
 
 function formatInline(text: string, mentionPatterns: MentionPattern[]) {
   const nodes: ReactNode[] = []
+  const codePattern = /`[^`]+`/g
   const linkPattern = /\[([^\]]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi
-  let cursor = 0
-  let match: RegExpExecArray | null
 
-  const appendFormattedText = (chunk: string, prefix: string) => {
-    const pieces = chunk.split(/(`[^`]+`|\*\*[^*]+\*\*|_[^_]+_)/g)
+  const appendFormattedText = (chunk: string, keyPrefix: string) => {
+    const pieces = chunk.split(/(\*\*[^*]+\*\*|_[^_]+_)/g)
 
     pieces.forEach((piece, index) => {
       if (!piece) return
 
-      const key = `${prefix}-${index}-${piece}`
-      if (piece.startsWith('`') && piece.endsWith('`')) {
-        nodes.push(<code key={key} className="rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">{piece.slice(1, -1)}</code>)
-        return
-      }
+      const key = `${keyPrefix}-format-${index}-${piece}`
       if (piece.startsWith('**') && piece.endsWith('**')) {
         nodes.push(<strong key={key}>{piece.slice(2, -2)}</strong>)
         return
@@ -3373,24 +3368,50 @@ function formatInline(text: string, mentionPatterns: MentionPattern[]) {
     })
   }
 
-  while ((match = linkPattern.exec(text)) !== null) {
+  const appendTextWithLinks = (chunk: string, keyPrefix: string) => {
+    let cursor = 0
+    let match: RegExpExecArray | null
+
+    linkPattern.lastIndex = 0
+    while ((match = linkPattern.exec(chunk)) !== null) {
+      if (cursor < match.index) {
+        appendFormattedText(chunk.slice(cursor, match.index), `${keyPrefix}-text-${cursor}`)
+      }
+
+      if (match[1] !== undefined && match[2] !== undefined) {
+        nodes.push(renderLinkNode(match[1], match[2], `${keyPrefix}-markdown-link-${match.index}`))
+      } else {
+        const { href, trailing } = splitTrailingUrlPunctuation(match[3])
+        nodes.push(renderLinkNode(href, href, `${keyPrefix}-bare-link-${match.index}`))
+        if (trailing) nodes.push(<span key={`${keyPrefix}-bare-link-trailing-${match.index}`}>{trailing}</span>)
+      }
+
+      cursor = match.index + match[0].length
+    }
+
+    if (cursor < chunk.length) {
+      appendFormattedText(chunk.slice(cursor), `${keyPrefix}-tail-${cursor}`)
+    }
+  }
+
+  let cursor = 0
+  let match: RegExpExecArray | null
+
+  while ((match = codePattern.exec(text)) !== null) {
     if (cursor < match.index) {
-      appendFormattedText(text.slice(cursor, match.index), `text-${cursor}`)
+      appendTextWithLinks(text.slice(cursor, match.index), `inline-${cursor}`)
     }
 
-    if (match[1] !== undefined && match[2] !== undefined) {
-      nodes.push(renderLinkNode(match[1], match[2], `markdown-link-${match.index}`))
-    } else {
-      const { href, trailing } = splitTrailingUrlPunctuation(match[3])
-      nodes.push(renderLinkNode(href, href, `bare-link-${match.index}`))
-      if (trailing) nodes.push(<span key={`bare-link-trailing-${match.index}`}>{trailing}</span>)
-    }
-
+    nodes.push(
+      <code key={`inline-code-${match.index}`} className="rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">
+        {match[0].slice(1, -1)}
+      </code>,
+    )
     cursor = match.index + match[0].length
   }
 
   if (cursor < text.length) {
-    appendFormattedText(text.slice(cursor), `text-${cursor}`)
+    appendTextWithLinks(text.slice(cursor), `inline-${cursor}`)
   }
 
   if (nodes.length === 0) {
