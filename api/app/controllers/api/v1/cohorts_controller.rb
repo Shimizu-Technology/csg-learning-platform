@@ -391,9 +391,10 @@ module Api
       end
 
       def cohort_student_view_module_available?(_cohort, assignments, start_date)
+        return false unless start_date.present?
         return true if assignments.any?(&:unlocked?)
 
-        start_date.present? && Date.current >= start_date
+        Date.current >= start_date
       end
 
       def cohort_student_view_lesson_json(_cohort, mod, lesson, module_start_date, module_available, requires_github)

@@ -1,0 +1,215 @@
+import { useMemo, useState } from 'react'
+import { ArrowRight, BookOpen, CheckCircle2, Clock, Lock, RotateCcw, Search } from 'lucide-react'
+import { EmptyState } from '../../../components/shared/EmptyState'
+import { ProgressBar } from '../../../components/shared/ProgressBar'
+import type { DashboardData } from '../../student/Dashboard'
+
+type MaterialFilter = 'ready' | 'all' | 'redo' | 'completed' | 'locked'
+
+type ModuleItem = NonNullable<DashboardData['modules']>[number]
+type LessonItem = ModuleItem['lessons'][number]
+
+function formatDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return 'TBD'
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+function lessonStatus(lesson: LessonItem) {
+  if (!lesson.available) return 'locked'
+  if (lesson.completed) return 'completed'
+  return 'ready'
+}
+
+function formatTypeLabel(value: string) {
+  return value.replaceAll('_', ' ')
+}
+
+export function MaterialsPreview({ data }: { data: DashboardData }) {
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<MaterialFilter>('ready')
+
+  const derived = useMemo(() => {
+    const modules = data.modules || []
+    const redoLessonIds = new Set((data.action_items || []).map((item) => item.lesson_id))
+    const q = query.trim().toLowerCase()
+    const hasActiveSearch = q.length > 0
+
+    const visibleModules = modules
+      .map((mod) => {
+        const lessons = mod.lessons.filter((lesson) => {
+          const status = lessonStatus(lesson)
+          const matchesQuery = !hasActiveSearch || [
+            mod.name,
+            formatTypeLabel(mod.module_type),
+            lesson.title,
+            formatTypeLabel(lesson.lesson_type),
+          ].some((value) => value.toLowerCase().includes(q))
+
+          if (!matchesQuery) return false
+          if (filter === 'all') return true
+          if (filter === 'redo') return redoLessonIds.has(lesson.id)
+          if (filter === 'completed') return status === 'completed'
+          if (filter === 'locked') return status === 'locked'
+          return status === 'ready' || redoLessonIds.has(lesson.id)
+        })
+
+        return { ...mod, lessons }
+      })
+      .filter((mod) => mod.lessons.length > 0)
+
+    const allLessons = modules.flatMap((mod) => mod.lessons)
+    const readyCount = allLessons.filter((lesson) => lessonStatus(lesson) === 'ready').length
+    const completedCount = allLessons.filter((lesson) => lessonStatus(lesson) === 'completed').length
+    const lockedCount = allLessons.filter((lesson) => lessonStatus(lesson) === 'locked').length
+    const redoCount = redoLessonIds.size
+    const readyOrRedoCount = allLessons.filter((lesson) => lessonStatus(lesson) === 'ready' || redoLessonIds.has(lesson.id)).length
+
+    return {
+      visibleModules,
+      redoLessonIds,
+      hasActiveSearch,
+      readyCount,
+      readyOrRedoCount,
+      completedCount,
+      lockedCount,
+      redoCount,
+      totalLessons: allLessons.length,
+    }
+  }, [data, filter, query])
+
+  const filters: Array<{ key: MaterialFilter; label: string; count: number }> = [
+    { key: 'ready', label: 'To do', count: derived.readyOrRedoCount },
+    { key: 'all', label: 'All', count: derived.totalLessons },
+    { key: 'redo', label: 'Redo', count: derived.redoCount },
+    { key: 'completed', label: 'Done', count: derived.completedCount },
+    { key: 'locked', label: 'Locked', count: derived.lockedCount },
+  ]
+
+  return (
+    <div className="mx-auto max-w-6xl space-y-6">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-sm font-medium text-primary-600">{data.cohort?.name || 'Your cohort'}</p>
+            <h1 className="mt-1 text-2xl font-bold text-slate-900">Materials</h1>
+            <p className="mt-1 max-w-2xl text-sm text-slate-500">
+              Find your lessons, exercises, and upcoming work without going back through the dashboard.
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center sm:min-w-[360px]">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-lg font-semibold text-slate-900">{derived.readyCount}</p>
+              <p className="text-xs text-slate-500">Ready</p>
+            </div>
+            <div className="rounded-xl border border-orange-200 bg-orange-50 px-3 py-2">
+              <p className="text-lg font-semibold text-orange-700">{derived.redoCount}</p>
+              <p className="text-xs text-orange-700">Redo</p>
+            </div>
+            <div className="rounded-xl border border-success-200 bg-success-50 px-3 py-2">
+              <p className="text-lg font-semibold text-success-700">{derived.completedCount}</p>
+              <p className="text-xs text-success-700">Done</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search lessons or modules..."
+            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {filters.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setFilter(item.key)}
+              className={`shrink-0 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                filter === item.key
+                  ? 'border-primary-200 bg-primary-50 text-primary-700'
+                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              {item.label}
+              <span className="ml-2 text-xs text-slate-400">{item.count}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {derived.visibleModules.length === 0 ? (
+        <EmptyState
+          icon={Search}
+          title="No matching materials"
+          description="Try a different search or switch filters to see more lessons."
+        />
+      ) : (
+        <div className="space-y-4">
+          {derived.visibleModules.map((mod) => (
+            <section key={mod.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+              <div className="flex w-full flex-col gap-3 p-5 text-left sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <BookOpen className="h-4 w-4 shrink-0 text-slate-400" />
+                    <h2 className="font-semibold text-slate-900">{mod.name}</h2>
+                    {!mod.available && (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                        Locked
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-sm capitalize text-slate-500">
+                    {formatTypeLabel(mod.module_type)}
+                    {!mod.available && mod.unlock_date ? ` · unlocks ${formatDate(mod.unlock_date)}` : ''}
+                  </p>
+                </div>
+                <div className="sm:min-w-[220px]">
+                  <ProgressBar value={mod.completed_blocks} max={mod.total_blocks} showPercentage={false} size="sm" />
+                  <p className="mt-1 text-right text-xs text-slate-400">
+                    {mod.completed_blocks}/{mod.total_blocks} blocks
+                  </p>
+                </div>
+              </div>
+
+              <div className="divide-y divide-slate-100 px-5 pb-5">
+                {mod.lessons.map((lesson) => {
+                  const status = lessonStatus(lesson)
+                  const isRedo = derived.redoLessonIds.has(lesson.id)
+                  const isPartial = status === 'ready' && lesson.completed_blocks > 0
+                  return (
+                    <div key={lesson.id} className={`flex items-center gap-3 py-3 ${lesson.available ? '' : 'cursor-not-allowed opacity-70'}`}>
+                      <div className={`shrink-0 ${
+                        isRedo ? 'text-orange-500' : status === 'completed' ? 'text-success-500' : status === 'locked' ? 'text-slate-400' : 'text-primary-500'
+                      }`}>
+                        {isRedo ? <RotateCcw className="h-5 w-5" /> : status === 'completed' ? <CheckCircle2 className="h-5 w-5" /> : status === 'locked' ? <Lock className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-slate-900">{lesson.title}</p>
+                        <p className="mt-0.5 text-xs capitalize text-slate-500">
+                          {formatTypeLabel(lesson.lesson_type)}
+                          {status === 'locked' ? ` · unlocks ${formatDate(lesson.unlock_date)}` : ` · ${lesson.completed_blocks}/${lesson.total_blocks} blocks`}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {isRedo && <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">Redo</span>}
+                        {isPartial && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">In progress</span>}
+                        {status === 'completed' && <span className="rounded-full bg-success-50 px-2 py-0.5 text-xs font-medium text-success-700">Done</span>}
+                        {lesson.available && <ArrowRight className="h-4 w-4 text-slate-300" />}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}

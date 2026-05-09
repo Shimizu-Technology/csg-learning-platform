@@ -274,6 +274,17 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
     assert_nil mod.fetch("lessons").first.fetch("unlock_date")
   end
 
+  test "cohort student view does not mark unlocked assignments available without a start date" do
+    cohort = Cohort.new(curriculum: @curriculum, name: "Unsaved", start_date: Date.current, status: :active)
+    schedule = nil
+    assignment = ModuleAssignment.new(unlocked: true, curriculum_module: @mod)
+
+    controller = Api::V1::CohortsController.new
+    available = controller.send(:cohort_student_view_module_available?, cohort, [ assignment ], schedule&.start_date)
+
+    assert_equal false, available
+  end
+
   # --- Curricula (staff for read, admin for write) ---
 
   test "student cannot list curricula" do
