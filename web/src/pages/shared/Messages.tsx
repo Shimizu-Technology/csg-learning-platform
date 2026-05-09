@@ -1,4 +1,5 @@
-import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
+import { useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams } from 'react-router-dom'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -8,7 +9,6 @@ import Underline from '@tiptap/extension-underline'
 import { Extension, type Editor, type JSONContent } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
-import EmojiPicker, { Theme, type EmojiClickData } from 'emoji-picker-react'
 import {
   Bell,
   BellOff,
@@ -19,11 +19,13 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  CircleCheck,
   Code2,
   Download,
   Edit3,
   File,
   Hash,
+  Heart,
   Italic,
   Link2,
   Lock,
@@ -39,10 +41,12 @@ import {
   Send,
   SmilePlus,
   Smartphone,
+  ThumbsUp,
   Trash2,
   UserPlus,
   Users,
   X,
+  type LucideIcon,
 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { subscribeToUserMessages } from '../../lib/realtime'
@@ -64,7 +68,7 @@ import type {
 } from '../../types/api'
 
 type Target = { type: 'channel'; id: number } | { type: 'dm'; id: number }
-type TargetLoadOptions = { aroundMessageId?: number; highlightedMessageId?: number }
+type TargetLoadOptions = { aroundMessageId?: number; highlightedMessageId?: number; background?: boolean }
 type PendingAttachment = {
   file: File
   s3_key?: string
@@ -114,7 +118,19 @@ function readReceiptTitle(readReceipts: ReadReceipts): string {
   return names.join(', ')
 }
 
-const REACTIONS = ['👍', '❤️', '✅', '🙌']
+type QuickReaction = {
+  value: string
+  label: string
+  Icon: LucideIcon
+}
+
+const REACTIONS: QuickReaction[] = [
+  { value: '\u{1F44D}', label: 'Thumbs up', Icon: ThumbsUp },
+  { value: '\u2764\uFE0F', label: 'Love', Icon: Heart },
+  { value: '\u2705', label: 'Complete', Icon: CircleCheck },
+  { value: '\u{1F64C}', label: 'Celebrate', Icon: SmilePlus },
+]
+const REACTIONS_BY_VALUE = new Map(REACTIONS.map((reaction) => [reaction.value, reaction]))
 const CHANNEL_MENTION_ALIASES = [
   { label: '@everyone', subtitle: 'Notify everyone in this channel' },
 ]
@@ -476,55 +492,6 @@ function renderLinkNode(text: string, href: string, key: string) {
   )
 }
 
-function renderTextWithLinksAndMentions(text: string, patterns: MentionPattern[], keyPrefix = 'link-text') {
-  const markdownLinkPattern = /\[([^\]]+)\]\(([^)\s]+)\)/g
-  const bareUrlPattern = /(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi
-  const nodes: ReactNode[] = []
-
-  const appendBareLinks = (chunk: string, prefix: string) => {
-    let cursor = 0
-    let match: RegExpExecArray | null
-
-    bareUrlPattern.lastIndex = 0
-    while ((match = bareUrlPattern.exec(chunk)) !== null) {
-      if (cursor < match.index) {
-        nodes.push(...renderTextWithMentions(chunk.slice(cursor, match.index), patterns).map((node, index) => (
-          <span key={`${prefix}-mention-${cursor}-${index}`}>{node}</span>
-        )))
-      }
-
-      const { href, trailing } = splitTrailingUrlPunctuation(match[0])
-      nodes.push(renderLinkNode(href, href, `${prefix}-url-${match.index}`))
-      if (trailing) nodes.push(<span key={`${prefix}-url-trailing-${match.index}`}>{trailing}</span>)
-      cursor = match.index + match[0].length
-    }
-
-    if (cursor < chunk.length) {
-      nodes.push(...renderTextWithMentions(chunk.slice(cursor), patterns).map((node, index) => (
-        <span key={`${prefix}-tail-${cursor}-${index}`}>{node}</span>
-      )))
-    }
-  }
-
-  let cursor = 0
-  let match: RegExpExecArray | null
-
-  while ((match = markdownLinkPattern.exec(text)) !== null) {
-    if (cursor < match.index) {
-      appendBareLinks(text.slice(cursor, match.index), `${keyPrefix}-${cursor}`)
-    }
-
-    nodes.push(renderLinkNode(match[1], match[2], `${keyPrefix}-markdown-${match.index}`))
-    cursor = match.index + match[0].length
-  }
-
-  if (cursor < text.length) {
-    appendBareLinks(text.slice(cursor), `${keyPrefix}-${cursor}`)
-  }
-
-  return nodes
-}
-
 function ComposerToolbarButton({
   label,
   shortcut,
@@ -542,22 +509,56 @@ function ComposerToolbarButton({
   onClick?: () => void
   onMouseDown?: (event: MouseEvent<HTMLButtonElement>) => void
 }) {
+  const tooltipId = useId()
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const [tooltipPosition, setTooltipPosition] = useState<{ left: number; top: number } | null>(null)
+
+  const showTooltip = () => {
+    const button = buttonRef.current
+    if (!button || typeof window === 'undefined') return
+
+    const rect = button.getBoundingClientRect()
+    setTooltipPosition({
+      left: Math.min(Math.max(rect.left + rect.width / 2, 16), window.innerWidth - 16),
+      top: rect.top - 10,
+    })
+  }
+
+  const hideTooltip = () => setTooltipPosition(null)
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      onMouseDown={onMouseDown}
-      className={`group/toolbar relative min-h-9 shrink-0 rounded-lg p-2 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
-        active ? 'bg-slate-100 text-slate-900' : ''
-      } ${className}`}
-      aria-label={shortcut ? `${label} (${shortcut})` : label}
-    >
-      {children}
-      <span className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded-lg bg-slate-950 px-2.5 py-1.5 text-xs font-semibold text-white shadow-lg group-hover/toolbar:block group-focus-visible/toolbar:block">
-        {label}
-        {shortcut && <span className="ml-2 font-medium text-slate-300">{shortcut}</span>}
-      </span>
-    </button>
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={onClick}
+        onMouseDown={onMouseDown}
+        onMouseEnter={showTooltip}
+        onMouseLeave={hideTooltip}
+        onFocus={showTooltip}
+        onBlur={hideTooltip}
+        className={`relative min-h-9 shrink-0 rounded-lg p-2 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
+          active ? 'bg-slate-100 text-slate-900' : ''
+        } ${className}`}
+        aria-label={shortcut ? `${label} (${shortcut})` : label}
+        aria-describedby={tooltipPosition ? tooltipId : undefined}
+      >
+        {children}
+      </button>
+      {tooltipPosition && typeof document !== 'undefined' && createPortal(
+        <div
+          className="pointer-events-none fixed z-[9999] -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg bg-slate-950 px-2.5 py-1.5 text-xs font-semibold text-white shadow-lg"
+          style={{ left: tooltipPosition.left, top: tooltipPosition.top }}
+          id={tooltipId}
+          role="tooltip"
+        >
+          {label}
+          {shortcut && <span className="ml-2 font-medium text-slate-300">{shortcut}</span>}
+          <span className="absolute left-1/2 top-full h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-slate-950" aria-hidden="true" />
+        </div>,
+        document.body,
+      )}
+    </>
   )
 }
 
@@ -776,6 +777,7 @@ export function Messages() {
   const tempMessageIdRef = useRef(0)
   const targetRequestRef = useRef(0)
   const targetLoadOptionsRef = useRef<TargetLoadOptions>({})
+  const loadingTargetRef = useRef(false)
   const shouldStickToBottomRef = useRef(true)
   const programmaticScrollUntilRef = useRef(0)
   const programmaticScrollTimerRef = useRef<number | null>(null)
@@ -790,6 +792,11 @@ export function Messages() {
   isDesktopRef.current = isDesktop
   mobilePaneRef.current = mobilePane
   selectedTargetRef.current = selectedTarget
+
+  const setTargetLoading = (value: boolean) => {
+    loadingTargetRef.current = value
+    setLoadingTarget(value)
+  }
 
   const selectedChannel = useMemo(
     () => selectedTarget?.type === 'channel' ? channels.find((channel) => channel.id === selectedTarget.id) || null : null,
@@ -1064,9 +1071,13 @@ export function Messages() {
   const loadTarget = async (target: Target, markRead = false, options: TargetLoadOptions = {}) => {
     const requestId = targetRequestRef.current + 1
     targetRequestRef.current = requestId
-    setLoadingTarget(true)
-    setHasUnreadBelow(false)
-    shouldStickToBottomRef.current = !options.aroundMessageId
+    const showTargetLoader = !options.background
+
+    if (showTargetLoader) {
+      setTargetLoading(true)
+      setHasUnreadBelow(false)
+      shouldStickToBottomRef.current = !options.aroundMessageId
+    }
 
     if (target.type === 'channel') {
       const res = await api.getChannel(target.id, {
@@ -1074,7 +1085,7 @@ export function Messages() {
       })
       if (requestId !== targetRequestRef.current) return
       if (!res.data) {
-        setLoadingTarget(false)
+        if (showTargetLoader) setTargetLoading(false)
         return
       }
 
@@ -1086,7 +1097,7 @@ export function Messages() {
         await api.markChannelRead(target.id)
         setChannels((prev) => prev.map((channel) => channel.id === target.id ? { ...channel, unread_count: 0, last_read_at: new Date().toISOString() } : channel))
       }
-      setLoadingTarget(false)
+      if (showTargetLoader) setTargetLoading(false)
       return
     }
 
@@ -1095,7 +1106,7 @@ export function Messages() {
     })
     if (requestId !== targetRequestRef.current) return
     if (!res.data) {
-      setLoadingTarget(false)
+      if (showTargetLoader) setTargetLoading(false)
       return
     }
 
@@ -1107,7 +1118,7 @@ export function Messages() {
       await api.markDirectConversationRead(target.id)
       setDirectConversations((prev) => prev.map((conversation) => conversation.id === target.id ? { ...conversation, unread_count: 0, last_read_at: new Date().toISOString() } : conversation))
     }
-    setLoadingTarget(false)
+    if (showTargetLoader) setTargetLoading(false)
   }
 
   useEffect(() => {
@@ -1180,8 +1191,12 @@ export function Messages() {
     const options = targetLoadOptionsRef.current
     targetLoadOptionsRef.current = {}
     loadTarget(selectedTarget, canAutoMarkRead(true), options)
-    const interval = window.setInterval(() => loadTarget(selectedTarget, canAutoMarkRead()), 30000)
-    const onFocus = () => loadTarget(selectedTarget, canAutoMarkRead())
+    const refreshTarget = () => {
+      if (loadingTargetRef.current) return
+      loadTarget(selectedTarget, canAutoMarkRead(), { background: true })
+    }
+    const interval = window.setInterval(refreshTarget, 30000)
+    const onFocus = refreshTarget
     window.addEventListener('focus', onFocus)
 
     return () => {
@@ -1439,7 +1454,7 @@ export function Messages() {
   const selectTarget = (target: Target, options: TargetLoadOptions = {}) => {
     window.history.replaceState(null, '', target.type === 'channel' ? `/messages/${target.id}` : `/messages/dm/${target.id}`)
     targetLoadOptionsRef.current = options
-    setLoadingTarget(true)
+    setTargetLoading(true)
     shouldStickToBottomRef.current = !options.aroundMessageId
     startNavigationTransition(() => {
       setSelectedTarget(target)
@@ -3378,21 +3393,81 @@ function FormattedMessage({ body, mentionPatterns }: { body: string; mentionPatt
 }
 
 function formatInline(text: string, mentionPatterns: MentionPattern[]) {
-  const pieces = text.split(/(`[^`]+`|\*\*[^*]+\*\*|_[^_]+_)/g)
+  const nodes: ReactNode[] = []
+  const codePattern = /`[^`]+`/g
+  const linkPattern = /\[([^\]]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi
 
-  return pieces.map((piece, index) => {
-    const key = `${index}-${piece}`
-    if (piece.startsWith('`') && piece.endsWith('`')) {
-      return <code key={key} className="rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">{piece.slice(1, -1)}</code>
+  const appendFormattedText = (chunk: string, keyPrefix: string) => {
+    const pieces = chunk.split(/(\*\*[^*]+\*\*|_[^_]+_)/g)
+
+    pieces.forEach((piece, index) => {
+      if (!piece) return
+
+      const key = `${keyPrefix}-format-${index}-${piece}`
+      if (piece.startsWith('**') && piece.endsWith('**')) {
+        nodes.push(<strong key={key}>{piece.slice(2, -2)}</strong>)
+        return
+      }
+      if (piece.startsWith('_') && piece.endsWith('_')) {
+        nodes.push(<em key={key}>{piece.slice(1, -1)}</em>)
+        return
+      }
+
+      nodes.push(<span key={key}>{renderTextWithMentions(piece, mentionPatterns)}</span>)
+    })
+  }
+
+  const appendTextWithLinks = (chunk: string, keyPrefix: string) => {
+    let cursor = 0
+    let match: RegExpExecArray | null
+
+    linkPattern.lastIndex = 0
+    while ((match = linkPattern.exec(chunk)) !== null) {
+      if (cursor < match.index) {
+        appendFormattedText(chunk.slice(cursor, match.index), `${keyPrefix}-text-${cursor}`)
+      }
+
+      if (match[1] !== undefined && match[2] !== undefined) {
+        nodes.push(renderLinkNode(match[1], match[2], `${keyPrefix}-markdown-link-${match.index}`))
+      } else {
+        const { href, trailing } = splitTrailingUrlPunctuation(match[3])
+        nodes.push(renderLinkNode(href, href, `${keyPrefix}-bare-link-${match.index}`))
+        if (trailing) nodes.push(<span key={`${keyPrefix}-bare-link-trailing-${match.index}`}>{trailing}</span>)
+      }
+
+      cursor = match.index + match[0].length
     }
-    if (piece.startsWith('**') && piece.endsWith('**')) {
-      return <strong key={key}>{piece.slice(2, -2)}</strong>
+
+    if (cursor < chunk.length) {
+      appendFormattedText(chunk.slice(cursor), `${keyPrefix}-tail-${cursor}`)
     }
-    if (piece.startsWith('_') && piece.endsWith('_')) {
-      return <em key={key}>{piece.slice(1, -1)}</em>
+  }
+
+  let cursor = 0
+  let match: RegExpExecArray | null
+
+  while ((match = codePattern.exec(text)) !== null) {
+    if (cursor < match.index) {
+      appendTextWithLinks(text.slice(cursor, match.index), `inline-${cursor}`)
     }
-    return <span key={key}>{renderTextWithLinksAndMentions(piece, mentionPatterns, `inline-${index}`)}</span>
-  })
+
+    nodes.push(
+      <code key={`inline-code-${match.index}`} className="rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">
+        {match[0].slice(1, -1)}
+      </code>,
+    )
+    cursor = match.index + match[0].length
+  }
+
+  if (cursor < text.length) {
+    appendTextWithLinks(text.slice(cursor), `inline-${cursor}`)
+  }
+
+  if (nodes.length === 0) {
+    return renderTextWithMentions(text, mentionPatterns)
+  }
+
+  return nodes
 }
 
 function MessageRow({
@@ -3436,7 +3511,6 @@ function MessageRow({
   onOpenImage: (attachment: MessageAttachment, imageAttachments: MessageAttachment[]) => void
   mentionPatterns: MentionPattern[]
 }) {
-  const [pickerOpen, setPickerOpen] = useState(false)
   const imageAttachments = message.attachments.filter((attachment) => attachment.image && attachment.url)
 
   return (
@@ -3528,19 +3602,22 @@ function MessageRow({
         {(message.reactions.length > 0 || (!inThreadView && replyCount > 0)) && (
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           {message.reactions.map((reaction) => {
-            const emoji = reaction.emoji
+            const reactionDisplay = REACTIONS_BY_VALUE.get(reaction.emoji) || { label: 'Reaction', Icon: SmilePlus }
+            const ReactionIcon = reactionDisplay.Icon
             return (
-              <div key={emoji} className="group/reaction relative">
+              <div key={reaction.emoji} className="group/reaction relative">
                 <button
                   type="button"
-                  onClick={() => onReact(emoji)}
-                  className={`min-h-7 rounded-lg border px-2 py-1 text-xs ${reaction?.reacted ? 'border-primary-200 bg-primary-50 text-primary-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                  onClick={() => onReact(reaction.emoji)}
+                  className={`inline-flex min-h-7 items-center gap-1.5 rounded-lg border px-2 py-1 text-xs ${reaction?.reacted ? 'border-primary-200 bg-primary-50 text-primary-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                  aria-label={`${reactionDisplay.label}: ${reaction?.count || 0}`}
                 >
-                  {emoji} {reaction?.count || ''}
+                  <ReactionIcon className="h-3.5 w-3.5" />
+                  {reaction?.count || ''}
                 </button>
                 {reaction && reaction.users.length > 0 && (
                   <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden -translate-x-1/2 rounded-lg bg-slate-900 px-3 py-2 text-xs text-white shadow-lg group-hover/reaction:block">
-                    <div className="font-medium">{emoji}</div>
+                    <div className="font-medium">{reactionDisplay.label}</div>
                     <div className="mt-1 whitespace-nowrap">{reaction.users.map((user) => user.full_name).join(', ')}</div>
                   </div>
                 )}
@@ -3566,40 +3643,18 @@ function MessageRow({
         </button>
       </div>
       <div className="absolute right-2 top-1 z-10 hidden items-center gap-0.5 rounded-xl border border-slate-200 bg-white px-1.5 py-1 shadow-lg opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 sm:flex">
-        {REACTIONS.map((emoji) => (
+        {REACTIONS.map(({ value, label, Icon }) => (
           <button
-            key={emoji}
+            key={value}
             type="button"
-            onClick={() => onReact(emoji)}
-            className="min-h-8 rounded-lg px-2 py-1 text-xs text-slate-500 hover:bg-slate-100"
-            aria-label={`React with ${emoji}`}
+            onClick={() => onReact(value)}
+            className="inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+            aria-label={`React with ${label}`}
+            title={label}
           >
-            {emoji}
+            <Icon className="h-4 w-4" />
           </button>
         ))}
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setPickerOpen((current) => !current)}
-            className="min-h-8 rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-            aria-label="Add reaction"
-          >
-            <SmilePlus className="h-4 w-4" />
-          </button>
-          {pickerOpen && (
-            <div className="absolute right-0 top-full z-30 mt-2 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
-              <EmojiPicker
-                width={320}
-                height={380}
-                theme={Theme.LIGHT}
-                onEmojiClick={(data: EmojiClickData) => {
-                  onReact(data.emoji)
-                  setPickerOpen(false)
-                }}
-              />
-            </div>
-          )}
-        </div>
         <button type="button" onClick={onReply} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={inThreadView ? 'Reply in thread' : 'Reply'}>
           <MessageCircle className="h-4 w-4" />
         </button>

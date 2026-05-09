@@ -21,7 +21,9 @@ import {
 import { UserButton } from '@clerk/clerk-react'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { api } from '../../lib/api'
+import { subscribeToUserMessages } from '../../lib/realtime'
 import { preloadPrimaryRoutes, preloadRoute } from '../../lib/routePreload'
+import type { ChannelMessageEvent, ChannelSummary, DirectConversationSummary } from '../../types/api'
 
 interface LayoutProps {
   children?: React.ReactNode
@@ -37,8 +39,16 @@ export function Layout({ children }: LayoutProps) {
   const { user, isLoading } = useAuthContext()
   const [unreadCount, setUnreadCount] = useState(0)
   const [messageUnreadCount, setMessageUnreadCount] = useState(0)
+  const channelUnreadCountsRef = useRef(new Map<number, number>())
+  const directConversationUnreadCountsRef = useRef(new Map<number, number>())
   const isStaff = user?.is_staff
   const isFullAdmin = user?.is_admin
+
+  const syncMessageUnreadCount = () => {
+    const channelUnread = Array.from(channelUnreadCountsRef.current.values()).reduce((sum, count) => sum + count, 0)
+    const dmUnread = Array.from(directConversationUnreadCountsRef.current.values()).reduce((sum, count) => sum + count, 0)
+    setMessageUnreadCount(channelUnread + dmUnread)
+  }
 
   useEffect(() => {
     if (!user) return
@@ -47,11 +57,44 @@ export function Layout({ children }: LayoutProps) {
       if (res.data) setUnreadCount(res.data.unread_count)
     })
     Promise.all([api.getChannels(), api.getDirectConversations()]).then(([channelRes, dmRes]) => {
-      const channelUnread = channelRes.data?.channels.reduce((sum, channel) => sum + channel.unread_count, 0) || 0
-      const dmUnread = dmRes.data?.direct_conversations.reduce((sum, conversation) => sum + conversation.unread_count, 0) || 0
-      setMessageUnreadCount(channelUnread + dmUnread)
+      channelUnreadCountsRef.current = new Map((channelRes.data?.channels || []).map((channel) => [channel.id, channel.unread_count]))
+      directConversationUnreadCountsRef.current = new Map((dmRes.data?.direct_conversations || []).map((conversation) => [conversation.id, conversation.unread_count]))
+      syncMessageUnreadCount()
     })
   }, [user, location.pathname])
+
+  useEffect(() => {
+    if (!user) return
+
+    let active = true
+    let unsubscribe: (() => void) | null = null
+
+    const updateChannelUnread = (channel: ChannelSummary) => {
+      channelUnreadCountsRef.current.set(channel.id, channel.unread_count)
+      syncMessageUnreadCount()
+    }
+
+    const updateDirectConversationUnread = (conversation: DirectConversationSummary) => {
+      directConversationUnreadCountsRef.current.set(conversation.id, conversation.unread_count)
+      syncMessageUnreadCount()
+    }
+
+    subscribeToUserMessages((payload) => {
+      if (!active) return
+
+      const event = payload as ChannelMessageEvent
+      if (event.channel) updateChannelUnread(event.channel)
+      if (event.direct_conversation) updateDirectConversationUnread(event.direct_conversation)
+    }).then((cleanup) => {
+      if (active) unsubscribe = cleanup
+      else cleanup()
+    })
+
+    return () => {
+      active = false
+      unsubscribe?.()
+    }
+  }, [user])
 
   useEffect(() => {
     if (!user) return
