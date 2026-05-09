@@ -428,6 +428,11 @@ module Api
                     .ordered
                     .limit(10)
                     .map do |announcement|
+          cohort_student_view_announcement_json(announcement)
+        end
+      end
+
+      def cohort_student_view_announcement_json(announcement)
           {
             id: announcement.id,
             title: announcement.title,
@@ -438,13 +443,12 @@ module Api
             cohort_id: announcement.cohort_id,
             cohort_name: announcement.cohort&.name,
             published_at: announcement.published_at,
-            author: {
+            author: announcement.author && {
               id: announcement.author.id,
               full_name: announcement.author.full_name,
               email: announcement.author.email
             }
           }
-        end
       end
 
       def cohort_student_view_resources(cohort)

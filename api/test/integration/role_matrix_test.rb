@@ -258,6 +258,22 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
     assert_equal "Class Zoom", data.dig("dashboard", "resources").first.fetch("title")
   end
 
+  test "cohort student view handles announcements without authors" do
+    announcement = Announcement.create!(
+      title: "Old notice",
+      body: "Author was deleted",
+      author: @admin,
+      audience: :cohort,
+      cohort: @cohort,
+      status: :published
+    )
+    announcement.define_singleton_method(:author) { nil }
+
+    json = Api::V1::CohortsController.new.send(:cohort_student_view_announcement_json, announcement)
+
+    assert_nil json.fetch(:author)
+  end
+
   test "cohort student view handles unassigned modules without start dates" do
     Lesson.create!(curriculum_module: @mod, title: "Hidden Intro", position: 0, release_day: 0)
 
