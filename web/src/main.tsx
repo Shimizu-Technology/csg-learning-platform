@@ -45,7 +45,10 @@ createRoot(document.getElementById('root')!).render(
 
 if ('serviceWorker' in navigator) {
   const registerServiceWorker = () => {
-    navigator.serviceWorker.register('/sw.js')
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+      .then((registration) => {
+        void registration.update()
+      })
       .catch((err) => console.log('SW registration failed:', err))
   }
 

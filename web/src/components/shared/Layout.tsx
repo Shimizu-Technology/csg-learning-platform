@@ -21,6 +21,7 @@ import {
 import { UserButton } from '@clerk/clerk-react'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { api } from '../../lib/api'
+import { refreshExistingPushSubscription, pushSupported } from '../../lib/pushNotifications'
 import { subscribeToUserMessages } from '../../lib/realtime'
 import { preloadPrimaryRoutes, preloadRoute } from '../../lib/routePreload'
 import type { ChannelMessageEvent, ChannelSummary, DirectConversationSummary } from '../../types/api'
@@ -62,6 +63,27 @@ export function Layout({ children }: LayoutProps) {
       syncMessageUnreadCount()
     })
   }, [user, location.pathname])
+
+  useEffect(() => {
+    if (!user || !pushSupported() || Notification.permission !== 'granted') return
+
+    let active = true
+
+    api.getPushConfig().then((config) => {
+      if (!active) return
+
+      const publicKey = config.data?.public_key || import.meta.env.VITE_WEB_PUSH_PUBLIC_KEY
+      if (!config.data?.configured || !publicKey) return
+
+      refreshExistingPushSubscription(publicKey).catch((error) => {
+        console.warn('Push subscription refresh failed:', error)
+      })
+    })
+
+    return () => {
+      active = false
+    }
+  }, [user])
 
   useEffect(() => {
     if (!user) return

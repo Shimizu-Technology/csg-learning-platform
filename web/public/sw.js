@@ -1,5 +1,5 @@
-const CACHE_NAME = 'csg-learning-hub-v2';
-const RUNTIME_CACHE = 'csg-learning-runtime-v2';
+const CACHE_NAME = 'csg-learning-hub-v3';
+const RUNTIME_CACHE = 'csg-learning-runtime-v3';
 const OFFLINE_URL = '/offline.html';
 const APP_SHELL_ASSETS = [
   OFFLINE_URL,
@@ -77,20 +77,16 @@ self.addEventListener('fetch', (event) => {
 
   if (isStaticAsset) {
     event.respondWith(
-      caches.match(event.request).then((cachedResponse) => {
-        const networkFetch = fetch(event.request)
-          .then((response) => {
-            const copy = response.clone();
-            event.waitUntil(safeCachePut(RUNTIME_CACHE, event.request, copy));
-            return response;
-          })
-          .catch((error) => {
-            console.warn('[sw] Static asset fetch failed', event.request.url, error);
-            return cachedResponse || offlineAssetResponse();
-          });
-
-        return cachedResponse || networkFetch;
-      })
+      fetch(event.request, { cache: 'no-cache' })
+        .then((response) => {
+          const copy = response.clone();
+          event.waitUntil(safeCachePut(RUNTIME_CACHE, event.request, copy));
+          return response;
+        })
+        .catch(async (error) => {
+          console.warn('[sw] Static asset fetch failed', event.request.url, error);
+          return await caches.match(event.request) || offlineAssetResponse();
+        })
     );
   }
 });

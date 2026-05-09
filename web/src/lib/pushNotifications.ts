@@ -24,6 +24,49 @@ function subscriptionToJson(subscription: PushSubscription) {
   }
 }
 
+function uint8ArrayToUrlBase64(bytes: Uint8Array) {
+  let value = ''
+  bytes.forEach((byte) => {
+    value += String.fromCharCode(byte)
+  })
+
+  return window.btoa(value).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+}
+
+function subscriptionUsesPublicKey(subscription: PushSubscription, publicKey: string) {
+  const currentKey = subscription.options.applicationServerKey
+  if (!currentKey) return true
+
+  return uint8ArrayToUrlBase64(new Uint8Array(currentKey)) === publicKey.replace(/=+$/g, '')
+}
+
+async function subscribeWithPublicKey(registration: ServiceWorkerRegistration, publicKey: string) {
+  const existing = await registration.pushManager.getSubscription()
+  if (existing && subscriptionUsesPublicKey(existing, publicKey)) return existing
+
+  if (existing) {
+    await api.deletePushSubscription(existing.endpoint)
+    await existing.unsubscribe()
+  }
+
+  return registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(publicKey),
+  })
+}
+
+async function saveSubscription(subscription: PushSubscription) {
+  const payload = subscriptionToJson(subscription)
+  if (!payload.keys.p256dh || !payload.keys.auth) {
+    throw new Error('Browser subscription keys were missing.')
+  }
+
+  const result = await api.createPushSubscription(payload)
+  if (result.error) {
+    throw new Error(result.error)
+  }
+}
+
 export function pushSupported() {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 }
@@ -65,23 +108,24 @@ export async function enablePushNotifications(publicKey: string) {
   }
 
   const registration = await navigator.serviceWorker.ready
-  const existing = await registration.pushManager.getSubscription()
-  const subscription = existing || await registration.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(publicKey),
-  })
-
-  const payload = subscriptionToJson(subscription)
-  if (!payload.keys.p256dh || !payload.keys.auth) {
-    throw new Error('Browser subscription keys were missing.')
-  }
-
-  const result = await api.createPushSubscription(payload)
-  if (result.error) {
-    throw new Error(result.error)
-  }
+  const subscription = await subscribeWithPublicKey(registration, publicKey)
+  await saveSubscription(subscription)
 
   return subscription
+}
+
+export async function refreshExistingPushSubscription(publicKey: string) {
+  if (!pushSupported() || Notification.permission !== 'granted') return false
+
+  const registration = await navigator.serviceWorker.ready
+  const existing = await registration.pushManager.getSubscription()
+  if (!existing) return false
+  if (subscriptionUsesPublicKey(existing, publicKey)) return false
+
+  const subscription = await subscribeWithPublicKey(registration, publicKey)
+  await saveSubscription(subscription)
+
+  return true
 }
 
 export async function disablePushNotifications() {

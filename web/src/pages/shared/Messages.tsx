@@ -537,7 +537,7 @@ function ComposerToolbarButton({
         onMouseLeave={hideTooltip}
         onFocus={showTooltip}
         onBlur={hideTooltip}
-        className={`relative min-h-9 shrink-0 rounded-lg p-2 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
+        className={`relative min-h-8 shrink-0 rounded-lg p-1.5 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 sm:min-h-9 sm:p-2 ${
           active ? 'bg-slate-100 text-slate-900' : ''
         } ${className}`}
         aria-label={shortcut ? `${label} (${shortcut})` : label}
@@ -967,7 +967,7 @@ export function Messages() {
     ],
     editorProps: {
       attributes: {
-        class: 'message-composer px-3 py-3 text-base leading-6 text-slate-800 outline-none sm:text-sm',
+        class: 'message-composer px-3 py-2.5 text-base leading-6 text-slate-800 outline-none sm:py-3 sm:text-sm',
         autocapitalize: 'sentences',
         autocorrect: 'on',
         spellcheck: 'true',
@@ -2073,7 +2073,7 @@ export function Messages() {
       <form
         ref={composerFormRef}
         onSubmit={handleSend}
-        className={`${inThreadPanel ? 'shrink-0 border-t border-slate-200 bg-white p-3' : 'shrink-0 border-t border-slate-200 bg-white px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 sm:px-4'}`}
+        className={`${inThreadPanel ? 'shrink-0 border-t border-slate-200 bg-white p-3' : 'shrink-0 border-t border-slate-200 bg-white px-2.5 pb-[calc(env(safe-area-inset-bottom)+0.625rem)] pt-2.5 sm:px-4 sm:pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:pt-3'}`}
       >
         {error && (
           <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -2109,11 +2109,11 @@ export function Messages() {
           </div>
         )}
         <div
-          className="relative overflow-visible rounded-2xl border border-slate-200 bg-white shadow-[0_18px_42px_-30px_rgba(15,23,42,0.38)] transition-shadow focus-within:border-primary-200 focus-within:shadow-[0_20px_54px_-34px_rgba(239,68,68,0.42)]"
+          className="relative min-w-0 overflow-visible rounded-xl border border-slate-200 bg-white shadow-[0_18px_42px_-30px_rgba(15,23,42,0.38)] transition-shadow focus-within:border-primary-200 focus-within:shadow-[0_20px_54px_-34px_rgba(239,68,68,0.42)] sm:rounded-2xl"
           onDragOver={(event) => event.preventDefault()}
           onDrop={handleDrop}
         >
-          <div className="messages-toolbar-scroll flex items-center gap-1.5 overflow-x-auto border-b border-slate-100 px-2 py-1.5 text-slate-500">
+          <div className="messages-toolbar-scroll flex items-center gap-1 overflow-x-auto border-b border-slate-100 px-1.5 py-1 text-slate-500 sm:gap-1.5 sm:px-2 sm:py-1.5">
             <ComposerToolbarButton label="Attach files" onMouseDown={(event) => event.preventDefault()} onClick={() => fileInputRef.current?.click()}>
               <Paperclip className="h-4 w-4" />
             </ComposerToolbarButton>
@@ -2137,12 +2137,12 @@ export function Messages() {
             </ComposerToolbarButton>
             <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => handleFiles(event.target.files)} />
           </div>
-          <div className="p-2" onKeyDownCapture={handleComposerKeyDown}>
-            <div className="min-h-0 min-w-0 rounded-xl bg-slate-50/70">
+          <div className="p-1.5 sm:p-2" onKeyDownCapture={handleComposerKeyDown}>
+            <div className="min-h-0 min-w-0 rounded-lg bg-slate-50/70 sm:rounded-xl">
               <EditorContent editor={editor} />
             </div>
           </div>
-          <div className="flex items-end justify-end border-t border-slate-100 px-3 py-2.5">
+          <div className="flex items-end justify-end border-t border-slate-100 px-2.5 py-2 sm:px-3 sm:py-2.5">
             <button
               type="submit"
               disabled={sending || (!body.trim() && pendingAttachments.length === 0)}
@@ -2182,7 +2182,7 @@ export function Messages() {
   }
 
   return (
-    <div className={`mx-auto flex w-full max-w-[1500px] flex-col ${showPageIntro ? 'min-h-[calc(100dvh-5.5rem)] gap-4' : 'h-[calc(100dvh-5.5rem)] min-h-0 gap-0 overflow-hidden'} lg:h-[calc(100dvh-5.5rem)] lg:min-h-0 lg:overflow-hidden lg:px-4`}>
+    <div className={`mx-auto flex w-full max-w-[1500px] min-w-0 flex-col ${showPageIntro ? 'min-h-[calc(100dvh-5.5rem)] gap-4' : 'h-[calc(100dvh-5.5rem)] min-h-0 gap-0 overflow-hidden'} lg:h-[calc(100dvh-5.5rem)] lg:min-h-0 lg:overflow-hidden lg:px-4`}>
       {showPageIntro && (
       <div>
         <p className="text-sm font-medium text-primary-600">Communication</p>
@@ -2216,12 +2216,12 @@ export function Messages() {
       </div>
       )}
 
-      <div className={`${isDesktop ? 'grid overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_20px_54px_-42px_rgba(15,23,42,0.55)]' : 'flex overflow-hidden border-y border-slate-200 bg-white'} min-h-0 flex-1 ${isDesktop ? (sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[328px_minmax(0,1fr)]') : ''}`}>
+      <div className={`${isDesktop ? 'grid overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_20px_54px_-42px_rgba(15,23,42,0.55)]' : 'flex min-w-0 overflow-hidden border-y border-slate-200 bg-white'} min-h-0 flex-1 ${isDesktop ? (sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[328px_minmax(0,1fr)]') : ''}`}>
         {showListPane && !sidebarCollapsed && (
-        <aside className={`flex min-h-0 flex-1 flex-col bg-slate-50 ${isDesktop ? 'border-b border-slate-200 lg:border-b-0 lg:border-r' : ''}`}>
-          <div className="shrink-0 border-b border-slate-200 bg-white p-3">
-            <div className="mb-3 flex items-center justify-between">
-              <div>
+        <aside className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-slate-50 ${isDesktop ? 'border-b border-slate-200 lg:border-b-0 lg:border-r' : ''}`}>
+          <div className="shrink-0 border-b border-slate-200 bg-white p-2.5 sm:p-3">
+            <div className="mb-2.5 flex min-w-0 items-center justify-between gap-2 sm:mb-3">
+              <div className="min-w-0">
                 <h2 className="text-sm font-semibold text-slate-900">{selectedWorkspace?.name || 'Workspaces'}</h2>
                 <p className="text-xs text-slate-500">{isDesktop ? 'Workspace' : 'Choose a workspace, channel, or direct message'}</p>
               </div>
@@ -2260,7 +2260,7 @@ export function Messages() {
               <button
                 type="button"
                 onClick={() => setShowWorkspaceSwitcher(true)}
-                className="group flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="group flex w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary-500 sm:py-2.5"
               >
                 <span className="flex min-w-0 items-center gap-3">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-xs font-semibold text-white">
@@ -2279,7 +2279,7 @@ export function Messages() {
               </button>
             )}
             {selectedWorkspace && (
-              <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+              <div className="mt-2.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 sm:mt-3 sm:py-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-slate-900">{selectedWorkspace.name}</p>
@@ -2303,7 +2303,7 @@ export function Messages() {
                   )}
                 </div>
                 {selectedWorkspace.description && (
-                  <p className="mt-2 text-xs text-slate-500">{selectedWorkspace.description}</p>
+                  <p className="mt-2 line-clamp-2 text-xs text-slate-500">{selectedWorkspace.description}</p>
                 )}
               </div>
             )}
@@ -2340,7 +2340,7 @@ export function Messages() {
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
+          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-1.5 sm:p-2">
             <div className="mb-2 flex items-center justify-between px-2 pt-2">
               <button
                 type="button"
@@ -2452,10 +2452,10 @@ export function Messages() {
         )}
 
         {showConversationPane && (
-        <section className="flex h-full min-w-0 min-h-0 flex-1 flex-col overflow-hidden bg-white">
+        <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white">
           {selectedTarget && selected ? (
             <>
-              <header className={`shrink-0 border-b border-slate-200/80 px-4 py-3 backdrop-blur-sm ${isDesktop ? 'bg-white/80' : 'bg-white'} sm:py-4`}>
+              <header className={`shrink-0 border-b border-slate-200/80 px-3 py-2.5 backdrop-blur-sm ${isDesktop ? 'bg-white/80' : 'bg-white'} sm:px-4 sm:py-4`}>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex min-w-0 items-center gap-2">
                     {isDesktop && sidebarCollapsed && (
@@ -2486,7 +2486,7 @@ export function Messages() {
                       <p className="text-xs text-slate-500">{selected.workspace_name}{isNavigationPending && ' · updating'}</p>
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:justify-end sm:gap-2">
                     {selectedTarget && (
                       <ConversationHeaderAction
                         onClick={toggleMute}
@@ -2517,7 +2517,7 @@ export function Messages() {
                   </div>
                 )}
                 {!activeThreadRoot && (
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <div className="mt-2.5 flex min-w-0 flex-wrap items-center gap-1.5 sm:mt-3 sm:gap-2">
                     <button
                       type="button"
                       onClick={() => setConversationView('messages')}
@@ -2554,7 +2554,7 @@ export function Messages() {
                   <div
                     ref={messageScrollRef}
                     onScroll={handleConversationScroll}
-                    className={`min-h-0 flex-1 min-w-0 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-4 transition duration-200 sm:px-5 sm:py-5 ${loadingTarget || isNavigationPending ? 'opacity-60' : 'opacity-100'}`}
+                    className={`min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2 py-3 transition duration-200 sm:px-5 sm:py-5 ${loadingTarget || isNavigationPending ? 'opacity-60' : 'opacity-100'}`}
                   >
                   {activeThreadRoot && !showThreadPanel && (
                     <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
@@ -3325,20 +3325,20 @@ function ConversationButton({
   return (
     <button
       onClick={onClick}
-      className={`mb-1 w-full rounded-2xl border px-3 py-3 text-left transition-all duration-200 hover:-translate-y-px ${
+      className={`mb-1 w-full min-w-0 overflow-hidden rounded-xl border px-2.5 py-2.5 text-left transition-all duration-200 hover:-translate-y-px sm:rounded-2xl sm:px-3 sm:py-3 ${
         active
           ? 'border-primary-100 bg-primary-50/90 text-primary-800 shadow-sm'
           : 'border-transparent hover:border-slate-200 hover:bg-white hover:shadow-sm'
       }`}
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="flex min-w-0 items-center gap-2">
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <span className="flex min-w-0 flex-1 items-center gap-2">
           {icon}
           <span className="truncate text-sm font-semibold">{title}</span>
           {muted && <BellOff className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
         </span>
         {unread > 0 && (
-          <span className="rounded-full bg-primary-500 px-2 py-0.5 text-xs font-semibold text-white">
+          <span className="shrink-0 rounded-full bg-primary-500 px-2 py-0.5 text-xs font-semibold text-white">
             {unread}
           </span>
         )}
@@ -3516,15 +3516,15 @@ function MessageRow({
   return (
     <div
       id={`message-${message.id}`}
-      className={`message-row group relative flex w-full max-w-full gap-2 rounded-xl px-2 py-0.5 transition-all duration-200 hover:bg-slate-50/90 sm:gap-3 sm:px-3 ${
+      className={`message-row group relative flex w-full max-w-full min-w-0 gap-1.5 rounded-xl px-1.5 py-0.5 transition-all duration-200 hover:bg-slate-50/90 sm:gap-3 sm:px-3 ${
         compact ? 'mt-0' : 'mt-1.5'
       } ${message.pinned_at ? 'bg-amber-50/70 ring-1 ring-amber-100' : ''} ${message.pending ? 'opacity-75' : ''} ${
         highlighted ? 'message-row-highlight bg-primary-50 ring-2 ring-primary-200' : ''
       }`}
     >
-      <div className="flex w-8 shrink-0 justify-center sm:w-10">
+      <div className="flex w-7 shrink-0 justify-center sm:w-10">
         {compact ? (
-          <span className="pt-1 text-[11px] font-medium text-slate-300 transition-colors group-hover:text-slate-400">
+          <span className="pt-1 text-[10px] font-medium text-slate-300 transition-colors group-hover:text-slate-400 sm:text-[11px]">
             {new Date(message.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
           </span>
         ) : (
@@ -3591,12 +3591,12 @@ function MessageRow({
         )}
         {message.mine && message.read_receipts && message.read_receipts.count > 0 && (
           <div
-            className="mt-1 inline-flex max-w-full items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-500"
+            className="mt-1 inline-flex max-w-full min-w-0 items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-500"
             title={readReceiptTitle(message.read_receipts)}
             aria-label={`Seen by ${readReceiptTitle(message.read_receipts)}`}
           >
             <CheckCheck className="h-3 w-3 shrink-0 text-green-600" />
-            Seen by {readReceiptLabel(message.read_receipts)}
+            <span className="truncate">Seen by {readReceiptLabel(message.read_receipts)}</span>
           </div>
         )}
         {(message.reactions.length > 0 || (!inThreadView && replyCount > 0)) && (
@@ -3636,7 +3636,7 @@ function MessageRow({
         <button
           type="button"
           onClick={onOpenActions}
-          className="rounded-xl p-2 text-slate-400 hover:bg-white hover:text-slate-700 sm:hidden"
+          className="rounded-xl p-1.5 text-slate-400 hover:bg-white hover:text-slate-700 sm:hidden"
           aria-label="Open message actions"
         >
           <MoreHorizontal className="h-5 w-5" />
@@ -3698,7 +3698,7 @@ function ConversationHeaderAction({
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-800 sm:text-sm"
+      className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-800 sm:min-h-0 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
       aria-label={ariaLabel}
     >
       {icon}
