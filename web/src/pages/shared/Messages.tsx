@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
+import { useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams } from 'react-router-dom'
 import { EditorContent, useEditor } from '@tiptap/react'
@@ -68,7 +68,7 @@ import type {
 } from '../../types/api'
 
 type Target = { type: 'channel'; id: number } | { type: 'dm'; id: number }
-type TargetLoadOptions = { aroundMessageId?: number; highlightedMessageId?: number }
+type TargetLoadOptions = { aroundMessageId?: number; highlightedMessageId?: number; background?: boolean }
 type PendingAttachment = {
   file: File
   s3_key?: string
@@ -509,6 +509,7 @@ function ComposerToolbarButton({
   onClick?: () => void
   onMouseDown?: (event: MouseEvent<HTMLButtonElement>) => void
 }) {
+  const tooltipId = useId()
   const buttonRef = useRef<HTMLButtonElement | null>(null)
   const [tooltipPosition, setTooltipPosition] = useState<{ left: number; top: number } | null>(null)
 
@@ -540,6 +541,7 @@ function ComposerToolbarButton({
           active ? 'bg-slate-100 text-slate-900' : ''
         } ${className}`}
         aria-label={shortcut ? `${label} (${shortcut})` : label}
+        aria-describedby={tooltipPosition ? tooltipId : undefined}
       >
         {children}
       </button>
@@ -547,6 +549,7 @@ function ComposerToolbarButton({
         <div
           className="pointer-events-none fixed z-[9999] -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg bg-slate-950 px-2.5 py-1.5 text-xs font-semibold text-white shadow-lg"
           style={{ left: tooltipPosition.left, top: tooltipPosition.top }}
+          id={tooltipId}
           role="tooltip"
         >
           {label}
@@ -774,6 +777,7 @@ export function Messages() {
   const tempMessageIdRef = useRef(0)
   const targetRequestRef = useRef(0)
   const targetLoadOptionsRef = useRef<TargetLoadOptions>({})
+  const loadingTargetRef = useRef(false)
   const shouldStickToBottomRef = useRef(true)
   const programmaticScrollUntilRef = useRef(0)
   const programmaticScrollTimerRef = useRef<number | null>(null)
@@ -788,6 +792,11 @@ export function Messages() {
   isDesktopRef.current = isDesktop
   mobilePaneRef.current = mobilePane
   selectedTargetRef.current = selectedTarget
+
+  const setTargetLoading = (value: boolean) => {
+    loadingTargetRef.current = value
+    setLoadingTarget(value)
+  }
 
   const selectedChannel = useMemo(
     () => selectedTarget?.type === 'channel' ? channels.find((channel) => channel.id === selectedTarget.id) || null : null,
@@ -1062,9 +1071,13 @@ export function Messages() {
   const loadTarget = async (target: Target, markRead = false, options: TargetLoadOptions = {}) => {
     const requestId = targetRequestRef.current + 1
     targetRequestRef.current = requestId
-    setLoadingTarget(true)
-    setHasUnreadBelow(false)
-    shouldStickToBottomRef.current = !options.aroundMessageId
+    const showTargetLoader = !options.background
+
+    if (showTargetLoader) {
+      setTargetLoading(true)
+      setHasUnreadBelow(false)
+      shouldStickToBottomRef.current = !options.aroundMessageId
+    }
 
     if (target.type === 'channel') {
       const res = await api.getChannel(target.id, {
@@ -1072,7 +1085,7 @@ export function Messages() {
       })
       if (requestId !== targetRequestRef.current) return
       if (!res.data) {
-        setLoadingTarget(false)
+        if (showTargetLoader) setTargetLoading(false)
         return
       }
 
@@ -1084,7 +1097,7 @@ export function Messages() {
         await api.markChannelRead(target.id)
         setChannels((prev) => prev.map((channel) => channel.id === target.id ? { ...channel, unread_count: 0, last_read_at: new Date().toISOString() } : channel))
       }
-      setLoadingTarget(false)
+      if (showTargetLoader) setTargetLoading(false)
       return
     }
 
@@ -1093,7 +1106,7 @@ export function Messages() {
     })
     if (requestId !== targetRequestRef.current) return
     if (!res.data) {
-      setLoadingTarget(false)
+      if (showTargetLoader) setTargetLoading(false)
       return
     }
 
@@ -1105,7 +1118,7 @@ export function Messages() {
       await api.markDirectConversationRead(target.id)
       setDirectConversations((prev) => prev.map((conversation) => conversation.id === target.id ? { ...conversation, unread_count: 0, last_read_at: new Date().toISOString() } : conversation))
     }
-    setLoadingTarget(false)
+    if (showTargetLoader) setTargetLoading(false)
   }
 
   useEffect(() => {
@@ -1178,8 +1191,12 @@ export function Messages() {
     const options = targetLoadOptionsRef.current
     targetLoadOptionsRef.current = {}
     loadTarget(selectedTarget, canAutoMarkRead(true), options)
-    const interval = window.setInterval(() => loadTarget(selectedTarget, canAutoMarkRead()), 30000)
-    const onFocus = () => loadTarget(selectedTarget, canAutoMarkRead())
+    const refreshTarget = () => {
+      if (loadingTargetRef.current) return
+      loadTarget(selectedTarget, canAutoMarkRead(), { background: true })
+    }
+    const interval = window.setInterval(refreshTarget, 30000)
+    const onFocus = refreshTarget
     window.addEventListener('focus', onFocus)
 
     return () => {
@@ -1437,7 +1454,7 @@ export function Messages() {
   const selectTarget = (target: Target, options: TargetLoadOptions = {}) => {
     window.history.replaceState(null, '', target.type === 'channel' ? `/messages/${target.id}` : `/messages/dm/${target.id}`)
     targetLoadOptionsRef.current = options
-    setLoadingTarget(true)
+    setTargetLoading(true)
     shouldStickToBottomRef.current = !options.aroundMessageId
     startNavigationTransition(() => {
       setSelectedTarget(target)
