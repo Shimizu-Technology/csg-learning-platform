@@ -207,6 +207,47 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
     assert_response :created
   end
 
+  test "student cannot view cohort student view" do
+    as_user(@student) do
+      get "/api/v1/cohorts/#{@cohort.id}/student_view", headers: auth_headers
+    end
+
+    assert_response :forbidden
+  end
+
+  test "instructor can view read-only cohort student view" do
+    lesson = Lesson.create!(curriculum_module: @mod, title: "Intro", position: 0, release_day: 0)
+    ContentBlock.create!(lesson: lesson, block_type: :text, position: 0, title: "Welcome")
+    CohortModuleSchedule.create!(
+      cohort: @cohort,
+      curriculum_module: @mod,
+      start_date: @mod.next_start_date_on_or_after(Date.current)
+    )
+    Announcement.create!(
+      title: "Class note",
+      body: "Visible to this cohort",
+      author: @admin,
+      audience: :cohort,
+      cohort: @cohort,
+      status: :published
+    )
+
+    as_user(@instructor) do
+      get "/api/v1/cohorts/#{@cohort.id}/student_view", headers: auth_headers
+    end
+
+    assert_response :success
+    data = JSON.parse(response.body).fetch("student_view")
+    mod = data.fetch("modules").first
+
+    assert_equal @cohort.id, data.dig("cohort", "id")
+    assert_equal true, data.fetch("read_only")
+    assert_equal true, mod.fetch("assigned")
+    assert_equal 1, mod.fetch("lessons_count")
+    assert_equal "Intro", mod.fetch("lessons").first.fetch("title")
+    assert_equal [ "Class note" ], data.fetch("announcements").map { |announcement| announcement.fetch("title") }
+  end
+
   # --- Curricula (staff for read, admin for write) ---
 
   test "student cannot list curricula" do

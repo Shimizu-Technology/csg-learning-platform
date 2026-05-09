@@ -13,6 +13,7 @@ import {
   CohortDetail,
   CohortManagement,
   CohortModuleGrading,
+  CohortStudentView,
   CohortWatchProgress,
   ContentManagement,
   Dashboard,
@@ -82,6 +83,7 @@ function AppRoutes() {
             <Route path="/admin/students/:id/preview" element={<SuspendedRoute><StudentPreview /></SuspendedRoute>} />
             <Route path="/admin/cohorts" element={<SuspendedRoute><CohortManagement /></SuspendedRoute>} />
             <Route path="/admin/cohorts/:id" element={<SuspendedRoute><CohortDetail /></SuspendedRoute>} />
+            <Route path="/admin/cohorts/:id/student-view" element={<SuspendedRoute><CohortStudentView /></SuspendedRoute>} />
             <Route path="/admin/cohorts/:id/watch-progress" element={<SuspendedRoute><CohortWatchProgress /></SuspendedRoute>} />
             <Route path="/admin/grading" element={<SuspendedRoute><Grading /></SuspendedRoute>} />
             <Route path="/admin/cohorts/:cohortId/modules/:moduleId/grading" element={<SuspendedRoute><CohortModuleGrading /></SuspendedRoute>} />

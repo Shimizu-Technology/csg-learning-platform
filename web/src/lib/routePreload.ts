@@ -28,6 +28,7 @@ const studentPreviewLoader = () => import('../pages/admin/StudentPreview').then(
 const studentManagementLoader = () => import('../pages/admin/StudentManagement').then((module) => ({ default: module.StudentManagement }))
 const cohortManagementLoader = () => import('../pages/admin/CohortManagement').then((module) => ({ default: module.CohortManagement }))
 const cohortDetailLoader = () => import('../pages/admin/CohortDetail').then((module) => ({ default: module.CohortDetail }))
+const cohortStudentViewLoader = () => import('../pages/admin/CohortStudentView').then((module) => ({ default: module.CohortStudentView }))
 const contentManagementLoader = () => import('../pages/admin/ContentManagement').then((module) => ({ default: module.ContentManagement }))
 const lessonEditorLoader = () => import('../pages/admin/LessonEditor').then((module) => ({ default: module.LessonEditor }))
 const gradingLoader = () => import('../pages/admin/Grading').then((module) => ({ default: module.Grading }))
@@ -53,6 +54,7 @@ export const StudentPreview = lazyWithPreload(studentPreviewLoader)
 export const StudentManagement = lazyWithPreload(studentManagementLoader)
 export const CohortManagement = lazyWithPreload(cohortManagementLoader)
 export const CohortDetail = lazyWithPreload(cohortDetailLoader)
+export const CohortStudentView = lazyWithPreload(cohortStudentViewLoader)
 export const ContentManagement = lazyWithPreload(contentManagementLoader)
 export const LessonEditor = lazyWithPreload(lessonEditorLoader)
 export const Grading = lazyWithPreload(gradingLoader)
@@ -73,7 +75,7 @@ const routePreloaders: Record<string, Array<() => Promise<unknown>>> = {
   '/messages': [messagesLoader],
   '/admin': [adminDashboardLoader],
   '/admin/students': [studentManagementLoader, studentDetailLoader, studentPreviewLoader],
-  '/admin/cohorts': [cohortManagementLoader, cohortDetailLoader, cohortWatchProgressLoader],
+  '/admin/cohorts': [cohortManagementLoader, cohortDetailLoader, cohortStudentViewLoader, cohortWatchProgressLoader],
   '/admin/content': [contentManagementLoader, lessonEditorLoader],
   '/admin/grading': [gradingLoader, cohortModuleGradingLoader],
   '/admin/team': [teamManagementLoader],

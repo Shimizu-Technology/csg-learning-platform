@@ -18,6 +18,7 @@ import type {
   CurriculumResponse,
   CohortsListResponse,
   CohortResponse,
+  CohortStudentViewResponse,
   EnrollmentResponse,
   ModuleAssignmentsListResponse,
   ModuleAssignmentResponse,
@@ -573,6 +574,8 @@ export const api = {
     fetchApi<CohortsListResponse>('/api/v1/cohorts'),
   getCohort: (id: number) =>
     fetchApi<CohortResponse>(`/api/v1/cohorts/${id}`),
+  getCohortStudentView: (id: number) =>
+    fetchApi<CohortStudentViewResponse>(`/api/v1/cohorts/${id}/student_view`),
   createCohort: (data: { name: string; cohort_type: string; curriculum_id: number; start_date: string; end_date?: string; status?: string }) =>
     fetchApi<CohortResponse>('/api/v1/cohorts', {
       method: 'POST',
