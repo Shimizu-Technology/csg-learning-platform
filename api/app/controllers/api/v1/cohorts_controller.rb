@@ -4,7 +4,8 @@ module Api
       before_action :authenticate_user!
       before_action :require_staff!, only: [ :index, :show, :student_view ]
       before_action :require_admin!, except: [ :index, :show, :student_view ]
-      before_action :set_cohort, only: [ :show, :student_view, :update, :destroy, :module_access, :announcements, :recordings, :class_resources ]
+      before_action :set_cohort, only: [ :show, :update, :destroy, :module_access, :announcements, :recordings, :class_resources ]
+      before_action :set_cohort_with_lessons, only: [ :student_view ]
 
       # GET /api/v1/cohorts
       def index
@@ -159,6 +160,10 @@ module Api
       private
 
       def set_cohort
+        @cohort = Cohort.includes(:cohort_module_schedules, curriculum: :modules).find(params[:id])
+      end
+
+      def set_cohort_with_lessons
         @cohort = Cohort.includes(:cohort_module_schedules, curriculum: { modules: { lessons: :content_blocks } }).find(params[:id])
       end
 
@@ -249,7 +254,7 @@ module Api
       def cohort_student_view_json(cohort)
         modules = cohort.curriculum.modules.sort_by(&:position)
         schedule_index = cohort.cohort_module_schedules.index_by(&:module_id)
-        active_enrollments = cohort.enrollments.active.includes(module_assignments: :curriculum_module)
+        active_enrollments = cohort.enrollments.active.includes(module_assignments: :curriculum_module).to_a
         assignment_index = active_enrollments.each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |enrollment, hash|
           enrollment.module_assignments.each { |assignment| hash[assignment.module_id] << assignment }
         end
@@ -270,7 +275,7 @@ module Api
             start_date: cohort.start_date,
             end_date: cohort.end_date,
             curriculum_name: cohort.curriculum.name,
-            active_count: cohort.enrollments.active.count
+            active_count: active_enrollments.size
           },
           read_only: true,
           generated_at: Time.current.iso8601,
@@ -295,7 +300,7 @@ module Api
 
       def cohort_student_view_module_json(cohort, mod, schedule, assignments, module_github_config)
         assigned = schedule.present? || assignments.any?
-        start_date = schedule&.start_date || mod.legacy_start_date_for(cohort)
+        start_date = cohort_student_view_module_start_date(cohort, mod, schedule, assignments, assigned)
         module_available = assigned && cohort_student_view_module_available?(cohort, assignments, start_date)
         requires_github = module_github_config["requires_github"] || false
         lesson_data = mod.lessons.sort_by(&:position).map do |lesson|
@@ -319,6 +324,15 @@ module Api
         }
       end
 
+      def cohort_student_view_module_start_date(cohort, mod, schedule, assignments, assigned)
+        return schedule.start_date if schedule.present?
+
+        assignment_start_date = assignments.filter_map { |assignment| assignment.effective_start_date(cohort) }.min
+        return assignment_start_date if assignment_start_date.present?
+
+        assigned ? mod.legacy_start_date_for(cohort) : nil
+      end
+
       def cohort_student_view_module_available?(_cohort, assignments, start_date)
         return true if assignments.any?(&:unlocked?)
 
@@ -326,8 +340,8 @@ module Api
       end
 
       def cohort_student_view_lesson_json(_cohort, mod, lesson, module_start_date, module_available, requires_github)
-        unlock_date = module_start_date + mod.calendar_offset_for(lesson.release_day)
-        available = module_available && Date.current >= unlock_date
+        unlock_date = module_start_date.present? ? module_start_date + mod.calendar_offset_for(lesson.release_day) : nil
+        available = module_available && unlock_date.present? && Date.current >= unlock_date
 
         {
           id: lesson.id,

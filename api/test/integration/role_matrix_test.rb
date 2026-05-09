@@ -248,6 +248,22 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
     assert_equal [ "Class note" ], data.fetch("announcements").map { |announcement| announcement.fetch("title") }
   end
 
+  test "cohort student view handles unassigned modules without start dates" do
+    Lesson.create!(curriculum_module: @mod, title: "Hidden Intro", position: 0, release_day: 0)
+
+    as_user(@instructor) do
+      get "/api/v1/cohorts/#{@cohort.id}/student_view", headers: auth_headers
+    end
+
+    assert_response :success
+    mod = JSON.parse(response.body).dig("student_view", "modules").first
+
+    assert_equal false, mod.fetch("assigned")
+    assert_nil mod.fetch("module_start_date")
+    assert_equal false, mod.fetch("lessons").first.fetch("available")
+    assert_nil mod.fetch("lessons").first.fetch("unlock_date")
+  end
+
   # --- Curricula (staff for read, admin for write) ---
 
   test "student cannot list curricula" do

@@ -518,7 +518,7 @@ export interface CohortStudentViewLesson {
   position: number;
   release_day: number;
   required: boolean;
-  unlock_date: string;
+  unlock_date: string | null;
   available: boolean;
   content_blocks_count: number;
   completion_blocks_count: number;
@@ -533,7 +533,7 @@ export interface CohortStudentViewModule {
   position: number;
   assigned: boolean;
   available: boolean;
-  module_start_date: string;
+  module_start_date: string | null;
   repository_name: string | null;
   requires_github: boolean;
   lessons_count: number;
