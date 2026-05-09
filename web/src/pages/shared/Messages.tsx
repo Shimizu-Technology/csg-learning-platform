@@ -1,4 +1,5 @@
 import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams } from 'react-router-dom'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -508,22 +509,53 @@ function ComposerToolbarButton({
   onClick?: () => void
   onMouseDown?: (event: MouseEvent<HTMLButtonElement>) => void
 }) {
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const [tooltipPosition, setTooltipPosition] = useState<{ left: number; top: number } | null>(null)
+
+  const showTooltip = () => {
+    const button = buttonRef.current
+    if (!button || typeof window === 'undefined') return
+
+    const rect = button.getBoundingClientRect()
+    setTooltipPosition({
+      left: Math.min(Math.max(rect.left + rect.width / 2, 16), window.innerWidth - 16),
+      top: rect.top - 10,
+    })
+  }
+
+  const hideTooltip = () => setTooltipPosition(null)
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      onMouseDown={onMouseDown}
-      className={`group/toolbar relative min-h-9 shrink-0 rounded-lg p-2 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
-        active ? 'bg-slate-100 text-slate-900' : ''
-      } ${className}`}
-      aria-label={shortcut ? `${label} (${shortcut})` : label}
-    >
-      {children}
-      <span className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded-lg bg-slate-950 px-2.5 py-1.5 text-xs font-semibold text-white shadow-lg group-hover/toolbar:block group-focus-visible/toolbar:block">
-        {label}
-        {shortcut && <span className="ml-2 font-medium text-slate-300">{shortcut}</span>}
-      </span>
-    </button>
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={onClick}
+        onMouseDown={onMouseDown}
+        onMouseEnter={showTooltip}
+        onMouseLeave={hideTooltip}
+        onFocus={showTooltip}
+        onBlur={hideTooltip}
+        className={`relative min-h-9 shrink-0 rounded-lg p-2 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
+          active ? 'bg-slate-100 text-slate-900' : ''
+        } ${className}`}
+        aria-label={shortcut ? `${label} (${shortcut})` : label}
+      >
+        {children}
+      </button>
+      {tooltipPosition && typeof document !== 'undefined' && createPortal(
+        <div
+          className="pointer-events-none fixed z-[9999] -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg bg-slate-950 px-2.5 py-1.5 text-xs font-semibold text-white shadow-lg"
+          style={{ left: tooltipPosition.left, top: tooltipPosition.top }}
+          role="tooltip"
+        >
+          {label}
+          {shortcut && <span className="ml-2 font-medium text-slate-300">{shortcut}</span>}
+          <span className="absolute left-1/2 top-full h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-slate-950" aria-hidden="true" />
+        </div>,
+        document.body,
+      )}
+    </>
   )
 }
 
