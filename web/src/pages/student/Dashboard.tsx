@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowRight, BookOpen, Clock, Lock, PlayCircle, CalendarDays, CheckCircle2, RotateCcw, RefreshCw, WifiOff } from 'lucide-react'
+import { ArrowRight, BookOpen, Clock, Lock, PlayCircle, CalendarDays, CheckCircle2, RotateCcw, RefreshCw, WifiOff, Link2, ExternalLink } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { ProgressRing } from '../../components/shared/ProgressRing'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
+import { sanitizeUrl } from '../../lib/sanitizeUrl'
 
-interface DashboardData {
+export interface DashboardData {
   enrolled: boolean
   user: { id: number; full_name: string; role: string }
   cohort?: {
@@ -57,6 +58,7 @@ interface DashboardData {
   }>
   continue_lesson?: { id: number; title: string } | null
   action_items?: Array<{ type: string; submission_id: number; lesson_id: number; lesson_title: string; content_block_title: string; feedback: string | null }>
+  resources?: Array<{ id: number; title: string; url: string; category: string; description: string | null }>
 }
 
 function formatDate(dateStr: string | null | undefined): string {
@@ -64,11 +66,17 @@ function formatDate(dateStr: string | null | undefined): string {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-export function Dashboard() {
+interface DashboardProps {
+  previewData?: DashboardData
+  previewBanner?: ReactNode
+  disableStaffRedirect?: boolean
+}
+
+export function Dashboard({ previewData, previewBanner, disableStaffRedirect = false }: DashboardProps = {}) {
   const { user } = useAuthContext()
   const navigate = useNavigate()
-  const [data, setData] = useState<DashboardData | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState<DashboardData | null>(previewData || null)
+  const [loading, setLoading] = useState(!previewData)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showingSavedData, setShowingSavedData] = useState(false)
 
@@ -78,7 +86,13 @@ export function Dashboard() {
   }
 
   const loadDashboard = useCallback(() => {
-    if (user?.is_staff) {
+    if (previewData) {
+      setData(previewData)
+      setLoading(false)
+      return
+    }
+
+    if (user?.is_staff && !disableStaffRedirect) {
       navigate('/admin', { replace: true })
       return
     }
@@ -102,7 +116,7 @@ export function Dashboard() {
         setLoadError(error instanceof Error ? error.message : 'Unable to load your dashboard right now.')
       })
       .finally(() => setLoading(false))
-  }, [user, navigate])
+  }, [disableStaffRedirect, navigate, previewData, user])
 
   useEffect(() => {
     loadDashboard()
@@ -178,6 +192,7 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
+      {previewBanner}
       {showingSavedData && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           Showing saved dashboard data while your connection catches up.
@@ -264,6 +279,39 @@ export function Dashboard() {
                 {announcement.body && <p className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{announcement.body}</p>}
               </Link>
             ))}
+        </div>
+      )}
+
+      {data.resources && data.resources.length > 0 && (
+        <div className="rounded-2xl bg-white border border-slate-200 p-4 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+              <Link2 className="h-4 w-4 text-primary-500" />
+              Class Resources
+            </h3>
+            <Link to="/resources" className="text-xs font-medium text-primary-600 hover:text-primary-700">
+              View all
+            </Link>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {data.resources.slice(0, 4).map((resource) => (
+              <a
+                key={resource.id}
+                href={sanitizeUrl(resource.url)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 hover:border-primary-200"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold text-slate-900">{resource.title}</span>
+                  {resource.description && (
+                    <span className="mt-0.5 line-clamp-1 block text-xs text-slate-500">{resource.description}</span>
+                  )}
+                </span>
+                <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+              </a>
+            ))}
+          </div>
         </div>
       )}
 
@@ -405,4 +453,8 @@ export function Dashboard() {
       </div>
     </div>
   )
+}
+
+export function DashboardRoute() {
+  return <Dashboard />
 }

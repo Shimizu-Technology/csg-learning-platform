@@ -266,6 +266,9 @@ module Api
         visible_lessons = module_data.sum { |mod| mod[:visible_lessons_count] }
         total_lessons = module_data.sum { |mod| mod[:lessons_count] }
         available_modules = module_data.count { |mod| mod[:available] }
+        announcements = cohort_student_view_announcements(cohort)
+        resources = cohort_student_view_resources(cohort)
+        dashboard = cohort_student_dashboard_preview_json(cohort, module_data, announcements, resources)
 
         {
           cohort: {
@@ -288,13 +291,67 @@ module Api
             locked_lessons: total_lessons - visible_lessons
           },
           modules: module_data,
-          announcements: cohort_student_view_announcements(cohort),
-          resources: Array((cohort.settings || {})["class_resources"]),
+          dashboard: dashboard,
+          announcements: announcements,
+          resources: resources,
           recordings: {
             uploaded_count: cohort.recordings.count,
             legacy_count: Array((cohort.settings || {})["recordings"]).size,
             items: cohort_student_view_recordings(cohort)
           }
+        }
+      end
+
+      def cohort_student_dashboard_preview_json(cohort, module_data, announcements, resources)
+        dashboard_modules = module_data.select { |mod| mod[:assigned] }.map do |mod|
+          total_blocks = mod[:lessons].sum { |lesson| lesson[:completion_blocks_count] }
+          {
+            id: mod[:id],
+            name: mod[:name],
+            module_type: mod[:module_type],
+            position: mod[:position],
+            total_blocks: total_blocks,
+            completed_blocks: 0,
+            progress_percentage: 0,
+            assigned: mod[:assigned],
+            unlocked: mod[:available],
+            available: mod[:available],
+            unlock_date: mod[:module_start_date],
+            lessons: mod[:lessons].map { |lesson|
+              {
+                id: lesson[:id],
+                title: lesson[:title],
+                lesson_type: lesson[:lesson_type],
+                release_day: lesson[:release_day],
+                required: lesson[:required],
+                available: lesson[:available],
+                unlock_date: lesson[:unlock_date],
+                total_blocks: lesson[:completion_blocks_count],
+                completed_blocks: 0,
+                completed: false
+              }
+            }
+          }
+        end
+        total_blocks = dashboard_modules.sum { |mod| mod[:total_blocks] }
+        continue_lesson = dashboard_modules.flat_map { |mod| mod[:lessons] }.find { |lesson| lesson[:available] }
+
+        {
+          enrolled: true,
+          user: { id: 0, full_name: "Student Preview", role: "student" },
+          cohort: {
+            id: cohort.id,
+            name: cohort.name,
+            start_date: cohort.start_date,
+            status: cohort.status,
+            announcements: announcements,
+            unread_notifications_count: announcements.size
+          },
+          overall_progress: { completed: 0, total: total_blocks, percentage: 0 },
+          modules: dashboard_modules,
+          continue_lesson: continue_lesson && { id: continue_lesson[:id], title: continue_lesson[:title] },
+          action_items: [],
+          resources: resources
         }
       end
 
@@ -385,6 +442,18 @@ module Api
               full_name: announcement.author.full_name,
               email: announcement.author.email
             }
+          }
+        end
+      end
+
+      def cohort_student_view_resources(cohort)
+        Array((cohort.settings || {})["class_resources"]).map.with_index do |resource, index|
+          {
+            id: index + 1,
+            title: resource["title"],
+            url: resource["url"],
+            category: resource["category"] || "general",
+            description: resource["description"]
           }
         end
       end

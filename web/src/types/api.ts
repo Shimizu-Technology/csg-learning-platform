@@ -563,8 +563,9 @@ export interface CohortStudentView {
     locked_lessons: number;
   };
   modules: CohortStudentViewModule[];
+  dashboard: unknown;
   announcements: Announcement[];
-  resources: Array<{ title: string; url: string; category?: string; description?: string | null }>;
+  resources: Array<{ id: number; title: string; url: string; category: string; description: string | null }>;
   recordings: {
     uploaded_count: number;
     legacy_count: number;

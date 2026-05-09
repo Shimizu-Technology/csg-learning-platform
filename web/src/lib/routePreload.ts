@@ -12,7 +12,7 @@ function lazyWithPreload<T extends ComponentType<unknown>>(loader: Loader<T>): L
   return Component
 }
 
-const dashboardLoader = () => import('../pages/student/Dashboard').then((module) => ({ default: module.Dashboard }))
+const dashboardLoader = () => import('../pages/student/Dashboard').then((module) => ({ default: module.DashboardRoute }))
 const homeLoader = () => import('../pages/Home').then((module) => ({ default: module.HomePage }))
 const materialsLoader = () => import('../pages/student/Materials').then((module) => ({ default: module.Materials }))
 const moduleViewLoader = () => import('../pages/student/ModuleView').then((module) => ({ default: module.ModuleView }))

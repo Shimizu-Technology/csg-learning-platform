@@ -216,12 +216,19 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
   end
 
   test "instructor can view read-only cohort student view" do
+    @cohort.update!(
+      settings: {
+        "class_resources" => [
+          { "title" => "Class Zoom", "url" => "https://example.com/zoom", "category" => "meeting" }
+        ]
+      }
+    )
     lesson = Lesson.create!(curriculum_module: @mod, title: "Intro", position: 0, release_day: 0)
     ContentBlock.create!(lesson: lesson, block_type: :text, position: 0, title: "Welcome")
     CohortModuleSchedule.create!(
       cohort: @cohort,
       curriculum_module: @mod,
-      start_date: @mod.next_start_date_on_or_after(Date.current)
+      start_date: @mod.next_start_date_on_or_after(Date.current - 7.days)
     )
     Announcement.create!(
       title: "Class note",
@@ -246,6 +253,9 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
     assert_equal 1, mod.fetch("lessons_count")
     assert_equal "Intro", mod.fetch("lessons").first.fetch("title")
     assert_equal [ "Class note" ], data.fetch("announcements").map { |announcement| announcement.fetch("title") }
+    assert_equal "Student Preview", data.dig("dashboard", "user", "full_name")
+    assert_equal "Intro", data.dig("dashboard", "continue_lesson", "title")
+    assert_equal "Class Zoom", data.dig("dashboard", "resources").first.fetch("title")
   end
 
   test "cohort student view handles unassigned modules without start dates" do
