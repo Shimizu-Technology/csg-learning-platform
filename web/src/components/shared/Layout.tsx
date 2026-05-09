@@ -54,35 +54,36 @@ export function Layout({ children }: LayoutProps) {
   useEffect(() => {
     if (!user) return
 
-    let active = true
-
     api.getNotifications({ per_page: 1, notification_type: 'announcement' }).then((res) => {
-      if (active && res.data) setUnreadCount(res.data.unread_count)
+      if (res.data) setUnreadCount(res.data.unread_count)
     })
     Promise.all([api.getChannels(), api.getDirectConversations()]).then(([channelRes, dmRes]) => {
-      if (!active) return
       channelUnreadCountsRef.current = new Map((channelRes.data?.channels || []).map((channel) => [channel.id, channel.unread_count]))
       directConversationUnreadCountsRef.current = new Map((dmRes.data?.direct_conversations || []).map((conversation) => [conversation.id, conversation.unread_count]))
       syncMessageUnreadCount()
     })
+  }, [user, location.pathname])
 
-    if (pushSupported() && Notification.permission === 'granted') {
-      api.getPushConfig().then((config) => {
-        if (!active) return
+  useEffect(() => {
+    if (!user || !pushSupported() || Notification.permission !== 'granted') return
 
-        const publicKey = config.data?.public_key || import.meta.env.VITE_WEB_PUSH_PUBLIC_KEY
-        if (!config.data?.configured || !publicKey) return
+    let active = true
 
-        refreshExistingPushSubscription(publicKey).catch((error) => {
-          console.warn('Push subscription refresh failed:', error)
-        })
+    api.getPushConfig().then((config) => {
+      if (!active) return
+
+      const publicKey = config.data?.public_key || import.meta.env.VITE_WEB_PUSH_PUBLIC_KEY
+      if (!config.data?.configured || !publicKey) return
+
+      refreshExistingPushSubscription(publicKey).catch((error) => {
+        console.warn('Push subscription refresh failed:', error)
       })
-    }
+    })
 
     return () => {
       active = false
     }
-  }, [user, location.pathname])
+  }, [user])
 
   useEffect(() => {
     if (!user) return

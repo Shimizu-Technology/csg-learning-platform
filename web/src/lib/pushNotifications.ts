@@ -120,10 +120,9 @@ export async function refreshExistingPushSubscription(publicKey: string) {
   const registration = await navigator.serviceWorker.ready
   const existing = await registration.pushManager.getSubscription()
   if (!existing) return false
+  if (subscriptionUsesPublicKey(existing, publicKey)) return false
 
-  const subscription = subscriptionUsesPublicKey(existing, publicKey)
-    ? existing
-    : await subscribeWithPublicKey(registration, publicKey)
+  const subscription = await subscribeWithPublicKey(registration, publicKey)
   await saveSubscription(subscription)
 
   return true
