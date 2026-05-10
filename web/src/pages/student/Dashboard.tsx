@@ -8,58 +8,7 @@ import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
-
-export interface DashboardData {
-  enrolled: boolean
-  user: { id: number; full_name: string; role: string }
-  cohort?: {
-    id: number
-    name: string
-    start_date: string
-    status: string
-    announcements?: Array<{
-      id: number
-      title: string
-      body: string
-      pinned: boolean
-      published_at?: string | null
-      read_at?: string | null
-      cohort_name?: string | null
-      author?: {
-        id: number
-        full_name: string
-        email: string
-      }
-    }>
-    unread_notifications_count?: number
-  }
-  overall_progress?: { completed: number; total: number; percentage: number }
-  modules?: Array<{
-    id: number
-    name: string
-    module_type: string
-    progress_percentage: number
-    completed_blocks: number
-    total_blocks: number
-    assigned: boolean
-    unlocked: boolean
-    available: boolean
-    unlock_date: string | null
-    lessons: Array<{
-      id: number
-      title: string
-      lesson_type: string
-      available: boolean
-      unlock_date: string
-      completed: boolean
-      total_blocks: number
-      completed_blocks: number
-    }>
-  }>
-  continue_lesson?: { id: number; title: string } | null
-  action_items?: Array<{ type: string; submission_id: number; lesson_id: number; lesson_title: string; content_block_title: string; feedback: string | null }>
-  resources?: Array<{ id: number; title: string; url: string; category: string; description: string | null }>
-}
+import type { DashboardData } from '../../types/api'
 
 function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return 'TBD'
@@ -151,7 +100,7 @@ export function Dashboard({ previewData, previewBanner, disableStaffRedirect = f
     )
 
     const nextLockedLesson = lockedLessons
-      .sort((a, b) => new Date(a.unlock_date).getTime() - new Date(b.unlock_date).getTime())[0] || null
+      .sort((a, b) => unlockTime(a.unlock_date) - unlockTime(b.unlock_date))[0] || null
 
     const completedModules = modules.filter((mod) => mod.total_blocks > 0 && mod.completed_blocks === mod.total_blocks).length
     const activeModules = modules.filter((mod) => mod.available && mod.total_blocks > 0 && mod.completed_blocks < mod.total_blocks).length
@@ -453,6 +402,10 @@ export function Dashboard({ previewData, previewBanner, disableStaffRedirect = f
       </div>
     </div>
   )
+}
+
+function unlockTime(dateStr: string | null | undefined) {
+  return dateStr ? new Date(dateStr).getTime() : Number.POSITIVE_INFINITY
 }
 
 export function DashboardRoute() {

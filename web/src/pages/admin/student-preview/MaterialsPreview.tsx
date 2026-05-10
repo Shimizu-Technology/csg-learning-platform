@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { ArrowRight, BookOpen, CheckCircle2, Clock, Lock, RotateCcw, Search } from 'lucide-react'
 import { EmptyState } from '../../../components/shared/EmptyState'
 import { ProgressBar } from '../../../components/shared/ProgressBar'
-import type { DashboardData } from '../../student/Dashboard'
+import type { DashboardData } from '../../../types/api'
 
 type MaterialFilter = 'ready' | 'all' | 'redo' | 'completed' | 'locked'
 

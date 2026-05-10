@@ -17,7 +17,7 @@ import { api } from '../../lib/api'
 import type { CohortStudentView as CohortStudentViewData } from '../../types/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
-import { Dashboard, type DashboardData } from '../student/Dashboard'
+import { Dashboard } from '../student/Dashboard'
 import { MaterialsPreview } from './student-preview/MaterialsPreview'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 
@@ -217,13 +217,13 @@ function PreviewContent({ data, activeSection }: { data: CohortStudentViewData; 
   if (activeSection === 'dashboard') {
     return (
       <Dashboard
-        previewData={data.dashboard as DashboardData}
+        previewData={data.dashboard}
         disableStaffRedirect
       />
     )
   }
 
-  if (activeSection === 'materials') return <MaterialsPreview data={data.dashboard as DashboardData} />
+  if (activeSection === 'materials') return <MaterialsPreview data={data.dashboard} />
   if (activeSection === 'resources') return <ResourcesPreview data={data} />
   if (activeSection === 'recordings') return <RecordingsPreview data={data} />
   if (activeSection === 'announcements') return <AnnouncementsPreview data={data} />

@@ -511,6 +511,48 @@ export interface CohortDetail extends CohortSummary {
   class_resources?: Array<{ title: string; url: string; category?: string; description?: string }>;
 }
 
+export interface DashboardData {
+  enrolled: boolean;
+  user: { id: number; full_name: string; role: string };
+  cohort?: {
+    id: number;
+    name: string;
+    start_date: string;
+    status: string;
+    announcements?: Announcement[];
+    unread_notifications_count?: number;
+  };
+  overall_progress?: { completed: number; total: number; percentage: number };
+  modules?: Array<{
+    id: number;
+    name: string;
+    module_type: string;
+    position?: number;
+    progress_percentage: number;
+    completed_blocks: number;
+    total_blocks: number;
+    assigned: boolean;
+    unlocked: boolean;
+    available: boolean;
+    unlock_date: string | null;
+    lessons: Array<{
+      id: number;
+      title: string;
+      lesson_type: string;
+      release_day?: number;
+      required?: boolean;
+      available: boolean;
+      unlock_date: string | null;
+      completed: boolean;
+      total_blocks: number;
+      completed_blocks: number;
+    }>;
+  }>;
+  continue_lesson?: { id: number; title: string } | null;
+  action_items?: Array<{ type: string; submission_id: number; lesson_id: number; lesson_title: string; content_block_title: string; feedback: string | null }>;
+  resources?: Array<{ id: number; title: string; url: string; category: string; description: string | null }>;
+}
+
 export interface CohortStudentViewLesson {
   id: number;
   title: string;
@@ -563,7 +605,7 @@ export interface CohortStudentView {
     locked_lessons: number;
   };
   modules: CohortStudentViewModule[];
-  dashboard: unknown;
+  dashboard: DashboardData;
   announcements: Announcement[];
   resources: Array<{ id: number; title: string; url: string; category: string; description: string | null }>;
   recordings: {
