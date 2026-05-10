@@ -18,7 +18,7 @@ import type { CohortStudentView as CohortStudentViewData } from '../../types/api
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { Dashboard } from '../student/Dashboard'
-import { MaterialsPreview } from './student-preview/MaterialsPreview'
+import { Materials } from '../student/Materials'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 
 function formatDate(dateStr?: string | null) {
@@ -223,7 +223,14 @@ function PreviewContent({ data, activeSection }: { data: CohortStudentViewData; 
     )
   }
 
-  if (activeSection === 'materials') return <MaterialsPreview data={data.dashboard} />
+  if (activeSection === 'materials') {
+    return (
+      <Materials
+        previewData={data.dashboard}
+        disableStaffRedirect
+      />
+    )
+  }
   if (activeSection === 'resources') return <ResourcesPreview data={data} />
   if (activeSection === 'recordings') return <RecordingsPreview data={data} />
   if (activeSection === 'announcements') return <AnnouncementsPreview data={data} />

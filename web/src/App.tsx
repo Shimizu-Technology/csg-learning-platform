@@ -31,7 +31,6 @@ import {
   SignUpPage,
   StudentDetail,
   StudentManagement,
-  StudentPreview,
   TeamManagement,
 } from './lib/routePreload'
 
@@ -84,7 +83,6 @@ function AppRoutes() {
             <Route path="/admin" element={<SuspendedRoute><AdminDashboard /></SuspendedRoute>} />
             <Route path="/admin/students" element={<SuspendedRoute><StudentManagement /></SuspendedRoute>} />
             <Route path="/admin/students/:id" element={<SuspendedRoute><StudentDetail /></SuspendedRoute>} />
-            <Route path="/admin/students/:id/preview" element={<SuspendedRoute><StudentPreview /></SuspendedRoute>} />
             <Route path="/admin/cohorts" element={<SuspendedRoute><CohortManagement /></SuspendedRoute>} />
             <Route path="/admin/cohorts/:id" element={<SuspendedRoute><CohortDetail /></SuspendedRoute>} />
             <Route path="/admin/cohorts/:id/watch-progress" element={<SuspendedRoute><CohortWatchProgress /></SuspendedRoute>} />
