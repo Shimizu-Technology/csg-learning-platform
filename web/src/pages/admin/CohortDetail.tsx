@@ -639,6 +639,24 @@ export function CohortDetail() {
         </div>
       )}
 
+      <div className="rounded-2xl border border-primary-100 bg-primary-50/70 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">Cohort student view</p>
+            <p className="mt-1 text-sm text-slate-600">
+              Review the modules, lessons, announcements, recordings, and resources currently visible to this cohort.
+            </p>
+          </div>
+          <Link
+            to={`/admin/cohorts/${cohort.id}/student-view`}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-medium text-primary-700 shadow-sm ring-1 ring-primary-100 hover:bg-primary-50"
+          >
+            <Eye className="h-4 w-4" />
+            Open student view
+          </Link>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 space-y-4">
           <div className="space-y-3 rounded-2xl bg-white border border-slate-200 p-5">

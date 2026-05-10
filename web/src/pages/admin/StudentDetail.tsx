@@ -895,11 +895,11 @@ export function StudentDetail() {
               {overall_progress.completed}/{overall_progress.total} blocks
             </p>
             <Link
-              to={`/admin/students/${user.id}/preview`}
+              to={`/admin/cohorts/${cohort.id}/student-view`}
               className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-xs font-medium text-primary-700 hover:bg-primary-100"
             >
               <Eye className="h-3.5 w-3.5" />
-              Student view
+              Cohort student view
             </Link>
           </div>
         </div>

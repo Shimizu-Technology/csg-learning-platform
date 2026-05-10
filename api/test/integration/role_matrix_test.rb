@@ -207,6 +207,100 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
     assert_response :created
   end
 
+  test "student cannot view cohort student view" do
+    as_user(@student) do
+      get "/api/v1/cohorts/#{@cohort.id}/student_view", headers: auth_headers
+    end
+
+    assert_response :forbidden
+  end
+
+  test "instructor can view read-only cohort student view" do
+    @cohort.update!(
+      settings: {
+        "class_resources" => [
+          { "title" => "Class Zoom", "url" => "https://example.com/zoom", "category" => "meeting" }
+        ]
+      }
+    )
+    lesson = Lesson.create!(curriculum_module: @mod, title: "Intro", position: 0, release_day: 0)
+    ContentBlock.create!(lesson: lesson, block_type: :text, position: 0, title: "Welcome")
+    CohortModuleSchedule.create!(
+      cohort: @cohort,
+      curriculum_module: @mod,
+      start_date: @mod.next_start_date_on_or_after(Date.current - 7.days)
+    )
+    Announcement.create!(
+      title: "Class note",
+      body: "Visible to this cohort",
+      author: @admin,
+      audience: :cohort,
+      cohort: @cohort,
+      status: :published
+    )
+
+    as_user(@instructor) do
+      get "/api/v1/cohorts/#{@cohort.id}/student_view", headers: auth_headers
+    end
+
+    assert_response :success
+    data = JSON.parse(response.body).fetch("student_view")
+    mod = data.fetch("modules").first
+
+    assert_equal @cohort.id, data.dig("cohort", "id")
+    assert_equal true, data.fetch("read_only")
+    assert_equal true, mod.fetch("assigned")
+    assert_equal 1, mod.fetch("lessons_count")
+    assert_equal "Intro", mod.fetch("lessons").first.fetch("title")
+    assert_equal [ "Class note" ], data.fetch("announcements").map { |announcement| announcement.fetch("title") }
+    assert_equal "Student Preview", data.dig("dashboard", "user", "full_name")
+    assert_equal "Intro", data.dig("dashboard", "continue_lesson", "title")
+    assert_equal "Class Zoom", data.dig("dashboard", "resources").first.fetch("title")
+  end
+
+  test "cohort student view handles announcements without authors" do
+    announcement = Announcement.create!(
+      title: "Old notice",
+      body: "Author was deleted",
+      author: @admin,
+      audience: :cohort,
+      cohort: @cohort,
+      status: :published
+    )
+    announcement.define_singleton_method(:author) { nil }
+
+    json = Api::V1::CohortsController.new.send(:cohort_student_view_announcement_json, announcement)
+
+    assert_nil json.fetch(:author)
+  end
+
+  test "cohort student view handles unassigned modules without start dates" do
+    Lesson.create!(curriculum_module: @mod, title: "Hidden Intro", position: 0, release_day: 0)
+
+    as_user(@instructor) do
+      get "/api/v1/cohorts/#{@cohort.id}/student_view", headers: auth_headers
+    end
+
+    assert_response :success
+    mod = JSON.parse(response.body).dig("student_view", "modules").first
+
+    assert_equal false, mod.fetch("assigned")
+    assert_nil mod.fetch("module_start_date")
+    assert_equal false, mod.fetch("lessons").first.fetch("available")
+    assert_nil mod.fetch("lessons").first.fetch("unlock_date")
+  end
+
+  test "cohort student view does not mark unlocked assignments available without a start date" do
+    cohort = Cohort.new(curriculum: @curriculum, name: "Unsaved", start_date: Date.current, status: :active)
+    schedule = nil
+    assignment = ModuleAssignment.new(unlocked: true, curriculum_module: @mod)
+
+    controller = Api::V1::CohortsController.new
+    available = controller.send(:cohort_student_view_module_available?, cohort, [ assignment ], schedule&.start_date)
+
+    assert_equal false, available
+  end
+
   # --- Curricula (staff for read, admin for write) ---
 
   test "student cannot list curricula" do

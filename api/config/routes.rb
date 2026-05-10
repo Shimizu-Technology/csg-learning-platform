@@ -115,6 +115,7 @@ Rails.application.routes.draw do
       resources :cohorts, only: [ :index, :show, :create, :update, :destroy ] do
         resources :enrollments, only: [ :index, :create ]
         member do
+          get :student_view
           patch :module_access
           patch :announcements
           patch :recordings

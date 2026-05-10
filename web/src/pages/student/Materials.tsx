@@ -6,44 +6,17 @@ import { useAuthContext } from '../../contexts/AuthContext'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { ProgressBar } from '../../components/shared/ProgressBar'
+import type { DashboardData } from '../../types/api'
 
 type MaterialFilter = 'ready' | 'all' | 'redo' | 'completed' | 'locked'
 
-interface LessonItem {
-  id: number
-  title: string
-  lesson_type: string
-  available: boolean
-  unlock_date: string | null
-  completed: boolean
-  total_blocks: number
-  completed_blocks: number
-}
+type MaterialsData = DashboardData
+type ModuleItem = NonNullable<MaterialsData['modules']>[number]
+type LessonItem = ModuleItem['lessons'][number]
 
-interface ModuleItem {
-  id: number
-  name: string
-  module_type: string
-  progress_percentage: number
-  completed_blocks: number
-  total_blocks: number
-  available: boolean
-  unlock_date: string | null
-  lessons: LessonItem[]
-}
-
-interface MaterialsData {
-  enrolled: boolean
-  cohort?: { id: number; name: string; start_date: string; status: string }
-  modules?: ModuleItem[]
-  action_items?: Array<{
-    type: string
-    submission_id: number
-    lesson_id: number
-    lesson_title: string
-    content_block_title: string
-    feedback: string | null
-  }>
+interface MaterialsProps {
+  previewData?: MaterialsData
+  disableStaffRedirect?: boolean
 }
 
 function formatDate(dateStr: string | null | undefined): string {
@@ -72,11 +45,11 @@ function readCollapsedModuleIds(cohortId: number | undefined): Set<number> {
   }
 }
 
-export function Materials() {
+export function Materials({ previewData, disableStaffRedirect = false }: MaterialsProps = {}) {
   const { user } = useAuthContext()
   const navigate = useNavigate()
-  const [data, setData] = useState<MaterialsData | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState<MaterialsData | null>(previewData || null)
+  const [loading, setLoading] = useState(!previewData)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showingSavedData, setShowingSavedData] = useState(false)
   const [query, setQuery] = useState('')
@@ -84,7 +57,16 @@ export function Materials() {
   const [collapsedModules, setCollapsedModules] = useState<Set<number>>(() => new Set())
 
   const loadMaterials = useCallback(() => {
-    if (user?.is_staff) {
+    if (previewData) {
+      setData(previewData)
+      setCollapsedModules(readCollapsedModuleIds(previewData.cohort?.id))
+      setLoading(false)
+      setLoadError(null)
+      setShowingSavedData(false)
+      return
+    }
+
+    if (user?.is_staff && !disableStaffRedirect) {
       navigate('/admin', { replace: true })
       return
     }
@@ -109,7 +91,7 @@ export function Materials() {
         setLoadError(error instanceof Error ? error.message : 'Unable to load your materials right now.')
       })
       .finally(() => setLoading(false))
-  }, [navigate, user])
+  }, [disableStaffRedirect, navigate, previewData, user])
 
   useEffect(() => {
     loadMaterials()
@@ -439,4 +421,8 @@ export function Materials() {
       )}
     </div>
   )
+}
+
+export function MaterialsRoute() {
+  return <Materials />
 }

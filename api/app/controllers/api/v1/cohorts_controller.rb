@@ -2,9 +2,10 @@ module Api
   module V1
     class CohortsController < ApplicationController
       before_action :authenticate_user!
-      before_action :require_staff!, only: [ :index, :show ]
-      before_action :require_admin!, except: [ :index, :show ]
+      before_action :require_staff!, only: [ :index, :show, :student_view ]
+      before_action :require_admin!, except: [ :index, :show, :student_view ]
       before_action :set_cohort, only: [ :show, :update, :destroy, :module_access, :announcements, :recordings, :class_resources ]
+      before_action :set_cohort_with_lessons, only: [ :student_view ]
 
       # GET /api/v1/cohorts
       def index
@@ -22,6 +23,13 @@ module Api
       def show
         render json: {
           cohort: cohort_json(@cohort, include_students: true, include_modules: true)
+        }
+      end
+
+      # GET /api/v1/cohorts/:id/student_view
+      def student_view
+        render json: {
+          student_view: cohort_student_view_json(@cohort)
         }
       end
 
@@ -155,6 +163,10 @@ module Api
         @cohort = Cohort.includes(:cohort_module_schedules, curriculum: :modules).find(params[:id])
       end
 
+      def set_cohort_with_lessons
+        @cohort = Cohort.includes(:cohort_module_schedules, curriculum: { modules: { lessons: :content_blocks } }).find(params[:id])
+      end
+
       def cohort_params
         params.permit(:name, :cohort_type, :curriculum_id, :start_date, :end_date,
                        :github_organization_name, :repository_name, :requires_github, :status, :settings)
@@ -237,6 +249,243 @@ module Api
             description: item[:description].to_s.strip.presence
           }
         end
+      end
+
+      def cohort_student_view_json(cohort)
+        modules = cohort.curriculum.modules.sort_by(&:position)
+        schedule_index = cohort.cohort_module_schedules.index_by(&:module_id)
+        active_enrollments = cohort.enrollments.active.includes(module_assignments: :curriculum_module).to_a
+        assignment_index = active_enrollments.each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |enrollment, hash|
+          enrollment.module_assignments.each { |assignment| hash[assignment.module_id] << assignment }
+        end
+        github_config = (cohort.settings || {}).dig("module_github_config") || {}
+        module_data = modules.map do |mod|
+          cohort_student_view_module_json(cohort, mod, schedule_index[mod.id], assignment_index[mod.id], github_config[mod.id.to_s] || {})
+        end
+
+        visible_lessons = module_data.sum { |mod| mod[:visible_lessons_count] }
+        total_lessons = module_data.sum { |mod| mod[:lessons_count] }
+        available_modules = module_data.count { |mod| mod[:available] }
+        announcements = cohort_student_view_announcements(cohort)
+        resources = cohort_student_view_resources(cohort)
+        dashboard = cohort_student_dashboard_preview_json(cohort, module_data, announcements, resources)
+
+        {
+          cohort: {
+            id: cohort.id,
+            name: cohort.name,
+            status: cohort.status,
+            start_date: cohort.start_date,
+            end_date: cohort.end_date,
+            curriculum_name: cohort.curriculum.name,
+            active_count: active_enrollments.size
+          },
+          read_only: true,
+          generated_at: Time.current.iso8601,
+          summary: {
+            assigned_modules: module_data.count { |mod| mod[:assigned] },
+            available_modules: available_modules,
+            locked_modules: module_data.count { |mod| mod[:assigned] && !mod[:available] },
+            total_lessons: total_lessons,
+            visible_lessons: visible_lessons,
+            locked_lessons: total_lessons - visible_lessons
+          },
+          modules: module_data,
+          dashboard: dashboard,
+          announcements: announcements,
+          resources: resources,
+          recordings: {
+            uploaded_count: cohort.recordings.count,
+            legacy_count: Array((cohort.settings || {})["recordings"]).size,
+            items: cohort_student_view_recordings(cohort)
+          }
+        }
+      end
+
+      def cohort_student_dashboard_preview_json(cohort, module_data, announcements, resources)
+        dashboard_modules = module_data.select { |mod| mod[:assigned] }.map do |mod|
+          total_blocks = mod[:lessons].sum { |lesson| lesson[:completion_blocks_count] }
+          {
+            id: mod[:id],
+            name: mod[:name],
+            module_type: mod[:module_type],
+            position: mod[:position],
+            total_blocks: total_blocks,
+            completed_blocks: 0,
+            progress_percentage: 0,
+            assigned: mod[:assigned],
+            unlocked: mod[:available],
+            available: mod[:available],
+            unlock_date: mod[:module_start_date],
+            lessons: mod[:lessons].map { |lesson|
+              {
+                id: lesson[:id],
+                title: lesson[:title],
+                lesson_type: lesson[:lesson_type],
+                release_day: lesson[:release_day],
+                required: lesson[:required],
+                available: lesson[:available],
+                unlock_date: lesson[:unlock_date],
+                total_blocks: lesson[:completion_blocks_count],
+                completed_blocks: 0,
+                completed: false
+              }
+            }
+          }
+        end
+        total_blocks = dashboard_modules.sum { |mod| mod[:total_blocks] }
+        continue_lesson = dashboard_modules.flat_map { |mod| mod[:lessons] }.find { |lesson| lesson[:available] }
+
+        {
+          enrolled: true,
+          user: { id: 0, full_name: "Student Preview", role: "student" },
+          cohort: {
+            id: cohort.id,
+            name: cohort.name,
+            start_date: cohort.start_date,
+            status: cohort.status,
+            announcements: announcements,
+            unread_notifications_count: announcements.size
+          },
+          overall_progress: { completed: 0, total: total_blocks, percentage: 0 },
+          modules: dashboard_modules,
+          continue_lesson: continue_lesson && { id: continue_lesson[:id], title: continue_lesson[:title] },
+          action_items: [],
+          resources: resources
+        }
+      end
+
+      def cohort_student_view_module_json(cohort, mod, schedule, assignments, module_github_config)
+        assigned = schedule.present? || assignments.any?
+        start_date = cohort_student_view_module_start_date(cohort, mod, schedule, assignments, assigned)
+        module_available = assigned && cohort_student_view_module_available?(cohort, assignments, start_date)
+        requires_github = module_github_config["requires_github"] || false
+        lesson_data = mod.lessons.sort_by(&:position).map do |lesson|
+          cohort_student_view_lesson_json(cohort, mod, lesson, start_date, module_available, requires_github)
+        end
+
+        {
+          id: mod.id,
+          name: mod.name,
+          module_type: mod.module_type,
+          position: mod.position,
+          assigned: assigned,
+          available: module_available,
+          module_start_date: start_date,
+          repository_name: module_github_config["repository_name"].presence || cohort.repository_name,
+          requires_github: requires_github,
+          lessons_count: lesson_data.size,
+          visible_lessons_count: lesson_data.count { |lesson| lesson[:available] },
+          locked_lessons_count: lesson_data.count { |lesson| !lesson[:available] },
+          lessons: lesson_data
+        }
+      end
+
+      def cohort_student_view_module_start_date(cohort, mod, schedule, assignments, assigned)
+        return schedule.start_date if schedule.present?
+
+        assignment_start_date = assignments.filter_map { |assignment| assignment.effective_start_date(cohort) }.min
+        return assignment_start_date if assignment_start_date.present?
+
+        assigned ? mod.legacy_start_date_for(cohort) : nil
+      end
+
+      def cohort_student_view_module_available?(_cohort, assignments, start_date)
+        return false unless start_date.present?
+        return true if assignments.any?(&:unlocked?)
+
+        Date.current >= start_date
+      end
+
+      def cohort_student_view_lesson_json(_cohort, mod, lesson, module_start_date, module_available, requires_github)
+        unlock_date = module_start_date.present? ? module_start_date + mod.calendar_offset_for(lesson.release_day) : nil
+        available = module_available && unlock_date.present? && Date.current >= unlock_date
+
+        {
+          id: lesson.id,
+          title: lesson.title,
+          lesson_type: lesson.lesson_type,
+          position: lesson.position,
+          release_day: lesson.release_day,
+          required: lesson.required,
+          unlock_date: unlock_date,
+          available: available,
+          content_blocks_count: lesson.content_blocks.size,
+          completion_blocks_count: lesson.completion_block_ids.size,
+          requires_submission: lesson.effective_requires_submission(requires_github: requires_github),
+          submission_type: lesson.effective_submission_type(requires_github: requires_github)
+        }
+      end
+
+      def cohort_student_view_announcements(cohort)
+        Announcement.visible_now.includes(:author, :cohort)
+                    .where(
+                      "audience = :global OR (audience = :cohort AND cohort_id = :cohort_id)",
+                      global: Announcement.audiences[:global],
+                      cohort: Announcement.audiences[:cohort],
+                      cohort_id: cohort.id
+                    )
+                    .ordered
+                    .limit(10)
+                    .map do |announcement|
+          cohort_student_view_announcement_json(announcement)
+        end
+      end
+
+      def cohort_student_view_announcement_json(announcement)
+          {
+            id: announcement.id,
+            title: announcement.title,
+            body: announcement.body,
+            pinned: announcement.pinned,
+            audience: announcement.audience,
+            status: announcement.status,
+            cohort_id: announcement.cohort_id,
+            cohort_name: announcement.cohort&.name,
+            published_at: announcement.published_at,
+            author: announcement.author && {
+              id: announcement.author.id,
+              full_name: announcement.author.full_name,
+              email: announcement.author.email
+            }
+          }
+      end
+
+      def cohort_student_view_resources(cohort)
+        Array((cohort.settings || {})["class_resources"]).map.with_index do |resource, index|
+          {
+            id: index + 1,
+            title: resource["title"],
+            url: resource["url"],
+            category: resource["category"] || "general",
+            description: resource["description"]
+          }
+        end
+      end
+
+      def cohort_student_view_recordings(cohort)
+        uploaded = cohort.recordings.order(:position, :recorded_date, :created_at).limit(6).map do |recording|
+          {
+            id: recording.id,
+            title: recording.title,
+            description: recording.description,
+            source: "uploaded",
+            recorded_date: recording.recorded_date,
+            duration_display: recording.duration_display
+          }
+        end
+        legacy = Array((cohort.settings || {})["recordings"]).first(6).map.with_index do |recording, index|
+          {
+            id: "legacy-#{index}",
+            title: recording["title"],
+            description: recording["description"],
+            source: recording["url"].to_s.include?("youtube") ? "youtube" : "external",
+            url: recording["url"],
+            date: recording["date"]
+          }
+        end
+
+        (uploaded + legacy).first(8)
       end
 
       def cohort_json(cohort, include_students: false, include_modules: false)

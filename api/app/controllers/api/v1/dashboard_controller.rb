@@ -146,9 +146,22 @@ module Api
             },
             modules: modules_data,
             continue_lesson: continue_lesson,
-            action_items: action_items
+            action_items: action_items,
+            resources: dashboard_resources_json(cohort)
           }
         }
+      end
+
+      def dashboard_resources_json(cohort)
+        Array((cohort.settings || {})["class_resources"]).map.with_index do |resource, index|
+          {
+            id: index + 1,
+            title: resource["title"],
+            url: resource["url"],
+            category: resource["category"] || "general",
+            description: resource["description"]
+          }
+        end
       end
 
       def dashboard_announcement_json(announcement, notification = nil)

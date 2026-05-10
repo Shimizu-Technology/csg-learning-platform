@@ -511,6 +511,119 @@ export interface CohortDetail extends CohortSummary {
   class_resources?: Array<{ title: string; url: string; category?: string; description?: string }>;
 }
 
+export interface DashboardData {
+  enrolled: boolean;
+  user: { id: number; full_name: string; role: string };
+  cohort?: {
+    id: number;
+    name: string;
+    start_date: string;
+    status: string;
+    announcements?: Announcement[];
+    unread_notifications_count?: number;
+  };
+  overall_progress?: { completed: number; total: number; percentage: number };
+  modules?: Array<{
+    id: number;
+    name: string;
+    module_type: string;
+    position?: number;
+    progress_percentage: number;
+    completed_blocks: number;
+    total_blocks: number;
+    assigned: boolean;
+    unlocked: boolean;
+    available: boolean;
+    unlock_date: string | null;
+    lessons: Array<{
+      id: number;
+      title: string;
+      lesson_type: string;
+      release_day?: number;
+      required?: boolean;
+      available: boolean;
+      unlock_date: string | null;
+      completed: boolean;
+      total_blocks: number;
+      completed_blocks: number;
+    }>;
+  }>;
+  continue_lesson?: { id: number; title: string } | null;
+  action_items?: Array<{ type: string; submission_id: number; lesson_id: number; lesson_title: string; content_block_title: string; feedback: string | null }>;
+  resources?: Array<{ id: number; title: string; url: string; category: string; description: string | null }>;
+}
+
+export interface CohortStudentViewLesson {
+  id: number;
+  title: string;
+  lesson_type: string;
+  position: number;
+  release_day: number;
+  required: boolean;
+  unlock_date: string | null;
+  available: boolean;
+  content_blocks_count: number;
+  completion_blocks_count: number;
+  requires_submission: boolean;
+  submission_type: string;
+}
+
+export interface CohortStudentViewModule {
+  id: number;
+  name: string;
+  module_type: string;
+  position: number;
+  assigned: boolean;
+  available: boolean;
+  module_start_date: string | null;
+  repository_name: string | null;
+  requires_github: boolean;
+  lessons_count: number;
+  visible_lessons_count: number;
+  locked_lessons_count: number;
+  lessons: CohortStudentViewLesson[];
+}
+
+export interface CohortStudentView {
+  cohort: {
+    id: number;
+    name: string;
+    status: string;
+    start_date: string;
+    end_date: string | null;
+    curriculum_name: string;
+    active_count: number;
+  };
+  read_only: boolean;
+  generated_at: string;
+  summary: {
+    assigned_modules: number;
+    available_modules: number;
+    locked_modules: number;
+    total_lessons: number;
+    visible_lessons: number;
+    locked_lessons: number;
+  };
+  modules: CohortStudentViewModule[];
+  dashboard: DashboardData;
+  announcements: Announcement[];
+  resources: Array<{ id: number; title: string; url: string; category: string; description: string | null }>;
+  recordings: {
+    uploaded_count: number;
+    legacy_count: number;
+    items: Array<{
+      id: number | string;
+      title: string;
+      description: string | null;
+      source: 'uploaded' | 'youtube' | 'external';
+      url?: string;
+      date?: string | null;
+      recorded_date?: string | null;
+      duration_display?: string | null;
+    }>;
+  };
+}
+
 export interface EnrollmentSummary {
   id: number;
   user_id: number;
@@ -1007,6 +1120,10 @@ export interface CohortsListResponse {
 
 export interface CohortResponse {
   cohort: CohortDetail;
+}
+
+export interface CohortStudentViewResponse {
+  student_view: CohortStudentView;
 }
 
 export interface EnrollmentsListResponse {

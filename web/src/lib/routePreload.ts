@@ -12,9 +12,9 @@ function lazyWithPreload<T extends ComponentType<unknown>>(loader: Loader<T>): L
   return Component
 }
 
-const dashboardLoader = () => import('../pages/student/Dashboard').then((module) => ({ default: module.Dashboard }))
+const dashboardLoader = () => import('../pages/student/Dashboard').then((module) => ({ default: module.DashboardRoute }))
 const homeLoader = () => import('../pages/Home').then((module) => ({ default: module.HomePage }))
-const materialsLoader = () => import('../pages/student/Materials').then((module) => ({ default: module.Materials }))
+const materialsLoader = () => import('../pages/student/Materials').then((module) => ({ default: module.MaterialsRoute }))
 const moduleViewLoader = () => import('../pages/student/ModuleView').then((module) => ({ default: module.ModuleView }))
 const lessonViewLoader = () => import('../pages/student/LessonView').then((module) => ({ default: module.LessonView }))
 const recordingsLoader = () => import('../pages/student/Recordings').then((module) => ({ default: module.Recordings }))
@@ -24,10 +24,10 @@ const announcementsLoader = () => import('../pages/shared/Announcements').then((
 const messagesLoader = () => import('../pages/shared/Messages').then((module) => ({ default: module.Messages }))
 const adminDashboardLoader = () => import('../pages/admin/AdminDashboard').then((module) => ({ default: module.AdminDashboard }))
 const studentDetailLoader = () => import('../pages/admin/StudentDetail').then((module) => ({ default: module.StudentDetail }))
-const studentPreviewLoader = () => import('../pages/admin/StudentPreview').then((module) => ({ default: module.StudentPreview }))
 const studentManagementLoader = () => import('../pages/admin/StudentManagement').then((module) => ({ default: module.StudentManagement }))
 const cohortManagementLoader = () => import('../pages/admin/CohortManagement').then((module) => ({ default: module.CohortManagement }))
 const cohortDetailLoader = () => import('../pages/admin/CohortDetail').then((module) => ({ default: module.CohortDetail }))
+const cohortStudentViewLoader = () => import('../pages/admin/CohortStudentView').then((module) => ({ default: module.CohortStudentView }))
 const contentManagementLoader = () => import('../pages/admin/ContentManagement').then((module) => ({ default: module.ContentManagement }))
 const lessonEditorLoader = () => import('../pages/admin/LessonEditor').then((module) => ({ default: module.LessonEditor }))
 const gradingLoader = () => import('../pages/admin/Grading').then((module) => ({ default: module.Grading }))
@@ -49,10 +49,10 @@ export const Announcements = lazyWithPreload(announcementsLoader)
 export const Messages = lazyWithPreload(messagesLoader)
 export const AdminDashboard = lazyWithPreload(adminDashboardLoader)
 export const StudentDetail = lazyWithPreload(studentDetailLoader)
-export const StudentPreview = lazyWithPreload(studentPreviewLoader)
 export const StudentManagement = lazyWithPreload(studentManagementLoader)
 export const CohortManagement = lazyWithPreload(cohortManagementLoader)
 export const CohortDetail = lazyWithPreload(cohortDetailLoader)
+export const CohortStudentView = lazyWithPreload(cohortStudentViewLoader)
 export const ContentManagement = lazyWithPreload(contentManagementLoader)
 export const LessonEditor = lazyWithPreload(lessonEditorLoader)
 export const Grading = lazyWithPreload(gradingLoader)
@@ -72,8 +72,8 @@ const routePreloaders: Record<string, Array<() => Promise<unknown>>> = {
   '/announcements': [announcementsLoader],
   '/messages': [messagesLoader],
   '/admin': [adminDashboardLoader],
-  '/admin/students': [studentManagementLoader, studentDetailLoader, studentPreviewLoader],
-  '/admin/cohorts': [cohortManagementLoader, cohortDetailLoader, cohortWatchProgressLoader],
+  '/admin/students': [studentManagementLoader, studentDetailLoader],
+  '/admin/cohorts': [cohortManagementLoader, cohortDetailLoader, cohortStudentViewLoader, cohortWatchProgressLoader],
   '/admin/content': [contentManagementLoader, lessonEditorLoader],
   '/admin/grading': [gradingLoader, cohortModuleGradingLoader],
   '/admin/team': [teamManagementLoader],
