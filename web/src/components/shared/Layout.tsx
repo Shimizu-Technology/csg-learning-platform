@@ -364,7 +364,6 @@ export function Layout({ children }: LayoutProps) {
               )}
               {collapsed && (
                 <span
-                  role="tooltip"
                   className={collapsedTooltipClassName}
                 >
                   {getNavLabel(item)}
@@ -386,7 +385,6 @@ export function Layout({ children }: LayoutProps) {
               {!collapsed && <span>Collapse</span>}
               {collapsed && (
                 <span
-                  role="tooltip"
                   className={collapsedTooltipClassName}
                 >
                   Expand sidebar
