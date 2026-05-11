@@ -17,6 +17,7 @@ import {
   PanelLeftOpen,
   Bell,
   MessageCircle,
+  type LucideIcon,
 } from 'lucide-react'
 import { UserButton } from '@clerk/clerk-react'
 import { useAuthContext } from '../../contexts/AuthContext'
@@ -28,6 +29,13 @@ import type { ChannelMessageEvent, ChannelSummary, DirectConversationSummary } f
 
 interface LayoutProps {
   children?: React.ReactNode
+}
+
+interface NavItem {
+  to: string
+  icon: LucideIcon
+  label: string
+  exact?: boolean
 }
 
 export function Layout({ children }: LayoutProps) {
@@ -158,7 +166,7 @@ export function Layout({ children }: LayoutProps) {
     }
   }
 
-  const adminNav = [
+  const adminNav: NavItem[] = [
     { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', exact: true },
     { to: '/admin/cohorts', icon: Layers3, label: 'Cohorts' },
     { to: '/admin/content', icon: FileText, label: 'Content' },
@@ -169,7 +177,7 @@ export function Layout({ children }: LayoutProps) {
     { to: '/profile', icon: User, label: 'Profile' },
   ]
 
-  const instructorNav = [
+  const instructorNav: NavItem[] = [
     { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', exact: true },
     { to: '/admin/cohorts', icon: Layers3, label: 'Cohorts' },
     { to: '/admin/grading', icon: ClipboardCheck, label: 'Grading' },
@@ -178,7 +186,7 @@ export function Layout({ children }: LayoutProps) {
     { to: '/profile', icon: User, label: 'Profile' },
   ]
 
-  const studentNav = [
+  const studentNav: NavItem[] = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/materials', icon: BookOpenText, label: 'Materials' },
     { to: '/recordings', icon: PlayCircle, label: 'Recordings' },
@@ -214,8 +222,20 @@ export function Layout({ children }: LayoutProps) {
     return location.pathname.startsWith(path)
   }
 
+  const getNavUnreadCount = (path: string) => {
+    if (path === '/announcements') return unreadCount
+    if (path === '/messages') return messageUnreadCount
+    return 0
+  }
+
+  const getNavLabel = (item: NavItem) => {
+    const count = getNavUnreadCount(item.to)
+    return count > 0 ? `${item.label}, ${count} unread` : item.label
+  }
+
   const sidebarWidth = collapsed ? 'w-[68px]' : 'w-64'
   const mainMargin = collapsed ? 'lg:ml-[68px]' : 'lg:ml-64'
+  const collapsedTooltipClassName = 'pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white opacity-0 shadow-lg shadow-slate-900/20 ring-1 ring-white/10 transition duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 lg:block'
   const getLinkHandlers = (path: string) => ({
     onMouseEnter: () => preloadRoute(path),
     onFocus: () => preloadRoute(path),
@@ -254,9 +274,10 @@ export function Layout({ children }: LayoutProps) {
                 key={item.to}
                 to={item.to}
                 onClick={() => setSidebarOpen(false)}
+                aria-current={isActive(item.to, item.exact) ? 'page' : undefined}
                 {...getLinkHandlers(item.to)}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                  isActive(item.to, 'exact' in item ? (item as { exact?: boolean }).exact : undefined)
+                  isActive(item.to, item.exact)
                     ? 'bg-primary-50 text-primary-700'
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
@@ -303,7 +324,7 @@ export function Layout({ children }: LayoutProps) {
             className={`flex min-w-0 items-center rounded-lg text-slate-900 hover:opacity-80 ${collapsed ? 'justify-center' : 'gap-2'}`}
             aria-label="Go to homepage"
           >
-          <GraduationCap className="h-6 w-6 text-primary-500 shrink-0" />
+            <GraduationCap className="h-6 w-6 text-primary-500 shrink-0" />
             {!collapsed && <span className="truncate font-semibold text-slate-900">CSG Learning Hub</span>}
           </Link>
         </div>
@@ -312,35 +333,45 @@ export function Layout({ children }: LayoutProps) {
             <Link
               key={item.to}
               to={item.to}
-              title={collapsed ? item.label : undefined}
+              aria-label={collapsed ? getNavLabel(item) : undefined}
+              aria-current={isActive(item.to, item.exact) ? 'page' : undefined}
               {...getLinkHandlers(item.to)}
-              className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-lg ${collapsed ? 'px-2' : 'px-3'} py-2.5 text-sm font-medium transition-colors ${
-                isActive(item.to, 'exact' in item ? (item as { exact?: boolean }).exact : undefined)
+              className={`group relative flex items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-lg ${collapsed ? 'px-2' : 'px-3'} py-2.5 text-sm font-medium transition-colors ${
+                isActive(item.to, item.exact)
                   ? 'bg-primary-50 text-primary-700'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
-                <span className="relative shrink-0">
-                  <item.icon className="h-5 w-5" />
-                  {item.to === '/announcements' && unreadCount > 0 && (
-                    <span className="absolute -right-2 -top-2 h-2.5 w-2.5 rounded-full bg-primary-500 ring-2 ring-white" />
-                  )}
-                  {item.to === '/messages' && messageUnreadCount > 0 && (
-                    <span className="absolute -right-2 -top-2 h-2.5 w-2.5 rounded-full bg-primary-500 ring-2 ring-white" />
-                  )}
+              <span className="relative shrink-0">
+                <item.icon className="h-5 w-5" />
+                {item.to === '/announcements' && unreadCount > 0 && (
+                  <span className="absolute -right-2 -top-2 h-2.5 w-2.5 rounded-full bg-primary-500 ring-2 ring-white" />
+                )}
+                {item.to === '/messages' && messageUnreadCount > 0 && (
+                  <span className="absolute -right-2 -top-2 h-2.5 w-2.5 rounded-full bg-primary-500 ring-2 ring-white" />
+                )}
+              </span>
+              {!collapsed && item.label}
+              {!collapsed && item.to === '/announcements' && unreadCount > 0 && (
+                <span className="ml-auto rounded-full bg-primary-100 px-2 py-0.5 text-xs font-semibold text-primary-700">
+                  {unreadCount}
                 </span>
-                {!collapsed && item.label}
-                {!collapsed && item.to === '/announcements' && unreadCount > 0 && (
-                  <span className="ml-auto rounded-full bg-primary-100 px-2 py-0.5 text-xs font-semibold text-primary-700">
-                    {unreadCount}
-                  </span>
-                )}
-                {!collapsed && item.to === '/messages' && messageUnreadCount > 0 && (
-                  <span className="ml-auto rounded-full bg-primary-100 px-2 py-0.5 text-xs font-semibold text-primary-700">
-                    {messageUnreadCount}
-                  </span>
-                )}
-              </Link>
+              )}
+              {!collapsed && item.to === '/messages' && messageUnreadCount > 0 && (
+                <span className="ml-auto rounded-full bg-primary-100 px-2 py-0.5 text-xs font-semibold text-primary-700">
+                  {messageUnreadCount}
+                </span>
+              )}
+              {collapsed && (
+                <span
+                  role="tooltip"
+                  className={collapsedTooltipClassName}
+                >
+                  {getNavLabel(item)}
+                  <span className="absolute left-0 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-slate-950" />
+                </span>
+              )}
+            </Link>
             ))}
           </nav>
 
@@ -348,11 +379,20 @@ export function Layout({ children }: LayoutProps) {
           <div className={`border-t border-slate-200 ${collapsed ? 'p-2' : 'p-4'}`}>
             <button
               onClick={toggleCollapsed}
-              title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              className={`flex items-center ${collapsed ? 'justify-center w-full' : 'gap-3 w-full'} rounded-lg px-3 py-2 text-sm text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors`}
+              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              className={`group relative flex items-center ${collapsed ? 'justify-center w-full' : 'gap-3 w-full'} rounded-lg px-3 py-2 text-sm text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors`}
             >
               {collapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
               {!collapsed && <span>Collapse</span>}
+              {collapsed && (
+                <span
+                  role="tooltip"
+                  className={collapsedTooltipClassName}
+                >
+                  Expand sidebar
+                  <span className="absolute left-0 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-slate-950" />
+                </span>
+              )}
             </button>
           </div>
 
