@@ -120,6 +120,7 @@ Returns resources/links for the current user's active cohort.
 | `PATCH` | `/api/v1/users/:id` | Admin | Update user |
 | `DELETE` | `/api/v1/users/:id` | Admin | Archive user; hard-delete only unused pending invites |
 | `POST` | `/api/v1/users/:id/resend_invite` | Admin | Resend Clerk invitation email |
+| `PATCH` | `/api/v1/users/:id/unarchive` | Admin | Restore archived user; re-sends invite when still pending |
 
 Archived users are hidden from default user lists, team management, active cohort/member lists, messaging pickers, and notification recipients. Their historical messages, announcements, and records remain attached for audit/history. Admins can pass `include_archived=true` to `GET /api/v1/users` when they need to inspect archived accounts.
 

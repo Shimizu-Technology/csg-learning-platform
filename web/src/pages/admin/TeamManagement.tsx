@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Archive, Shield, ShieldCheck, UserPlus, Mail, Pencil, Trash2, RotateCcw, Check } from 'lucide-react'
 import { api } from '../../lib/api'
 import { Modal } from '../../components/shared/Modal'
@@ -34,6 +34,7 @@ export function TeamManagement() {
   const [members, setMembers] = useState<TeamMember[]>([])
   const [listLoading, setListLoading] = useState(true)
   const [viewMode, setViewMode] = useState<'active' | 'archived'>('active')
+  const loadRequestId = useRef(0)
 
   const [showAddModal, setShowAddModal] = useState(false)
   const [addEmail, setAddEmail] = useState('')
@@ -60,29 +61,37 @@ export function TeamManagement() {
     }
   }
 
-  const loadTeam = async () => {
+  const loadTeam = async (mode: 'active' | 'archived' = viewMode) => {
+    const requestId = loadRequestId.current + 1
+    loadRequestId.current = requestId
     setListLoading(true)
     try {
-      const params: Record<string, string> = viewMode === 'archived' ? { include_archived: 'true' } : {}
+      const params: Record<string, string> = mode === 'archived' ? { include_archived: 'true' } : {}
       const [res, res2] = await Promise.all([
         api.getUsers({ ...params, role: 'admin' }),
         api.getUsers({ ...params, role: 'instructor' }),
       ])
+      if (loadRequestId.current !== requestId) return
+
       const admins = res.data?.users || []
       const instructors = res2.data?.users || []
       setMembers(
         [...admins, ...instructors].filter((member) => (
-          viewMode === 'archived' ? Boolean(member.archived_at) : !member.archived_at
+          mode === 'archived' ? Boolean(member.archived_at) : !member.archived_at
         ))
       )
     } catch {
+      if (loadRequestId.current !== requestId) return
+
       showNotification('error', 'Failed to load team members')
     } finally {
-      setListLoading(false)
+      if (loadRequestId.current === requestId) {
+        setListLoading(false)
+      }
     }
   }
 
-  useEffect(() => { loadTeam() }, [viewMode])
+  useEffect(() => { loadTeam(viewMode) }, [viewMode])
 
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault()
