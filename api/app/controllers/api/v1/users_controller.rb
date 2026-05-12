@@ -3,8 +3,8 @@ module Api
     class UsersController < ApplicationController
       before_action :authenticate_user!
       before_action :require_staff!, only: [ :index, :show ]
-      before_action :require_admin!, only: [ :create, :update, :destroy, :resend_invite ]
-      before_action :set_user, only: [ :show, :update, :destroy, :resend_invite ]
+      before_action :require_admin!, only: [ :create, :update, :destroy, :resend_invite, :unarchive ]
+      before_action :set_user, only: [ :show, :update, :destroy, :resend_invite, :unarchive ]
 
       # GET /api/v1/users
       def index
@@ -113,6 +113,21 @@ module Api
           @user.archive!
           render json: { message: "User archived", action: "archived", user: user_json(@user) }
         end
+      end
+
+      # PATCH /api/v1/users/:id/unarchive
+      def unarchive
+        unless @user.archived?
+          return render json: { message: "User already active", user: user_json(@user) }
+        end
+
+        @user.unarchive!
+        send_clerk_invitation_and_email(@user) if @user.invite_pending?
+
+        render json: {
+          message: @user.invite_pending? ? "User restored and invite sent" : "User restored",
+          user: user_json(@user)
+        }
       end
 
       private

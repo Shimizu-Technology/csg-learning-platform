@@ -171,6 +171,49 @@ class UsersLifecycleTest < ActionDispatch::IntegrationTest
     assert_match "Archived users", JSON.parse(response.body).fetch("error")
   end
 
+  test "admin can restore an archived user" do
+    archived_staff = User.create!(
+      clerk_id: "clerk_archived_restore_staff",
+      email: "archived-restore-staff@example.com",
+      first_name: "Archived",
+      last_name: "Restore",
+      role: :instructor,
+      archived_at: Time.current
+    )
+
+    as_user(@admin) do
+      patch "/api/v1/users/#{archived_staff.id}/unarchive",
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :success
+    assert_nil archived_staff.reload.archived_at
+    assert_nil JSON.parse(response.body).fetch("user").fetch("archived_at")
+  end
+
+  test "restoring an archived pending invite sends a fresh invite" do
+    invite = User.create!(
+      clerk_id: "pending_#{SecureRandom.uuid}",
+      email: "archived-pending-restore@example.com",
+      first_name: "Archived",
+      last_name: "Pending Restore",
+      role: :instructor,
+      archived_at: Time.current
+    )
+
+    assert_enqueued_with(job: SendUserInviteEmailJob) do
+      as_user(@admin) do
+        patch "/api/v1/users/#{invite.id}/unarchive",
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :success
+    assert_nil invite.reload.archived_at
+  end
+
   test "archived users are hidden from default user and direct message candidate lists" do
     archived_staff = User.create!(
       clerk_id: "clerk_archived_staff",

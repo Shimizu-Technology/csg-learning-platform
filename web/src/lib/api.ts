@@ -562,6 +562,8 @@ export const api = {
     }),
   deleteUser: (id: number) =>
     fetchApi<{ message: string; action: 'archived' | 'deleted' }>(`/api/v1/users/${id}`, { method: 'DELETE' }),
+  unarchiveUser: (id: number) =>
+    fetchApi<UserUpdateResponse>(`/api/v1/users/${id}/unarchive`, { method: 'PATCH' }),
 
   // Admin — Curricula
   getCurricula: () =>
