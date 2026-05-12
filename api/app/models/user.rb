@@ -74,7 +74,7 @@ class User < ApplicationRecord
 
   def archive_or_detach_direct_conversations!
     direct_conversations.includes(:users).find_each do |conversation|
-      active_member_ids = conversation.users.reject(&:archived?).map(&:id)
+      active_member_ids = conversation.users.reject { |user| user.archived_at.present? }.map(&:id)
       if active_member_ids.size <= 1
         conversation.update!(status: :archived)
       else

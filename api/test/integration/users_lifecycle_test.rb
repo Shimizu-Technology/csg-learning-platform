@@ -1,7 +1,10 @@
 require "test_helper"
 
 class UsersLifecycleTest < ActionDispatch::IntegrationTest
+  include ActiveJob::TestHelper
+
   setup do
+    clear_enqueued_jobs
     @admin = User.create!(
       clerk_id: "clerk_users_lifecycle_admin",
       email: "users-lifecycle-admin@example.com",
@@ -67,6 +70,56 @@ class UsersLifecycleTest < ActionDispatch::IntegrationTest
     assert conversation.reload.archived?
     assert_equal duplicate.id, message.reload.author_id
     assert_equal duplicate.id, announcement.reload.author_id
+  end
+
+  test "archiving an already archived user is idempotent" do
+    duplicate = User.create!(
+      clerk_id: "clerk_archived_duplicate_staff",
+      email: "archived-duplicate-staff@example.com",
+      first_name: "Archived",
+      last_name: "Duplicate",
+      role: :admin
+    )
+    Message.create!(channel: @channel, author: duplicate, body: "Keep my history")
+
+    as_user(@admin) do
+      delete "/api/v1/users/#{duplicate.id}", headers: auth_headers
+    end
+
+    assert_response :success
+    archived_at = duplicate.reload.archived_at
+    assert archived_at.present?
+
+    as_user(@admin) do
+      delete "/api/v1/users/#{duplicate.id}", headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal "archived", JSON.parse(response.body).fetch("action")
+    assert_equal archived_at, duplicate.reload.archived_at
+  end
+
+  test "creating an archived pending invite reactivates and sends a fresh invite" do
+    invite = User.create!(
+      clerk_id: "pending_#{SecureRandom.uuid}",
+      email: "archived-pending-reactivate@example.com",
+      first_name: "Archived",
+      last_name: "Invite",
+      role: :instructor,
+      archived_at: Time.current
+    )
+
+    assert_enqueued_with(job: SendUserInviteEmailJob) do
+      as_user(@admin) do
+        post "/api/v1/users",
+          params: { email: invite.email, role: "instructor" },
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :created
+    assert_nil invite.reload.archived_at
   end
 
   test "archived users are hidden from default user and direct message candidate lists" do

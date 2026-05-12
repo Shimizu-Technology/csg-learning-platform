@@ -30,7 +30,8 @@ module Api
         user = User.find_or_initialize_by(email: email)
         is_new = user.new_record?
         user.clerk_id = "pending_#{SecureRandom.uuid}" if user.clerk_id.blank?
-        user.archived_at = nil if user.archived?
+        was_archived = user.archived?
+        user.archived_at = nil if was_archived
         requested_role = params[:role].to_s.strip.downcase
         if User.roles.key?(requested_role)
           user.role = requested_role
@@ -41,7 +42,7 @@ module Api
 
         if user.save
           skip = ActiveModel::Type::Boolean.new.cast(params[:skip_invite])
-          send_clerk_invitation_and_email(user) if is_new && !skip
+          send_clerk_invitation_and_email(user) if should_send_invite?(user, is_new: is_new, was_archived: was_archived, skip: skip)
           render json: { user: user_json(user) }, status: :created
         else
           render json: { errors: user.errors.full_messages }, status: :unprocessable_entity
@@ -91,6 +92,10 @@ module Api
           return render json: { error: "You cannot archive yourself" }, status: :unprocessable_entity
         end
 
+        if @user.archived?
+          return render json: { message: "User already archived", action: "archived", user: user_json(@user) }
+        end
+
         if @user.safe_to_hard_delete?
           @user.destroy!
           render json: { message: "Pending invite deleted", action: "deleted" }
@@ -132,6 +137,13 @@ module Api
         rescue StandardError => e
           Rails.logger.error("[InviteEmail] Failed to enqueue invite for #{user.email}: #{e.message}")
         end
+      end
+
+      def should_send_invite?(user, is_new:, was_archived:, skip:)
+        return false if skip
+        return true if is_new
+
+        was_archived && user.invite_pending?
       end
 
       def frontend_url
