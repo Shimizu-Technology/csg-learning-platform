@@ -87,6 +87,8 @@ module ClerkAuthenticatable
     user = User.find_by(clerk_id: clerk_id)
 
     if user
+      return nil if user.archived?
+
       updates = {}
       updates[:email] = email if email.present? && email != user.email
       updates[:first_name] = first_name if first_name.present?
@@ -104,6 +106,8 @@ module ClerkAuthenticatable
       user = User.find_by("LOWER(email) = ?", email.downcase)
 
       if user
+        return nil if user.archived?
+
         updates = {
           clerk_id: clerk_id,
           first_name: first_name,

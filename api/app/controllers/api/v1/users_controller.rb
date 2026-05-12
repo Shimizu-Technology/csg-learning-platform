@@ -3,12 +3,19 @@ module Api
     class UsersController < ApplicationController
       before_action :authenticate_user!
       before_action :require_staff!, only: [ :index, :show ]
-      before_action :require_admin!, only: [ :create, :update, :destroy, :resend_invite ]
-      before_action :set_user, only: [ :show, :update, :destroy, :resend_invite ]
+      before_action :require_admin!, only: [ :create, :update, :destroy, :resend_invite, :unarchive ]
+      before_action :set_user, only: [ :show, :update, :destroy, :resend_invite, :unarchive ]
 
       # GET /api/v1/users
       def index
-        users = User.all.order(:last_name, :first_name)
+        include_archived = ActiveModel::Type::Boolean.new.cast(params[:include_archived])
+        if include_archived && !current_user.admin?
+          render_forbidden("Admin access required to include archived users")
+          return
+        end
+
+        users = include_archived ? User.all : User.not_archived
+        users = users.order(:last_name, :first_name)
 
         if params[:role].present?
           users = users.where(role: params[:role])
@@ -29,6 +36,8 @@ module Api
         user = User.find_or_initialize_by(email: email)
         is_new = user.new_record?
         user.clerk_id = "pending_#{SecureRandom.uuid}" if user.clerk_id.blank?
+        was_archived = user.archived?
+        user.archived_at = nil if was_archived
         requested_role = params[:role].to_s.strip.downcase
         if User.roles.key?(requested_role)
           user.role = requested_role
@@ -39,7 +48,7 @@ module Api
 
         if user.save
           skip = ActiveModel::Type::Boolean.new.cast(params[:skip_invite])
-          send_clerk_invitation_and_email(user) if is_new && !skip
+          send_clerk_invitation_and_email(user) if should_send_invite?(user, is_new: is_new, was_archived: was_archived, skip: skip)
           render json: { user: user_json(user) }, status: :created
         else
           render json: { errors: user.errors.full_messages }, status: :unprocessable_entity
@@ -48,6 +57,10 @@ module Api
 
       # POST /api/v1/users/:id/resend_invite
       def resend_invite
+        if @user.archived?
+          return render json: { error: "Archived users must be added again before an invite can be sent" }, status: :unprocessable_entity
+        end
+
         if @user.clerk_id.blank? || !@user.clerk_id.start_with?("pending_")
           return render json: { error: "User has already signed in — no invite needed" }, status: :unprocessable_entity
         end
@@ -86,13 +99,35 @@ module Api
       # DELETE /api/v1/users/:id
       def destroy
         if @user.id == current_user.id
-          return render json: { error: "You cannot delete yourself" }, status: :unprocessable_entity
+          return render json: { error: "You cannot archive yourself" }, status: :unprocessable_entity
         end
 
-        @user.enrollments.destroy_all
-        @user.submissions.destroy_all
-        @user.destroy!
-        render json: { message: "User deleted" }
+        if @user.archived?
+          return render json: { message: "User already archived", action: "archived", user: user_json(@user) }
+        end
+
+        if @user.safe_to_hard_delete?
+          @user.destroy!
+          render json: { message: "Pending invite deleted", action: "deleted" }
+        else
+          @user.archive!
+          render json: { message: "User archived", action: "archived", user: user_json(@user) }
+        end
+      end
+
+      # PATCH /api/v1/users/:id/unarchive
+      def unarchive
+        unless @user.archived?
+          return render json: { message: "User already active", user: user_json(@user) }
+        end
+
+        @user.unarchive!
+        send_clerk_invitation_and_email(@user) if @user.invite_pending?
+
+        render json: {
+          message: @user.invite_pending? ? "User restored and invite sent" : "User restored",
+          user: user_json(@user)
+        }
       end
 
       private
@@ -129,6 +164,13 @@ module Api
         end
       end
 
+      def should_send_invite?(user, is_new:, was_archived:, skip:)
+        return false if skip
+        return true if is_new
+
+        was_archived && user.invite_pending?
+      end
+
       def frontend_url
         FrontendUrlResolver.resolve
       end
@@ -145,7 +187,8 @@ module Api
           avatar_url: user.avatar_url,
           last_sign_in_at: user.last_sign_in_at,
           last_seen_at: user.last_seen_at,
-          invite_pending: user.clerk_id&.start_with?("pending_") || false,
+          archived_at: user.archived_at,
+          invite_pending: user.invite_pending?,
           created_at: user.created_at
         }
       end

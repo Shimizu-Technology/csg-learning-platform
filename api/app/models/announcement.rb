@@ -37,12 +37,12 @@ class Announcement < ApplicationRecord
     when "cohort"
       return User.none unless cohort
 
-      User.where(id: cohort.enrollments.active.select(:user_id))
+      User.not_archived.where(id: cohort.enrollments.active.select(:user_id))
     when "staff"
-      User.where(role: [ User.roles[:instructor], User.roles[:admin] ])
+      User.not_archived.where(role: [ User.roles[:instructor], User.roles[:admin] ])
     else
       active_student_ids = Enrollment.active.select(:user_id)
-      User.where(id: active_student_ids).or(User.where(role: [ User.roles[:instructor], User.roles[:admin] ])).distinct
+      User.not_archived.where(id: active_student_ids).or(User.not_archived.where(role: [ User.roles[:instructor], User.roles[:admin] ])).distinct
     end
   end
 

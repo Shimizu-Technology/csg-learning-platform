@@ -228,7 +228,7 @@ module Api
 
         total_blocks = all_block_ids.size
 
-        enrollments = cohort.enrollments.active.includes(:user).to_a
+        enrollments = cohort.enrollments.active.joins(:user).includes(:user).merge(User.not_archived).to_a
         user_ids = enrollments.map { |e| e.user.id }
 
         progresses_by_user = Progress.completed
@@ -285,8 +285,8 @@ module Api
             name: cohort.name,
             start_date: cohort.start_date,
             status: cohort.status,
-            enrolled_count: cohort.enrollments.size,
-            active_count: cohort.enrollments.count { |e| e.active? }
+            enrolled_count: cohort.enrollments.joins(:user).merge(User.not_archived).size,
+            active_count: enrollments.size
           },
           students: students.sort_by { |s| -s[:progress_percentage] },
           ungraded_count: ungraded_count

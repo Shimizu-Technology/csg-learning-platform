@@ -72,6 +72,7 @@ Rails.application.routes.draw do
       resources :users, only: [ :index, :show, :create, :update, :destroy ] do
         member do
           post :resend_invite
+          patch :unarchive
         end
       end
 

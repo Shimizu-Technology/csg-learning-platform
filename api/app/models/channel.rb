@@ -42,7 +42,7 @@ class Channel < ApplicationRecord
 
   def recipients
     if staff_only?
-      User.where(role: [ User.roles[:instructor], User.roles[:admin] ])
+      User.not_archived.where(role: [ User.roles[:instructor], User.roles[:admin] ])
     else
       workspace.recipient_users
     end

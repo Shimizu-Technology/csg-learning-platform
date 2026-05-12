@@ -156,7 +156,7 @@ module Api
 
         cohort = Cohort.find(params[:cohort_id])
         recordings = cohort.recordings.ordered
-        enrollments = cohort.enrollments.active.includes(:user)
+        enrollments = cohort.enrollments.active.joins(:user).includes(:user).merge(User.not_archived)
 
         progress_data = WatchProgress
           .where(recording: recordings, user: enrollments.map(&:user))
@@ -190,7 +190,7 @@ module Api
         return if performed?
 
         cohort = Cohort.find(params[:cohort_id])
-        enrollments = cohort.enrollments.active.includes(:user)
+        enrollments = cohort.enrollments.active.joins(:user).includes(:user).merge(User.not_archived)
 
         # Query only the ordered S3-backed video blocks for this cohort's
         # curriculum. The previous implementation eager-loaded the entire

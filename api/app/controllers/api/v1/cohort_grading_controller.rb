@@ -22,7 +22,7 @@ module Api
           .order(created_at: :desc)
         progress_records = Progress.where(user_id: student_ids, content_block_id: block_ids)
 
-        students_data = @cohort.enrollments.active.includes(:user).map do |enrollment|
+        students_data = @cohort.enrollments.active.joins(:user).includes(:user).merge(User.not_archived).map do |enrollment|
           user = enrollment.user
           user_submissions = submissions.select { |s| s.user_id == user.id }
           {

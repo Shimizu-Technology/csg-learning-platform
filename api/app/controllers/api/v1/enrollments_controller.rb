@@ -8,7 +8,7 @@ module Api
 
       # GET /api/v1/cohorts/:cohort_id/enrollments
       def index
-        enrollments = @cohort.enrollments.includes(:user)
+        enrollments = @cohort.enrollments.joins(:user).includes(:user).merge(User.not_archived)
         render json: {
           enrollments: enrollments.map { |e| enrollment_json(e) }
         }

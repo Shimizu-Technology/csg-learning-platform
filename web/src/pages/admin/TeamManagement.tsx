@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react'
-import { Shield, ShieldCheck, UserPlus, Mail, Pencil, Trash2, RotateCcw, Check } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Archive, Shield, ShieldCheck, UserPlus, Mail, Pencil, Trash2, RotateCcw, Check } from 'lucide-react'
 import { api } from '../../lib/api'
-import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Modal } from '../../components/shared/Modal'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
@@ -16,6 +15,7 @@ interface TeamMember {
   github_username: string | null
   avatar_url: string | null
   last_sign_in_at: string | null
+  archived_at: string | null
   invite_pending: boolean
   created_at: string
 }
@@ -32,7 +32,9 @@ export function TeamManagement() {
   const { user: currentUser } = useAuthContext()
   const toast = useToast()
   const [members, setMembers] = useState<TeamMember[]>([])
-  const [loading, setLoading] = useState(true)
+  const [listLoading, setListLoading] = useState(true)
+  const [viewMode, setViewMode] = useState<'active' | 'archived'>('active')
+  const loadRequestId = useRef(0)
 
   const [showAddModal, setShowAddModal] = useState(false)
   const [addEmail, setAddEmail] = useState('')
@@ -46,8 +48,10 @@ export function TeamManagement() {
 
   const [deleteConfirm, setDeleteConfirm] = useState<TeamMember | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [restoreConfirm, setRestoreConfirm] = useState<TeamMember | null>(null)
 
   const [resendingId, setResendingId] = useState<number | null>(null)
+  const [restoringId, setRestoringId] = useState<number | null>(null)
 
   const showNotification = (type: 'success' | 'error', msg: string) => {
     if (type === 'success') {
@@ -57,23 +61,37 @@ export function TeamManagement() {
     }
   }
 
-  const loadTeam = async () => {
+  const loadTeam = async (mode: 'active' | 'archived' = viewMode) => {
+    const requestId = loadRequestId.current + 1
+    loadRequestId.current = requestId
+    setListLoading(true)
     try {
+      const params: Record<string, string> = mode === 'archived' ? { include_archived: 'true' } : {}
       const [res, res2] = await Promise.all([
-        api.getUsers({ role: 'admin' }),
-        api.getUsers({ role: 'instructor' }),
+        api.getUsers({ ...params, role: 'admin' }),
+        api.getUsers({ ...params, role: 'instructor' }),
       ])
+      if (loadRequestId.current !== requestId) return
+
       const admins = res.data?.users || []
       const instructors = res2.data?.users || []
-      setMembers([...admins, ...instructors])
+      setMembers(
+        [...admins, ...instructors].filter((member) => (
+          mode === 'archived' ? Boolean(member.archived_at) : !member.archived_at
+        ))
+      )
     } catch {
+      if (loadRequestId.current !== requestId) return
+
       showNotification('error', 'Failed to load team members')
     } finally {
-      setLoading(false)
+      if (loadRequestId.current === requestId) {
+        setListLoading(false)
+      }
     }
   }
 
-  useEffect(() => { loadTeam() }, [])
+  useEffect(() => { loadTeam(viewMode) }, [viewMode])
 
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -140,9 +158,9 @@ export function TeamManagement() {
 
     const res = await api.deleteUser(deleteConfirm.id)
     if (res.error) {
-      showNotification('error', `Failed to delete: ${res.error}`)
+      showNotification('error', `Failed to ${deleteConfirm.invite_pending ? 'delete invite' : 'archive user'}: ${res.error}`)
     } else {
-      showNotification('success', `${deleteConfirm.email} removed from team`)
+      showNotification('success', res.data?.action === 'deleted' ? `${deleteConfirm.email} invite deleted` : `${deleteConfirm.email} archived`)
       await loadTeam()
     }
     setDeleteConfirm(null)
@@ -160,10 +178,24 @@ export function TeamManagement() {
     setResendingId(null)
   }
 
+  const handleRestore = async () => {
+    if (!restoreConfirm) return
+    const member = restoreConfirm
+    setRestoringId(member.id)
+    const res = await api.unarchiveUser(member.id)
+    if (res.error) {
+      showNotification('error', `Failed to restore: ${res.error}`)
+    } else {
+      showNotification('success', member.invite_pending ? `${member.email} restored and invite sent` : `${member.email} restored`)
+      await loadTeam()
+    }
+    setRestoreConfirm(null)
+    setRestoringId(null)
+  }
+
   const isSelf = (member: TeamMember) => currentUser?.id === member.id
   const isPending = (member: TeamMember) => member.invite_pending
-
-  if (loading) return <LoadingSpinner message="Loading team..." />
+  const isArchived = (member: TeamMember) => Boolean(member.archived_at)
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -182,18 +214,45 @@ export function TeamManagement() {
         </button>
       </div>
 
+      <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1">
+        <button
+          type="button"
+          onClick={() => setViewMode('active')}
+          className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+            viewMode === 'active' ? 'bg-primary-50 text-primary-700' : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          Active
+        </button>
+        <button
+          type="button"
+          onClick={() => setViewMode('archived')}
+          className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+            viewMode === 'archived' ? 'bg-primary-50 text-primary-700' : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          Archived
+        </button>
+      </div>
+
       <div className="space-y-3">
-        {members.length === 0 ? (
+        {listLoading ? (
+          <TeamListSkeleton />
+        ) : members.length === 0 ? (
           <div className="rounded-2xl bg-white border border-slate-200 p-8 text-center text-sm text-slate-500">
-            No team members yet. Add an instructor or admin to get started.
+            {viewMode === 'archived' ? 'No archived team members.' : 'No team members yet. Add an instructor or admin to get started.'}
           </div>
         ) : (
           members.map((member) => (
-            <div key={member.id} className="rounded-xl bg-white border border-slate-200 p-4 hover:border-slate-300 transition-colors">
+            <div key={member.id} className={`rounded-xl bg-white border p-4 transition-colors ${
+              isArchived(member) ? 'border-slate-200 opacity-80' : 'border-slate-200 hover:border-slate-300'
+            }`}>
               <div className="flex items-start gap-3">
                 {/* Avatar */}
                 <div className={`flex h-10 w-10 items-center justify-center rounded-full shrink-0 ${
-                  member.role === 'admin' ? 'bg-primary-100 text-primary-700' : 'bg-blue-100 text-blue-700'
+                  isArchived(member)
+                    ? 'bg-slate-100 text-slate-500'
+                    : member.role === 'admin' ? 'bg-primary-100 text-primary-700' : 'bg-blue-100 text-blue-700'
                 }`}>
                   {member.role === 'admin' ? <ShieldCheck className="h-5 w-5" /> : <Shield className="h-5 w-5" />}
                 </div>
@@ -204,6 +263,12 @@ export function TeamManagement() {
                     <p className="text-sm font-semibold text-slate-900">{member.full_name}</p>
                     {isSelf(member) && (
                       <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">you</span>
+                    )}
+                    {isArchived(member) && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                        <Archive className="h-3 w-3" />
+                        Archived
+                      </span>
                     )}
                     {isPending(member) && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
@@ -228,35 +293,48 @@ export function TeamManagement() {
 
               {/* Actions — always visible, stacked below on mobile */}
               <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
-                <button
-                  onClick={() => openEdit(member)}
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                  Edit
-                </button>
-
-                {isPending(member) && (
+                {isArchived(member) ? (
                   <button
-                    onClick={() => handleResendInvite(member)}
-                    disabled={resendingId === member.id}
-                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 disabled:opacity-50 transition-colors"
+                    onClick={() => setRestoreConfirm(member)}
+                    disabled={restoringId === member.id}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 disabled:opacity-50 transition-colors"
                   >
-                    <RotateCcw className={`h-3.5 w-3.5 ${resendingId === member.id ? 'animate-spin' : ''}`} />
-                    Resend
+                    <RotateCcw className={`h-3.5 w-3.5 ${restoringId === member.id ? 'animate-spin' : ''}`} />
+                    Restore
                   </button>
-                )}
+                ) : (
+                  <>
+                    <button
+                      onClick={() => openEdit(member)}
+                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit
+                    </button>
 
-                <div className="flex-1" />
+                    {isPending(member) && (
+                      <button
+                        onClick={() => handleResendInvite(member)}
+                        disabled={resendingId === member.id}
+                        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 disabled:opacity-50 transition-colors"
+                      >
+                        <RotateCcw className={`h-3.5 w-3.5 ${resendingId === member.id ? 'animate-spin' : ''}`} />
+                        Resend
+                      </button>
+                    )}
 
-                {!isSelf(member) && (
-                  <button
-                    onClick={() => setDeleteConfirm(member)}
-                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Remove
-                  </button>
+                    <div className="flex-1" />
+
+                    {!isSelf(member) && (
+                      <button
+                        onClick={() => setDeleteConfirm(member)}
+                        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        {isPending(member) ? <Trash2 className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
+                        {isPending(member) ? 'Delete invite' : 'Archive'}
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -401,22 +479,27 @@ export function TeamManagement() {
       <Modal
         open={!!deleteConfirm}
         onClose={() => setDeleteConfirm(null)}
-        title="Remove Team Member"
+        title={deleteConfirm?.invite_pending ? 'Delete Pending Invite' : 'Archive Team Member'}
         size="md"
       >
         {deleteConfirm && (
           <div className="space-y-4">
-            <p className="text-sm text-slate-600">
-              Are you sure you want to remove <strong>{deleteConfirm.full_name}</strong> ({deleteConfirm.email}) from the team?
-              This will also remove their enrollments and submissions.
-            </p>
+            {deleteConfirm.invite_pending ? (
+              <p className="text-sm text-slate-600">
+                Delete the pending invite for <strong>{deleteConfirm.full_name}</strong> ({deleteConfirm.email})? This is only for unused invitations.
+              </p>
+            ) : (
+              <p className="text-sm text-slate-600">
+                Archive <strong>{deleteConfirm.full_name}</strong> ({deleteConfirm.email})? They will no longer appear in team or messaging pickers, and their sign-in will be disabled. Existing messages and records will remain intact.
+              </p>
+            )}
             <div className="flex items-center gap-2">
               <button
                 onClick={handleDelete}
                 disabled={deleting}
                 className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
               >
-                {deleting ? 'Removing...' : 'Remove Member'}
+                {deleting ? (deleteConfirm.invite_pending ? 'Deleting...' : 'Archiving...') : (deleteConfirm.invite_pending ? 'Delete Invite' : 'Archive Member')}
               </button>
               <button
                 onClick={() => setDeleteConfirm(null)}
@@ -428,6 +511,63 @@ export function TeamManagement() {
           </div>
         )}
       </Modal>
+
+      {/* Restore Confirmation Modal */}
+      <Modal
+        open={!!restoreConfirm}
+        onClose={() => setRestoreConfirm(null)}
+        title="Restore Team Member"
+        size="md"
+      >
+        {restoreConfirm && (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600">
+              Restore <strong>{restoreConfirm.full_name}</strong> ({restoreConfirm.email})? They will appear in active team and messaging pickers again. Archived direct conversations stay archived for history.
+            </p>
+            {restoreConfirm.invite_pending && (
+              <p className="text-sm text-amber-700">
+                This account is still pending, so a fresh invite email will be sent.
+              </p>
+            )}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleRestore}
+                disabled={restoringId === restoreConfirm.id}
+                className="flex-1 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+              >
+                {restoringId === restoreConfirm.id ? 'Restoring...' : 'Restore Member'}
+              </button>
+              <button
+                onClick={() => setRestoreConfirm(null)}
+                className="rounded-lg px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
+  )
+}
+
+function TeamListSkeleton() {
+  return (
+    <>
+      {[0, 1].map((item) => (
+        <div key={item} className="rounded-xl bg-white border border-slate-200 p-4">
+          <div className="flex items-start gap-3">
+            <div className="h-10 w-10 shrink-0 animate-pulse rounded-full bg-slate-100" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="h-4 w-44 animate-pulse rounded-full bg-slate-200" />
+              <div className="h-3 w-64 max-w-full animate-pulse rounded-full bg-slate-100" />
+            </div>
+          </div>
+          <div className="mt-3 border-t border-slate-100 pt-3">
+            <div className="h-8 w-24 animate-pulse rounded-lg bg-slate-100" />
+          </div>
+        </div>
+      ))}
+    </>
   )
 }
