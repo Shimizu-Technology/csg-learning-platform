@@ -51,6 +51,7 @@ class User < ApplicationRecord
 
   def safe_to_hard_delete?
     invite_pending? &&
+      enrollments.none? &&
       messages.none? &&
       announcements.none? &&
       submissions.none? &&

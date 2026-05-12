@@ -40,6 +40,26 @@ class UsersLifecycleTest < ActionDispatch::IntegrationTest
     assert_nil User.find_by(id: invite.id)
   end
 
+  test "admin archives pending invite with enrollment instead of hard deleting it" do
+    invite = User.create!(
+      clerk_id: "pending_#{SecureRandom.uuid}",
+      email: "pending-enrolled@example.com",
+      first_name: "Pending",
+      last_name: "Enrolled",
+      role: :student
+    )
+    enrollment = Enrollment.create!(user: invite, cohort: @cohort, status: :active)
+
+    as_user(@admin) do
+      delete "/api/v1/users/#{invite.id}", headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal "archived", JSON.parse(response.body).fetch("action")
+    assert invite.reload.archived?
+    assert_equal invite.id, enrollment.reload.user_id
+  end
+
   test "admin archives a user with authored message history instead of hard deleting" do
     duplicate = User.create!(
       clerk_id: "clerk_duplicate_staff",
