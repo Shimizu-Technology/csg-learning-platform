@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_02_000100) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_12_000100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1276,6 +1276,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_02_000100) do
     t.integer "assigned_block_id"
     t.integer "assigned_district_id"
     t.integer "assigned_village_id"
+    t.datetime "archived_at"
     t.string "avatar_url"
     t.string "clerk_id", null: false
     t.datetime "created_at", null: false
@@ -1289,6 +1290,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_02_000100) do
     t.string "phone"
     t.integer "role", default: 0, null: false
     t.datetime "updated_at", null: false
+    t.index ["archived_at"], name: "index_users_on_archived_at"
     t.index ["clerk_id"], name: "index_users_on_clerk_id", unique: true
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["last_seen_at"], name: "index_users_on_last_seen_at"

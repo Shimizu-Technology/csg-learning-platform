@@ -502,8 +502,8 @@ module Api
           requires_github: cohort.requires_github,
           status: cohort.status,
           settings: cohort.settings,
-          enrolled_count: cohort.enrollments.count,
-          active_count: cohort.enrollments.active.count,
+          enrolled_count: cohort.enrollments.joins(:user).merge(User.not_archived).count,
+          active_count: cohort.enrollments.active.joins(:user).merge(User.not_archived).count,
           announcements: Array((cohort.settings || {})["announcements"]),
           recordings: Array((cohort.settings || {})["recordings"]),
           class_resources: Array((cohort.settings || {})["class_resources"])
@@ -512,7 +512,7 @@ module Api
         json[:uploaded_recordings_count] = cohort.recordings.count if include_students
 
         if include_students
-          json[:students] = cohort.enrollments.includes(:user, module_assignments: :curriculum_module).map { |e|
+          json[:students] = cohort.enrollments.joins(:user).includes(:user, module_assignments: :curriculum_module).merge(User.not_archived).map { |e|
             {
               enrollment_id: e.id,
               user_id: e.user.id,

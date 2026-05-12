@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Shield, ShieldCheck, UserPlus, Mail, Pencil, Trash2, RotateCcw, Check } from 'lucide-react'
+import { Archive, Shield, ShieldCheck, UserPlus, Mail, Pencil, Trash2, RotateCcw, Check } from 'lucide-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Modal } from '../../components/shared/Modal'
@@ -16,6 +16,7 @@ interface TeamMember {
   github_username: string | null
   avatar_url: string | null
   last_sign_in_at: string | null
+  archived_at: string | null
   invite_pending: boolean
   created_at: string
 }
@@ -140,9 +141,9 @@ export function TeamManagement() {
 
     const res = await api.deleteUser(deleteConfirm.id)
     if (res.error) {
-      showNotification('error', `Failed to delete: ${res.error}`)
+      showNotification('error', `Failed to ${deleteConfirm.invite_pending ? 'delete invite' : 'archive user'}: ${res.error}`)
     } else {
-      showNotification('success', `${deleteConfirm.email} removed from team`)
+      showNotification('success', res.data?.action === 'deleted' ? `${deleteConfirm.email} invite deleted` : `${deleteConfirm.email} archived`)
       await loadTeam()
     }
     setDeleteConfirm(null)
@@ -254,8 +255,8 @@ export function TeamManagement() {
                     onClick={() => setDeleteConfirm(member)}
                     className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Remove
+                    {isPending(member) ? <Trash2 className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
+                    {isPending(member) ? 'Delete invite' : 'Archive'}
                   </button>
                 )}
               </div>
@@ -401,22 +402,27 @@ export function TeamManagement() {
       <Modal
         open={!!deleteConfirm}
         onClose={() => setDeleteConfirm(null)}
-        title="Remove Team Member"
+        title={deleteConfirm?.invite_pending ? 'Delete Pending Invite' : 'Archive Team Member'}
         size="md"
       >
         {deleteConfirm && (
           <div className="space-y-4">
-            <p className="text-sm text-slate-600">
-              Are you sure you want to remove <strong>{deleteConfirm.full_name}</strong> ({deleteConfirm.email}) from the team?
-              This will also remove their enrollments and submissions.
-            </p>
+            {deleteConfirm.invite_pending ? (
+              <p className="text-sm text-slate-600">
+                Delete the pending invite for <strong>{deleteConfirm.full_name}</strong> ({deleteConfirm.email})? This is only for unused invitations.
+              </p>
+            ) : (
+              <p className="text-sm text-slate-600">
+                Archive <strong>{deleteConfirm.full_name}</strong> ({deleteConfirm.email})? They will no longer appear in team or messaging pickers, and their sign-in will be disabled. Existing messages and records will remain intact.
+              </p>
+            )}
             <div className="flex items-center gap-2">
               <button
                 onClick={handleDelete}
                 disabled={deleting}
                 className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
               >
-                {deleting ? 'Removing...' : 'Remove Member'}
+                {deleting ? (deleteConfirm.invite_pending ? 'Deleting...' : 'Archiving...') : (deleteConfirm.invite_pending ? 'Delete Invite' : 'Archive Member')}
               </button>
               <button
                 onClick={() => setDeleteConfirm(null)}

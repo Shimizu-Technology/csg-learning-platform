@@ -10,6 +10,7 @@ export interface User {
   github_username: string | null;
   avatar_url: string | null;
   last_seen_at?: string | null;
+  archived_at?: string | null;
   is_admin: boolean;
   is_staff: boolean;
 }
@@ -21,6 +22,7 @@ export interface UserWithMeta extends User {
 export interface UserListItem extends User {
   last_sign_in_at: string | null;
   last_seen_at: string | null;
+  archived_at: string | null;
   invite_pending: boolean;
   created_at: string;
 }
@@ -31,6 +33,7 @@ export interface UserSummary {
   email: string;
   role: string;
   avatar_url: string | null;
+  archived_at?: string | null;
   is_admin: boolean;
   is_staff: boolean;
 }

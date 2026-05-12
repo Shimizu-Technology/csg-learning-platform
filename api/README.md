@@ -166,7 +166,7 @@ All controllers are namespaced under `Api::V1` and return JSON.
 | `channels` + `messages` | Channel listing, read state, posting, reactions, pins | Authenticated |
 | `direct_conversations` | DM listing, creation, read state | Authenticated |
 | `push_subscriptions` | Push notification opt-in/out and config | Authenticated |
-| `users` | CRUD + `resend_invite` | Admin |
+| `users` | CRUD-style management + archive/delete unused invite + `resend_invite` | Admin |
 | `curricula` | CRUD | Staff (index/show), Admin (create/update/destroy) |
 | `modules` | CRUD | Staff |
 | `lessons` | CRUD + `create_exercise` | Staff |

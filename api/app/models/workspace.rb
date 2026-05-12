@@ -93,9 +93,9 @@ class Workspace < ApplicationRecord
 
   def listed_members
     if cohort?
-      User.where(id: cohort.enrollments.active.select(:user_id)).order(:first_name, :last_name, :email)
+      User.not_archived.where(id: cohort.enrollments.active.select(:user_id)).order(:first_name, :last_name, :email)
     else
-      User.where(id: workspace_memberships.select(:user_id)).order(:first_name, :last_name, :email)
+      User.not_archived.where(id: workspace_memberships.select(:user_id)).order(:first_name, :last_name, :email)
     end
   end
 
@@ -105,9 +105,9 @@ class Workspace < ApplicationRecord
     scope =
       if cohort_id.present?
         student_ids = cohort.enrollments.active.select(:user_id)
-        User.where(id: student_ids).or(User.where(role: [ User.roles[:instructor], User.roles[:admin] ]))
+        User.not_archived.where(id: student_ids).or(User.not_archived.where(role: [ User.roles[:instructor], User.roles[:admin] ]))
       else
-        User.where(id: workspace_memberships.select(:user_id)).or(User.where(role: [ User.roles[:instructor], User.roles[:admin] ]))
+        User.not_archived.where(id: workspace_memberships.select(:user_id)).or(User.not_archived.where(role: [ User.roles[:instructor], User.roles[:admin] ]))
       end
 
     scope = scope.where.not(id: current_user.id) if current_user

@@ -8,7 +8,8 @@ module Api
 
       # GET /api/v1/users
       def index
-        users = User.all.order(:last_name, :first_name)
+        users = ActiveModel::Type::Boolean.new.cast(params[:include_archived]) ? User.all : User.not_archived
+        users = users.order(:last_name, :first_name)
 
         if params[:role].present?
           users = users.where(role: params[:role])
@@ -29,6 +30,7 @@ module Api
         user = User.find_or_initialize_by(email: email)
         is_new = user.new_record?
         user.clerk_id = "pending_#{SecureRandom.uuid}" if user.clerk_id.blank?
+        user.archived_at = nil if user.archived?
         requested_role = params[:role].to_s.strip.downcase
         if User.roles.key?(requested_role)
           user.role = requested_role
@@ -86,13 +88,16 @@ module Api
       # DELETE /api/v1/users/:id
       def destroy
         if @user.id == current_user.id
-          return render json: { error: "You cannot delete yourself" }, status: :unprocessable_entity
+          return render json: { error: "You cannot archive yourself" }, status: :unprocessable_entity
         end
 
-        @user.enrollments.destroy_all
-        @user.submissions.destroy_all
-        @user.destroy!
-        render json: { message: "User deleted" }
+        if @user.safe_to_hard_delete?
+          @user.destroy!
+          render json: { message: "Pending invite deleted", action: "deleted" }
+        else
+          @user.archive!
+          render json: { message: "User archived", action: "archived", user: user_json(@user) }
+        end
       end
 
       private
@@ -145,7 +150,8 @@ module Api
           avatar_url: user.avatar_url,
           last_sign_in_at: user.last_sign_in_at,
           last_seen_at: user.last_seen_at,
-          invite_pending: user.clerk_id&.start_with?("pending_") || false,
+          archived_at: user.archived_at,
+          invite_pending: user.invite_pending?,
           created_at: user.created_at
         }
       end

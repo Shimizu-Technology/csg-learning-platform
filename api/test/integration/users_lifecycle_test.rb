@@ -1,0 +1,147 @@
+require "test_helper"
+
+class UsersLifecycleTest < ActionDispatch::IntegrationTest
+  setup do
+    @admin = User.create!(
+      clerk_id: "clerk_users_lifecycle_admin",
+      email: "users-lifecycle-admin@example.com",
+      first_name: "Admin",
+      last_name: "User",
+      role: :admin
+    )
+    @curriculum = Curriculum.create!(name: "Lifecycle Curriculum")
+    @cohort = Cohort.create!(
+      curriculum: @curriculum,
+      name: "Lifecycle Cohort",
+      start_date: Date.current,
+      status: :active
+    )
+    @channel = Channel.create!(workspace: @cohort.workspace, cohort: @cohort, name: "Lifecycle Chat")
+  end
+
+  test "admin deletes an unused pending invite" do
+    invite = User.create!(
+      clerk_id: "pending_#{SecureRandom.uuid}",
+      email: "pending-delete@example.com",
+      first_name: "Pending",
+      last_name: "Invite",
+      role: :instructor
+    )
+
+    as_user(@admin) do
+      delete "/api/v1/users/#{invite.id}", headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal "deleted", JSON.parse(response.body).fetch("action")
+    assert_nil User.find_by(id: invite.id)
+  end
+
+  test "admin archives a user with authored message history instead of hard deleting" do
+    duplicate = User.create!(
+      clerk_id: "clerk_duplicate_staff",
+      email: "duplicate-staff@example.com",
+      first_name: "Duplicate",
+      last_name: "Staff",
+      role: :admin
+    )
+    message = Message.create!(channel: @channel, author: duplicate, body: "Keep my history")
+    conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @admin, duplicate ])
+    Message.create!(direct_conversation: conversation, author: duplicate, body: "Historical DM")
+    announcement = Announcement.create!(
+      title: "Historical notice",
+      body: "Keep the author record",
+      author: duplicate,
+      audience: :cohort,
+      cohort: @cohort,
+      status: :published
+    )
+
+    as_user(@admin) do
+      delete "/api/v1/users/#{duplicate.id}", headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal "archived", JSON.parse(response.body).fetch("action")
+    assert duplicate.reload.archived?
+    assert conversation.reload.archived?
+    assert_equal duplicate.id, message.reload.author_id
+    assert_equal duplicate.id, announcement.reload.author_id
+  end
+
+  test "archived users are hidden from default user and direct message candidate lists" do
+    archived_staff = User.create!(
+      clerk_id: "clerk_archived_staff",
+      email: "archived-staff@example.com",
+      first_name: "Archived",
+      last_name: "Staff",
+      role: :instructor,
+      archived_at: Time.current
+    )
+    active_staff = User.create!(
+      clerk_id: "clerk_active_staff",
+      email: "active-staff@example.com",
+      first_name: "Active",
+      last_name: "Staff",
+      role: :instructor
+    )
+
+    as_user(@admin) do
+      get "/api/v1/users", headers: auth_headers
+    end
+
+    assert_response :success
+    user_ids = JSON.parse(response.body).fetch("users").map { |user| user.fetch("id") }
+    assert_includes user_ids, active_staff.id
+    refute_includes user_ids, archived_staff.id
+
+    as_user(@admin) do
+      get "/api/v1/direct_conversations/available_users",
+        params: { workspace_id: @cohort.workspace.id },
+        headers: auth_headers
+    end
+
+    assert_response :success
+    available_ids = JSON.parse(response.body).fetch("users").map { |user| user.fetch("id") }
+    assert_includes available_ids, active_staff.id
+    refute_includes available_ids, archived_staff.id
+  end
+
+  test "archived users cannot authenticate" do
+    archived_user = User.create!(
+      clerk_id: "clerk_archived_auth",
+      email: "archived-auth@example.com",
+      first_name: "Archived",
+      last_name: "Auth",
+      role: :student,
+      archived_at: Time.current
+    )
+
+    as_user(archived_user) do
+      post "/api/v1/sessions", headers: auth_headers
+    end
+
+    assert_response :unauthorized
+  end
+
+  private
+
+  def auth_headers
+    { "Authorization" => "Bearer test-token" }
+  end
+
+  def as_user(user)
+    payload = {
+      "sub" => user.clerk_id,
+      "email" => user.email,
+      "first_name" => user.first_name,
+      "last_name" => user.last_name
+    }
+
+    original_verify = ClerkAuth.method(:verify)
+    ClerkAuth.define_singleton_method(:verify) { |_token| payload }
+    yield
+  ensure
+    ClerkAuth.define_singleton_method(:verify, original_verify)
+  end
+end
