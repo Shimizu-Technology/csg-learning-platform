@@ -12,6 +12,13 @@ class UsersLifecycleTest < ActionDispatch::IntegrationTest
       last_name: "User",
       role: :admin
     )
+    @instructor = User.create!(
+      clerk_id: "clerk_users_lifecycle_instructor",
+      email: "users-lifecycle-instructor@example.com",
+      first_name: "Instructor",
+      last_name: "User",
+      role: :instructor
+    )
     @curriculum = Curriculum.create!(name: "Lifecycle Curriculum")
     @cohort = Cohort.create!(
       curriculum: @curriculum,
@@ -178,6 +185,35 @@ class UsersLifecycleTest < ActionDispatch::IntegrationTest
     available_ids = JSON.parse(response.body).fetch("users").map { |user| user.fetch("id") }
     assert_includes available_ids, active_staff.id
     refute_includes available_ids, archived_staff.id
+  end
+
+  test "only admins can include archived users in user index" do
+    archived_staff = User.create!(
+      clerk_id: "clerk_archived_staff_index",
+      email: "archived-staff-index@example.com",
+      first_name: "Archived",
+      last_name: "Staff",
+      role: :instructor,
+      archived_at: Time.current
+    )
+
+    as_user(@instructor) do
+      get "/api/v1/users",
+        params: { include_archived: true },
+        headers: auth_headers
+    end
+
+    assert_response :forbidden
+
+    as_user(@admin) do
+      get "/api/v1/users",
+        params: { include_archived: true },
+        headers: auth_headers
+    end
+
+    assert_response :success
+    user_ids = JSON.parse(response.body).fetch("users").map { |user| user.fetch("id") }
+    assert_includes user_ids, archived_staff.id
   end
 
   test "archived users cannot authenticate" do

@@ -8,7 +8,13 @@ module Api
 
       # GET /api/v1/users
       def index
-        users = ActiveModel::Type::Boolean.new.cast(params[:include_archived]) ? User.all : User.not_archived
+        include_archived = ActiveModel::Type::Boolean.new.cast(params[:include_archived])
+        if include_archived && !current_user.admin?
+          render_forbidden("Admin access required to include archived users")
+          return
+        end
+
+        users = include_archived ? User.all : User.not_archived
         users = users.order(:last_name, :first_name)
 
         if params[:role].present?
