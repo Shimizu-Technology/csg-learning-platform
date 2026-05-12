@@ -149,6 +149,28 @@ class UsersLifecycleTest < ActionDispatch::IntegrationTest
     assert_nil invite.reload.archived_at
   end
 
+  test "resend invite is blocked for archived pending users" do
+    invite = User.create!(
+      clerk_id: "pending_#{SecureRandom.uuid}",
+      email: "archived-pending-resend@example.com",
+      first_name: "Archived",
+      last_name: "Resend",
+      role: :instructor,
+      archived_at: Time.current
+    )
+
+    assert_no_enqueued_jobs only: SendUserInviteEmailJob do
+      as_user(@admin) do
+        post "/api/v1/users/#{invite.id}/resend_invite",
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :unprocessable_entity
+    assert_match "Archived users", JSON.parse(response.body).fetch("error")
+  end
+
   test "archived users are hidden from default user and direct message candidate lists" do
     archived_staff = User.create!(
       clerk_id: "clerk_archived_staff",

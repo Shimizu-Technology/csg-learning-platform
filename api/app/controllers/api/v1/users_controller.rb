@@ -57,6 +57,10 @@ module Api
 
       # POST /api/v1/users/:id/resend_invite
       def resend_invite
+        if @user.archived?
+          return render json: { error: "Archived users must be added again before an invite can be sent" }, status: :unprocessable_entity
+        end
+
         if @user.clerk_id.blank? || !@user.clerk_id.start_with?("pending_")
           return render json: { error: "User has already signed in — no invite needed" }, status: :unprocessable_entity
         end
