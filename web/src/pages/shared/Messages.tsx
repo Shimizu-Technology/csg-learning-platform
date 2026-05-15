@@ -887,26 +887,38 @@ export function Messages() {
       unreadCount,
     }
   }), [channels, directConversations, workspaces])
-  const selectedWorkspaceUnreadCount = workspaceCards.find((item) => item.workspace.id === selectedWorkspaceId)?.unreadCount || 0
-  const totalWorkspaceUnreadCount = workspaceCards.reduce((sum, item) => sum + item.unreadCount, 0)
-  const otherWorkspaceUnreadCount = Math.max(0, totalWorkspaceUnreadCount - selectedWorkspaceUnreadCount)
-  const workspaceSwitcherSubtitle = otherWorkspaceUnreadCount > 0
-    ? `${otherWorkspaceUnreadCount} unread in other ${otherWorkspaceUnreadCount === 1 ? 'workspace' : 'workspaces'}`
-    : selectedWorkspaceUnreadCount > 0
-      ? `${selectedWorkspaceUnreadCount} unread here`
-      : selectedWorkspace
-        ? `${selectedWorkspace.member_count} ${selectedWorkspace.member_count === 1 ? 'member' : 'members'}`
-        : `${workspaces.length} workspaces`
-  const sortedWorkspaceCards = useMemo(() => {
-    return [...workspaceCards].sort((left, right) => {
+  const {
+    totalWorkspaceUnreadCount,
+    workspaceSwitcherSubtitle,
+    sortedWorkspaceCards,
+    unreadOtherWorkspaceCards,
+  } = useMemo(() => {
+    const selectedUnread = workspaceCards.find((item) => item.workspace.id === selectedWorkspaceId)?.unreadCount || 0
+    const totalUnread = workspaceCards.reduce((sum, item) => sum + item.unreadCount, 0)
+    const otherUnread = Math.max(0, totalUnread - selectedUnread)
+    const subtitle = otherUnread > 0
+      ? `${otherUnread} unread in other ${otherUnread === 1 ? 'workspace' : 'workspaces'}`
+      : selectedUnread > 0
+        ? `${selectedUnread} unread here`
+        : selectedWorkspace
+          ? `${selectedWorkspace.member_count} ${selectedWorkspace.member_count === 1 ? 'member' : 'members'}`
+          : `${workspaces.length} workspaces`
+    const sorted = [...workspaceCards].sort((left, right) => {
       const leftActive = left.workspace.id === selectedWorkspaceId
       const rightActive = right.workspace.id === selectedWorkspaceId
       if (leftActive !== rightActive) return leftActive ? -1 : 1
       if (left.unreadCount !== right.unreadCount) return right.unreadCount - left.unreadCount
       return left.workspace.name.localeCompare(right.workspace.name)
     })
-  }, [selectedWorkspaceId, workspaceCards])
-  const unreadOtherWorkspaceCards = sortedWorkspaceCards.filter((item) => item.workspace.id !== selectedWorkspaceId && item.unreadCount > 0)
+    const unreadOther = sorted.filter((item) => item.workspace.id !== selectedWorkspaceId && item.unreadCount > 0)
+
+    return {
+      totalWorkspaceUnreadCount: totalUnread,
+      workspaceSwitcherSubtitle: subtitle,
+      sortedWorkspaceCards: sorted,
+      unreadOtherWorkspaceCards: unreadOther,
+    }
+  }, [selectedWorkspaceId, selectedWorkspace, workspaceCards, workspaces.length])
   const selectedPinnedMessages = useMemo(
     () => sortPinnedMessages(pinnedMessages),
     [pinnedMessages],
@@ -2923,7 +2935,9 @@ export function Messages() {
                       type="button"
                       onClick={(event) => {
                         event.stopPropagation()
-                        void markWorkspaceRead(workspace.id)
+                        markWorkspaceRead(workspace.id).catch(() => {
+                          toast.error('Failed to mark workspace as read')
+                        })
                       }}
                       className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-primary-700 ring-1 ring-primary-100 hover:bg-primary-50"
                     >
