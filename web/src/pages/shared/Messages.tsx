@@ -278,6 +278,23 @@ function sortPinnedMessages<T extends ChannelMessage>(items: T[]) {
   })
 }
 
+function latestMessageTime(item: ChannelSummary | DirectConversationSummary) {
+  return item.latest_message ? new Date(item.latest_message.created_at).getTime() : 0
+}
+
+function initialMessageTarget(channels: ChannelSummary[], directConversations: DirectConversationSummary[]): Target | null {
+  const unreadTargets = [
+    ...channels.filter((channel) => channel.unread_count > 0).map((channel) => ({ target: { type: 'channel' as const, id: channel.id }, latestAt: latestMessageTime(channel) })),
+    ...directConversations.filter((conversation) => conversation.unread_count > 0).map((conversation) => ({ target: { type: 'dm' as const, id: conversation.id }, latestAt: latestMessageTime(conversation) })),
+  ].sort((left, right) => right.latestAt - left.latestAt)
+
+  if (unreadTargets[0]) return unreadTargets[0].target
+  if (channels[0]) return { type: 'channel', id: channels[0].id }
+  if (directConversations[0]) return { type: 'dm', id: directConversations[0].id }
+
+  return null
+}
+
 function upsertPinnedMessage(prev: LocalMessage[], incoming: LocalMessage) {
   if (!incoming.pinned_at || incoming.deleted_at) {
     return prev.filter((item) => item.id !== incoming.id)
@@ -854,18 +871,54 @@ export function Messages() {
   const workspaceCards = useMemo(() => workspaces.map((workspace) => {
     const workspaceChannels = channels.filter((channel) => channel.workspace_id === workspace.id)
     const workspaceDms = directConversations.filter((conversation) => conversation.workspace_id === workspace.id)
+    const unreadChannelCount = workspaceChannels.reduce((sum, channel) => sum + channel.unread_count, 0)
+    const unreadDmCount = workspaceDms.reduce((sum, conversation) => sum + conversation.unread_count, 0)
     const unreadCount = [
-      ...workspaceChannels.map((channel) => channel.unread_count),
-      ...workspaceDms.map((conversation) => conversation.unread_count),
+      unreadChannelCount,
+      unreadDmCount,
     ].reduce((sum, count) => sum + count, 0)
 
     return {
       workspace,
       channelCount: workspaceChannels.length,
       dmCount: workspaceDms.length,
+      unreadChannelCount,
+      unreadDmCount,
       unreadCount,
     }
   }), [channels, directConversations, workspaces])
+  const {
+    totalWorkspaceUnreadCount,
+    workspaceSwitcherSubtitle,
+    sortedWorkspaceCards,
+    unreadOtherWorkspaceCards,
+  } = useMemo(() => {
+    const selectedUnread = workspaceCards.find((item) => item.workspace.id === selectedWorkspaceId)?.unreadCount || 0
+    const totalUnread = workspaceCards.reduce((sum, item) => sum + item.unreadCount, 0)
+    const otherUnread = Math.max(0, totalUnread - selectedUnread)
+    const subtitle = otherUnread > 0
+      ? `${otherUnread} unread in other ${otherUnread === 1 ? 'workspace' : 'workspaces'}`
+      : selectedUnread > 0
+        ? `${selectedUnread} unread here`
+        : selectedWorkspace
+          ? `${selectedWorkspace.member_count} ${selectedWorkspace.member_count === 1 ? 'member' : 'members'}`
+          : `${workspaces.length} workspaces`
+    const sorted = [...workspaceCards].sort((left, right) => {
+      const leftActive = left.workspace.id === selectedWorkspaceId
+      const rightActive = right.workspace.id === selectedWorkspaceId
+      if (leftActive !== rightActive) return leftActive ? -1 : 1
+      if (left.unreadCount !== right.unreadCount) return right.unreadCount - left.unreadCount
+      return left.workspace.name.localeCompare(right.workspace.name)
+    })
+    const unreadOther = sorted.filter((item) => item.workspace.id !== selectedWorkspaceId && item.unreadCount > 0)
+
+    return {
+      totalWorkspaceUnreadCount: totalUnread,
+      workspaceSwitcherSubtitle: subtitle,
+      sortedWorkspaceCards: sorted,
+      unreadOtherWorkspaceCards: unreadOther,
+    }
+  }, [selectedWorkspaceId, selectedWorkspace, workspaceCards, workspaces.length])
   const selectedPinnedMessages = useMemo(
     () => sortPinnedMessages(pinnedMessages),
     [pinnedMessages],
@@ -1009,14 +1062,15 @@ export function Messages() {
     if (channelRes.data) setChannels(channelRes.data.channels)
     if (dmRes.data) setDirectConversations(dmRes.data.direct_conversations)
 
-    const firstTarget = channelRes.data?.channels[0]
-      ? { type: 'channel' as const, id: channelRes.data.channels[0].id }
-      : dmRes.data?.direct_conversations[0]
-        ? { type: 'dm' as const, id: dmRes.data.direct_conversations[0].id }
-        : null
+    const loadedChannels = channelRes.data?.channels || []
+    const loadedDirectConversations = dmRes.data?.direct_conversations || []
+    const firstTarget = initialMessageTarget(loadedChannels, loadedDirectConversations)
+    const firstTargetWorkspaceId = firstTarget?.type === 'channel'
+      ? loadedChannels.find((channel) => channel.id === firstTarget.id)?.workspace_id
+      : loadedDirectConversations.find((conversation) => conversation.id === firstTarget?.id)?.workspace_id
 
     setSelectedTarget((current) => current || firstTarget)
-    setSelectedWorkspaceId((current) => current || channelRes.data?.channels[0]?.workspace_id || dmRes.data?.direct_conversations[0]?.workspace_id || workspaceRes.data?.workspaces[0]?.id || null)
+    setSelectedWorkspaceId((current) => current || firstTargetWorkspaceId || workspaceRes.data?.workspaces[0]?.id || null)
     setLoading(false)
   }
 
@@ -1397,6 +1451,22 @@ export function Messages() {
   const markRead = async (target: Target) => {
     if (target.type === 'channel') await api.markChannelRead(target.id)
     else await api.markDirectConversationRead(target.id)
+  }
+
+  const markWorkspaceRead = async (workspaceId: number) => {
+    const workspaceChannels = channels.filter((channel) => channel.workspace_id === workspaceId && channel.unread_count > 0)
+    const workspaceDms = directConversations.filter((conversation) => conversation.workspace_id === workspaceId && conversation.unread_count > 0)
+    if (workspaceChannels.length === 0 && workspaceDms.length === 0) return
+
+    await Promise.all([
+      ...workspaceChannels.map((channel) => api.markChannelRead(channel.id)),
+      ...workspaceDms.map((conversation) => api.markDirectConversationRead(conversation.id)),
+    ])
+
+    const now = new Date().toISOString()
+    setChannels((prev) => prev.map((channel) => channel.workspace_id === workspaceId ? { ...channel, unread_count: 0, last_read_at: now } : channel))
+    setDirectConversations((prev) => prev.map((conversation) => conversation.workspace_id === workspaceId ? { ...conversation, unread_count: 0, last_read_at: now } : conversation))
+    toast.success('Workspace marked read')
   }
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
@@ -2269,13 +2339,18 @@ export function Messages() {
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-semibold text-slate-900">{selectedWorkspace?.name || 'Choose workspace'}</span>
                     <span className="mt-0.5 block truncate text-xs text-slate-500">
-                      {selectedWorkspace
-                        ? `${selectedWorkspace.member_count} ${selectedWorkspace.member_count === 1 ? 'member' : 'members'}`
-                        : `${workspaces.length} workspaces`}
+                      {workspaceSwitcherSubtitle}
                     </span>
                   </span>
                 </span>
-                <ChevronDown className="h-4 w-4 shrink-0 text-slate-400 transition group-hover:text-slate-600" />
+                <span className="flex shrink-0 items-center gap-2">
+                  {totalWorkspaceUnreadCount > 0 && (
+                    <span className="inline-flex min-w-5 justify-center rounded-full bg-primary-500 px-1.5 py-0.5 text-[11px] font-semibold text-white">
+                      {totalWorkspaceUnreadCount > 99 ? '99+' : totalWorkspaceUnreadCount}
+                    </span>
+                  )}
+                  <ChevronDown className="h-4 w-4 text-slate-400 transition group-hover:text-slate-600" />
+                </span>
               </button>
             )}
             {selectedWorkspace && (
@@ -2305,6 +2380,35 @@ export function Messages() {
                 {selectedWorkspace.description && (
                   <p className="mt-2 line-clamp-2 text-xs text-slate-500">{selectedWorkspace.description}</p>
                 )}
+              </div>
+            )}
+            {unreadOtherWorkspaceCards.length > 0 && (
+              <div className="mt-3 rounded-lg border border-primary-100 bg-primary-50/70 px-3 py-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-primary-700">Unread elsewhere</p>
+                  <button
+                    type="button"
+                    onClick={() => setShowWorkspaceSwitcher(true)}
+                    className="text-xs font-semibold text-primary-700 hover:text-primary-800"
+                  >
+                    View all
+                  </button>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {unreadOtherWorkspaceCards.slice(0, 3).map(({ workspace, unreadCount }) => (
+                    <button
+                      key={workspace.id}
+                      type="button"
+                      onClick={() => selectWorkspace(workspace.id)}
+                      className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-primary-700 ring-1 ring-primary-100 hover:bg-primary-100"
+                    >
+                      <span className="truncate">{workspace.name}</span>
+                      <span className="rounded-full bg-primary-500 px-1.5 py-0.5 text-[10px] leading-none text-white">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
             <div className="relative mt-3">
@@ -2741,20 +2845,30 @@ export function Messages() {
         size="lg"
       >
         <div className="space-y-3">
-          {workspaceCards.map(({ workspace, channelCount, dmCount, unreadCount }) => {
+          {sortedWorkspaceCards.map(({ workspace, channelCount, dmCount, unreadChannelCount, unreadDmCount, unreadCount }) => {
             const active = workspace.id === selectedWorkspaceId
 
             return (
-              <button
+              <div
                 key={workspace.id}
-                type="button"
+                role="button"
+                tabIndex={0}
                 onClick={() => {
+                  selectWorkspace(workspace.id)
+                  setShowWorkspaceSwitcher(false)
+                }}
+                onKeyDown={(event) => {
+                  if (event.target !== event.currentTarget) return
+                  if (event.key !== 'Enter' && event.key !== ' ') return
+                  event.preventDefault()
                   selectWorkspace(workspace.id)
                   setShowWorkspaceSwitcher(false)
                 }}
                 className={`group flex w-full items-center gap-4 rounded-2xl border px-4 py-4 text-left transition ${
                   active
                     ? 'border-primary-200 bg-primary-50/70 shadow-sm'
+                    : unreadCount > 0
+                      ? 'border-primary-200 bg-white shadow-sm hover:bg-primary-50/40'
                     : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
                 }`}
               >
@@ -2766,6 +2880,11 @@ export function Messages() {
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-2">
                     <span className="truncate text-sm font-semibold text-slate-900">{workspace.name}</span>
+                    {unreadCount > 0 && (
+                      <span className="inline-flex shrink-0 rounded-full bg-primary-500 px-2 py-0.5 text-[11px] font-semibold text-white">
+                        {unreadCount} unread
+                      </span>
+                    )}
                     {active && (
                       <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-primary-700 ring-1 ring-primary-100">
                         <Check className="h-3 w-3" />
@@ -2784,8 +2903,20 @@ export function Messages() {
                     </span>
                     <span className="inline-flex items-center gap-1">
                       <MessageCircle className="h-3.5 w-3.5" />
-                      {dmCount} {dmCount === 1 ? 'DM' : 'DMs'}
+                      {dmCount} DM {dmCount === 1 ? 'conversation' : 'conversations'}
                     </span>
+                    {unreadChannelCount > 0 && (
+                      <span className="inline-flex items-center gap-1 font-semibold text-primary-700">
+                        <Hash className="h-3.5 w-3.5" />
+                        {unreadChannelCount} unread
+                      </span>
+                    )}
+                    {unreadDmCount > 0 && (
+                      <span className="inline-flex items-center gap-1 font-semibold text-primary-700">
+                        <MessageCircle className="h-3.5 w-3.5" />
+                        {unreadDmCount} unread
+                      </span>
+                    )}
                   </span>
                   {workspace.description && (
                     <span className="mt-2 block line-clamp-2 text-xs leading-5 text-slate-500">{workspace.description}</span>
@@ -2800,12 +2931,22 @@ export function Messages() {
                     {workspace.workspace_type === 'community' ? 'Community' : 'Cohort'}
                   </span>
                   {unreadCount > 0 && (
-                    <span className="inline-flex min-w-6 justify-center rounded-full bg-primary-600 px-2 py-1 text-[11px] font-semibold text-white">
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        markWorkspaceRead(workspace.id).catch(() => {
+                          toast.error('Failed to mark workspace as read')
+                        })
+                      }}
+                      className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-primary-700 ring-1 ring-primary-100 hover:bg-primary-50"
+                    >
+                      <CheckCheck className="h-3 w-3" />
+                      Mark read
+                    </button>
                   )}
                 </span>
-              </button>
+              </div>
             )
           })}
         </div>
