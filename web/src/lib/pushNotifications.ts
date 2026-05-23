@@ -120,9 +120,14 @@ export async function refreshExistingPushSubscription(publicKey: string) {
   const registration = await navigator.serviceWorker.ready
   const existing = await registration.pushManager.getSubscription()
   if (!existing) return false
-  if (subscriptionUsesPublicKey(existing, publicKey)) return false
 
   const subscription = await subscribeWithPublicKey(registration, publicKey)
+
+  // Re-save even when the browser subscription is unchanged. The API treats
+  // this as a heartbeat and clears failed_at, which lets existing devices heal
+  // after transient Web Push failures, DB restores, or deployments where the
+  // browser still has a valid subscription but Rails stopped considering it
+  // active.
   await saveSubscription(subscription)
 
   return true
