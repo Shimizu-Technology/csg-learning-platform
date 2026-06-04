@@ -25,6 +25,15 @@ interface ModuleData {
   }>
 }
 
+function formatDateTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return 'TBD'
+
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return 'TBD'
+
+  return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
 const lessonTypeIcons: Record<string, React.ReactNode> = {
   video: <Play className="h-4 w-4" />,
   exercise: <Code className="h-4 w-4" />,
@@ -37,7 +46,7 @@ export function ModuleView() {
   const { id } = useParams<{ id: string }>()
   const [mod, setMod] = useState<ModuleData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [progressData, setProgressData] = useState<Record<number, { status: string; completedBlocks: number; totalBlocks: number }>>({})
+  const [progressData, setProgressData] = useState<Record<number, { status: string; completedBlocks: number; totalBlocks: number; submissionWindow?: { submissions_close_at: string | null; submissions_closed: boolean } }>>({})
   const [moduleProgress, setModuleProgress] = useState<{ completedBlocks: number; totalBlocks: number } | null>(null)
 
   useEffect(() => {
@@ -53,12 +62,13 @@ export function ModuleView() {
       if (dashRes.data?.dashboard?.modules) {
         const targetMod = dashRes.data.dashboard.modules.find((m: any) => m.id === Number(id))
         if (targetMod) {
-          const map: Record<number, { status: string; completedBlocks: number; totalBlocks: number }> = {}
+          const map: Record<number, { status: string; completedBlocks: number; totalBlocks: number; submissionWindow?: { submissions_close_at: string | null; submissions_closed: boolean } }> = {}
           targetMod.lessons.forEach((l: any) => {
             map[l.id] = {
               status: l.completed ? 'completed' : l.available ? 'available' : 'locked',
               completedBlocks: l.completed_blocks || 0,
               totalBlocks: l.total_blocks || 0,
+              submissionWindow: l.submission_window,
             }
           })
           setProgressData(map)
@@ -144,6 +154,7 @@ export function ModuleView() {
                             const lessonProgress = progressData[lesson.id]
                             const isCompleted = lessonProgress?.status === 'completed'
                             const isPartial = !isCompleted && (lessonProgress?.completedBlocks || 0) > 0
+                            const submissionWindow = lessonProgress?.submissionWindow
 
                             return (
                               <Link
@@ -166,8 +177,16 @@ export function ModuleView() {
                                         · {lessonProgress?.completedBlocks}/{lessonProgress?.totalBlocks} done
                                       </span>
                                     )}
+                                    {submissionWindow?.submissions_close_at && (
+                                      <span className={`text-xs font-medium ${submissionWindow.submissions_closed ? 'text-red-600' : 'text-slate-400'}`}>
+                                        · {submissionWindow.submissions_closed ? 'submissions closed' : 'submissions close'} {formatDateTime(submissionWindow.submissions_close_at)}
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
+                                {submissionWindow?.submissions_closed && (
+                                  <span className="text-xs font-medium text-red-700 bg-red-50 px-2 py-0.5 rounded-full">Closed</span>
+                                )}
                                 {isCompleted && (
                                   <span className="text-xs font-medium text-success-600 bg-success-50 px-2 py-0.5 rounded-full">Done</span>
                                 )}

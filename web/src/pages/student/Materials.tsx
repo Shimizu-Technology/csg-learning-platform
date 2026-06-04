@@ -24,6 +24,15 @@ function formatDate(dateStr: string | null | undefined): string {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
+function formatDateTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return 'TBD'
+
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return 'TBD'
+
+  return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
 function lessonStatus(lesson: LessonItem) {
   if (!lesson.available) return 'locked'
   if (lesson.completed) return 'completed'
@@ -388,11 +397,17 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
                         <p className="mt-0.5 text-xs capitalize text-slate-500">
                           {formatTypeLabel(lesson.lesson_type)}
                           {status === 'locked' ? ` · unlocks ${formatDate(lesson.unlock_date)}` : ` · ${lesson.completed_blocks}/${lesson.total_blocks} blocks`}
+                          {lesson.submission_window?.submissions_close_at && status !== 'locked'
+                            ? lesson.submission_window.submissions_closed
+                              ? ` · submissions closed ${formatDateTime(lesson.submission_window.submissions_close_at)}`
+                              : ` · submissions close ${formatDateTime(lesson.submission_window.submissions_close_at)}`
+                            : ''}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
                         {isRedo && <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">Redo</span>}
                         {isPartial && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">In progress</span>}
+                        {lesson.submission_window?.submissions_closed && <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">Closed</span>}
                         {status === 'completed' && <span className="rounded-full bg-success-50 px-2 py-0.5 text-xs font-medium text-success-700">Done</span>}
                         {lesson.available && <ArrowRight className="h-4 w-4 text-slate-300" />}
                       </div>

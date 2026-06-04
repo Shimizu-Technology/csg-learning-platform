@@ -44,6 +44,8 @@ module Api
         content_block = ContentBlock.find(params[:content_block_id])
         authorize_content_block_write!(content_block)
         return if performed?
+        authorize_submission_window_open!(content_block)
+        return if performed?
 
         submission_type = effective_submission_type_for(content_block)
 
@@ -88,6 +90,13 @@ module Api
         unless current_user.staff? || (@submission.user_id == current_user.id && @submission.grade.nil?)
           render_forbidden("Cannot update this submission")
           return
+        end
+
+        unless current_user.staff?
+          authorize_content_block_write!(@submission.content_block)
+          return if performed?
+          authorize_submission_window_open!(@submission.content_block)
+          return if performed?
         end
 
         if @submission.update(submission_update_params)

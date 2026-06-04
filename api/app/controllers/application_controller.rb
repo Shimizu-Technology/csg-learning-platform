@@ -25,11 +25,7 @@ class ApplicationController < ActionController::API
     return if current_user.staff?
 
     lesson = content_block.lesson
-    enrollment = current_user.enrollments
-      .active
-      .joins(:cohort)
-      .includes(:module_assignments, :lesson_assignments, cohort: :cohort_module_schedules)
-      .find_by(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
+    enrollment = active_enrollment_for_lesson(lesson)
 
     unless enrollment
       render_forbidden("Not enrolled in this curriculum")
@@ -47,5 +43,26 @@ class ApplicationController < ActionController::API
     unless lesson.available?(enrollment.cohort, assignment, lesson_assignment)
       render_forbidden("Lesson is not unlocked yet")
     end
+  end
+
+  def authorize_submission_window_open!(content_block)
+    return if current_user.staff?
+
+    lesson = content_block.lesson
+    enrollment = active_enrollment_for_lesson(lesson)
+    return unless enrollment
+
+    status = SubmissionWindowStatus.for_lesson(cohort: enrollment.cohort, lesson: lesson)
+    return unless status[:submissions_closed]
+
+    render_forbidden("Submissions for Week #{status[:week_number]} are closed")
+  end
+
+  def active_enrollment_for_lesson(lesson)
+    current_user.enrollments
+      .active
+      .joins(:cohort)
+      .includes(:module_assignments, :lesson_assignments, cohort: [ :cohort_module_schedules, :cohort_module_submission_windows ])
+      .find_by(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
   end
 end

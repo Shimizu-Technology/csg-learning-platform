@@ -25,6 +25,9 @@ class User < ApplicationRecord
   has_many :message_attachments, foreign_key: :uploaded_by_id, dependent: :restrict_with_exception
   has_many :message_reactions, dependent: :destroy
   has_many :message_preferences, dependent: :destroy
+  has_many :created_office_hours, class_name: "OfficeHour", foreign_key: :created_by_id, dependent: :nullify
+  has_many :created_submission_windows, class_name: "CohortModuleSubmissionWindow", foreign_key: :created_by_id, dependent: :nullify
+  has_many :updated_submission_windows, class_name: "CohortModuleSubmissionWindow", foreign_key: :updated_by_id, dependent: :nullify
 
   validates :clerk_id, presence: true, uniqueness: true
   validates :email, presence: true, uniqueness: { case_sensitive: false }

@@ -144,7 +144,7 @@ module Api
         enrollment = current_user.enrollments
           .active
           .joins(:cohort)
-          .includes(:module_assignments, cohort: :cohort_module_schedules)
+          .includes(:module_assignments, cohort: [ :cohort_module_schedules, :cohort_module_submission_windows ])
           .find_by(cohorts: { curriculum_id: @lesson.curriculum_module.curriculum_id })
 
         unless enrollment
@@ -181,6 +181,7 @@ module Api
         if current_user.student?
           enrollment = current_user.enrollments.active
             .joins(:cohort)
+            .includes(cohort: :cohort_module_submission_windows)
             .find_by(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
           if enrollment
             cohort = enrollment.cohort
@@ -188,6 +189,7 @@ module Api
             requires_github = mod_gh["requires_github"] || false
             json[:requires_github] = requires_github
             json[:repository_name] = mod_gh["repository_name"].presence || cohort.repository_name
+            json[:submission_window] = SubmissionWindowStatus.for_lesson(cohort: cohort, lesson: lesson)
           end
         end
 

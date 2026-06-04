@@ -25,6 +25,41 @@ interface ClassResource {
   description?: string
 }
 
+interface SubmissionWindowForm {
+  week_number: number
+  submissions_close_at: string
+  submissions_closed: boolean
+  status: 'open' | 'scheduled' | 'closed'
+  starts_on?: string | null
+  ends_on?: string | null
+  lessons_count?: number
+}
+
+interface OfficeHourOccurrence {
+  office_hour_id: number
+  title: string
+  description: string | null
+  starts_at: string
+  ends_at: string
+  meeting_url: string
+  timezone: string
+  recurrence: 'once' | 'weekly'
+}
+
+interface OfficeHour {
+  id: number
+  cohort_id: number
+  title: string
+  description: string | null
+  starts_at: string
+  ends_at: string
+  meeting_url: string
+  timezone: string
+  recurrence: 'once' | 'weekly'
+  active: boolean
+  occurrences: OfficeHourOccurrence[]
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type CohortData = Record<string, any> & {
   id: number
@@ -40,6 +75,8 @@ type CohortData = Record<string, any> & {
   github_organization_name?: string | null
   recordings?: Recording[]
   class_resources?: ClassResource[]
+  office_hours?: OfficeHour[]
+  office_hour_occurrences?: OfficeHourOccurrence[]
   students: Array<{
     enrollment_id: number
     user_id: number
@@ -64,6 +101,16 @@ type CohortData = Record<string, any> & {
     uses_default_start_date: boolean
     requires_github?: boolean
     repository_name?: string | null
+    week_count?: number
+    submission_windows?: Array<{
+      week_number: number
+      submissions_close_at: string | null
+      submissions_closed: boolean
+      status: 'open' | 'scheduled' | 'closed'
+      starts_on?: string | null
+      ends_on?: string | null
+      lessons_count?: number
+    }>
   }>
 }
 
@@ -89,6 +136,36 @@ function toDateInputValue(dateStr?: string | null): string {
 
 function todayDateInputValue(): string {
   return formatDateInputValue(new Date())
+}
+
+function toDateTimeInputValue(dateStr?: string | null): string {
+  if (!dateStr) return ''
+
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+  return local.toISOString().slice(0, 16)
+}
+
+function dateTimeInputToIso(value?: string | null): string | null {
+  if (!value) return null
+
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date.toISOString()
+}
+
+function nowDateTimeInputValue(): string {
+  return toDateTimeInputValue(new Date().toISOString())
+}
+
+function formatDateTimeLabel(dateStr?: string | null): string {
+  if (!dateStr) return 'Not scheduled'
+
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return 'Not scheduled'
+
+  return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
 function formatDateLabel(dateStr?: string | null): string {
@@ -154,6 +231,33 @@ const RESOURCE_CATEGORY_LABELS = RESOURCE_CATEGORY_OPTIONS.reduce<Record<string,
 
 type CohortStatusValue = typeof COHORT_STATUS_OPTIONS[number]['value']
 
+interface OfficeHourFormState {
+  title: string
+  description: string
+  starts_at: string
+  ends_at: string
+  meeting_url: string
+  timezone: string
+  recurrence: 'once' | 'weekly'
+}
+
+function emptyOfficeHourForm(): OfficeHourFormState {
+  const start = new Date()
+  start.setHours(start.getHours() + 1, 0, 0, 0)
+  const end = new Date(start)
+  end.setHours(end.getHours() + 1)
+
+  return {
+    title: 'Office Hours',
+    description: '',
+    starts_at: toDateTimeInputValue(start.toISOString()),
+    ends_at: toDateTimeInputValue(end.toISOString()),
+    meeting_url: '',
+    timezone: 'Pacific/Guam',
+    recurrence: 'weekly',
+  }
+}
+
 export function CohortDetail() {
   const { id } = useParams<{ id: string }>()
   const toast = useToast()
@@ -165,8 +269,10 @@ export function CohortDetail() {
   const [savingRecordings, setSavingRecordings] = useState(false)
   const [savingResources, setSavingResources] = useState(false)
   const [forms, setForms] = useState<Record<number, { unlocked: boolean; module_start_date: string; requires_github: boolean; repository_name: string }>>({})
+  const [submissionWindows, setSubmissionWindows] = useState<Record<number, SubmissionWindowForm[]>>({})
   const [recordings, setRecordings] = useState<Recording[]>([])
   const [classResources, setClassResources] = useState<ClassResource[]>([])
+  const [officeHours, setOfficeHours] = useState<OfficeHour[]>([])
   const [showAddStudent, setShowAddStudent] = useState(false)
   const [addStudentEmail, setAddStudentEmail] = useState('')
   const [addStudentGithub, setAddStudentGithub] = useState('')
@@ -181,6 +287,11 @@ export function CohortDetail() {
   const [showRecordingsModal, setShowRecordingsModal] = useState(false)
   const [showResourcesModal, setShowResourcesModal] = useState(false)
   const [resourcesMode, setResourcesMode] = useState<'view' | 'edit'>('view')
+  const [showOfficeHoursModal, setShowOfficeHoursModal] = useState(false)
+  const [officeHourForm, setOfficeHourForm] = useState<OfficeHourFormState>(() => emptyOfficeHourForm())
+  const [editingOfficeHourId, setEditingOfficeHourId] = useState<number | null>(null)
+  const [savingOfficeHour, setSavingOfficeHour] = useState(false)
+  const [deletingOfficeHourId, setDeletingOfficeHourId] = useState<number | null>(null)
   const [configureModuleId, setConfigureModuleId] = useState<number | null>(null)
   const [showAddModule, setShowAddModule] = useState(false)
   const [newModuleName, setNewModuleName] = useState('')
@@ -211,14 +322,32 @@ export function CohortDetail() {
     return nextForms
   }, [])
 
+  const buildSubmissionWindowsFromCohort = useCallback((nextCohort: CohortData) => {
+    const nextWindows: Record<number, SubmissionWindowForm[]> = {}
+    nextCohort.modules.forEach((mod: CohortData['modules'][0]) => {
+      nextWindows[mod.id] = (mod.submission_windows || []).map((window) => ({
+        week_number: window.week_number,
+        submissions_close_at: toDateTimeInputValue(window.submissions_close_at),
+        submissions_closed: window.submissions_closed,
+        status: window.status,
+        starts_on: window.starts_on,
+        ends_on: window.ends_on,
+        lessons_count: window.lessons_count,
+      }))
+    })
+    return nextWindows
+  }, [])
+
   const applyCohort = useCallback((nextCohort: CohortData) => {
     setCohort(nextCohort)
     setRecordings(nextCohort.recordings || [])
     setClassResources(nextCohort.class_resources || [])
+    setOfficeHours(nextCohort.office_hours || [])
     setEditStartDate(toDateInputValue(nextCohort.start_date))
     setEditStatus(nextCohort.status)
     setForms(buildFormsFromCohort(nextCohort))
-  }, [buildFormsFromCohort])
+    setSubmissionWindows(buildSubmissionWindowsFromCohort(nextCohort))
+  }, [buildFormsFromCohort, buildSubmissionWindowsFromCohort])
 
   const reloadCohort = useCallback(async () => {
     if (!id) return null
@@ -434,6 +563,104 @@ export function CohortDetail() {
     setSavingResources(false)
   }
 
+  const updateSubmissionWindow = (moduleId: number, weekNumber: number, closeAt: string) => {
+    setSubmissionWindows((prev) => ({
+      ...prev,
+      [moduleId]: (prev[moduleId] || []).map((window) => (
+        window.week_number === weekNumber ? { ...window, submissions_close_at: closeAt } : window
+      )),
+    }))
+  }
+
+  const saveSubmissionWindows = async (moduleId: number, options?: { silent?: boolean }) => {
+    if (!id) return false
+    const windows = submissionWindows[moduleId] || []
+
+    const res = await api.updateCohortModuleSubmissionWindows(Number(id), moduleId, windows.map((window) => ({
+      week_number: window.week_number,
+      submissions_close_at: dateTimeInputToIso(window.submissions_close_at),
+    })))
+
+    if (res.error) {
+      notifyError(res.error)
+      return false
+    }
+
+    await reloadCohort()
+    if (!options?.silent) notifySuccess('Updated submission windows')
+    return true
+  }
+
+  const resetOfficeHourForm = () => {
+    setOfficeHourForm(emptyOfficeHourForm())
+    setEditingOfficeHourId(null)
+  }
+
+  const editOfficeHour = (officeHour: OfficeHour) => {
+    setEditingOfficeHourId(officeHour.id)
+    setOfficeHourForm({
+      title: officeHour.title,
+      description: officeHour.description || '',
+      starts_at: toDateTimeInputValue(officeHour.starts_at),
+      ends_at: toDateTimeInputValue(officeHour.ends_at),
+      meeting_url: officeHour.meeting_url,
+      timezone: officeHour.timezone || 'Pacific/Guam',
+      recurrence: officeHour.recurrence,
+    })
+  }
+
+  const saveOfficeHour = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!id) return
+
+    const startsAt = dateTimeInputToIso(officeHourForm.starts_at)
+    const endsAt = dateTimeInputToIso(officeHourForm.ends_at)
+    if (!startsAt || !endsAt) {
+      notifyError('Office hours need a valid start and end time')
+      return
+    }
+
+    setSavingOfficeHour(true)
+    const payload = {
+      title: officeHourForm.title.trim(),
+      description: officeHourForm.description.trim() || null,
+      starts_at: startsAt,
+      ends_at: endsAt,
+      meeting_url: officeHourForm.meeting_url.trim(),
+      timezone: officeHourForm.timezone || 'Pacific/Guam',
+      recurrence: officeHourForm.recurrence,
+      active: true,
+    }
+
+    const res = editingOfficeHourId
+      ? await api.updateOfficeHour(Number(id), editingOfficeHourId, payload)
+      : await api.createOfficeHour(Number(id), payload)
+
+    if (res.error) {
+      notifyError(res.error)
+    } else {
+      await reloadCohort()
+      notifySuccess(editingOfficeHourId ? 'Updated office hours' : 'Added office hours')
+      resetOfficeHourForm()
+    }
+    setSavingOfficeHour(false)
+  }
+
+  const deleteOfficeHour = async (officeHourId: number) => {
+    if (!id) return
+
+    setDeletingOfficeHourId(officeHourId)
+    const res = await api.deleteOfficeHour(Number(id), officeHourId)
+    if (res.error) {
+      notifyError(res.error)
+    } else {
+      await reloadCohort()
+      notifySuccess('Removed office hours')
+      if (editingOfficeHourId === officeHourId) resetOfficeHourForm()
+    }
+    setDeletingOfficeHourId(null)
+  }
+
   const handleAddModule = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!cohort || !newModuleName.trim()) return
@@ -480,20 +707,8 @@ export function CohortDetail() {
       return
     }
 
-    const nextCohort = res.data?.cohort
-    if (nextCohort) {
-      setCohort(nextCohort)
-      const nextForms: Record<number, { unlocked: boolean; module_start_date: string; requires_github: boolean; repository_name: string }> = {}
-      nextCohort.modules.forEach((mod: CohortData['modules'][0]) => {
-        nextForms[mod.id] = {
-          unlocked: mod.assigned && (nextCohort.active_count > 0 ? mod.unlocked_count === nextCohort.active_count : false),
-          module_start_date: toDateInputValue(mod.module_start_date),
-          requires_github: mod.requires_github || false,
-          repository_name: mod.repository_name || '',
-        }
-      })
-      setForms(nextForms)
-    }
+    const nextCohort = res.data?.cohort as CohortData | undefined
+    if (nextCohort) applyCohort(nextCohort)
     const moduleName = cohort?.modules.find((mod) => mod.id === moduleId)?.name || 'module'
     notifySuccess(`Assigned ${moduleName}; open Configure to adjust the start date if needed`)
     setSavingModuleId(null)
@@ -516,20 +731,8 @@ export function CohortDetail() {
       return
     }
 
-    const nextCohort = res.data?.cohort
-    if (nextCohort) {
-      setCohort(nextCohort)
-      const nextForms: Record<number, { unlocked: boolean; module_start_date: string; requires_github: boolean; repository_name: string }> = {}
-      nextCohort.modules.forEach((mod: CohortData['modules'][0]) => {
-        nextForms[mod.id] = {
-          unlocked: mod.assigned && (nextCohort.active_count > 0 ? mod.unlocked_count === nextCohort.active_count : false),
-          module_start_date: toDateInputValue(mod.module_start_date),
-          requires_github: mod.requires_github || false,
-          repository_name: mod.repository_name || '',
-        }
-      })
-      setForms(nextForms)
-    }
+    const nextCohort = res.data?.cohort as CohortData | undefined
+    if (nextCohort) applyCohort(nextCohort)
     const moduleName = cohort?.modules.find((mod) => mod.id === moduleId)?.name || 'module'
     notifySuccess(`Removed ${moduleName} from cohort assignments`)
     setSavingModuleId(null)
@@ -826,6 +1029,7 @@ export function CohortDetail() {
             const configureMod = cohort.modules.find((m) => m.id === configureModuleId)
             if (!configureMod) return null
             const form = forms[configureMod.id] || { unlocked: false, module_start_date: '', requires_github: false, repository_name: '' }
+            const windowForms = submissionWindows[configureMod.id] || []
             const saving = savingModuleId === configureMod.id
             return (
               <Modal
@@ -850,6 +1054,7 @@ export function CohortDetail() {
                     <button
                       onClick={async () => {
                         await saveModuleAccess(configureMod.id)
+                        await saveSubmissionWindows(configureMod.id, { silent: true })
                       }}
                       disabled={saving}
                       className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 transition-colors"
@@ -925,6 +1130,91 @@ export function CohortDetail() {
                           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                         <p className="mt-1 text-xs text-slate-400">The repo name under each student's GitHub account to sync from.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold text-slate-900">Submission windows</h3>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">
+                          Set a close time for each week. Students can still view lessons and videos after a week closes, but submissions and redo resubmissions are blocked.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => saveSubmissionWindows(configureMod.id)}
+                        disabled={saving}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        <Save className="h-3.5 w-3.5" />
+                        Save windows
+                      </button>
+                    </div>
+
+                    {windowForms.length === 0 ? (
+                      <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-center text-sm text-slate-500">
+                        Add lessons to this module before configuring weekly submission windows.
+                      </div>
+                    ) : (
+                      <div className="mt-4 space-y-3">
+                        {windowForms.map((window) => {
+                          const statusStyles = window.status === 'closed'
+                            ? 'border-red-200 bg-red-50 text-red-700'
+                            : window.submissions_close_at
+                              ? 'border-amber-200 bg-amber-50 text-amber-700'
+                              : 'border-green-200 bg-green-50 text-green-700'
+                          const statusLabel = window.status === 'closed'
+                            ? 'Closed'
+                            : window.submissions_close_at
+                              ? 'Scheduled'
+                              : 'Open'
+
+                          return (
+                            <div key={window.week_number} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="text-sm font-semibold text-slate-900">Week {window.week_number}</p>
+                                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusStyles}`}>
+                                      {statusLabel}
+                                    </span>
+                                  </div>
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    {window.starts_on ? `${formatDateLabel(window.starts_on)} – ${formatDateLabel(window.ends_on)}` : 'Dates depend on module start'}
+                                    {typeof window.lessons_count === 'number' ? ` · ${window.lessons_count} lesson${window.lessons_count !== 1 ? 's' : ''}` : ''}
+                                  </p>
+                                  <p className="mt-1 text-xs text-slate-400">
+                                    {window.submissions_close_at ? `Closes ${formatDateTimeLabel(dateTimeInputToIso(window.submissions_close_at))}` : 'No close time set'}
+                                  </p>
+                                </div>
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                  <input
+                                    type="datetime-local"
+                                    value={window.submissions_close_at}
+                                    onChange={(event) => updateSubmissionWindow(configureMod.id, window.week_number, event.target.value)}
+                                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => updateSubmissionWindow(configureMod.id, window.week_number, nowDateTimeInputValue())}
+                                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                                  >
+                                    Lock now
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateSubmissionWindow(configureMod.id, window.week_number, '')}
+                                    className="rounded-lg px-3 py-2 text-xs font-medium text-slate-500 hover:bg-white hover:text-slate-700"
+                                  >
+                                    Clear
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
                       </div>
                     )}
                   </div>
@@ -1065,6 +1355,43 @@ export function CohortDetail() {
         </div>
 
         <div className="space-y-4">
+          <div className="rounded-2xl bg-white border border-slate-200 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Office Hours</h2>
+                <p className="mt-1 text-sm text-slate-500">Shown clearly on the student dashboard.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowOfficeHoursModal(true)}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Manage
+              </button>
+            </div>
+            {officeHours.length === 0 ? (
+              <div className="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
+                No office hours yet. Add recurring or one-time help sessions for this cohort.
+              </div>
+            ) : (
+              <div className="mt-3 space-y-2">
+                {(cohort.office_hour_occurrences || officeHours.flatMap((officeHour) => officeHour.occurrences)).slice(0, 3).map((occurrence, index) => (
+                  <a
+                    key={`${occurrence.office_hour_id}-${occurrence.starts_at}-${index}`}
+                    href={sanitizeUrl(occurrence.meeting_url)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 hover:border-primary-200"
+                  >
+                    <p className="text-sm font-medium text-slate-900">{occurrence.title}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">{formatDateTimeLabel(occurrence.starts_at)}</p>
+                    <p className="mt-0.5 text-[11px] font-medium uppercase tracking-wide text-primary-600">{occurrence.recurrence === 'weekly' ? 'Weekly' : 'One-time'}</p>
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+
           {upcomingUnlocks.length > 0 && (
             <div className="rounded-2xl bg-white border border-slate-200 p-4">
               <h2 className="text-lg font-semibold text-slate-900">Upcoming Module Starts</h2>
@@ -1255,6 +1582,181 @@ export function CohortDetail() {
           {statusPendingConfirmation === 'archived'
             ? 'Students and staff will still be able to reference this cohort when needed, but it will move into the inactive/archive flow.'
             : 'This is a good fit for finished cohorts that should remain visible without blending in with currently running classes.'}
+        </div>
+      </Modal>
+
+      {/* Office Hours Modal */}
+      <Modal
+        open={showOfficeHoursModal}
+        onClose={() => setShowOfficeHoursModal(false)}
+        title="Office Hours"
+        subtitle="Create one-time or weekly help sessions that students will see on their dashboard. Times default to Guam."
+        icon={<Clock className="h-6 w-6 text-primary-500" />}
+        size="xl"
+      >
+        <div className="grid gap-5 lg:grid-cols-[1fr_1.1fr]">
+          <form onSubmit={saveOfficeHour} className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900">{editingOfficeHourId ? 'Edit session' : 'Add office hours'}</h3>
+              <p className="mt-1 text-xs text-slate-500">Weekly recurrence repeats from the first start time.</p>
+            </div>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-slate-600">Title</span>
+              <input
+                type="text"
+                required
+                value={officeHourForm.title}
+                onChange={(event) => setOfficeHourForm((current) => ({ ...current, title: event.target.value }))}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-slate-600">Meeting URL</span>
+              <input
+                type="url"
+                required
+                value={officeHourForm.meeting_url}
+                onChange={(event) => setOfficeHourForm((current) => ({ ...current, meeting_url: event.target.value }))}
+                placeholder="https://zoom.us/j/..."
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-slate-600">Starts</span>
+                <input
+                  type="datetime-local"
+                  required
+                  value={officeHourForm.starts_at}
+                  onChange={(event) => setOfficeHourForm((current) => ({ ...current, starts_at: event.target.value }))}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-slate-600">Ends</span>
+                <input
+                  type="datetime-local"
+                  required
+                  value={officeHourForm.ends_at}
+                  onChange={(event) => setOfficeHourForm((current) => ({ ...current, ends_at: event.target.value }))}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </label>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-slate-600">Repeats</span>
+                <select
+                  value={officeHourForm.recurrence}
+                  onChange={(event) => setOfficeHourForm((current) => ({ ...current, recurrence: event.target.value as 'once' | 'weekly' }))}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="once">One-time</option>
+                  <option value="weekly">Weekly</option>
+                </select>
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-slate-600">Timezone</span>
+                <input
+                  type="text"
+                  value={officeHourForm.timezone}
+                  onChange={(event) => setOfficeHourForm((current) => ({ ...current, timezone: event.target.value }))}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </label>
+            </div>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-slate-600">Description</span>
+              <textarea
+                value={officeHourForm.description}
+                onChange={(event) => setOfficeHourForm((current) => ({ ...current, description: event.target.value }))}
+                rows={3}
+                placeholder="Optional details students should know before joining."
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </label>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button
+                type="submit"
+                disabled={savingOfficeHour}
+                className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
+              >
+                <Save className="h-4 w-4" />
+                {savingOfficeHour ? 'Saving...' : editingOfficeHourId ? 'Save office hours' : 'Add office hours'}
+              </button>
+              {editingOfficeHourId && (
+                <button
+                  type="button"
+                  onClick={resetOfficeHourForm}
+                  className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-white"
+                >
+                  Cancel edit
+                </button>
+              )}
+            </div>
+          </form>
+
+          <div className="space-y-3">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900">Current schedule</h3>
+              <p className="mt-1 text-xs text-slate-500">The next three occurrences are shown to students on the dashboard.</p>
+            </div>
+            {officeHours.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+                No office hours have been added yet.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {officeHours.map((officeHour) => (
+                  <div key={officeHour.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="text-sm font-semibold text-slate-900">{officeHour.title}</h4>
+                          <span className="rounded-full border border-primary-200 bg-primary-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-700">
+                            {officeHour.recurrence === 'weekly' ? 'Weekly' : 'One-time'}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-500">{formatDateTimeLabel(officeHour.starts_at)} – {formatDateTimeLabel(officeHour.ends_at)}</p>
+                        {officeHour.description && <p className="mt-2 text-sm text-slate-600">{officeHour.description}</p>}
+                        <a href={sanitizeUrl(officeHour.meeting_url)} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary-600 hover:text-primary-700">
+                          Open meeting link
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                      <div className="flex shrink-0 gap-1">
+                        <button
+                          type="button"
+                          onClick={() => editOfficeHour(officeHour)}
+                          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteOfficeHour(officeHour.id)}
+                          disabled={deletingOfficeHourId === officeHour.id}
+                          className="rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          {deletingOfficeHourId === officeHour.id ? 'Removing...' : 'Remove'}
+                        </button>
+                      </div>
+                    </div>
+                    {officeHour.occurrences.length > 0 && (
+                      <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Upcoming</p>
+                        <div className="mt-1 space-y-1">
+                          {officeHour.occurrences.map((occurrence) => (
+                            <p key={`${officeHour.id}-${occurrence.starts_at}`} className="text-xs text-slate-600">{formatDateTimeLabel(occurrence.starts_at)}</p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </Modal>
 

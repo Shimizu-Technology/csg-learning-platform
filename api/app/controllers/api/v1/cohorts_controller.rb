@@ -9,7 +9,7 @@ module Api
 
       # GET /api/v1/cohorts
       def index
-        cohorts = Cohort.includes(:cohort_module_schedules, curriculum: :modules).order(start_date: :desc)
+        cohorts = Cohort.includes(:cohort_module_schedules, :cohort_module_submission_windows, :office_hours, curriculum: :modules).order(start_date: :desc)
         render json: {
           cohorts: cohorts.map { |c|
             base = cohort_json(c)
@@ -160,11 +160,11 @@ module Api
       private
 
       def set_cohort
-        @cohort = Cohort.includes(:cohort_module_schedules, curriculum: :modules).find(params[:id])
+        @cohort = Cohort.includes(:cohort_module_schedules, :cohort_module_submission_windows, :office_hours, curriculum: :modules).find(params[:id])
       end
 
       def set_cohort_with_lessons
-        @cohort = Cohort.includes(:cohort_module_schedules, curriculum: { modules: { lessons: :content_blocks } }).find(params[:id])
+        @cohort = Cohort.includes(:cohort_module_schedules, :cohort_module_submission_windows, :office_hours, curriculum: { modules: { lessons: :content_blocks } }).find(params[:id])
       end
 
       def cohort_params
@@ -268,7 +268,8 @@ module Api
         available_modules = module_data.count { |mod| mod[:available] }
         announcements = cohort_student_view_announcements(cohort)
         resources = cohort_student_view_resources(cohort)
-        dashboard = cohort_student_dashboard_preview_json(cohort, module_data, announcements, resources)
+        office_hours = upcoming_office_hour_occurrences_json(cohort, limit: 3)
+        dashboard = cohort_student_dashboard_preview_json(cohort, module_data, announcements, resources, office_hours)
 
         {
           cohort: {
@@ -294,6 +295,7 @@ module Api
           dashboard: dashboard,
           announcements: announcements,
           resources: resources,
+          office_hours: office_hours,
           recordings: {
             uploaded_count: cohort.recordings.count,
             legacy_count: Array((cohort.settings || {})["recordings"]).size,
@@ -302,7 +304,7 @@ module Api
         }
       end
 
-      def cohort_student_dashboard_preview_json(cohort, module_data, announcements, resources)
+      def cohort_student_dashboard_preview_json(cohort, module_data, announcements, resources, office_hours)
         dashboard_modules = module_data.select { |mod| mod[:assigned] }.map do |mod|
           total_blocks = mod[:lessons].sum { |lesson| lesson[:completion_blocks_count] }
           {
@@ -328,7 +330,8 @@ module Api
                 unlock_date: lesson[:unlock_date],
                 total_blocks: lesson[:completion_blocks_count],
                 completed_blocks: 0,
-                completed: false
+                completed: false,
+                submission_window: lesson[:submission_window]
               }
             }
           }
@@ -351,7 +354,8 @@ module Api
           modules: dashboard_modules,
           continue_lesson: continue_lesson && { id: continue_lesson[:id], title: continue_lesson[:title] },
           action_items: [],
-          resources: resources
+          resources: resources,
+          office_hours: office_hours
         }
       end
 
@@ -413,7 +417,8 @@ module Api
           content_blocks_count: lesson.content_blocks.size,
           completion_blocks_count: lesson.completion_block_ids.size,
           requires_submission: lesson.effective_requires_submission(requires_github: requires_github),
-          submission_type: lesson.effective_submission_type(requires_github: requires_github)
+          submission_type: lesson.effective_submission_type(requires_github: requires_github),
+          submission_window: SubmissionWindowStatus.for_lesson(cohort: _cohort, lesson: lesson)
         }
       end
 
@@ -463,6 +468,52 @@ module Api
         end
       end
 
+      def office_hour_json(office_hour)
+        {
+          id: office_hour.id,
+          cohort_id: office_hour.cohort_id,
+          title: office_hour.title,
+          description: office_hour.description,
+          starts_at: office_hour.starts_at,
+          ends_at: office_hour.ends_at,
+          meeting_url: office_hour.meeting_url,
+          timezone: office_hour.timezone,
+          recurrence: office_hour.recurrence,
+          active: office_hour.active,
+          occurrences: office_hour.upcoming_occurrences(limit: 3).map { |occurrence| office_hour_occurrence_json(office_hour, occurrence) }
+        }
+      end
+
+      def upcoming_office_hour_occurrences_json(cohort, limit: 3)
+        cohort.office_hours.active.flat_map do |office_hour|
+          office_hour.upcoming_occurrences(limit: limit).map { |occurrence| office_hour_occurrence_json(office_hour, occurrence) }
+        end.sort_by { |occurrence| occurrence[:starts_at] }.first(limit)
+      end
+
+      def office_hour_occurrence_json(office_hour, occurrence)
+        {
+          office_hour_id: office_hour.id,
+          title: office_hour.title,
+          description: office_hour.description,
+          starts_at: occurrence[:starts_at],
+          ends_at: occurrence[:ends_at],
+          meeting_url: office_hour.meeting_url,
+          timezone: office_hour.timezone,
+          recurrence: office_hour.recurrence
+        }
+      end
+
+      def module_submission_windows_json(cohort, mod, module_start_date)
+        (1..mod.week_count).map do |week_number|
+          SubmissionWindowStatus.for_week(
+            cohort: cohort,
+            curriculum_module: mod,
+            week_number: week_number,
+            module_start_date: module_start_date
+          )
+        end
+      end
+
       def cohort_student_view_recordings(cohort)
         uploaded = cohort.recordings.order(:position, :recorded_date, :created_at).limit(6).map do |recording|
           {
@@ -506,7 +557,9 @@ module Api
           active_count: cohort.enrollments.active.joins(:user).merge(User.not_archived).count,
           announcements: Array((cohort.settings || {})["announcements"]),
           recordings: Array((cohort.settings || {})["recordings"]),
-          class_resources: Array((cohort.settings || {})["class_resources"])
+          class_resources: Array((cohort.settings || {})["class_resources"]),
+          office_hours: cohort.office_hours.active.ordered.map { |office_hour| office_hour_json(office_hour) },
+          office_hour_occurrences: upcoming_office_hour_occurrences_json(cohort, limit: 3)
         }
 
         json[:uploaded_recordings_count] = cohort.recordings.count if include_students
@@ -563,7 +616,9 @@ module Api
               module_start_date: module_start_date,
               uses_default_start_date: schedule_index[mod.id].nil?,
               requires_github: mod_gh["requires_github"] || false,
-              repository_name: mod_gh["repository_name"].presence || cohort.repository_name
+              repository_name: mod_gh["repository_name"].presence || cohort.repository_name,
+              week_count: mod.week_count,
+              submission_windows: module_submission_windows_json(cohort, mod, module_start_date)
             }
           end
         end

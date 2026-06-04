@@ -20,6 +20,8 @@ module Api
           :lesson_assignments,
           cohort: [
             :cohort_module_schedules,
+            :cohort_module_submission_windows,
+            :office_hours,
             { curriculum: { modules: { lessons: :content_blocks } } }
           ]
         ).first
@@ -78,7 +80,8 @@ module Api
                 unlock_date: lesson_assignments_by_lesson_id[l.id]&.unlock_date_override || l.unlock_date(cohort, assignment),
                 total_blocks: lesson_block_ids.size,
                 completed_blocks: lesson_completed,
-                completed: lesson_completed == lesson_block_ids.size && lesson_block_ids.any?
+                completed: lesson_completed == lesson_block_ids.size && lesson_block_ids.any?,
+                submission_window: SubmissionWindowStatus.for_lesson(cohort: cohort, lesson: l)
               }
             }
           }
@@ -97,15 +100,19 @@ module Api
         end
 
         # Action items: submissions with redo grade (most recent first)
-        redo_submissions = current_user.submissions.where(grade: "R").includes(content_block: :lesson).order(graded_at: :desc).limit(5)
+        redo_submissions = current_user.submissions.where(grade: "R").includes(content_block: { lesson: :curriculum_module }).order(graded_at: :desc).limit(5)
         action_items = redo_submissions.map { |s|
+          lesson = s.content_block.lesson
+          submission_window = SubmissionWindowStatus.for_lesson(cohort: cohort, lesson: lesson)
           {
             type: "redo",
             submission_id: s.id,
-            lesson_id: s.content_block.lesson.id,
-            lesson_title: s.content_block.lesson.title,
+            lesson_id: lesson.id,
+            lesson_title: lesson.title,
             content_block_title: s.content_block.title,
-            feedback: s.feedback
+            feedback: s.feedback,
+            submission_window: submission_window,
+            submissions_closed: submission_window[:submissions_closed]
           }
         }
 
@@ -147,9 +154,27 @@ module Api
             modules: modules_data,
             continue_lesson: continue_lesson,
             action_items: action_items,
-            resources: dashboard_resources_json(cohort)
+            resources: dashboard_resources_json(cohort),
+            office_hours: upcoming_office_hour_occurrences_json(cohort, limit: 3)
           }
         }
+      end
+
+      def upcoming_office_hour_occurrences_json(cohort, limit: 3)
+        cohort.office_hours.active.flat_map do |office_hour|
+          office_hour.upcoming_occurrences(limit: limit).map do |occurrence|
+            {
+              office_hour_id: office_hour.id,
+              title: office_hour.title,
+              description: office_hour.description,
+              starts_at: occurrence[:starts_at],
+              ends_at: occurrence[:ends_at],
+              meeting_url: office_hour.meeting_url,
+              timezone: office_hour.timezone,
+              recurrence: office_hour.recurrence
+            }
+          end
+        end.sort_by { |occurrence| occurrence[:starts_at] }.first(limit)
       end
 
       def dashboard_resources_json(cohort)

@@ -45,6 +45,10 @@ class ContentBlock < ApplicationRecord
     effective_submission_type(requires_github: requires_github) == "repo_and_live_url_submission"
   end
 
+  def student_work_block?
+    exercise_like? || checkpoint?
+  end
+
   private
 
   def legacy_submission_type(requires_github: false)

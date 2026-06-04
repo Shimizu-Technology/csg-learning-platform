@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Player, { type VimeoUrl } from '@vimeo/player'
-import { Play, FileText, Code, CheckCircle2, Circle, ChevronDown, ChevronUp, Send, BadgeCheck, RotateCcw, ExternalLink, Globe, GitBranch } from 'lucide-react'
+import { Play, FileText, Code, CheckCircle2, Circle, ChevronDown, ChevronUp, Send, BadgeCheck, RotateCcw, ExternalLink, Globe, GitBranch, Lock } from 'lucide-react'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { GradeDisplay } from './GradeDisplay'
 import { CodeEditor, detectLanguage } from './CodeEditor'
@@ -51,6 +51,9 @@ interface ContentBlockRendererProps {
   requiresGithub?: boolean
   requiresSubmission?: boolean
   repositoryName?: string
+  submissionsLocked?: boolean
+  submissionsCloseAt?: string | null
+  submissionWeekNumber?: number
   onProgressUpdate?: () => void
 }
 
@@ -65,7 +68,16 @@ function getVimeoEmbed(url: string): { id: string; hash?: string } | null {
   return { id: match[1], hash: match[2] }
 }
 
-export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresSubmission = true, repositoryName, onProgressUpdate }: ContentBlockRendererProps) {
+function formatDateTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return 'the close time'
+
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return 'the close time'
+
+  return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
+export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresSubmission = true, repositoryName, submissionsLocked = false, submissionsCloseAt, submissionWeekNumber, onProgressUpdate }: ContentBlockRendererProps) {
   const toast = useToast()
   const submissions = block.submissions ?? []
   const latestSubmission = submissions[0] || null
@@ -103,6 +115,8 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
   const usesTextSubmission = isExerciseType && submissionType === 'text_submission'
   const usesRepoArtifactSubmission = isExerciseType && (submissionType === 'repo_url_submission' || submissionType === 'repo_and_live_url_submission')
   const requiresLiveUrl = submissionType === 'repo_and_live_url_submission'
+  const workLocked = submissionsLocked && (isExerciseType || block.block_type === 'checkpoint')
+  const lockCopy = submissionWeekNumber ? `Week ${submissionWeekNumber} submissions are closed` : 'Submissions are closed'
   const hasUngradedSubmission = submissions.length > 0 && !hasRedoRequest && !hasPassingGrade
 
   const handleDraftChange = useCallback((updater: () => void) => {
@@ -234,6 +248,11 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
   }
 
   const handleToggleComplete = async () => {
+    if (workLocked && !isCompleted) {
+      toast.error(`${lockCopy}. You can still review the lesson, but new work cannot be marked complete.`)
+      return
+    }
+
     const newStatus = isCompleted ? 'not_started' : 'completed'
     const res = await api.updateProgress(block.id, newStatus)
     if (!res.error) {
@@ -270,6 +289,13 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
   const handleSubmit = async () => {
     setSubmissionError(null)
     setSubmissionSuccess(null)
+
+    if (workLocked) {
+      const message = `${lockCopy}. You can still review the lesson and existing feedback, but new submissions are disabled.`
+      setSubmissionError(message)
+      toast.error(message)
+      return
+    }
 
     if (usesTextSubmission && !submissionText.trim()) {
       setSubmissionError('Please enter your solution before submitting.')
@@ -382,11 +408,18 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
             Submitted
           </span>
         )}
+        {workLocked && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-red-50 border border-red-200 px-2 py-0.5 text-xs font-medium text-red-700">
+            <Lock className="h-3.5 w-3.5" />
+            Submissions closed
+          </span>
+        )}
         <div className="ml-auto">
           {usesManualExerciseCompletion ? (
             <button
               onClick={handleToggleComplete}
-              className="flex items-center gap-1.5 text-sm transition-colors"
+              disabled={workLocked && !isCompleted}
+              className="flex items-center gap-1.5 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               aria-label={isCompleted ? 'Mark exercise not done' : 'Mark exercise complete'}
             >
               {isCompleted ? (
@@ -408,7 +441,8 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
           ) : (
             <button
               onClick={handleToggleComplete}
-              className="flex items-center gap-1.5 text-sm transition-colors"
+              disabled={workLocked && !isCompleted}
+              className="flex items-center gap-1.5 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isCompleted ? (
                 <CheckCircle2 className="h-5 w-5 text-success-500" />
@@ -512,10 +546,13 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
               </div>
               <button
                 onClick={handleToggleComplete}
-                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                disabled={workLocked && !isCompleted}
+                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                   isCompleted
                     ? 'border border-success-200 bg-white text-success-700 hover:bg-success-50'
-                    : 'bg-primary-500 text-white hover:bg-primary-600'
+                    : workLocked
+                      ? 'bg-slate-200 text-slate-500'
+                      : 'bg-primary-500 text-white hover:bg-primary-600'
                 }`}
               >
                 {isCompleted ? (
@@ -536,6 +573,19 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
 
         {(block.block_type === 'exercise' || block.block_type === 'code_challenge') && submissionType !== 'manual_complete' && (
           <div className="mt-4 space-y-3">
+            {workLocked && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                <div className="flex items-start gap-2">
+                  <Lock className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+                  <div>
+                    <p className="text-sm font-semibold text-red-800">{lockCopy}</p>
+                    <p className="mt-1 text-xs leading-5 text-red-700">
+                      Closed {formatDateTime(submissionsCloseAt)}. Existing submissions and feedback remain visible, but new submissions and redo resubmissions are disabled.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
             {latestSubmission?.grade && (
               <div className={`rounded-xl border px-4 py-3 ${
                 hasRedoRequest ? 'border-orange-200 bg-orange-50' : 'border-success-200 bg-success-50'
@@ -654,7 +704,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                   <span className="font-semibold text-slate-700">{repositoryName || 'exercises'}</span> repository on GitHub.
                 </p>
                 <p className="text-xs text-slate-400">
-                  Your instructor will sync and review your code from GitHub.
+                  {workLocked ? 'GitHub sync is disabled after the submission window closes.' : 'Your instructor will sync and review your code from GitHub.'}
                 </p>
               </div>
             ) : usesTextSubmission ? (
@@ -675,6 +725,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                   onChange={(value) => handleDraftChange(() => setSubmissionText(value))}
                   language={detectedLang}
                   minHeight={240}
+                  readOnly={workLocked}
                 />
                 {runnerConfig.enabled && (
                   <CodeRunner
@@ -702,11 +753,11 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                   </p>
                   <button
                     onClick={handleSubmit}
-                    disabled={isSubmitting || !submissionText.trim()}
+                    disabled={workLocked || isSubmitting || !submissionText.trim()}
                     className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     <Send className="h-4 w-4" />
-                    {isSubmitting ? 'Submitting…' : 'Submit'}
+                    {workLocked ? 'Closed' : isSubmitting ? 'Submitting…' : 'Submit'}
                   </button>
                 </div>
               </div>
@@ -726,8 +777,9 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                     <input
                       value={repoUrl}
                       onChange={(e) => handleDraftChange(() => setRepoUrl(e.target.value))}
+                      disabled={workLocked}
                       placeholder="https://github.com/username/project"
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500"
                     />
                   </label>
                   {requiresLiveUrl && (
@@ -736,8 +788,9 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                       <input
                         value={liveUrl}
                         onChange={(e) => handleDraftChange(() => setLiveUrl(e.target.value))}
+                        disabled={workLocked}
                         placeholder="https://your-app.example.com"
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500"
                       />
                     </label>
                   )}
@@ -747,9 +800,10 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                   <textarea
                     value={submissionNotes}
                     onChange={(e) => handleDraftChange(() => setSubmissionNotes(e.target.value))}
+                    disabled={workLocked}
                     rows={4}
                     placeholder="Anything your instructor should know about this submission."
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500"
                   />
                 </label>
                 <div className="space-y-3">
@@ -769,8 +823,9 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                           <input
                             value={liveUrl}
                             onChange={(e) => handleDraftChange(() => setLiveUrl(e.target.value))}
+                            disabled={workLocked}
                             placeholder="https://your-app.example.com"
-                            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500"
                           />
                         </label>
                       )}
@@ -779,8 +834,9 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                         <input
                           value={prUrl}
                           onChange={(e) => handleDraftChange(() => setPrUrl(e.target.value))}
+                          disabled={workLocked}
                           placeholder="https://github.com/.../pull/123"
-                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500"
                         />
                       </label>
                       <label className="block">
@@ -788,8 +844,9 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                         <input
                           value={branchName}
                           onChange={(e) => handleDraftChange(() => setBranchName(e.target.value))}
+                          disabled={workLocked}
                           placeholder="main"
-                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500"
                         />
                       </label>
                       <label className="block">
@@ -797,8 +854,9 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                         <input
                           value={commitSha}
                           onChange={(e) => handleDraftChange(() => setCommitSha(e.target.value))}
+                          disabled={workLocked}
                           placeholder="abc1234"
-                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500"
                         />
                       </label>
                     </div>
@@ -824,11 +882,11 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                   </p>
                   <button
                     onClick={handleSubmit}
-                    disabled={isSubmitting || !repoUrl.trim() || (requiresLiveUrl && !liveUrl.trim())}
+                    disabled={workLocked || isSubmitting || !repoUrl.trim() || (requiresLiveUrl && !liveUrl.trim())}
                     className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     <Send className="h-4 w-4" />
-                    {isSubmitting ? 'Submitting…' : 'Submit Links'}
+                    {workLocked ? 'Closed' : isSubmitting ? 'Submitting…' : 'Submit Links'}
                   </button>
                 </div>
               </div>

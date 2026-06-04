@@ -19,6 +19,9 @@ import type {
   CohortsListResponse,
   CohortResponse,
   CohortStudentViewResponse,
+  SubmissionWindowsResponse,
+  OfficeHoursResponse,
+  OfficeHourResponse,
   EnrollmentResponse,
   ModuleAssignmentsListResponse,
   ModuleAssignmentResponse,
@@ -605,6 +608,25 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ class_resources: classResources }),
     }),
+  updateCohortModuleSubmissionWindows: (cohortId: number, moduleId: number, submissionWindows: { week_number: number; submissions_close_at: string | null }[]) =>
+    fetchApi<SubmissionWindowsResponse>(`/api/v1/cohorts/${cohortId}/modules/${moduleId}/submission_windows`, {
+      method: 'PATCH',
+      body: JSON.stringify({ submission_windows: submissionWindows }),
+    }),
+  getOfficeHours: (cohortId: number) =>
+    fetchApi<OfficeHoursResponse>(`/api/v1/cohorts/${cohortId}/office_hours`),
+  createOfficeHour: (cohortId: number, data: { title: string; description?: string | null; starts_at: string; ends_at: string; meeting_url: string; timezone?: string; recurrence?: 'once' | 'weekly'; active?: boolean }) =>
+    fetchApi<OfficeHourResponse>(`/api/v1/cohorts/${cohortId}/office_hours`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateOfficeHour: (cohortId: number, officeHourId: number, data: { title?: string; description?: string | null; starts_at?: string; ends_at?: string; meeting_url?: string; timezone?: string; recurrence?: 'once' | 'weekly'; active?: boolean }) =>
+    fetchApi<OfficeHourResponse>(`/api/v1/cohorts/${cohortId}/office_hours/${officeHourId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteOfficeHour: (cohortId: number, officeHourId: number) =>
+    fetchApi<null>(`/api/v1/cohorts/${cohortId}/office_hours/${officeHourId}`, { method: 'DELETE' }),
 
   // Admin — Enrollments
   createEnrollment: (cohortId: number, userId: number) =>

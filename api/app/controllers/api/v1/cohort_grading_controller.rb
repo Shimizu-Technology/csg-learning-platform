@@ -51,7 +51,8 @@ module Api
               requires_submission: cb.review_required?(requires_github: mod_gh["requires_github"] || false),
               submission_type: submission_type,
               submission_config: cb.submission_config || {},
-              github_sync: submission_type == "prework_github_sync"
+              github_sync: submission_type == "prework_github_sync",
+              submission_window: SubmissionWindowStatus.for_lesson(cohort: @cohort, lesson: cb.lesson)
             }
           end
 
@@ -62,6 +63,7 @@ module Api
           module_name: @curriculum_module.name,
           requires_github: mod_gh["requires_github"] || false,
           supports_github_sync: exercise_blocks.any? { |cb| cb.github_sync_submission?(requires_github: mod_gh["requires_github"] || false) },
+          open_github_sync_count: exercise_blocks.count { |cb| cb.github_sync_submission?(requires_github: mod_gh["requires_github"] || false) && !SubmissionWindowStatus.closed_for_lesson?(cohort: @cohort, lesson: cb.lesson) },
           repository_name: mod_gh["repository_name"].presence || @cohort.repository_name,
           students: students_data,
           exercises: exercises,
@@ -128,7 +130,7 @@ module Api
       private
 
       def set_cohort
-        @cohort = Cohort.find(params[:cohort_id])
+        @cohort = Cohort.includes(:cohort_module_submission_windows).find(params[:cohort_id])
       end
 
       def set_module
