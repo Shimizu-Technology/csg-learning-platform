@@ -7,21 +7,13 @@ import { ProgressRing } from '../../components/shared/ProgressRing'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
+import { formatShortDateTime } from '../../lib/format'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import type { DashboardData } from '../../types/api'
 
 function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return 'TBD'
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
-function formatDateTime(dateStr: string | null | undefined): string {
-  if (!dateStr) return 'TBD'
-
-  const date = new Date(dateStr)
-  if (Number.isNaN(date.getTime())) return 'TBD'
-
-  return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
 interface DashboardProps {
@@ -229,7 +221,7 @@ export function Dashboard({ previewData, previewBanner, disableStaffRedirect = f
               </h3>
               {derived.nextSubmissionDeadline ? (
                 <p className="mt-1 text-sm text-slate-600">
-                  Next close: <span className="font-medium text-slate-900">{derived.nextSubmissionDeadline.title}</span> closes {formatDateTime(derived.nextSubmissionDeadline.submission_window?.submissions_close_at)}.
+                  Next close: <span className="font-medium text-slate-900">{derived.nextSubmissionDeadline.title}</span> closes {formatShortDateTime(derived.nextSubmissionDeadline.submission_window?.submissions_close_at)}.
                 </p>
               ) : (
                 <p className="mt-1 text-sm text-slate-600">No upcoming submission close times right now.</p>
@@ -255,7 +247,7 @@ export function Dashboard({ previewData, previewBanner, disableStaffRedirect = f
           <div className="rounded-xl border border-primary-200 bg-primary-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-primary-700">Next session</p>
             <p className="mt-1 text-base font-semibold text-slate-900">{data.office_hours[0].title}</p>
-            <p className="mt-0.5 text-sm text-slate-600">{formatDateTime(data.office_hours[0].starts_at)}</p>
+            <p className="mt-0.5 text-sm text-slate-600">{formatShortDateTime(data.office_hours[0].starts_at)}</p>
             {data.office_hours[0].description && <p className="mt-2 text-sm text-slate-600">{data.office_hours[0].description}</p>}
             <a
               href={sanitizeUrl(data.office_hours[0].meeting_url)}
@@ -278,7 +270,7 @@ export function Dashboard({ previewData, previewBanner, disableStaffRedirect = f
                   className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 hover:border-primary-200"
                 >
                   <p className="text-sm font-medium text-slate-900">{session.title}</p>
-                  <p className="mt-0.5 text-xs text-slate-500">{formatDateTime(session.starts_at)}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">{formatShortDateTime(session.starts_at)}</p>
                 </a>
               ))}
             </div>

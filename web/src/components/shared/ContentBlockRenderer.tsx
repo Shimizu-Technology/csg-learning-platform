@@ -9,6 +9,7 @@ import { VideoPlayer } from './VideoPlayer'
 import { api } from '../../lib/api'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { CODE_RUNNER_TIMEOUT_MS, codeRunnerLanguageFromEditor, normalizeCodeRunnerConfig } from '../../lib/codeRunner'
+import { formatShortDateTime } from '../../lib/format'
 import { useToast } from '../../contexts/ToastContext'
 
 interface ContentBlock {
@@ -66,15 +67,6 @@ function getVimeoEmbed(url: string): { id: string; hash?: string } | null {
   const match = url.match(/vimeo\.com\/(\d+)(?:\/([a-zA-Z0-9]+))?/) 
   if (!match) return null
   return { id: match[1], hash: match[2] }
-}
-
-function formatDateTime(dateStr: string | null | undefined): string {
-  if (!dateStr) return 'the close time'
-
-  const date = new Date(dateStr)
-  if (Number.isNaN(date.getTime())) return 'the close time'
-
-  return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
 export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresSubmission = true, repositoryName, submissionsLocked = false, submissionsCloseAt, submissionWeekNumber, onProgressUpdate }: ContentBlockRendererProps) {
@@ -580,7 +572,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                   <div>
                     <p className="text-sm font-semibold text-red-800">{lockCopy}</p>
                     <p className="mt-1 text-xs leading-5 text-red-700">
-                      Closed {formatDateTime(submissionsCloseAt)}. Existing submissions and feedback remain visible, but new submissions and redo resubmissions are disabled.
+                      Closed {formatShortDateTime(submissionsCloseAt, 'the close time')}. Existing submissions and feedback remain visible, but new submissions and redo resubmissions are disabled.
                     </p>
                   </div>
                 </div>

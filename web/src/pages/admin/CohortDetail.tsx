@@ -6,6 +6,7 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Modal } from '../../components/shared/Modal'
 import { RecordingUploadManager } from '../../components/admin/RecordingUploadManager'
 import { useToast } from '../../contexts/ToastContext'
+import { formatShortDateTime } from '../../lib/format'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { presenceStatus, usePresenceNow } from '../../lib/presence'
 import { subscribeToStaffPresence } from '../../lib/realtime'
@@ -159,13 +160,13 @@ function nowDateTimeInputValue(): string {
   return toDateTimeInputValue(new Date().toISOString())
 }
 
-function formatDateTimeLabel(dateStr?: string | null): string {
-  if (!dateStr) return 'Not scheduled'
+function submissionWindowStatusForForm(window: SubmissionWindowForm): SubmissionWindowForm['status'] {
+  if (!window.submissions_close_at) return 'open'
 
-  const date = new Date(dateStr)
-  if (Number.isNaN(date.getTime())) return 'Not scheduled'
+  const closeAt = new Date(window.submissions_close_at)
+  if (Number.isNaN(closeAt.getTime())) return 'scheduled'
 
-  return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  return closeAt <= new Date() ? 'closed' : 'scheduled'
 }
 
 function formatDateLabel(dateStr?: string | null): string {
@@ -1160,14 +1161,15 @@ export function CohortDetail() {
                     ) : (
                       <div className="mt-4 space-y-3">
                         {windowForms.map((window) => {
-                          const statusStyles = window.status === 'closed'
+                          const displayStatus = submissionWindowStatusForForm(window)
+                          const statusStyles = displayStatus === 'closed'
                             ? 'border-red-200 bg-red-50 text-red-700'
-                            : window.submissions_close_at
+                            : displayStatus === 'scheduled'
                               ? 'border-amber-200 bg-amber-50 text-amber-700'
                               : 'border-green-200 bg-green-50 text-green-700'
-                          const statusLabel = window.status === 'closed'
+                          const statusLabel = displayStatus === 'closed'
                             ? 'Closed'
-                            : window.submissions_close_at
+                            : displayStatus === 'scheduled'
                               ? 'Scheduled'
                               : 'Open'
 
@@ -1186,7 +1188,7 @@ export function CohortDetail() {
                                     {typeof window.lessons_count === 'number' ? ` · ${window.lessons_count} lesson${window.lessons_count !== 1 ? 's' : ''}` : ''}
                                   </p>
                                   <p className="mt-1 text-xs text-slate-400">
-                                    {window.submissions_close_at ? `Closes ${formatDateTimeLabel(dateTimeInputToIso(window.submissions_close_at))}` : 'No close time set'}
+                                    {window.submissions_close_at ? `Closes ${formatShortDateTime(dateTimeInputToIso(window.submissions_close_at), 'Not scheduled')}` : 'No close time set'}
                                   </p>
                                 </div>
                                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -1384,7 +1386,7 @@ export function CohortDetail() {
                     className="block rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 hover:border-primary-200"
                   >
                     <p className="text-sm font-medium text-slate-900">{occurrence.title}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">{formatDateTimeLabel(occurrence.starts_at)}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">{formatShortDateTime(occurrence.starts_at, 'Not scheduled')}</p>
                     <p className="mt-0.5 text-[11px] font-medium uppercase tracking-wide text-primary-600">{occurrence.recurrence === 'weekly' ? 'Weekly' : 'One-time'}</p>
                   </a>
                 ))}
@@ -1717,7 +1719,7 @@ export function CohortDetail() {
                             {officeHour.recurrence === 'weekly' ? 'Weekly' : 'One-time'}
                           </span>
                         </div>
-                        <p className="mt-1 text-xs text-slate-500">{formatDateTimeLabel(officeHour.starts_at)} – {formatDateTimeLabel(officeHour.ends_at)}</p>
+                        <p className="mt-1 text-xs text-slate-500">{formatShortDateTime(officeHour.starts_at, 'Not scheduled')} – {formatShortDateTime(officeHour.ends_at, 'Not scheduled')}</p>
                         {officeHour.description && <p className="mt-2 text-sm text-slate-600">{officeHour.description}</p>}
                         <a href={sanitizeUrl(officeHour.meeting_url)} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary-600 hover:text-primary-700">
                           Open meeting link
@@ -1747,7 +1749,7 @@ export function CohortDetail() {
                         <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Upcoming</p>
                         <div className="mt-1 space-y-1">
                           {officeHour.occurrences.map((occurrence) => (
-                            <p key={`${officeHour.id}-${occurrence.starts_at}`} className="text-xs text-slate-600">{formatDateTimeLabel(occurrence.starts_at)}</p>
+                            <p key={`${officeHour.id}-${occurrence.starts_at}`} className="text-xs text-slate-600">{formatShortDateTime(occurrence.starts_at, 'Not scheduled')}</p>
                           ))}
                         </div>
                       </div>

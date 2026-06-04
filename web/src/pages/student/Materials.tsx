@@ -6,6 +6,7 @@ import { useAuthContext } from '../../contexts/AuthContext'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { ProgressBar } from '../../components/shared/ProgressBar'
+import { formatShortDateTime } from '../../lib/format'
 import type { DashboardData } from '../../types/api'
 
 type MaterialFilter = 'ready' | 'all' | 'redo' | 'completed' | 'locked'
@@ -22,15 +23,6 @@ interface MaterialsProps {
 function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return 'TBD'
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
-function formatDateTime(dateStr: string | null | undefined): string {
-  if (!dateStr) return 'TBD'
-
-  const date = new Date(dateStr)
-  if (Number.isNaN(date.getTime())) return 'TBD'
-
-  return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
 function lessonStatus(lesson: LessonItem) {
@@ -399,8 +391,8 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
                           {status === 'locked' ? ` · unlocks ${formatDate(lesson.unlock_date)}` : ` · ${lesson.completed_blocks}/${lesson.total_blocks} blocks`}
                           {lesson.submission_window?.submissions_close_at && status !== 'locked'
                             ? lesson.submission_window.submissions_closed
-                              ? ` · submissions closed ${formatDateTime(lesson.submission_window.submissions_close_at)}`
-                              : ` · submissions close ${formatDateTime(lesson.submission_window.submissions_close_at)}`
+                              ? ` · submissions closed ${formatShortDateTime(lesson.submission_window.submissions_close_at)}`
+                              : ` · submissions close ${formatShortDateTime(lesson.submission_window.submissions_close_at)}`
                             : ''}
                         </p>
                       </div>

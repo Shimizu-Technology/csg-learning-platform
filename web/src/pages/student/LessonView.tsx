@@ -5,15 +5,7 @@ import { api } from '../../lib/api'
 import { ContentBlockRenderer } from '../../components/shared/ContentBlockRenderer'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { useAuthContext } from '../../contexts/AuthContext'
-
-function formatDateTime(dateStr: string | null | undefined): string {
-  if (!dateStr) return 'TBD'
-
-  const date = new Date(dateStr)
-  if (Number.isNaN(date.getTime())) return 'TBD'
-
-  return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-}
+import { formatShortDateTime } from '../../lib/format'
 
 interface LessonData {
   id: number
@@ -92,8 +84,8 @@ export function LessonView() {
               </h2>
               <p className={`mt-1 text-sm ${lesson.submission_window.submissions_closed ? 'text-red-700' : 'text-amber-700'}`}>
                 {lesson.submission_window.submissions_closed
-                  ? `Submissions closed ${formatDateTime(lesson.submission_window.submissions_close_at)}. You can still review videos, readings, and feedback, but new work cannot be submitted.`
-                  : `Submissions close ${formatDateTime(lesson.submission_window.submissions_close_at)}.`}
+                  ? `Submissions closed ${formatShortDateTime(lesson.submission_window.submissions_close_at)}. You can still review videos, readings, and feedback, but new work cannot be submitted.`
+                  : `Submissions close ${formatShortDateTime(lesson.submission_window.submissions_close_at)}.`}
               </p>
             </div>
           </div>

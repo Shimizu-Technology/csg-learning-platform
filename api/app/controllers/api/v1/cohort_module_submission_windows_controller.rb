@@ -47,8 +47,10 @@ module Api
         end
         return if performed?
 
+        @cohort.cohort_module_submission_windows.reload
+
         render json: {
-          submission_windows: module_submission_windows_json(@cohort.reload, @curriculum_module)
+          submission_windows: module_submission_windows_json(@cohort, @curriculum_module)
         }
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
@@ -57,7 +59,7 @@ module Api
       private
 
       def set_cohort
-        @cohort = Cohort.includes(:cohort_module_submission_windows).find(params[:cohort_id])
+        @cohort = Cohort.includes(:cohort_module_schedules, :cohort_module_submission_windows).find(params[:cohort_id])
       end
 
       def set_module

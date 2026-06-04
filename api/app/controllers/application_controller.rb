@@ -59,10 +59,15 @@ class ApplicationController < ActionController::API
   end
 
   def active_enrollment_for_lesson(lesson)
-    current_user.enrollments
+    curriculum_id = lesson.curriculum_module.curriculum_id
+    cache_key = [ current_user.id, curriculum_id ]
+    @active_enrollment_for_lesson_cache ||= {}
+    return @active_enrollment_for_lesson_cache[cache_key] if @active_enrollment_for_lesson_cache.key?(cache_key)
+
+    @active_enrollment_for_lesson_cache[cache_key] = current_user.enrollments
       .active
       .joins(:cohort)
       .includes(:module_assignments, :lesson_assignments, cohort: [ :cohort_module_schedules, :cohort_module_submission_windows ])
-      .find_by(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
+      .find_by(cohorts: { curriculum_id: curriculum_id })
   end
 end

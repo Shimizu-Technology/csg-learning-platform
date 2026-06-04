@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { CheckCircle2, ArrowLeft, Play, Code, FileText, BookOpen } from 'lucide-react'
 import { api } from '../../lib/api'
+import { formatShortDateTime } from '../../lib/format'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 
@@ -23,15 +24,6 @@ interface ModuleData {
       title: string | null
     }>
   }>
-}
-
-function formatDateTime(dateStr: string | null | undefined): string {
-  if (!dateStr) return 'TBD'
-
-  const date = new Date(dateStr)
-  if (Number.isNaN(date.getTime())) return 'TBD'
-
-  return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
 const lessonTypeIcons: Record<string, React.ReactNode> = {
@@ -179,7 +171,7 @@ export function ModuleView() {
                                     )}
                                     {submissionWindow?.submissions_close_at && (
                                       <span className={`text-xs font-medium ${submissionWindow.submissions_closed ? 'text-red-600' : 'text-slate-400'}`}>
-                                        · {submissionWindow.submissions_closed ? 'submissions closed' : 'submissions close'} {formatDateTime(submissionWindow.submissions_close_at)}
+                                        · {submissionWindow.submissions_closed ? 'submissions closed' : 'submissions close'} {formatShortDateTime(submissionWindow.submissions_close_at)}
                                       </span>
                                     )}
                                   </div>
