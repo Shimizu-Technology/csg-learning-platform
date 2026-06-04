@@ -105,17 +105,21 @@ export function Dashboard({ previewData, previewBanner, disableStaffRedirect = f
 
     const completedModules = modules.filter((mod) => mod.total_blocks > 0 && mod.completed_blocks === mod.total_blocks).length
     const activeModules = modules.filter((mod) => mod.available && mod.total_blocks > 0 && mod.completed_blocks < mod.total_blocks).length
-    const lessonsWithWindows = modules.flatMap((mod) => mod.lessons.map((lesson) => ({ ...lesson, moduleName: mod.name })))
+    const lessonsWithWindows = modules.flatMap((mod) => mod.lessons.map((lesson) => ({ ...lesson, moduleId: mod.id, moduleName: mod.name })))
     const nextSubmissionDeadline = lessonsWithWindows
       .filter((lesson) => lesson.available && lesson.submission_window?.submissions_close_at && !lesson.submission_window.submissions_closed)
       .sort((a, b) => unlockTime(a.submission_window?.submissions_close_at) - unlockTime(b.submission_window?.submissions_close_at))[0] || null
-    const closedSubmissionLessonsCount = lessonsWithWindows.filter((lesson) => lesson.submission_window?.submissions_closed).length
+    const closedSubmissionWindowCount = new Set(
+      lessonsWithWindows
+        .filter((lesson) => lesson.submission_window?.submissions_closed)
+        .map((lesson) => `${lesson.moduleId}:${lesson.submission_window?.week_number}`)
+    ).size
 
     return {
       nextAvailableLesson,
       nextLockedLesson,
       nextSubmissionDeadline,
-      closedSubmissionLessonsCount,
+      closedSubmissionWindowCount,
       completedModules,
       activeModules,
       availableLessonsCount: incompleteAvailableLessons.length,
@@ -211,7 +215,7 @@ export function Dashboard({ previewData, previewBanner, disableStaffRedirect = f
         </div>
       </div>
 
-      {(derived.nextSubmissionDeadline || derived.closedSubmissionLessonsCount > 0) && (
+      {(derived.nextSubmissionDeadline || derived.closedSubmissionWindowCount > 0) && (
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -227,9 +231,9 @@ export function Dashboard({ previewData, previewBanner, disableStaffRedirect = f
                 <p className="mt-1 text-sm text-slate-600">No upcoming submission close times right now.</p>
               )}
             </div>
-            {derived.closedSubmissionLessonsCount > 0 && (
+            {derived.closedSubmissionWindowCount > 0 && (
               <span className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
-                {derived.closedSubmissionLessonsCount} closed
+                {derived.closedSubmissionWindowCount} closed window{derived.closedSubmissionWindowCount !== 1 ? 's' : ''}
               </span>
             )}
           </div>
