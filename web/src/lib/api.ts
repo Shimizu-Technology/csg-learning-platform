@@ -111,7 +111,7 @@ async function fetchApi<T>(
   const canRetry = method === 'GET' || method === 'HEAD';
   const cacheScope = apiCacheScope;
   const canUseCache = requireAuth && method === 'GET' && Boolean(cacheScope);
-  const maxAttempts = canRetry ? 3 : 1;
+  const maxAttempts = canRetry ? 3 : 2;
   let shouldForceTokenRefresh = false;
   let didRetryUnauthorized = false;
 
@@ -138,7 +138,7 @@ async function fetchApi<T>(
       if (!response.ok) {
         const errorBody = await response.json().catch(() => ({}));
         const error = errorMessage(errorBody, response.status);
-        const retryUnauthorized = canRetry && response.status === 401 && !didRetryUnauthorized;
+        const retryUnauthorized = response.status === 401 && !didRetryUnauthorized;
         const retryTransient = canRetry && RETRYABLE_STATUSES.has(response.status);
 
         if (retryUnauthorized && attempt < maxAttempts) {
@@ -392,10 +392,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(subscription),
     }),
-  deletePushSubscription: (endpoint: string) =>
+  deletePushSubscription: (endpoint?: string, all = false) =>
     fetchApi<null>('/api/v1/push_subscriptions', {
       method: 'DELETE',
-      body: JSON.stringify({ endpoint }),
+      body: JSON.stringify({ endpoint, all }),
     }),
   createCableToken: () =>
     fetchApi<CableTokenResponse>('/api/v1/cable_token', { method: 'POST' }),
@@ -673,6 +673,11 @@ export const api = {
   createModule: (curriculumId: number, data: { name: string; module_type?: string; description?: string; position?: number; total_days?: number; day_offset?: number; schedule_days?: string }) =>
     fetchApi<ModuleResponse>(`/api/v1/curricula/${curriculumId}/modules`, {
       method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateModule: (id: number, data: { name?: string; module_type?: string; description?: string; position?: number; total_days?: number; day_offset?: number; schedule_days?: string }) =>
+    fetchApi<ModuleResponse>(`/api/v1/modules/${id}`, {
+      method: 'PATCH',
       body: JSON.stringify(data),
     }),
   createContentBlock: (lessonId: number, data: { block_type: string; position?: number; title?: string; body?: string; video_url?: string; solution?: string; filename?: string; submission_type?: string; submission_config?: Record<string, unknown>; metadata?: Record<string, unknown>; s3_video_key?: string; s3_video_content_type?: string; s3_video_size?: number }) =>

@@ -730,7 +730,7 @@ export function CohortDetail() {
                   onChange={(e) => setNewModuleScheduleDays(e.target.value)}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
-                  <option value="weekdays">Mon - Fri</option>
+                  <option value="weekdays">MTWTF / Mon - Fri</option>
                   <option value="weekdays_sat">Mon - Sat</option>
                   <option value="mwf">Mon / Wed / Fri</option>
                   <option value="tth">Tue / Thu</option>

@@ -18,7 +18,9 @@ module Api
         render_push_config(
           configured: missing.empty?,
           public_key: public_key.empty? ? nil : public_key,
-          missing: missing
+          missing: missing,
+          notifications_enabled: current_user.message_email_notifications_enabled?,
+          active_subscription_count: current_user.push_subscriptions.active.count
         )
       rescue => e
         Rails.logger.error("[PushSubscriptionsController] config failed: #{e.class} #{e.message}")
@@ -46,6 +48,7 @@ module Api
         subscription.failed_at = nil
 
         if subscription.save
+          current_user.update!(message_email_notifications_enabled: true) unless current_user.message_email_notifications_enabled?
           head new_subscription ? :created : :ok
         else
           render json: { errors: subscription.errors.full_messages }, status: :unprocessable_entity
@@ -54,7 +57,16 @@ module Api
 
       # DELETE /api/v1/push_subscriptions
       def destroy
-        current_user.push_subscriptions.where(endpoint: params[:endpoint].to_s).destroy_all
+        if global_disable?
+          current_user.push_subscriptions.destroy_all
+          current_user.update!(message_email_notifications_enabled: false)
+        else
+          current_user.push_subscriptions.where(endpoint: params[:endpoint].to_s).destroy_all
+          unless current_user.push_subscriptions.active.exists?
+            current_user.update!(message_email_notifications_enabled: false)
+          end
+        end
+
         head :no_content
       end
 
@@ -68,6 +80,10 @@ module Api
 
       def safe_env_value(name)
         ENV.fetch(name, "").to_s.encode("UTF-8", invalid: :replace, undef: :replace, replace: "").strip
+      end
+
+      def global_disable?
+        ActiveModel::Type::Boolean.new.cast(params[:all]) || params[:endpoint].blank?
       end
 
       def subscription_params
