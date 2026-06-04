@@ -57,6 +57,14 @@ function groupLessonsByDay(lessons: Lesson[]) {
   return groups
 }
 
+const SCHEDULE_PATTERN_OPTIONS = [
+  { value: 'weekdays', label: 'MTWTF / Mon–Fri' },
+  { value: 'weekdays_sat', label: 'Mon–Sat' },
+  { value: 'mwf', label: 'MWF' },
+  { value: 'tth', label: 'Tue/Thu' },
+  { value: 'daily', label: 'Every day' },
+]
+
 export function ContentManagement() {
   const navigate = useNavigate()
   const { attachUpload } = useUpload()
@@ -77,6 +85,7 @@ export function ContentManagement() {
   const [newModuleModal, setNewModuleModal] = useState<{ curriculumId: number; moduleCount: number } | null>(null)
   const [exerciseSaving, setExerciseSaving] = useState(false)
   const [moduleSaving, setModuleSaving] = useState(false)
+  const [scheduleSavingId, setScheduleSavingId] = useState<number | null>(null)
   const [exerciseCreateError, setExerciseCreateError] = useState('')
   const [moduleCreateError, setModuleCreateError] = useState('')
   const [extraWeeks, setExtraWeeks] = useState<Record<number, number>>({})
@@ -138,6 +147,32 @@ export function ContentManagement() {
     setExtraWeeks(prev => ({ ...prev, [mod.id]: nextWeek }))
   }
 
+  const updateModuleSchedule = async (mod: Module, scheduleDays: string) => {
+    if (mod.schedule_days === scheduleDays) return
+
+    setScheduleSavingId(mod.id)
+    const res = await api.updateModule(mod.id, { schedule_days: scheduleDays })
+    if (res.error) {
+      toast.error(res.error)
+      setScheduleSavingId(null)
+      return
+    }
+
+    setCurricula((current) => current.map((curriculum) => ({
+      ...curriculum,
+      modules: curriculum.modules.map((item) => item.id === mod.id
+        ? {
+          ...item,
+          schedule_days: res.data?.module.schedule_days ?? scheduleDays,
+          scheduled_day_names: res.data?.module.scheduled_day_names ?? item.scheduled_day_names,
+          week_count: res.data?.module.week_count ?? item.week_count,
+        }
+        : item),
+    })))
+    setScheduleSavingId(null)
+    toast.success(`Updated ${mod.name} schedule`)
+  }
+
   if (loading) return <LoadingSpinner message="Loading content..." />
 
   return (
@@ -187,6 +222,8 @@ export function ContentManagement() {
                 onSetWeek={(w) => setActiveWeekTab(prev => ({ ...prev, [mod.id]: w }))}
                 onAddWeek={() => addWeek(mod)}
                 onAddExercise={(week, dayIndex) => openExerciseForDay(mod, week, dayIndex)}
+                onChangeSchedule={(scheduleDays) => updateModuleSchedule(mod, scheduleDays)}
+                scheduleSaving={scheduleSavingId === mod.id}
                 navigate={navigate}
               />
             ))}
@@ -276,6 +313,8 @@ function ModuleSection({
   onSetWeek,
   onAddWeek,
   onAddExercise,
+  onChangeSchedule,
+  scheduleSaving,
   navigate,
 }: {
   mod: Module
@@ -286,6 +325,8 @@ function ModuleSection({
   onSetWeek: (w: number) => void
   onAddWeek: () => void
   onAddExercise: (week: number, dayIndex: number) => void
+  onChangeSchedule: (scheduleDays: string) => void
+  scheduleSaving: boolean
   navigate: (path: string) => void
 }) {
   const lessonsByDay = useMemo(() => groupLessonsByDay(mod.lessons || []), [mod.lessons])
@@ -301,11 +342,7 @@ function ModuleSection({
     return Array.from(weeks).sort((a, b) => a - b)
   }, [mod.lessons, maxExtraWeek])
 
-  const scheduleLabel = mod.schedule_days === 'weekdays_sat' ? 'Mon–Sat'
-    : mod.schedule_days === 'mwf' ? 'MWF'
-    : mod.schedule_days === 'tth' ? 'TTh'
-    : mod.schedule_days === 'daily' ? 'Daily'
-    : 'Mon–Fri'
+  const scheduleLabel = SCHEDULE_PATTERN_OPTIONS.find((option) => option.value === mod.schedule_days)?.label || 'MTWTF / Mon–Fri'
 
   const exerciseCount = (mod.lessons || []).length
 
@@ -339,6 +376,18 @@ function ModuleSection({
           </div>
         </button>
         <div className="flex items-center gap-1 pl-6 sm:pl-0 shrink-0">
+          <select
+            value={mod.schedule_days}
+            disabled={scheduleSaving}
+            onClick={(event) => event.stopPropagation()}
+            onChange={(event) => onChangeSchedule(event.target.value)}
+            className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-60"
+            aria-label={`Schedule pattern for ${mod.name}`}
+          >
+            {SCHEDULE_PATTERN_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
           <button
             type="button"
             onClick={onAddWeek}

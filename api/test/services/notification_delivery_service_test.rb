@@ -42,7 +42,7 @@ class NotificationDeliveryServiceTest < ActiveSupport::TestCase
       mention_user_ids: [ recipient.id ]
     )
 
-    assert_enqueued_with(job: MessageMentionEmailJob, args: [ message.id, [ recipient.id ] ]) do
+    assert_enqueued_with(job: MessageMentionEmailJob, args: [ message.id, [ recipient.id ], [] ]) do
       NotificationDeliveryService.message_created(message)
     end
 
@@ -68,5 +68,33 @@ class NotificationDeliveryServiceTest < ActiveSupport::TestCase
     notification = Notification.find_by!(notifiable: message, user: recipient)
     assert_match "@everyone message", notification.title
     assert_match "@everyone:", notification.body
+  end
+
+  test "message notification emails mirror enabled message notifications" do
+    curriculum = Curriculum.create!(name: "Bootcamp 2026")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Cohort 3", start_date: Date.current, status: :active)
+    author = User.create!(clerk_id: "email_author", email: "email-author@example.com", first_name: "Email", last_name: "Author", role: :student)
+    recipient = User.create!(clerk_id: "email_student", email: "email-student@example.com", first_name: "Email", last_name: "Student", role: :student, message_email_notifications_enabled: true)
+    disabled_recipient = User.create!(clerk_id: "email_disabled", email: "email-disabled@example.com", first_name: "Disabled", last_name: "Student", role: :student)
+    Enrollment.create!(user: author, cohort: cohort, status: :active)
+    Enrollment.create!(user: recipient, cohort: cohort, status: :active)
+    Enrollment.create!(user: disabled_recipient, cohort: cohort, status: :active)
+    conversation = DirectConversation.find_or_create_for!(workspace: cohort.workspace, users: [ author, recipient, disabled_recipient ])
+    message = Message.create!(direct_conversation: conversation, author: author, body: "Can everyone see this DM?")
+    deliveries = []
+
+    original_send = NotificationEmailService.method(:send_message_notification)
+    NotificationEmailService.define_singleton_method(:send_message_notification) do |user:, message:, notification:|
+      deliveries << [ user.id, message.id, notification.id ]
+      true
+    end
+
+    perform_enqueued_jobs(only: MessageNotificationEmailJob) do
+      NotificationDeliveryService.message_created(message, push: true)
+    end
+
+    assert_equal [ [ recipient.id, message.id, Notification.find_by!(notifiable: message, user: recipient).id ] ], deliveries
+  ensure
+    NotificationEmailService.define_singleton_method(:send_message_notification, original_send) if original_send
   end
 end

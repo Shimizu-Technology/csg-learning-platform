@@ -81,7 +81,7 @@ export function Layout({ children }: LayoutProps) {
       if (!active) return
 
       const publicKey = config.data?.public_key || import.meta.env.VITE_WEB_PUSH_PUBLIC_KEY
-      if (!config.data?.configured || !publicKey) return
+      if (!config.data?.configured || !publicKey || !config.data?.notifications_enabled) return
 
       refreshExistingPushSubscription(publicKey).catch((error) => {
         console.warn('Push subscription refresh failed:', error)

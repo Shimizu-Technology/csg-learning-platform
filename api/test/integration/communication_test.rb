@@ -331,6 +331,7 @@ class CommunicationTest < ActionDispatch::IntegrationTest
 
     assert_response :created
     assert_equal 1, @student.push_subscriptions.count
+    assert @student.reload.message_email_notifications_enabled?
 
     as_user(@student) do
       post "/api/v1/push_subscriptions",
@@ -349,6 +350,48 @@ class CommunicationTest < ActionDispatch::IntegrationTest
     subscription = PushSubscription.find_by!(endpoint: "https://push.example/subscription-1")
     assert_equal @student, subscription.user
     assert_equal "new-public-key", subscription.p256dh
+  end
+
+  test "global push disable removes subscriptions and disables message emails" do
+    @student.update!(message_email_notifications_enabled: true)
+    @student.push_subscriptions.create!(
+      endpoint: "https://push.example/subscription-1",
+      p256dh: "public-key",
+      auth: "auth-secret"
+    )
+    @student.push_subscriptions.create!(
+      endpoint: "https://push.example/subscription-2",
+      p256dh: "public-key-2",
+      auth: "auth-secret-2"
+    )
+
+    as_user(@student) do
+      delete "/api/v1/push_subscriptions",
+        params: { all: true },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :no_content
+    assert_equal 0, @student.push_subscriptions.count
+    refute @student.reload.message_email_notifications_enabled?
+  end
+
+  test "bare push subscription delete does not globally disable notifications" do
+    @student.update!(message_email_notifications_enabled: true)
+    @student.push_subscriptions.create!(
+      endpoint: "https://push.example/subscription-1",
+      p256dh: "public-key",
+      auth: "auth-secret"
+    )
+
+    as_user(@student) do
+      delete "/api/v1/push_subscriptions", headers: auth_headers
+    end
+
+    assert_response :no_content
+    assert_equal 1, @student.push_subscriptions.count
+    assert @student.reload.message_email_notifications_enabled?
   end
 
   test "push subscription cannot be claimed by a different user" do

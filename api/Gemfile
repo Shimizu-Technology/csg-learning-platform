@@ -2,6 +2,8 @@ source "https://rubygems.org"
 
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
 gem "rails", "~> 8.1.2"
+# Pin patched stdlib gems that are also shipped as standalone gems.
+gem "erb", ">= 6.0.4"
 # Use postgresql as the database for Active Record
 gem "pg", "~> 1.1"
 # Use the Puma web server [https://github.com/puma/puma]
@@ -48,7 +50,7 @@ group :development, :test do
 end
 
 # Auth
-gem "jwt"
+gem "jwt", ">= 3.2.0"
 
 # CORS
 gem "rack-cors"

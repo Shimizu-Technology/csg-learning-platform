@@ -603,7 +603,10 @@ function parseMessageSegments(body: string): MessageSegment[] {
     }
 
     const normalized = text.replace(/^[ \t]*\n+/, '').replace(/\n+[ \t]*$/, '')
-    if (normalized.trim()) segments.push({ type: 'text', text: normalized })
+    normalized.split(/\n[ \t]*\n+/).forEach((part, index, parts) => {
+      if (part.trim()) segments.push({ type: 'text', text: part })
+      if (index < parts.length - 1) pushSpacerSegment()
+    })
 
     if (/\n[ \t]*\n[ \t]*$/.test(text)) {
       pushSpacerSegment()
@@ -1201,10 +1204,20 @@ export function Messages() {
   useEffect(() => {
     if (!pushSupported()) return
 
-    navigator.serviceWorker.ready
-      .then((registration) => registration.pushManager.getSubscription())
-      .then((subscription) => setPushEnabled(Boolean(subscription)))
-      .catch(() => setPushEnabled(false))
+    let active = true
+    Promise.all([
+      api.getPushConfig(),
+      navigator.serviceWorker.ready.then((registration) => registration.pushManager.getSubscription()).catch(() => null),
+    ]).then(([config, subscription]) => {
+      if (!active) return
+      setPushEnabled(typeof config.data?.notifications_enabled === 'boolean' ? config.data.notifications_enabled : Boolean(subscription))
+    }).catch(() => {
+      if (active) setPushEnabled(false)
+    })
+
+    return () => {
+      active = false
+    }
   }, [])
 
   useEffect(() => {
@@ -1851,7 +1864,7 @@ export function Messages() {
       try {
         await disablePushNotifications()
         setPushEnabled(false)
-        setPushMessage('Push notifications are off for this device.')
+        setPushMessage('Message push and email notifications are off globally. This device was unsubscribed.')
       } catch (toggleError) {
         setPushMessage(toggleError instanceof Error ? toggleError.message : 'Could not turn off notifications.')
       }
@@ -1878,7 +1891,7 @@ export function Messages() {
     try {
       await enablePushNotifications(publicKey)
       setPushEnabled(true)
-      setPushMessage('Push notifications are on for every unmuted conversation in this workspace.')
+      setPushMessage('Message notifications are on globally. We will send push alerts on this device and email your account for unmuted message notifications.')
     } catch (toggleError) {
       setPushMessage(toggleError instanceof Error ? toggleError.message : 'Could not enable notifications.')
     }
@@ -2273,7 +2286,7 @@ export function Messages() {
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 {pushEnabled ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
-                {pushEnabled ? 'Turn off push globally' : 'Turn on push globally'}
+                {pushEnabled ? 'Turn off notifications globally' : 'Turn on notifications globally'}
               </button>
             )}
           </div>
@@ -2604,9 +2617,9 @@ export function Messages() {
                       <ConversationHeaderAction
                         onClick={handleTogglePush}
                         icon={<Smartphone className="h-4 w-4" />}
-                        shortLabel={pushEnabled ? 'Push off' : 'Push on'}
-                        fullLabel={pushEnabled ? 'Turn off push globally' : 'Turn on push globally'}
-                        ariaLabel={pushEnabled ? 'Turn off push notifications' : 'Turn on push notifications'}
+                        shortLabel={pushEnabled ? 'Notify off' : 'Notify on'}
+                        fullLabel={pushEnabled ? 'Turn off notifications globally' : 'Turn on notifications globally'}
+                        ariaLabel={pushEnabled ? 'Turn off message notifications' : 'Turn on message notifications'}
                       />
                     )}
                     {selectedTarget.type === 'channel' && selectedChannel?.visibility === 'staff_only' && (
@@ -3495,7 +3508,7 @@ function FormattedMessage({ body, mentionPatterns }: { body: string; mentionPatt
   if (!body) return null
 
   return (
-    <div className="mt-0.5 max-w-full space-y-1 overflow-hidden break-words text-sm leading-5 text-slate-700 [overflow-wrap:anywhere]">
+    <div className="mt-0.5 max-w-full space-y-0.5 overflow-hidden break-words text-sm leading-[1.45] text-slate-700 [overflow-wrap:anywhere]">
       {segments.map((segment, index) => {
         const key = `${index}-${
           segment.type === 'code'
@@ -3505,7 +3518,7 @@ function FormattedMessage({ body, mentionPatterns }: { body: string; mentionPatt
               : 'spacer'
         }`
         if (segment.type === 'spacer') {
-          return <div key={key} className="h-1" aria-hidden="true" />
+          return <div key={key} className="h-0.5" aria-hidden="true" />
         }
 
         if (segment.type === 'code') {

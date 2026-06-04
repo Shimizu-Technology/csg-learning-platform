@@ -240,6 +240,8 @@ export interface PushConfigResponse {
   configured: boolean;
   public_key: string | null;
   missing?: string[];
+  notifications_enabled?: boolean;
+  active_subscription_count?: number;
 }
 
 export interface PushSubscriptionResponse {
