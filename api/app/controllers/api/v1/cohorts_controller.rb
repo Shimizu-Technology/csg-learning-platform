@@ -62,7 +62,7 @@ module Api
           enrollment.module_assignments.any? { |assignment| assignment.module_id == curriculum_module.id }
         end
         module_already_assigned = schedule_exists || assignments_exist
-        lesson_ids = curriculum_module.lessons.pluck(:id)
+        lesson_ids = curriculum_module.lessons.map(&:id)
         module_start_date = normalized_module_start_date
         return if performed?
         if assigned.nil? && !module_already_assigned
@@ -103,7 +103,7 @@ module Api
         end
 
         render json: {
-          cohort: cohort_json(@cohort.reload, include_students: true, include_modules: true)
+          cohort: cohort_json(load_cohort_for_detail(@cohort.id), include_students: true, include_modules: true)
         }
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: [ e.message ] }, status: :unprocessable_entity
@@ -160,7 +160,11 @@ module Api
       private
 
       def set_cohort
-        @cohort = Cohort.includes(:cohort_module_schedules, :cohort_module_submission_windows, :office_hours, curriculum: :modules).find(params[:id])
+        @cohort = load_cohort_for_detail(params[:id])
+      end
+
+      def load_cohort_for_detail(id)
+        Cohort.includes(:cohort_module_schedules, :cohort_module_submission_windows, :office_hours, curriculum: { modules: :lessons }).find(id)
       end
 
       def set_cohort_with_lessons
@@ -608,7 +612,7 @@ module Api
               name: mod.name,
               module_type: mod.module_type,
               position: mod.position,
-              lessons_count: mod.lessons.count,
+              lessons_count: mod.lessons.size,
               assigned_count: assignments.size,
               assigned: assignments.size.positive?,
               unlocked_count: assignments.count(&:unlocked?),
