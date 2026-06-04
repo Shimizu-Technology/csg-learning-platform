@@ -163,9 +163,9 @@ export function ContentManagement() {
       modules: curriculum.modules.map((item) => item.id === mod.id
         ? {
           ...item,
-          schedule_days: res.data?.module.schedule_days || scheduleDays,
-          scheduled_day_names: res.data?.module.scheduled_day_names || item.scheduled_day_names,
-          week_count: res.data?.module.week_count || item.week_count,
+          schedule_days: res.data?.module.schedule_days ?? scheduleDays,
+          scheduled_day_names: res.data?.module.scheduled_day_names ?? item.scheduled_day_names,
+          week_count: res.data?.module.week_count ?? item.week_count,
         }
         : item),
     })))

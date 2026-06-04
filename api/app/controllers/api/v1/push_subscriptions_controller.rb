@@ -60,7 +60,7 @@ module Api
         if global_disable?
           current_user.push_subscriptions.destroy_all
           current_user.update!(message_email_notifications_enabled: false)
-        else
+        elsif params[:endpoint].present?
           current_user.push_subscriptions.where(endpoint: params[:endpoint].to_s).destroy_all
           unless current_user.push_subscriptions.active.exists?
             current_user.update!(message_email_notifications_enabled: false)
@@ -83,7 +83,7 @@ module Api
       end
 
       def global_disable?
-        ActiveModel::Type::Boolean.new.cast(params[:all]) || params[:endpoint].blank?
+        ActiveModel::Type::Boolean.new.cast(params[:all])
       end
 
       def subscription_params
