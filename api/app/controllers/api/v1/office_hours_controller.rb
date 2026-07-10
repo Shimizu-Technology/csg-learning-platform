@@ -94,7 +94,13 @@ module Api
         year, month, day, hour, minute, second = match.captures.map { |part| part&.to_i }
         local_wall_time = Time.utc(year, month, day, hour, minute, second || 0)
         zone.tzinfo.local_to_utc(local_wall_time)
-      rescue ArgumentError, TZInfo::PeriodNotFound, TZInfo::AmbiguousTime
+      rescue TZInfo::PeriodNotFound
+        raise InvalidOfficeHourTime,
+          "#{label} does not exist in #{zone.tzinfo.name} because clocks move forward; choose another time"
+      rescue TZInfo::AmbiguousTime
+        raise InvalidOfficeHourTime,
+          "#{label} occurs twice in #{zone.tzinfo.name} because clocks move back; choose another time or include a UTC offset"
+      rescue ArgumentError
         raise InvalidOfficeHourTime, "#{label} is invalid in #{zone.tzinfo.name}"
       end
     end

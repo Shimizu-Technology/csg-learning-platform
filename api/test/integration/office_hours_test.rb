@@ -122,7 +122,30 @@ class OfficeHoursTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :unprocessable_entity
-    assert_includes JSON.parse(response.body).fetch("errors").first, "Start time is invalid"
+    error = JSON.parse(response.body).fetch("errors").first
+    assert_includes error, "Start time does not exist in America/Los_Angeles"
+    assert_includes error, "clocks move forward"
+  end
+
+  test "ambiguous daylight saving wall times explain how to resolve the overlap" do
+    as_user(@instructor) do
+      post "/api/v1/cohorts/#{@cohort.id}/office_hours",
+        params: {
+          title: "Repeated Time",
+          starts_at: "2026-11-01T01:30",
+          ends_at: "2026-11-01T02:30",
+          meeting_url: "https://meet.example.com/dst-overlap",
+          recurrence: "once",
+          timezone: "America/Los_Angeles"
+        },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :unprocessable_entity
+    error = JSON.parse(response.body).fetch("errors").first
+    assert_includes error, "Start time occurs twice in America/Los_Angeles"
+    assert_includes error, "include a UTC offset"
   end
 
   test "students cannot read another cohort's office hours" do
