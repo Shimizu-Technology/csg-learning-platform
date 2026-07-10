@@ -20,3 +20,10 @@ export function toDateTimeInputValueInTimeZone(
 
   return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`
 }
+
+export function toLocalDateTimeInputValue(
+  dateStr: string | null | undefined,
+): string {
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  return toDateTimeInputValueInTimeZone(dateStr, timeZone)
+}

@@ -7,7 +7,7 @@ import { Modal } from '../../components/shared/Modal'
 import { RecordingUploadManager } from '../../components/admin/RecordingUploadManager'
 import { useToast } from '../../contexts/ToastContext'
 import { formatShortDateTime } from '../../lib/format'
-import { toDateTimeInputValueInTimeZone } from '../../lib/dateTime'
+import { toDateTimeInputValueInTimeZone, toLocalDateTimeInputValue } from '../../lib/dateTime'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { presenceStatus, usePresenceNow } from '../../lib/presence'
 import { subscribeToStaffPresence } from '../../lib/realtime'
@@ -140,16 +140,6 @@ function todayDateInputValue(): string {
   return formatDateInputValue(new Date())
 }
 
-function toDateTimeInputValue(dateStr?: string | null): string {
-  if (!dateStr) return ''
-
-  const date = new Date(dateStr)
-  if (Number.isNaN(date.getTime())) return ''
-
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
-  return local.toISOString().slice(0, 16)
-}
-
 function dateTimeInputToIso(value?: string | null): string | null {
   if (!value) return null
 
@@ -158,7 +148,7 @@ function dateTimeInputToIso(value?: string | null): string | null {
 }
 
 function nowDateTimeInputValue(): string {
-  return toDateTimeInputValue(new Date().toISOString())
+  return toLocalDateTimeInputValue(new Date().toISOString())
 }
 
 function submissionWindowStatusForForm(window: SubmissionWindowForm): SubmissionWindowForm['status'] {
@@ -330,7 +320,7 @@ export function CohortDetail() {
     nextCohort.modules.forEach((mod: CohortData['modules'][0]) => {
       nextWindows[mod.id] = (mod.submission_windows || []).map((window) => ({
         week_number: window.week_number,
-        submissions_close_at: toDateTimeInputValue(window.submissions_close_at),
+        submissions_close_at: toLocalDateTimeInputValue(window.submissions_close_at),
         submissions_closed: window.submissions_closed,
         status: window.status,
         starts_on: window.starts_on,
