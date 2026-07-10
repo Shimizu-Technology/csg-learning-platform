@@ -399,7 +399,7 @@ The server authorizes the subscription against the same channel visibility rules
 |--------|------|------|-------------|
 | `PATCH` | `/api/v1/cohorts/:cohort_id/modules/:module_id/submission_windows` | Staff | Atomically set or clear weekly close times |
 
-Close times use ISO 8601 instants. A `null` close time clears that week's window. Week numbers must exist in the selected module.
+Close times use ISO 8601 instants and must include `Z` or a numeric UTC offset. A `null` close time clears that week's window. Week numbers must exist in the selected module.
 
 ```json
 {

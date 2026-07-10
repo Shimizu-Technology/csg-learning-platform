@@ -1,6 +1,8 @@
 module Api
   module V1
     class CohortModuleSubmissionWindowsController < ApplicationController
+      OFFSET_TIME_PATTERN = /(Z|[+-]\d{2}:?\d{2})\z/i
+
       before_action :authenticate_user!
       before_action :require_staff!
       before_action :set_cohort
@@ -81,11 +83,15 @@ module Api
       def parse_close_at(raw_value)
         return nil if raw_value.blank?
 
-        parsed = Time.zone.parse(raw_value.to_s)
-        return parsed if parsed
+        raw = raw_value.to_s.strip
+        unless raw.match?(OFFSET_TIME_PATTERN)
+          render json: {
+            errors: [ "Submission close time must include a UTC offset (for example, Z or +10:00)" ]
+          }, status: :unprocessable_entity
+          return nil
+        end
 
-        render json: { errors: [ "Submission close time is invalid" ] }, status: :unprocessable_entity
-        nil
+        Time.iso8601(raw)
       rescue ArgumentError, TypeError
         render json: { errors: [ "Submission close time is invalid" ] }, status: :unprocessable_entity
         nil

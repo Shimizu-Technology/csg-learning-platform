@@ -68,6 +68,24 @@ class CohortModuleSubmissionWindowsTest < ActionDispatch::IntegrationTest
     assert_includes JSON.parse(response.body).fetch("errors"), "Week number must be between 1 and 2"
   end
 
+  test "bare close times are rejected and roll back the whole batch" do
+    as_user(@instructor) do
+      patch endpoint,
+        params: {
+          submission_windows: [
+            { week_number: 1, submissions_close_at: "2030-07-10T08:00:00Z" },
+            { week_number: 2, submissions_close_at: "2030-07-17T18:00:00" }
+          ]
+        },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :unprocessable_entity
+    assert_empty @cohort.cohort_module_submission_windows
+    assert_includes JSON.parse(response.body).fetch("errors").first, "must include a UTC offset"
+  end
+
   test "students cannot manage submission windows" do
     as_user(@student) do
       patch endpoint,
