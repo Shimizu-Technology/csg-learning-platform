@@ -73,8 +73,7 @@ class OfficeHour < ApplicationRecord
     zone = Time.find_zone!(timezone)
     anchor_local = starts_at.in_time_zone(zone)
     occurrence_date = anchor_local.to_date + week_offset.weeks
-
-    zone.local(
+    local_wall_time = Time.utc(
       occurrence_date.year,
       occurrence_date.month,
       occurrence_date.day,
@@ -82,6 +81,28 @@ class OfficeHour < ApplicationRecord
       anchor_local.min,
       anchor_local.sec
     )
+    periods = zone.periods_for_local(local_wall_time)
+
+    # Rails advances nonexistent spring-forward wall times through the gap.
+    if periods.empty?
+      return zone.local(
+        local_wall_time.year,
+        local_wall_time.month,
+        local_wall_time.day,
+        local_wall_time.hour,
+        local_wall_time.min,
+        local_wall_time.sec
+      )
+    end
+
+    # A fall-back wall time can occur twice. Prefer the anchor's UTC offset so
+    # an explicitly offset start keeps the same fold, then fall back
+    # deterministically for historical transitions that are not DST-based.
+    period = periods.find { |candidate| candidate.utc_total_offset == anchor_local.utc_offset } ||
+      periods.find { |candidate| candidate.dst? == anchor_local.dst? } ||
+      periods.last
+
+    (local_wall_time - period.utc_total_offset).in_time_zone(zone)
   end
 
   def occurrence_for(start_time)
