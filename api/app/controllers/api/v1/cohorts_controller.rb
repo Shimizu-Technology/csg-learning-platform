@@ -420,7 +420,7 @@ module Api
         Date.current >= start_date
       end
 
-      def cohort_student_view_lesson_json(_cohort, mod, lesson, module_start_date, module_available, requires_github)
+      def cohort_student_view_lesson_json(cohort, mod, lesson, module_start_date, module_available, requires_github)
         unlock_date = module_start_date.present? ? module_start_date + mod.calendar_offset_for(lesson.release_day) : nil
         available = module_available && unlock_date.present? && Date.current >= unlock_date
 
@@ -437,7 +437,7 @@ module Api
           completion_blocks_count: lesson.completion_block_ids.size,
           requires_submission: lesson.effective_requires_submission(requires_github: requires_github),
           submission_type: lesson.effective_submission_type(requires_github: requires_github),
-          submission_window: SubmissionWindowStatus.for_lesson(cohort: _cohort, lesson: lesson)
+          submission_window: SubmissionWindowStatus.for_lesson(cohort: cohort, lesson: lesson)
         }
       end
 
