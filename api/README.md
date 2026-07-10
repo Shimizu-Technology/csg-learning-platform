@@ -34,7 +34,7 @@ ruby -v
 bundle _4.0.5_ -v
 ```
 
-Test coverage is currently focused on authorization guards (`test/integration/api_authz_guards_test.rb`), covering submissions, module access, lesson locking, progress updates, and permission checks.
+The suite includes model, service, job, and integration coverage for authorization, submissions and grading, module access, lesson locking, progress, recordings, messaging, office hours, and submission windows.
 
 Clerk authentication is required in local development too. The current app does not support a frontend auth-bypass mode.
 
@@ -171,7 +171,9 @@ All controllers are namespaced under `Api::V1` and return JSON.
 | `modules` | CRUD | Staff |
 | `lessons` | CRUD + `create_exercise` | Staff |
 | `content_blocks` | CRUD | Staff |
-| `cohorts` | CRUD + `module_access`, `announcements`, `recordings`, `class_resources` | Staff |
+| `cohorts` | Read + `student_view` for staff; CRUD and settings management | Staff read / Admin manage |
+| `cohort_module_submission_windows` | Batch update weekly submission close times | Staff |
+| `office_hours` | Cohort sessions and timezone-aware recurrence | Enrolled students read / Staff manage |
 | `enrollments` | CRUD | Staff |
 | `module_assignments` | CRUD — per-student module overrides | Staff |
 | `lesson_assignments` | CRUD — per-student lesson overrides | Staff |

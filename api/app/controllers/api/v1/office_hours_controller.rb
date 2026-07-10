@@ -1,6 +1,11 @@
 module Api
   module V1
     class OfficeHoursController < ApplicationController
+      class InvalidOfficeHourTime < StandardError; end
+
+      OFFSET_TIME_PATTERN = /(Z|[+-]\d{2}:?\d{2})\z/i
+      LOCAL_TIME_PATTERN = /\A(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?\z/
+
       before_action :authenticate_user!
       before_action :set_cohort
       before_action :authorize_cohort_read!, only: [ :index ]
@@ -9,9 +14,10 @@ module Api
 
       # GET /api/v1/cohorts/:cohort_id/office_hours
       def index
+        office_hours = OfficeHourSerializer.active_for(@cohort)
         render json: {
-          office_hours: @cohort.office_hours.active.ordered.map { |office_hour| office_hour_json(office_hour) },
-          upcoming: upcoming_office_hour_occurrences_json(@cohort, limit: 6)
+          office_hours: office_hours.map { |office_hour| OfficeHourSerializer.as_json(office_hour) },
+          upcoming: OfficeHourSerializer.upcoming(office_hours, limit: 6)
         }
       end
 
@@ -21,19 +27,23 @@ module Api
         office_hour.created_by = current_user
 
         if office_hour.save
-          render json: { office_hour: office_hour_json(office_hour) }, status: :created
+          render json: { office_hour: OfficeHourSerializer.as_json(office_hour) }, status: :created
         else
           render json: { errors: office_hour.errors.full_messages }, status: :unprocessable_entity
         end
+      rescue InvalidOfficeHourTime => e
+        render json: { errors: [ e.message ] }, status: :unprocessable_entity
       end
 
       # PATCH /api/v1/cohorts/:cohort_id/office_hours/:id
       def update
         if @office_hour.update(office_hour_params)
-          render json: { office_hour: office_hour_json(@office_hour) }
+          render json: { office_hour: OfficeHourSerializer.as_json(@office_hour) }
         else
           render json: { errors: @office_hour.errors.full_messages }, status: :unprocessable_entity
         end
+      rescue InvalidOfficeHourTime => e
+        render json: { errors: [ e.message ] }, status: :unprocessable_entity
       end
 
       # DELETE /api/v1/cohorts/:cohort_id/office_hours/:id
@@ -60,47 +70,32 @@ module Api
       end
 
       def office_hour_params
-        params.permit(:title, :description, :starts_at, :ends_at, :meeting_url, :timezone, :recurrence, :active)
+        permitted = params.permit(:title, :description, :starts_at, :ends_at, :meeting_url, :timezone, :recurrence, :active)
+        timezone = permitted[:timezone].presence || @office_hour&.timezone || OfficeHour::DEFAULT_TIMEZONE
+        zone = Time.find_zone!(timezone)
+
+        permitted[:timezone] = timezone
+        permitted[:starts_at] = parse_time_in_zone(permitted[:starts_at], zone, "Start time") if permitted.key?(:starts_at)
+        permitted[:ends_at] = parse_time_in_zone(permitted[:ends_at], zone, "End time") if permitted.key?(:ends_at)
+        permitted
+      rescue ArgumentError
+        raise InvalidOfficeHourTime, "Timezone is invalid"
       end
 
-      def office_hour_json(office_hour)
-        {
-          id: office_hour.id,
-          cohort_id: office_hour.cohort_id,
-          title: office_hour.title,
-          description: office_hour.description,
-          starts_at: office_hour.starts_at,
-          ends_at: office_hour.ends_at,
-          meeting_url: office_hour.meeting_url,
-          timezone: office_hour.timezone,
-          recurrence: office_hour.recurrence,
-          active: office_hour.active,
-          occurrences: office_hour.upcoming_occurrences(limit: 3).map { |occurrence| occurrence_json(office_hour, occurrence) },
-          created_by: office_hour.created_by && {
-            id: office_hour.created_by.id,
-            full_name: office_hour.created_by.full_name,
-            email: office_hour.created_by.email
-          }
-        }
-      end
+      def parse_time_in_zone(raw_value, zone, label)
+        return nil if raw_value.blank?
 
-      def upcoming_office_hour_occurrences_json(cohort, limit: 3)
-        cohort.office_hours.active.flat_map do |office_hour|
-          office_hour.upcoming_occurrences(limit: limit).map { |occurrence| occurrence_json(office_hour, occurrence) }
-        end.sort_by { |occurrence| occurrence[:starts_at] }.first(limit)
-      end
+        raw = raw_value.to_s.strip
+        return Time.iso8601(raw) if raw.match?(OFFSET_TIME_PATTERN)
 
-      def occurrence_json(office_hour, occurrence)
-        {
-          office_hour_id: office_hour.id,
-          title: office_hour.title,
-          description: office_hour.description,
-          starts_at: occurrence[:starts_at],
-          ends_at: occurrence[:ends_at],
-          meeting_url: office_hour.meeting_url,
-          timezone: office_hour.timezone,
-          recurrence: office_hour.recurrence
-        }
+        match = LOCAL_TIME_PATTERN.match(raw)
+        raise InvalidOfficeHourTime, "#{label} is invalid" unless match
+
+        year, month, day, hour, minute, second = match.captures.map { |part| part&.to_i }
+        local_wall_time = Time.utc(year, month, day, hour, minute, second || 0)
+        zone.tzinfo.local_to_utc(local_wall_time)
+      rescue ArgumentError, TZInfo::PeriodNotFound, TZInfo::AmbiguousTime
+        raise InvalidOfficeHourTime, "#{label} is invalid in #{zone.tzinfo.name}"
       end
     end
   end

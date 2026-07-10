@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_04_000300) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_10_000100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -97,6 +97,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_04_000300) do
     t.index ["cohort_id"], name: "index_cohort_module_submission_windows_on_cohort_id"
     t.index ["created_by_id"], name: "index_cohort_module_submission_windows_on_created_by_id"
     t.index ["updated_by_id"], name: "index_cohort_module_submission_windows_on_updated_by_id"
+    t.check_constraint "week_number > 0", name: "submission_windows_week_number_positive"
   end
 
   create_table "cohorts", force: :cascade do |t|

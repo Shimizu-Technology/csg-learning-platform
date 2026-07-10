@@ -155,26 +155,9 @@ module Api
             continue_lesson: continue_lesson,
             action_items: action_items,
             resources: dashboard_resources_json(cohort),
-            office_hours: upcoming_office_hour_occurrences_json(cohort, limit: 3)
+            office_hours: OfficeHourSerializer.upcoming(OfficeHourSerializer.active_for(cohort), limit: 3)
           }
         }
-      end
-
-      def upcoming_office_hour_occurrences_json(cohort, limit: 3)
-        cohort.office_hours.active.flat_map do |office_hour|
-          office_hour.upcoming_occurrences(limit: limit).map do |occurrence|
-            {
-              office_hour_id: office_hour.id,
-              title: office_hour.title,
-              description: office_hour.description,
-              starts_at: occurrence[:starts_at],
-              ends_at: occurrence[:ends_at],
-              meeting_url: office_hour.meeting_url,
-              timezone: office_hour.timezone,
-              recurrence: office_hour.recurrence
-            }
-          end
-        end.sort_by { |occurrence| occurrence[:starts_at] }.first(limit)
       end
 
       def dashboard_resources_json(cohort)

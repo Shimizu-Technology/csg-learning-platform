@@ -384,13 +384,57 @@ The server authorizes the subscription against the same channel visibility rules
 |--------|------|------|-------------|
 | `GET` | `/api/v1/cohorts` | Staff | List all cohorts |
 | `GET` | `/api/v1/cohorts/:id` | Staff | Show cohort with enrollments |
-| `POST` | `/api/v1/cohorts` | Staff | Create cohort |
-| `PATCH` | `/api/v1/cohorts/:id` | Staff | Update cohort |
-| `DELETE` | `/api/v1/cohorts/:id` | Staff | Delete cohort |
-| `PATCH` | `/api/v1/cohorts/:id/module_access` | Staff | Update module access settings |
-| `PATCH` | `/api/v1/cohorts/:id/announcements` | Staff | Legacy JSON cohort notices; use `/announcements` for Phase 4 communication |
-| `PATCH` | `/api/v1/cohorts/:id/recordings` | Staff | Update cohort recordings list |
-| `PATCH` | `/api/v1/cohorts/:id/class_resources` | Staff | Update cohort resources |
+| `GET` | `/api/v1/cohorts/:id/student_view` | Staff | Read-only preview of the cohort's student experience |
+| `POST` | `/api/v1/cohorts` | Admin | Create cohort |
+| `PATCH` | `/api/v1/cohorts/:id` | Admin | Update cohort |
+| `DELETE` | `/api/v1/cohorts/:id` | Admin | Delete cohort |
+| `PATCH` | `/api/v1/cohorts/:id/module_access` | Admin | Update module access settings |
+| `PATCH` | `/api/v1/cohorts/:id/announcements` | Admin | Legacy JSON cohort notices; use `/announcements` for Phase 4 communication |
+| `PATCH` | `/api/v1/cohorts/:id/recordings` | Admin | Update legacy cohort recordings list |
+| `PATCH` | `/api/v1/cohorts/:id/class_resources` | Admin | Update cohort resources |
+
+### Weekly submission windows
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `PATCH` | `/api/v1/cohorts/:cohort_id/modules/:module_id/submission_windows` | Staff | Atomically set or clear weekly close times |
+
+Close times use ISO 8601 instants. A `null` close time clears that week's window. Week numbers must exist in the selected module.
+
+```json
+{
+  "submission_windows": [
+    { "week_number": 1, "submissions_close_at": "2026-07-18T08:00:00Z" },
+    { "week_number": 2, "submissions_close_at": null }
+  ]
+}
+```
+
+Closed windows prevent student submissions, resubmissions, redo updates, manual work completion, and GitHub sync for that week. Staff actions, lesson reading, and video progress remain available.
+
+### Office hours
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/api/v1/cohorts/:cohort_id/office_hours` | Enrolled student or Staff | List active definitions and upcoming occurrences |
+| `POST` | `/api/v1/cohorts/:cohort_id/office_hours` | Staff | Create a one-time or weekly session |
+| `PATCH` | `/api/v1/cohorts/:cohort_id/office_hours/:id` | Staff | Update a session |
+| `DELETE` | `/api/v1/cohorts/:cohort_id/office_hours/:id` | Staff | Delete a session |
+
+Offset-bearing ISO 8601 values are treated as absolute instants. Values from `datetime-local` inputs are interpreted as wall-clock times in the supplied IANA timezone. Nonexistent or ambiguous daylight-saving wall times are rejected.
+
+```json
+{
+  "title": "Instructor Office Hours",
+  "description": "Bring questions from the week.",
+  "starts_at": "2026-07-18T18:00",
+  "ends_at": "2026-07-18T19:00",
+  "meeting_url": "https://meet.example.com/csg",
+  "timezone": "Pacific/Guam",
+  "recurrence": "weekly",
+  "active": true
+}
+```
 
 ---
 

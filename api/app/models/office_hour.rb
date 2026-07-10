@@ -1,3 +1,5 @@
+require "uri"
+
 class OfficeHour < ApplicationRecord
   DEFAULT_TIMEZONE = "Pacific/Guam".freeze
 
@@ -15,6 +17,7 @@ class OfficeHour < ApplicationRecord
   validates :meeting_url, presence: true
   validates :timezone, presence: true
   validate :ends_after_starts
+  validate :meeting_url_is_http
   validate :timezone_is_valid
 
   before_validation :set_default_timezone
@@ -36,10 +39,10 @@ class OfficeHour < ApplicationRecord
     end
 
     occurrences = []
-    current_start = next_weekly_start(from)
-    limit.times do
+    week_offset, current_start = next_weekly_start(from)
+    limit.times do |index|
       occurrences << occurrence_for(current_start)
-      current_start += 1.week
+      current_start = weekly_start_at(week_offset + index + 1)
     end
     occurrences
   end
@@ -47,16 +50,38 @@ class OfficeHour < ApplicationRecord
   private
 
   def next_weekly_start(from)
-    current_start = starts_at
+    zone = Time.find_zone!(timezone)
+    anchor_local = starts_at.in_time_zone(zone)
+    from_local = from.in_time_zone(zone)
     duration = duration_seconds.seconds
+    week_offset = if anchor_local >= from_local
+      0
+    else
+      [ ((from_local.to_date - anchor_local.to_date).to_i / 7).floor, 0 ].max
+    end
+    current_start = weekly_start_at(week_offset)
 
-    if current_start < from
-      elapsed_weeks = [ ((from - current_start) / 1.week).floor, 0 ].max
-      current_start += elapsed_weeks.weeks
-      current_start += 1.week while current_start + duration < from
+    while current_start + duration < from
+      week_offset += 1
+      current_start = weekly_start_at(week_offset)
     end
 
-    current_start
+    [ week_offset, current_start ]
+  end
+
+  def weekly_start_at(week_offset)
+    zone = Time.find_zone!(timezone)
+    anchor_local = starts_at.in_time_zone(zone)
+    occurrence_date = anchor_local.to_date + week_offset.weeks
+
+    zone.local(
+      occurrence_date.year,
+      occurrence_date.month,
+      occurrence_date.day,
+      anchor_local.hour,
+      anchor_local.min,
+      anchor_local.sec
+    )
   end
 
   def occurrence_for(start_time)
@@ -75,6 +100,17 @@ class OfficeHour < ApplicationRecord
     return if ends_at > starts_at
 
     errors.add(:ends_at, "must be after the start time")
+  end
+
+  def meeting_url_is_http
+    return if meeting_url.blank?
+
+    uri = URI.parse(meeting_url)
+    return if uri.is_a?(URI::HTTP) && uri.host.present?
+
+    errors.add(:meeting_url, "must be a valid HTTP or HTTPS URL")
+  rescue URI::InvalidURIError
+    errors.add(:meeting_url, "must be a valid HTTP or HTTPS URL")
   end
 
   def timezone_is_valid

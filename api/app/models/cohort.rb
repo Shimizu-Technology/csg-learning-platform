@@ -35,11 +35,6 @@ class Cohort < ApplicationRecord
     end
   end
 
-  def submission_window_for_lesson(lesson)
-    week_number = (lesson.release_day / 7) + 1
-    submission_window_for(module_id: lesson.module_id, week_number: week_number)
-  end
-
   private
 
   def provision_workspace

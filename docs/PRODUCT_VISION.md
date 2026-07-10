@@ -1,6 +1,6 @@
 # CSG Learning Platform — Product Vision & Direction
 
-**Last updated:** 2026-04-22
+**Last updated:** 2026-07-10
 **Status:** Active north-star document
 **Repo:** `csg-learning-platform`
 
@@ -174,7 +174,9 @@ The platform fully supports day-to-day learning workflows:
 - ✅ Cohort management with enrollments
 - ✅ Admin content management with rich editing
 - ✅ Unlock engine with day-based scheduling
+- ✅ Per-week submission close windows that preserve lesson and video access
 - ✅ Per-student override support (module and lesson level)
+- ✅ One-time and timezone-aware weekly office hours on the student dashboard
 - ✅ Role-based access control (student / instructor / admin)
 - ✅ Video completion tracking (YouTube + Vimeo)
 - ✅ Mobile-first responsive UI with PWA support

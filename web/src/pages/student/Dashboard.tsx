@@ -251,7 +251,7 @@ export function Dashboard({ previewData, previewBanner, disableStaffRedirect = f
           <div className="rounded-xl border border-primary-200 bg-primary-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-primary-700">Next session</p>
             <p className="mt-1 text-base font-semibold text-slate-900">{data.office_hours[0].title}</p>
-            <p className="mt-0.5 text-sm text-slate-600">{formatShortDateTime(data.office_hours[0].starts_at)}</p>
+            <p className="mt-0.5 text-sm text-slate-600">{formatShortDateTime(data.office_hours[0].starts_at, 'TBD', data.office_hours[0].timezone)}</p>
             {data.office_hours[0].description && <p className="mt-2 text-sm text-slate-600">{data.office_hours[0].description}</p>}
             <a
               href={sanitizeUrl(data.office_hours[0].meeting_url)}
@@ -274,7 +274,7 @@ export function Dashboard({ previewData, previewBanner, disableStaffRedirect = f
                   className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 hover:border-primary-200"
                 >
                   <p className="text-sm font-medium text-slate-900">{session.title}</p>
-                  <p className="mt-0.5 text-xs text-slate-500">{formatShortDateTime(session.starts_at)}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">{formatShortDateTime(session.starts_at, 'TBD', session.timezone)}</p>
                 </a>
               ))}
             </div>

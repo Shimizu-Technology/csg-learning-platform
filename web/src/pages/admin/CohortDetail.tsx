@@ -7,6 +7,7 @@ import { Modal } from '../../components/shared/Modal'
 import { RecordingUploadManager } from '../../components/admin/RecordingUploadManager'
 import { useToast } from '../../contexts/ToastContext'
 import { formatShortDateTime } from '../../lib/format'
+import { toDateTimeInputValueInTimeZone } from '../../lib/dateTime'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { presenceStatus, usePresenceNow } from '../../lib/presence'
 import { subscribeToStaffPresence } from '../../lib/realtime'
@@ -243,6 +244,7 @@ interface OfficeHourFormState {
 }
 
 function emptyOfficeHourForm(): OfficeHourFormState {
+  const timezone = 'Pacific/Guam'
   const start = new Date()
   start.setHours(start.getHours() + 1, 0, 0, 0)
   const end = new Date(start)
@@ -251,10 +253,10 @@ function emptyOfficeHourForm(): OfficeHourFormState {
   return {
     title: 'Office Hours',
     description: '',
-    starts_at: toDateTimeInputValue(start.toISOString()),
-    ends_at: toDateTimeInputValue(end.toISOString()),
+    starts_at: toDateTimeInputValueInTimeZone(start.toISOString(), timezone),
+    ends_at: toDateTimeInputValueInTimeZone(end.toISOString(), timezone),
     meeting_url: '',
-    timezone: 'Pacific/Guam',
+    timezone,
     recurrence: 'weekly',
   }
 }
@@ -499,11 +501,10 @@ export function CohortDetail() {
   }
 
   const saveModuleAccess = async (moduleId: number) => {
-    if (!id) return
+    if (!id) return false
     const form = forms[moduleId]
-    if (!form) return
+    if (!form) return false
 
-    setSavingModuleId(moduleId)
     setMessage('')
     const res = await api.updateCohortModuleAccess(Number(id), {
       module_id: moduleId,
@@ -516,16 +517,10 @@ export function CohortDetail() {
 
     if (res.error) {
       notifyError(res.error)
-      setSavingModuleId(null)
-      return
+      return false
     }
 
-    const nextCohort = res.data?.cohort as CohortData | undefined
-    if (nextCohort) applyCohort(nextCohort)
-
-    const moduleName = cohort?.modules.find((mod) => mod.id === moduleId)?.name || 'module'
-    notifySuccess(`Updated cohort access for ${moduleName}`)
-    setSavingModuleId(null)
+    return true
   }
 
   const saveRecordings = async () => {
@@ -573,9 +568,12 @@ export function CohortDetail() {
     }))
   }
 
-  const saveSubmissionWindows = async (moduleId: number, options?: { silent?: boolean }) => {
+  const saveSubmissionWindows = async (
+    moduleId: number,
+    options?: { silent?: boolean; windows?: SubmissionWindowForm[] },
+  ) => {
     if (!id) return false
-    const windows = submissionWindows[moduleId] || []
+    const windows = options?.windows || submissionWindows[moduleId] || []
 
     const res = await api.updateCohortModuleSubmissionWindows(Number(id), moduleId, windows.map((window) => ({
       week_number: window.week_number,
@@ -592,20 +590,51 @@ export function CohortDetail() {
     return true
   }
 
+  const saveModuleConfiguration = async (moduleId: number) => {
+    const windowsSnapshot = (submissionWindows[moduleId] || []).map((window) => ({ ...window }))
+    setSavingModuleId(moduleId)
+
+    try {
+      const accessSaved = await saveModuleAccess(moduleId)
+      if (!accessSaved) return
+
+      const windowsSaved = await saveSubmissionWindows(moduleId, { silent: true, windows: windowsSnapshot })
+      if (!windowsSaved) {
+        notifyError('Module access was saved, but submission windows could not be saved. Use Save windows to retry.')
+        return
+      }
+
+      const moduleName = cohort?.modules.find((mod) => mod.id === moduleId)?.name || 'module'
+      notifySuccess(`Updated configuration for ${moduleName}`)
+    } finally {
+      setSavingModuleId(null)
+    }
+  }
+
+  const saveOnlySubmissionWindows = async (moduleId: number) => {
+    setSavingModuleId(moduleId)
+    try {
+      await saveSubmissionWindows(moduleId)
+    } finally {
+      setSavingModuleId(null)
+    }
+  }
+
   const resetOfficeHourForm = () => {
     setOfficeHourForm(emptyOfficeHourForm())
     setEditingOfficeHourId(null)
   }
 
   const editOfficeHour = (officeHour: OfficeHour) => {
+    const timezone = officeHour.timezone || 'Pacific/Guam'
     setEditingOfficeHourId(officeHour.id)
     setOfficeHourForm({
       title: officeHour.title,
       description: officeHour.description || '',
-      starts_at: toDateTimeInputValue(officeHour.starts_at),
-      ends_at: toDateTimeInputValue(officeHour.ends_at),
+      starts_at: toDateTimeInputValueInTimeZone(officeHour.starts_at, timezone),
+      ends_at: toDateTimeInputValueInTimeZone(officeHour.ends_at, timezone),
       meeting_url: officeHour.meeting_url,
-      timezone: officeHour.timezone || 'Pacific/Guam',
+      timezone,
       recurrence: officeHour.recurrence,
     })
   }
@@ -614,8 +643,8 @@ export function CohortDetail() {
     event.preventDefault()
     if (!id) return
 
-    const startsAt = dateTimeInputToIso(officeHourForm.starts_at)
-    const endsAt = dateTimeInputToIso(officeHourForm.ends_at)
+    const startsAt = officeHourForm.starts_at.trim()
+    const endsAt = officeHourForm.ends_at.trim()
     if (!startsAt || !endsAt) {
       notifyError('Office hours need a valid start and end time')
       return
@@ -1053,10 +1082,7 @@ export function CohortDetail() {
                       Remove from Cohort
                     </button>
                     <button
-                      onClick={async () => {
-                        await saveModuleAccess(configureMod.id)
-                        await saveSubmissionWindows(configureMod.id, { silent: true })
-                      }}
+                      onClick={() => void saveModuleConfiguration(configureMod.id)}
                       disabled={saving}
                       className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 transition-colors"
                     >
@@ -1145,7 +1171,7 @@ export function CohortDetail() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => saveSubmissionWindows(configureMod.id)}
+                        onClick={() => void saveOnlySubmissionWindows(configureMod.id)}
                         disabled={saving}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                       >
@@ -1386,7 +1412,7 @@ export function CohortDetail() {
                     className="block rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 hover:border-primary-200"
                   >
                     <p className="text-sm font-medium text-slate-900">{occurrence.title}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">{formatShortDateTime(occurrence.starts_at, 'Not scheduled')}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">{formatShortDateTime(occurrence.starts_at, 'Not scheduled', occurrence.timezone)}</p>
                     <p className="mt-0.5 text-[11px] font-medium uppercase tracking-wide text-primary-600">{occurrence.recurrence === 'weekly' ? 'Weekly' : 'One-time'}</p>
                   </a>
                 ))}
@@ -1592,7 +1618,7 @@ export function CohortDetail() {
         open={showOfficeHoursModal}
         onClose={() => setShowOfficeHoursModal(false)}
         title="Office Hours"
-        subtitle="Create one-time or weekly help sessions that students will see on their dashboard. Times default to Guam."
+        subtitle="Create one-time or weekly help sessions that students will see on their dashboard. Entered times are interpreted in the selected timezone."
         icon={<Clock className="h-6 w-6 text-primary-500" />}
         size="xl"
       >
@@ -1719,7 +1745,7 @@ export function CohortDetail() {
                             {officeHour.recurrence === 'weekly' ? 'Weekly' : 'One-time'}
                           </span>
                         </div>
-                        <p className="mt-1 text-xs text-slate-500">{formatShortDateTime(officeHour.starts_at, 'Not scheduled')} – {formatShortDateTime(officeHour.ends_at, 'Not scheduled')}</p>
+                        <p className="mt-1 text-xs text-slate-500">{formatShortDateTime(officeHour.starts_at, 'Not scheduled', officeHour.timezone)} – {formatShortDateTime(officeHour.ends_at, 'Not scheduled', officeHour.timezone)}</p>
                         {officeHour.description && <p className="mt-2 text-sm text-slate-600">{officeHour.description}</p>}
                         <a href={sanitizeUrl(officeHour.meeting_url)} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary-600 hover:text-primary-700">
                           Open meeting link

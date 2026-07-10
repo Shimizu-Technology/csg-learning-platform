@@ -9,7 +9,12 @@ module Api
 
       # GET /api/v1/cohorts
       def index
-        cohorts = Cohort.includes(:cohort_module_schedules, :cohort_module_submission_windows, :office_hours, curriculum: :modules).order(start_date: :desc)
+        cohorts = Cohort.includes(
+          :cohort_module_schedules,
+          :cohort_module_submission_windows,
+          { office_hours: :created_by },
+          curriculum: :modules
+        ).order(start_date: :desc)
         render json: {
           cohorts: cohorts.map { |c|
             base = cohort_json(c)
@@ -164,11 +169,21 @@ module Api
       end
 
       def load_cohort_for_detail(id)
-        Cohort.includes(:cohort_module_schedules, :cohort_module_submission_windows, :office_hours, curriculum: { modules: :lessons }).find(id)
+        Cohort.includes(
+          :cohort_module_schedules,
+          :cohort_module_submission_windows,
+          { office_hours: :created_by },
+          curriculum: { modules: :lessons }
+        ).find(id)
       end
 
       def set_cohort_with_lessons
-        @cohort = Cohort.includes(:cohort_module_schedules, :cohort_module_submission_windows, :office_hours, curriculum: { modules: { lessons: :content_blocks } }).find(params[:id])
+        @cohort = Cohort.includes(
+          :cohort_module_schedules,
+          :cohort_module_submission_windows,
+          { office_hours: :created_by },
+          curriculum: { modules: { lessons: :content_blocks } }
+        ).find(params[:id])
       end
 
       def cohort_params
@@ -272,7 +287,7 @@ module Api
         available_modules = module_data.count { |mod| mod[:available] }
         announcements = cohort_student_view_announcements(cohort)
         resources = cohort_student_view_resources(cohort)
-        office_hours = upcoming_office_hour_occurrences_json(cohort, limit: 3)
+        office_hours = OfficeHourSerializer.upcoming(OfficeHourSerializer.active_for(cohort), limit: 3)
         dashboard = cohort_student_dashboard_preview_json(cohort, module_data, announcements, resources, office_hours)
 
         {
@@ -472,41 +487,6 @@ module Api
         end
       end
 
-      def office_hour_json(office_hour)
-        {
-          id: office_hour.id,
-          cohort_id: office_hour.cohort_id,
-          title: office_hour.title,
-          description: office_hour.description,
-          starts_at: office_hour.starts_at,
-          ends_at: office_hour.ends_at,
-          meeting_url: office_hour.meeting_url,
-          timezone: office_hour.timezone,
-          recurrence: office_hour.recurrence,
-          active: office_hour.active,
-          occurrences: office_hour.upcoming_occurrences(limit: 3).map { |occurrence| office_hour_occurrence_json(office_hour, occurrence) }
-        }
-      end
-
-      def upcoming_office_hour_occurrences_json(cohort, limit: 3)
-        cohort.office_hours.active.flat_map do |office_hour|
-          office_hour.upcoming_occurrences(limit: limit).map { |occurrence| office_hour_occurrence_json(office_hour, occurrence) }
-        end.sort_by { |occurrence| occurrence[:starts_at] }.first(limit)
-      end
-
-      def office_hour_occurrence_json(office_hour, occurrence)
-        {
-          office_hour_id: office_hour.id,
-          title: office_hour.title,
-          description: office_hour.description,
-          starts_at: occurrence[:starts_at],
-          ends_at: occurrence[:ends_at],
-          meeting_url: office_hour.meeting_url,
-          timezone: office_hour.timezone,
-          recurrence: office_hour.recurrence
-        }
-      end
-
       def module_submission_windows_json(cohort, mod, module_start_date)
         (1..mod.week_count).map do |week_number|
           SubmissionWindowStatus.for_week(
@@ -544,6 +524,7 @@ module Api
       end
 
       def cohort_json(cohort, include_students: false, include_modules: false)
+        active_office_hours = OfficeHourSerializer.active_for(cohort)
         json = {
           id: cohort.id,
           name: cohort.name,
@@ -562,8 +543,8 @@ module Api
           announcements: Array((cohort.settings || {})["announcements"]),
           recordings: Array((cohort.settings || {})["recordings"]),
           class_resources: Array((cohort.settings || {})["class_resources"]),
-          office_hours: cohort.office_hours.active.ordered.map { |office_hour| office_hour_json(office_hour) },
-          office_hour_occurrences: upcoming_office_hour_occurrences_json(cohort, limit: 3)
+          office_hours: active_office_hours.map { |office_hour| OfficeHourSerializer.as_json(office_hour) },
+          office_hour_occurrences: OfficeHourSerializer.upcoming(active_office_hours, limit: 3)
         }
 
         json[:uploaded_recordings_count] = cohort.recordings.count if include_students

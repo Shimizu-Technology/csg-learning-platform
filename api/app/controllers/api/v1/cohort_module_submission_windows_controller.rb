@@ -18,8 +18,10 @@ module Api
           raw_windows.each do |raw_window|
             item = window_param_to_hash(raw_window)
             week_number = item[:week_number].to_i
-            unless week_number.positive?
-              render json: { errors: [ "Week number must be positive" ] }, status: :unprocessable_entity
+            unless week_number.between?(1, @curriculum_module.week_count)
+              render json: {
+                errors: [ "Week number must be between 1 and #{@curriculum_module.week_count}" ]
+              }, status: :unprocessable_entity
               raise ActiveRecord::Rollback
             end
 

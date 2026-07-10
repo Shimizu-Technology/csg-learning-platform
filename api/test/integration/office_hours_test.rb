@@ -85,6 +85,96 @@ class OfficeHoursTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  test "local wall times are interpreted in the selected timezone" do
+    as_user(@instructor) do
+      post "/api/v1/cohorts/#{@cohort.id}/office_hours",
+        params: {
+          title: "Guam Evening Help",
+          starts_at: "2030-07-10T18:00",
+          ends_at: "2030-07-10T19:00",
+          meeting_url: "https://meet.example.com/guam",
+          recurrence: "weekly",
+          timezone: "Pacific/Guam"
+        },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :created
+    office_hour = OfficeHour.find(JSON.parse(response.body).dig("office_hour", "id"))
+    assert_equal Time.utc(2030, 7, 10, 8), office_hour.starts_at.utc
+    assert_equal Time.utc(2030, 7, 10, 9), office_hour.ends_at.utc
+  end
+
+  test "nonexistent daylight saving wall times are rejected" do
+    as_user(@instructor) do
+      post "/api/v1/cohorts/#{@cohort.id}/office_hours",
+        params: {
+          title: "Skipped Time",
+          starts_at: "2026-03-08T02:30",
+          ends_at: "2026-03-08T03:30",
+          meeting_url: "https://meet.example.com/dst",
+          recurrence: "once",
+          timezone: "America/Los_Angeles"
+        },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :unprocessable_entity
+    assert_includes JSON.parse(response.body).fetch("errors").first, "Start time is invalid"
+  end
+
+  test "students cannot read another cohort's office hours" do
+    other_cohort = Cohort.create!(
+      curriculum: @curriculum,
+      name: "Other Cohort",
+      start_date: Date.current,
+      status: :active
+    )
+
+    as_user(@student) do
+      get "/api/v1/cohorts/#{other_cohort.id}/office_hours", headers: auth_headers
+    end
+
+    assert_response :forbidden
+  end
+
+  test "staff can update and delete office hours while students cannot" do
+    office_hour = @cohort.office_hours.create!(
+      title: "Managed Help",
+      starts_at: 2.days.from_now,
+      ends_at: 2.days.from_now + 1.hour,
+      meeting_url: "https://meet.example.com/managed",
+      timezone: "Pacific/Guam",
+      recurrence: :once,
+      created_by: @instructor
+    )
+
+    as_user(@student) do
+      patch "/api/v1/cohorts/#{@cohort.id}/office_hours/#{office_hour.id}",
+        params: { title: "Student Edit" },
+        headers: auth_headers,
+        as: :json
+    end
+    assert_response :forbidden
+
+    as_user(@instructor) do
+      patch "/api/v1/cohorts/#{@cohort.id}/office_hours/#{office_hour.id}",
+        params: { title: "Updated Help" },
+        headers: auth_headers,
+        as: :json
+    end
+    assert_response :success
+    assert_equal "Updated Help", office_hour.reload.title
+
+    as_user(@instructor) do
+      delete "/api/v1/cohorts/#{@cohort.id}/office_hours/#{office_hour.id}", headers: auth_headers
+    end
+    assert_response :no_content
+    refute OfficeHour.exists?(office_hour.id)
+  end
+
   private
 
   def auth_headers

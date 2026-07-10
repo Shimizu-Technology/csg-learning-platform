@@ -1,6 +1,6 @@
 # CSG Learning Platform — Roadmap
 
-**Last updated:** 2026-04-22
+**Last updated:** 2026-07-10
 **Status:** Active execution roadmap  
 **Companion docs:** `docs/PRODUCT_VISION.md`, `docs/DEPLOYMENT.md`, `docs/API_REFERENCE.md`
 
@@ -15,7 +15,9 @@ The platform is **production-ready for its core use case** — managing cohorts,
 - ✅ Curriculum CMS (curricula → modules → lessons → content blocks)
 - ✅ Cohort management with enrollments and access control
 - ✅ Unlock engine (day-based scheduling, MWF/TTh/daily/weekday patterns)
+- ✅ Weekly submission windows that close student work without hiding lesson content
 - ✅ Per-student overrides (module and lesson level)
+- ✅ One-time and timezone-aware recurring office hours on student dashboards
 - ✅ Student dashboard with progress tracking
 - ✅ Video completion tracking (S3 preferred, with legacy YouTube/Vimeo support)
 - ✅ Grading workflow (submission queue, A/B/C/R grades, feedback, redo flow)
@@ -26,7 +28,7 @@ The platform is **production-ready for its core use case** — managing cohorts,
 - ✅ Student management page (grouped by cohort, search, filter)
 - ✅ Mobile-first responsive UI with collapsible sidebar and PWA support
 - ✅ PostHog analytics integration
-- ✅ CI pipeline (RuboCop, Brakeman, bundler-audit, Rails tests)
+- ✅ CI pipeline (RuboCop, Brakeman, Ruby/JavaScript dependency audits, Rails tests, frontend lint/typecheck/unit tests/build)
 - ✅ Deployment (Render Singapore + Netlify + Neon PostgreSQL)
 - ✅ Self-hosted class recordings (AWS S3 + presigned URLs)
 - ✅ Watch progress tracking with auto-resume and completion detection
@@ -63,6 +65,8 @@ The platform is **production-ready for its core use case** — managing cohorts,
 - ✅ Role matrix (student vs instructor vs admin access)
 - ✅ GithubIssueService unit tests
 - ✅ Authorization guard tests (submissions, progress, content)
+- ✅ Office-hours timezone/recurrence and submission-window request/model coverage
+- ✅ Frontend unit-test foundation for shared date/time behavior
 
 ### 1.3 Prework Grader Retirement (Code Complete — Operational Steps Remain)
 - ✅ GitHub issue lifecycle on grading (create on R, comment on re-R, close on pass)
