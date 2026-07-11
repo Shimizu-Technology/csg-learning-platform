@@ -35,11 +35,10 @@ module Api
             if close_at.blank?
               window&.destroy!
             else
-              window ||= @cohort.cohort_module_submission_windows.build(
+              window ||= @cohort.cohort_module_submission_windows.create_or_find_by!(
                 curriculum_module: @curriculum_module,
-                week_number: week_number,
-                created_by: current_user
-              )
+                week_number: week_number
+              ) { |new_window| new_window.created_by = current_user }
               window.submissions_close_at = close_at
               window.updated_by = current_user
               window.save!
@@ -56,6 +55,10 @@ module Api
         render json: { errors: [ e.message ] }, status: :unprocessable_entity
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+      rescue ActiveRecord::RecordNotUnique
+        render json: {
+          errors: [ "Submission windows changed concurrently. Reload and try again." ]
+        }, status: :conflict
       end
 
       private

@@ -115,6 +115,26 @@ class CohortModuleSubmissionWindowsTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  test "a concurrent window write returns a retryable conflict" do
+    original_transaction = ActiveRecord::Base.method(:transaction)
+    ActiveRecord::Base.define_singleton_method(:transaction) do |*|
+      raise ActiveRecord::RecordNotUnique
+    end
+
+    as_user(@instructor) do
+      patch endpoint,
+        params: { submission_windows: [ { week_number: 1, submissions_close_at: 1.day.from_now.iso8601 } ] },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :conflict
+    assert_includes JSON.parse(response.body).fetch("errors"),
+      "Submission windows changed concurrently. Reload and try again."
+  ensure
+    ActiveRecord::Base.define_singleton_method(:transaction, original_transaction) if original_transaction
+  end
+
   private
 
   def endpoint
