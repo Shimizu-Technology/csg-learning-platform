@@ -71,6 +71,31 @@ class CohortGradingTest < ActionDispatch::IntegrationTest
     assert_equal 0, student.fetch("submitted")
   end
 
+  test "index reuses submission window status when counting open GitHub sync exercises" do
+    @exercise.update!(submission_type: "prework_github_sync", filename: "practice.md")
+    @cohort.cohort_module_submission_windows.create!(
+      curriculum_module: @mod,
+      week_number: 1,
+      submissions_close_at: 1.hour.ago,
+      created_by: @admin
+    )
+
+    as_user(@admin) do
+      get "/api/v1/cohorts/#{@cohort.id}/modules/#{@mod.id}/submissions",
+        headers: auth_headers, as: :json
+    end
+
+    assert_response :success
+
+    body = JSON.parse(response.body)
+    exercise = body.fetch("exercises").first
+
+    assert_equal true, body.fetch("supports_github_sync")
+    assert_equal 0, body.fetch("open_github_sync_count")
+    assert_equal true, exercise.fetch("github_sync")
+    assert_equal true, exercise.fetch("submission_window").fetch("submissions_closed")
+  end
+
   private
 
   def auth_headers
