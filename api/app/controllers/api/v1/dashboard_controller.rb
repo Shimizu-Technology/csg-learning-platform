@@ -100,7 +100,7 @@ module Api
         end
 
         # Action items: submissions with redo grade (most recent first)
-        redo_submissions = current_user.submissions.where(grade: "R").includes(content_block: { lesson: :curriculum_module }).order(graded_at: :desc).limit(5)
+        redo_submissions = current_user.submissions.where(grade: "R").includes(content_block: :lesson).order(graded_at: :desc).limit(5)
         action_items = redo_submissions.map { |s|
           lesson = s.content_block.lesson
           submission_window = SubmissionWindowStatus.for_lesson(cohort: cohort, lesson: lesson)

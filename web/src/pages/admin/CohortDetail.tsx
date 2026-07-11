@@ -12,6 +12,7 @@ import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { presenceStatus, usePresenceNow } from '../../lib/presence'
 import { subscribeToStaffPresence } from '../../lib/realtime'
 import { PresenceBadge, PresenceDot } from '../../components/shared/PresenceBadge'
+import type { OfficeHour, OfficeHourOccurrence } from '../../types/api'
 
 interface Recording {
   title: string
@@ -35,31 +36,6 @@ interface SubmissionWindowForm {
   starts_on?: string | null
   ends_on?: string | null
   lessons_count?: number
-}
-
-interface OfficeHourOccurrence {
-  office_hour_id: number
-  title: string
-  description: string | null
-  starts_at: string
-  ends_at: string
-  meeting_url: string
-  timezone: string
-  recurrence: 'once' | 'weekly'
-}
-
-interface OfficeHour {
-  id: number
-  cohort_id: number
-  title: string
-  description: string | null
-  starts_at: string
-  ends_at: string
-  meeting_url: string
-  timezone: string
-  recurrence: 'once' | 'weekly'
-  active: boolean
-  occurrences: OfficeHourOccurrence[]
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
