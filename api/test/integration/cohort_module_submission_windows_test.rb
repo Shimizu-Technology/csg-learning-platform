@@ -86,6 +86,24 @@ class CohortModuleSubmissionWindowsTest < ActionDispatch::IntegrationTest
     assert_includes JSON.parse(response.body).fetch("errors").first, "must include a UTC offset"
   end
 
+  test "invalid offset-aware close times are rejected and roll back the whole batch" do
+    as_user(@instructor) do
+      patch endpoint,
+        params: {
+          submission_windows: [
+            { week_number: 1, submissions_close_at: "2030-07-10T08:00:00Z" },
+            { week_number: 2, submissions_close_at: "not-a-dateZ" }
+          ]
+        },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :unprocessable_entity
+    assert_empty @cohort.cohort_module_submission_windows
+    assert_includes JSON.parse(response.body).fetch("errors"), "Submission close time is invalid"
+  end
+
   test "students cannot manage submission windows" do
     as_user(@student) do
       patch endpoint,

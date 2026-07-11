@@ -3,7 +3,6 @@ module Api
     class OfficeHoursController < ApplicationController
       class InvalidOfficeHourTime < StandardError; end
 
-      OFFSET_TIME_PATTERN = /(Z|[+-]\d{2}:?\d{2})\z/i
       LOCAL_TIME_PATTERN = /\A(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?\z/
 
       before_action :authenticate_user!
@@ -15,10 +14,7 @@ module Api
       # GET /api/v1/cohorts/:cohort_id/office_hours
       def index
         office_hours = OfficeHourSerializer.active_for(@cohort)
-        render json: {
-          office_hours: office_hours.map { |office_hour| OfficeHourSerializer.as_json(office_hour) },
-          upcoming: OfficeHourSerializer.upcoming(office_hours, limit: 6)
-        }
+        render json: OfficeHourSerializer.collection_json(office_hours, upcoming_limit: 6)
       end
 
       # POST /api/v1/cohorts/:cohort_id/office_hours
@@ -86,7 +82,7 @@ module Api
         return nil if raw_value.blank?
 
         raw = raw_value.to_s.strip
-        return Time.iso8601(raw) if raw.match?(OFFSET_TIME_PATTERN)
+        return Time.iso8601(raw) if Iso8601TimeInput.explicit_offset?(raw)
 
         match = LOCAL_TIME_PATTERN.match(raw)
         raise InvalidOfficeHourTime, "#{label} is invalid" unless match

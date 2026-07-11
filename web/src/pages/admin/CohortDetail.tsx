@@ -571,7 +571,7 @@ export function CohortDetail() {
     })))
 
     if (res.error) {
-      notifyError(res.error)
+      if (!options?.silent) notifyError(res.error)
       return false
     }
 
@@ -590,7 +590,9 @@ export function CohortDetail() {
 
       const windowsSaved = await saveSubmissionWindows(moduleId, { silent: true, windows: windowsSnapshot })
       if (!windowsSaved) {
-        notifyError('Module access was saved, but submission windows could not be saved. Use Save windows to retry.')
+        await reloadCohort()
+        setSubmissionWindows((prev) => ({ ...prev, [moduleId]: windowsSnapshot }))
+        notifyError('Module access was saved, but submission windows could not be saved. Your window edits are still here; use Save windows to retry.')
         return
       }
 

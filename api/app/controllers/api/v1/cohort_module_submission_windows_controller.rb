@@ -1,7 +1,7 @@
 module Api
   module V1
     class CohortModuleSubmissionWindowsController < ApplicationController
-      OFFSET_TIME_PATTERN = /(Z|[+-]\d{2}:?\d{2})\z/i
+      class InvalidSubmissionWindow < StandardError; end
 
       before_action :authenticate_user!
       before_action :require_staff!
@@ -21,14 +21,11 @@ module Api
             item = window_param_to_hash(raw_window)
             week_number = item[:week_number].to_i
             unless week_number.between?(1, @curriculum_module.week_count)
-              render json: {
-                errors: [ "Week number must be between 1 and #{@curriculum_module.week_count}" ]
-              }, status: :unprocessable_entity
-              raise ActiveRecord::Rollback
+              raise InvalidSubmissionWindow,
+                "Week number must be between 1 and #{@curriculum_module.week_count}"
             end
 
             close_at = parse_close_at(item[:submissions_close_at])
-            raise ActiveRecord::Rollback if performed?
 
             window = @cohort.cohort_module_submission_windows.find_by(
               module_id: @curriculum_module.id,
@@ -49,13 +46,14 @@ module Api
             end
           end
         end
-        return if performed?
 
         @cohort.cohort_module_submission_windows.reload
 
         render json: {
           submission_windows: module_submission_windows_json(@cohort, @curriculum_module)
         }
+      rescue InvalidSubmissionWindow => e
+        render json: { errors: [ e.message ] }, status: :unprocessable_entity
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
       end
@@ -84,17 +82,14 @@ module Api
         return nil if raw_value.blank?
 
         raw = raw_value.to_s.strip
-        unless raw.match?(OFFSET_TIME_PATTERN)
-          render json: {
-            errors: [ "Submission close time must include a UTC offset (for example, Z or +10:00)" ]
-          }, status: :unprocessable_entity
-          return nil
+        unless Iso8601TimeInput.explicit_offset?(raw)
+          raise InvalidSubmissionWindow,
+            "Submission close time must include a UTC offset (for example, Z or +10:00)"
         end
 
         Time.iso8601(raw)
       rescue ArgumentError, TypeError
-        render json: { errors: [ "Submission close time is invalid" ] }, status: :unprocessable_entity
-        nil
+        raise InvalidSubmissionWindow, "Submission close time is invalid"
       end
 
       def module_submission_windows_json(cohort, curriculum_module)

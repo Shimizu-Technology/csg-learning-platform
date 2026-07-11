@@ -8,7 +8,31 @@ class OfficeHourSerializer
       end
     end
 
-    def as_json(office_hour, occurrence_limit: 3)
+    def collection_json(office_hours, occurrence_limit: 3, upcoming_limit: 3)
+      expansion_limit = [ occurrence_limit, upcoming_limit ].max
+      occurrences_by_office_hour = office_hours.to_h do |office_hour|
+        [ office_hour, office_hour.upcoming_occurrences(limit: expansion_limit) ]
+      end
+
+      {
+        office_hours: office_hours.map do |office_hour|
+          as_json(
+            office_hour,
+            occurrence_limit: occurrence_limit,
+            occurrences: occurrences_by_office_hour.fetch(office_hour)
+          )
+        end,
+        upcoming: upcoming(
+          office_hours,
+          limit: upcoming_limit,
+          occurrences_by_office_hour: occurrences_by_office_hour
+        )
+      }
+    end
+
+    def as_json(office_hour, occurrence_limit: 3, occurrences: nil)
+      occurrences ||= office_hour.upcoming_occurrences(limit: occurrence_limit)
+
       {
         id: office_hour.id,
         cohort_id: office_hour.cohort_id,
@@ -20,7 +44,7 @@ class OfficeHourSerializer
         timezone: office_hour.timezone,
         recurrence: office_hour.recurrence,
         active: office_hour.active,
-        occurrences: office_hour.upcoming_occurrences(limit: occurrence_limit).map do |occurrence|
+        occurrences: occurrences.first(occurrence_limit).map do |occurrence|
           occurrence_json(office_hour, occurrence)
         end,
         created_by: office_hour.created_by && {
@@ -31,9 +55,15 @@ class OfficeHourSerializer
       }
     end
 
-    def upcoming(office_hours, limit: 3)
+    def upcoming(office_hours, limit: 3, occurrences_by_office_hour: nil)
       office_hours.flat_map do |office_hour|
-        office_hour.upcoming_occurrences(limit: limit).map do |occurrence|
+        occurrences = if occurrences_by_office_hour
+          occurrences_by_office_hour.fetch(office_hour)
+        else
+          office_hour.upcoming_occurrences(limit: limit)
+        end
+
+        occurrences.first(limit).map do |occurrence|
           occurrence_json(office_hour, occurrence)
         end
       end.sort_by { |occurrence| occurrence[:starts_at] }.first(limit)

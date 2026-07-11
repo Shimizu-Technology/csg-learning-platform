@@ -525,6 +525,7 @@ module Api
 
       def cohort_json(cohort, include_students: false, include_modules: false)
         active_office_hours = OfficeHourSerializer.active_for(cohort)
+        office_hours_payload = OfficeHourSerializer.collection_json(active_office_hours)
         json = {
           id: cohort.id,
           name: cohort.name,
@@ -543,8 +544,8 @@ module Api
           announcements: Array((cohort.settings || {})["announcements"]),
           recordings: Array((cohort.settings || {})["recordings"]),
           class_resources: Array((cohort.settings || {})["class_resources"]),
-          office_hours: active_office_hours.map { |office_hour| OfficeHourSerializer.as_json(office_hour) },
-          office_hour_occurrences: OfficeHourSerializer.upcoming(active_office_hours, limit: 3)
+          office_hours: office_hours_payload[:office_hours],
+          office_hour_occurrences: office_hours_payload[:upcoming]
         }
 
         json[:uploaded_recordings_count] = cohort.recordings.count if include_students
