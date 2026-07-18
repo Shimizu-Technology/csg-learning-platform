@@ -1927,11 +1927,7 @@ export function Messages() {
     setPushMessage('')
     if (pushEnabled) {
       try {
-        if (pushSupported()) await disablePushNotifications()
-        else {
-          const preference = await api.updateMessageNotifications(false)
-          if (preference.error) throw new Error(preference.error)
-        }
+        await disablePushNotifications()
         setPushEnabled(false)
         setPushMessage('Message email and push notifications are off globally.')
       } catch (toggleError) {
