@@ -409,6 +409,26 @@ class CommunicationTest < ActionDispatch::IntegrationTest
     assert @student.reload.message_email_notifications_enabled?
   end
 
+  test "endpoint push subscription delete preserves message email notifications" do
+    @student.update!(message_email_notifications_enabled: true)
+    @student.push_subscriptions.create!(
+      endpoint: "https://push.example/subscription-1",
+      p256dh: "public-key",
+      auth: "auth-secret"
+    )
+
+    as_user(@student) do
+      delete "/api/v1/push_subscriptions",
+        params: { endpoint: "https://push.example/subscription-1" },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :no_content
+    assert_equal 0, @student.push_subscriptions.count
+    assert @student.reload.message_email_notifications_enabled?
+  end
+
   test "push subscription cannot be claimed by a different user" do
     PushSubscription.create!(
       user: @student,

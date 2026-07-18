@@ -73,9 +73,6 @@ module Api
           current_user.update!(message_email_notifications_enabled: false)
         elsif params[:endpoint].present?
           current_user.push_subscriptions.where(endpoint: params[:endpoint].to_s).destroy_all
-          unless current_user.push_subscriptions.active.exists?
-            current_user.update!(message_email_notifications_enabled: false)
-          end
         end
 
         head :no_content
