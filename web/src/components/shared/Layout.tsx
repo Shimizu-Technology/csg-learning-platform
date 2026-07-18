@@ -244,7 +244,7 @@ export function Layout({ children }: LayoutProps) {
   })
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className={isMessagesRoute ? 'h-dvh overflow-hidden bg-slate-50' : 'min-h-screen bg-slate-50'}>
       {/* Mobile header */}
       <header className="sticky top-0 z-40 flex h-14 items-center gap-4 border-b border-slate-200 bg-white px-4 lg:hidden">
         <button onClick={() => setSidebarOpen(true)} className="text-slate-500 hover:text-slate-700">
