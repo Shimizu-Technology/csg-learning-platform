@@ -45,6 +45,7 @@ export function Layout({ children }: LayoutProps) {
   })
   const lastPresenceUpdateAtRef = useRef(0)
   const location = useLocation()
+  const isMessagesRoute = location.pathname.startsWith('/messages')
   const { user, isLoading } = useAuthContext()
   const [unreadCount, setUnreadCount] = useState(0)
   const [messageUnreadCount, setMessageUnreadCount] = useState(0)
@@ -427,8 +428,8 @@ export function Layout({ children }: LayoutProps) {
         </aside>
 
         {/* Main content */}
-        <main className={`flex-1 min-w-0 overflow-x-hidden ${mainMargin} transition-all duration-200`}>
-          <div className="p-4 lg:p-8">{children ?? <Outlet />}</div>
+        <main className={`flex-1 min-w-0 overflow-x-hidden ${mainMargin} transition-all duration-200 ${isMessagesRoute ? 'h-[calc(100dvh-3.5rem)] overflow-hidden lg:h-dvh' : ''}`}>
+          <div className={isMessagesRoute ? 'h-full p-0 lg:p-4' : 'p-4 lg:p-8'}>{children ?? <Outlet />}</div>
         </main>
       </div>
     </div>

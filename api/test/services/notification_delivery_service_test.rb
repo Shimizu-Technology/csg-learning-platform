@@ -70,12 +70,35 @@ class NotificationDeliveryServiceTest < ActiveSupport::TestCase
     assert_match "@everyone:", notification.body
   end
 
+  test "mention emails honor the global message notification preference" do
+    curriculum = Curriculum.create!(name: "Bootcamp 2026")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Cohort 3", start_date: Date.current, status: :active)
+    channel = cohort.channels.find_by!(name: "Class Chat")
+    author = User.create!(clerk_id: "mention_pref_author", email: "mention-pref-author@example.com", role: :admin)
+    enabled = User.create!(clerk_id: "mention_pref_enabled", email: "mention-pref-enabled@example.com", role: :student)
+    disabled = User.create!(clerk_id: "mention_pref_disabled", email: "mention-pref-disabled@example.com", role: :student, message_email_notifications_enabled: false)
+    message = Message.create!(channel: channel, author: author, body: "Please review", mention_user_ids: [ enabled.id, disabled.id ])
+    deliveries = []
+
+    original_send = NotificationEmailService.method(:send_message_mention)
+    NotificationEmailService.define_singleton_method(:send_message_mention) do |user:, message:|
+      deliveries << [ user.id, message.id ]
+      true
+    end
+
+    MessageMentionEmailJob.perform_now(message.id, [ enabled.id, disabled.id ])
+
+    assert_equal [ [ enabled.id, message.id ] ], deliveries
+  ensure
+    NotificationEmailService.define_singleton_method(:send_message_mention, original_send) if original_send
+  end
+
   test "message notification emails mirror enabled message notifications" do
     curriculum = Curriculum.create!(name: "Bootcamp 2026")
     cohort = Cohort.create!(curriculum: curriculum, name: "Cohort 3", start_date: Date.current, status: :active)
     author = User.create!(clerk_id: "email_author", email: "email-author@example.com", first_name: "Email", last_name: "Author", role: :student)
     recipient = User.create!(clerk_id: "email_student", email: "email-student@example.com", first_name: "Email", last_name: "Student", role: :student, message_email_notifications_enabled: true)
-    disabled_recipient = User.create!(clerk_id: "email_disabled", email: "email-disabled@example.com", first_name: "Disabled", last_name: "Student", role: :student)
+    disabled_recipient = User.create!(clerk_id: "email_disabled", email: "email-disabled@example.com", first_name: "Disabled", last_name: "Student", role: :student, message_email_notifications_enabled: false)
     Enrollment.create!(user: author, cohort: cohort, status: :active)
     Enrollment.create!(user: recipient, cohort: cohort, status: :active)
     Enrollment.create!(user: disabled_recipient, cohort: cohort, status: :active)
@@ -90,11 +113,25 @@ class NotificationDeliveryServiceTest < ActiveSupport::TestCase
     end
 
     perform_enqueued_jobs(only: MessageNotificationEmailJob) do
-      NotificationDeliveryService.message_created(message, push: true)
+      NotificationDeliveryService.message_created(message, push: false)
     end
 
     assert_equal [ [ recipient.id, message.id, Notification.find_by!(notifiable: message, user: recipient).id ] ], deliveries
   ensure
     NotificationEmailService.define_singleton_method(:send_message_notification, original_send) if original_send
+  end
+
+  test "ordinary channel messages do not enqueue generic email notifications" do
+    curriculum = Curriculum.create!(name: "Bootcamp 2026")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Cohort 3", start_date: Date.current, status: :active)
+    channel = cohort.channels.find_by!(name: "Class Chat")
+    author = User.create!(clerk_id: "channel_email_author", email: "channel-email-author@example.com", role: :admin)
+    recipient = User.create!(clerk_id: "channel_email_recipient", email: "channel-email-recipient@example.com", role: :student)
+    Enrollment.create!(user: recipient, cohort: cohort, status: :active)
+    message = Message.create!(channel: channel, author: author, body: "Routine channel update")
+
+    assert_no_enqueued_jobs(only: MessageNotificationEmailJob) do
+      NotificationDeliveryService.message_created(message, push: true)
+    end
   end
 end

@@ -9,6 +9,8 @@ class MessageMentionEmailJob < ApplicationJob
     return if message.deleted?
 
     User.not_archived.where(id: mentioned_user_ids).where.not(id: Array(skip_user_ids)).find_each do |user|
+      next unless user.message_email_notifications_enabled?
+
       NotificationEmailService.send_message_mention(user: user, message: message)
     end
   end
