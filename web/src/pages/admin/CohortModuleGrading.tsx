@@ -86,6 +86,12 @@ interface ExerciseInfo {
   submission_type: string
   submission_config?: Record<string, unknown>
   github_sync?: boolean
+  submission_window?: {
+    week_number: number
+    submissions_close_at: string | null
+    submissions_closed: boolean
+    status: 'open' | 'scheduled' | 'closed'
+  }
 }
 
 interface ProgressItem {
@@ -102,6 +108,7 @@ interface GradingData {
   module_name: string
   requires_github: boolean
   supports_github_sync?: boolean
+  open_github_sync_count?: number
   repository_name: string
   students: StudentSummary[]
   exercises: ExerciseInfo[]
@@ -456,6 +463,8 @@ export function CohortModuleGrading() {
   if (loading) return <LoadingSpinner message="Loading grading data..." />
   if (!data) return null
 
+  const githubSyncClosed = data.supports_github_sync && (data.open_github_sync_count ?? 0) === 0
+
   return (
     <div className="space-y-5 max-w-7xl mx-auto">
       {/* Header */}
@@ -479,11 +488,12 @@ export function CohortModuleGrading() {
         {data.supports_github_sync && (
           <button
             onClick={handleSyncAll}
-            disabled={syncing}
+            disabled={syncing || githubSyncClosed}
+            title={githubSyncClosed ? 'All GitHub-sync submission windows are closed' : undefined}
             className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50 transition-colors shrink-0"
           >
             <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'Syncing...' : 'Sync All from GitHub'}
+            {githubSyncClosed ? 'GitHub Sync Closed' : syncing ? 'Syncing...' : 'Sync All from GitHub'}
           </button>
         )}
       </div>
@@ -1074,11 +1084,12 @@ export function CohortModuleGrading() {
                 return (
                   <button
                     onClick={() => handleSyncStudent(selectedStudentId)}
-                    disabled={syncingStudentId === selectedStudentId}
+                    disabled={githubSyncClosed || syncingStudentId === selectedStudentId}
+                    title={githubSyncClosed ? 'All GitHub-sync submission windows are closed' : undefined}
                     className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
                   >
                     <RefreshCw className={`h-3.5 w-3.5 ${syncingStudentId === selectedStudentId ? 'animate-spin' : ''}`} />
-                    {syncingStudentId === selectedStudentId ? 'Syncing...' : `Sync ${selectedStudent.full_name || selectedStudent.email}`}
+                    {githubSyncClosed ? 'GitHub Sync Closed' : syncingStudentId === selectedStudentId ? 'Syncing...' : `Sync ${selectedStudent.full_name || selectedStudent.email}`}
                   </button>
                 )
               })()}

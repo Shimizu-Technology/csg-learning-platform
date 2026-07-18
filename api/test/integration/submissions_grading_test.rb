@@ -267,6 +267,63 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     assert_equal "updated code", @submission.reload.text
   end
 
+  test "student cannot create or update submissions after the week is closed" do
+    CohortModuleSubmissionWindow.create!(
+      cohort: @cohort,
+      curriculum_module: @mod,
+      week_number: 1,
+      submissions_close_at: 1.hour.ago,
+      created_by: @admin
+    )
+
+    as_user(@student) do
+      post "/api/v1/submissions",
+        params: { content_block_id: @block.id, text: "late code" },
+        headers: auth_headers, as: :json
+    end
+
+    assert_response :forbidden
+    assert_match(/Submissions for Week 1 are closed/, JSON.parse(response.body).fetch("error"))
+
+    as_user(@student) do
+      patch "/api/v1/submissions/#{@submission.id}",
+        params: { text: "late update" },
+        headers: auth_headers, as: :json
+    end
+
+    assert_response :forbidden
+  end
+
+  test "student work progress is blocked after close but video progress remains allowed" do
+    video_block = ContentBlock.create!(
+      lesson: @lesson, block_type: :video, position: 5, title: "Video", video_url: "https://youtu.be/example"
+    )
+    CohortModuleSubmissionWindow.create!(
+      cohort: @cohort,
+      curriculum_module: @mod,
+      week_number: 1,
+      submissions_close_at: 1.hour.ago,
+      created_by: @admin
+    )
+
+    as_user(@student) do
+      patch "/api/v1/progress",
+        params: { content_block_id: @manual_block.id, status: "completed" },
+        headers: auth_headers, as: :json
+    end
+
+    assert_response :forbidden
+
+    as_user(@student) do
+      patch "/api/v1/progress",
+        params: { content_block_id: video_block.id, status: "completed" },
+        headers: auth_headers, as: :json
+    end
+
+    assert_response :success
+    assert Progress.find_by(user: @student, content_block: video_block).completed?
+  end
+
   test "student cannot update own graded submission" do
     @submission.update!(grade: :A, graded_by_id: @admin.id, graded_at: Time.current)
 

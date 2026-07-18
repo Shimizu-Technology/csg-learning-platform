@@ -11,6 +11,8 @@ class Cohort < ApplicationRecord
   has_many :channels, dependent: :destroy
   has_many :direct_conversations, dependent: :destroy
   has_many :cohort_module_schedules, dependent: :destroy
+  has_many :cohort_module_submission_windows, dependent: :destroy
+  has_many :office_hours, dependent: :destroy
 
   validates :name, presence: true
   validates :start_date, presence: true
@@ -22,6 +24,14 @@ class Cohort < ApplicationRecord
       cohort_module_schedules.find { |schedule| schedule.module_id == curriculum_module.id }
     else
       cohort_module_schedules.find_by(module_id: curriculum_module.id)
+    end
+  end
+
+  def submission_window_for(module_id:, week_number:)
+    if cohort_module_submission_windows.loaded?
+      cohort_module_submission_windows.find { |window| window.module_id == module_id && window.week_number == week_number }
+    else
+      cohort_module_submission_windows.find_by(module_id: module_id, week_number: week_number)
     end
   end
 

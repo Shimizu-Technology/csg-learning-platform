@@ -39,29 +39,36 @@ module Api
         end
 
         mod_gh = module_github_config
+        requires_github = mod_gh["requires_github"] || false
 
         exercises = exercise_blocks.map do |cb|
-            submission_type = cb.effective_submission_type(requires_github: mod_gh["requires_github"] || false)
-            {
-              id: cb.id,
-              filename: cb.filename,
-              title: cb.title,
-              release_day: cb.lesson.release_day,
-              lesson_title: cb.lesson.title,
-              requires_submission: cb.review_required?(requires_github: mod_gh["requires_github"] || false),
-              submission_type: submission_type,
-              submission_config: cb.submission_config || {},
-              github_sync: submission_type == "prework_github_sync"
-            }
-          end
+          submission_type = cb.effective_submission_type(requires_github: requires_github)
+          submission_window = SubmissionWindowStatus.for_lesson(cohort: @cohort, lesson: cb.lesson)
+
+          {
+            id: cb.id,
+            filename: cb.filename,
+            title: cb.title,
+            release_day: cb.lesson.release_day,
+            lesson_title: cb.lesson.title,
+            requires_submission: cb.review_required?(requires_github: requires_github),
+            submission_type: submission_type,
+            submission_config: cb.submission_config || {},
+            github_sync: submission_type == "prework_github_sync",
+            submission_window: submission_window
+          }
+        end
 
         render json: {
           cohort_id: @cohort.id,
           cohort_name: @cohort.name,
           module_id: @curriculum_module.id,
           module_name: @curriculum_module.name,
-          requires_github: mod_gh["requires_github"] || false,
-          supports_github_sync: exercise_blocks.any? { |cb| cb.github_sync_submission?(requires_github: mod_gh["requires_github"] || false) },
+          requires_github: requires_github,
+          supports_github_sync: exercises.any? { |exercise| exercise[:github_sync] },
+          open_github_sync_count: exercises.count do |exercise|
+            exercise[:github_sync] && !exercise[:submission_window][:submissions_closed]
+          end,
           repository_name: mod_gh["repository_name"].presence || @cohort.repository_name,
           students: students_data,
           exercises: exercises,
@@ -128,7 +135,7 @@ module Api
       private
 
       def set_cohort
-        @cohort = Cohort.find(params[:cohort_id])
+        @cohort = Cohort.includes(:cohort_module_submission_windows).find(params[:cohort_id])
       end
 
       def set_module

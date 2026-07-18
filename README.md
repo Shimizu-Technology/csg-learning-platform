@@ -79,7 +79,7 @@ cd api
 bundle exec rails test       # Runs integration + unit tests
 
 cd ../web
-npm run check                # Lint + typecheck + production build
+npm run check                # Lint + typecheck + unit tests + production build
 ```
 
 ## Environment Variables
@@ -118,10 +118,12 @@ User
 - **Curriculum Management** — Reusable curricula with modules, lessons, and content blocks
 - **Cohort Operations** — Create cohorts, assign curricula, manage enrollments
 - **Unlock Engine** — Day-based scheduling with cohort-wide and per-student overrides
+- **Submission Windows** — Per-cohort, per-module weekly deadlines that stop new work without hiding lessons or videos
 - **Progress Tracking** — S3 watch progress plus legacy YouTube/Vimeo completion tracking, exercise marking, per-block granularity
 - **Grading & Feedback** — Submission queue, A/B/C/R grading, redo workflow, GitHub issue integration
 - **Communication Hub** — Announcements, cohort channels, direct messages, and push notifications in the same app
 - **Recordings Library** — Self-hosted AWS S3 uploads are the preferred path, with legacy external video support during migration
+- **Office Hours** — One-time and timezone-aware recurring help sessions surfaced on student dashboards
 - **Live Classroom Platform (Planned)** — Education-focused video sessions for classes, workshops, replays, and lightweight meetings
 - **Role-Based Access** — Student, instructor, and admin roles with appropriate UI and API gates
 - **Mobile-First UI** — Responsive design, collapsible sidebar, PWA support

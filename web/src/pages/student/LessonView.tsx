@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, ChevronLeft, RotateCcw } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ChevronLeft, Lock, RotateCcw } from 'lucide-react'
 import { api } from '../../lib/api'
 import { ContentBlockRenderer } from '../../components/shared/ContentBlockRenderer'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { useAuthContext } from '../../contexts/AuthContext'
+import { formatShortDateTime } from '../../lib/format'
 
 interface LessonData {
   id: number
@@ -17,6 +18,12 @@ interface LessonData {
   requires_submission?: boolean
   requires_github?: boolean
   repository_name?: string
+  submission_window?: {
+    week_number: number
+    submissions_close_at: string | null
+    submissions_closed: boolean
+    status: 'open' | 'scheduled' | 'closed'
+  }
   content_blocks: Array<any>
   prev_lesson: { id: number; title: string } | null
   next_lesson: { id: number; title: string } | null
@@ -67,6 +74,24 @@ export function LessonView() {
         </div>
       </div>
 
+      {lesson.submission_window?.submissions_close_at && (
+        <div className={`rounded-2xl border p-4 ${lesson.submission_window.submissions_closed ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}`}>
+          <div className="flex items-start gap-3">
+            <Lock className={`mt-0.5 h-5 w-5 shrink-0 ${lesson.submission_window.submissions_closed ? 'text-red-600' : 'text-amber-600'}`} />
+            <div>
+              <h2 className={`text-sm font-semibold ${lesson.submission_window.submissions_closed ? 'text-red-800' : 'text-amber-800'}`}>
+                {lesson.submission_window.submissions_closed ? `Week ${lesson.submission_window.week_number} submissions are closed` : `Week ${lesson.submission_window.week_number} submissions close soon`}
+              </h2>
+              <p className={`mt-1 text-sm ${lesson.submission_window.submissions_closed ? 'text-red-700' : 'text-amber-700'}`}>
+                {lesson.submission_window.submissions_closed
+                  ? `Submissions closed ${formatShortDateTime(lesson.submission_window.submissions_close_at)}. You can still review videos, readings, and feedback, but new work cannot be submitted.`
+                  : `Submissions close ${formatShortDateTime(lesson.submission_window.submissions_close_at)}.`}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {redoBlocks.length > 0 && (
         <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
           <div className="flex items-start gap-3">
@@ -91,6 +116,9 @@ export function LessonView() {
             requiresGithub={lesson.requires_github}
             requiresSubmission={lesson.requires_submission}
             repositoryName={lesson.repository_name}
+            submissionsLocked={lesson.submission_window?.submissions_closed || false}
+            submissionsCloseAt={lesson.submission_window?.submissions_close_at || null}
+            submissionWeekNumber={lesson.submission_window?.week_number}
             onProgressUpdate={() => loadLesson({ silent: true })}
           />
         ))}

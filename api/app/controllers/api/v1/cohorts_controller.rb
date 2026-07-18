@@ -9,7 +9,12 @@ module Api
 
       # GET /api/v1/cohorts
       def index
-        cohorts = Cohort.includes(:cohort_module_schedules, curriculum: :modules).order(start_date: :desc)
+        cohorts = Cohort.includes(
+          :cohort_module_schedules,
+          :cohort_module_submission_windows,
+          { office_hours: :created_by },
+          curriculum: :modules
+        ).order(start_date: :desc)
         render json: {
           cohorts: cohorts.map { |c|
             base = cohort_json(c)
@@ -62,7 +67,7 @@ module Api
           enrollment.module_assignments.any? { |assignment| assignment.module_id == curriculum_module.id }
         end
         module_already_assigned = schedule_exists || assignments_exist
-        lesson_ids = curriculum_module.lessons.pluck(:id)
+        lesson_ids = curriculum_module.lessons.map(&:id)
         module_start_date = normalized_module_start_date
         return if performed?
         if assigned.nil? && !module_already_assigned
@@ -103,7 +108,7 @@ module Api
         end
 
         render json: {
-          cohort: cohort_json(@cohort.reload, include_students: true, include_modules: true)
+          cohort: cohort_json(load_cohort_for_detail(@cohort.id), include_students: true, include_modules: true)
         }
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: [ e.message ] }, status: :unprocessable_entity
@@ -160,11 +165,25 @@ module Api
       private
 
       def set_cohort
-        @cohort = Cohort.includes(:cohort_module_schedules, curriculum: :modules).find(params[:id])
+        @cohort = load_cohort_for_detail(params[:id])
+      end
+
+      def load_cohort_for_detail(id)
+        Cohort.includes(
+          :cohort_module_schedules,
+          :cohort_module_submission_windows,
+          { office_hours: :created_by },
+          curriculum: { modules: :lessons }
+        ).find(id)
       end
 
       def set_cohort_with_lessons
-        @cohort = Cohort.includes(:cohort_module_schedules, curriculum: { modules: { lessons: :content_blocks } }).find(params[:id])
+        @cohort = Cohort.includes(
+          :cohort_module_schedules,
+          :cohort_module_submission_windows,
+          { office_hours: :created_by },
+          curriculum: { modules: { lessons: :content_blocks } }
+        ).find(params[:id])
       end
 
       def cohort_params
@@ -268,7 +287,8 @@ module Api
         available_modules = module_data.count { |mod| mod[:available] }
         announcements = cohort_student_view_announcements(cohort)
         resources = cohort_student_view_resources(cohort)
-        dashboard = cohort_student_dashboard_preview_json(cohort, module_data, announcements, resources)
+        office_hours = OfficeHourSerializer.upcoming(OfficeHourSerializer.active_for(cohort), limit: 3)
+        dashboard = cohort_student_dashboard_preview_json(cohort, module_data, announcements, resources, office_hours)
 
         {
           cohort: {
@@ -294,6 +314,7 @@ module Api
           dashboard: dashboard,
           announcements: announcements,
           resources: resources,
+          office_hours: office_hours,
           recordings: {
             uploaded_count: cohort.recordings.count,
             legacy_count: Array((cohort.settings || {})["recordings"]).size,
@@ -302,7 +323,7 @@ module Api
         }
       end
 
-      def cohort_student_dashboard_preview_json(cohort, module_data, announcements, resources)
+      def cohort_student_dashboard_preview_json(cohort, module_data, announcements, resources, office_hours)
         dashboard_modules = module_data.select { |mod| mod[:assigned] }.map do |mod|
           total_blocks = mod[:lessons].sum { |lesson| lesson[:completion_blocks_count] }
           {
@@ -328,7 +349,8 @@ module Api
                 unlock_date: lesson[:unlock_date],
                 total_blocks: lesson[:completion_blocks_count],
                 completed_blocks: 0,
-                completed: false
+                completed: false,
+                submission_window: lesson[:submission_window]
               }
             }
           }
@@ -351,7 +373,8 @@ module Api
           modules: dashboard_modules,
           continue_lesson: continue_lesson && { id: continue_lesson[:id], title: continue_lesson[:title] },
           action_items: [],
-          resources: resources
+          resources: resources,
+          office_hours: office_hours
         }
       end
 
@@ -397,7 +420,7 @@ module Api
         Date.current >= start_date
       end
 
-      def cohort_student_view_lesson_json(_cohort, mod, lesson, module_start_date, module_available, requires_github)
+      def cohort_student_view_lesson_json(cohort, mod, lesson, module_start_date, module_available, requires_github)
         unlock_date = module_start_date.present? ? module_start_date + mod.calendar_offset_for(lesson.release_day) : nil
         available = module_available && unlock_date.present? && Date.current >= unlock_date
 
@@ -413,7 +436,8 @@ module Api
           content_blocks_count: lesson.content_blocks.size,
           completion_blocks_count: lesson.completion_block_ids.size,
           requires_submission: lesson.effective_requires_submission(requires_github: requires_github),
-          submission_type: lesson.effective_submission_type(requires_github: requires_github)
+          submission_type: lesson.effective_submission_type(requires_github: requires_github),
+          submission_window: SubmissionWindowStatus.for_lesson(cohort: cohort, lesson: lesson)
         }
       end
 
@@ -463,6 +487,17 @@ module Api
         end
       end
 
+      def module_submission_windows_json(cohort, mod, module_start_date)
+        (1..mod.week_count).map do |week_number|
+          SubmissionWindowStatus.for_week(
+            cohort: cohort,
+            curriculum_module: mod,
+            week_number: week_number,
+            module_start_date: module_start_date
+          )
+        end
+      end
+
       def cohort_student_view_recordings(cohort)
         uploaded = cohort.recordings.order(:position, :recorded_date, :created_at).limit(6).map do |recording|
           {
@@ -489,6 +524,8 @@ module Api
       end
 
       def cohort_json(cohort, include_students: false, include_modules: false)
+        active_office_hours = OfficeHourSerializer.active_for(cohort)
+        office_hours_payload = OfficeHourSerializer.collection_json(active_office_hours)
         json = {
           id: cohort.id,
           name: cohort.name,
@@ -506,7 +543,9 @@ module Api
           active_count: cohort.enrollments.active.joins(:user).merge(User.not_archived).count,
           announcements: Array((cohort.settings || {})["announcements"]),
           recordings: Array((cohort.settings || {})["recordings"]),
-          class_resources: Array((cohort.settings || {})["class_resources"])
+          class_resources: Array((cohort.settings || {})["class_resources"]),
+          office_hours: office_hours_payload[:office_hours],
+          office_hour_occurrences: office_hours_payload[:upcoming]
         }
 
         json[:uploaded_recordings_count] = cohort.recordings.count if include_students
@@ -555,7 +594,7 @@ module Api
               name: mod.name,
               module_type: mod.module_type,
               position: mod.position,
-              lessons_count: mod.lessons.count,
+              lessons_count: mod.lessons.size,
               assigned_count: assignments.size,
               assigned: assignments.size.positive?,
               unlocked_count: assignments.count(&:unlocked?),
@@ -563,7 +602,9 @@ module Api
               module_start_date: module_start_date,
               uses_default_start_date: schedule_index[mod.id].nil?,
               requires_github: mod_gh["requires_github"] || false,
-              repository_name: mod_gh["repository_name"].presence || cohort.repository_name
+              repository_name: mod_gh["repository_name"].presence || cohort.repository_name,
+              week_count: mod.week_count,
+              submission_windows: module_submission_windows_json(cohort, mod, module_start_date)
             }
           end
         end

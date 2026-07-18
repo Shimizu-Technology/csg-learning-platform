@@ -28,8 +28,19 @@ class GithubSyncService
       .to_a
       .select { |block| block.github_sync_submission?(requires_github: true) }
 
+    closed_blocks, open_blocks = exercise_blocks.partition { |block|
+      SubmissionWindowStatus.closed_for_lesson?(cohort: cohort, lesson: block.lesson)
+    }
+    exercise_blocks = open_blocks
+
     if exercise_blocks.empty?
-      return { synced: 0, errors: [] }
+      errors << "All GitHub-sync submissions for this module are closed" if closed_blocks.any?
+      return { synced: 0, errors: errors }
+    end
+
+    if closed_blocks.any?
+      closed_weeks = closed_blocks.map { |block| SubmissionWindowStatus.week_number_for_release_day(block.lesson.release_day) }.uniq.sort
+      errors << "Skipped closed Week #{closed_weeks.join(', Week ')} GitHub-sync submissions"
     end
 
     target_filenames = exercise_blocks.filter_map { |b| b.filename&.strip }.uniq

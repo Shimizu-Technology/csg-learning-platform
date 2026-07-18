@@ -102,6 +102,7 @@ export interface LessonDetail {
   requires_submission: boolean;
   submission_type?: string;
   content_blocks_count: number;
+  submission_window?: SubmissionWindowStatus;
   content_blocks: ContentBlockSummary[];
   prev_lesson: { id: number; title: string } | null;
   next_lesson: { id: number; title: string } | null;
@@ -457,6 +458,46 @@ export interface MessageSearchResponse {
   })[];
 }
 
+export interface SubmissionWindowStatus {
+  week_number: number;
+  submissions_close_at: string | null;
+  submissions_closed: boolean;
+  status: 'open' | 'scheduled' | 'closed';
+  starts_on?: string | null;
+  ends_on?: string | null;
+  lessons_count?: number;
+}
+
+export interface OfficeHourOccurrence {
+  office_hour_id: number;
+  title: string;
+  description: string | null;
+  starts_at: string;
+  ends_at: string;
+  meeting_url: string;
+  timezone: string;
+  recurrence: 'once' | 'weekly';
+}
+
+export interface OfficeHour {
+  id: number;
+  cohort_id: number;
+  title: string;
+  description: string | null;
+  starts_at: string;
+  ends_at: string;
+  meeting_url: string;
+  timezone: string;
+  recurrence: 'once' | 'weekly';
+  active: boolean;
+  occurrences: OfficeHourOccurrence[];
+  created_by?: {
+    id: number;
+    full_name: string;
+    email: string;
+  } | null;
+}
+
 export interface CohortSummary {
   id: number;
   name: string;
@@ -507,6 +548,8 @@ export interface CohortModule {
   uses_default_start_date: boolean;
   requires_github?: boolean;
   repository_name?: string;
+  week_count?: number;
+  submission_windows?: SubmissionWindowStatus[];
 }
 
 export interface CohortDetail extends CohortSummary {
@@ -514,6 +557,8 @@ export interface CohortDetail extends CohortSummary {
   modules: CohortModule[];
   recordings?: Array<{ title: string; url: string; date?: string; description?: string }>;
   class_resources?: Array<{ title: string; url: string; category?: string; description?: string }>;
+  office_hours?: OfficeHour[];
+  office_hour_occurrences?: OfficeHourOccurrence[];
 }
 
 export interface DashboardData {
@@ -551,11 +596,13 @@ export interface DashboardData {
       completed: boolean;
       total_blocks: number;
       completed_blocks: number;
+      submission_window?: SubmissionWindowStatus;
     }>;
   }>;
   continue_lesson?: { id: number; title: string } | null;
-  action_items?: Array<{ type: string; submission_id: number; lesson_id: number; lesson_title: string; content_block_title: string; feedback: string | null }>;
+  action_items?: Array<{ type: string; submission_id: number; lesson_id: number; lesson_title: string; content_block_title: string; feedback: string | null; submission_window?: SubmissionWindowStatus; submissions_closed?: boolean }>;
   resources?: Array<{ id: number; title: string; url: string; category: string; description: string | null }>;
+  office_hours?: OfficeHourOccurrence[];
 }
 
 export interface CohortStudentViewLesson {
@@ -571,6 +618,7 @@ export interface CohortStudentViewLesson {
   completion_blocks_count: number;
   requires_submission: boolean;
   submission_type: string;
+  submission_window?: SubmissionWindowStatus;
 }
 
 export interface CohortStudentViewModule {
@@ -613,6 +661,7 @@ export interface CohortStudentView {
   dashboard: DashboardData;
   announcements: Announcement[];
   resources: Array<{ id: number; title: string; url: string; category: string; description: string | null }>;
+  office_hours?: OfficeHourOccurrence[];
   recordings: {
     uploaded_count: number;
     legacy_count: number;
@@ -1129,6 +1178,19 @@ export interface CohortResponse {
 
 export interface CohortStudentViewResponse {
   student_view: CohortStudentView;
+}
+
+export interface SubmissionWindowsResponse {
+  submission_windows: SubmissionWindowStatus[];
+}
+
+export interface OfficeHoursResponse {
+  office_hours: OfficeHour[];
+  upcoming: OfficeHourOccurrence[];
+}
+
+export interface OfficeHourResponse {
+  office_hour: OfficeHour;
 }
 
 export interface EnrollmentsListResponse {

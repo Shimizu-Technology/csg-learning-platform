@@ -126,6 +126,9 @@ Rails.application.routes.draw do
         get "modules/:module_id/submissions", to: "cohort_grading#index", as: :module_submissions
         post "modules/:module_id/sync_github", to: "cohort_grading#sync_all", as: :module_sync_github
         post "modules/:module_id/sync_github/:user_id", to: "cohort_grading#sync_student", as: :module_sync_student
+        patch "modules/:module_id/submission_windows", to: "cohort_module_submission_windows#update", as: :module_submission_windows
+
+        resources :office_hours, only: [ :index, :create, :update, :destroy ]
 
         # S3-backed recordings
         resources :recordings, only: [ :index, :show, :create, :update, :destroy ] do

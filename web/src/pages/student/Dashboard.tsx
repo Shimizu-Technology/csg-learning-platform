@@ -7,6 +7,7 @@ import { ProgressRing } from '../../components/shared/ProgressRing'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
+import { formatShortDateTime } from '../../lib/format'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import type { DashboardData } from '../../types/api'
 
@@ -104,10 +105,21 @@ export function Dashboard({ previewData, previewBanner, disableStaffRedirect = f
 
     const completedModules = modules.filter((mod) => mod.total_blocks > 0 && mod.completed_blocks === mod.total_blocks).length
     const activeModules = modules.filter((mod) => mod.available && mod.total_blocks > 0 && mod.completed_blocks < mod.total_blocks).length
+    const lessonsWithWindows = modules.flatMap((mod) => mod.lessons.map((lesson) => ({ ...lesson, moduleId: mod.id, moduleName: mod.name })))
+    const nextSubmissionDeadline = lessonsWithWindows
+      .filter((lesson) => lesson.available && lesson.submission_window?.submissions_close_at && !lesson.submission_window.submissions_closed)
+      .sort((a, b) => unlockTime(a.submission_window?.submissions_close_at) - unlockTime(b.submission_window?.submissions_close_at))[0] || null
+    const closedSubmissionWindowCount = new Set(
+      lessonsWithWindows
+        .filter((lesson) => lesson.submission_window?.submissions_closed)
+        .map((lesson) => `${lesson.moduleId}:${lesson.submission_window?.week_number}`)
+    ).size
 
     return {
       nextAvailableLesson,
       nextLockedLesson,
+      nextSubmissionDeadline,
+      closedSubmissionWindowCount,
       completedModules,
       activeModules,
       availableLessonsCount: incompleteAvailableLessons.length,
@@ -202,6 +214,73 @@ export function Dashboard({ previewData, previewBanner, disableStaffRedirect = f
           )}
         </div>
       </div>
+
+      {(derived.nextSubmissionDeadline || derived.closedSubmissionWindowCount > 0) && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                <Lock className="h-4 w-4 text-primary-500" />
+                Submission windows
+              </h3>
+              {derived.nextSubmissionDeadline ? (
+                <p className="mt-1 text-sm text-slate-600">
+                  Next close: <span className="font-medium text-slate-900">{derived.nextSubmissionDeadline.title}</span> closes {formatShortDateTime(derived.nextSubmissionDeadline.submission_window?.submissions_close_at)}.
+                </p>
+              ) : (
+                <p className="mt-1 text-sm text-slate-600">No upcoming submission close times right now.</p>
+              )}
+            </div>
+            {derived.closedSubmissionWindowCount > 0 && (
+              <span className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
+                {derived.closedSubmissionWindowCount} closed window{derived.closedSubmissionWindowCount !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {data.office_hours && data.office_hours.length > 0 && (
+        <div className="rounded-2xl bg-white border border-slate-200 p-4 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+              <Clock className="h-4 w-4 text-primary-500" />
+              Office Hours
+            </h3>
+          </div>
+          <div className="rounded-xl border border-primary-200 bg-primary-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary-700">Next session</p>
+            <p className="mt-1 text-base font-semibold text-slate-900">{data.office_hours[0].title}</p>
+            <p className="mt-0.5 text-sm text-slate-600">{formatShortDateTime(data.office_hours[0].starts_at, 'TBD', data.office_hours[0].timezone)}</p>
+            {data.office_hours[0].description && <p className="mt-2 text-sm text-slate-600">{data.office_hours[0].description}</p>}
+            <a
+              href={sanitizeUrl(data.office_hours[0].meeting_url)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 transition-colors"
+            >
+              Join office hours
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          </div>
+          {data.office_hours.length > 1 && (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {data.office_hours.slice(1, 3).map((session) => (
+                <a
+                  key={`${session.office_hour_id}-${session.starts_at}`}
+                  href={sanitizeUrl(session.meeting_url)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 hover:border-primary-200"
+                >
+                  <p className="text-sm font-medium text-slate-900">{session.title}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">{formatShortDateTime(session.starts_at, 'TBD', session.timezone)}</p>
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {data.cohort?.announcements && data.cohort.announcements.length > 0 && (
         <div className="rounded-2xl bg-white border border-slate-200 p-4 space-y-3">

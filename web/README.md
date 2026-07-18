@@ -100,7 +100,8 @@ Sidebar collapse state persists in `localStorage`.
 npm run build               # Production build → dist/
 npm run lint                # ESLint
 npm run typecheck           # TypeScript only
-npm run check               # Lint + typecheck + production build
+npm run test                # Vitest unit tests
+npm run check               # Lint + typecheck + unit tests + production build
 npm run preview             # Preview production build locally
 ```
 

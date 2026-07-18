@@ -8,6 +8,10 @@ module Api
         content_block = ContentBlock.find(params[:content_block_id])
         authorize_content_block_write!(content_block)
         return if performed?
+        if params[:status].to_s == "completed" && content_block.student_work_block?
+          authorize_submission_window_open!(content_block)
+          return if performed?
+        end
 
         progress = Progress.find_or_initialize_by(
           user: current_user,
