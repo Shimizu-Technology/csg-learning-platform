@@ -36,7 +36,7 @@ plugin :tmp_restart
 
 # Solid Queue runs in a separate Render worker by default. The Puma plugin can
 # still be enabled for compact single-process deployments.
-# plugin :solid_queue if ENV["SOLID_QUEUE_IN_PUMA"]
+plugin :solid_queue if ENV["SOLID_QUEUE_IN_PUMA"] == "true"
 
 # Specify the PID file. Defaults to tmp/pids/server.pid in development.
 # In other environments, only set the PID file if requested.
