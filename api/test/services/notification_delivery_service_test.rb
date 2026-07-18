@@ -93,6 +93,19 @@ class NotificationDeliveryServiceTest < ActiveSupport::TestCase
     NotificationEmailService.define_singleton_method(:send_message_mention, original_send) if original_send
   end
 
+  test "direct message mentions stay on the generic DM email path" do
+    curriculum = Curriculum.create!(name: "Bootcamp 2026")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Cohort 3", start_date: Date.current, status: :active)
+    author = User.create!(clerk_id: "dm_mention_author", email: "dm-mention-author@example.com", role: :student)
+    recipient = User.create!(clerk_id: "dm_mention_recipient", email: "dm-mention-recipient@example.com", role: :student)
+    conversation = DirectConversation.find_or_create_for!(workspace: cohort.workspace, users: [ author, recipient ])
+    message = Message.create!(direct_conversation: conversation, author: author, body: "Please review", mention_user_ids: [ recipient.id ])
+
+    assert_enqueued_with(job: MessageMentionEmailJob, args: [ message.id, [ recipient.id ], [ recipient.id ] ]) do
+      NotificationDeliveryService.message_created(message)
+    end
+  end
+
   test "message notification emails mirror enabled message notifications" do
     curriculum = Curriculum.create!(name: "Bootcamp 2026")
     cohort = Cohort.create!(curriculum: curriculum, name: "Cohort 3", start_date: Date.current, status: :active)
