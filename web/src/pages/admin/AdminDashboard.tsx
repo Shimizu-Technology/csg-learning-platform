@@ -51,13 +51,13 @@ export function AdminDashboard() {
     })
   }, [])
 
-  const studentsNeedingAttention = useMemo(
+  const allStudentsNeedingAttention = useMemo(
     () => (data?.students || [])
       .filter((student) => student.enrollment_status === 'active' && (isInactive(student.last_sign_in_at) || student.progress_percentage < 35))
-      .sort((a, b) => a.progress_percentage - b.progress_percentage)
-      .slice(0, 5),
+      .sort((a, b) => a.progress_percentage - b.progress_percentage),
     [data?.students],
   )
+  const studentsNeedingAttention = allStudentsNeedingAttention.slice(0, 5)
 
   if (loading) return <LoadingSpinner message="Loading admin dashboard..." />
   if (!data) return null
@@ -103,7 +103,7 @@ export function AdminDashboard() {
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-400/15 text-amber-300"><AlertTriangle className="h-5 w-5" /></span>
                 <ArrowRight className="h-4 w-4 text-white/35 transition group-hover:translate-x-1 group-hover:text-white" />
               </div>
-              <p className="mt-5 text-3xl font-extrabold tabular-nums">{studentsNeedingAttention.length}</p>
+              <p className="mt-5 text-3xl font-extrabold tabular-nums">{allStudentsNeedingAttention.length}</p>
               <p className="mt-1 text-sm font-bold text-slate-300">Students to check in with</p>
             </Link>
           </div>
