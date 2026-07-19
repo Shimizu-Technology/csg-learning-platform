@@ -39,6 +39,9 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
 
     const previousOverflow = document.body.style.overflow
     const handleEsc = (e: KeyboardEvent) => {
+      const openDialogs = Array.from(document.querySelectorAll<HTMLElement>('[data-app-modal]'))
+      if (openDialogs.at(-1) !== dialogRef.current) return
+
       if (e.key === 'Escape') onCloseRef.current()
       if (e.key !== 'Tab' || !dialogRef.current) return
 
@@ -87,6 +90,7 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
     >
       <div
         ref={dialogRef}
+        data-app-modal
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
@@ -68,6 +68,7 @@ export function RichTextEditor({
 }: Props) {
   const normalizedValue = useMemo(() => normalizeValue(value), [value])
   const lastSyncedValueRef = useRef(normalizedValue)
+  const linkInputId = useId()
   const [showLinkEditor, setShowLinkEditor] = useState(false)
   const [linkHref, setLinkHref] = useState('https://')
   const [linkError, setLinkError] = useState('')
@@ -169,10 +170,10 @@ export function RichTextEditor({
             }}
             className="border-b border-slate-200 bg-primary-50/60 p-3"
           >
-            <label htmlFor="rich-text-link-url" className="text-xs font-bold text-slate-700">Link URL</label>
+            <label htmlFor={linkInputId} className="text-xs font-bold text-slate-700">Link URL</label>
             <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
               <input
-                id="rich-text-link-url"
+                id={linkInputId}
                 type="text"
                 inputMode="url"
                 value={linkHref}
