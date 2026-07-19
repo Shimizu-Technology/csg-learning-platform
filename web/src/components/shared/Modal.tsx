@@ -23,8 +23,13 @@ const sizeMap = {
 export function Modal({ open, onClose, title, subtitle, icon, children, footer, size = 'lg', fixedHeight = false }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
   const titleId = useId()
   const subtitleId = useId()
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     if (!open) return
@@ -32,8 +37,9 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const focusableSelector = 'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
+    const previousOverflow = document.body.style.overflow
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') onCloseRef.current()
       if (e.key !== 'Tab' || !dialogRef.current) return
 
       const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(focusableSelector))
@@ -64,10 +70,10 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
     return () => {
       cancelAnimationFrame(focusFrame)
       document.removeEventListener('keydown', handleEsc)
-      document.body.style.overflow = ''
+      document.body.style.overflow = previousOverflow
       previouslyFocused?.focus()
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
 
