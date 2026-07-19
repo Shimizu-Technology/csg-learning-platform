@@ -49,9 +49,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
             <Button variant={options?.tone === 'danger' ? 'danger' : 'primary'} onClick={() => finish(true)}>{options?.confirmLabel || 'Continue'}</Button>
           </div>
         }
-      >
-        <p className="text-sm leading-6 text-slate-600">This action only continues after you confirm it here.</p>
-      </Modal>
+      />
     </ConfirmContext.Provider>
   )
 }

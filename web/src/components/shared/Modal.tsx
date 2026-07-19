@@ -8,7 +8,7 @@ interface ModalProps {
   title: string
   subtitle?: string
   icon?: React.ReactNode
-  children: React.ReactNode
+  children?: React.ReactNode
   footer?: React.ReactNode
   size?: 'md' | 'lg' | 'xl'
   fixedHeight?: boolean
@@ -111,9 +111,11 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
           </IconButton>
         </div>
 
-        <div className={`overflow-y-auto px-5 py-4 sm:px-6 ${fixedHeight ? 'h-[70dvh] flex flex-col sm:h-[64vh]' : 'max-h-[68dvh] sm:max-h-[60vh]'}`}>
-          {children}
-        </div>
+        {children && (
+          <div className={`overflow-y-auto px-5 py-4 sm:px-6 ${fixedHeight ? 'h-[70dvh] flex flex-col sm:h-[64vh]' : 'max-h-[68dvh] sm:max-h-[60vh]'}`}>
+            {children}
+          </div>
+        )}
 
         {footer && (
           <div className="border-t border-slate-200 px-6 py-4">

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Bell, Check, Github, Mail, Save } from 'lucide-react'
 import { UserButton } from '@clerk/clerk-react'
 import { api } from '../../lib/api'
@@ -32,7 +32,19 @@ export function Profile() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState<boolean | null>(null)
+  const [notificationPreferenceError, setNotificationPreferenceError] = useState<string | null>(null)
   const [savingNotifications, setSavingNotifications] = useState(false)
+
+  const loadNotificationPreference = useCallback(async () => {
+    setEmailNotificationsEnabled(null)
+    setNotificationPreferenceError(null)
+    const response = await api.getPushConfig()
+    if (typeof response.data?.notifications_enabled === 'boolean') {
+      setEmailNotificationsEnabled(response.data.notifications_enabled)
+    } else {
+      setNotificationPreferenceError(response.error || 'Could not load this preference')
+    }
+  }, [])
 
   useEffect(() => {
     api.getProfile().then((res) => {
@@ -42,12 +54,8 @@ export function Profile() {
       }
       setLoading(false)
     })
-    api.getPushConfig().then((res) => {
-      if (typeof res.data?.notifications_enabled === 'boolean') {
-        setEmailNotificationsEnabled(res.data.notifications_enabled)
-      }
-    })
-  }, [])
+    loadNotificationPreference()
+  }, [loadNotificationPreference])
 
   const handleSave = async () => {
     setSaving(true)
@@ -157,17 +165,28 @@ export function Profile() {
               <p className="mt-1 max-w-md text-xs leading-5 text-slate-500">Receive an email when someone sends you a direct message. Browser push settings are managed separately on each device.</p>
             </div>
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={Boolean(emailNotificationsEnabled)}
-            aria-label="Direct-message email notifications"
-            onClick={toggleEmailNotifications}
-            disabled={emailNotificationsEnabled === null || savingNotifications}
-            className={`relative mt-0.5 h-7 w-12 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2 disabled:opacity-50 ${emailNotificationsEnabled ? 'bg-primary-600' : 'bg-slate-300'}`}
-          >
-            <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${emailNotificationsEnabled ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
-          </button>
+          {emailNotificationsEnabled === null ? (
+            notificationPreferenceError ? (
+              <button type="button" onClick={loadNotificationPreference} className="min-h-11 shrink-0 rounded-xl px-3 text-xs font-bold text-primary-700 hover:bg-primary-50">
+                Retry
+              </button>
+            ) : (
+              <span role="status" className="min-h-11 shrink-0 px-2 py-3 text-xs font-semibold text-slate-500">Loading…</span>
+            )
+          ) : (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={emailNotificationsEnabled}
+              aria-label="Direct-message email notifications"
+              aria-busy={savingNotifications}
+              onClick={toggleEmailNotifications}
+              disabled={savingNotifications}
+              className={`relative mt-0.5 h-7 w-12 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2 disabled:opacity-50 ${emailNotificationsEnabled ? 'bg-primary-600' : 'bg-slate-300'}`}
+            >
+              <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${emailNotificationsEnabled ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+            </button>
+          )}
         </div>
       </section>
 
