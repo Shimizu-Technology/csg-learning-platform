@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Users, Search, ArrowLeft, AlertTriangle, Activity, Circle, ChevronRight, ChevronDown } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { api } from '../../lib/api'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -84,7 +84,6 @@ function formatLastActivity(dateStr: string | null): string {
 }
 
 export function StudentManagement() {
-  const navigate = useNavigate()
   const presenceNow = usePresenceNow()
   const [cohortGroups, setCohortGroups] = useState<CohortGroup[]>([])
   const [loading, setLoading] = useState(true)
@@ -176,17 +175,18 @@ export function StudentManagement() {
   if (loading) return <LoadingSpinner message="Loading students..." />
 
   return (
-    <div className="space-y-6">
-      <div>
-        <Link to="/admin" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-2">
+    <div className="app-page-wide">
+      <header>
+        <Link to="/admin" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900">
           <ArrowLeft className="h-4 w-4" />
-          Admin Dashboard
+          Staff home
         </Link>
-        <h1 className="text-2xl font-bold text-slate-900">Student Management</h1>
-        <p className="text-sm text-slate-500 mt-1">
+        <p className="app-eyebrow">People & intervention</p>
+        <h1 className="app-title mt-2">Students</h1>
+        <p className="app-description mt-2">
           {allStudents.length} student{allStudents.length !== 1 ? 's' : ''} across {cohortGroups.length} cohort{cohortGroups.length !== 1 ? 's' : ''}
         </p>
-      </div>
+      </header>
 
       {atRiskCount > 0 && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-center gap-3">
@@ -312,12 +312,11 @@ export function StudentManagement() {
                           {groupStudents.map(student => (
                             <tr
                               key={student.user_id}
-                              className={`hover:bg-slate-50 cursor-pointer ${student.activityStatus === 'at-risk' ? 'bg-red-50/30' : ''}`}
-                              onClick={() => navigate(`/admin/students/${student.user_id}`)}
+                              className={`transition-colors hover:bg-slate-50 ${student.activityStatus === 'at-risk' ? 'bg-red-50/30' : ''}`}
                             >
                               <td className="px-6 py-3">
                                 <div className="flex items-center gap-2">
-                                  <p className="text-sm font-medium text-slate-900">{student.full_name}</p>
+                                  <Link to={`/admin/students/${student.user_id}`} className="rounded-md text-sm font-bold text-slate-950 underline-offset-4 hover:text-primary-700 hover:underline">{student.full_name}</Link>
                                 </div>
                                 <p className="text-xs text-slate-500">{student.email}</p>
                                 <div className="mt-1 flex flex-wrap items-center gap-2">

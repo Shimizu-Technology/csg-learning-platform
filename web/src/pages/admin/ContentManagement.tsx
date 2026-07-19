@@ -176,14 +176,16 @@ export function ContentManagement() {
   if (loading) return <LoadingSpinner message="Loading content..." />
 
   return (
-    <div className="space-y-6">
-      <div>
-        <Link to="/admin" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-2">
+    <div className="app-page-wide">
+      <header>
+        <Link to="/admin" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900">
           <ArrowLeft className="h-4 w-4" />
-          Admin Dashboard
+          Staff home
         </Link>
-        <h1 className="text-2xl font-bold text-slate-900">Content Management</h1>
-      </div>
+        <p className="app-eyebrow">Curriculum studio</p>
+        <h1 className="app-title mt-2">Content</h1>
+        <p className="app-description mt-2">Shape reusable modules and lessons before assigning them to a cohort.</p>
+      </header>
 
       {curricula.map((curriculum) => (
         <div key={curriculum.id} className="rounded-2xl bg-white border border-slate-200 overflow-hidden">
@@ -519,14 +521,16 @@ function ModuleSection({
                                   <button
                                     onClick={() => navigate(`/admin/lessons/${lesson.id}/edit?preview=true`)}
                                     title="Preview as student"
-                                    className="rounded p-1 text-slate-300 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                    aria-label={`Preview ${lesson.title} as a student`}
+                                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-900"
                                   >
                                     <Eye className="h-3.5 w-3.5" />
                                   </button>
                                   <button
                                     onClick={() => navigate(`/admin/lessons/${lesson.id}/edit`)}
                                     title="Edit exercise"
-                                    className="rounded p-1 text-slate-300 hover:text-primary-600 hover:bg-primary-50 transition-colors"
+                                    aria-label={`Edit ${lesson.title}`}
+                                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-primary-50 hover:text-primary-700"
                                   >
                                     <Pencil className="h-3.5 w-3.5" />
                                   </button>

@@ -152,38 +152,40 @@ export function Dashboard({ previewData, previewBanner, disableStaffRedirect = f
   const progress = data.overall_progress
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="app-page max-w-5xl">
       {previewBanner}
       {showingSavedData && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           Showing saved dashboard data while your connection catches up.
         </div>
       )}
-      <div className="rounded-2xl bg-white border border-slate-200 p-6">
-        <div className="flex flex-col lg:flex-row lg:items-center gap-6">
+      <section className="relative overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_20px_60px_rgba(15,23,42,0.06)] sm:p-7">
+        <span className="absolute inset-y-0 left-0 w-1.5 bg-primary-600" />
+        <div className="flex flex-col gap-7 lg:flex-row lg:items-center">
           <div className="flex-1">
-            <h1 className="text-2xl font-bold text-slate-900">
+            <p className="app-eyebrow">Today</p>
+            <h1 className="mt-2 text-3xl font-extrabold tracking-[-0.035em] text-slate-950 sm:text-4xl">
               Welcome back, {data.user.full_name.split(' ')[0]}
             </h1>
-            <p className="mt-1 text-slate-500">
+            <p className="mt-2 text-sm leading-6 text-slate-500 sm:text-base">
               {data.cohort?.name} · {progress?.completed || 0} of {progress?.total || 0} blocks completed
             </p>
 
             {derived.nextAvailableLesson ? (
-              <div className="mt-4 rounded-xl border border-primary-200 bg-primary-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-primary-700">Next up</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900">{derived.nextAvailableLesson.title}</p>
-                <p className="text-sm text-slate-500">{derived.nextAvailableLesson.moduleName}</p>
+              <div className="mt-6 rounded-2xl bg-slate-950 p-4 text-white sm:p-5">
+                <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-primary-300">Continue your path</p>
+                <p className="mt-1.5 text-lg font-extrabold tracking-tight text-white">{derived.nextAvailableLesson.title}</p>
+                <p className="mt-0.5 text-sm text-slate-400">{derived.nextAvailableLesson.moduleName}</p>
                 <Link
                   to={`/lessons/${derived.nextAvailableLesson.id}`}
-                  className="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-primary-600 transition-colors"
+                  className="group mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-primary-500"
                 >
                   Continue learning
-                  <ArrowRight className="h-4 w-4" />
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </Link>
               </div>
             ) : derived.nextLockedLesson ? (
-              <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-100/70 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Upcoming</p>
                 <p className="mt-1 text-lg font-semibold text-slate-900">{derived.nextLockedLesson.title}</p>
                 <p className="text-sm text-slate-500">
@@ -191,21 +193,22 @@ export function Dashboard({ previewData, previewBanner, disableStaffRedirect = f
                 </p>
               </div>
             ) : (
-              <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-4">
-                <p className="text-sm font-medium text-green-800">Nice — you’re fully caught up right now.</p>
+              <div className="mt-6 flex items-center gap-3 rounded-2xl border border-green-200 bg-green-50 p-4">
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600" />
+                <p className="text-sm font-bold text-green-800">You’re fully caught up right now.</p>
               </div>
             )}
           </div>
 
           {progress && (
-            <div className="shrink-0 flex flex-col items-center gap-3">
+            <div className="flex shrink-0 flex-col items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
               <ProgressRing percentage={progress.percentage} size={90} label="Overall" />
               <div className="grid grid-cols-2 gap-2 text-center text-xs text-slate-500 w-full min-w-[180px]">
-                <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
+                <div className="rounded-xl bg-white border border-slate-200 px-3 py-2">
                   <p className="text-lg font-semibold text-slate-900">{derived.activeModules}</p>
                   <p>Active modules</p>
                 </div>
-                <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
+                <div className="rounded-xl bg-white border border-slate-200 px-3 py-2">
                   <p className="text-lg font-semibold text-slate-900">{derived.completedModules}</p>
                   <p>Completed</p>
                 </div>
@@ -213,7 +216,32 @@ export function Dashboard({ previewData, previewBanner, disableStaffRedirect = f
             </div>
           )}
         </div>
-      </div>
+      </section>
+
+      {data.action_items && data.action_items.length > 0 && (
+        <section className="rounded-2xl border border-amber-300 bg-amber-50 p-4 sm:p-5">
+          <h2 className="flex items-center gap-2 text-sm font-extrabold text-amber-900">
+            <RotateCcw className="h-4 w-4" />
+            Feedback needs your attention
+          </h2>
+          <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+            {data.action_items.map((item, i) => (
+              <li key={i}>
+                <Link to={`/lessons/${item.lesson_id}`} className="group block h-full rounded-xl border border-amber-200 bg-white p-3.5 transition hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-md hover:shadow-amber-900/5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-slate-950">{item.content_block_title}</p>
+                      <p className="truncate text-xs text-slate-500">{item.lesson_title}</p>
+                    </div>
+                    <ArrowRight className="h-4 w-4 shrink-0 text-amber-600 transition-transform group-hover:translate-x-1" />
+                  </div>
+                  {item.feedback && <p className="mt-2 border-l-2 border-amber-300 pl-2 text-xs leading-5 text-slate-600">{item.feedback}</p>}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {(derived.nextSubmissionDeadline || derived.closedSubmissionWindowCount > 0) && (
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -343,38 +371,6 @@ export function Dashboard({ previewData, previewBanner, disableStaffRedirect = f
         </div>
       )}
 
-      {data.action_items && data.action_items.length > 0 && (
-        <div className="rounded-2xl bg-orange-50 border border-orange-200 p-4">
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-orange-800">
-            <RotateCcw className="h-4 w-4" />
-            Redo Requested — Action Needed
-          </h3>
-          <ul className="mt-2 space-y-2">
-            {data.action_items.map((item, i) => (
-              <li key={i}>
-                <Link
-                  to={`/lessons/${item.lesson_id}`}
-                  className="block rounded-lg border border-orange-200 bg-white p-3 hover:border-orange-300 hover:shadow-sm transition-all"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">{item.content_block_title}</p>
-                      <p className="text-xs text-slate-500">{item.lesson_title}</p>
-                    </div>
-                    <ArrowRight className="h-4 w-4 text-orange-400 shrink-0" />
-                  </div>
-                  {item.feedback && (
-                    <p className="mt-2 text-xs text-slate-600 bg-orange-50 rounded px-2 py-1.5 border-l-2 border-orange-300">
-                      {item.feedback}
-                    </p>
-                  )}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="rounded-2xl bg-white border border-slate-200 p-4">
           <div className="flex items-center gap-2 text-slate-500">
@@ -404,8 +400,11 @@ export function Dashboard({ previewData, previewBanner, disableStaffRedirect = f
 
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-slate-900">Your Modules</h2>
-          <p className="text-sm text-slate-500">Follow the unlocked path and keep momentum.</p>
+          <div>
+            <p className="app-eyebrow">Your course</p>
+            <h2 className="mt-1 text-xl font-extrabold tracking-tight text-slate-950">Learning path</h2>
+          </div>
+          <p className="hidden text-sm text-slate-500 sm:block">Follow the unlocked path and keep momentum.</p>
         </div>
         {data.modules?.map((mod) => {
           const upcomingLessons = mod.lessons.filter((l) => l.available && !l.completed).slice(0, 3)

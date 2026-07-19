@@ -33,12 +33,12 @@ function formatDate(dateStr?: string | null) {
 type PreviewSection = 'dashboard' | 'materials' | 'recordings' | 'resources' | 'messages' | 'announcements' | 'profile'
 
 const sectionConfig: Record<PreviewSection, { label: string; icon: typeof LayoutDashboard }> = {
-  dashboard: { label: 'Dashboard', icon: LayoutDashboard },
-  materials: { label: 'Materials', icon: BookOpenText },
+  dashboard: { label: 'Today', icon: LayoutDashboard },
+  materials: { label: 'Learn', icon: BookOpenText },
   recordings: { label: 'Recordings', icon: PlayCircle },
   resources: { label: 'Resources', icon: Link2 },
   messages: { label: 'Messages', icon: MessageCircle },
-  announcements: { label: 'Announcements', icon: Bell },
+  announcements: { label: 'Updates', icon: Bell },
   profile: { label: 'Profile', icon: User },
 }
 
@@ -102,7 +102,7 @@ function PreviewShell({
   const basePath = `/admin/cohorts/${data.cohort.id}/student-view`
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#ffffff_46%)]">
       <aside className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col lg:border-r lg:border-slate-200 lg:bg-white">
         <div className="flex h-14 items-center border-b border-slate-200 px-6">
           <div className="flex min-w-0 items-center gap-2 text-slate-900">
@@ -119,7 +119,7 @@ function PreviewShell({
               <Link
                 key={section}
                 to={section === 'dashboard' ? basePath : `${basePath}/${section}`}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors ${
                   active
                     ? 'bg-primary-50 text-primary-700'
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -134,7 +134,7 @@ function PreviewShell({
         <div className="border-t border-slate-200 p-4">
           <Link
             to={`/admin/cohorts/${data.cohort.id}`}
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+            className="flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-700"
           >
             <ArrowLeft className="h-5 w-5" />
             Back to cohort
@@ -168,7 +168,7 @@ function PreviewShell({
               <Link
                 key={section}
                 to={section === 'dashboard' ? basePath : `${basePath}/${section}`}
-                className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
+                className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold ${
                   active ? 'bg-primary-50 text-primary-700' : 'text-slate-600'
                 }`}
               >
@@ -181,7 +181,7 @@ function PreviewShell({
       </header>
 
       <main className="min-w-0 lg:ml-64">
-        <div className="p-4 lg:p-8">
+        <div className="p-4 lg:p-8 xl:p-10">
           <PreviewBanner data={data} />
           <div className="mt-6">{children}</div>
         </div>
@@ -192,7 +192,9 @@ function PreviewShell({
 
 function PreviewBanner({ data }: { data: CohortStudentViewData }) {
   return (
-    <div className="rounded-2xl border border-primary-200 bg-primary-50 px-4 py-3">
+    <div className="overflow-hidden rounded-2xl border border-primary-200 bg-white shadow-sm shadow-slate-200/40">
+      <div className="h-1 bg-primary-500" />
+      <div className="px-4 py-4 sm:px-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary-700">Read-only cohort student view</p>
@@ -203,11 +205,12 @@ function PreviewBanner({ data }: { data: CohortStudentViewData }) {
         </div>
         <Link
           to={`/admin/cohorts/${data.cohort.id}`}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-primary-100 hover:bg-primary-50"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to cohort
         </Link>
+      </div>
       </div>
     </div>
   )
@@ -242,7 +245,8 @@ function ResourcesPreview({ data }: { data: CohortStudentViewData }) {
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Class Resources</h1>
+        <p className="app-eyebrow">Support your learning</p>
+        <h1 className="app-title">Class resources</h1>
         <p className="mt-1 text-sm text-slate-500">Important links for this class.</p>
       </div>
       {data.resources.length === 0 ? (
@@ -278,7 +282,7 @@ function AnnouncementsPreview({ data }: { data: CohortStudentViewData }) {
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
         <p className="text-sm font-medium text-primary-600">Communication</p>
-        <h1 className="text-2xl font-semibold text-slate-900">Announcements</h1>
+        <h1 className="app-title">Updates</h1>
         <p className="mt-1 text-sm text-slate-500">Class updates, pinned notices, and important CSG messages.</p>
       </div>
       {data.announcements.length === 0 ? (
@@ -320,7 +324,8 @@ function RecordingsPreview({ data }: { data: CohortStudentViewData }) {
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Class Recordings</h1>
+        <p className="app-eyebrow">Review and revisit</p>
+        <h1 className="app-title">Class recordings</h1>
         <p className="mt-1 text-sm text-slate-500">{data.recordings.items.length} recording{data.recordings.items.length === 1 ? '' : 's'} available</p>
       </div>
       {data.recordings.items.length === 0 ? (
@@ -339,7 +344,7 @@ function RecordingsPreview({ data }: { data: CohortStudentViewData }) {
                     </p>
                   </div>
                   {recording.url && (
-                    <a href={sanitizeUrl(recording.url)} target="_blank" rel="noopener noreferrer" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-50 hover:text-primary-600">
+                    <a href={sanitizeUrl(recording.url)} target="_blank" rel="noopener noreferrer" aria-label={`Open ${recording.title} in a new tab`} className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-50 hover:text-primary-600">
                       <ExternalLink className="h-4 w-4" />
                     </a>
                   )}

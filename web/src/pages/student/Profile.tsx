@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Github, Save, Check } from 'lucide-react'
+import { Bell, Check, Github, Mail, Save } from 'lucide-react'
 import { UserButton } from '@clerk/clerk-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -31,6 +31,8 @@ export function Profile() {
   const [githubUsername, setGithubUsername] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState<boolean | null>(null)
+  const [savingNotifications, setSavingNotifications] = useState(false)
 
   useEffect(() => {
     api.getProfile().then((res) => {
@@ -39,6 +41,11 @@ export function Profile() {
         setGithubUsername(res.data.user.github_username || '')
       }
       setLoading(false)
+    })
+    api.getPushConfig().then((res) => {
+      if (typeof res.data?.notifications_enabled === 'boolean') {
+        setEmailNotificationsEnabled(res.data.notifications_enabled)
+      }
     })
   }, [])
 
@@ -55,12 +62,31 @@ export function Profile() {
     setSaving(false)
   }
 
+  const toggleEmailNotifications = async () => {
+    if (emailNotificationsEnabled === null || savingNotifications) return
+
+    const next = !emailNotificationsEnabled
+    setSavingNotifications(true)
+    const response = await api.updateMessageNotifications(next)
+    if (response.data) {
+      setEmailNotificationsEnabled(response.data.notifications_enabled)
+      toast.success(response.data.notifications_enabled ? 'Message emails turned on' : 'Message emails turned off')
+    } else {
+      toast.error(response.error || 'Could not update notification preferences')
+    }
+    setSavingNotifications(false)
+  }
+
   if (loading) return <LoadingSpinner message="Loading profile..." />
   if (!data) return null
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-slate-900">Profile</h1>
+    <div className="app-page max-w-2xl">
+      <header>
+        <p className="app-eyebrow">Account & preferences</p>
+        <h1 className="app-title mt-2">Profile</h1>
+        <p className="app-description mt-2">Keep your class identity and connected accounts up to date.</p>
+      </header>
 
       {/* User info */}
       <div className="rounded-2xl bg-white border border-slate-200 p-6 space-y-4">
@@ -86,12 +112,12 @@ export function Profile() {
               value={githubUsername}
               onChange={(e) => setGithubUsername(e.target.value)}
               placeholder="Enter your GitHub username"
-              className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              className="app-control min-w-0 flex-1"
             />
             <button
               onClick={handleSave}
               disabled={saving}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 transition-colors"
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-primary-700 disabled:opacity-50"
             >
               {saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
               {saved ? 'Saved' : 'Save'}
@@ -114,6 +140,36 @@ export function Profile() {
           </div>
         </div>
       </div>
+
+      <section className="app-surface overflow-hidden">
+        <div className="border-b border-slate-200/80 px-5 py-4 sm:px-6">
+          <div className="flex items-center gap-2">
+            <Bell className="h-4 w-4 text-primary-600" />
+            <h2 className="text-lg font-extrabold tracking-tight text-slate-950">Notifications</h2>
+          </div>
+          <p className="mt-1 text-sm leading-6 text-slate-500">Choose how class conversations reach you when you are away from the app.</p>
+        </div>
+        <div className="flex items-start justify-between gap-5 px-5 py-5 sm:px-6">
+          <div className="flex min-w-0 gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-700"><Mail className="h-5 w-5" /></span>
+            <div>
+              <p className="text-sm font-extrabold text-slate-950">Direct-message emails</p>
+              <p className="mt-1 max-w-md text-xs leading-5 text-slate-500">Receive an email when someone sends you a direct message. Browser push settings are managed separately on each device.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={Boolean(emailNotificationsEnabled)}
+            aria-label="Direct-message email notifications"
+            onClick={toggleEmailNotifications}
+            disabled={emailNotificationsEnabled === null || savingNotifications}
+            className={`relative mt-0.5 h-7 w-12 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2 disabled:opacity-50 ${emailNotificationsEnabled ? 'bg-primary-600' : 'bg-slate-300'}`}
+          >
+            <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${emailNotificationsEnabled ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+          </button>
+        </div>
+      </section>
 
       {/* Enrollments */}
       <div className="rounded-2xl bg-white border border-slate-200 p-6">

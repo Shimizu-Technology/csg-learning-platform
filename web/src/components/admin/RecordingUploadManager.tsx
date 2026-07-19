@@ -4,6 +4,7 @@ import { api } from '../../lib/api'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { useUpload } from '../../contexts/UploadContext'
 import { useToast } from '../../contexts/ToastContext'
+import { useConfirm } from '../../contexts/ConfirmContext'
 import { VideoPlayer } from '../shared/VideoPlayer'
 
 interface S3Recording {
@@ -47,6 +48,7 @@ interface RecordingUploadManagerProps {
 export function RecordingUploadManager({ cohortId, externalRecordings = [], onRecordingsChange }: RecordingUploadManagerProps) {
   const { startVideoUpload, uploads, cancelUpload } = useUpload()
   const toast = useToast()
+  const confirmAction = useConfirm()
   const [recordings, setRecordings] = useState<S3Recording[]>([])
   const [loading, setLoading] = useState(true)
   const [showUploadForm, setShowUploadForm] = useState(false)
@@ -214,7 +216,12 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Delete this recording? This cannot be undone.')) return
+    if (!await confirmAction({
+      title: 'Delete recording?',
+      description: 'Students will immediately lose access to this recording. This cannot be undone.',
+      confirmLabel: 'Delete recording',
+      tone: 'danger',
+    })) return
     const res = await api.deleteRecording(cohortId, id)
     if (res.error) {
       setError(res.error)
@@ -551,8 +558,8 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
                       href={sanitizeUrl(item.url)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="rounded-lg p-1.5 text-slate-400 hover:bg-primary-50 hover:text-primary-600"
-                      title="Open external recording"
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-primary-50 hover:text-primary-600"
+                      aria-label={`Open ${item.title} in a new tab`}
                     >
                       <ExternalLink className="h-4 w-4" />
                     </a>

@@ -2362,11 +2362,11 @@ export function Messages() {
     <div className={`mx-auto flex h-full w-full max-w-[1500px] min-w-0 flex-col ${showPageIntro ? 'min-h-0 gap-4 p-4 lg:p-0' : 'min-h-0 gap-0 overflow-hidden'}`}>
       {showPageIntro && (
       <div>
-        <p className="text-sm font-medium text-primary-600">Communication</p>
+        <p className="app-eyebrow">Communication</p>
         <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Messages</h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <h1 className="app-title mt-2">Messages</h1>
+            <p className="app-description mt-2">
               Workspace messaging for cohorts, alumni, staff groups, direct messages, files, and quick decisions.
               {realtimeStatus === 'connected' && <span className="ml-2 text-green-600">Live</span>}
               {realtimeStatus === 'error' && <span className="ml-2 text-amber-600">Reconnecting with refresh fallback</span>}
@@ -2377,7 +2377,7 @@ export function Messages() {
               <button
                 type="button"
                 onClick={handleTogglePush}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
               >
                 {pushEnabled ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
                 {pushEnabled ? 'Turn off notifications globally' : 'Turn on notifications globally'}
@@ -2393,7 +2393,7 @@ export function Messages() {
       </div>
       )}
 
-      <div className={`${isDesktop ? 'grid overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_20px_54px_-42px_rgba(15,23,42,0.55)]' : 'flex min-w-0 overflow-hidden border-y border-slate-200 bg-white'} min-h-0 flex-1 ${isDesktop ? (sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[328px_minmax(0,1fr)]') : ''}`}>
+      <div className={`${isDesktop ? 'grid overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-white shadow-[0_20px_54px_-42px_rgba(15,23,42,0.55)]' : 'flex min-w-0 overflow-hidden border-y border-slate-200 bg-white'} min-h-0 flex-1 ${isDesktop ? (sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[328px_minmax(0,1fr)]') : ''}`}>
         {showListPane && !sidebarCollapsed && (
         <aside className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-slate-50 ${isDesktop ? 'border-b border-slate-200 lg:border-b-0 lg:border-r' : ''}`}>
           <div className="shrink-0 border-b border-slate-200 bg-white p-2.5 sm:p-3">
@@ -2409,7 +2409,7 @@ export function Messages() {
                       setShowWorkspaceForm(true)
                       setWorkspaceError('')
                     }}
-                    className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                     aria-label="Create workspace"
                   >
                     <Plus className="h-4 w-4" />
@@ -2417,7 +2417,7 @@ export function Messages() {
                 )}
                 <button
                   onClick={loadLists}
-                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                   aria-label="Refresh messages"
                 >
                   <RefreshCw className="h-4 w-4" />
@@ -2425,7 +2425,7 @@ export function Messages() {
                 {isDesktop && (
                   <button
                     onClick={() => setSidebarCollapsed(true)}
-                    className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                     aria-label="Collapse conversation list"
                   >
                     <PanelLeftClose className="h-4 w-4" />
@@ -2524,7 +2524,8 @@ export function Messages() {
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder="Search messages"
-                className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-base focus:outline-none focus:ring-2 focus:ring-primary-500 sm:text-sm"
+                aria-label="Search messages"
+                className="app-control w-full pl-9 text-base sm:text-sm"
               />
               {searchResults.length > 0 && (
                 <div className="absolute z-20 mt-2 max-h-80 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
@@ -3887,7 +3888,7 @@ function MessageRow({
                 <button
                   type="button"
                   onClick={() => onReact(reaction.emoji)}
-                  className={`inline-flex min-h-7 items-center gap-1.5 rounded-lg border px-2 py-1 text-xs ${reaction?.reacted ? 'border-primary-200 bg-primary-50 text-primary-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                  className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs ${reaction?.reacted ? 'border-primary-200 bg-primary-50 text-primary-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
                   aria-label={`${reactionDisplay.label}: ${reaction?.count || 0}`}
                 >
                   <ReactionIcon className="h-3.5 w-3.5" />
@@ -3903,7 +3904,7 @@ function MessageRow({
             )
           })}
           {!inThreadView && replyCount > 0 && (
-            <button type="button" onClick={onReply} className="min-h-7 rounded-lg px-2 py-1 text-xs font-medium text-primary-700 hover:bg-primary-50">
+            <button type="button" onClick={onReply} className="min-h-9 rounded-lg px-2.5 py-1 text-xs font-bold text-primary-700 hover:bg-primary-50">
               {replyCount} {replyCount === 1 ? 'reply' : 'replies'}
             </button>
           )}
@@ -3914,7 +3915,7 @@ function MessageRow({
         <button
           type="button"
           onClick={onOpenActions}
-          className="rounded-xl p-1.5 text-slate-400 hover:bg-white hover:text-slate-700 sm:hidden"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-white hover:text-slate-700 sm:hidden"
           aria-label="Open message actions"
         >
           <MoreHorizontal className="h-5 w-5" />
@@ -3976,7 +3977,7 @@ function ConversationHeaderAction({
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-10 w-10 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
+      className="inline-flex h-11 w-11 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-2.5 sm:text-sm"
       aria-label={ariaLabel}
     >
       {icon}

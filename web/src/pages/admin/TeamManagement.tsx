@@ -198,21 +198,22 @@ export function TeamManagement() {
   const isArchived = (member: TeamMember) => Boolean(member.archived_at)
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between gap-3">
+    <div className="app-page max-w-4xl">
+      <header className="flex items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Team</h1>
-          <p className="text-sm text-slate-500 mt-1">Manage instructors and administrators</p>
+          <p className="app-eyebrow">Access & ownership</p>
+          <h1 className="app-title mt-2">Team</h1>
+          <p className="app-description mt-2">Manage instructors and administrators.</p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-600 transition-colors shrink-0"
+          className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-700"
         >
           <UserPlus className="h-4 w-4" />
           <span className="hidden sm:inline">Add Team Member</span>
           <span className="sm:hidden">Add</span>
         </button>
-      </div>
+      </header>
 
       <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1">
         <button

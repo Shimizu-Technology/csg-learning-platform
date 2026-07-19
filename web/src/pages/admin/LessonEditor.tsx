@@ -328,16 +328,17 @@ export function LessonEditor() {
   const dayIdx = lesson.release_day % 7
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-12">
+    <div className="app-page max-w-5xl">
       {/* Header */}
       <div>
-        <Link to="/admin/content" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-2">
+        <Link to="/admin/content" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900">
           <ArrowLeft className="h-4 w-4" />
           Content Management
         </Link>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Edit Exercise</h1>
+            <p className="app-eyebrow">Curriculum studio</p>
+            <h1 className="app-title mt-2">Edit exercise</h1>
             <p className="text-sm text-slate-500 mt-1">
               Week {week}, {DAY_NAMES[dayIdx] || `Day ${dayIdx + 1}`} · Day {lesson.release_day + 1} in the release calendar
             </p>

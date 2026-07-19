@@ -135,15 +135,16 @@ export function Grading() {
     : null
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      <div>
-        <Link to="/admin" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-2">
+    <div className="app-page-wide">
+      <header>
+        <Link to="/admin" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900">
           <ArrowLeft className="h-4 w-4" />
-          Admin Dashboard
+          Staff home
         </Link>
-        <h1 className="text-2xl font-bold text-slate-900">Grading Inbox</h1>
-        <p className="text-sm text-slate-500 mt-1">All ungraded submissions across cohorts. For cohort-specific grading, use the links below.</p>
-      </div>
+        <p className="app-eyebrow">Feedback workflow</p>
+        <h1 className="app-title mt-2">Grading inbox</h1>
+        <p className="app-description mt-2">Review ungraded work across cohorts, then move through focused module queues.</p>
+      </header>
 
       {/* Quick links to cohort grading */}
       {activeCohorts.length > 0 && (

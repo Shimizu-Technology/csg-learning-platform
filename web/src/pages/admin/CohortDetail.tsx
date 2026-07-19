@@ -752,16 +752,16 @@ export function CohortDetail() {
   const onlineStudentsCount = studentsWithPresence.filter(({ presence }) => presence === 'online').length
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="app-page max-w-6xl">
       <div>
-        <Link to="/admin/cohorts" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-2">
+        <Link to="/admin/cohorts" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900">
           <ArrowLeft className="h-4 w-4" />
           Cohorts
         </Link>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-2xl font-bold text-slate-900">{cohort.name}</h1>
+              <h1 className="app-title">{cohort.name}</h1>
               <StatusBadge status={cohort.status} />
             </div>
             <p className="mt-1 text-sm text-slate-500">
@@ -840,6 +840,18 @@ export function CohortDetail() {
         </div>
       )}
 
+      <nav aria-label="Cohort workspace sections" className="sticky top-16 z-30 -mx-4 flex gap-1 overflow-x-auto border-y border-slate-200/80 bg-[#f7f8fa]/95 px-4 py-2 backdrop-blur-xl sm:mx-0 sm:rounded-xl sm:border sm:px-2 lg:top-2">
+        {[
+          ['#curriculum', 'Curriculum & access'],
+          ['#recordings', 'Recordings'],
+          ['#schedule', 'Schedule'],
+          ['#students', 'Students'],
+          ['#communication', 'Communication'],
+        ].map(([href, label]) => (
+          <a key={href} href={href} className="min-h-10 shrink-0 rounded-lg px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-slate-950 hover:shadow-sm">{label}</a>
+        ))}
+      </nav>
+
       <div className="rounded-2xl border border-primary-100 bg-primary-50/70 p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -863,7 +875,7 @@ export function CohortDetail() {
           <div className="space-y-3 rounded-2xl bg-white border border-slate-200 p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">Announcements</h2>
+                <h2 id="communication" className="scroll-mt-32 text-lg font-semibold text-slate-900">Announcements</h2>
                 <p className="text-sm text-slate-500 mt-1">Manage this cohort's announcements in the shared announcement center so sender, read state, and history stay consistent.</p>
               </div>
               <Link
@@ -880,7 +892,7 @@ export function CohortDetail() {
           </div>
 
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-900">Cohort Modules</h2>
+            <h2 id="curriculum" className="scroll-mt-32 text-lg font-semibold text-slate-900">Curriculum & access</h2>
             <button
               onClick={() => setShowAddModule(true)}
               className="inline-flex items-center gap-1.5 rounded-lg bg-primary-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-600 transition-colors"
@@ -1222,7 +1234,7 @@ export function CohortDetail() {
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
             <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">Class Recordings</h2>
+                <h2 id="recordings" className="scroll-mt-32 text-lg font-semibold text-slate-900">Class recordings</h2>
                 <p className="mt-1 text-sm text-slate-500">
                   Manage self-hosted uploads and external video links in one place.
                 </p>
@@ -1354,7 +1366,7 @@ export function CohortDetail() {
           <div className="rounded-2xl bg-white border border-slate-200 p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">Office Hours</h2>
+                <h2 id="schedule" className="scroll-mt-32 text-lg font-semibold text-slate-900">Office hours</h2>
                 <p className="mt-1 text-sm text-slate-500">Shown clearly on the student dashboard.</p>
               </div>
               <button
@@ -1409,7 +1421,7 @@ export function CohortDetail() {
 
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">Enrolled Students</h2>
+              <h2 id="students" className="scroll-mt-32 text-lg font-semibold text-slate-900">Enrolled students</h2>
               <p className="text-sm text-slate-500 mt-1">
                 {cohort.students.length} student{cohort.students.length !== 1 ? 's' : ''} enrolled
                 {cohort.students.length > 0 && (

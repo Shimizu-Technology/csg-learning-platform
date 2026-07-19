@@ -6,7 +6,8 @@ interface LoadingSpinnerProps {
 export function LoadingSpinner({ message, fullScreen = true }: LoadingSpinnerProps) {
   const variant = skeletonVariantFor(message)
   const content = (
-    <div className="mx-auto w-full max-w-6xl space-y-6">
+    <div className="mx-auto w-full max-w-6xl space-y-6" role="status" aria-live="polite" aria-busy="true">
+      <span className="sr-only">{message || 'Loading content'}</span>
       <div className="space-y-2">
         <SkeletonLine className="h-3 w-24 bg-primary-100" />
         <SkeletonLine className="h-7 w-64" />
@@ -43,11 +44,11 @@ function skeletonVariantFor(message = ''): SkeletonVariant {
 }
 
 function SkeletonLine({ className = '' }: { className?: string }) {
-  return <div className={`animate-pulse rounded-full bg-slate-200 ${className}`} />
+  return <div aria-hidden="true" className={`animate-pulse rounded-full bg-slate-200 ${className}`} />
 }
 
 function SkeletonBox({ className = '' }: { className?: string }) {
-  return <div className={`animate-pulse rounded-2xl bg-slate-100 ${className}`} />
+  return <div aria-hidden="true" className={`animate-pulse rounded-2xl bg-slate-100 ${className}`} />
 }
 
 function DashboardSkeleton() {

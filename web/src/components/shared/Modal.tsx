@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useId, useRef } from 'react'
 import { X } from 'lucide-react'
+import { IconButton } from '../ui/Button'
 
 interface ModalProps {
   open: boolean
@@ -21,19 +22,50 @@ const sizeMap = {
 
 export function Modal({ open, onClose, title, subtitle, icon, children, footer, size = 'lg', fixedHeight = false }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const titleId = useId()
+  const subtitleId = useId()
 
   useEffect(() => {
     if (!open) return
 
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const focusableSelector = 'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
+      if (e.key !== 'Tab' || !dialogRef.current) return
+
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(focusableSelector))
+      if (focusable.length === 0) {
+        e.preventDefault()
+        dialogRef.current.focus()
+        return
+      }
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
     }
     document.addEventListener('keydown', handleEsc)
     document.body.style.overflow = 'hidden'
 
+    const focusFrame = requestAnimationFrame(() => {
+      const firstFocusable = dialogRef.current?.querySelector<HTMLElement>(focusableSelector)
+      ;(firstFocusable || dialogRef.current)?.focus()
+    })
+
     return () => {
+      cancelAnimationFrame(focusFrame)
       document.removeEventListener('keydown', handleEsc)
       document.body.style.overflow = ''
+      previouslyFocused?.focus()
     }
   }, [open, onClose])
 
@@ -42,29 +74,34 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 backdrop-blur-sm p-4 pt-[8vh]"
+      className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-slate-950/60 p-0 backdrop-blur-sm sm:items-start sm:p-4 sm:pt-[8vh]"
       onClick={(e) => {
         if (e.target === overlayRef.current) onClose()
       }}
     >
-      <div className={`w-full ${sizeMap[size]} rounded-2xl bg-white shadow-xl`}>
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-4">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={subtitle ? subtitleId : undefined}
+        tabIndex={-1}
+        className={`w-full ${sizeMap[size]} max-h-[92dvh] overflow-hidden rounded-t-3xl bg-white shadow-2xl shadow-slate-950/20 outline-none sm:max-h-[84dvh] sm:rounded-2xl`}
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200/80 px-5 py-4 sm:px-6">
           <div className="flex items-center gap-3 min-w-0">
             {icon}
             <div className="min-w-0">
-              <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
-              {subtitle && <p className="text-sm text-slate-500 mt-0.5">{subtitle}</p>}
+              <h2 id={titleId} className="text-lg font-bold tracking-tight text-slate-950">{title}</h2>
+              {subtitle && <p id={subtitleId} className="mt-0.5 text-sm leading-5 text-slate-500">{subtitle}</p>}
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors shrink-0"
-          >
+          <IconButton label={`Close ${title}`} onClick={onClose} className="-mr-2 -mt-1 text-slate-400">
             <X className="h-5 w-5" />
-          </button>
+          </IconButton>
         </div>
 
-        <div className={`overflow-y-auto px-6 py-4 ${fixedHeight ? 'h-[72vh] flex flex-col' : 'max-h-[60vh]'}`}>
+        <div className={`overflow-y-auto px-5 py-4 sm:px-6 ${fixedHeight ? 'h-[70dvh] flex flex-col sm:h-[64vh]' : 'max-h-[68dvh] sm:max-h-[60vh]'}`}>
           {children}
         </div>
 

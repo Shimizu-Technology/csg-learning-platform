@@ -232,23 +232,24 @@ export function Recordings() {
   const showTabs = sourceGroupCount > 1
 
   return (
-    <div className="space-y-5 max-w-6xl mx-auto">
+    <div className="app-page">
       {showingSavedData && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           Showing saved recordings while your connection catches up.
         </div>
       )}
-      <div>
-        <Link to="/dashboard" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-2">
+      <header>
+        <Link to="/dashboard" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900">
           <ArrowLeft className="h-4 w-4" />
           Back to Dashboard
         </Link>
-        <h1 className="text-2xl font-bold text-slate-900">Class Recordings</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="app-eyebrow">Replay and review</p>
+        <h1 className="app-title mt-2">Class recordings</h1>
+        <p className="app-description mt-2">
           {totalCount} recording{totalCount !== 1 ? 's' : ''} available
           {s3Recordings.length > 0 && ` · ${s3Recordings.filter(r => r.watch_progress?.completed).length} watched`}
         </p>
-      </div>
+      </header>
 
       <div className="flex flex-col lg:flex-row gap-5">
         {/* Player area */}

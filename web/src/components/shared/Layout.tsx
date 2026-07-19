@@ -17,6 +17,7 @@ import {
   PanelLeftOpen,
   Bell,
   MessageCircle,
+  Home,
   type LucideIcon,
 } from 'lucide-react'
 import { UserButton } from '@clerk/clerk-react'
@@ -40,6 +41,8 @@ interface NavItem {
 
 export function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('sidebar-collapsed') === 'true' } catch { return false }
   })
@@ -53,6 +56,30 @@ export function Layout({ children }: LayoutProps) {
   const directConversationUnreadCountsRef = useRef(new Map<number, number>())
   const isStaff = user?.is_staff
   const isFullAdmin = user?.is_admin
+
+  useEffect(() => {
+    setSidebarOpen(false)
+  }, [location.pathname])
+
+  useEffect(() => {
+    if (!sidebarOpen) return
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    closeButtonRef.current?.focus()
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setSidebarOpen(false)
+      menuButtonRef.current?.focus()
+    }
+
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [sidebarOpen])
 
   const syncMessageUnreadCount = () => {
     const channelUnread = Array.from(channelUnreadCountsRef.current.values()).reduce((sum, count) => sum + count, 0)
@@ -168,32 +195,32 @@ export function Layout({ children }: LayoutProps) {
   }
 
   const adminNav: NavItem[] = [
-    { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', exact: true },
+    { to: '/admin', icon: LayoutDashboard, label: 'Staff home', exact: true },
     { to: '/admin/cohorts', icon: Layers3, label: 'Cohorts' },
     { to: '/admin/content', icon: FileText, label: 'Content' },
     { to: '/admin/grading', icon: ClipboardCheck, label: 'Grading' },
     { to: '/messages', icon: MessageCircle, label: 'Messages' },
-    { to: '/announcements', icon: Bell, label: 'Announcements' },
+    { to: '/announcements', icon: Bell, label: 'Updates' },
     { to: '/admin/team', icon: Users, label: 'Team' },
     { to: '/profile', icon: User, label: 'Profile' },
   ]
 
   const instructorNav: NavItem[] = [
-    { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', exact: true },
+    { to: '/admin', icon: LayoutDashboard, label: 'Staff home', exact: true },
     { to: '/admin/cohorts', icon: Layers3, label: 'Cohorts' },
     { to: '/admin/grading', icon: ClipboardCheck, label: 'Grading' },
     { to: '/messages', icon: MessageCircle, label: 'Messages' },
-    { to: '/announcements', icon: Bell, label: 'Announcements' },
+    { to: '/announcements', icon: Bell, label: 'Updates' },
     { to: '/profile', icon: User, label: 'Profile' },
   ]
 
   const studentNav: NavItem[] = [
-    { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/materials', icon: BookOpenText, label: 'Materials' },
+    { to: '/dashboard', icon: Home, label: 'Today' },
+    { to: '/materials', icon: BookOpenText, label: 'Learn' },
     { to: '/recordings', icon: PlayCircle, label: 'Recordings' },
     { to: '/resources', icon: Link2, label: 'Resources' },
     { to: '/messages', icon: MessageCircle, label: 'Messages' },
-    { to: '/announcements', icon: Bell, label: 'Announcements' },
+    { to: '/announcements', icon: Bell, label: 'Updates' },
     { to: '/profile', icon: User, label: 'Profile' },
   ]
 
@@ -242,30 +269,43 @@ export function Layout({ children }: LayoutProps) {
     onFocus: () => preloadRoute(path),
     onTouchStart: () => preloadRoute(path),
   })
+  const studentBottomNav = studentNav.filter((item) => ['/dashboard', '/materials', '/messages', '/announcements'].includes(item.to))
 
   return (
-    <div className={isMessagesRoute ? 'h-dvh overflow-hidden bg-slate-50' : 'min-h-screen bg-slate-50'}>
+    <div className={isMessagesRoute ? 'h-dvh overflow-hidden bg-[#f7f8fa]' : 'min-h-screen bg-[#f7f8fa]'}>
+      <a href="#main-content" className="sr-only z-[100] rounded-xl bg-slate-950 px-4 py-3 font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4">
+        Skip to main content
+      </a>
       {/* Mobile header */}
-      <header className="sticky top-0 z-40 flex h-14 items-center gap-4 border-b border-slate-200 bg-white px-4 lg:hidden">
-        <button onClick={() => setSidebarOpen(true)} className="text-slate-500 hover:text-slate-700">
+      <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-slate-200/80 bg-white/95 px-3 backdrop-blur-xl lg:hidden">
+        <button ref={menuButtonRef} onClick={() => setSidebarOpen(true)} aria-label="Open navigation" aria-expanded={sidebarOpen} className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900">
           <Menu className="h-6 w-6" />
         </button>
-        <Link to="/" className="flex min-w-0 items-center gap-2 rounded-lg hover:opacity-80" aria-label="Go to homepage">
-          <GraduationCap className="h-6 w-6 text-primary-500" />
-          <span className="truncate font-semibold text-slate-900">CSG Learning Hub</span>
+        <Link to={isStaff ? '/admin' : '/dashboard'} className="flex min-h-11 min-w-0 items-center gap-2 rounded-xl px-1 hover:opacity-80" aria-label="Go to your home">
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary-600 text-white shadow-sm shadow-primary-900/20">
+            <GraduationCap className="h-4.5 w-4.5" />
+          </span>
+          <span className="truncate font-bold tracking-tight text-slate-950">CSG Learning</span>
         </Link>
       </header>
 
       {/* Mobile sidebar overlay */}
-      <div className={`fixed inset-0 z-50 lg:hidden transition-opacity duration-300 ${sidebarOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}>
+      <div aria-hidden={!sidebarOpen} className={`fixed inset-0 z-50 lg:hidden transition-opacity duration-300 ${sidebarOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}>
         <div className="fixed inset-0 bg-slate-900/50 transition-opacity duration-300" onClick={() => setSidebarOpen(false)} />
-        <div className={`fixed inset-y-0 left-0 flex w-72 flex-col bg-white shadow-xl transition-transform duration-300 ease-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Site navigation"
+          aria-hidden={!sidebarOpen}
+          inert={!sidebarOpen}
+          className={`fixed inset-y-0 left-0 flex w-[min(88vw,320px)] flex-col bg-white shadow-2xl transition-transform duration-300 ease-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        >
           <div className="flex h-14 items-center justify-between border-b border-slate-200 px-4">
             <Link to="/" onClick={() => setSidebarOpen(false)} className="flex min-w-0 items-center gap-2 rounded-lg hover:opacity-80" aria-label="Go to homepage">
               <GraduationCap className="h-6 w-6 text-primary-500" />
               <span className="truncate font-semibold text-slate-900">CSG Learning Hub</span>
             </Link>
-            <button onClick={() => setSidebarOpen(false)} className="text-slate-500">
+            <button ref={closeButtonRef} onClick={() => setSidebarOpen(false)} aria-label="Close navigation" className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-900">
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -317,7 +357,7 @@ export function Layout({ children }: LayoutProps) {
 
     <div className="flex">
       {/* Desktop sidebar */}
-      <aside className={`hidden lg:flex lg:flex-col ${sidebarWidth} lg:fixed lg:inset-y-0 border-r border-slate-200 bg-white transition-all duration-200`}>
+      <aside className={`hidden lg:flex lg:flex-col ${sidebarWidth} lg:fixed lg:inset-y-0 border-r border-slate-200/80 bg-white transition-all duration-200`}>
         <div className={`flex h-14 items-center ${collapsed ? 'justify-center px-2' : 'px-6'} border-b border-slate-200`}>
           <Link
             to="/"
@@ -325,8 +365,10 @@ export function Layout({ children }: LayoutProps) {
             className={`flex min-w-0 items-center rounded-lg text-slate-900 hover:opacity-80 ${collapsed ? 'justify-center' : 'gap-2'}`}
             aria-label="Go to homepage"
           >
-            <GraduationCap className="h-6 w-6 text-primary-500 shrink-0" />
-            {!collapsed && <span className="truncate font-semibold text-slate-900">CSG Learning Hub</span>}
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary-600 text-white shadow-sm shadow-primary-900/20">
+              <GraduationCap className="h-4.5 w-4.5" />
+            </span>
+            {!collapsed && <span className="truncate font-bold tracking-tight text-slate-950">CSG Learning</span>}
           </Link>
         </div>
         <nav className={`flex-1 ${collapsed ? 'p-2' : 'p-4'} space-y-1`}>
@@ -428,10 +470,35 @@ export function Layout({ children }: LayoutProps) {
         </aside>
 
         {/* Main content */}
-        <main className={`flex-1 min-w-0 overflow-x-hidden ${mainMargin} transition-all duration-200 ${isMessagesRoute ? 'h-[calc(100dvh-3.5rem)] overflow-hidden lg:h-dvh' : ''}`}>
-          <div className={isMessagesRoute ? 'h-full p-0 lg:p-4' : 'p-4 lg:p-8'}>{children ?? <Outlet />}</div>
+        <main id="main-content" tabIndex={-1} className={`flex-1 min-w-0 overflow-x-hidden ${mainMargin} transition-all duration-200 ${isMessagesRoute ? `${isStaff ? 'h-[calc(100dvh-3.5rem)]' : 'h-[calc(100dvh-7.75rem)]'} overflow-hidden lg:h-dvh` : ''}`}>
+          <div className={isMessagesRoute ? 'h-full p-0 lg:p-4' : 'p-4 pb-24 sm:p-6 sm:pb-24 lg:p-8'}>{children ?? <Outlet />}</div>
         </main>
       </div>
+
+      {!isStaff && (
+        <nav aria-label="Primary navigation" className="fixed inset-x-0 bottom-0 z-40 grid h-[4.25rem] grid-cols-4 border-t border-slate-200/90 bg-white/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
+          {studentBottomNav.map((item) => {
+            const active = isActive(item.to, item.exact)
+            const count = getNavUnreadCount(item.to)
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                aria-current={active ? 'page' : undefined}
+                aria-label={getNavLabel(item)}
+                {...getLinkHandlers(item.to)}
+                className={`relative flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-bold transition-colors ${active ? 'text-primary-700' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}
+              >
+                <span className={`relative flex h-7 w-12 items-center justify-center rounded-full transition-colors ${active ? 'bg-primary-100' : ''}`}>
+                  <item.icon className="h-5 w-5" />
+                  {count > 0 && <span className="absolute right-1.5 top-0 flex min-h-4 min-w-4 items-center justify-center rounded-full bg-primary-600 px-1 text-[9px] text-white ring-2 ring-white">{count > 9 ? '9+' : count}</span>}
+                </span>
+                <span className="truncate">{item.label}</span>
+              </Link>
+            )
+          })}
+        </nav>
+      )}
     </div>
   )
 }

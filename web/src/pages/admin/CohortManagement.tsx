@@ -112,17 +112,21 @@ export function CohortManagement() {
   if (loading) return <LoadingSpinner message="Loading cohorts..." />
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900">Cohorts</h1>
+    <div className="app-page-wide">
+      <header className="flex items-end justify-between gap-4">
+        <div>
+          <p className="app-eyebrow">Program operations</p>
+          <h1 className="app-title mt-2">Cohorts</h1>
+          <p className="app-description mt-2">Create, organize, and reopen the workspace for every class.</p>
+        </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700 transition-colors"
+          className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-700"
         >
           <Plus className="h-4 w-4" />
           New Cohort
         </button>
-      </div>
+      </header>
 
       {showCreate && (
         <form onSubmit={handleCreate} className="rounded-2xl bg-white border border-slate-200 p-6 space-y-4">
