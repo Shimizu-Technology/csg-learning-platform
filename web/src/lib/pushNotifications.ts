@@ -135,12 +135,14 @@ export async function refreshExistingPushSubscription(publicKey: string) {
 
 export async function disablePushNotifications() {
   if (!pushSupported()) {
-    await api.deletePushSubscription(undefined, true)
+    const result = await api.deletePushSubscription(undefined, true)
+    if (result.error) throw new Error(result.error)
     return
   }
 
   const registration = await navigator.serviceWorker.ready
   const subscription = await registration.pushManager.getSubscription()
-  await api.deletePushSubscription(subscription?.endpoint, true)
+  const result = await api.deletePushSubscription(subscription?.endpoint, true)
+  if (result.error) throw new Error(result.error)
   await subscription?.unsubscribe()
 }

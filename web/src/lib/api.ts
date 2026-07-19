@@ -44,6 +44,7 @@ import type {
   NotificationsResponse,
   NotificationResponse,
   MarkAllNotificationsReadResponse,
+  MessageNotificationPreferenceResponse,
   PushConfigResponse,
   PushSubscriptionResponse,
   CableTokenResponse,
@@ -390,6 +391,11 @@ export const api = {
     fetchApi<MarkAllNotificationsReadResponse>(`/api/v1/notifications/mark_all_read${notificationType ? `?notification_type=${notificationType}` : ''}`, { method: 'PATCH' }),
   getPushConfig: () =>
     fetchApi<PushConfigResponse>('/api/v1/push_subscriptions/config'),
+  updateMessageNotifications: (notificationsEnabled: boolean) =>
+    fetchApi<MessageNotificationPreferenceResponse>('/api/v1/push_subscriptions/preferences', {
+      method: 'PATCH',
+      body: JSON.stringify({ notifications_enabled: notificationsEnabled }),
+    }),
   createPushSubscription: (subscription: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
     fetchApi<PushSubscriptionResponse>('/api/v1/push_subscriptions', {
       method: 'POST',

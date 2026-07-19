@@ -31,6 +31,7 @@ Rails.application.routes.draw do
         end
       end
       get "push_subscriptions/config", to: "push_subscriptions#config"
+      patch "push_subscriptions/preferences", to: "push_subscriptions#update_preferences"
       post "push_subscriptions", to: "push_subscriptions#create"
       delete "push_subscriptions", to: "push_subscriptions#destroy"
       post "message_attachments/presign", to: "message_attachments#presign"

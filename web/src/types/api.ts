@@ -253,6 +253,11 @@ export interface PushSubscriptionResponse {
   };
 }
 
+export interface MessageNotificationPreferenceResponse {
+  notifications_enabled: boolean;
+  active_subscription_count: number;
+}
+
 export interface CableTokenResponse {
   token: string;
   expires_in: number;

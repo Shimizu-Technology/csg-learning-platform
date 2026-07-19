@@ -272,7 +272,8 @@ Archived users are hidden from default user lists, team management, active cohor
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/api/v1/push_subscriptions/config` | Any signed-in user | Return whether Web Push is configured and the public VAPID key |
+| `GET` | `/api/v1/push_subscriptions/config` | Any signed-in user | Return message-notification preference plus Web Push configuration and the public VAPID key |
+| `PATCH` | `/api/v1/push_subscriptions/preferences` | Any signed-in user | Enable or disable DM email and browser-push notifications globally; works without browser push support |
 | `POST` | `/api/v1/push_subscriptions` | Any signed-in user | Store the current browser/device push subscription |
 | `DELETE` | `/api/v1/push_subscriptions` | Any signed-in user | Remove a subscription endpoint for this user |
 
@@ -286,6 +287,15 @@ Archived users are hidden from default user lists, team management, active cohor
   }
 }
 ```
+
+**Preference body:**
+```json
+{
+  "notifications_enabled": false
+}
+```
+
+DM email notifications are enabled by default and are queued independently of browser-push support. Disabling the preference suppresses DM and mention emails; browser subscriptions remain device-specific.
 
 ---
 

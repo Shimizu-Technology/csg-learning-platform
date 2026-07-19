@@ -45,6 +45,7 @@ export function Layout({ children }: LayoutProps) {
   })
   const lastPresenceUpdateAtRef = useRef(0)
   const location = useLocation()
+  const isMessagesRoute = location.pathname.startsWith('/messages')
   const { user, isLoading } = useAuthContext()
   const [unreadCount, setUnreadCount] = useState(0)
   const [messageUnreadCount, setMessageUnreadCount] = useState(0)
@@ -243,7 +244,7 @@ export function Layout({ children }: LayoutProps) {
   })
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className={isMessagesRoute ? 'h-dvh overflow-hidden bg-slate-50' : 'min-h-screen bg-slate-50'}>
       {/* Mobile header */}
       <header className="sticky top-0 z-40 flex h-14 items-center gap-4 border-b border-slate-200 bg-white px-4 lg:hidden">
         <button onClick={() => setSidebarOpen(true)} className="text-slate-500 hover:text-slate-700">
@@ -427,8 +428,8 @@ export function Layout({ children }: LayoutProps) {
         </aside>
 
         {/* Main content */}
-        <main className={`flex-1 min-w-0 overflow-x-hidden ${mainMargin} transition-all duration-200`}>
-          <div className="p-4 lg:p-8">{children ?? <Outlet />}</div>
+        <main className={`flex-1 min-w-0 overflow-x-hidden ${mainMargin} transition-all duration-200 ${isMessagesRoute ? 'h-[calc(100dvh-3.5rem)] overflow-hidden lg:h-dvh' : ''}`}>
+          <div className={isMessagesRoute ? 'h-full p-0 lg:p-4' : 'p-4 lg:p-8'}>{children ?? <Outlet />}</div>
         </main>
       </div>
     </div>

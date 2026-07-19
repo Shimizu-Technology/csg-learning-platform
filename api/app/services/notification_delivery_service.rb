@@ -42,13 +42,17 @@ class NotificationDeliveryService
     end
 
     notification_ids = notifications.map(&:id)
-    push_email_user_ids = []
+    mention_email_skip_user_ids = []
     if push && notifications.any?
       PushNotificationJob.perform_later("Message", message.id, notification_ids)
-      MessageNotificationEmailJob.perform_later(message.id, notification_ids)
-      push_email_user_ids = User.where(id: mentioned_user_ids, message_email_notifications_enabled: true).pluck(:id)
     end
-    MessageMentionEmailJob.perform_later(message.id, mentioned_user_ids, push_email_user_ids) if mentioned_user_ids.any?
+    if message.direct_message? && notifications.any?
+      MessageNotificationEmailJob.perform_later(message.id, notification_ids)
+      # The generic DM job owns preference checks and delivery for every DM
+      # recipient, so mentioned participants must never enter the mention path.
+      mention_email_skip_user_ids = mentioned_user_ids
+    end
+    MessageMentionEmailJob.perform_later(message.id, mentioned_user_ids, mention_email_skip_user_ids) if mentioned_user_ids.any?
     notifications
   end
 

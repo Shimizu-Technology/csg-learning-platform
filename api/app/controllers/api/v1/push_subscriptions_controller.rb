@@ -55,6 +55,17 @@ module Api
         end
       end
 
+      # PATCH /api/v1/push_subscriptions/preferences
+      def update_preferences
+        enabled = ActiveModel::Type::Boolean.new.cast(params.require(:notifications_enabled))
+        current_user.update!(message_email_notifications_enabled: enabled)
+
+        render_push_config(
+          notifications_enabled: current_user.message_email_notifications_enabled?,
+          active_subscription_count: current_user.push_subscriptions.active.count
+        )
+      end
+
       # DELETE /api/v1/push_subscriptions
       def destroy
         if global_disable?
@@ -62,9 +73,6 @@ module Api
           current_user.update!(message_email_notifications_enabled: false)
         elsif params[:endpoint].present?
           current_user.push_subscriptions.where(endpoint: params[:endpoint].to_s).destroy_all
-          unless current_user.push_subscriptions.active.exists?
-            current_user.update!(message_email_notifications_enabled: false)
-          end
         end
 
         head :no_content

@@ -5,8 +5,8 @@ const messageRows = Array.from({ length: 4 }, (_, index) => index)
 
 export function MessagesLoadingShell() {
   return (
-    <div className="mx-auto flex h-[calc(100dvh-5.5rem)] min-h-[620px] w-full max-w-[1500px] overflow-hidden lg:px-4">
-      <div className="grid min-h-0 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[328px_minmax(0,1fr)]">
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-[1500px] overflow-hidden">
+      <div className="grid min-h-0 w-full overflow-hidden border-y border-slate-200 bg-white shadow-sm lg:grid-cols-[328px_minmax(0,1fr)] lg:rounded-2xl lg:border">
         <aside className="hidden min-h-0 border-r border-slate-200 bg-slate-50/80 lg:flex lg:flex-col">
           <div className="border-b border-slate-200 bg-white px-4 py-4">
             <div className="flex items-center justify-between">

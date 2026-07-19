@@ -352,6 +352,21 @@ class CommunicationTest < ActionDispatch::IntegrationTest
     assert_equal "new-public-key", subscription.p256dh
   end
 
+  test "message notifications default on and can be explicitly disabled without browser push" do
+    assert @student.reload.message_email_notifications_enabled?
+
+    as_user(@student) do
+      patch "/api/v1/push_subscriptions/preferences",
+        params: { notifications_enabled: false },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :success
+    refute @student.reload.message_email_notifications_enabled?
+    assert_equal false, response.parsed_body.fetch("notifications_enabled")
+  end
+
   test "global push disable removes subscriptions and disables message emails" do
     @student.update!(message_email_notifications_enabled: true)
     @student.push_subscriptions.create!(
@@ -391,6 +406,26 @@ class CommunicationTest < ActionDispatch::IntegrationTest
 
     assert_response :no_content
     assert_equal 1, @student.push_subscriptions.count
+    assert @student.reload.message_email_notifications_enabled?
+  end
+
+  test "endpoint push subscription delete preserves message email notifications" do
+    @student.update!(message_email_notifications_enabled: true)
+    @student.push_subscriptions.create!(
+      endpoint: "https://push.example/subscription-1",
+      p256dh: "public-key",
+      auth: "auth-secret"
+    )
+
+    as_user(@student) do
+      delete "/api/v1/push_subscriptions",
+        params: { endpoint: "https://push.example/subscription-1" },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :no_content
+    assert_equal 0, @student.push_subscriptions.count
     assert @student.reload.message_email_notifications_enabled?
   end
 

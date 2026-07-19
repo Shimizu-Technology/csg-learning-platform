@@ -5,7 +5,7 @@ import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import TiptapLink from '@tiptap/extension-link'
-import Underline from '@tiptap/extension-underline'
+import UnderlineExtension from '@tiptap/extension-underline'
 import { Extension, type Editor, type JSONContent } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
@@ -28,6 +28,8 @@ import {
   Heart,
   Italic,
   Link2,
+  List,
+  ListOrdered,
   Lock,
   MessageCircle,
   MoreHorizontal,
@@ -40,9 +42,11 @@ import {
   Search,
   Send,
   SmilePlus,
-  Smartphone,
+  Strikethrough,
+  TextQuote,
   ThumbsUp,
   Trash2,
+  Underline as UnderlineIcon,
   UserPlus,
   Users,
   X,
@@ -52,6 +56,7 @@ import { api } from '../../lib/api'
 import { subscribeToUserMessages } from '../../lib/realtime'
 import { disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
 import { formatFileSize, uploadToS3 } from '../../lib/uploadToS3'
+import { parseMessageBlocks } from '../../lib/messageFormat'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { MessagesLoadingShell } from '../../components/shared/MessagesLoadingShell'
@@ -69,6 +74,7 @@ import type {
 
 type Target = { type: 'channel'; id: number } | { type: 'dm'; id: number }
 type TargetLoadOptions = { aroundMessageId?: number; highlightedMessageId?: number; background?: boolean }
+type SavedConversationScroll = { distanceFromBottom: number; atBottom: boolean }
 type PendingAttachment = {
   file: File
   s3_key?: string
@@ -91,10 +97,6 @@ type MentionPattern = {
   kind: 'user' | 'channel'
 }
 type MentionableUser = Pick<UserSummary, 'id' | 'full_name' | 'email'>
-type MessageSegment =
-  | { type: 'text'; text: string }
-  | { type: 'code'; code: string; language: string }
-  | { type: 'spacer' }
 type MessageSearchResult = ChannelMessage & {
   context?: {
     type: 'channel' | 'direct_conversation'
@@ -105,6 +107,42 @@ type MessageSearchResult = ChannelMessage & {
 }
 
 type ReadReceipts = NonNullable<ChannelMessage['read_receipts']>
+
+function targetKey(target: Target) {
+  return `${target.type}:${target.id}`
+}
+
+function scrollStorageKey(userId: number, target: Target) {
+  return `csg-message-scroll:${userId}:${targetKey(target)}`
+}
+
+function readSavedConversationScroll(userId: number | undefined, target: Target): SavedConversationScroll | null {
+  if (!userId || typeof window === 'undefined') return null
+
+  try {
+    const raw = window.sessionStorage.getItem(scrollStorageKey(userId, target))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<SavedConversationScroll>
+    if (typeof parsed.distanceFromBottom !== 'number' || typeof parsed.atBottom !== 'boolean') return null
+    return { distanceFromBottom: Math.max(0, parsed.distanceFromBottom), atBottom: parsed.atBottom }
+  } catch {
+    return null
+  }
+}
+
+function saveConversationScroll(userId: number | undefined, target: Target, element: HTMLDivElement) {
+  if (!userId || typeof window === 'undefined') return
+
+  const distanceFromBottom = Math.max(0, element.scrollHeight - element.scrollTop - element.clientHeight)
+  try {
+    window.sessionStorage.setItem(scrollStorageKey(userId, target), JSON.stringify({
+      distanceFromBottom,
+      atBottom: distanceFromBottom < 96,
+    } satisfies SavedConversationScroll))
+  } catch {
+    // Session storage can be unavailable in private browsing or locked-down WebViews.
+  }
+}
 
 function readReceiptLabel(readReceipts: ReadReceipts): string {
   if (readReceipts.count === 1) return readReceipts.users[0]?.full_name || '1 person'
@@ -176,8 +214,11 @@ function preview(text: string) {
     .replace(/`([^`]+)`/g, '$1')
     .replace(/\*\*([^*]+)\*\*/g, '$1')
     .replace(/_([^_]+)_/g, '$1')
+    .replace(/~~([^~]+)~~/g, '$1')
+    .replace(/\+\+([^+]+)\+\+/g, '$1')
     .replace(/^\s*>\s?/gm, '')
     .replace(/^\s*[-*]\s+/gm, '')
+    .replace(/^\s*\d+[.)]\s+/gm, '')
     .replace(/\s+/g, ' ')
     .trim()
   return fallback.length > 80 ? `${fallback.slice(0, 77)}...` : fallback
@@ -554,7 +595,7 @@ function ComposerToolbarButton({
         onMouseLeave={hideTooltip}
         onFocus={showTooltip}
         onBlur={hideTooltip}
-        className={`relative min-h-8 shrink-0 rounded-lg p-1.5 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 sm:min-h-9 sm:p-2 ${
+        className={`relative min-h-10 min-w-10 shrink-0 rounded-lg p-2 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 sm:min-h-9 sm:min-w-9 ${
           active ? 'bg-slate-100 text-slate-900' : ''
         } ${className}`}
         aria-label={shortcut ? `${label} (${shortcut})` : label}
@@ -577,60 +618,6 @@ function ComposerToolbarButton({
       )}
     </>
   )
-}
-
-function parseMessageSegments(body: string): MessageSegment[] {
-  const segments: MessageSegment[] = []
-  const fencePattern = /```([^\n`]*)\n?([\s\S]*?)(?:```|$)/g
-  let cursor = 0
-  let match: RegExpExecArray | null
-  const pushSpacerSegment = () => {
-    if (segments.at(-1)?.type !== 'spacer') {
-      segments.push({ type: 'spacer' })
-    }
-  }
-  const pushTextSegment = (text: string) => {
-    const hasText = text.trim().length > 0
-    const hasBlankGap = /\n[ \t]*\n/.test(text)
-
-    if (!hasText) {
-      if (hasBlankGap) pushSpacerSegment()
-      return
-    }
-
-    if (/^[ \t]*\n[ \t]*\n/.test(text)) {
-      pushSpacerSegment()
-    }
-
-    const normalized = text.replace(/^[ \t]*\n+/, '').replace(/\n+[ \t]*$/, '')
-    normalized.split(/\n[ \t]*\n+/).forEach((part, index, parts) => {
-      if (part.trim()) segments.push({ type: 'text', text: part })
-      if (index < parts.length - 1) pushSpacerSegment()
-    })
-
-    if (/\n[ \t]*\n[ \t]*$/.test(text)) {
-      pushSpacerSegment()
-    }
-  }
-
-  while ((match = fencePattern.exec(body)) !== null) {
-    if (match.index > cursor) {
-      pushTextSegment(body.slice(cursor, match.index))
-    }
-
-    segments.push({
-      type: 'code',
-      language: match[1].trim(),
-      code: match[2].replace(/^\n+|\n+$/g, ''),
-    })
-    cursor = fencePattern.lastIndex
-  }
-
-  if (cursor < body.length) {
-    pushTextSegment(body.slice(cursor))
-  }
-
-  return segments.length > 0 ? segments : [{ type: 'text', text: body }]
 }
 
 const mentionHighlightPluginKey = new PluginKey('messageMentionHighlight')
@@ -711,6 +698,8 @@ function applyMarks(text: string, marks: NonNullable<JSONContent['marks']>) {
   return marks.reduce((value, mark) => {
     if (mark.type === 'bold') return `**${value}**`
     if (mark.type === 'italic') return `_${value}_`
+    if (mark.type === 'underline') return `++${value}++`
+    if (mark.type === 'strike') return `~~${value}~~`
     if (mark.type === 'code') return `\`${value}\``
     if (mark.type === 'link') return `[${value}](${mark.attrs?.href || value})`
     return value
@@ -745,6 +734,7 @@ export function Messages() {
   const [pushEnabled, setPushEnabled] = useState(false)
   const [pushMessage, setPushMessage] = useState('')
   const [hasUnreadBelow, setHasUnreadBelow] = useState(false)
+  const [showScrollToLatest, setShowScrollToLatest] = useState(false)
   const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'error'>('disconnected')
   const [body, setBody] = useState('')
   const [composerMentionUserIds, setComposerMentionUserIds] = useState<number[]>([])
@@ -788,7 +778,6 @@ export function Messages() {
     description: '',
     visibility: 'cohort',
   })
-  const bottomRef = useRef<HTMLDivElement | null>(null)
   const messageScrollRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const composerFormRef = useRef<HTMLFormElement | null>(null)
@@ -799,6 +788,8 @@ export function Messages() {
   const targetLoadOptionsRef = useRef<TargetLoadOptions>({})
   const loadingTargetRef = useRef(false)
   const shouldStickToBottomRef = useRef(true)
+  const pendingScrollRestoreTargetKeyRef = useRef<string | null>(null)
+  const scrollPersistFrameRef = useRef<number | null>(null)
   const programmaticScrollUntilRef = useRef(0)
   const programmaticScrollTimerRef = useRef<number | null>(null)
   const lastAutoScrollTargetKeyRef = useRef('')
@@ -1014,7 +1005,7 @@ export function Messages() {
           },
         },
       }),
-      Underline,
+      UnderlineExtension,
       TiptapLink.configure({ openOnClick: false, autolink: true }),
       Placeholder.configure({ placeholder: 'Write a message' }),
       MentionHighlightExtension.configure({
@@ -1133,7 +1124,10 @@ export function Messages() {
     if (showTargetLoader) {
       setTargetLoading(true)
       setHasUnreadBelow(false)
-      shouldStickToBottomRef.current = !options.aroundMessageId
+      setShowScrollToLatest(false)
+      const savedScroll = readSavedConversationScroll(user?.id, target)
+      shouldStickToBottomRef.current = !options.aroundMessageId && (!savedScroll || savedScroll.atBottom)
+      pendingScrollRestoreTargetKeyRef.current = options.aroundMessageId ? null : targetKey(target)
     }
 
     if (target.type === 'channel') {
@@ -1202,12 +1196,12 @@ export function Messages() {
   }, [selectedWorkspaceId])
 
   useEffect(() => {
-    if (!pushSupported()) return
-
     let active = true
     Promise.all([
       api.getPushConfig(),
-      navigator.serviceWorker.ready.then((registration) => registration.pushManager.getSubscription()).catch(() => null),
+      pushSupported()
+        ? navigator.serviceWorker.ready.then((registration) => registration.pushManager.getSubscription()).catch(() => null)
+        : Promise.resolve(null),
     ]).then(([config, subscription]) => {
       if (!active) return
       setPushEnabled(typeof config.data?.notifications_enabled === 'boolean' ? config.data.notifications_enabled : Boolean(subscription))
@@ -1239,6 +1233,22 @@ export function Messages() {
   useEffect(() => {
     if (!isDesktop) setSidebarCollapsed(false)
   }, [isDesktop])
+
+  useEffect(() => {
+    const saveCurrentPosition = () => {
+      const element = messageScrollRef.current
+      const currentTarget = selectedTargetRef.current
+      if (element && currentTarget) saveConversationScroll(user?.id, currentTarget, element)
+    }
+
+    window.addEventListener('pagehide', saveCurrentPosition)
+    return () => {
+      saveCurrentPosition()
+      window.removeEventListener('pagehide', saveCurrentPosition)
+      if (scrollPersistFrameRef.current !== null) window.cancelAnimationFrame(scrollPersistFrameRef.current)
+      if (programmaticScrollTimerRef.current !== null) window.clearTimeout(programmaticScrollTimerRef.current)
+    }
+  }, [user?.id])
 
   useEffect(() => {
     if (!selectedTarget) return
@@ -1377,13 +1387,49 @@ export function Messages() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [lightboxAttachment, lightboxAttachments.length])
 
-  useEffect(() => {
-    if (!shouldStickToBottomRef.current) return
-    const targetKey = selectedTarget ? `${selectedTarget.type}:${selectedTarget.id}` : ''
-    const targetChanged = lastAutoScrollTargetKeyRef.current !== targetKey
-    lastAutoScrollTargetKeyRef.current = targetKey
-    scrollToBottom(targetChanged ? 'auto' : 'smooth')
-  }, [messages.length, selectedTarget?.type, selectedTarget?.id])
+  useLayoutEffect(() => {
+    const element = messageScrollRef.current
+    if (!element || !selectedTarget || conversationView !== 'messages') return
+
+    const currentTargetKey = targetKey(selectedTarget)
+    const restoringTarget = pendingScrollRestoreTargetKeyRef.current === currentTargetKey
+    const targetChanged = lastAutoScrollTargetKeyRef.current !== currentTargetKey
+    lastAutoScrollTargetKeyRef.current = currentTargetKey
+
+    let secondFrame: number | null = null
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => {
+        if (restoringTarget) {
+          pendingScrollRestoreTargetKeyRef.current = null
+          const savedScroll = readSavedConversationScroll(user?.id, selectedTarget)
+          if (savedScroll && !savedScroll.atBottom) {
+            element.scrollTop = Math.max(0, element.scrollHeight - element.clientHeight - savedScroll.distanceFromBottom)
+            shouldStickToBottomRef.current = false
+            setShowScrollToLatest(true)
+            return
+          }
+        }
+
+        if (shouldStickToBottomRef.current) {
+          const behavior = targetChanged ? 'auto' : 'smooth'
+          if (programmaticScrollTimerRef.current) window.clearTimeout(programmaticScrollTimerRef.current)
+          programmaticScrollUntilRef.current = window.performance.now() + (behavior === 'smooth' ? 600 : 80)
+          element.scrollTo({ top: element.scrollHeight, behavior })
+          setShowScrollToLatest(false)
+          programmaticScrollTimerRef.current = window.setTimeout(() => {
+            programmaticScrollUntilRef.current = 0
+            programmaticScrollTimerRef.current = null
+          }, behavior === 'smooth' ? 650 : 100)
+        }
+      })
+
+    })
+
+    return () => {
+      window.cancelAnimationFrame(firstFrame)
+      if (secondFrame !== null) window.cancelAnimationFrame(secondFrame)
+    }
+  }, [conversationView, messages.length, selectedTarget?.type, selectedTarget?.id, user?.id])
 
   useEffect(() => {
     if (!highlightedMessageId) return
@@ -1484,15 +1530,20 @@ export function Messages() {
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     shouldStickToBottomRef.current = true
+    setShowScrollToLatest(false)
     if (programmaticScrollTimerRef.current) {
       window.clearTimeout(programmaticScrollTimerRef.current)
     }
 
     programmaticScrollUntilRef.current = window.performance.now() + (behavior === 'smooth' ? 600 : 80)
-    bottomRef.current?.scrollIntoView({ block: 'end', behavior })
+    const element = messageScrollRef.current
+    element?.scrollTo({ top: element.scrollHeight, behavior })
     programmaticScrollTimerRef.current = window.setTimeout(() => {
       programmaticScrollUntilRef.current = 0
       programmaticScrollTimerRef.current = null
+      if (element && selectedTargetRef.current) {
+        saveConversationScroll(user?.id, selectedTargetRef.current, element)
+      }
     }, behavior === 'smooth' ? 650 : 100)
   }
 
@@ -1513,13 +1564,23 @@ export function Messages() {
 
   const handleConversationScroll = () => {
     const nearBottom = isNearConversationBottom()
+    const duringProgrammaticScroll = shouldStickToBottomRef.current && window.performance.now() < programmaticScrollUntilRef.current
+    if (duringProgrammaticScroll && !nearBottom) return
+
+    setShowScrollToLatest(!nearBottom)
+
+    const element = messageScrollRef.current
+    const currentTarget = selectedTargetRef.current
+    if (element && currentTarget && scrollPersistFrameRef.current === null) {
+      scrollPersistFrameRef.current = window.requestAnimationFrame(() => {
+        saveConversationScroll(user?.id, currentTarget, element)
+        scrollPersistFrameRef.current = null
+      })
+    }
+
     if (nearBottom) {
       shouldStickToBottomRef.current = true
       setHasUnreadBelow(false)
-      return
-    }
-
-    if (shouldStickToBottomRef.current && window.performance.now() < programmaticScrollUntilRef.current) {
       return
     }
 
@@ -1535,6 +1596,10 @@ export function Messages() {
   }
 
   const selectTarget = (target: Target, options: TargetLoadOptions = {}) => {
+    const currentElement = messageScrollRef.current
+    const currentTarget = selectedTargetRef.current
+    if (currentElement && currentTarget) saveConversationScroll(user?.id, currentTarget, currentElement)
+
     window.history.replaceState(null, '', target.type === 'channel' ? `/messages/${target.id}` : `/messages/dm/${target.id}`)
     targetLoadOptionsRef.current = options
     setTargetLoading(true)
@@ -1864,36 +1929,50 @@ export function Messages() {
       try {
         await disablePushNotifications()
         setPushEnabled(false)
-        setPushMessage('Message push and email notifications are off globally. This device was unsubscribed.')
+        setPushMessage('Message email and push notifications are off globally.')
       } catch (toggleError) {
         setPushMessage(toggleError instanceof Error ? toggleError.message : 'Could not turn off notifications.')
       }
       return
     }
 
+    const preference = await api.updateMessageNotifications(true)
+    if (preference.error) {
+      setPushMessage(preference.error)
+      return
+    }
+    setPushEnabled(true)
+
+    if (!pushSupported()) {
+      setPushMessage('DM email notifications are on. Browser push is not supported on this device.')
+      return
+    }
+
     const config = await api.getPushConfig()
     if (config.error) {
-      setPushMessage(config.error)
+      setPushMessage(`DM email notifications are on. Browser push could not be checked: ${config.error}`)
       return
     }
 
     const configured = Boolean(config.data?.configured)
     const publicKey = config.data?.public_key || import.meta.env.VITE_WEB_PUSH_PUBLIC_KEY
     if (!configured || !publicKey) {
-      setPushMessage(pushConfigurationHint({
+      const hint = pushConfigurationHint({
         configured,
         missing: config.data?.missing || [],
         publicKey,
-      }))
+      })
+      setPushMessage(`DM email notifications are on. ${hint}`)
       return
     }
 
     try {
       await enablePushNotifications(publicKey)
       setPushEnabled(true)
-      setPushMessage('Message notifications are on globally. We will send push alerts on this device and email your account for unmuted message notifications.')
+      setPushMessage('Message notifications are on. DMs will email your account, and this device will receive browser push alerts.')
     } catch (toggleError) {
-      setPushMessage(toggleError instanceof Error ? toggleError.message : 'Could not enable notifications.')
+      const detail = toggleError instanceof Error ? toggleError.message : 'Browser push could not be enabled.'
+      setPushMessage(`DM email notifications are on. ${detail}`)
     }
   }
 
@@ -2206,8 +2285,23 @@ export function Messages() {
             <ComposerToolbarButton label="Italic" shortcut="⌘I" active={Boolean(editor?.isActive('italic'))} onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleItalic().run())}>
               <Italic className="h-4 w-4" />
             </ComposerToolbarButton>
+            <ComposerToolbarButton label="Underline" shortcut="⌘U" active={Boolean(editor?.isActive('underline'))} onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleUnderline().run())}>
+              <UnderlineIcon className="h-4 w-4" />
+            </ComposerToolbarButton>
+            <ComposerToolbarButton label="Strikethrough" active={Boolean(editor?.isActive('strike'))} onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleStrike().run())}>
+              <Strikethrough className="h-4 w-4" />
+            </ComposerToolbarButton>
             <ComposerToolbarButton label="Link" shortcut="⌘⇧U" active={Boolean(editor?.isActive('link'))} onMouseDown={(event) => runToolbarCommand(event, openLinkForm)}>
               <Link2 className="h-4 w-4" />
+            </ComposerToolbarButton>
+            <ComposerToolbarButton label="Numbered list" active={Boolean(editor?.isActive('orderedList'))} onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleOrderedList().run())}>
+              <ListOrdered className="h-4 w-4" />
+            </ComposerToolbarButton>
+            <ComposerToolbarButton label="Bulleted list" active={Boolean(editor?.isActive('bulletList'))} onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleBulletList().run())}>
+              <List className="h-4 w-4" />
+            </ComposerToolbarButton>
+            <ComposerToolbarButton label="Quote" active={Boolean(editor?.isActive('blockquote'))} onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleBlockquote().run())}>
+              <TextQuote className="h-4 w-4" />
             </ComposerToolbarButton>
             <ComposerToolbarButton label="Inline code" shortcut="⌘⇧C" active={Boolean(editor?.isActive('code'))} onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleCode().run())}>
               <Code2 className="h-4 w-4" />
@@ -2229,11 +2323,11 @@ export function Messages() {
             <button
               type="submit"
               disabled={sending || (!body.trim() && pendingAttachments.length === 0)}
-              className="inline-flex h-9 min-w-[104px] shrink-0 items-center justify-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-0"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary-500 text-sm font-medium text-white shadow-sm transition hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:w-auto sm:px-4"
               aria-label={sending ? 'Sending message' : 'Send message'}
             >
               <Send className="h-4 w-4" />
-              <span>Send</span>
+              <span className="sr-only sm:not-sr-only">Send</span>
             </button>
           </div>
           {mentionSuggestions.length > 0 && (
@@ -2265,7 +2359,7 @@ export function Messages() {
   }
 
   return (
-    <div className={`mx-auto flex w-full max-w-[1500px] min-w-0 flex-col ${showPageIntro ? 'min-h-[calc(100dvh-5.5rem)] gap-4' : 'h-[calc(100dvh-5.5rem)] min-h-0 gap-0 overflow-hidden'} lg:h-[calc(100dvh-5.5rem)] lg:min-h-0 lg:overflow-hidden lg:px-4`}>
+    <div className={`mx-auto flex h-full w-full max-w-[1500px] min-w-0 flex-col ${showPageIntro ? 'min-h-0 gap-4 p-4 lg:p-0' : 'min-h-0 gap-0 overflow-hidden'}`}>
       {showPageIntro && (
       <div>
         <p className="text-sm font-medium text-primary-600">Communication</p>
@@ -2279,7 +2373,7 @@ export function Messages() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {!selectedTarget && pushSupported() && (
+            {!selectedTarget && (
               <button
                 type="button"
                 onClick={handleTogglePush}
@@ -2573,7 +2667,7 @@ export function Messages() {
           {selectedTarget && selected ? (
             <>
               <header className={`shrink-0 border-b border-slate-200/80 px-3 py-2.5 backdrop-blur-sm ${isDesktop ? 'bg-white/80' : 'bg-white'} sm:px-4 sm:py-4`}>
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex items-start justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
                     {isDesktop && sidebarCollapsed && (
                       <button
@@ -2603,7 +2697,7 @@ export function Messages() {
                       <p className="text-xs text-slate-500">{selected.workspace_name}{isNavigationPending && ' · updating'}</p>
                     </div>
                   </div>
-                  <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:justify-end sm:gap-2">
+                  <div className="flex shrink-0 items-center gap-1.5 sm:justify-end sm:gap-2">
                     {selectedTarget && (
                       <ConversationHeaderAction
                         onClick={toggleMute}
@@ -2613,15 +2707,13 @@ export function Messages() {
                         ariaLabel={selectedMuted ? 'Unmute conversation' : 'Mute conversation'}
                       />
                     )}
-                    {pushSupported() && (
-                      <ConversationHeaderAction
-                        onClick={handleTogglePush}
-                        icon={<Smartphone className="h-4 w-4" />}
-                        shortLabel={pushEnabled ? 'Notify off' : 'Notify on'}
-                        fullLabel={pushEnabled ? 'Turn off notifications globally' : 'Turn on notifications globally'}
-                        ariaLabel={pushEnabled ? 'Turn off message notifications' : 'Turn on message notifications'}
-                      />
-                    )}
+                    <ConversationHeaderAction
+                      onClick={handleTogglePush}
+                      icon={pushEnabled ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
+                      shortLabel={pushEnabled ? 'Notify off' : 'Notify on'}
+                      fullLabel={pushEnabled ? 'Turn off notifications globally' : 'Turn on notifications globally'}
+                      ariaLabel={pushEnabled ? 'Turn off message notifications' : 'Turn on message notifications'}
+                    />
                     {selectedTarget.type === 'channel' && selectedChannel?.visibility === 'staff_only' && (
                       <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">Staff only</span>
                     )}
@@ -2634,7 +2726,7 @@ export function Messages() {
                   </div>
                 )}
                 {!activeThreadRoot && (
-                  <div className="mt-2.5 flex min-w-0 flex-wrap items-center gap-1.5 sm:mt-3 sm:gap-2">
+                  <div className="mt-2.5 flex min-w-0 items-center gap-1.5 overflow-x-auto sm:mt-3 sm:gap-2">
                     <button
                       type="button"
                       onClick={() => setConversationView('messages')}
@@ -2671,7 +2763,7 @@ export function Messages() {
                   <div
                     ref={messageScrollRef}
                     onScroll={handleConversationScroll}
-                    className={`min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2 py-3 transition duration-200 sm:px-5 sm:py-5 ${loadingTarget || isNavigationPending ? 'opacity-60' : 'opacity-100'}`}
+                    className={`min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2 py-2 transition duration-200 sm:px-5 sm:py-5 ${loadingTarget || isNavigationPending ? 'opacity-60' : 'opacity-100'}`}
                   >
                   {activeThreadRoot && !showThreadPanel && (
                     <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
@@ -2759,16 +2851,16 @@ export function Messages() {
                       </div>
                     )
                   })}
-                  <div ref={bottomRef} />
                   </div>
-                  {hasUnreadBelow && conversationView === 'messages' && (
+                  {showScrollToLatest && conversationView === 'messages' && (
                     <button
                       type="button"
                       onClick={scrollToLatestMessage}
-                      className="absolute bottom-4 left-1/2 z-20 inline-flex -translate-x-1/2 items-center gap-2 rounded-full border border-primary-100 bg-white px-3 py-2 text-xs font-semibold text-primary-700 shadow-lg shadow-slate-900/10 transition hover:-translate-y-0.5 hover:border-primary-200 hover:bg-primary-50"
+                      className="absolute bottom-3 left-1/2 z-20 inline-flex min-h-10 -translate-x-1/2 items-center gap-2 rounded-full border border-primary-100 bg-white px-3.5 py-2 text-xs font-semibold text-primary-700 shadow-lg shadow-slate-900/10 transition hover:-translate-y-0.5 hover:border-primary-200 hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+                      aria-label={hasUnreadBelow ? 'Jump to new messages' : 'Jump to latest message'}
                     >
                       <ChevronDown className="h-4 w-4" />
-                      New messages
+                      {hasUnreadBelow ? 'New messages' : 'Jump to latest'}
                     </button>
                   )}
                 </div>
@@ -3502,45 +3594,69 @@ function ConversationButton({
   )
 }
 
-function FormattedMessage({ body, mentionPatterns }: { body: string; mentionPatterns: MentionPattern[] }) {
-  const segments = useMemo(() => parseMessageSegments(body), [body])
+export function FormattedMessage({ body, mentionPatterns = [] }: { body: string; mentionPatterns?: MentionPattern[] }) {
+  const blocks = useMemo(() => parseMessageBlocks(body), [body])
 
   if (!body) return null
 
   return (
-    <div className="mt-0.5 max-w-full space-y-0.5 overflow-hidden break-words text-sm leading-[1.45] text-slate-700 [overflow-wrap:anywhere]">
-      {segments.map((segment, index) => {
+    <div className="mt-0.5 max-w-full space-y-1 overflow-hidden break-words text-sm leading-[1.5] text-slate-700 [overflow-wrap:anywhere]">
+      {blocks.map((block, index) => {
         const key = `${index}-${
-          segment.type === 'code'
-            ? segment.code.slice(0, 12)
-            : segment.type === 'text'
-              ? segment.text.slice(0, 12)
+          block.type === 'code'
+            ? block.code.slice(0, 12)
+            : block.type === 'paragraph' || block.type === 'blockquote'
+              ? block.text.slice(0, 12)
               : 'spacer'
         }`
-        if (segment.type === 'spacer') {
+        if (block.type === 'spacer') {
           return <div key={key} className="h-0.5" aria-hidden="true" />
         }
 
-        if (segment.type === 'code') {
+        if (block.type === 'code') {
           return (
             <div key={key} className="max-w-full overflow-hidden rounded-lg bg-slate-900">
-              {segment.language && (
+              {block.language && (
                 <div className="border-b border-white/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                  {segment.language}
+                  {block.language}
                 </div>
               )}
               <pre className="max-w-full overflow-x-auto px-3 py-2 text-xs leading-5 text-slate-100">
-                <code>{segment.code}</code>
+                <code>{block.code}</code>
               </pre>
             </div>
           )
         }
 
-        return (
-          <p key={key} className="whitespace-pre-wrap">
-            {formatInline(segment.text, mentionPatterns)}
-          </p>
-        )
+        if (block.type === 'bulletList') {
+          return (
+            <ul key={key} className="ml-5 list-outside list-disc space-y-1 pr-1 marker:text-slate-400">
+              {block.items.map((item, itemIndex) => (
+                <li key={`${key}-${itemIndex}`} className="pl-1">{formatInline(item, mentionPatterns)}</li>
+              ))}
+            </ul>
+          )
+        }
+
+        if (block.type === 'orderedList') {
+          return (
+            <ol key={key} className="ml-5 list-outside list-decimal space-y-1 pr-1 marker:font-medium marker:text-slate-500">
+              {block.items.map((item, itemIndex) => (
+                <li key={`${key}-${itemIndex}`} className="pl-1">{formatInline(item, mentionPatterns)}</li>
+              ))}
+            </ol>
+          )
+        }
+
+        if (block.type === 'blockquote') {
+          return (
+            <blockquote key={key} className="border-l-2 border-slate-300 pl-3 text-slate-600">
+              <p className="whitespace-pre-wrap">{formatInline(block.text, mentionPatterns)}</p>
+            </blockquote>
+          )
+        }
+
+        return <p key={key} className="whitespace-pre-wrap">{formatInline(block.text, mentionPatterns)}</p>
       })}
     </div>
   )
@@ -3552,7 +3668,7 @@ function formatInline(text: string, mentionPatterns: MentionPattern[]) {
   const linkPattern = /\[([^\]]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi
 
   const appendFormattedText = (chunk: string, keyPrefix: string) => {
-    const pieces = chunk.split(/(\*\*[^*]+\*\*|_[^_]+_)/g)
+    const pieces = chunk.split(/(\*\*[^*]+\*\*|_[^_]+_|~~[^~]+~~|\+\+[^+]+\+\+)/g)
 
     pieces.forEach((piece, index) => {
       if (!piece) return
@@ -3564,6 +3680,14 @@ function formatInline(text: string, mentionPatterns: MentionPattern[]) {
       }
       if (piece.startsWith('_') && piece.endsWith('_')) {
         nodes.push(<em key={key}>{piece.slice(1, -1)}</em>)
+        return
+      }
+      if (piece.startsWith('~~') && piece.endsWith('~~')) {
+        nodes.push(<del key={key}>{piece.slice(2, -2)}</del>)
+        return
+      }
+      if (piece.startsWith('++') && piece.endsWith('++')) {
+        nodes.push(<u key={key}>{piece.slice(2, -2)}</u>)
         return
       }
 
@@ -3852,11 +3976,11 @@ function ConversationHeaderAction({
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-800 sm:min-h-0 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
+      className="inline-flex h-10 w-10 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
       aria-label={ariaLabel}
     >
       {icon}
-      <span className="sm:hidden">{shortLabel}</span>
+      <span className="sr-only">{shortLabel}</span>
       <span className="hidden sm:inline">{fullLabel}</span>
     </button>
   )
