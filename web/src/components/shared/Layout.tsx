@@ -286,6 +286,11 @@ export function Layout({ children }: LayoutProps) {
     onTouchStart: () => preloadRoute(path),
   })
   const studentBottomNav = studentNav.filter((item) => ['/dashboard', '/materials', '/messages', '/announcements'].includes(item.to))
+  const pageContentClassName = isMessagesRoute
+    ? 'h-full p-0 lg:p-4'
+    : isStaff
+      ? 'p-4 sm:p-6 lg:p-8'
+      : 'p-4 pb-24 sm:p-6 sm:pb-24 lg:p-8'
 
   return (
     <div className={isMessagesRoute ? 'h-dvh overflow-hidden bg-[#f7f8fa]' : 'min-h-screen bg-[#f7f8fa]'}>
@@ -496,7 +501,7 @@ export function Layout({ children }: LayoutProps) {
 
         {/* Main content */}
         <main id="main-content" tabIndex={-1} className={`flex-1 min-w-0 overflow-x-hidden ${mainMargin} transition-all duration-200 ${isMessagesRoute ? `${isStaff ? 'h-[calc(100dvh-3.5rem)]' : 'h-[calc(100dvh-7.75rem)]'} overflow-hidden lg:h-dvh` : ''}`}>
-          <div className={isMessagesRoute ? 'h-full p-0 lg:p-4' : 'p-4 pb-24 sm:p-6 sm:pb-24 lg:p-8'}>{children ?? <Outlet />}</div>
+          <div className={pageContentClassName}>{children ?? <Outlet />}</div>
         </main>
       </div>
 
