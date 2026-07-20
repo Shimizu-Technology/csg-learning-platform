@@ -15,4 +15,15 @@ describe('FormattedMessage', () => {
     expect(html).toContain('<del>Two</del>')
     expect(html.match(/<li/g)).toHaveLength(4)
   })
+
+  it('preserves combined marks and formatted link labels after sending', () => {
+    const html = renderToStaticMarkup(
+      <FormattedMessage body={'_**Bold italic**_ and [++underlined link++](https://example.com)'} />,
+    )
+
+    expect(html).toContain('<em><strong>Bold italic</strong></em>')
+    expect(html).toContain('<a')
+    expect(html).toContain('<u>underlined link</u>')
+    expect(html).toContain('href="https://example.com"')
+  })
 })

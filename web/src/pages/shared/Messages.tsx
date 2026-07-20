@@ -533,7 +533,7 @@ function splitTrailingUrlPunctuation(value: string) {
   return { href, trailing }
 }
 
-function renderLinkNode(text: string, href: string, key: string) {
+function renderLinkNode(text: ReactNode, href: string, key: string) {
   const normalizedHref = normalizeLinkHref(href)
   if (!normalizedHref) return <span key={key}>{text}</span>
 
@@ -3625,6 +3625,13 @@ function formatInline(text: string, mentionPatterns: MentionPattern[]) {
   const nodes: ReactNode[] = []
   const codePattern = /`[^`]+`/g
   const linkPattern = /\[([^\]]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi
+  const nestedFormatPattern = /(\*\*[^*]+\*\*|_[^_]+_|~~[^~]+~~|\+\+[^+]+\+\+|`[^`]+`|\[[^\]]+\]\([^)\s]+\)|https?:\/\/|www\.)/i
+
+  const renderNestedInline = (value: string) => (
+    nestedFormatPattern.test(value) || findMentionMatches(value, mentionPatterns).length > 0
+      ? formatInline(value, mentionPatterns)
+      : value
+  )
 
   const appendFormattedText = (chunk: string, keyPrefix: string) => {
     const pieces = chunk.split(/(\*\*[^*]+\*\*|_[^_]+_|~~[^~]+~~|\+\+[^+]+\+\+)/g)
@@ -3634,19 +3641,19 @@ function formatInline(text: string, mentionPatterns: MentionPattern[]) {
 
       const key = `${keyPrefix}-format-${index}-${piece}`
       if (piece.startsWith('**') && piece.endsWith('**')) {
-        nodes.push(<strong key={key}>{piece.slice(2, -2)}</strong>)
+        nodes.push(<strong key={key}>{renderNestedInline(piece.slice(2, -2))}</strong>)
         return
       }
       if (piece.startsWith('_') && piece.endsWith('_')) {
-        nodes.push(<em key={key}>{piece.slice(1, -1)}</em>)
+        nodes.push(<em key={key}>{renderNestedInline(piece.slice(1, -1))}</em>)
         return
       }
       if (piece.startsWith('~~') && piece.endsWith('~~')) {
-        nodes.push(<del key={key}>{piece.slice(2, -2)}</del>)
+        nodes.push(<del key={key}>{renderNestedInline(piece.slice(2, -2))}</del>)
         return
       }
       if (piece.startsWith('++') && piece.endsWith('++')) {
-        nodes.push(<u key={key}>{piece.slice(2, -2)}</u>)
+        nodes.push(<u key={key}>{renderNestedInline(piece.slice(2, -2))}</u>)
         return
       }
 
@@ -3665,7 +3672,11 @@ function formatInline(text: string, mentionPatterns: MentionPattern[]) {
       }
 
       if (match[1] !== undefined && match[2] !== undefined) {
-        nodes.push(renderLinkNode(match[1], match[2], `${keyPrefix}-markdown-link-${match.index}`))
+        nodes.push(renderLinkNode(
+          renderNestedInline(match[1]),
+          match[2],
+          `${keyPrefix}-markdown-link-${match.index}`,
+        ))
       } else {
         const { href, trailing } = splitTrailingUrlPunctuation(match[3])
         nodes.push(renderLinkNode(href, href, `${keyPrefix}-bare-link-${match.index}`))
