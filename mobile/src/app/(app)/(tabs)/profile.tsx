@@ -1,5 +1,5 @@
 import * as Application from 'expo-application';
-import { BellRing, ChevronRight, LogOut, ShieldCheck } from 'lucide-react-native';
+import { BellRing, LogOut, ShieldCheck } from 'lucide-react-native';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/avatar';
@@ -17,7 +17,7 @@ export default function ProfileScreen() {
       <View style={styles.person}><Avatar name={user?.full_name || 'CSG User'} size={62} /><View style={{ flex: 1 }}><Text style={styles.name}>{user?.full_name || 'Code School member'}</Text><Text style={styles.email}>{user?.email}</Text><View style={styles.role}><ShieldCheck color={palette.success} size={13} /><Text style={styles.roleText}>{user?.role || 'member'}</Text></View></View></View>
       {auth.demo && <View style={styles.demo}><Text style={styles.demoTitle}>Simulator walkthrough</Text><Text style={styles.demoCopy}>Local sample data is active. This mode is compiled out of production behavior.</Text></View>}
       <Text style={styles.sectionLabel}>PREFERENCES</Text>
-      <View style={styles.group}><View style={styles.setting}><View style={styles.settingIcon}><BellRing color={palette.rubySoft} size={19} /></View><View style={{ flex: 1 }}><Text style={styles.settingTitle}>Message notifications</Text><Text style={styles.settingCopy}>Managed per conversation from its header.</Text></View><ChevronRight color={palette.quiet} size={18} /></View></View>
+      <View style={styles.group}><View style={styles.setting}><View style={styles.settingIcon}><BellRing color={palette.rubySoft} size={19} /></View><View style={{ flex: 1 }}><Text style={styles.settingTitle}>Message notifications</Text><Text style={styles.settingCopy}>Managed per conversation from its header.</Text></View></View></View>
       <Pressable accessibilityRole="button" onPress={signOut} style={({ pressed }) => [styles.signOut, pressed && { opacity: 0.7 }]}><LogOut color={palette.rubySoft} size={19} /><Text style={styles.signOutText}>Sign out</Text></Pressable>
       <Text style={styles.version}>CSG Connect · Version {Application.nativeApplicationVersion || 'development'}</Text>
     </ScrollView></SafeAreaView>

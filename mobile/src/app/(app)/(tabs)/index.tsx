@@ -63,8 +63,8 @@ export default function InboxScreen() {
 
   return (
     <SafeAreaView edges={['top']} style={styles.safe}>
-      <View style={styles.header}><View><Text style={styles.eyebrow}>CSG CONNECT</Text><Text style={styles.heading}>Messages</Text><Text style={styles.subhead}>{unread ? `${unread} unread across your spaces` : 'You’re all caught up'}</Text></View><Pressable accessibilityLabel="Start a direct message" onPress={() => router.push('/compose')} style={styles.compose}><PenLine color={palette.text} size={21} /></Pressable></View>
-      <View style={styles.search}><Search color={palette.quiet} size={18} /><TextInput accessibilityLabel="Filter conversations" value={query} onChangeText={setQuery} placeholder="Find a conversation" placeholderTextColor={palette.quiet} style={styles.input} /><Pressable onPress={() => router.push('/search')}><Text style={styles.searchAll}>Search all</Text></Pressable></View>
+      <View style={styles.header}><View><Text style={styles.eyebrow}>CSG CONNECT</Text><Text style={styles.heading}>Messages</Text><Text style={styles.subhead}>{unread ? `${unread} unread across your spaces` : 'You’re all caught up'}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Start a direct message" onPress={() => router.push('/compose')} style={styles.compose}><PenLine color={palette.text} size={21} /></Pressable></View>
+      <View style={styles.search}><Search color={palette.quiet} size={18} /><TextInput accessibilityLabel="Filter conversations" value={query} onChangeText={setQuery} placeholder="Find a conversation" placeholderTextColor={palette.quiet} style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel="Search all messages" onPress={() => router.push('/search')} style={styles.searchAllButton}><Text style={styles.searchAll}>Search all</Text></Pressable></View>
       {loading ? <LoadingState /> : error ? <ErrorState message={error} retry={() => void load()} /> : (
         <ScrollView keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={palette.rubySoft} />} contentContainerStyle={styles.content}>
           {visibleDms.length > 0 && <View style={styles.section}><Text style={styles.label}>DIRECT</Text>{visibleDms.map((item) => <ConversationRow key={`dm-${item.id}`} kind="dm" item={item} onPress={() => open('dm', item.id)} />)}</View>}
@@ -85,6 +85,7 @@ const styles = StyleSheet.create({
   compose: { width: 48, height: 48, borderRadius: 16, backgroundColor: palette.ruby, alignItems: 'center', justifyContent: 'center' },
   search: { marginHorizontal: 20, minHeight: 48, borderRadius: 16, backgroundColor: palette.panel, borderWidth: 1, borderColor: palette.line, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
   input: { flex: 1, color: palette.text, fontFamily: fonts.regular, fontSize: 14, paddingVertical: 12 },
+  searchAllButton: { minHeight: 44, justifyContent: 'center' },
   searchAll: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 11 },
   content: { paddingHorizontal: 20, paddingTop: 26, paddingBottom: 30 },
   section: { marginBottom: 28 },

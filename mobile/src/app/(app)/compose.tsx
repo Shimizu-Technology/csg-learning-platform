@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
   title: { color: palette.text, fontFamily: fonts.bold, fontSize: 20 },
   copy: { color: palette.muted, fontFamily: fonts.regular, fontSize: 13, lineHeight: 20, textAlign: 'center', maxWidth: 300, marginTop: 5 },
   workspaces: { paddingHorizontal: 20, gap: 8, paddingBottom: 12 },
-  workspace: { maxWidth: 180, height: 38, borderRadius: 13, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panel, justifyContent: 'center', paddingHorizontal: 14 },
+  workspace: { maxWidth: 180, height: 44, borderRadius: 13, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panel, justifyContent: 'center', paddingHorizontal: 14 },
   workspaceActive: { borderColor: '#5B2630', backgroundColor: '#2A151B' },
   workspaceText: { color: palette.muted, fontFamily: fonts.semibold, fontSize: 12 },
   workspaceTextActive: { color: palette.rubySoft },
