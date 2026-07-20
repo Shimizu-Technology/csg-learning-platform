@@ -6,7 +6,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import TiptapLink from '@tiptap/extension-link'
 import UnderlineExtension from '@tiptap/extension-underline'
-import { Extension, type Editor, type JSONContent } from '@tiptap/core'
+import { Extension, type Editor } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import {
@@ -56,7 +56,7 @@ import { api } from '../../lib/api'
 import { subscribeToUserMessages } from '../../lib/realtime'
 import { disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
 import { formatFileSize, uploadToS3 } from '../../lib/uploadToS3'
-import { parseMessageBlocks } from '../../lib/messageFormat'
+import { editorJsonToMarkdown, parseMessageBlocks } from '../../lib/messageFormat'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { MessagesLoadingShell } from '../../components/shared/MessagesLoadingShell'
@@ -663,48 +663,6 @@ const MentionHighlightExtension = Extension.create<{ getPatterns: () => MentionP
     ]
   },
 })
-
-function editorJsonToMarkdown(node?: JSONContent): string {
-  if (!node) return ''
-  if (node.type === 'text') {
-    return applyMarks(node.text || '', node.marks || [])
-  }
-
-  const children = (node.content || []).map((child) => editorJsonToMarkdown(child))
-
-  switch (node.type) {
-    case 'doc':
-      return children.join('\n\n').trim()
-    case 'paragraph':
-      return children.join('')
-    case 'hardBreak':
-      return '\n'
-    case 'codeBlock':
-      return `\`\`\`\n${children.join('')}\n\`\`\``
-    case 'blockquote':
-      return children.join('\n').split('\n').map((line) => `> ${line}`).join('\n')
-    case 'bulletList':
-      return children.join('\n')
-    case 'orderedList':
-      return children.map((child, index) => `${index + 1}. ${child.replace(/^\s*[-*]\s*/, '')}`).join('\n')
-    case 'listItem':
-      return `- ${children.join('').replace(/\n/g, '\n  ')}`
-    default:
-      return children.join('')
-  }
-}
-
-function applyMarks(text: string, marks: NonNullable<JSONContent['marks']>) {
-  return marks.reduce((value, mark) => {
-    if (mark.type === 'bold') return `**${value}**`
-    if (mark.type === 'italic') return `_${value}_`
-    if (mark.type === 'underline') return `++${value}++`
-    if (mark.type === 'strike') return `~~${value}~~`
-    if (mark.type === 'code') return `\`${value}\``
-    if (mark.type === 'link') return `[${value}](${mark.attrs?.href || value})`
-    return value
-  }, text)
-}
 
 export function Messages() {
   const { channelId, dmId } = useParams()

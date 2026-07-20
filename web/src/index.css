@@ -153,9 +153,65 @@ body {
 }
 
 .message-composer ul,
-.message-composer ol {
+.message-composer ol,
+.exercise-content ul,
+.exercise-content ol {
   margin: 0.25rem 0;
   padding-left: 1.25rem;
+}
+
+/* Tailwind's reset removes list markers, so TipTap lists need them restored. */
+.message-composer ul,
+.exercise-content ul {
+  list-style-type: disc;
+}
+
+.message-composer ol,
+.exercise-content ol {
+  list-style-type: decimal;
+}
+
+.message-composer ul ul,
+.exercise-content ul ul {
+  list-style-type: circle;
+}
+
+.message-composer ul ul ul,
+.exercise-content ul ul ul {
+  list-style-type: square;
+}
+
+.message-composer li,
+.exercise-content li {
+  padding-left: 0.125rem;
+}
+
+.message-composer li::marker,
+.exercise-content li::marker {
+  color: #64748b;
+  font-weight: 600;
+}
+
+.message-composer li > p,
+.exercise-content li > p {
+  margin: 0;
+}
+
+.message-composer li + li {
+  margin-top: 0.125rem;
+}
+
+.message-composer a {
+  color: #b91c1c;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: #fca5a5;
+  text-underline-offset: 0.15em;
+}
+
+.message-composer a:hover {
+  color: #991b1b;
+  text-decoration-color: currentColor;
 }
 
 .message-composer blockquote {

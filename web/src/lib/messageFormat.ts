@@ -1,3 +1,5 @@
+import type { JSONContent } from '@tiptap/core'
+
 export type MessageBlock =
   | { type: 'paragraph'; text: string }
   | { type: 'bulletList'; items: string[] }
@@ -100,4 +102,57 @@ export function parseMessageBlocks(body: string): MessageBlock[] {
 
   while (blocks.at(-1)?.type === 'spacer') blocks.pop()
   return blocks.length > 0 ? blocks : [{ type: 'paragraph', text: body }]
+}
+
+export function editorJsonToMarkdown(node?: JSONContent): string {
+  if (!node) return ''
+  if (node.type === 'text') return applyMarks(node.text || '', node.marks || [])
+
+  if (node.type === 'bulletList' || node.type === 'orderedList') {
+    return serializeList(node, node.type === 'orderedList')
+  }
+
+  const children = (node.content || []).map((child) => editorJsonToMarkdown(child))
+
+  switch (node.type) {
+    case 'doc':
+      return children.join('\n\n').trim()
+    case 'paragraph':
+      return children.join('')
+    case 'hardBreak':
+      return '\n'
+    case 'codeBlock':
+      return `\`\`\`\n${children.join('')}\n\`\`\``
+    case 'blockquote':
+      return children.join('\n').split('\n').map((line) => `> ${line}`).join('\n')
+    default:
+      return children.join('')
+  }
+}
+
+function serializeList(node: JSONContent, ordered: boolean): string {
+  return (node.content || []).map((item, index) => {
+    const marker = ordered ? `${index + 1}.` : '-'
+    const [firstChild, ...remainingChildren] = item.content || []
+    const firstLine = firstChild ? editorJsonToMarkdown(firstChild) : ''
+    const continuation = remainingChildren
+      .map((child) => editorJsonToMarkdown(child))
+      .filter(Boolean)
+      .map((value) => value.split('\n').map((line) => `  ${line}`).join('\n'))
+      .join('\n')
+
+    return continuation ? `${marker} ${firstLine}\n${continuation}` : `${marker} ${firstLine}`
+  }).join('\n')
+}
+
+function applyMarks(text: string, marks: NonNullable<JSONContent['marks']>) {
+  return marks.reduce((value, mark) => {
+    if (mark.type === 'bold') return `**${value}**`
+    if (mark.type === 'italic') return `_${value}_`
+    if (mark.type === 'underline') return `++${value}++`
+    if (mark.type === 'strike') return `~~${value}~~`
+    if (mark.type === 'code') return `\`${value}\``
+    if (mark.type === 'link') return `[${value}](${mark.attrs?.href || value})`
+    return value
+  }, text)
 }
