@@ -54,25 +54,26 @@ export function LessonView() {
   const redoBlocks = lesson.content_blocks.filter((block: any) => block.submissions?.[0]?.grade === 'R')
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <article className="app-page max-w-3xl">
       {/* Back link */}
       <Link
         to={`/modules/${lesson.module_id}`}
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
+        className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900"
       >
         <ChevronLeft className="h-4 w-4" />
         Back to Module
       </Link>
 
       {/* Lesson header */}
-      <div className="rounded-2xl bg-white border border-slate-200 p-6">
-        <h1 className="text-xl font-bold text-slate-900">{lesson.title}</h1>
+      <header className="relative overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_16px_50px_rgba(15,23,42,0.05)] before:absolute before:inset-y-0 before:left-0 before:w-1.5 before:bg-primary-600">
+        <p className="app-eyebrow">Lesson</p>
+        <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">{lesson.title}</h1>
         <div className="mt-1 flex items-center gap-2 text-sm text-slate-500">
           <span className="capitalize">{lesson.lesson_type}</span>
           <span>· {lesson.content_blocks.length} blocks</span>
           {lesson.required && <span className="text-primary-500 font-medium">Required</span>}
         </div>
-      </div>
+      </header>
 
       {lesson.submission_window?.submissions_close_at && (
         <div className={`rounded-2xl border p-4 ${lesson.submission_window.submissions_closed ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}`}>
@@ -156,6 +157,6 @@ export function LessonView() {
           </Link>
         )}
       </div>
-    </div>
+    </article>
   )
 }

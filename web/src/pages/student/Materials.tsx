@@ -215,19 +215,19 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
   ]
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="app-page">
       {showingSavedData && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           Showing saved materials while your connection catches up.
         </div>
       )}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6">
+      <header className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_16px_50px_rgba(15,23,42,0.05)] sm:p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm font-medium text-primary-600">{data.cohort?.name || 'Your cohort'}</p>
-            <h1 className="mt-1 text-2xl font-bold text-slate-900">Materials</h1>
-            <p className="mt-1 max-w-2xl text-sm text-slate-500">
-              Find your lessons, exercises, and upcoming work without going back through the dashboard.
+            <p className="app-eyebrow">{data.cohort?.name || 'Your cohort'}</p>
+            <h1 className="app-title mt-2">Learn</h1>
+            <p className="app-description mt-2">
+              Your complete learning path—ready work first, with everything else easy to find.
             </p>
           </div>
           <div className="grid grid-cols-3 gap-2 text-center sm:min-w-[360px]">
@@ -245,7 +245,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
             </div>
           </div>
         </div>
-      </div>
+      </header>
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="relative flex-1">
@@ -255,7 +255,8 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search lessons or modules..."
-            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            aria-label="Search lessons or modules"
+            className="app-control w-full pl-10"
           />
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1">
@@ -264,7 +265,8 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
               key={item.key}
               type="button"
               onClick={() => setFilter(item.key)}
-              className={`shrink-0 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+              aria-pressed={filter === item.key}
+              className={`min-h-11 shrink-0 rounded-full border px-3.5 py-2 text-sm font-bold transition-colors ${
                 filter === item.key
                   ? 'border-primary-200 bg-primary-50 text-primary-700'
                   : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
@@ -335,11 +337,12 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
             const isCollapsed = !derived.hasActiveSearch && collapsedModules.has(mod.id)
 
             return (
-            <section key={mod.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <section key={mod.id} className="app-surface relative overflow-hidden before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-primary-500/70">
               <button
                 type="button"
                 onClick={() => toggleModuleCollapsed(mod.id)}
-                className="flex w-full flex-col gap-3 p-5 text-left hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between"
+                aria-expanded={!isCollapsed}
+                className="flex min-h-14 w-full flex-col gap-3 p-5 pl-6 text-left transition-colors hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0">
                   <div className="flex min-w-0 items-center gap-2">

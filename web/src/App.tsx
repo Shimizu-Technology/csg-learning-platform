@@ -1,4 +1,4 @@
-import { Suspense, type ReactNode } from 'react'
+import { Suspense, useEffect, type ReactNode } from 'react'
 import { BrowserRouter, Navigate, Routes, Route, useLocation } from 'react-router-dom'
 import { PostHogPageView } from './providers/PostHogProvider'
 import { Layout } from './components/shared/Layout'
@@ -7,6 +7,7 @@ import { LoadingSpinner } from './components/shared/LoadingSpinner'
 import { MessagesLoadingShell } from './components/shared/MessagesLoadingShell'
 import { UploadProvider } from './contexts/UploadContext'
 import { ToastProvider } from './contexts/ToastContext'
+import { ConfirmProvider } from './contexts/ConfirmContext'
 import {
   AdminDashboard,
   Announcements,
@@ -48,10 +49,47 @@ function SuspendedRoute({ children }: { children: ReactNode }) {
   return <Suspense fallback={<RouteLoadingFallback />}>{children}</Suspense>
 }
 
+const routeTitles: Array<[RegExp, string]> = [
+  [/^\/$/, 'CSG Learning Hub'],
+  [/^\/sign-in/, 'Sign in'],
+  [/^\/sign-up/, 'Create account'],
+  [/^\/dashboard/, 'Today'],
+  [/^\/materials/, 'Learn'],
+  [/^\/modules\//, 'Module'],
+  [/^\/lessons\//, 'Lesson'],
+  [/^\/recordings/, 'Class recordings'],
+  [/^\/resources/, 'Class resources'],
+  [/^\/messages/, 'Messages'],
+  [/^\/announcements/, 'Updates'],
+  [/^\/profile/, 'Profile'],
+  [/^\/admin\/students\//, 'Student detail'],
+  [/^\/admin\/students/, 'Students'],
+  [/^\/admin\/cohorts\/[^/]+\/modules\//, 'Module grading'],
+  [/^\/admin\/cohorts\/[^/]+\/watch-progress/, 'Watch progress'],
+  [/^\/admin\/cohorts\//, 'Cohort workspace'],
+  [/^\/admin\/cohorts/, 'Cohorts'],
+  [/^\/admin\/grading/, 'Grading inbox'],
+  [/^\/admin\/content/, 'Content'],
+  [/^\/admin\/team/, 'Team'],
+  [/^\/admin/, 'Staff home'],
+]
+
+function RouteTitle() {
+  const location = useLocation()
+
+  useEffect(() => {
+    const title = routeTitles.find(([pattern]) => pattern.test(location.pathname))?.[1] || 'CSG Learning Hub'
+    document.title = `${title} | Code School of Guam`
+  }, [location.pathname])
+
+  return null
+}
+
 function AppRoutes() {
   return (
     <>
       <PostHogPageView />
+      <RouteTitle />
       <Routes>
         <Route path="/" element={<SuspendedRoute><HomePage /></SuspendedRoute>} />
         <Route path="/sign-in" element={<SuspendedRoute><SignInPage /></SuspendedRoute>} />
@@ -107,9 +145,11 @@ function App() {
   return (
     <BrowserRouter>
       <ToastProvider>
-        <UploadProvider>
-          <AppRoutes />
-        </UploadProvider>
+        <ConfirmProvider>
+          <UploadProvider>
+            <AppRoutes />
+          </UploadProvider>
+        </ConfirmProvider>
       </ToastProvider>
     </BrowserRouter>
   )

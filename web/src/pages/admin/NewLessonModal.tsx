@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
-import { X } from 'lucide-react'
 import { ALL_DAY_NAMES, SCHEDULE_DAY_INDICES } from '../../lib/scheduleConstants'
+import { Modal } from '../../components/shared/Modal'
+import { Button } from '../../components/ui/Button'
 
 interface Props {
   moduleName: string
@@ -65,19 +66,7 @@ export function NewLessonModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-slate-900">New Lesson</h2>
-          <button
-            onClick={onClose}
-            disabled={saving}
-            className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <p className="text-sm text-slate-500 mb-4">Adding to: <span className="font-medium text-slate-700">{moduleName}</span></p>
+    <Modal open title="New lesson" subtitle={`Adding to ${moduleName}`} size="md" onClose={onClose}>
         {(validationError || error) && <p className="text-sm text-red-600 mb-3">{validationError || error}</p>}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -87,7 +76,7 @@ export function NewLessonModal({
               value={title}
               onChange={e => setTitle(e.target.value)}
               placeholder="e.g. Introduction to Ruby"
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="app-control"
               autoFocus
             />
           </div>
@@ -96,7 +85,7 @@ export function NewLessonModal({
             <select
               value={lessonType}
               onChange={e => setLessonType(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="app-control"
             >
               {LESSON_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
@@ -107,7 +96,7 @@ export function NewLessonModal({
               <select
                 value={week}
                 onChange={e => setWeek(Number(e.target.value))}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="app-control"
               >
                 {weekOptions.map(w => <option key={w} value={w}>Week {w}</option>)}
               </select>
@@ -117,7 +106,7 @@ export function NewLessonModal({
               <select
                 value={dayIndex}
                 onChange={e => setDayIndex(Number(e.target.value))}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="app-control"
               >
                 {availableDays.map(d => <option key={d.index} value={d.index}>{d.name}</option>)}
               </select>
@@ -128,24 +117,20 @@ export function NewLessonModal({
           </p>
           <input type="hidden" value={position} />
           <div className="flex gap-3 pt-2">
-            <button
+            <Button
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="flex-1 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              variant="secondary"
+              className="flex-1"
             >
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex-1 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
-            >
-              {saving ? 'Creating...' : 'Create & Edit'}
-            </button>
+            </Button>
+            <Button type="submit" disabled={saving} className="flex-1">
+              {saving ? 'Creating...' : 'Create and edit'}
+            </Button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   )
 }

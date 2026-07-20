@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { Modal } from '../../components/shared/Modal'
+import { Button } from '../../components/ui/Button'
 
 interface Props {
   defaultPosition: number
@@ -50,18 +51,7 @@ export function NewModuleModal({ defaultPosition, saving, error, onClose, onCrea
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-slate-900">New Module</h2>
-          <button
-            onClick={onClose}
-            disabled={saving}
-            className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+    <Modal open title="New module" subtitle="Set the module type and the days when learning content appears." size="md" onClose={onClose}>
         {(validationError || error) && <p className="text-sm text-red-600 mb-3">{validationError || error}</p>}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -71,7 +61,7 @@ export function NewModuleModal({ defaultPosition, saving, error, onClose, onCrea
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="e.g. Live Class"
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="app-control"
               autoFocus
             />
           </div>
@@ -80,7 +70,7 @@ export function NewModuleModal({ defaultPosition, saving, error, onClose, onCrea
             <select
               value={moduleType}
               onChange={e => setModuleType(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="app-control"
             >
               {MODULE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
@@ -90,28 +80,27 @@ export function NewModuleModal({ defaultPosition, saving, error, onClose, onCrea
             <select
               value={scheduleDays}
               onChange={e => setScheduleDays(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="app-control"
             >
               {SCHEDULE_PATTERNS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
             <p className="mt-1 text-xs text-slate-400">Which days of the week will have content</p>
           </div>
           <div className="flex gap-3 pt-2">
-            <button
+            <Button
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="flex-1 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              variant="secondary"
+              className="flex-1"
             >
               Cancel
-            </button>
-            <button type="submit" disabled={saving}
-              className="flex-1 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50 transition-colors">
-              {saving ? 'Creating...' : 'Create Module'}
-            </button>
+            </Button>
+            <Button type="submit" disabled={saving} className="flex-1">
+              {saving ? 'Creating...' : 'Create module'}
+            </Button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   )
 }

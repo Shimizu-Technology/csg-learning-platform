@@ -97,15 +97,16 @@ export function ModuleView() {
   const progressMax = moduleProgress?.totalBlocks ?? totalLessons
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="app-page max-w-5xl">
       {/* Header */}
       <div>
-        <Link to="/dashboard" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
+        <Link to="/materials" className="mb-4 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900">
           <ArrowLeft className="h-4 w-4" />
-          Back to Dashboard
+          Back to Learn
         </Link>
-        <div className="rounded-2xl bg-white border border-slate-200 p-6">
-          <h1 className="text-2xl font-bold text-slate-900">{mod.name}</h1>
+        <div className="relative overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_16px_50px_rgba(15,23,42,0.05)] before:absolute before:inset-y-0 before:left-0 before:w-1.5 before:bg-primary-600">
+          <p className="app-eyebrow">Learning path</p>
+          <h1 className="app-title mt-2">{mod.name}</h1>
           {mod.description && <p className="mt-2 text-slate-500">{mod.description}</p>}
           <div className="mt-4">
             <ProgressBar value={progressValue} max={progressMax} label="Progress" />
@@ -152,7 +153,7 @@ export function ModuleView() {
                               <Link
                                 key={lesson.id}
                                 to={`/lessons/${lesson.id}`}
-                                className="flex items-center gap-3 rounded-2xl bg-white border border-slate-200 p-4 hover:border-primary-200 hover:shadow-sm transition-all"
+                                className="group flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition duration-200 hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-md hover:shadow-slate-900/5 sm:items-center"
                               >
                                 <div className={`shrink-0 ${isCompleted ? 'text-success-500' : 'text-slate-400'}`}>
                                   {isCompleted ? <CheckCircle2 className="h-5 w-5" /> : lessonTypeIcons[lesson.lesson_type] || <FileText className="h-5 w-5" />}
@@ -161,7 +162,7 @@ export function ModuleView() {
                                   <p className={`text-sm font-medium ${isCompleted ? 'text-slate-500' : 'text-slate-900'}`}>
                                     {lesson.title}
                                   </p>
-                                  <div className="flex items-center gap-2 mt-0.5">
+                                  <div className="mt-0.5 flex flex-wrap items-center gap-2">
                                     <span className="text-xs text-slate-400 capitalize">{lesson.lesson_type}</span>
                                     <span className="text-xs text-slate-400">· {(lessonProgress?.totalBlocks || lesson.content_blocks.length)} blocks</span>
                                     {isPartial && (

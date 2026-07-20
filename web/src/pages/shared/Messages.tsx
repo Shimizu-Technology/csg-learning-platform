@@ -6,7 +6,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import TiptapLink from '@tiptap/extension-link'
 import UnderlineExtension from '@tiptap/extension-underline'
-import { Extension, type Editor, type JSONContent } from '@tiptap/core'
+import { Extension, type Editor } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import {
@@ -56,7 +56,7 @@ import { api } from '../../lib/api'
 import { subscribeToUserMessages } from '../../lib/realtime'
 import { disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
 import { formatFileSize, uploadToS3 } from '../../lib/uploadToS3'
-import { parseMessageBlocks } from '../../lib/messageFormat'
+import { editorJsonToMarkdown, normalizeMessageMarkdown, parseMessageBlocks } from '../../lib/messageFormat'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { MessagesLoadingShell } from '../../components/shared/MessagesLoadingShell'
@@ -533,7 +533,7 @@ function splitTrailingUrlPunctuation(value: string) {
   return { href, trailing }
 }
 
-function renderLinkNode(text: string, href: string, key: string) {
+function renderLinkNode(text: ReactNode, href: string, key: string) {
   const normalizedHref = normalizeLinkHref(href)
   if (!normalizedHref) return <span key={key}>{text}</span>
 
@@ -663,48 +663,6 @@ const MentionHighlightExtension = Extension.create<{ getPatterns: () => MentionP
     ]
   },
 })
-
-function editorJsonToMarkdown(node?: JSONContent): string {
-  if (!node) return ''
-  if (node.type === 'text') {
-    return applyMarks(node.text || '', node.marks || [])
-  }
-
-  const children = (node.content || []).map((child) => editorJsonToMarkdown(child))
-
-  switch (node.type) {
-    case 'doc':
-      return children.join('\n\n').trim()
-    case 'paragraph':
-      return children.join('')
-    case 'hardBreak':
-      return '\n'
-    case 'codeBlock':
-      return `\`\`\`\n${children.join('')}\n\`\`\``
-    case 'blockquote':
-      return children.join('\n').split('\n').map((line) => `> ${line}`).join('\n')
-    case 'bulletList':
-      return children.join('\n')
-    case 'orderedList':
-      return children.map((child, index) => `${index + 1}. ${child.replace(/^\s*[-*]\s*/, '')}`).join('\n')
-    case 'listItem':
-      return `- ${children.join('').replace(/\n/g, '\n  ')}`
-    default:
-      return children.join('')
-  }
-}
-
-function applyMarks(text: string, marks: NonNullable<JSONContent['marks']>) {
-  return marks.reduce((value, mark) => {
-    if (mark.type === 'bold') return `**${value}**`
-    if (mark.type === 'italic') return `_${value}_`
-    if (mark.type === 'underline') return `++${value}++`
-    if (mark.type === 'strike') return `~~${value}~~`
-    if (mark.type === 'code') return `\`${value}\``
-    if (mark.type === 'link') return `[${value}](${mark.attrs?.href || value})`
-    return value
-  }, text)
-}
 
 export function Messages() {
   const { channelId, dmId } = useParams()
@@ -1721,7 +1679,7 @@ export function Messages() {
     event.preventDefault()
     if (!selectedTarget || !user) return
 
-    const submittedBody = (editor ? editorJsonToMarkdown(editor.getJSON()) : body).trim()
+    const submittedBody = normalizeMessageMarkdown(editor ? editorJsonToMarkdown(editor.getJSON()) : body)
     const submittedAttachments = pendingAttachments
     const threadRoot = activeThreadRoot
     const mentionUserIds = resolveMentionedUserIds(submittedBody, mentionableUsers, composerMentionUserIds)
@@ -2149,10 +2107,11 @@ export function Messages() {
   }
 
   const saveEdit = async (message: ChannelMessage) => {
-    if (!editBody.trim()) return
+    const normalizedBody = normalizeMessageMarkdown(editBody)
+    if (!normalizedBody) return
 
-    const mentionUserIds = resolveMentionedUserIds(editBody.trim(), mentionableUsers, message.mention_user_ids)
-    const res = await api.updateMessage(message.id, { body: editBody.trim(), mention_user_ids: mentionUserIds })
+    const mentionUserIds = resolveMentionedUserIds(normalizedBody, mentionableUsers, message.mention_user_ids)
+    const res = await api.updateMessage(message.id, { body: normalizedBody, mention_user_ids: mentionUserIds })
     if (res.data) {
       setMessages((prev) => prev.map((item) => item.id === message.id ? res.data!.message : item))
       setPinnedMessages((prev) => upsertPinnedMessage(prev, res.data!.message))
@@ -2362,11 +2321,11 @@ export function Messages() {
     <div className={`mx-auto flex h-full w-full max-w-[1500px] min-w-0 flex-col ${showPageIntro ? 'min-h-0 gap-4 p-4 lg:p-0' : 'min-h-0 gap-0 overflow-hidden'}`}>
       {showPageIntro && (
       <div>
-        <p className="text-sm font-medium text-primary-600">Communication</p>
+        <p className="app-eyebrow">Communication</p>
         <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Messages</h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <h1 className="app-title mt-2">Messages</h1>
+            <p className="app-description mt-2">
               Workspace messaging for cohorts, alumni, staff groups, direct messages, files, and quick decisions.
               {realtimeStatus === 'connected' && <span className="ml-2 text-green-600">Live</span>}
               {realtimeStatus === 'error' && <span className="ml-2 text-amber-600">Reconnecting with refresh fallback</span>}
@@ -2377,7 +2336,7 @@ export function Messages() {
               <button
                 type="button"
                 onClick={handleTogglePush}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
               >
                 {pushEnabled ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
                 {pushEnabled ? 'Turn off notifications globally' : 'Turn on notifications globally'}
@@ -2393,7 +2352,7 @@ export function Messages() {
       </div>
       )}
 
-      <div className={`${isDesktop ? 'grid overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_20px_54px_-42px_rgba(15,23,42,0.55)]' : 'flex min-w-0 overflow-hidden border-y border-slate-200 bg-white'} min-h-0 flex-1 ${isDesktop ? (sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[328px_minmax(0,1fr)]') : ''}`}>
+      <div className={`${isDesktop ? 'grid overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-white shadow-[0_20px_54px_-42px_rgba(15,23,42,0.55)]' : 'flex min-w-0 overflow-hidden border-y border-slate-200 bg-white'} min-h-0 flex-1 ${isDesktop ? (sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[328px_minmax(0,1fr)]') : ''}`}>
         {showListPane && !sidebarCollapsed && (
         <aside className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-slate-50 ${isDesktop ? 'border-b border-slate-200 lg:border-b-0 lg:border-r' : ''}`}>
           <div className="shrink-0 border-b border-slate-200 bg-white p-2.5 sm:p-3">
@@ -2409,7 +2368,7 @@ export function Messages() {
                       setShowWorkspaceForm(true)
                       setWorkspaceError('')
                     }}
-                    className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                     aria-label="Create workspace"
                   >
                     <Plus className="h-4 w-4" />
@@ -2417,7 +2376,7 @@ export function Messages() {
                 )}
                 <button
                   onClick={loadLists}
-                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                   aria-label="Refresh messages"
                 >
                   <RefreshCw className="h-4 w-4" />
@@ -2425,7 +2384,7 @@ export function Messages() {
                 {isDesktop && (
                   <button
                     onClick={() => setSidebarCollapsed(true)}
-                    className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                     aria-label="Collapse conversation list"
                   >
                     <PanelLeftClose className="h-4 w-4" />
@@ -2524,7 +2483,8 @@ export function Messages() {
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder="Search messages"
-                className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-base focus:outline-none focus:ring-2 focus:ring-primary-500 sm:text-sm"
+                aria-label="Search messages"
+                className="app-control w-full pl-9 text-base sm:text-sm"
               />
               {searchResults.length > 0 && (
                 <div className="absolute z-20 mt-2 max-h-80 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
@@ -3666,6 +3626,13 @@ function formatInline(text: string, mentionPatterns: MentionPattern[]) {
   const nodes: ReactNode[] = []
   const codePattern = /`[^`]+`/g
   const linkPattern = /\[([^\]]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi
+  const nestedFormatPattern = /(\*\*[^*]+\*\*|_[^_]+_|~~[^~]+~~|\+\+[^+]+\+\+|`[^`]+`|\[[^\]]+\]\([^)\s]+\)|https?:\/\/|www\.)/i
+
+  const renderNestedInline = (value: string) => (
+    nestedFormatPattern.test(value) || findMentionMatches(value, mentionPatterns).length > 0
+      ? formatInline(value, mentionPatterns)
+      : value
+  )
 
   const appendFormattedText = (chunk: string, keyPrefix: string) => {
     const pieces = chunk.split(/(\*\*[^*]+\*\*|_[^_]+_|~~[^~]+~~|\+\+[^+]+\+\+)/g)
@@ -3675,19 +3642,19 @@ function formatInline(text: string, mentionPatterns: MentionPattern[]) {
 
       const key = `${keyPrefix}-format-${index}-${piece}`
       if (piece.startsWith('**') && piece.endsWith('**')) {
-        nodes.push(<strong key={key}>{piece.slice(2, -2)}</strong>)
+        nodes.push(<strong key={key}>{renderNestedInline(piece.slice(2, -2))}</strong>)
         return
       }
       if (piece.startsWith('_') && piece.endsWith('_')) {
-        nodes.push(<em key={key}>{piece.slice(1, -1)}</em>)
+        nodes.push(<em key={key}>{renderNestedInline(piece.slice(1, -1))}</em>)
         return
       }
       if (piece.startsWith('~~') && piece.endsWith('~~')) {
-        nodes.push(<del key={key}>{piece.slice(2, -2)}</del>)
+        nodes.push(<del key={key}>{renderNestedInline(piece.slice(2, -2))}</del>)
         return
       }
       if (piece.startsWith('++') && piece.endsWith('++')) {
-        nodes.push(<u key={key}>{piece.slice(2, -2)}</u>)
+        nodes.push(<u key={key}>{renderNestedInline(piece.slice(2, -2))}</u>)
         return
       }
 
@@ -3706,7 +3673,11 @@ function formatInline(text: string, mentionPatterns: MentionPattern[]) {
       }
 
       if (match[1] !== undefined && match[2] !== undefined) {
-        nodes.push(renderLinkNode(match[1], match[2], `${keyPrefix}-markdown-link-${match.index}`))
+        nodes.push(renderLinkNode(
+          renderNestedInline(match[1]),
+          match[2],
+          `${keyPrefix}-markdown-link-${match.index}`,
+        ))
       } else {
         const { href, trailing } = splitTrailingUrlPunctuation(match[3])
         nodes.push(renderLinkNode(href, href, `${keyPrefix}-bare-link-${match.index}`))
@@ -3823,18 +3794,12 @@ function MessageRow({
           </div>
         )}
         {editing ? (
-          <div className="mt-2">
-            <textarea
-              value={editBody}
-              onChange={(event) => setEditBody(event.target.value)}
-              rows={3}
-              className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
-            <div className="mt-2 flex gap-2">
-              <button onClick={onSaveEdit} className="rounded-lg bg-primary-500 px-3 py-1.5 text-xs font-medium text-white">Save</button>
-              <button onClick={onCancelEdit} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600">Cancel</button>
-            </div>
-          </div>
+          <MessageEditSurface
+            value={editBody}
+            onChange={setEditBody}
+            onSave={onSaveEdit}
+            onCancel={onCancelEdit}
+          />
         ) : (
           <FormattedMessage body={message.body} mentionPatterns={mentionPatterns} />
         )}
@@ -3887,7 +3852,7 @@ function MessageRow({
                 <button
                   type="button"
                   onClick={() => onReact(reaction.emoji)}
-                  className={`inline-flex min-h-7 items-center gap-1.5 rounded-lg border px-2 py-1 text-xs ${reaction?.reacted ? 'border-primary-200 bg-primary-50 text-primary-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                  className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs ${reaction?.reacted ? 'border-primary-200 bg-primary-50 text-primary-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
                   aria-label={`${reactionDisplay.label}: ${reaction?.count || 0}`}
                 >
                   <ReactionIcon className="h-3.5 w-3.5" />
@@ -3903,7 +3868,7 @@ function MessageRow({
             )
           })}
           {!inThreadView && replyCount > 0 && (
-            <button type="button" onClick={onReply} className="min-h-7 rounded-lg px-2 py-1 text-xs font-medium text-primary-700 hover:bg-primary-50">
+            <button type="button" onClick={onReply} className="min-h-9 rounded-lg px-2.5 py-1 text-xs font-bold text-primary-700 hover:bg-primary-50">
               {replyCount} {replyCount === 1 ? 'reply' : 'replies'}
             </button>
           )}
@@ -3914,7 +3879,7 @@ function MessageRow({
         <button
           type="button"
           onClick={onOpenActions}
-          className="rounded-xl p-1.5 text-slate-400 hover:bg-white hover:text-slate-700 sm:hidden"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-white hover:text-slate-700 sm:hidden"
           aria-label="Open message actions"
         >
           <MoreHorizontal className="h-5 w-5" />
@@ -3959,6 +3924,64 @@ function MessageRow({
   )
 }
 
+export function MessageEditSurface({
+  value,
+  onChange,
+  onSave,
+  onCancel,
+}: {
+  value: string
+  onChange: (value: string) => void
+  onSave: () => void
+  onCancel: () => void
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const canSave = normalizeMessageMarkdown(value).length > 0
+
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+
+    textarea.style.height = 'auto'
+    const maxHeight = Math.max(192, Math.min(window.innerHeight * 0.5, 448))
+    textarea.style.height = `${Math.min(Math.max(textarea.scrollHeight, 112), maxHeight)}px`
+  }, [value])
+
+  return (
+    <div className="mt-2 overflow-hidden rounded-2xl border border-primary-200 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.08)] ring-4 ring-primary-50/80">
+      <textarea
+        ref={textareaRef}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            onCancel()
+          } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && canSave) {
+            event.preventDefault()
+            onSave()
+          }
+        }}
+        rows={4}
+        autoFocus
+        aria-label="Edit message"
+        className="block min-h-28 max-h-[50dvh] w-full resize-y overflow-y-auto border-0 bg-slate-50/70 px-4 py-3 text-base leading-6 text-slate-800 outline-none placeholder:text-slate-400 focus:bg-white sm:text-sm"
+      />
+      <div className="flex flex-col gap-3 border-t border-slate-200/80 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs font-medium text-slate-400">The editor grows as you type. Press Ctrl/Command + Enter to save.</p>
+        <div className="flex shrink-0 justify-end gap-2">
+          <button type="button" onClick={onCancel} className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900">
+            Cancel
+          </button>
+          <button type="button" onClick={onSave} disabled={!canSave} className="min-h-11 rounded-xl bg-primary-600 px-4 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400">
+            Save changes
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ConversationHeaderAction({
   onClick,
   icon,
@@ -3976,7 +3999,7 @@ function ConversationHeaderAction({
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-10 w-10 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
+      className="inline-flex h-11 w-11 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-2.5 sm:text-sm"
       aria-label={ariaLabel}
     >
       {icon}

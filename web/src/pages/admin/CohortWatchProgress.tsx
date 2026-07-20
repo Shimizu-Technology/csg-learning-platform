@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, Link, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Film, CheckCircle2, Eye, PlaySquare } from 'lucide-react'
+import { ArrowLeft, Film, CheckCircle2, PlaySquare } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
+import { PageHeader } from '../../components/ui/PageHeader'
 
 interface RecordingInfo {
   id: number
@@ -232,10 +233,10 @@ export function CohortWatchProgress() {
 
   if (loadError && recordings.length === 0 && videos.length === 0) {
     return (
-      <div className="max-w-full mx-auto space-y-5">
+      <div className="app-page-wide">
         <Link
           to={`/admin/cohorts/${id}`}
-          className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
+          className="app-link"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to cohort
@@ -252,34 +253,36 @@ export function CohortWatchProgress() {
   const activeStudentCount = tab === 'recordings' ? recordingStudents.length : videoStudents.length
 
   return (
-    <div className="max-w-full mx-auto space-y-5">
-      <div>
+    <div className="app-page-wide">
+      <div className="space-y-4">
         <Link
           to={`/admin/cohorts/${id}`}
-          className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-2"
+          className="app-link"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to {cohortName || 'Cohort'}
         </Link>
-        <div className="flex items-center gap-3">
-          <Eye className="h-6 w-6 text-primary-500" />
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">Watch Progress</h1>
-            <p className="text-sm text-slate-500">
+        <PageHeader
+          eyebrow="Cohort engagement"
+          title="Watch progress"
+          description={
+            <>
               {cohortName} · {activeColumns.length} {tab === 'recordings' ? 'recording' : 'lesson video'}
               {activeColumns.length !== 1 ? 's' : ''} · {activeStudentCount} student{activeStudentCount !== 1 ? 's' : ''}
-            </p>
-          </div>
-        </div>
+            </>
+          }
+        />
       </div>
 
-      <div className="flex rounded-lg border border-slate-200 overflow-hidden w-fit">
+      <div className="flex w-fit max-w-full overflow-x-auto rounded-xl border border-slate-200 bg-white p-1" role="tablist" aria-label="Watch progress type">
         <button
           type="button"
           onClick={() => handleTabChange('recordings')}
-          className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+          role="tab"
+          aria-selected={tab === 'recordings'}
+          className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
             tab === 'recordings'
-              ? 'bg-slate-100 text-slate-800'
+              ? 'bg-slate-900 text-white shadow-sm'
               : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
           }`}
         >
@@ -290,9 +293,11 @@ export function CohortWatchProgress() {
         <button
           type="button"
           onClick={() => handleTabChange('videos')}
-          className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+          role="tab"
+          aria-selected={tab === 'videos'}
+          className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
             tab === 'videos'
-              ? 'bg-slate-100 text-slate-800'
+              ? 'bg-slate-900 text-white shadow-sm'
               : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
           }`}
         >

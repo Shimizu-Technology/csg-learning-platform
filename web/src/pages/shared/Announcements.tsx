@@ -5,6 +5,7 @@ import { api } from '../../lib/api'
 import { disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
+import { useConfirm } from '../../contexts/ConfirmContext'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import type { Announcement, CohortSummary, PaginationMeta } from '../../types/api'
 
@@ -43,6 +44,7 @@ function emptyPagination(): PaginationMeta {
 export function Announcements() {
   const { id } = useParams()
   const toast = useToast()
+  const confirmAction = useConfirm()
   const selectedId = id ? Number(id) : null
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -199,7 +201,12 @@ export function Announcements() {
 
   const handleArchive = async (announcement: Announcement) => {
     if (!announcement.id || archivingId) return
-    if (!window.confirm(`Archive "${announcement.title}"?`)) return
+    if (!await confirmAction({
+      title: 'Archive announcement?',
+      description: `“${announcement.title}” will leave the active announcement feed but remain in history.`,
+      confirmLabel: 'Archive announcement',
+      tone: 'danger',
+    })) return
 
     setArchivingId(announcement.id)
     const res = await api.archiveAnnouncement(announcement.id)
@@ -263,12 +270,12 @@ export function Announcements() {
   if (loading) return <LoadingSpinner message="Loading announcements..." />
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="app-page">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-sm font-medium text-primary-600">Communication</p>
-          <h1 className="text-2xl font-semibold text-slate-900">Announcements</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="app-eyebrow">Communication</p>
+          <h1 className="app-title mt-2">{manageMode ? 'Announcement studio' : 'Updates'}</h1>
+          <p className="app-description mt-2">
             {manageMode
               ? 'Manage published updates, authorship, and archive state.'
               : 'Class updates, pinned notices, and important CSG messages.'}
@@ -319,7 +326,7 @@ export function Announcements() {
       )}
 
       {manageMode && (
-        <form onSubmit={handleCreate} className="space-y-4 rounded-lg border border-slate-200 bg-white p-4">
+        <form onSubmit={handleCreate} className="app-surface space-y-4 p-5 sm:p-6">
           <div className="flex items-center gap-2">
             <Megaphone className="h-5 w-5 text-primary-500" />
             <h2 className="font-semibold text-slate-900">Post an announcement</h2>

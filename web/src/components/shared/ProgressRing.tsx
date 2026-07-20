@@ -13,7 +13,7 @@ export function ProgressRing({ percentage, size = 80, strokeWidth = 6, label }: 
   return (
     <div className="flex flex-col items-center gap-1">
       <div className="relative" style={{ width: size, height: size }}>
-        <svg className="transform -rotate-90" width={size} height={size}>
+        <svg className="transform -rotate-90" width={size} height={size} aria-hidden="true">
           <circle
             className="text-slate-200"
             strokeWidth={strokeWidth}
@@ -36,7 +36,14 @@ export function ProgressRing({ percentage, size = 80, strokeWidth = 6, label }: 
             cy={size / 2}
           />
         </svg>
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div
+          className="absolute inset-0 flex items-center justify-center"
+          role="progressbar"
+          aria-label={label || 'Progress'}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.min(Math.max(Math.round(percentage), 0), 100)}
+        >
           <span className="text-sm font-bold text-slate-900">{Math.round(percentage)}%</span>
         </div>
       </div>

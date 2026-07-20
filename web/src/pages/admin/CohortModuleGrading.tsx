@@ -12,6 +12,7 @@ import { Modal } from '../../components/shared/Modal'
 import { MarkdownRenderer } from '../../components/shared/MarkdownRenderer'
 import { CODE_RUNNER_TIMEOUT_MS, codeRunnerLanguageFromEditor, normalizeCodeRunnerConfig } from '../../lib/codeRunner'
 import { useToast } from '../../contexts/ToastContext'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 type QueueFilter = 'ungraded' | 'redo' | 'all'
 type ViewMode = 'students' | 'queue' | 'grid'
@@ -172,6 +173,7 @@ export function CohortModuleGrading() {
   const { cohortId, moduleId } = useParams<{ cohortId: string; moduleId: string }>()
   const navigate = useNavigate()
   const toast = useToast()
+  const confirmAction = useConfirm()
   const [data, setData] = useState<GradingData | null>(null)
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
@@ -434,7 +436,7 @@ export function CohortModuleGrading() {
 
   // Keyboard shortcuts for grading (works for both side panel and grid modal)
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
       if (grading) return
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') return
@@ -445,20 +447,20 @@ export function CohortModuleGrading() {
       if (gridModalSubmission) {
         e.preventDefault()
         if (key === 'R' && !gridFeedback.trim()) {
-          if (!window.confirm('No feedback written. The student won\'t know what to fix. Grade as Redo without feedback?')) return
+          if (!await confirmAction({ title: 'Grade as Redo without feedback?', description: 'The student will know they need to try again, but they will not know what to fix.', confirmLabel: 'Grade as Redo' })) return
         }
         handleGridGrade(key)
       } else if (selectedSubmission && !loadingDetail) {
         e.preventDefault()
         if (key === 'R' && !feedback.trim()) {
-          if (!window.confirm('No feedback written. The student won\'t know what to fix. Grade as Redo without feedback?')) return
+          if (!await confirmAction({ title: 'Grade as Redo without feedback?', description: 'The student will know they need to try again, but they will not know what to fix.', confirmLabel: 'Grade as Redo' })) return
         }
         handleGrade(key)
       }
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [selectedSubmission, gridModalSubmission, grading, loadingDetail, feedback, gridFeedback, handleGridGrade, handleGrade])
+  }, [selectedSubmission, gridModalSubmission, grading, loadingDetail, feedback, gridFeedback, handleGridGrade, handleGrade, confirmAction])
 
   if (loading) return <LoadingSpinner message="Loading grading data..." />
   if (!data) return null
@@ -466,18 +468,19 @@ export function CohortModuleGrading() {
   const githubSyncClosed = data.supports_github_sync && (data.open_github_sync_count ?? 0) === 0
 
   return (
-    <div className="space-y-5 max-w-7xl mx-auto">
+    <div className="app-page-wide">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
           <button
             onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-2"
+            className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900"
           >
             <ArrowLeft className="h-4 w-4" />
             Back
           </button>
-          <h1 className="text-2xl font-bold text-slate-900">
+          <p className="app-eyebrow">Focused grading</p>
+          <h1 className="app-title mt-2">
             {data.module_name} — Grading
           </h1>
           <p className="text-sm text-slate-500 mt-1">
@@ -762,9 +765,9 @@ export function CohortModuleGrading() {
                     </button>
                   ))}
                   <button
-                    onClick={() => {
-                      if (!gridFeedback.trim()) {
-                        if (!window.confirm('No feedback written. The student won\'t know what to fix. Grade as Redo without feedback?')) return
+                      onClick={async () => {
+                        if (!gridFeedback.trim()) {
+                          if (!await confirmAction({ title: 'Grade as Redo without feedback?', description: 'The student will know they need to try again, but they will not know what to fix.', confirmLabel: 'Grade as Redo' })) return
                       }
                       handleGridGrade('R')
                     }}
@@ -1324,9 +1327,9 @@ export function CohortModuleGrading() {
                       </button>
                     ))}
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         if (!feedback.trim()) {
-                          if (!window.confirm('No feedback written. The student won\'t know what to fix. Grade as Redo without feedback?')) return
+                          if (!await confirmAction({ title: 'Grade as Redo without feedback?', description: 'The student will know they need to try again, but they will not know what to fix.', confirmLabel: 'Grade as Redo' })) return
                         }
                         handleGrade('R')
                       }}

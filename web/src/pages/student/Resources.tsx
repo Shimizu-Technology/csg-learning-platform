@@ -5,6 +5,7 @@ import { api } from '../../lib/api'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
+import { IconButton } from '../../components/ui/Button'
 
 interface ResourceItem {
   id: number
@@ -117,20 +118,21 @@ export function Resources() {
   }
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="app-page max-w-5xl">
       {showingSavedData && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           Showing saved resources while your connection catches up.
         </div>
       )}
-      <div>
-        <Link to="/dashboard" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-2">
+      <header>
+        <Link to="/dashboard" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900">
           <ArrowLeft className="h-4 w-4" />
           Back to Dashboard
         </Link>
-        <h1 className="text-2xl font-bold text-slate-900">Class Resources</h1>
-        <p className="mt-1 text-sm text-slate-500">Important links for your class.</p>
-      </div>
+        <p className="app-eyebrow">Your class library</p>
+        <h1 className="app-title mt-2">Resources</h1>
+        <p className="app-description mt-2">Important links, references, and shortcuts collected for your cohort.</p>
+      </header>
 
       {resources.length > 4 && (
         <div className="relative">
@@ -140,7 +142,8 @@ export function Resources() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search resources..."
-            className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            aria-label="Search resources"
+            className="app-control w-full pl-10"
           />
         </div>
       )}
@@ -196,20 +199,15 @@ function HotkeyCard({
           <p className="mt-2 break-all text-xs text-slate-400">{resource.url}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <button
-            type="button"
-            onClick={onCopy}
-            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-primary-50 hover:text-primary-600"
-            title="Copy shortcut link"
-          >
+          <IconButton label="Copy shortcut link" onClick={onCopy} className="text-slate-400 hover:text-primary-600">
             {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-          </button>
+          </IconButton>
           <a
             href={sanitizeUrl(resource.url)}
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-primary-50 hover:text-primary-600"
-            title="Open shortcut resource"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-primary-50 hover:text-primary-600"
+            aria-label="Open shortcut resource"
           >
             <ExternalLink className="h-4 w-4" />
           </a>

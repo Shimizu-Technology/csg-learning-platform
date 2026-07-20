@@ -18,7 +18,15 @@ export function ProgressBar({ value, max = 100, label, showPercentage = true, si
           {showPercentage && <span className="text-sm font-medium text-slate-500">{percentage}%</span>}
         </div>
       )}
-      <div className={`w-full rounded-full bg-slate-200 ${heightClass}`}>
+      <div
+        className={`w-full rounded-full bg-slate-200 ${heightClass}`}
+        role="progressbar"
+        aria-label={label || 'Progress'}
+        aria-valuemin={0}
+        aria-valuemax={max}
+        aria-valuenow={Math.min(Math.max(value, 0), max)}
+        aria-valuetext={`${percentage}%`}
+      >
         <div
           className={`rounded-full bg-primary-500 transition-all duration-500 ${heightClass}`}
           style={{ width: `${percentage}%` }}

@@ -22,8 +22,9 @@ Monorepo: `api/` (Rails 8.1 API-only) + `web/` (React 19 + Vite + Tailwind v4)
 ## Design System
 
 - Colors: slate for neutrals, ruby/red for primary accents, green for success
-- Rounded corners: `rounded-2xl` for cards, `rounded-lg` for buttons
-- Font: system-ui (default Tailwind)
+- Rounded corners: `rounded-2xl` for cards and `rounded-xl` for buttons and primary controls
+- Touch targets: interactive controls should be at least 44px on mobile
+- Font: Manrope Variable with system-ui fallbacks
 - Spacing: consistent `py-24 lg:py-32` for sections
 - Layout: mobile-first, collapsible sidebar, max-width containers
 

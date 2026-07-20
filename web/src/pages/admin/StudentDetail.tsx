@@ -812,16 +812,16 @@ export function StudentDetail() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="app-page max-w-6xl">
       <button
         onClick={() => navigate(-1)}
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
+        className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900"
       >
         <ArrowLeft className="h-4 w-4" />
         Back
       </button>
 
-      <div className="rounded-2xl bg-white border border-slate-200 p-6">
+      <section className="relative overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_16px_50px_rgba(15,23,42,0.05)] before:absolute before:inset-y-0 before:left-0 before:w-1.5 before:bg-primary-600">
         <div className="flex flex-col sm:flex-row sm:items-start gap-4">
           <div className="shrink-0">
             {user.avatar_url ? (
@@ -951,7 +951,7 @@ export function StudentDetail() {
             </div>
           </form>
         )}
-      </div>
+      </section>
 
       {assignmentMessage && (
         <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">

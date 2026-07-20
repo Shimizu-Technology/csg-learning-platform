@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.61.2",
+    "@fontsource-variable/manrope": "^5.3.0",
     "@jitl/quickjs-wasmfile-release-sync": "^0.32.0",
     "@monaco-editor/react": "^4.7.0",
     "@ruby/3.3-wasm-wasi": "^2.9.3-2.9.4",

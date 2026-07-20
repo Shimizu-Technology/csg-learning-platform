@@ -2,6 +2,8 @@
 @plugin "@tailwindcss/typography";
 
 @theme {
+  --font-sans: "Manrope Variable", "Avenir Next", sans-serif;
+
   --color-primary-50: #fef2f2;
   --color-primary-100: #fee2e2;
   --color-primary-200: #fecaca;
@@ -27,10 +29,72 @@
 }
 
 body {
-  font-family: system-ui, -apple-system, sans-serif;
+  min-width: 320px;
+  background: #f7f8fa;
+  color: #0f172a;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
+}
+
+::selection {
+  background: #fecaca;
+  color: #450a0a;
+}
+
+:focus-visible {
+  outline: 2px solid #dc2626;
+  outline-offset: 3px;
+}
+
+@layer components {
+  .app-page {
+    @apply mx-auto w-full max-w-6xl space-y-6 pb-20 lg:space-y-8 lg:pb-8;
+  }
+
+  .app-page-wide {
+    @apply mx-auto w-full max-w-[1500px] space-y-6 pb-20 lg:space-y-8 lg:pb-8;
+  }
+
+  .app-eyebrow {
+    @apply text-xs font-bold uppercase tracking-[0.18em] text-primary-600;
+  }
+
+  .app-title {
+    @apply text-2xl font-bold tracking-[-0.025em] text-slate-950 sm:text-3xl;
+  }
+
+  .app-description {
+    @apply max-w-2xl text-sm leading-6 text-slate-600 sm:text-base;
+  }
+
+  .app-surface {
+    @apply rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)];
+  }
+
+  .app-surface-muted {
+    @apply rounded-2xl border border-slate-200/70 bg-slate-100/65;
+  }
+
+  .app-control {
+    @apply min-h-11 rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm transition duration-150 placeholder:text-slate-400 hover:border-slate-400 focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400;
+  }
+
+  .app-link {
+    @apply rounded-md font-semibold text-primary-700 underline-offset-4 transition-colors hover:text-primary-800 hover:underline;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .message-composer p.is-editor-empty:first-child::before {
@@ -89,9 +153,65 @@ body {
 }
 
 .message-composer ul,
-.message-composer ol {
+.message-composer ol,
+.exercise-content ul,
+.exercise-content ol {
   margin: 0.25rem 0;
   padding-left: 1.25rem;
+}
+
+/* Tailwind's reset removes list markers, so TipTap lists need them restored. */
+.message-composer ul,
+.exercise-content ul {
+  list-style-type: disc;
+}
+
+.message-composer ol,
+.exercise-content ol {
+  list-style-type: decimal;
+}
+
+.message-composer ul ul,
+.exercise-content ul ul {
+  list-style-type: circle;
+}
+
+.message-composer ul ul ul,
+.exercise-content ul ul ul {
+  list-style-type: square;
+}
+
+.message-composer li,
+.exercise-content li {
+  padding-left: 0.125rem;
+}
+
+.message-composer li::marker,
+.exercise-content li::marker {
+  color: #64748b;
+  font-weight: 600;
+}
+
+.message-composer li > p,
+.exercise-content li > p {
+  margin: 0;
+}
+
+.message-composer li + li {
+  margin-top: 0.125rem;
+}
+
+.message-composer a {
+  color: #b91c1c;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: #fca5a5;
+  text-underline-offset: 0.15em;
+}
+
+.message-composer a:hover {
+  color: #991b1b;
+  text-decoration-color: currentColor;
 }
 
 .message-composer blockquote {
@@ -184,79 +304,6 @@ body {
   }
 }
 
-/* Quill WYSIWYG editor — match prework grader Trix styling */
-
-/* Height handling: make the editor fill its set height properly */
-.rich-editor-wrapper > div {
-  display: flex !important;
-  flex-direction: column !important;
-}
-
-.rich-editor-wrapper .ql-toolbar.ql-snow {
-  border: 1px solid #e2e8f0;
-  border-radius: 0.5rem 0.5rem 0 0;
-  background-color: #f8fafc;
-  flex-shrink: 0;
-}
-
-.rich-editor-wrapper .ql-container.ql-snow {
-  border: 1px solid #e2e8f0;
-  border-top: none;
-  border-radius: 0 0 0.5rem 0.5rem;
-  font-size: 15px;
-  font-family: system-ui, -apple-system, sans-serif;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.rich-editor-wrapper .ql-editor {
-  overflow-y: auto;
-  line-height: 1.7;
-  padding: 16px 20px;
-}
-
-/* Inline code — matches prework grader trix-editor code styling */
-.rich-editor-wrapper .ql-editor code {
-  background-color: #f5f5f5;
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-family: Monaco, Menlo, 'Courier New', monospace;
-  font-size: 0.88em;
-  border: 1px solid #ddd;
-  color: #1e293b;
-}
-
-/* Code blocks — matches prework grader trix-editor pre styling */
-.rich-editor-wrapper .ql-editor .ql-code-block-container {
-  background-color: #f5f5f5;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  padding: 12px 16px;
-  margin: 12px 0;
-  font-family: Monaco, Menlo, 'Courier New', monospace;
-  font-size: 13px;
-  line-height: 1.6;
-  overflow-x: auto;
-  color: #1e293b;
-}
-
-.rich-editor-wrapper .ql-editor .ql-code-block {
-  font-family: Monaco, Menlo, 'Courier New', monospace;
-  font-size: 13px;
-  color: #1e293b;
-}
-
-/* Links */
-.rich-editor-wrapper .ql-editor a {
-  color: #2563eb;
-  text-decoration: underline;
-}
-
-/* Link tooltip z-index */
-.rich-editor-wrapper .ql-snow .ql-tooltip {
-  z-index: 100;
-}
 
 /* Remove Quill's default code-block select dropdown */
 .rich-editor-wrapper .ql-code-block-container .ql-ui {
