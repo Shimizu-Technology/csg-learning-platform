@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { RichTextEditor } from '../../components/shared/RichTextEditor'
 import { Modal } from '../../components/shared/Modal'
 import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
@@ -64,6 +64,7 @@ export function NewExerciseModal({
     language: 'ruby',
   })
   const [validationError, setValidationError] = useState('')
+  const formId = useId()
 
   const availableDays = useMemo(() => {
     const indices = SCHEDULE_DAY_INDICES[scheduleDays] || SCHEDULE_DAY_INDICES.weekdays
@@ -118,10 +119,33 @@ export function NewExerciseModal({
   }
 
   return (
-    <Modal open title="Add exercise" subtitle={`Adding to ${moduleName}`} size="xl" fixedHeight onClose={onClose}>
-        {(validationError || error) && <p className="text-sm text-red-600 mb-3">{validationError || error}</p>}
+    <Modal
+      open
+      title="Add exercise"
+      subtitle={`Adding to ${moduleName}`}
+      size="xl"
+      fixedHeight
+      onClose={onClose}
+      footer={(
+        <div className="flex gap-3">
+          <Button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            variant="secondary"
+            className="flex-1"
+          >
+            Cancel
+          </Button>
+          <Button type="submit" form={formId} disabled={saving} className="flex-1">
+            {saving ? 'Creating...' : 'Create exercise'}
+          </Button>
+        </div>
+      )}
+    >
+      {(validationError || error) && <p className="text-sm text-red-600 mb-3">{validationError || error}</p>}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+      <form id={formId} onSubmit={handleSubmit} className="space-y-5">
           {/* Row 1: Title */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
@@ -233,22 +257,7 @@ export function NewExerciseModal({
             />
           </div>
 
-          {/* Actions */}
-          <div className="flex gap-3 pt-2">
-            <Button
-              type="button"
-              onClick={onClose}
-              disabled={saving}
-              variant="secondary"
-              className="flex-1"
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saving} className="flex-1">
-              {saving ? 'Creating...' : 'Create exercise'}
-            </Button>
-          </div>
-        </form>
+      </form>
     </Modal>
   )
 }
