@@ -42,6 +42,19 @@ Required environment variables:
 
 Clerk Native API must be enabled for the Clerk instance. Native push token creation also requires an EAS project and platform push credentials.
 
+### Clerk social sign-in
+
+Google sign-in uses Clerk's browser-based SSO flow and returns through
+`csgconnect://oauth-callback`. Before shipping a native build:
+
+1. Enable Google for sign-in in the same Clerk application used by the web app.
+2. Register `com.codeschoolofguam.connect` as the iOS and Android native app in Clerk.
+3. Add `csgconnect://oauth-callback` to Clerk's mobile SSO redirect allowlist.
+4. Configure production Google credentials in Clerk instead of relying on Clerk's development credentials.
+
+Email/password access remains sign-in-only in the mobile UI. Production API access is
+invite-based, so students and staff must use the email attached to their CSG account.
+
 ## Simulator walkthrough
 
 For deterministic visual QA without using a real account, start a development build with:

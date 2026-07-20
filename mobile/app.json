@@ -47,7 +47,8 @@
           "color": "#C51D34",
           "defaultChannel": "messages"
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
