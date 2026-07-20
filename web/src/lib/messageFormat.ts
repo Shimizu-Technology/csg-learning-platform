@@ -104,6 +104,21 @@ export function parseMessageBlocks(body: string): MessageBlock[] {
   return blocks.length > 0 ? blocks : [{ type: 'paragraph', text: body }]
 }
 
+export function normalizeMessageMarkdown(body: string): string {
+  let insideCodeFence = false
+  const lines = body.replace(/\r\n/g, '\n').split('\n').filter((line) => {
+    if (/^\s*```/.test(line)) {
+      insideCodeFence = !insideCodeFence
+      return true
+    }
+
+    if (insideCodeFence) return true
+    return !/^\s*(?:[-*]|\d+[.)])\s*$/.test(line)
+  })
+
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+}
+
 export function editorJsonToMarkdown(node?: JSONContent): string {
   if (!node) return ''
   if (node.type === 'text') return applyMarks(node.text || '', node.marks || [])
@@ -131,8 +146,7 @@ export function editorJsonToMarkdown(node?: JSONContent): string {
 }
 
 function serializeList(node: JSONContent, ordered: boolean): string {
-  return (node.content || []).map((item, index) => {
-    const marker = ordered ? `${index + 1}.` : '-'
+  const items = (node.content || []).map((item) => {
     const [firstChild, ...remainingChildren] = item.content || []
     const firstLine = firstChild ? editorJsonToMarkdown(firstChild) : ''
     const continuation = remainingChildren
@@ -141,8 +155,10 @@ function serializeList(node: JSONContent, ordered: boolean): string {
       .map((value) => value.split('\n').map((line) => `  ${line}`).join('\n'))
       .join('\n')
 
-    return continuation ? `${marker} ${firstLine}\n${continuation}` : `${marker} ${firstLine}`
-  }).join('\n')
+    return continuation ? `${firstLine}\n${continuation}`.trimEnd() : firstLine.trimEnd()
+  }).filter((item) => item.trim().length > 0)
+
+  return items.map((item, index) => `${ordered ? `${index + 1}.` : '-'} ${item}`).join('\n')
 }
 
 function applyMarks(text: string, marks: NonNullable<JSONContent['marks']>) {

@@ -56,7 +56,7 @@ import { api } from '../../lib/api'
 import { subscribeToUserMessages } from '../../lib/realtime'
 import { disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
 import { formatFileSize, uploadToS3 } from '../../lib/uploadToS3'
-import { editorJsonToMarkdown, parseMessageBlocks } from '../../lib/messageFormat'
+import { editorJsonToMarkdown, normalizeMessageMarkdown, parseMessageBlocks } from '../../lib/messageFormat'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { MessagesLoadingShell } from '../../components/shared/MessagesLoadingShell'
@@ -1679,7 +1679,7 @@ export function Messages() {
     event.preventDefault()
     if (!selectedTarget || !user) return
 
-    const submittedBody = (editor ? editorJsonToMarkdown(editor.getJSON()) : body).trim()
+    const submittedBody = normalizeMessageMarkdown(editor ? editorJsonToMarkdown(editor.getJSON()) : body)
     const submittedAttachments = pendingAttachments
     const threadRoot = activeThreadRoot
     const mentionUserIds = resolveMentionedUserIds(submittedBody, mentionableUsers, composerMentionUserIds)
@@ -2107,10 +2107,11 @@ export function Messages() {
   }
 
   const saveEdit = async (message: ChannelMessage) => {
-    if (!editBody.trim()) return
+    const normalizedBody = normalizeMessageMarkdown(editBody)
+    if (!normalizedBody) return
 
-    const mentionUserIds = resolveMentionedUserIds(editBody.trim(), mentionableUsers, message.mention_user_ids)
-    const res = await api.updateMessage(message.id, { body: editBody.trim(), mention_user_ids: mentionUserIds })
+    const mentionUserIds = resolveMentionedUserIds(normalizedBody, mentionableUsers, message.mention_user_ids)
+    const res = await api.updateMessage(message.id, { body: normalizedBody, mention_user_ids: mentionUserIds })
     if (res.data) {
       setMessages((prev) => prev.map((item) => item.id === message.id ? res.data!.message : item))
       setPinnedMessages((prev) => upsertPinnedMessage(prev, res.data!.message))
@@ -3793,18 +3794,12 @@ function MessageRow({
           </div>
         )}
         {editing ? (
-          <div className="mt-2">
-            <textarea
-              value={editBody}
-              onChange={(event) => setEditBody(event.target.value)}
-              rows={3}
-              className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
-            <div className="mt-2 flex gap-2">
-              <button onClick={onSaveEdit} className="rounded-lg bg-primary-500 px-3 py-1.5 text-xs font-medium text-white">Save</button>
-              <button onClick={onCancelEdit} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600">Cancel</button>
-            </div>
-          </div>
+          <MessageEditSurface
+            value={editBody}
+            onChange={setEditBody}
+            onSave={onSaveEdit}
+            onCancel={onCancelEdit}
+          />
         ) : (
           <FormattedMessage body={message.body} mentionPatterns={mentionPatterns} />
         )}
@@ -3924,6 +3919,64 @@ function MessageRow({
         <button type="button" onClick={onOpenActions} className="rounded-lg p-1.5 text-slate-300 hover:bg-slate-100 hover:text-slate-600" aria-label="More message actions">
           <MoreHorizontal className="h-4 w-4" />
         </button>
+      </div>
+    </div>
+  )
+}
+
+export function MessageEditSurface({
+  value,
+  onChange,
+  onSave,
+  onCancel,
+}: {
+  value: string
+  onChange: (value: string) => void
+  onSave: () => void
+  onCancel: () => void
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const canSave = normalizeMessageMarkdown(value).length > 0
+
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+
+    textarea.style.height = 'auto'
+    const maxHeight = Math.max(192, Math.min(window.innerHeight * 0.5, 448))
+    textarea.style.height = `${Math.min(Math.max(textarea.scrollHeight, 112), maxHeight)}px`
+  }, [value])
+
+  return (
+    <div className="mt-2 overflow-hidden rounded-2xl border border-primary-200 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.08)] ring-4 ring-primary-50/80">
+      <textarea
+        ref={textareaRef}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            onCancel()
+          } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && canSave) {
+            event.preventDefault()
+            onSave()
+          }
+        }}
+        rows={4}
+        autoFocus
+        aria-label="Edit message"
+        className="block min-h-28 max-h-[50dvh] w-full resize-y overflow-y-auto border-0 bg-slate-50/70 px-4 py-3 text-base leading-6 text-slate-800 outline-none placeholder:text-slate-400 focus:bg-white sm:text-sm"
+      />
+      <div className="flex flex-col gap-3 border-t border-slate-200/80 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs font-medium text-slate-400">The editor grows as you type. Press Ctrl/Command + Enter to save.</p>
+        <div className="flex shrink-0 justify-end gap-2">
+          <button type="button" onClick={onCancel} className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900">
+            Cancel
+          </button>
+          <button type="button" onClick={onSave} disabled={!canSave} className="min-h-11 rounded-xl bg-primary-600 px-4 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400">
+            Save changes
+          </button>
+        </div>
       </div>
     </div>
   )

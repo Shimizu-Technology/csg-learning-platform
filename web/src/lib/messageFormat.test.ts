@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { editorJsonToMarkdown, parseMessageBlocks } from './messageFormat'
+import { editorJsonToMarkdown, normalizeMessageMarkdown, parseMessageBlocks } from './messageFormat'
 
 describe('parseMessageBlocks', () => {
   it('groups bulleted and numbered lines into semantic list blocks', () => {
@@ -49,6 +49,17 @@ describe('editorJsonToMarkdown', () => {
     })).toBe('- First\n- Second\n\n1. One\n2. Two')
   })
 
+  it('omits empty list items and renumbers the remaining ordered items', () => {
+    expect(editorJsonToMarkdown({
+      type: 'orderedList',
+      content: [
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'First' }] }] },
+        { type: 'listItem', content: [{ type: 'paragraph' }] },
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Second' }] }] },
+      ],
+    })).toBe('1. First\n2. Second')
+  })
+
   it('preserves every inline format supported by the composer', () => {
     expect(editorJsonToMarkdown({
       type: 'paragraph',
@@ -81,5 +92,19 @@ describe('editorJsonToMarkdown', () => {
         },
       ],
     })).toBe('> Note\n> More\n\n```\nconst ready = true\n```\n\n- Parent\n  - Child')
+  })
+})
+
+describe('normalizeMessageMarkdown', () => {
+  it('removes empty bullet and ordered markers without touching real content', () => {
+    expect(normalizeMessageMarkdown('1. First\n2. Second\n3.\n\n- One\n- Two\n-')).toBe(
+      '1. First\n2. Second\n\n- One\n- Two',
+    )
+  })
+
+  it('preserves marker-only lines inside fenced code blocks', () => {
+    expect(normalizeMessageMarkdown('Before\n\n```text\n-\n1.\n```\n\n-')).toBe(
+      'Before\n\n```text\n-\n1.\n```',
+    )
   })
 })

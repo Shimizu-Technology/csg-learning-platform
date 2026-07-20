@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { FormattedMessage } from './Messages'
+import { FormattedMessage, MessageEditSurface } from './Messages'
 
 describe('FormattedMessage', () => {
   it('renders mobile-safe semantic lists and formatting', () => {
@@ -25,5 +25,26 @@ describe('FormattedMessage', () => {
     expect(html).toContain('<a')
     expect(html).toContain('<u>underlined link</u>')
     expect(html).toContain('href="https://example.com"')
+  })
+})
+
+describe('MessageEditSurface', () => {
+  it('renders a resizable edit area with accessible actions and a valid message', () => {
+    const html = renderToStaticMarkup(
+      <MessageEditSurface value={'- First\n-'} onChange={() => undefined} onSave={() => undefined} onCancel={() => undefined} />,
+    )
+
+    expect(html).toContain('aria-label="Edit message"')
+    expect(html).toContain('resize-y')
+    expect(html).toContain('Save changes')
+    expect(html).not.toContain('disabled=""')
+  })
+
+  it('disables saving when the edit only contains empty list markers', () => {
+    const html = renderToStaticMarkup(
+      <MessageEditSurface value={'1.\n2.'} onChange={() => undefined} onSave={() => undefined} onCancel={() => undefined} />,
+    )
+
+    expect(html).toContain('disabled=""')
   })
 })

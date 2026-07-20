@@ -54,7 +54,10 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
 
       const first = focusable[0]
       const last = focusable[focusable.length - 1]
-      if (e.shiftKey && document.activeElement === first) {
+      if (!dialogRef.current.contains(document.activeElement)) {
+        e.preventDefault()
+        ;(e.shiftKey ? last : first).focus()
+      } else if (e.shiftKey && document.activeElement === first) {
         e.preventDefault()
         last.focus()
       } else if (!e.shiftKey && document.activeElement === last) {
@@ -62,7 +65,19 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
         first.focus()
       }
     }
+
+    const handleFocusIn = (e: FocusEvent) => {
+      const dialog = dialogRef.current
+      if (!dialog || !(e.target instanceof Node) || dialog.contains(e.target)) return
+
+      const openDialogs = Array.from(document.querySelectorAll<HTMLElement>('[data-app-modal]'))
+      if (openDialogs.at(-1) !== dialog) return
+
+      const firstFocusable = dialog.querySelector<HTMLElement>(focusableSelector)
+      ;(firstFocusable || dialog).focus()
+    }
     document.addEventListener('keydown', handleEsc)
+    document.addEventListener('focusin', handleFocusIn)
     document.body.style.overflow = 'hidden'
 
     const focusFrame = requestAnimationFrame(() => {
@@ -73,6 +88,7 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
     return () => {
       cancelAnimationFrame(focusFrame)
       document.removeEventListener('keydown', handleEsc)
+      document.removeEventListener('focusin', handleFocusIn)
       document.body.style.overflow = previousOverflow
       previouslyFocused?.focus()
     }

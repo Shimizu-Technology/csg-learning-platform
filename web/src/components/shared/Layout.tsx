@@ -273,11 +273,11 @@ export function Layout({ children }: LayoutProps) {
 
   return (
     <div className={isMessagesRoute ? 'h-dvh overflow-hidden bg-[#f7f8fa]' : 'min-h-screen bg-[#f7f8fa]'}>
-      <a href="#main-content" className="sr-only z-[100] rounded-xl bg-slate-950 px-4 py-3 font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4">
+      <a href="#main-content" aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className="sr-only z-[100] rounded-xl bg-slate-950 px-4 py-3 font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4">
         Skip to main content
       </a>
       {/* Mobile header */}
-      <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-slate-200/80 bg-white/95 px-3 backdrop-blur-xl lg:hidden">
+      <header aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-slate-200/80 bg-white/95 px-3 backdrop-blur-xl lg:hidden">
         <button ref={menuButtonRef} onClick={() => setSidebarOpen(true)} aria-label="Open navigation" aria-expanded={sidebarOpen} className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900">
           <Menu className="h-6 w-6" />
         </button>
@@ -355,7 +355,7 @@ export function Layout({ children }: LayoutProps) {
         </div>
       </div>
 
-    <div className="flex">
+    <div aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className="flex">
       {/* Desktop sidebar */}
       <aside className={`hidden lg:flex lg:flex-col ${sidebarWidth} lg:fixed lg:inset-y-0 border-r border-slate-200/80 bg-white transition-all duration-200`}>
         <div className={`flex h-14 items-center ${collapsed ? 'justify-center px-2' : 'px-6'} border-b border-slate-200`}>
@@ -476,7 +476,7 @@ export function Layout({ children }: LayoutProps) {
       </div>
 
       {!isStaff && (
-        <nav aria-label="Primary navigation" className="fixed inset-x-0 bottom-0 z-40 grid h-[4.25rem] grid-cols-4 border-t border-slate-200/90 bg-white/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
+        <nav aria-label="Primary navigation" aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className="fixed inset-x-0 bottom-0 z-40 grid h-[4.25rem] grid-cols-4 border-t border-slate-200/90 bg-white/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
           {studentBottomNav.map((item) => {
             const active = isActive(item.to, item.exact)
             const count = getNavUnreadCount(item.to)
