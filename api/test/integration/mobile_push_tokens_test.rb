@@ -20,7 +20,7 @@ class MobilePushTokensTest < ActionDispatch::IntegrationTest
     assert_equal "1.0.1", @user.mobile_push_tokens.first.app_version
 
     as_user(@user) do
-      delete "/api/v1/mobile_push_tokens", params: { token: "ExpoPushToken[device-1]" }, headers: auth_headers, as: :json
+      delete "/api/v1/mobile_push_tokens?token=ExpoPushToken%5Bdevice-1%5D", headers: auth_headers
     end
     assert_response :no_content
     assert_empty @user.mobile_push_tokens.reload

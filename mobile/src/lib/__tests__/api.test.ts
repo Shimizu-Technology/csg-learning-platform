@@ -36,6 +36,15 @@ describe('CsgApi', () => {
       headers: expect.objectContaining({ Authorization: 'Bearer fresh-token' }),
     }));
   });
+
+  it('unregisters a device with an encoded query parameter and no DELETE body', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(new Response(null, { status: 204 }));
+
+    await new CsgApi(async () => 'session-token').unregisterDevice('ExpoPushToken[a+b]');
+
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('token=ExpoPushToken%5Ba%2Bb%5D'), expect.objectContaining({ method: 'DELETE' }));
+    expect(fetchMock.mock.calls[0][1]).not.toHaveProperty('body');
+  });
 });
 
 describe('websocketUrl', () => {

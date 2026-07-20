@@ -52,6 +52,7 @@ export function subscribeToUserMessages(
         reconnectTimer = setTimeout(connect, Math.min(1_000 * 2 ** attempts, 30_000));
       };
     } catch {
+      if (cancelled) return;
       onStatus('offline');
       attempts += 1;
       reconnectTimer = setTimeout(connect, Math.min(1_000 * 2 ** attempts, 30_000));

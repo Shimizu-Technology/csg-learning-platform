@@ -53,7 +53,7 @@ export class CsgApi {
   createDm = (workspaceId: number, userIds: number[]) => this.request<{ direct_conversation: DirectConversationSummary }>('/api/v1/direct_conversations', { method: 'POST', body: JSON.stringify({ workspace_id: workspaceId, user_ids: userIds }) });
   cableToken = () => this.request<{ token: string; expires_in: number }>('/api/v1/cable_token', { method: 'POST' });
   registerDevice = (token: string, platform: string, deviceId: string | null, appVersion: string | null) => this.request('/api/v1/mobile_push_tokens', { method: 'POST', body: JSON.stringify({ token, platform, device_id: deviceId, app_version: appVersion }) });
-  unregisterDevice = (token: string) => this.request('/api/v1/mobile_push_tokens', { method: 'DELETE', body: JSON.stringify({ token }) });
+  unregisterDevice = (token: string) => this.request(`/api/v1/mobile_push_tokens?token=${encodeURIComponent(token)}`, { method: 'DELETE' });
   search = (query: string) => this.request<{ results: (Message & { context: { type: 'channel' | 'direct_conversation'; id: number; label: string } })[] }>(`/api/v1/messages/search?q=${encodeURIComponent(query)}&limit=30`);
 }
 
