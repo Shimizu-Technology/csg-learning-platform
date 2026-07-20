@@ -61,6 +61,33 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
     end
   end
 
+  test "preloads active device tokens without querying once per notification" do
+    author = User.create!(clerk_id: "expo_author", email: "expo-author@example.com", role: :instructor)
+    announcement = Announcement.create!(title: "Cohort update", body: "Test", author: author, audience: :global, status: :published)
+    notifications = 3.times.map do |index|
+      user = User.create!(clerk_id: "expo_recipient_#{index}", email: "expo-recipient-#{index}@example.com", role: :student)
+      user.mobile_push_tokens.create!(token: "ExpoPushToken[recipient-#{index}]", platform: "ios", last_seen_at: Time.current)
+      user.notifications.create!(notifiable: announcement, notification_type: :announcement, title: "Update", body: "Test", path: "/updates")
+    end
+    notifications.first.user.mobile_push_tokens.create!(token: "ExpoPushToken[failed-recipient]", platform: "ios", last_seen_at: Time.current, failed_at: Time.current)
+    response = Net::HTTPOK.new("1.1", "200", "OK")
+    response.instance_variable_set(:@read, true)
+    response.body = { data: Array.new(3) { { status: "ok" } } }.to_json
+    token_selects = 0
+    count_token_selects = lambda do |_name, _started, _finished, _unique_id, payload|
+      token_selects += 1 if payload[:sql].start_with?('SELECT "mobile_push_tokens".*')
+    end
+
+    with_http_response(response) do |connection|
+      ActiveSupport::Notifications.subscribed(count_token_selects, "sql.active_record") do
+        ExpoPushNotificationService.new.deliver_notifications(Notification.where(id: notifications.map(&:id))) { { title: "Test", body: "Test" } }
+      end
+
+      assert_equal 3, JSON.parse(connection.request_received.body).length
+    end
+    assert_equal 1, token_selects
+  end
+
   private
 
   def with_http_response(response)
