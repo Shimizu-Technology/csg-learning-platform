@@ -106,10 +106,10 @@ export default function ComposeScreen() {
       )}
       <View style={styles.search}><Search color={palette.quiet} size={18} /><TextInput accessibilityLabel="Search workspace members" autoFocus value={query} onChangeText={setQuery} placeholder="Search members" placeholderTextColor={palette.quiet} style={styles.input} /></View>
       {loading ? <LoadingState label="Loading members" /> : (
-        <ScrollView contentContainerStyle={styles.list}>
+        <ScrollView contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
           {visible.map((user) => {
             const active = selected.includes(user.id);
-            return <Pressable key={user.id} accessibilityRole="checkbox" accessibilityState={{ checked: active }} onPress={() => setSelected((current) => active ? current.filter((id) => id !== user.id) : [...current, user.id])} style={styles.person}><Avatar name={user.full_name} /><View style={{ flex: 1 }}><Text style={styles.name}>{user.full_name}</Text><Text style={styles.email}>{user.email}</Text></View><View style={[styles.check, active && styles.checkActive]}>{active && <Check color="white" size={16} strokeWidth={3} />}</View></Pressable>;
+            return <Pressable key={user.id} accessibilityRole="checkbox" accessibilityLabel={`Select ${user.full_name}`} accessibilityState={{ checked: active }} onPress={() => setSelected((current) => active ? current.filter((id) => id !== user.id) : [...current, user.id])} style={styles.person}><Avatar name={user.full_name} /><View style={{ flex: 1 }}><Text style={styles.name}>{user.full_name}</Text><Text style={styles.email}>{user.email}</Text></View><View style={[styles.check, active && styles.checkActive]}>{active && <Check color="white" size={16} strokeWidth={3} />}</View></Pressable>;
           })}
           {!visible.length && <EmptyState title="No members found" copy={workspaces.length ? 'Try a name or email from this workspace.' : 'Join a workspace before starting a conversation.'} />}
         </ScrollView>

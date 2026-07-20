@@ -98,7 +98,23 @@ export default function ConversationScreen() {
 
 function MessageBubble({ message, showAuthor }: { message: Message; showAuthor: boolean }) {
   const deleted = Boolean(message.deleted_at);
-  return <View style={[styles.messageRow, message.mine && styles.mineRow]}>{!message.mine && showAuthor && <Avatar name={message.author.full_name} size={30} />} {!message.mine && !showAuthor && <View style={{ width: 30 }} />}<View style={[styles.bubbleWrap, message.mine && styles.mineWrap]}>{showAuthor && !message.mine && <Text style={styles.author}>{message.author.full_name}</Text>}<View style={[styles.bubble, message.mine && styles.mineBubble]}><Text style={[styles.body, deleted && styles.deleted]}>{deleted ? 'Message removed' : message.body}</Text></View><Text style={[styles.time, message.mine && { textAlign: 'right' }]}>{formatTime(message.created_at)}{message.edited_at ? ' · edited' : ''}{message.mine && message.read_receipts?.count ? ` · read by ${message.read_receipts.count}` : ''}</Text></View></View>;
+  return (
+    <View style={[styles.messageRow, message.mine && styles.mineRow]}>
+      {!message.mine && showAuthor && <Avatar name={message.author.full_name} size={30} />}
+      {!message.mine && !showAuthor && <View style={{ width: 30 }} />}
+      <View style={[styles.bubbleWrap, message.mine && styles.mineWrap]}>
+        {showAuthor && !message.mine && <Text style={styles.author}>{message.author.full_name}</Text>}
+        <View style={[styles.bubble, message.mine && styles.mineBubble]}>
+          <Text style={[styles.body, deleted && styles.deleted]}>{deleted ? 'Message removed' : message.body}</Text>
+        </View>
+        <Text style={[styles.time, message.mine && { textAlign: 'right' }]}>
+          {formatTime(message.created_at)}
+          {message.edited_at ? ' · edited' : ''}
+          {message.mine && message.read_receipts?.count ? ` · read by ${message.read_receipts.count}` : ''}
+        </Text>
+      </View>
+    </View>
+  );
 }
 function formatTime(value: string) { return new Intl.DateTimeFormat('en', { hour: 'numeric', minute: '2-digit' }).format(new Date(value)); }
 const styles = StyleSheet.create({
