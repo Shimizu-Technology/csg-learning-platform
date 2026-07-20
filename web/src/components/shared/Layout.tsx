@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -43,6 +43,7 @@ export function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const menuButtonRef = useRef<HTMLButtonElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const restoreMenuButtonFocusRef = useRef(false)
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('sidebar-collapsed') === 'true' } catch { return false }
   })
@@ -61,6 +62,11 @@ export function Layout({ children }: LayoutProps) {
     setSidebarOpen(false)
   }, [location.pathname])
 
+  const closeMobileSidebar = useCallback((restoreFocus = true) => {
+    restoreMenuButtonFocusRef.current = restoreFocus
+    setSidebarOpen(false)
+  }, [])
+
   useEffect(() => {
     if (!sidebarOpen) return
 
@@ -70,8 +76,7 @@ export function Layout({ children }: LayoutProps) {
 
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
-      setSidebarOpen(false)
-      menuButtonRef.current?.focus()
+      closeMobileSidebar()
     }
 
     document.addEventListener('keydown', handleEscape)
@@ -79,6 +84,17 @@ export function Layout({ children }: LayoutProps) {
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', handleEscape)
     }
+  }, [closeMobileSidebar, sidebarOpen])
+
+  useEffect(() => {
+    if (sidebarOpen || !restoreMenuButtonFocusRef.current) return
+
+    const focusFrame = requestAnimationFrame(() => {
+      restoreMenuButtonFocusRef.current = false
+      menuButtonRef.current?.focus()
+    })
+
+    return () => cancelAnimationFrame(focusFrame)
   }, [sidebarOpen])
 
   const syncMessageUnreadCount = () => {
@@ -278,7 +294,16 @@ export function Layout({ children }: LayoutProps) {
       </a>
       {/* Mobile header */}
       <header aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-slate-200/80 bg-white/95 px-3 backdrop-blur-xl lg:hidden">
-        <button ref={menuButtonRef} onClick={() => setSidebarOpen(true)} aria-label="Open navigation" aria-expanded={sidebarOpen} className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900">
+        <button
+          ref={menuButtonRef}
+          onClick={() => {
+            restoreMenuButtonFocusRef.current = false
+            setSidebarOpen(true)
+          }}
+          aria-label="Open navigation"
+          aria-expanded={sidebarOpen}
+          className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
+        >
           <Menu className="h-6 w-6" />
         </button>
         <Link to={isStaff ? '/admin' : '/dashboard'} className="flex min-h-11 min-w-0 items-center gap-2 rounded-xl px-1 hover:opacity-80" aria-label="Go to your home">
@@ -291,7 +316,7 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Mobile sidebar overlay */}
       <div aria-hidden={!sidebarOpen} className={`fixed inset-0 z-50 lg:hidden transition-opacity duration-300 ${sidebarOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}>
-        <div className="fixed inset-0 bg-slate-900/50 transition-opacity duration-300" onClick={() => setSidebarOpen(false)} />
+        <div className="fixed inset-0 bg-slate-900/50 transition-opacity duration-300" onClick={() => closeMobileSidebar()} />
         <div
           role="dialog"
           aria-modal="true"
@@ -301,11 +326,11 @@ export function Layout({ children }: LayoutProps) {
           className={`fixed inset-y-0 left-0 flex w-[min(88vw,320px)] flex-col bg-white shadow-2xl transition-transform duration-300 ease-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
         >
           <div className="flex h-14 items-center justify-between border-b border-slate-200 px-4">
-            <Link to="/" onClick={() => setSidebarOpen(false)} className="flex min-w-0 items-center gap-2 rounded-lg hover:opacity-80" aria-label="Go to homepage">
+            <Link to="/" onClick={() => closeMobileSidebar(false)} className="flex min-w-0 items-center gap-2 rounded-lg hover:opacity-80" aria-label="Go to homepage">
               <GraduationCap className="h-6 w-6 text-primary-500" />
               <span className="truncate font-semibold text-slate-900">CSG Learning Hub</span>
             </Link>
-            <button ref={closeButtonRef} onClick={() => setSidebarOpen(false)} aria-label="Close navigation" className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-900">
+            <button ref={closeButtonRef} onClick={() => closeMobileSidebar()} aria-label="Close navigation" className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-900">
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -314,7 +339,7 @@ export function Layout({ children }: LayoutProps) {
               <Link
                 key={item.to}
                 to={item.to}
-                onClick={() => setSidebarOpen(false)}
+                onClick={() => closeMobileSidebar(false)}
                 aria-current={isActive(item.to, item.exact) ? 'page' : undefined}
                 {...getLinkHandlers(item.to)}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
