@@ -7,6 +7,7 @@ The all-in-one learning hub for Code School of Guam — prework, live class, wor
 | Layer | Tech | Details |
 |-------|------|---------|
 | Frontend | React 19 + TypeScript + Tailwind v4 + Vite | SPA with role-based routing |
+| Mobile | Expo SDK 57 + React Native 0.86 | Communications-first iOS and Android client |
 | Backend | Rails 8.1 API-only | RESTful JSON API under `/api/v1/` |
 | Auth | Clerk | Invite-only, JWT-based, role-based (student / instructor / admin) |
 | Database | PostgreSQL | Neon (production), local Postgres (development) |
@@ -20,6 +21,7 @@ The all-in-one learning hub for Code School of Guam — prework, live class, wor
 csg-learning-platform/
 ├── api/            Rails 8.1 API backend
 ├── web/            React + Vite frontend
+├── mobile/         Expo + React Native communications client
 ├── docs/           Product vision, roadmap, deployment guides
 ├── scripts/        Data import and utility scripts
 └── AGENTS.md       AI/developer conventions
@@ -80,6 +82,9 @@ bundle exec rails test       # Runs integration + unit tests
 
 cd ../web
 npm run check                # Lint + typecheck + unit tests + production build
+
+cd ../mobile
+npm run check                # Strict TypeScript + lint + native unit tests
 ```
 
 ## Environment Variables
@@ -139,6 +144,7 @@ User
 | [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md) | All API endpoints with request/response details |
 | [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md) | Historical MVP planning document; current direction lives in the product vision and roadmap |
 | [`docs/CLASSROOM_PLATFORM_PLAN.md`](docs/CLASSROOM_PLATFORM_PLAN.md) | Live classroom strategy, scope boundaries, and implementation direction |
+| [`docs/MOBILE_APP.md`](docs/MOBILE_APP.md) | Messaging-first native app scope, architecture, and release path |
 | [`docs/FUTURE_IMPROVEMENTS.md`](docs/FUTURE_IMPROVEMENTS.md) | Planned enhancements (GitHub onboarding, etc.) |
 | [`docs/SETUP_CHECKLIST.md`](docs/SETUP_CHECKLIST.md) | Post-deploy setup (Search Console, PostHog, PWA) |
 | [`api/README.md`](api/README.md) | Backend-specific setup, models, and API overview |

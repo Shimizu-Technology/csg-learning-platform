@@ -1,6 +1,6 @@
 # CSG Learning Platform — Roadmap
 
-**Last updated:** 2026-07-10
+**Last updated:** 2026-07-20
 **Status:** Active execution roadmap  
 **Companion docs:** `docs/PRODUCT_VISION.md`, `docs/DEPLOYMENT.md`, `docs/API_REFERENCE.md`
 
@@ -253,6 +253,19 @@ Phase 3 was intentionally skipped for now. The team pulled Phase 4 forward and b
 - Notification clicks deep-link to the relevant announcement, channel, or DM
 - No sensitive student data appears in lock-screen notifications unless explicitly allowed later
 - Browser support is documented, especially iOS installed-PWA requirements
+
+### 4.6 Native Communications Companion ✅
+- Expo SDK 57 / React Native client for iOS and Android
+- Clerk native authentication with encrypted session persistence
+- Messaging-first inbox for cohort channels and direct conversations
+- Action Cable live updates with reconnect backoff and REST fallback
+- Optimistic sending, unread cursors, mute controls, and message search
+- Announcement feed and notification deep links
+- Expo push token lifecycle and Rails fan-out alongside existing Web Push
+- Cached inbox fallback for intermittent mobile connectivity
+- Native unit checks, Expo Doctor validation, iOS bundle export, and simulator walkthrough
+
+Curriculum, submissions, grading, recordings, and staff administration remain in the responsive web application until their mobile workflows are intentionally designed and prioritized.
 
 ### Overall Definition of Done
 > CSG can run class communication from the platform: announcements, unread notification state, cohort messages, DMs, and PWA push notifications replace the daily Slack loop for active cohorts.

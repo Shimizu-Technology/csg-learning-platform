@@ -16,6 +16,7 @@ class User < ApplicationRecord
   has_many :notifications, dependent: :destroy
   has_many :acted_notifications, class_name: "Notification", foreign_key: :actor_id, dependent: :nullify
   has_many :push_subscriptions, dependent: :destroy
+  has_many :mobile_push_tokens, dependent: :destroy
   has_many :messages, foreign_key: :author_id, dependent: :nullify
   has_many :channel_read_states, dependent: :destroy
   has_many :direct_conversation_members, dependent: :destroy

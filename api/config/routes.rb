@@ -34,6 +34,8 @@ Rails.application.routes.draw do
       patch "push_subscriptions/preferences", to: "push_subscriptions#update_preferences"
       post "push_subscriptions", to: "push_subscriptions#create"
       delete "push_subscriptions", to: "push_subscriptions#destroy"
+      post "mobile_push_tokens", to: "mobile_push_tokens#create"
+      delete "mobile_push_tokens", to: "mobile_push_tokens#destroy"
       post "message_attachments/presign", to: "message_attachments#presign"
       patch "message_preferences", to: "message_preferences#update"
       get "messages/search", to: "messages_search#index"

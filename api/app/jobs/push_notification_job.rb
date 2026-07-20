@@ -11,8 +11,10 @@ class PushNotificationJob < ApplicationJob
     case notifiable
     when Announcement
       WebPushNotificationService.announcement_published(notifiable, notifications)
+      ExpoPushNotificationService.announcement_published(notifiable, notifications)
     when Message
       WebPushNotificationService.message_created(notifiable, notifications)
+      ExpoPushNotificationService.message_created(notifiable, notifications)
     end
   end
 end

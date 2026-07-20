@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_18_000100) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_20_000100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -276,6 +276,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_18_000100) do
     t.index ["parent_message_id"], name: "index_messages_on_parent_message_id"
     t.index ["pinned_at"], name: "index_messages_on_pinned_at"
     t.index ["pinned_by_id"], name: "index_messages_on_pinned_by_id"
+  end
+
+  create_table "mobile_push_tokens", force: :cascade do |t|
+    t.string "app_version"
+    t.datetime "created_at", null: false
+    t.string "device_id"
+    t.datetime "failed_at"
+    t.datetime "last_seen_at", null: false
+    t.string "platform", null: false
+    t.string "token", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["token"], name: "index_mobile_push_tokens_on_token", unique: true
+    t.index ["user_id", "failed_at"], name: "index_mobile_push_tokens_on_user_id_and_failed_at"
+    t.index ["user_id"], name: "index_mobile_push_tokens_on_user_id"
   end
 
   create_table "module_assignments", force: :cascade do |t|
@@ -635,6 +650,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_18_000100) do
   add_foreign_key "messages", "messages", column: "parent_message_id"
   add_foreign_key "messages", "users", column: "author_id"
   add_foreign_key "messages", "users", column: "pinned_by_id"
+  add_foreign_key "mobile_push_tokens", "users"
   add_foreign_key "module_assignments", "enrollments"
   add_foreign_key "module_assignments", "modules"
   add_foreign_key "modules", "curricula", column: "curriculum_id"
