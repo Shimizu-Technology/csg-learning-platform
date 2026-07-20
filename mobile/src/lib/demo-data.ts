@@ -1,4 +1,4 @@
-import type { Announcement, ChannelSummary, DirectConversationSummary, Message, SessionUser } from './types';
+import type { Announcement, ChannelSummary, DirectConversationSummary, Message, SessionUser, WorkspaceSummary } from './types';
 
 const now = Date.now();
 const ago = (minutes: number) => new Date(now - minutes * 60_000).toISOString();
@@ -7,6 +7,11 @@ export const demoUser: SessionUser = {
   id: 7, clerk_id: 'demo', email: 'leon@codeschoolofguam.com', first_name: 'Leon', last_name: 'Shimizu',
   full_name: 'Leon Shimizu', role: 'admin', github_username: 'leonshimizu', avatar_url: null, is_admin: true, is_staff: true,
 };
+
+export const demoWorkspaces: WorkspaceSummary[] = [
+  { id: 1, name: 'Web Dev Cohort 4', slug: 'web-dev-cohort-4', workspace_type: 'cohort', status: 'active', cohort_id: 4, cohort_name: 'Web Dev Cohort 4', description: 'Workspace for Web Dev Cohort 4', member_count: 12, can_manage: false, created_at: ago(20_000), updated_at: ago(8) },
+  { id: 2, name: 'CSG Community', slug: 'csg-community', workspace_type: 'community', status: 'active', cohort_id: null, cohort_name: null, description: 'Code School alumni, opportunities, and community events.', member_count: 46, can_manage: true, created_at: ago(10_000), updated_at: ago(92) },
+];
 
 export const demoChannels: ChannelSummary[] = [
   { id: 12, workspace_id: 1, workspace_name: 'Web Dev Cohort 4', workspace_type: 'cohort', cohort_id: 4, cohort_name: 'Web Dev Cohort 4', name: 'general', description: 'Questions, wins, and class-wide updates.', visibility: 'cohort', status: 'active', position: 0, muted: false, unread_count: 3, last_read_at: ago(180), latest_message: { id: 104, body: 'The recording and starter files are up. Great work today.', created_at: ago(8), author_name: 'Leon Shimizu' }, created_at: ago(20_000), updated_at: ago(8) },

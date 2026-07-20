@@ -1,4 +1,4 @@
-import type { Announcement, ChannelSummary, DirectConversationSummary, Message, MessageEvent, SessionUser, UserSummary } from './types';
+import type { Announcement, ChannelSummary, DirectConversationSummary, Message, MessageEvent, SessionUser, UserSummary, WorkspaceSummary } from './types';
 
 export type TokenGetter = (options?: { skipCache?: boolean }) => Promise<string | null>;
 
@@ -39,6 +39,7 @@ export class CsgApi {
   }
 
   session = () => this.request<{ user: SessionUser }>('/api/v1/sessions', { method: 'POST' });
+  workspaces = () => this.request<{ workspaces: WorkspaceSummary[] }>('/api/v1/workspaces');
   channels = () => this.request<{ channels: ChannelSummary[] }>('/api/v1/channels');
   directConversations = () => this.request<{ direct_conversations: DirectConversationSummary[] }>('/api/v1/direct_conversations');
   announcements = () => this.request<{ announcements: Announcement[]; unread_count: number }>('/api/v1/announcements?per_page=50');

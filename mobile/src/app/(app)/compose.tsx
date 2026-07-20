@@ -6,12 +6,11 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { Avatar } from '@/components/avatar';
 import { EmptyState, LoadingState } from '@/components/screen-states';
 import { fonts, palette } from '@/constants/csg-theme';
-import { demoChannels, demoDms } from '@/lib/demo-data';
+import { demoDms } from '@/lib/demo-data';
 import type { UserSummary } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
-
-interface WorkspaceOption { id: number; name: string }
+import { useWorkspace } from '@/providers/workspace-provider';
 
 const demoPeople: UserSummary[] = [
   { id: 18, full_name: 'Maya Santos', email: 'maya@example.com', role: 'student', avatar_url: null, is_admin: false, is_staff: false },
@@ -23,49 +22,30 @@ export default function ComposeScreen() {
   const router = useRouter();
   const auth = useCsgAuth();
   const { api } = useSession();
-  const [workspaces, setWorkspaces] = useState<WorkspaceOption[]>([]);
-  const [workspaceId, setWorkspaceId] = useState<number | null>(null);
+  const { workspaces, activeWorkspaceId: workspaceId, loading: loadingWorkspaces, selectWorkspace } = useWorkspace();
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [selected, setSelected] = useState<number[]>([]);
   const [query, setQuery] = useState('');
-  const [loadingWorkspaces, setLoadingWorkspaces] = useState(true);
-  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [loadingUsers, setLoadingUsers] = useState(Boolean(workspaceId));
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
-      try {
-        const channels = auth.demo ? demoChannels : (await api.channels()).channels;
-        const unique = Array.from(new Map(channels.map((channel) => [channel.workspace_id, { id: channel.workspace_id, name: channel.workspace_name }])).values());
-        if (!cancelled) {
-          setWorkspaces(unique);
-          setWorkspaceId(unique[0]?.id ?? null);
-          if (!unique.length) setLoadingUsers(false);
+    const frame = requestAnimationFrame(() => {
+      if (!workspaceId) { setLoadingUsers(false); setUsers([]); return; }
+      setLoadingUsers(true);
+      void (async () => {
+        try {
+          const available = auth.demo ? demoPeople : (await api.availableUsers(workspaceId)).users;
+          if (!cancelled) setUsers(available);
+        } catch (error) {
+          if (!cancelled) Alert.alert('Couldn’t load members', (error as Error).message);
+        } finally {
+          if (!cancelled) setLoadingUsers(false);
         }
-      } catch (error) {
-        if (!cancelled) Alert.alert('Couldn’t load workspaces', (error as Error).message);
-      } finally {
-        if (!cancelled) setLoadingWorkspaces(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [api, auth.demo]);
-
-  useEffect(() => {
-    if (!workspaceId) return undefined;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const available = auth.demo ? demoPeople : (await api.availableUsers(workspaceId)).users;
-        if (!cancelled) setUsers(available);
-      } catch (error) {
-        if (!cancelled) Alert.alert('Couldn’t load members', (error as Error).message);
-      } finally {
-        if (!cancelled) setLoadingUsers(false);
-      }
-    })();
-    return () => { cancelled = true; };
+      })();
+    });
+    return () => { cancelled = true; cancelAnimationFrame(frame); };
   }, [api, auth.demo, workspaceId]);
 
   const visible = useMemo(() => {
@@ -101,7 +81,7 @@ export default function ComposeScreen() {
       </View>
       {workspaces.length > 1 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.workspaces}>
-          {workspaces.map((workspace) => <Pressable key={workspace.id} accessibilityRole="button" accessibilityState={{ selected: workspace.id === workspaceId }} onPress={() => { if (workspace.id !== workspaceId) { setLoadingUsers(true); setSelected([]); setWorkspaceId(workspace.id); } }} style={[styles.workspace, workspace.id === workspaceId && styles.workspaceActive]}><Text numberOfLines={1} style={[styles.workspaceText, workspace.id === workspaceId && styles.workspaceTextActive]}>{workspace.name}</Text></Pressable>)}
+          {workspaces.map((workspace) => <Pressable key={workspace.id} accessibilityRole="button" accessibilityState={{ selected: workspace.id === workspaceId }} onPress={() => { if (workspace.id !== workspaceId) { setSelected([]); void selectWorkspace(workspace.id); } }} style={[styles.workspace, workspace.id === workspaceId && styles.workspaceActive]}><Text numberOfLines={1} style={[styles.workspaceText, workspace.id === workspaceId && styles.workspaceTextActive]}>{workspace.name}</Text></Pressable>)}
         </ScrollView>
       )}
       <View style={styles.search}><Search color={palette.quiet} size={18} /><TextInput accessibilityLabel="Search workspace members" autoFocus value={query} onChangeText={setQuery} placeholder="Search members" placeholderTextColor={palette.quiet} style={styles.input} /></View>

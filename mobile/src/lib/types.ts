@@ -17,6 +17,21 @@ export interface SessionUser extends UserSummary {
   github_username: string | null;
 }
 
+export interface WorkspaceSummary {
+  id: number;
+  name: string;
+  slug: string;
+  workspace_type: 'cohort' | 'community';
+  status: 'active' | 'archived';
+  cohort_id: number | null;
+  cohort_name: string | null;
+  description: string | null;
+  member_count: number;
+  can_manage: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface LatestMessage {
   id: number;
   body: string;

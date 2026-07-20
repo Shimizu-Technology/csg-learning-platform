@@ -23,11 +23,12 @@ Curriculum, recordings, submissions, grading, progress, office hours, and staff 
 
 1. Clerk authenticates the user and stores the session token in SecureStore.
 2. `POST /api/v1/sessions` synchronizes the Clerk identity with the Rails user.
-3. The app loads channels, direct conversations, and announcements from the existing `/api/v1` REST API.
-4. A short-lived, single-use cable token opens the authorized Action Cable stream for the active conversation.
-5. Message mutations go through REST; cable events reconcile changes from every participant.
-6. The native client registers an Expo device token with Rails. Existing notification jobs fan out to both Web Push and Expo Push.
-7. Notification taps route directly to the matching channel, DM, or updates surface.
+3. The app loads the server-authorized workspace list, channels, direct conversations, and announcements from the existing `/api/v1` REST API.
+4. The selected workspace is remembered per user. Staff receive all active workspaces; students receive only active cohort enrollments and explicit community memberships. The inbox and DM member picker filter the same server data to that selection.
+5. A short-lived, single-use cable token opens the authorized Action Cable stream for the active conversation.
+6. Message mutations go through REST; cable events reconcile changes from every participant.
+7. The native client registers an Expo device token with Rails. Existing notification jobs fan out independently to both Web Push and Expo Push.
+8. Notification taps route directly to the matching channel, DM, or updates surface.
 
 ## Security and reliability
 
@@ -35,7 +36,7 @@ Curriculum, recordings, submissions, grading, progress, office hours, and staff 
 - Clerk tokens use encrypted platform storage and are refreshed after unauthorized GET responses.
 - Device tokens are unique, user-owned, removable at sign-out, and invalidated after Expo reports `DeviceNotRegistered`.
 - API requests have timeouts, a single safe retry for GETs, and user-readable errors.
-- The inbox caches only the signed-in user's scoped conversation summaries. Signing out clears cached session, inbox, and device-token state.
+- The inbox and workspace list cache only the signed-in user's scoped summaries. Signing out clears cached session, workspace selection, inbox, and device-token state.
 - Demo content is restricted to `__DEV__` builds and never substitutes for API authorization tests.
 
 ## Deferred native scope

@@ -310,6 +310,27 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_includes names, "Alumni"
   end
 
+  test "workspace index limits students to memberships while staff see every active workspace" do
+    other_cohort = Cohort.create!(curriculum: @curriculum, name: "Cohort 4", start_date: Date.current, status: :active)
+
+    as_user(@student) do
+      get "/api/v1/workspaces", headers: auth_headers
+    end
+
+    assert_response :success
+    student_names = JSON.parse(response.body).fetch("workspaces").map { |item| item.fetch("name") }
+    assert_equal [ "Cohort 3" ], student_names
+
+    as_user(@admin) do
+      get "/api/v1/workspaces", headers: auth_headers
+    end
+
+    assert_response :success
+    staff_names = JSON.parse(response.body).fetch("workspaces").map { |item| item.fetch("name") }
+    assert_includes staff_names, "Cohort 3"
+    assert_includes staff_names, other_cohort.name
+  end
+
   test "channel index includes attachment-only latest message previews without extra fetches" do
     message = Message.create!(channel: @channel, author: @admin, body: nil)
     message.message_attachments.create!(

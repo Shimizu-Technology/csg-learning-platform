@@ -5,12 +5,13 @@ module Api
 
       # POST /api/v1/mobile_push_tokens
       def create
-        token = MobilePushToken.find_or_initialize_by(token: token_params[:token])
-        if token.persisted? && token.user_id != current_user.id
+        existing_token = MobilePushToken.find_by(token: token_params[:token])
+        if existing_token && existing_token.user_id != current_user.id
           render json: { error: "Push token is already registered" }, status: :conflict
           return
         end
 
+        token = existing_token || current_user.mobile_push_tokens.new(token: token_params[:token])
         token.assign_attributes(token_params.except(:token))
         token.user = current_user
         token.last_seen_at = Time.current
@@ -21,6 +22,10 @@ module Api
         else
           render json: { errors: token.errors.full_messages }, status: :unprocessable_entity
         end
+      rescue ActiveRecord::RecordNotUnique
+        # Two sessions can attempt the first registration concurrently. The unique
+        # index is authoritative and prevents the losing request from reassigning it.
+        render json: { error: "Push token is already registered" }, status: :conflict
       end
 
       # DELETE /api/v1/mobile_push_tokens

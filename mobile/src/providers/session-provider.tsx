@@ -54,7 +54,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     if (pushToken && !auth.demo) await api.unregisterDevice(pushToken).catch(() => undefined);
     const keys = [PUSH_TOKEN_KEY];
     if (userCacheKey) keys.push(userCacheKey);
-    if (user) keys.push(`csg.inbox.${user.id}`);
+    if (user) keys.push(`csg.inbox.${user.id}`, `csg.workspaces.${user.id}`, `csg.workspace.active.${user.id}`);
     await AsyncStorage.multiRemove(keys);
     await auth.signOut();
   }, [api, auth, user, userCacheKey]);

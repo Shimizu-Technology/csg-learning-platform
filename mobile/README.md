@@ -22,6 +22,14 @@ npm run check
 npx expo run:ios
 ```
 
+Normal development uses real Clerk authentication and the Rails API. Keep `EXPO_PUBLIC_DEMO_MODE=false`, use the same Clerk publishable key as the web app, and restart Metro with `--clear` whenever an `EXPO_PUBLIC_*` value changes:
+
+```bash
+npx expo start --dev-client --clear
+```
+
+The inbox loads its workspace list from Rails. Staff can switch among every active cohort and community workspace; students see only active cohort enrollments and explicit community memberships. Channels, DMs, unread counts, and member pickers are filtered to the selected workspace without weakening the API authorization boundary.
+
 The mobile package pins Node 22.22.3 independently from the web package because Expo SDK 57 dependencies require a newer Node runtime.
 
 Required environment variables:
@@ -39,10 +47,10 @@ Clerk Native API must be enabled for the Clerk instance. Native push token creat
 For deterministic visual QA without using a real account, start a development build with:
 
 ```bash
-EXPO_PUBLIC_DEMO_MODE=true npx expo start --dev-client
+EXPO_PUBLIC_DEMO_MODE=true npx expo start --dev-client --clear
 ```
 
-Demo mode only activates when React Native's `__DEV__` flag is true. Production builds cannot enter it from this environment variable alone. It exercises navigation, filtering, composition, message sending, unread states, updates, profile, and empty states against local sample data. API contracts and native push delivery are covered separately by mobile and Rails tests.
+Demo mode only activates when React Native's `__DEV__` flag is true. Production builds cannot enter it from this environment variable alone. Prefer the one-command override above instead of saving demo mode in `.env`, so the next normal launch returns to real account data. It exercises navigation, filtering, composition, message sending, unread states, updates, profile, and empty states against local sample data. API contracts and native push delivery are covered separately by mobile and Rails tests.
 
 ## Quality checks
 
