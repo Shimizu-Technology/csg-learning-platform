@@ -69,7 +69,6 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
       const res = await api.createSession()
       if (res.data?.user) {
         setUser(res.data.user)
-        setAccessDenied(false)
         if (isPostHogEnabled) {
           posthog.identify(String(res.data!.user.id), {
             email: res.data!.user.email,

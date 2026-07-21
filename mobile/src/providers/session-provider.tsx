@@ -49,7 +49,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
         const keys = [PUSH_TOKEN_KEY];
         if (userCacheKey) keys.push(userCacheKey);
         if (cachedUserId) keys.push(`csg.inbox.${cachedUserId}`, `csg.workspaces.${cachedUserId}`, `csg.workspace.active.${cachedUserId}`);
-        if (keys.length) await AsyncStorage.multiRemove(keys);
+        await AsyncStorage.multiRemove(keys);
         setUser(null);
         setAccessDenied(true);
       } else if (cached && canUseCachedSession(requestError)) {
