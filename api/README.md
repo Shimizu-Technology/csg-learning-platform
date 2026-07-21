@@ -156,7 +156,7 @@ All controllers are namespaced under `Api::V1` and return JSON.
 
 | Controller | Key Actions | Auth |
 |------------|-------------|------|
-| `sessions` | `create` — sync/create user from Clerk JWT | Authenticated |
+| `sessions` | `create` — sync an invited, active user from Clerk JWT | Authenticated |
 | `profile` | `show`, `update` — current user | Authenticated |
 | `dashboard` | `show` — student or admin dashboard data | Authenticated |
 | `recordings` | `index` — cohort recordings | Authenticated |

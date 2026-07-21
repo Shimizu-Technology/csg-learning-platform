@@ -54,7 +54,11 @@ module ClerkAuthenticatable
     )
 
     unless @current_user
-      render_unauthorized("Unable to authenticate user")
+      if @authentication_denial_reason.present?
+        render_forbidden(access_denial_message(@authentication_denial_reason), code: @authentication_denial_reason)
+      else
+        render_unauthorized("Unable to authenticate user")
+      end
     end
   end
 
@@ -87,7 +91,10 @@ module ClerkAuthenticatable
     user = User.find_by(clerk_id: clerk_id)
 
     if user
-      return nil if user.archived?
+      if user.archived?
+        @authentication_denial_reason = "account_archived"
+        return nil
+      end
 
       updates = {}
       updates[:email] = email if email.present? && email != user.email
@@ -106,7 +113,10 @@ module ClerkAuthenticatable
       user = User.find_by("LOWER(email) = ?", email.downcase)
 
       if user
-        return nil if user.archived?
+        if user.archived?
+          @authentication_denial_reason = "account_archived"
+          return nil
+        end
 
         updates = {
           clerk_id: clerk_id,
@@ -168,7 +178,16 @@ module ClerkAuthenticatable
       return user if user.persisted?
     end
 
+    @authentication_denial_reason = "account_not_authorized"
     nil
+  end
+
+  def access_denial_message(reason)
+    if reason == "account_archived"
+      "This CSG account has been deactivated. Contact Code School support if you believe this is a mistake."
+    else
+      "This account does not have access to CSG Learning yet. Ask a Code School administrator to invite this email address."
+    end
   end
 
   def allow_auth_bootstrap?
@@ -195,7 +214,9 @@ module ClerkAuthenticatable
     render json: { error: message }, status: :unauthorized
   end
 
-  def render_forbidden(message = "Forbidden")
-    render json: { error: message }, status: :forbidden
+  def render_forbidden(message = "Forbidden", code: nil)
+    payload = { error: message }
+    payload[:code] = code if code.present?
+    render json: payload, status: :forbidden
   end
 end

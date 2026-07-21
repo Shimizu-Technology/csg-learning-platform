@@ -4,6 +4,7 @@ import { useAuth, useUser } from '@clerk/clerk-react'
 import posthog from 'posthog-js'
 import { api, clearApiCache, setApiCacheScope, setAuthTokenGetter } from '../lib/api'
 import { isPostHogEnabled } from '../providers/PostHogProvider'
+import { isAccessDeniedResponse } from '../lib/sessionAccess'
 import type { User } from '../types/api'
 
 type UserData = User
@@ -13,6 +14,7 @@ interface AuthContextType {
   isLoading: boolean
   user: UserData | null
   sessionError: string | null
+  accessDenied: boolean
   syncSession: () => Promise<boolean>
 }
 
@@ -21,6 +23,7 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: true,
   user: null,
   sessionError: null,
+  accessDenied: false,
   syncSession: async () => false,
 })
 
@@ -34,6 +37,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [sessionError, setSessionError] = useState<string | null>(null)
+  const [accessDenied, setAccessDenied] = useState(false)
   const clerkUserId = clerkUser?.id
   const cacheScopeRef = useRef<string | null>(null)
 
@@ -59,6 +63,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
   const syncSession = useCallback(async () => {
     if (!isSignedIn) return false
     setSessionError(null)
+    setAccessDenied(false)
 
     try {
       const res = await api.createSession()
@@ -74,12 +79,16 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
         return true
       }
 
+      const denied = isAccessDeniedResponse(res)
       setUser(null)
+      setAccessDenied(denied)
+      if (denied && cacheScopeRef.current) clearApiCache(cacheScopeRef.current)
       setSessionError(res.error || 'Could not connect to your CSG account. Check your connection and try again.')
       return false
     } catch (err) {
       console.error('Session sync failed:', err)
       setUser(null)
+      setAccessDenied(false)
       setSessionError(err instanceof Error ? err.message : 'Could not connect to your CSG account.')
       return false
     }
@@ -90,6 +99,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
     if (!isSignedIn) {
       setUser(null)
       setSessionError(null)
+      setAccessDenied(false)
       setIsLoading(false)
       if (isPostHogEnabled) {
         posthog.reset()
@@ -107,6 +117,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
         isLoading: !isLoaded || isLoading,
         user,
         sessionError,
+        accessDenied,
         syncSession,
       }}
     >

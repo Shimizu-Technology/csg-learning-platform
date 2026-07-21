@@ -12,7 +12,7 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
-  const { isSignedIn, isLoading, user, sessionError, syncSession } = useAuthContext()
+  const { isSignedIn, isLoading, user, sessionError, accessDenied, syncSession } = useAuthContext()
   const location = useLocation()
   const [retrying, setRetrying] = useState(false)
 
@@ -34,6 +34,10 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
   }
 
   if (!isSignedIn) {
+    return <Navigate to="/sign-in" replace />
+  }
+
+  if (accessDenied) {
     return <Navigate to="/sign-in" replace />
   }
 

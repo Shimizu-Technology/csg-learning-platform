@@ -6,7 +6,7 @@ const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000').rep
 const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 
 export class ApiError extends Error {
-  constructor(message: string, readonly status?: number) { super(message); }
+  constructor(message: string, readonly status?: number, readonly code?: string) { super(message); }
 }
 
 export class CsgApi {
@@ -22,12 +22,12 @@ export class CsgApi {
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(init.headers || {}) },
       });
       if (!response.ok) {
-        const payload = await response.json().catch(() => ({})) as { error?: string; errors?: string[] };
+        const payload = await response.json().catch(() => ({})) as { error?: string; errors?: string[]; code?: string };
         const getRequest = !init.method || init.method === 'GET';
         if (attempt === 0 && (response.status === 401 || (getRequest && RETRYABLE.has(response.status)))) {
           return this.request<T>(path, init, attempt + 1);
         }
-        throw new ApiError(payload.error || payload.errors?.join(', ') || `Request failed (${response.status})`, response.status);
+        throw new ApiError(payload.error || payload.errors?.join(', ') || `Request failed (${response.status})`, response.status, payload.code);
       }
       if (response.status === 204) return undefined as T;
       return response.json() as Promise<T>;

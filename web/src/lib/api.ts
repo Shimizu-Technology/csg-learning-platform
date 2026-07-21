@@ -102,6 +102,7 @@ export interface ApiResponse<T> {
   error: string | null;
   status?: number;
   errorKind?: ApiErrorKind;
+  errorCode?: string;
   fromCache?: boolean;
   cacheAgeMs?: number;
 }
@@ -142,6 +143,7 @@ async function fetchApi<T>(
       if (!response.ok) {
         const errorBody = await response.json().catch(() => ({}));
         const error = errorMessage(errorBody, response.status);
+        const errorCode = apiErrorCode(errorBody);
         const retryUnauthorized = response.status === 401 && !didRetryUnauthorized;
         const retryTransient = canRetry && RETRYABLE_STATUSES.has(response.status);
 
@@ -160,13 +162,14 @@ async function fetchApi<T>(
         if (canUseCache && CACHE_FALLBACK_STATUSES.has(response.status)) {
           const cached = readCachedResponse<T>(cacheScope, endpoint);
           if (cached) {
-            return { ...cached, error, status: response.status, errorKind: errorKindForStatus(response.status) };
+            return { ...cached, error, errorCode, status: response.status, errorKind: errorKindForStatus(response.status) };
           }
         }
 
         return {
           data: null,
           error,
+          errorCode,
           status: response.status,
           errorKind: errorKindForStatus(response.status),
         };
@@ -234,6 +237,12 @@ function errorMessage(errorBody: unknown, status: number) {
   }
 
   return `Request failed with status ${status}`;
+}
+
+function apiErrorCode(errorBody: unknown) {
+  if (!errorBody || typeof errorBody !== 'object') return undefined;
+  const code = (errorBody as { code?: unknown }).code;
+  return typeof code === 'string' ? code : undefined;
 }
 
 function errorKindForStatus(status: number): ApiErrorKind {

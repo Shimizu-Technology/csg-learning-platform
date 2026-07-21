@@ -30,6 +30,14 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      [
+        "expo-dev-client",
+        {
+          "toolsButton": false,
+          "skipOnboarding": true,
+          "showMenuAtLaunch": false
+        }
+      ],
       "expo-router",
       [
         "expo-splash-screen",
@@ -53,6 +61,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c6326478-e200-4aba-8614-806ca5f8e03a"
+      }
+    },
+    "owner": "shimizutechnology"
   }
 }

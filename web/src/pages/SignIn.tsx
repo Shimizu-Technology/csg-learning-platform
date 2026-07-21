@@ -1,8 +1,8 @@
-import { SignIn, SignUp } from '@clerk/clerk-react'
+import { SignIn, SignUp, useClerk, useUser } from '@clerk/clerk-react'
 import { useAuthContext } from '../contexts/AuthContext'
 import { Link, Navigate } from 'react-router-dom'
-import { ArrowLeft, BookOpenText, CheckCircle2, GraduationCap, MessageCircle, PlayCircle } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { ArrowLeft, BookOpenText, CheckCircle2, GraduationCap, Loader2, LogOut, MessageCircle, PlayCircle, RefreshCw, ShieldX } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
 
 function AuthShell({
   description,
@@ -75,13 +75,83 @@ function AuthShell({
 }
 
 function RedirectIfSignedIn({ children }: { children: ReactNode }) {
-  const { isSignedIn } = useAuthContext()
+  const { isSignedIn, accessDenied } = useAuthContext()
 
-  if (isSignedIn) {
+  if (isSignedIn && !accessDenied) {
     return <Navigate to="/dashboard" replace />
   }
 
   return children
+}
+
+function AccessDeniedCard() {
+  const { signOut } = useClerk()
+  const { user } = useUser()
+  const { sessionError, syncSession } = useAuthContext()
+  const [signingOut, setSigningOut] = useState(false)
+  const [checking, setChecking] = useState(false)
+  const email = user?.primaryEmailAddress?.emailAddress
+
+  const handleSignOut = async () => {
+    setSigningOut(true)
+    try {
+      await signOut({ redirectUrl: '/sign-in' })
+    } finally {
+      setSigningOut(false)
+    }
+  }
+
+  const handleCheckAccess = async () => {
+    setChecking(true)
+    try {
+      await syncSession()
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-primary-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
+      <div className="border-b border-primary-100 bg-primary-50/70 px-6 py-7 text-center sm:px-8">
+        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-600 text-white shadow-[0_12px_28px_rgba(220,38,38,0.22)]">
+          <ShieldX className="h-6 w-6" />
+        </span>
+        <h1 className="mt-5 text-2xl font-extrabold tracking-tight text-slate-950">This account isn’t on the class list</h1>
+        <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-slate-600">
+          {sessionError || 'CSG Learning is invite-only. Ask a Code School administrator to add the email you use to sign in.'}
+        </p>
+      </div>
+      <div className="space-y-4 px-6 py-6 sm:px-8">
+        {email && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Signed in as</p>
+            <p className="mt-1 break-all text-sm font-semibold text-slate-800">{email}</p>
+          </div>
+        )}
+        <p className="text-center text-xs leading-5 text-slate-500">
+          If an administrator just invited this address, check again. Otherwise, use the exact email from your Code School invitation.
+        </p>
+        <button
+          type="button"
+          onClick={() => void handleCheckAccess()}
+          disabled={checking || signingOut}
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 text-sm font-bold text-white transition hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          {checking ? 'Checking access…' : 'I’ve been invited — check again'}
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleSignOut()}
+          disabled={checking || signingOut}
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {signingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+          {signingOut ? 'Signing out…' : 'Use a different account'}
+        </button>
+      </div>
+    </div>
+  )
 }
 
 const authAppearance = {
@@ -102,9 +172,19 @@ const authAppearance = {
 }
 
 export function SignInPage() {
+  const { accessDenied } = useAuthContext()
+
+  if (accessDenied) {
+    return (
+      <AuthShell description="Private access for active Code School of Guam students and staff.">
+        <AccessDeniedCard />
+      </AuthShell>
+    )
+  }
+
   return (
     <RedirectIfSignedIn>
-      <AuthShell description="Sign in to access the Code School of Guam learning platform.">
+      <AuthShell description="Private access for invited Code School of Guam students and staff.">
         <SignIn
           appearance={authAppearance}
           routing="hash"
@@ -117,9 +197,19 @@ export function SignInPage() {
 }
 
 export function SignUpPage() {
+  const { accessDenied } = useAuthContext()
+
+  if (accessDenied) {
+    return (
+      <AuthShell description="Private access for active Code School of Guam students and staff.">
+        <AccessDeniedCard />
+      </AuthShell>
+    )
+  }
+
   return (
     <RedirectIfSignedIn>
-      <AuthShell description="Create your Code School of Guam learning account.">
+      <AuthShell description="Create your account with the exact email address from your Code School invitation.">
         <SignUp
           appearance={authAppearance}
           routing="hash"

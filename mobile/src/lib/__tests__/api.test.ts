@@ -37,6 +37,18 @@ describe('CsgApi', () => {
     }));
   });
 
+  it('preserves structured access-denial details from the API', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      error: 'This account does not have access.',
+      code: 'account_not_authorized',
+    }), { status: 403 }));
+
+    await expect(new CsgApi(async () => 'session-token').session()).rejects.toMatchObject({
+      status: 403,
+      code: 'account_not_authorized',
+    });
+  });
+
   it('unregisters a device with an encoded query parameter and no DELETE body', async () => {
     const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(new Response(null, { status: 204 }));
 
