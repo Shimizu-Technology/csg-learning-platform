@@ -349,7 +349,7 @@ Implemented decisions:
 
 ## 8. Phase 4 — Staff intervention tools
 
-Implementation status: implementation and iOS 18.5 simulator validation complete on `codex/mobile-parity-phase-4`, pending PR review and merge.
+Implementation status: complete on PR #65 after iOS 18.5 simulator validation and a clean final Greptile review.
 
 Native staff workflows:
 
