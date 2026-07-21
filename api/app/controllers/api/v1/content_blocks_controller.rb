@@ -163,11 +163,13 @@ module Api
           return
         end
 
+        expires_at = 2.hours.from_now
         url = S3Service.generate_presigned_url(@content_block.s3_video_key, expires_in: 7200)
         progress = current_user.progresses.find_by(content_block: @content_block)
 
         render json: {
           stream_url: url,
+          expires_at: expires_at.iso8601,
           video_progress: progress ? {
             last_position: progress.video_last_position,
             total_watched: progress.video_total_watched,

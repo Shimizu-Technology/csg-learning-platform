@@ -155,8 +155,9 @@ module Api
           return
         end
 
+        expires_at = 2.hours.from_now
         url = S3Service.generate_presigned_url(@recording.s3_key, expires_in: 7200)
-        render json: { stream_url: url }
+        render json: { stream_url: url, expires_at: expires_at.iso8601 }
       end
 
       # PATCH /api/v1/cohorts/:cohort_id/recordings/reorder

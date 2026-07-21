@@ -99,7 +99,9 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
-    assert_equal "https://signed.example/video.mp4", JSON.parse(response.body).fetch("stream_url")
+    body = JSON.parse(response.body)
+    assert_equal "https://signed.example/video.mp4", body.fetch("stream_url")
+    assert_in_delta 2.hours.from_now.to_i, Time.iso8601(body.fetch("expires_at")).to_i, 2
   end
 
   test "student recordings endpoint returns one normalized recording list" do
@@ -121,6 +123,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     items = JSON.parse(response.body).fetch("items")
     assert_equal [ "uploaded", "youtube", "external" ], items.map { |item| item.fetch("source") }
     assert_equal [ "Uploaded Class", "YouTube Class", "External Replay" ], items.map { |item| item.fetch("title") }
+    assert_equal [ @cohort.name ], items.map { |item| item.fetch("cohort_name") }.uniq
     assert items.all? { |item| item.fetch("item_key").present? }
   end
 

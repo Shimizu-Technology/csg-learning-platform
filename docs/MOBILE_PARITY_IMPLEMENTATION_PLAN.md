@@ -316,6 +316,8 @@ Implemented evidence:
 
 ## 7. Phase 3 — Native recordings
 
+Implementation status: implementation and iOS 18.5 simulator validation complete on `codex/mobile-parity-phase-3`, pending PR review and merge.
+
 Deliverables:
 
 - recording library grouped by cohort and date;
@@ -333,6 +335,17 @@ Release gate:
 - Background/foreground transitions and phone-call/audio interruptions do not corrupt progress.
 - Expired signed URLs recover without losing position.
 - Watch-progress staff reports reflect native viewing.
+
+Implemented decisions:
+
+- `expo-video` supplies the native AVPlayer/ExoPlayer surface, system controls, fullscreen playback, and PiP.
+- The app remains portrait-locked during ordinary navigation and unlocks orientation only while the native player is fullscreen.
+- Progress credits plausible media-clock movement at the selected playback rate, rejects seek jumps, saves every ten seconds plus pause/background/route-end, and coalesces overlapping writes.
+- Signed URLs carry an explicit server expiry, renew ten minutes early, and recover from playback errors by replacing the source at the prior position.
+- Background transitions pause ordinary inline playback, while user-initiated PiP may continue; phone/audio interruptions save the last reliable position.
+- Offline downloads and automatic media caching are deliberately disabled pending an approved storage, retention, privacy, and logout-removal policy.
+- iPhone 16 Pro / iOS 18.5 Simulator interaction verified Learn → Recordings → secure CSG video, HLS source load, resume clamping, native completion, fullscreen landscape rotation, portrait restoration, and route cleanup without a native-object teardown error.
+- Local release gate: Rails 274 tests / 815 assertions, mobile 16 suites / 50 tests, web 5 suites / 21 tests, RuboCop 209 files, Brakeman zero warnings, bundler-audit clean, Expo Doctor 20/20, dependency validation clean, and successful iOS and Android Hermes exports.
 
 ## 8. Phase 4 — Staff intervention tools
 

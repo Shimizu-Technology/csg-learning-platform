@@ -241,6 +241,46 @@ export interface LearningResource {
   description: string | null;
 }
 
+export interface WatchProgress {
+  recording_id?: number;
+  last_position_seconds: number;
+  total_watched_seconds: number;
+  progress_percentage: number;
+  completed: boolean;
+  last_watched_at: string | null;
+}
+
+export interface RecordingItem {
+  id: number | string;
+  item_key: string;
+  cohort_id: number;
+  cohort_name: string;
+  title: string;
+  description: string | null;
+  recorded_date: string | null;
+  date?: string | null;
+  url?: string | null;
+  source: 'uploaded' | 'youtube' | 'external';
+  duration_seconds?: number | null;
+  duration_display?: string | null;
+  file_size_display?: string | null;
+  created_at?: string;
+  watch_progress?: WatchProgress | null;
+}
+
+export interface VideoProgressInput {
+  last_position_seconds: number;
+  total_watched_seconds: number;
+  duration_seconds: number;
+}
+
+export interface ContentVideoProgress {
+  last_position: number;
+  total_watched: number;
+  duration: number | null;
+  status: string;
+}
+
 export interface OfficeHourOccurrence {
   id?: number | string;
   title?: string;

@@ -5,7 +5,7 @@ const WEB_ANNOUNCEMENT_PATH = /^\/announcements\/(\d+)$/;
 const LEARNING_PATH = /^\/(lesson|module)\/\d+$/;
 
 export function isAllowedNotificationPath(value: unknown): value is string {
-  return value === '/' || value === '/learn' || value === '/resources' || value === '/updates' || (typeof value === 'string' && (CONVERSATION_PATH.test(value) || LEARNING_PATH.test(value)));
+  return value === '/' || value === '/learn' || value === '/resources' || value === '/recordings' || value === '/updates' || (typeof value === 'string' && (CONVERSATION_PATH.test(value) || LEARNING_PATH.test(value) || /^\/recording\/[A-Za-z0-9-]+$/.test(value)));
 }
 
 export function mobileNotificationPath(value: unknown) {

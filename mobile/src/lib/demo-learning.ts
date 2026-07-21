@@ -1,4 +1,4 @@
-import type { LessonDetail, StudentDashboard } from './types';
+import type { LessonDetail, RecordingItem, StudentDashboard } from './types';
 
 export const demoDashboard: StudentDashboard = {
   enrolled: true,
@@ -20,6 +20,11 @@ export const demoDashboard: StudentDashboard = {
     ],
   }],
 };
+
+export const demoRecordings: RecordingItem[] = [
+  { id: 'legacy-4-1', item_key: 'legacy-4-1', cohort_id: 4, cohort_name: 'Web Dev Cohort 4', title: 'Responsive interfaces and state', description: 'Class replay covering responsive layouts and component state.', recorded_date: '2026-07-18', date: '2026-07-18', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', source: 'youtube' },
+  { id: 2, item_key: 'uploaded-2', cohort_id: 4, cohort_name: 'Web Dev Cohort 4', title: 'APIs, authentication, and deployment', description: 'Secure API integration and production deployment walkthrough.', recorded_date: '2026-07-15', duration_seconds: 5420, duration_display: '1:30:20', source: 'uploaded', watch_progress: { last_position_seconds: 1580, total_watched_seconds: 1520, progress_percentage: 28, completed: false, last_watched_at: '2026-07-20T10:00:00Z' } },
+];
 
 export const demoLesson: LessonDetail = {
   id: 101, module_id: 10, title: 'Responsive layouts with Grid', lesson_type: 'lesson', position: 2, release_day: 3, required: true, requires_submission: true, submission_type: 'text_submission', content_blocks_count: 3,

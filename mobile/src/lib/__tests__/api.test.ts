@@ -67,6 +67,25 @@ describe('CsgApi', () => {
       body: JSON.stringify({ destination: '/lessons/42' }),
     }));
   });
+
+  it('uses the shared recording and lesson-video progress contracts', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ stream_url: 'https://signed.example/video.mp4', expires_at: '2026-07-21T02:00:00Z' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ watch_progress: { recording_id: 7 } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ video_progress: { content_block_id: 9 } }), { status: 200 }));
+    const api = new CsgApi(async () => 'session-token');
+
+    await api.recordings();
+    await api.recordingStream(4, 7);
+    await api.updateWatchProgress(7, { last_position_seconds: 20, total_watched_seconds: 18, duration_seconds: 100 });
+    await api.updateContentVideoProgress(9, { last_position_seconds: 30, total_watched_seconds: 25, duration_seconds: 120 });
+
+    expect(fetchMock.mock.calls[0][0]).toContain('/api/v1/recordings');
+    expect(fetchMock.mock.calls[1][0]).toContain('/api/v1/cohorts/4/recordings/7/stream_url');
+    expect(fetchMock.mock.calls[2][1]).toEqual(expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ recording_id: 7, last_position_seconds: 20, total_watched_seconds: 18, duration_seconds: 100 }) }));
+    expect(fetchMock.mock.calls[3][0]).toContain('/api/v1/content_blocks/9/video_progress');
+  });
 });
 
 describe('websocketUrl', () => {
