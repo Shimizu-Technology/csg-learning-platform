@@ -25,7 +25,7 @@ class Message < ApplicationRecord
   scope :pinned_recent, lambda {
     visible
       .where.not(pinned_at: nil)
-      .includes(:author, :message_attachments, message_reactions: :user)
+      .includes(:author, :message_attachments, :replies, message_reactions: :user)
       .order(pinned_at: :desc, created_at: :desc, id: :desc)
       .limit(PINNED_LIMIT)
   }

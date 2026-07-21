@@ -1,4 +1,19 @@
-import type { Announcement, ChannelSummary, DirectConversationSummary, Message, MessageEvent, SessionUser, UserSummary, WorkspaceSummary } from './types';
+import type {
+  Announcement,
+  AppNotification,
+  ChannelSummary,
+  ConversationPayload,
+  DirectConversationSummary,
+  Message,
+  MessageEvent,
+  PaginationMeta,
+  PushConfig,
+  SessionUser,
+  UploadAttachmentInput,
+  UserSummary,
+  WorkspaceDetail,
+  WorkspaceSummary,
+} from './types';
 
 export type TokenGetter = (options?: { skipCache?: boolean }) => Promise<string | null>;
 
@@ -7,6 +22,28 @@ const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 
 export class ApiError extends Error {
   constructor(message: string, readonly status?: number, readonly code?: string) { super(message); }
+}
+
+type MessageInput = {
+  body: string;
+  parent_message_id?: number | null;
+  mention_user_ids?: number[];
+  attachments?: UploadAttachmentInput[];
+  send_push?: boolean;
+};
+
+type ConversationOptions = {
+  message_limit?: number;
+  around_message_id?: number;
+  before_message_id?: number;
+};
+
+function queryString(values: Record<string, string | number | boolean | null | undefined>) {
+  const query = Object.entries(values)
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+    .join('&');
+  return query ? `?${query}` : '';
 }
 
 export class CsgApi {
@@ -40,16 +77,39 @@ export class CsgApi {
 
   session = () => this.request<{ user: SessionUser }>('/api/v1/sessions', { method: 'POST' });
   workspaces = () => this.request<{ workspaces: WorkspaceSummary[] }>('/api/v1/workspaces');
+  workspace = (id: number) => this.request<{ workspace: WorkspaceDetail }>(`/api/v1/workspaces/${id}`);
+  createWorkspace = (data: { name: string; description?: string; user_ids?: number[] }) => this.request<{ workspace: WorkspaceDetail }>('/api/v1/workspaces', { method: 'POST', body: JSON.stringify(data) });
+  updateWorkspace = (id: number, data: { name?: string; description?: string; status?: 'active' | 'archived' }) => this.request<{ workspace: WorkspaceDetail }>(`/api/v1/workspaces/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  addWorkspaceMembers = (id: number, userIds: number[]) => this.request<{ workspace: WorkspaceDetail }>(`/api/v1/workspaces/${id}/memberships`, { method: 'POST', body: JSON.stringify({ user_ids: userIds }) });
+  removeWorkspaceMember = (id: number, userId: number) => this.request<{ workspace: WorkspaceDetail }>(`/api/v1/workspaces/${id}/memberships/${userId}`, { method: 'DELETE' });
+  users = () => this.request<{ users: UserSummary[] }>('/api/v1/users');
   channels = () => this.request<{ channels: ChannelSummary[] }>('/api/v1/channels');
+  createChannel = (data: { workspace_id: number; name: string; description?: string; visibility?: 'cohort' | 'staff_only' }) => this.request<{ channel: ChannelSummary }>('/api/v1/channels', { method: 'POST', body: JSON.stringify(data) });
+  updateChannel = (id: number, data: { name?: string; description?: string; visibility?: 'cohort' | 'staff_only'; status?: 'active' | 'archived' }) => this.request<{ channel: ChannelSummary }>(`/api/v1/channels/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  archiveChannel = (id: number) => this.request<{ channel: ChannelSummary }>(`/api/v1/channels/${id}`, { method: 'DELETE' });
   directConversations = () => this.request<{ direct_conversations: DirectConversationSummary[] }>('/api/v1/direct_conversations');
-  announcements = () => this.request<{ announcements: Announcement[]; unread_count: number }>('/api/v1/announcements?per_page=50');
+  announcements = (params: { scope?: 'manage'; page?: number; per_page?: number; audience?: Announcement['audience']; status?: Announcement['status']; cohort_id?: number; read?: 'read' | 'unread'; sort?: string } = {}) => this.request<{ announcements: Announcement[]; unread_count: number; meta: PaginationMeta }>(`/api/v1/announcements${queryString(params)}`);
+  announcement = (id: number) => this.request<{ announcement: Announcement }>(`/api/v1/announcements/${id}`);
+  createAnnouncement = (data: { title: string; body: string; audience: Announcement['audience']; cohort_id?: number | null; status?: Announcement['status']; pinned?: boolean; send_push?: boolean }) => this.request<{ announcement: Announcement }>('/api/v1/announcements', { method: 'POST', body: JSON.stringify(data) });
+  updateAnnouncement = (id: number, data: Partial<Pick<Announcement, 'title' | 'body' | 'audience' | 'cohort_id' | 'status' | 'pinned'>> & { send_push?: boolean }) => this.request<{ announcement: Announcement }>(`/api/v1/announcements/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  archiveAnnouncement = (id: number) => this.request<{ announcement: Announcement }>(`/api/v1/announcements/${id}`, { method: 'DELETE' });
   markAnnouncementsRead = () => this.request<{ unread_count: number }>('/api/v1/notifications/mark_all_read?notification_type=announcement', { method: 'PATCH' });
-  channel = (id: number) => this.request<{ channel: ChannelSummary; messages: Message[] }>(`/api/v1/channels/${id}?message_limit=100`);
-  directConversation = (id: number) => this.request<{ direct_conversation: DirectConversationSummary; messages: Message[] }>(`/api/v1/direct_conversations/${id}?message_limit=100`);
+  notifications = (params: { page?: number; per_page?: number; notification_type?: string; read?: 'read' | 'unread'; sort?: string } = {}) => this.request<{ notifications: AppNotification[]; unread_count: number; meta: PaginationMeta }>(`/api/v1/notifications${queryString(params)}`);
+  markNotificationRead = (id: number) => this.request<{ notification: AppNotification; unread_count: number }>(`/api/v1/notifications/${id}/read`, { method: 'PATCH' });
+  markAllNotificationsRead = (notificationType?: string) => this.request<{ unread_count: number }>(`/api/v1/notifications/mark_all_read${queryString({ notification_type: notificationType })}`, { method: 'PATCH' });
+  pushConfig = () => this.request<PushConfig>('/api/v1/push_subscriptions/config');
+  updateGlobalNotifications = (enabled: boolean) => this.request<PushConfig>('/api/v1/push_subscriptions/preferences', { method: 'PATCH', body: JSON.stringify({ notifications_enabled: enabled }) });
+  channel = (id: number, options: ConversationOptions = { message_limit: 100 }) => this.request<{ channel: ChannelSummary } & ConversationPayload>(`/api/v1/channels/${id}${queryString(options)}`);
+  directConversation = (id: number, options: ConversationOptions = { message_limit: 100 }) => this.request<{ direct_conversation: DirectConversationSummary } & ConversationPayload>(`/api/v1/direct_conversations/${id}${queryString(options)}`);
   markRead = (kind: 'channel' | 'dm', id: number) => this.request(kind === 'channel' ? `/api/v1/channels/${id}/read` : `/api/v1/direct_conversations/${id}/read`, { method: 'PATCH' });
-  sendMessage = (kind: 'channel' | 'dm', id: number, body: string) => this.request<{ message: Message }>(kind === 'channel' ? `/api/v1/channels/${id}/messages` : `/api/v1/direct_conversations/${id}/messages`, { method: 'POST', body: JSON.stringify({ body, send_push: true }) });
+  sendMessage = (kind: 'channel' | 'dm', id: number, input: string | MessageInput) => this.request<{ message: Message }>(kind === 'channel' ? `/api/v1/channels/${id}/messages` : `/api/v1/direct_conversations/${id}/messages`, { method: 'POST', body: JSON.stringify(typeof input === 'string' ? { body: input, send_push: true } : input) });
+  updateMessage = (id: number, body: string, mentionUserIds: number[] = []) => this.request<{ message: Message }>(`/api/v1/messages/${id}`, { method: 'PATCH', body: JSON.stringify({ body, mention_user_ids: mentionUserIds }) });
+  messageThread = (id: number) => this.request<{ root_message: Message; replies: Message[] }>(`/api/v1/messages/${id}/thread`);
+  deleteMessage = (id: number) => this.request<{ message: Message }>(`/api/v1/messages/${id}`, { method: 'DELETE' });
+  pinMessage = (id: number, remove = false) => this.request<{ message: Message }>(`/api/v1/messages/${id}/pin`, { method: remove ? 'DELETE' : 'PATCH' });
   react = (id: number, emoji: string, remove = false) => this.request<{ message: Message }>(`/api/v1/messages/${id}/reactions`, { method: remove ? 'DELETE' : 'POST', body: JSON.stringify({ emoji }) });
   updatePreference = (kind: 'channel' | 'dm', id: number, muted: boolean) => this.request('/api/v1/message_preferences', { method: 'PATCH', body: JSON.stringify({ target_type: kind === 'channel' ? 'Channel' : 'DirectConversation', target_id: id, muted }) });
+  presignAttachment = (kind: 'channel' | 'dm', id: number, filename: string, contentType: string) => this.request<{ upload_url: string; fields: Record<string, string>; s3_key: string; max_size: number }>('/api/v1/message_attachments/presign', { method: 'POST', body: JSON.stringify({ ...(kind === 'channel' ? { channel_id: id } : { direct_conversation_id: id }), filename, content_type: contentType }) });
   availableUsers = (workspaceId: number) => this.request<{ users: UserSummary[] }>(`/api/v1/direct_conversations/available_users?workspace_id=${workspaceId}`);
   createDm = (workspaceId: number, userIds: number[]) => this.request<{ direct_conversation: DirectConversationSummary }>('/api/v1/direct_conversations', { method: 'POST', body: JSON.stringify({ workspace_id: workspaceId, user_ids: userIds }) });
   cableToken = () => this.request<{ token: string; expires_in: number }>('/api/v1/cable_token', { method: 'POST' });

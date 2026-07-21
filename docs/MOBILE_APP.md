@@ -2,7 +2,7 @@
 
 ## Product boundary
 
-CSG Connect is the native companion to the learning platform, not a second implementation of the entire LMS. Version one solves the highest-frequency mobile job: staying connected to class.
+CSG Connect is the native companion to the learning platform. Its first complete product slice solves the highest-frequency mobile job—staying connected to class—against the exact same Rails records and authorization rules as the web app. The longer-term parity program is defined in [MOBILE_PARITY_IMPLEMENTATION_PLAN.md](MOBILE_PARITY_IMPLEMENTATION_PLAN.md).
 
 Included now:
 
@@ -12,7 +12,12 @@ Included now:
 - Optimistic message sending with failure recovery
 - Unread cursors and mute controls
 - Cross-conversation message search
-- Announcements and pinned updates
+- Anchored search results and paged message history
+- Attachments, mentions, reactions, edits, deletion, pins, and threads
+- Draft persistence and durable failed-message retry
+- Announcements, staff publishing controls, and the complete notification inbox
+- Staff workspace, membership, and channel controls
+- Global and per-conversation notification preferences
 - Native notification registration and deep links
 - Encrypted Clerk session persistence
 - A cached inbox fallback through local persisted state
@@ -39,13 +44,12 @@ Curriculum, recordings, submissions, grading, progress, office hours, and staff 
 - The inbox and workspace list cache only the signed-in user's scoped summaries. Signing out clears cached session, workspace selection, inbox, and device-token state.
 - Demo content is restricted to `__DEV__` builds and never substitutes for API authorization tests.
 
-## Deferred native scope
+## Next parity phases
 
-- Attachments, threads, edit/delete, reactions, and staff channel management
-- Curriculum and lesson delivery
+- Curriculum, lesson delivery, progress, resources, and submissions
 - Recording playback and offline downloads
-- Submissions, grading, and GitHub workflows
-- Office hours and live classroom sessions
-- App Store/Play Store production metadata and screenshots
+- Grading, student/cohort operations, GitHub workflows, and other staff intervention tools
+- Intentional web handoffs for high-density administration that does not benefit from a native duplicate
+- Final App Store/Play Store metadata and screenshots after the parity program stabilizes
 
-The Rails API contracts make those additive phases; the messaging-first release does not need to be discarded or rewritten.
+The Rails API remains the single product backend, so every native phase is additive rather than a fork of web behavior.

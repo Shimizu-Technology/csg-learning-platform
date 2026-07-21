@@ -8,7 +8,11 @@
     "scheme": "csgconnect",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/images/icon.png",
+      "icon": {
+        "light": "./assets/images/icon-light.png",
+        "dark": "./assets/images/icon-dark.png",
+        "tinted": "./assets/images/icon-tinted.png"
+      },
       "bundleIdentifier": "com.codeschoolofguam.connect",
       "buildNumber": "1",
       "supportsTablet": true,
@@ -17,9 +21,11 @@
       }
     },
     "android": {
+      "icon": "./assets/images/icon.png",
       "adaptiveIcon": {
-        "backgroundColor": "#18191F",
-        "foregroundImage": "./assets/images/icon.png"
+        "backgroundColor": "#0B0D12",
+        "foregroundImage": "./assets/images/icon-foreground.png",
+        "monochromeImage": "./assets/images/icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.codeschoolofguam.connect",
@@ -52,11 +58,21 @@
       [
         "expo-notifications",
         {
+          "icon": "./assets/images/notification-icon.png",
           "color": "#C51D34",
           "defaultChannel": "messages"
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "CSG Connect uses selected photos only when you choose to share them in a conversation.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,

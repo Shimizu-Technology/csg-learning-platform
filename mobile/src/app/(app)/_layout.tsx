@@ -27,8 +27,10 @@ export default function AppLayout() {
     <Stack screenOptions={{ headerStyle: { backgroundColor: palette.ink }, headerTintColor: palette.text, headerShadowVisible: false, contentStyle: { backgroundColor: palette.ink } }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="conversation/[kind]/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="thread/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="compose" options={{ presentation: 'modal', title: 'New message', headerRight: closeButton }} />
       <Stack.Screen name="search" options={{ presentation: 'modal', title: 'Search messages', headerRight: closeButton }} />
+      <Stack.Screen name="manage-communications" options={{ title: 'Communication settings' }} />
     </Stack>
   );
 }
