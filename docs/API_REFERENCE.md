@@ -258,7 +258,7 @@ Archived users are hidden from default user lists, team management, active cohor
 }
 ```
 
-`audience` may be `cohort`, `global`, or `staff`. `send_push` only sends browser pushes when Web Push VAPID env vars are configured and the recipient has opted in on that device.
+`audience` may be `cohort`, `global`, or `staff`. `send_push` fans out to configured browser Web Push subscriptions and active Expo mobile device tokens for eligible recipients.
 
 ### Notifications
 
@@ -296,6 +296,25 @@ Archived users are hidden from default user lists, team management, active cohor
 ```
 
 DM email notifications are enabled by default and are queued independently of browser-push support. Disabling the preference suppresses DM and mention emails; browser subscriptions remain device-specific.
+
+### Mobile Push Tokens
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `POST` | `/api/v1/mobile_push_tokens` | Any signed-in user | Register or refresh the current Expo device token |
+| `DELETE` | `/api/v1/mobile_push_tokens` | Token owner | Remove the current Expo device token at sign-out |
+
+**Register body:**
+```json
+{
+  "token": "ExpoPushToken[device-token]",
+  "platform": "ios",
+  "device_id": "optional-installation-id",
+  "app_version": "1.0.0"
+}
+```
+
+`platform` must be `ios` or `android`. A token cannot be claimed by a different signed-in user. Tokens rejected by Expo as `DeviceNotRegistered` are marked inactive and can be reactivated by a later successful registration.
 
 ---
 

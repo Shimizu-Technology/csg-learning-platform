@@ -118,3 +118,35 @@ jobs:
 
       - name: Lint, typecheck, test, and build frontend
         run: npm run check
+
+  mobile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./mobile
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: mobile/.nvmrc
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install mobile dependencies
+        run: npm ci
+
+      - name: Audit mobile dependencies
+        run: npm audit --audit-level=high
+
+      - name: Validate Expo dependency versions
+        run: npx expo install --check
+
+      - name: Lint, typecheck, and test mobile client
+        run: npm run check
+
+      - name: Export iOS JavaScript bundle
+        run: npx expo export --platform ios --output-dir /tmp/csg-mobile-ios-export

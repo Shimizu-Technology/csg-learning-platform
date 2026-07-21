@@ -10,9 +10,19 @@ class PushNotificationJob < ApplicationJob
     notifications = Notification.where(id: notification_ids)
     case notifiable
     when Announcement
-      WebPushNotificationService.announcement_published(notifiable, notifications)
+      deliver(WebPushNotificationService, :announcement_published, notifiable, notifications)
+      deliver(ExpoPushNotificationService, :announcement_published, notifiable, notifications)
     when Message
-      WebPushNotificationService.message_created(notifiable, notifications)
+      deliver(WebPushNotificationService, :message_created, notifiable, notifications)
+      deliver(ExpoPushNotificationService, :message_created, notifiable, notifications)
     end
+  end
+
+  private
+
+  def deliver(service, method, notifiable, notifications)
+    service.public_send(method, notifiable, notifications)
+  rescue StandardError => e
+    Rails.logger.error("[PushNotificationJob] #{service.name} failed for #{notifiable.class.name} #{notifiable.id}: #{e.class} #{e.message}")
   end
 end
