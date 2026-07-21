@@ -99,10 +99,10 @@ export function NativeVideoPlayer({ title, initialPosition = 0, initialTotalWatc
     setError(null);
     try {
       const stream = await fetchStream();
-      setExpiresAt(stream.expires_at);
+      if (mountedRef.current) setExpiresAt(stream.expires_at);
       await player.replaceAsync({ uri: stream.stream_url, useCaching: false, metadata: { title, artist: 'Code School of Guam' } });
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'The recording could not be loaded.');
+      if (mountedRef.current) setError(loadError instanceof Error ? loadError.message : 'The recording could not be loaded.');
     } finally {
       if (mountedRef.current) setLoading(false);
     }
