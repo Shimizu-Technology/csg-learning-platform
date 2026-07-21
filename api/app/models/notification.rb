@@ -5,7 +5,8 @@ class Notification < ApplicationRecord
     direct_message: 2,
     recording: 3,
     redo: 4,
-    system: 5
+    system: 5,
+    submission: 6
   }
 
   belongs_to :user

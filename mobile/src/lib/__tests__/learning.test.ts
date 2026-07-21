@@ -1,5 +1,5 @@
-import { buildSubmissionInput, canSubmitWork, lessonCompletion, safeExternalUrl, submissionState, submissionTypeFor } from '../learning';
-import type { LessonContentBlock, Submission } from '../types';
+import { buildSubmissionInput, canSubmitWork, lessonCompletion, safeExternalUrl, staffAttentionRank, submissionState, submissionTypeFor } from '../learning';
+import type { LessonContentBlock, StaffStudentSummary, Submission } from '../types';
 
 const block = (id: number, status: string): LessonContentBlock => ({ id, block_type: 'checkpoint', position: id, title: null, body: null, video_url: null, filename: null, metadata: {}, progress: { status, completed_at: null } });
 
@@ -43,6 +43,15 @@ describe('learning helpers', () => {
       notes: 'Ready',
     });
   });
+
+  it('prioritizes redos, reviews, and inactivity in the staff attention queue', () => {
+    const activeReview = staffStudent({ ungraded_count: 2, last_activity_at: '2026-07-20T00:00:00Z' });
+    const urgentRedo = staffStudent({ redo_count: 1, last_activity_at: '2026-07-20T00:00:00Z' });
+    const inactive = staffStudent({ last_activity_at: '2026-07-01T00:00:00Z' });
+    const now = Date.parse('2026-07-21T00:00:00Z');
+    expect(staffAttentionRank(urgentRedo, now)).toBeGreaterThan(staffAttentionRank(activeReview, now));
+    expect(staffAttentionRank(inactive, now)).toBeGreaterThan(staffAttentionRank(staffStudent({ last_activity_at: '2026-07-20T00:00:00Z' }), now));
+  });
 });
 
 function submission(overrides: Partial<Submission>): Submission {
@@ -51,5 +60,13 @@ function submission(overrides: Partial<Submission>): Submission {
     graded_by: null, graded_at: null, github_issue_url: null, github_code_url: null, num_submissions: 1,
     created_at: '2026-07-20T00:00:00Z', content_block_title: 'Exercise', content_block_type: 'exercise',
     lesson_title: 'Lesson', filename: null, language_hint: null, ...overrides,
+  };
+}
+
+function staffStudent(overrides: Partial<StaffStudentSummary>): StaffStudentSummary {
+  return {
+    user_id: 1, full_name: 'Student', email: 'student@example.com', github_username: null, progress_percentage: 50,
+    completed_blocks: 5, total_blocks: 10, last_sign_in_at: null, last_seen_at: null, last_activity_at: null,
+    blocks_this_week: 0, submissions_this_week: 0, ungraded_count: 0, redo_count: 0, enrollment_status: 'active', ...overrides,
   };
 }

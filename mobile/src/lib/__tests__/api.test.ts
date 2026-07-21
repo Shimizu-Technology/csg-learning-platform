@@ -86,6 +86,25 @@ describe('CsgApi', () => {
     expect(fetchMock.mock.calls[2][1]).toEqual(expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ recording_id: 7, last_position_seconds: 20, total_watched_seconds: 18, duration_seconds: 100 }) }));
     expect(fetchMock.mock.calls[3][0]).toContain('/api/v1/content_blocks/9/video_progress');
   });
+
+  it('uses staff-scoped progress, submission, and grading endpoints', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ overall_progress: { percentage: 40 } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ submissions: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ submission: { id: 9 } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ submission: { id: 9, grade: 'A' } }), { status: 200 }));
+    const api = new CsgApi(async () => 'session-token');
+
+    await api.studentProgress(18);
+    await api.submissions({ user_id: 18, ungraded: true });
+    await api.submission(9);
+    await api.gradeSubmission(9, 'A', 'Clear work');
+
+    expect(fetchMock.mock.calls[0][0]).toContain('/api/v1/progress/student/18');
+    expect(fetchMock.mock.calls[1][0]).toContain('user_id=18&ungraded=true');
+    expect(fetchMock.mock.calls[2][0]).toContain('/api/v1/submissions/9');
+    expect(fetchMock.mock.calls[3][1]).toEqual(expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ grade: 'A', feedback: 'Clear work' }) }));
+  });
 });
 
 describe('websocketUrl', () => {

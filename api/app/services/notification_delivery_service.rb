@@ -7,6 +7,14 @@ class NotificationDeliveryService
     new.message_created(message, push: push)
   end
 
+  def self.submission_created(submission, push: true)
+    new.submission_created(submission, push: push)
+  end
+
+  def self.submission_graded(submission, push: true)
+    new.submission_graded(submission, push: push)
+  end
+
   def announcement_published(announcement, push: false)
     return [] unless announcement.published?
 
@@ -56,7 +64,65 @@ class NotificationDeliveryService
     notifications
   end
 
+  def submission_created(submission, push: true)
+    # Staff authorization is intentionally platform-wide today: instructors and
+    # admins can view every active cohort, and there is no teaching-team
+    # assignment model to scope this further without silently dropping alerts.
+    notifications = User.not_archived.where(role: %i[instructor admin]).find_each.filter_map do |staff|
+      submission_notification_for(
+        staff,
+        submission,
+        actor: submission.user,
+        title: "New submission ready for review",
+        body: submission.content_block.lesson.title,
+        path: "/admin/grading"
+      )
+    end
+    enqueue_submission_push(submission, notifications) if push
+    notifications
+  end
+
+  def submission_graded(submission, push: true)
+    title = submission.grade == "R" ? "Redo requested" : "Submission graded #{submission.grade}"
+    body = submission.feedback.presence || submission.content_block.lesson.title
+    notification = submission_notification_for(
+      submission.user,
+      submission,
+      actor: submission.grader,
+      title: title,
+      body: body,
+      path: "/lessons/#{submission.content_block.lesson_id}"
+    )
+    enqueue_submission_push(submission, [ notification ]) if push
+    [ notification ]
+  end
+
   private
+
+  def submission_notification_for(user, submission, actor:, title:, body:, path:)
+    notification = Notification.find_or_initialize_by(notifiable: submission, user: user)
+    attributes = {
+      actor: actor,
+      notification_type: :submission,
+      title: title,
+      body: body,
+      path: path,
+      read_at: nil
+    }
+    notification.assign_attributes(attributes)
+    notification.save!
+    notification
+  rescue ActiveRecord::RecordNotUnique
+    Notification.find_by!(notifiable: submission, user: user).tap do |existing|
+      existing.update!(attributes)
+    end
+  end
+
+  def enqueue_submission_push(submission, notifications)
+    return if notifications.empty?
+
+    PushNotificationJob.perform_later("Submission", submission.id, notifications.map(&:id))
+  end
 
   def notification_for(user, announcement)
     Notification.find_or_create_by!(notifiable: announcement, user: user) do |notification|

@@ -40,4 +40,29 @@ class PushNotificationJobTest < ActiveJob::TestCase
     WebPushNotificationService.define_singleton_method(:message_created, original_web_delivery) if defined?(original_web_delivery) && original_web_delivery
     ExpoPushNotificationService.define_singleton_method(:message_created, original_expo_delivery) if defined?(original_expo_delivery) && original_expo_delivery
   end
+
+  test "submission events fan out to isolated web and Expo delivery" do
+    student = User.create!(clerk_id: "push_job_submission_student", email: "push-job-submission-student@example.com", role: :student)
+    staff = User.create!(clerk_id: "push_job_submission_staff", email: "push-job-submission-staff@example.com", role: :instructor)
+    curriculum = Curriculum.create!(name: "Push submission curriculum")
+    mod = CurriculumModule.create!(curriculum: curriculum, name: "Push module", position: 0, day_offset: 0, schedule_days: "weekdays")
+    lesson = Lesson.create!(curriculum_module: mod, title: "Push lesson", position: 0, release_day: 0)
+    block = ContentBlock.create!(lesson: lesson, block_type: :exercise, position: 0, title: "Push exercise")
+    submission = Submission.create!(user: student, content_block: block, text: "Ready")
+    notification = staff.notifications.create!(notifiable: submission, notification_type: :submission, title: "New submission", body: "Ready", path: "/admin/grading")
+    web_deliveries = []
+    expo_deliveries = []
+    original_web_delivery = WebPushNotificationService.method(:submission_changed)
+    original_expo_delivery = ExpoPushNotificationService.method(:submission_changed)
+    WebPushNotificationService.define_singleton_method(:submission_changed) { |item, notifications| web_deliveries << [ item, notifications.pluck(:id) ] }
+    ExpoPushNotificationService.define_singleton_method(:submission_changed) { |item, notifications| expo_deliveries << [ item, notifications.pluck(:id) ] }
+
+    PushNotificationJob.perform_now("Submission", submission.id, [ notification.id ])
+
+    assert_equal [ [ submission, [ notification.id ] ] ], web_deliveries
+    assert_equal [ [ submission, [ notification.id ] ] ], expo_deliveries
+  ensure
+    WebPushNotificationService.define_singleton_method(:submission_changed, original_web_delivery) if defined?(original_web_delivery) && original_web_delivery
+    ExpoPushNotificationService.define_singleton_method(:submission_changed, original_expo_delivery) if defined?(original_expo_delivery) && original_expo_delivery
+  end
 end

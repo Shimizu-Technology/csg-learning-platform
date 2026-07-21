@@ -51,7 +51,7 @@ Archived users receive the same status with `code: "account_archived"`. Missing,
 
 ### `POST /api/v1/web_handoffs`
 
-Creates a one-time, 60-second Clerk sign-in link for an allowlisted responsive-web destination. Mobile uses this for browser-shaped tools such as the interactive code runner without placing the device session JWT in a URL. Supported destinations are numeric lesson and module paths, for example:
+Creates a one-time, 60-second Clerk sign-in link for an allowlisted responsive-web destination. Mobile uses this for browser-shaped tools without placing the device session JWT in a URL. All signed-in users may hand off to numeric lesson and module paths. Staff may also hand off to the allowlisted administration root, student/cohort detail, watch progress, module grading, grading, content, and team destinations. For example:
 
 ```json
 { "destination": "/lessons/42" }
@@ -92,7 +92,7 @@ Returns role-appropriate dashboard data.
 
 **Student response:** Current cohort, pinned/unread announcements, unread notification count, modules with progress and unlock state, next lesson, current redo items, latest passing grades, resources, and upcoming office hours.
 
-**Admin response:** All active cohorts with student progress, at-risk indicators, ungraded counts.
+**Staff response:** All active cohorts with student progress and activity signals. Each student summary includes `ungraded_count` and `redo_count`; each cohort and the backward-compatible top-level summary include the total ungraded count.
 
 ```json
 {
@@ -107,6 +107,8 @@ Returns role-appropriate dashboard data.
         "completed_blocks": 58,
         "total_blocks": 128,
         "last_activity_at": "2026-04-06T15:30:00Z",
+        "ungraded_count": 2,
+        "redo_count": 1,
         "enrollment_status": "active"
       }
     ],
@@ -122,7 +124,7 @@ Returns role-appropriate dashboard data.
 
 ### `GET /api/v1/recordings`
 
-Returns one normalized `items` list across every active cohort enrollment. Each item includes `item_key`, `cohort_id`, `cohort_name`, `source` (`uploaded`, `youtube`, or `external`), recording date, media metadata, and the current user's watch progress when available.
+Returns one normalized `items` list. Students receive recordings across their active cohort enrollments; staff receive recordings across all active and upcoming cohorts. Each item includes `item_key`, `cohort_id`, `cohort_name`, `source` (`uploaded`, `youtube`, or `external`), recording date, media metadata, and the current student's watch progress when available.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
@@ -135,7 +137,7 @@ Signed URLs are temporary secrets. Clients should renew before `expires_at`, avo
 
 ### `GET /api/v1/resources`
 
-Returns resources/links for the current user's active cohort.
+Students receive resources/links for their active cohort. Staff receive resources across all active and upcoming cohorts; each item includes `cohort_id` and `cohort_name` and uses a cross-cohort-safe synthetic ID.
 
 ---
 
@@ -579,6 +581,8 @@ Offset-bearing ISO 8601 values are treated as absolute instants. Values from `da
 ```
 
 Grade values: `A` (0), `B` (1), `C` (2), `R` (3 — redo required)
+
+Creating a submission produces an in-app `submission` notification for non-archived instructors and admins, whose access is currently platform-wide. Grading produces one for the student. Expo delivery deep-links staff to `/staff/submission/:id` and students to `/lesson/:lesson_id`; Web Push opens the equivalent web destination. Web and Expo fanout are isolated from one another. The existing message/email preference is not reused as a global opt-out for announcements or learning alerts.
 
 ---
 
