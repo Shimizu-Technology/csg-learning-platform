@@ -1,10 +1,10 @@
-import { marked } from 'marked';
 import { useMemo } from 'react';
 import { Alert, useWindowDimensions } from 'react-native';
 import RenderHtml from 'react-native-render-html';
 
 import { fonts, palette } from '@/constants/csg-theme';
 import { openExternalPage } from '@/lib/external-links';
+import { renderLessonMarkdown } from '@/lib/lesson-markdown';
 
 interface LessonMarkdownProps {
   body: string;
@@ -12,7 +12,7 @@ interface LessonMarkdownProps {
 
 export function LessonMarkdown({ body }: LessonMarkdownProps) {
   const { width } = useWindowDimensions();
-  const html = useMemo(() => marked.parse(body, { async: false }) as string, [body]);
+  const html = useMemo(() => renderLessonMarkdown(body), [body]);
 
   return (
     <RenderHtml

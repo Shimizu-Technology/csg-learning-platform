@@ -29,8 +29,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const [loading, setLoading] = useState(!auth.demo);
   const [error, setError] = useState<string | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
-  const userIdRef = useRef<number | null>(user?.id || null);
-  useEffect(() => { userIdRef.current = user?.id || null; }, [user?.id]);
+  const userIdRef = useRef<number | null>(user?.id ?? null);
+  useEffect(() => { userIdRef.current = user?.id ?? null; }, [user?.id]);
 
   const refresh = useCallback(async () => {
     if (!auth.signedIn) { setUser(null); setError(null); setAccessDenied(false); setLoading(false); return; }

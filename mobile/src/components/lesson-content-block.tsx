@@ -58,6 +58,10 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
     onSuccess: async () => { setMessage(editable ? 'Submission updated.' : redo ? 'Redo submitted.' : 'Work submitted.'); await refresh(); },
     onError: (error) => setMessage((error as Error).message),
   });
+  const handoffMutation = useMutation({
+    mutationFn: () => openAuthenticatedWebLesson(api, lesson.id),
+    onError: (error) => Alert.alert('Could not open the code runner', (error as Error).message),
+  });
   const canSubmit = useMemo(() => {
     if (locked || passed || submissionMutation.isPending) return false;
     return canSubmitWork(submissionType, { text, repoUrl, liveUrl });
@@ -79,7 +83,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
     {block.body && <View style={styles.body}><LessonMarkdown body={block.body} /></View>}
     {block.filename && <View style={styles.file}><Code2 color={palette.quiet} size={15} /><Text style={styles.fileText}>{block.filename}</Text></View>}
     {isVideo && <Pressable accessibilityRole="button" accessibilityLabel={`Play ${block.title || 'video'}`} onPress={() => void openVideo()} style={styles.outlineButton}><Play color={palette.rubySoft} size={17} /><Text style={styles.outlineText}>Play video</Text><ExternalLink color={palette.quiet} size={15} /></Pressable>}
-    {runner?.enabled && <Pressable accessibilityRole="button" accessibilityLabel="Open code runner on the web" onPress={() => void openAuthenticatedWebLesson(api, lesson.id).catch((error) => Alert.alert('Could not open the code runner', (error as Error).message))} style={styles.outlineButton}><Code2 color={palette.rubySoft} size={17} /><Text style={styles.outlineText}>Open {runner.language || 'code'} runner</Text><ExternalLink color={palette.quiet} size={15} /></Pressable>}
+    {runner?.enabled && <Pressable accessibilityRole="button" accessibilityLabel="Open code runner on the web" accessibilityState={{ busy: handoffMutation.isPending, disabled: handoffMutation.isPending }} disabled={handoffMutation.isPending} onPress={() => handoffMutation.mutate()} style={[styles.outlineButton, handoffMutation.isPending && styles.buttonDisabled]}>{handoffMutation.isPending ? <ActivityIndicator color={palette.rubySoft} /> : <Code2 color={palette.rubySoft} size={17} />}<Text style={styles.outlineText}>{handoffMutation.isPending ? 'Opening secure runner…' : `Open ${runner.language || 'code'} runner`}</Text><ExternalLink color={palette.quiet} size={15} /></Pressable>}
     {latest && <SubmissionStatus submission={latest} redo={redo} />}
     {locked && <View style={styles.locked}><Lock color={palette.warning} size={17} /><View style={styles.flex}><Text style={styles.lockedTitle}>Submissions are closed</Text><Text style={styles.lockedCopy}>You can review this lesson and existing feedback.</Text></View></View>}
     {studentMode && isExercise && submissionType === 'prework_github_sync' && <View style={styles.sync}><GitBranch color={palette.rubySoft} size={18} /><View style={styles.flex}><Text style={styles.syncTitle}>Reviewed through GitHub</Text><Text style={styles.syncCopy}>{lesson.repository_name ? `Your work syncs from ${lesson.repository_name}.` : 'Your linked class repository is the source of truth.'}</Text></View></View>}
