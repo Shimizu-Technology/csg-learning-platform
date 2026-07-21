@@ -7,13 +7,16 @@ module Api
       # Returns both legacy (YouTube/URL-based from cohort settings) and
       # S3-backed recordings across all of the student's active cohorts.
       def index
-        enrollments = current_user.enrollments.active.includes(:cohort).order(created_at: :desc)
-        if enrollments.empty?
+        cohorts = if current_user.staff?
+          Cohort.where(status: %i[active upcoming]).order(start_date: :desc).to_a
+        else
+          current_user.enrollments.active.includes(:cohort).order(created_at: :desc).map(&:cohort)
+        end
+        if cohorts.empty?
           render json: { recordings: [], s3_recordings: [], items: [] }
           return
         end
 
-        cohorts = enrollments.map(&:cohort)
         legacy = cohorts.flat_map do |cohort|
           Array((cohort.settings || {})["recordings"]).map.with_index do |r, i|
             {
@@ -34,9 +37,13 @@ module Api
         end
 
         s3_recordings = Recording.where(cohort_id: cohorts.map(&:id)).includes(:cohort).order(:cohort_id, :position)
-        progress_map = current_user.watch_progresses
-          .where(recording_id: s3_recordings.map(&:id))
-          .index_by(&:recording_id)
+        progress_map = if current_user.staff?
+          {}
+        else
+          current_user.watch_progresses
+            .where(recording_id: s3_recordings.map(&:id))
+            .index_by(&:recording_id)
+        end
 
         s3_list = s3_recordings.map do |r|
           wp = progress_map[r.id]

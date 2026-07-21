@@ -15,6 +15,9 @@ class PushNotificationJob < ApplicationJob
     when Message
       deliver(WebPushNotificationService, :message_created, notifiable, notifications)
       deliver(ExpoPushNotificationService, :message_created, notifiable, notifications)
+    when Submission
+      deliver(WebPushNotificationService, :submission_changed, notifiable, notifications)
+      deliver(ExpoPushNotificationService, :submission_changed, notifiable, notifications)
     end
   end
 

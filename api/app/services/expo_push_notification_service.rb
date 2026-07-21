@@ -34,10 +34,25 @@ class ExpoPushNotificationService
     end
   end
 
+  def self.submission_changed(submission, notifications)
+    new.deliver_notifications(notifications) do |notification|
+      path = notification.user.staff? ? "/staff/submission/#{submission.id}" : "/lesson/#{submission.content_block.lesson_id}"
+      {
+        title: notification.title,
+        body: notification.body,
+        data: { path: path },
+        sound: "default",
+        channelId: "messages"
+      }
+    end
+  end
+
   def deliver_notifications(notifications)
     notification_list = Array.wrap(notifications)
     ActiveRecord::Associations::Preloader.new(records: notification_list, associations: { user: :mobile_push_tokens }).call
     entries = notification_list.flat_map do |notification|
+      next [] unless notification.user.message_email_notifications_enabled?
+
       notification.user.mobile_push_tokens.select { |token| token.failed_at.nil? }.map do |token|
         [ token, yield(notification).merge(to: token.token) ]
       end

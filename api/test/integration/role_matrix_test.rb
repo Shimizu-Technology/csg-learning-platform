@@ -172,6 +172,14 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
   end
 
   test "instructor gets admin dashboard" do
+    enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+    ModuleAssignment.create!(enrollment: enrollment, curriculum_module: @mod, unlocked: true)
+    lesson = Lesson.create!(curriculum_module: @mod, title: "Attention", position: 0, release_day: 0)
+    ungraded_block = ContentBlock.create!(lesson: lesson, block_type: :exercise, position: 0, title: "Review me")
+    redo_block = ContentBlock.create!(lesson: lesson, block_type: :exercise, position: 1, title: "Redo me")
+    Submission.create!(user: @student, content_block: ungraded_block, text: "ready")
+    Submission.create!(user: @student, content_block: redo_block, text: "again", grade: "R")
+
     as_user(@instructor) do
       get "/api/v1/dashboard", headers: auth_headers
     end
@@ -179,6 +187,9 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
     assert_response :success
     data = JSON.parse(response.body)["dashboard"]
     assert data.key?("cohorts") || data.key?("cohort")
+    student = data.fetch("cohorts").first.fetch("students").first
+    assert_equal 1, student.fetch("ungraded_count")
+    assert_equal 1, student.fetch("redo_count")
   end
 
   test "admin gets admin dashboard" do
@@ -187,6 +198,20 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
+  end
+
+  test "staff can browse resources across active cohorts without student enrollment" do
+    @cohort.update!(settings: { "class_resources" => [ { "title" => "Staff guide", "url" => "https://example.com/guide", "category" => "reference" } ] })
+
+    as_user(@instructor) do
+      get "/api/v1/resources", headers: auth_headers
+    end
+
+    assert_response :success
+    resource = JSON.parse(response.body).fetch("resources").first
+    assert_equal "Staff guide", resource.fetch("title")
+    assert_equal @cohort.id, resource.fetch("cohort_id")
+    assert_equal @cohort.name, resource.fetch("cohort_name")
   end
 
   # --- Cohorts (staff = instructor + admin) ---

@@ -234,11 +234,13 @@ export interface SubmissionWindowStatus {
 }
 
 export interface LearningResource {
-  id: number;
+  id: number | string;
   title: string;
   url: string;
   category: string;
   description: string | null;
+  cohort_id?: number;
+  cohort_name?: string;
 }
 
 export interface WatchProgress {
@@ -361,11 +363,78 @@ export interface StudentDashboard {
 
 export interface StaffDashboard {
   user: { id: number; full_name: string; role: string };
-  cohorts: {
-    cohort: { id: number; name: string; status: string; active_count?: number; enrolled_count?: number };
+  cohorts: StaffCohortDashboard[];
+}
+
+export interface StaffStudentSummary {
+  user_id: number;
+  full_name: string;
+  email: string;
+  github_username: string | null;
+  progress_percentage: number;
+  completed_blocks: number;
+  total_blocks: number;
+  last_sign_in_at: string | null;
+  last_seen_at: string | null;
+  last_activity_at: string | null;
+  blocks_this_week: number;
+  submissions_this_week: number;
+  ungraded_count: number;
+  redo_count: number;
+  enrollment_status: string;
+}
+
+export interface StaffCohortDashboard {
+    cohort: { id: number; name: string; start_date?: string; status: string; active_count?: number; enrolled_count?: number };
     ungraded_count: number;
-    students: unknown[];
+    students: StaffStudentSummary[];
+}
+
+export interface StudentProgressDetail {
+  enrollment: { id: number; status: string };
+  user: { id: number; full_name: string; email: string; github_username: string | null; avatar_url: string | null; last_sign_in_at: string | null; last_seen_at: string | null };
+  cohort: { id: number; name: string; start_date: string; status: string };
+  overall_progress: { completed: number; total: number; percentage: number };
+  modules: StaffProgressModule[];
+  recent_activity: { content_block_id: number; block_title: string | null; block_type: string; completed_at: string | null }[];
+}
+
+export interface StaffProgressModule {
+  id: number;
+  name: string;
+  module_type: string;
+  position: number;
+  total_blocks: number;
+  completed_blocks: number;
+  progress_percentage: number;
+  lessons: {
+    id: number;
+    title: string;
+    lesson_type: string;
+    available: boolean;
+    total_blocks: number;
+    completed_blocks: number;
+    completed: boolean;
+    blocks: { id: number; title: string | null; block_type: string; status: string; completed_at: string | null; submission: { id: number; grade: string | null; feedback: string | null; submitted_at: string; graded_at: string | null } | null }[];
   }[];
+}
+
+export interface StaffVideoProgress {
+  recording_id?: number;
+  content_block_id?: number;
+  recording_title?: string;
+  title?: string;
+  lesson_title?: string;
+  module_title?: string;
+  cohort_id: number;
+  cohort_name: string;
+  duration_seconds: number | null;
+  last_position_seconds: number;
+  total_watched_seconds: number;
+  progress_percentage: number;
+  completed: boolean;
+  last_watched_at?: string | null;
+  completed_at?: string | null;
 }
 
 export interface ProgressEntry {
@@ -459,6 +528,9 @@ export interface Submission {
   filename: string | null;
   submission_config?: Record<string, unknown>;
   language_hint: string | null;
+  solution?: string | null;
+  exercise_body?: string | null;
+  exercise_video_url?: string | null;
 }
 
 export interface SubmissionInput {

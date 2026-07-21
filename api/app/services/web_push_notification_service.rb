@@ -20,6 +20,12 @@ class WebPushNotificationService
     new.message_created(message, notifications)
   end
 
+  def self.submission_changed(submission, notifications)
+    return false unless configured?
+
+    new.submission_changed(submission, notifications)
+  end
+
   def announcement_published(announcement, notifications)
     payload = {
       title: "New CSG announcement",
@@ -38,6 +44,19 @@ class WebPushNotificationService
         body: notification.body,
         path: notification.path,
         tag: message.direct_message? ? "dm-#{message.direct_conversation_id}" : "channel-#{message.channel_id}"
+      }.to_json
+
+      deliver_to_user(notification.user_id, payload)
+    end
+  end
+
+  def submission_changed(submission, notifications)
+    each_notification(notifications) do |notification|
+      payload = {
+        title: notification.title,
+        body: notification.body,
+        path: notification.path,
+        tag: "submission-#{submission.id}"
       }.to_json
 
       deliver_to_user(notification.user_id, payload)
@@ -66,6 +85,8 @@ class WebPushNotificationService
   end
 
   def deliver_to_user(user_id, payload)
+    return unless User.where(id: user_id, message_email_notifications_enabled: true).exists?
+
     PushSubscription.active.where(user_id: user_id).find_each do |subscription|
       deliver(subscription, payload)
     end

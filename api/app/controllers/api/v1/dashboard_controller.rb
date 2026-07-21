@@ -276,7 +276,7 @@ module Api
 
         submissions_by_user = Submission
           .where(user_id: user_ids, content_block_id: all_block_ids)
-          .select(:user_id, :content_block_id, :created_at)
+          .select(:user_id, :content_block_id, :grade, :created_at)
           .to_a
           .group_by(&:user_id)
 
@@ -293,6 +293,8 @@ module Api
 
           blocks_this_week = user_progresses.count { |p| p.completed_at && p.completed_at >= week_ago }
           submissions_this_week = user_submissions.count { |s| s.created_at && s.created_at >= week_ago }
+          ungraded_submissions = user_submissions.count { |s| s.grade.nil? }
+          redo_submissions = user_submissions.count { |s| s.grade == "R" }
 
           {
             user_id: user.id,
@@ -307,6 +309,8 @@ module Api
             last_activity_at: last_activity,
             blocks_this_week: blocks_this_week,
             submissions_this_week: submissions_this_week,
+            ungraded_count: ungraded_submissions,
+            redo_count: redo_submissions,
             enrollment_status: enrollment.status
           }
         end

@@ -10,6 +10,9 @@ describe('isAllowedNotificationPath', () => {
     expect(isAllowedNotificationPath('/resources')).toBe(true);
     expect(isAllowedNotificationPath('/recordings')).toBe(true);
     expect(isAllowedNotificationPath('/recording/uploaded-25')).toBe(true);
+    expect(isAllowedNotificationPath('/staff/submission/31')).toBe(true);
+    expect(isAllowedNotificationPath('/staff/student/18')).toBe(true);
+    expect(isAllowedNotificationPath('/staff/grading')).toBe(true);
   });
 
   it('rejects unknown, malformed, and non-string paths', () => {
@@ -27,6 +30,7 @@ describe('isAllowedNotificationPath', () => {
     expect(mobileNotificationPath('/lessons/42')).toBe('/lesson/42');
     expect(mobileNotificationPath('/modules/7')).toBe('/module/7');
     expect(mobileNotificationPath('/dashboard')).toBe('/');
+    expect(mobileNotificationPath('/admin/grading')).toBe('/staff/grading');
     expect(mobileNotificationPath('https://example.com')).toBe('/updates');
   });
 });

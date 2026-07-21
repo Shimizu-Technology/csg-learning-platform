@@ -66,7 +66,7 @@ export default function UpdatesScreen() {
       try { const result = auth.demo ? null : await api.announcement(item.notifiable.id); if (result) setSelectedAnnouncement(result.announcement); setSection('announcements'); } catch (requestError) { Alert.alert('Could not open announcement', (requestError as Error).message); }
       return;
     }
-    const path = mobileNotificationPath(item.path);
+    const path = item.notifiable.type === 'Submission' && user?.is_staff ? `/staff/submission/${item.notifiable.id}` : mobileNotificationPath(item.path);
     const anchoredPath = item.notifiable.type === 'Message' ? `${path}?messageId=${item.notifiable.id}` : path;
     router.push(anchoredPath as Href);
   };

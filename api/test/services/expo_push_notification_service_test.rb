@@ -88,6 +88,43 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
     assert_equal 1, token_selects
   end
 
+  test "does not deliver to a user who disabled notifications" do
+    user = User.create!(clerk_id: "expo_opted_out", email: "expo-opted-out@example.com", role: :student, message_email_notifications_enabled: false)
+    user.mobile_push_tokens.create!(token: "ExpoPushToken[opted-out]", platform: "ios", last_seen_at: Time.current)
+    announcement = Announcement.create!(title: "Opt out", body: "Test", author: user, audience: :global, status: :published)
+    notification = user.notifications.create!(notifiable: announcement, notification_type: :announcement, title: "Update", body: "Test", path: "/updates")
+
+    delivered = ExpoPushNotificationService.new.deliver_notifications([ notification ]) { { title: "Test", body: "Test" } }
+
+    assert_equal false, delivered
+  end
+
+  test "submission pushes use native staff and student destinations" do
+    student = User.create!(clerk_id: "expo_submission_student", email: "expo-submission-student@example.com", role: :student)
+    staff = User.create!(clerk_id: "expo_submission_staff", email: "expo-submission-staff@example.com", role: :instructor)
+    student.mobile_push_tokens.create!(token: "ExpoPushToken[submission-student]", platform: "ios", last_seen_at: Time.current)
+    staff.mobile_push_tokens.create!(token: "ExpoPushToken[submission-staff]", platform: "ios", last_seen_at: Time.current)
+    curriculum = Curriculum.create!(name: "Expo submission curriculum")
+    mod = CurriculumModule.create!(curriculum: curriculum, name: "Module", position: 0, day_offset: 0, schedule_days: "weekdays")
+    lesson = Lesson.create!(curriculum_module: mod, title: "Lesson", position: 0, release_day: 0)
+    block = ContentBlock.create!(lesson: lesson, block_type: :exercise, position: 0, title: "Exercise")
+    submission = Submission.create!(user: student, content_block: block, text: "Ready")
+    notifications = [
+      student.notifications.create!(notifiable: submission, notification_type: :submission, title: "Graded", body: "Done", path: "/lessons/#{lesson.id}"),
+      staff.notifications.create!(notifiable: submission, notification_type: :submission, title: "Review", body: "Ready", path: "/admin/grading")
+    ]
+    response = Net::HTTPOK.new("1.1", "200", "OK")
+    response.instance_variable_set(:@read, true)
+    response.body = { data: [ { status: "ok" }, { status: "ok" } ] }.to_json
+
+    with_http_response(response) do |connection|
+      ExpoPushNotificationService.submission_changed(submission, Notification.where(id: notifications.map(&:id)))
+      paths = JSON.parse(connection.request_received.body).map { |payload| payload.dig("data", "path") }
+      assert_includes paths, "/lesson/#{lesson.id}"
+      assert_includes paths, "/staff/submission/#{submission.id}"
+    end
+  end
+
   private
 
   def with_http_response(response)

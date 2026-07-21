@@ -17,6 +17,8 @@ import type {
   PushConfig,
   SessionUser,
   StaffDashboard,
+  StaffVideoProgress,
+  StudentProgressDetail,
   StudentDashboard,
   Submission,
   SubmissionInput,
@@ -106,6 +108,12 @@ export class CsgApi {
   updateProgress = (contentBlockId: number, status: string) => this.request<{ progress: ProgressEntry }>('/api/v1/progress', { method: 'PATCH', body: JSON.stringify({ content_block_id: contentBlockId, status }) });
   createSubmission = (input: SubmissionInput) => this.request<{ submission: Submission }>('/api/v1/submissions', { method: 'POST', body: JSON.stringify(input) });
   updateSubmission = (id: number, input: Omit<SubmissionInput, 'content_block_id'>) => this.request<{ submission: Submission }>(`/api/v1/submissions/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+  submissions = (params: { user_id?: number; ungraded?: boolean; module_id?: number } = {}, signal?: AbortSignal) => this.request<{ submissions: Submission[] }>(`/api/v1/submissions${queryString(params)}`, { signal });
+  submission = (id: number, signal?: AbortSignal) => this.request<{ submission: Submission }>(`/api/v1/submissions/${id}`, { signal });
+  gradeSubmission = (id: number, grade: 'A' | 'B' | 'C' | 'R', feedback: string) => this.request<{ submission: Submission }>(`/api/v1/submissions/${id}/grade`, { method: 'PATCH', body: JSON.stringify({ grade, feedback }) });
+  studentProgress = (studentId: number, signal?: AbortSignal) => this.request<StudentProgressDetail>(`/api/v1/progress/student/${studentId}`, { signal });
+  studentRecordingProgress = (studentId: number, signal?: AbortSignal) => this.request<{ watch_progresses: StaffVideoProgress[] }>(`/api/v1/watch_progress/student/${studentId}`, { signal });
+  studentLessonVideoProgress = (studentId: number, signal?: AbortSignal) => this.request<{ lesson_videos: StaffVideoProgress[] }>(`/api/v1/watch_progress/student/${studentId}/lesson_videos`, { signal });
   contentVideoStream = (id: number, signal?: AbortSignal) => this.request<{ stream_url: string; expires_at: string; video_progress: ContentVideoProgress | null }>(`/api/v1/content_blocks/${id}/video_stream`, { signal });
   updateContentVideoProgress = (id: number, input: VideoProgressInput) => this.request<{ video_progress: ContentVideoProgress & { content_block_id: number; completed: boolean } }>(`/api/v1/content_blocks/${id}/video_progress`, { method: 'PATCH', body: JSON.stringify(input) });
   recordings = (signal?: AbortSignal) => this.request<{ recordings: RecordingItem[]; s3_recordings: RecordingItem[]; items: RecordingItem[] }>('/api/v1/recordings', { signal });

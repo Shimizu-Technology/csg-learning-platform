@@ -1,4 +1,4 @@
-import type { LessonContentBlock, StudentDashboard, SubmissionBrief, SubmissionInput } from './types';
+import type { LessonContentBlock, StaffDashboard, StaffStudentSummary, StudentDashboard, SubmissionBrief, SubmissionInput } from './types';
 
 export const learningKeys = {
   dashboard: (userId: number) => ['learning', userId, 'dashboard'] as const,
@@ -6,10 +6,23 @@ export const learningKeys = {
   resources: (userId: number) => ['learning', userId, 'resources'] as const,
   recordings: (userId: number) => ['learning', userId, 'recordings'] as const,
   profile: (userId: number) => ['learning', userId, 'profile'] as const,
+  studentDetail: (userId: number, studentId: number) => ['learning', userId, 'staff-student', studentId] as const,
+  submission: (userId: number, submissionId: number) => ['learning', userId, 'staff-submission', submissionId] as const,
+  submissions: (userId: number, studentId?: number) => ['learning', userId, 'staff-submissions', studentId || 'all'] as const,
 };
 
 export function isStudentDashboard(value: StudentDashboard | object): value is StudentDashboard {
   return 'enrolled' in value;
+}
+
+export function isStaffDashboard(value: StudentDashboard | StaffDashboard | object): value is StaffDashboard {
+  return 'cohorts' in value && !('enrolled' in value);
+}
+
+export function staffAttentionRank(student: StaffStudentSummary, now = Date.now()) {
+  const lastActivity = student.last_activity_at || student.last_seen_at || student.last_sign_in_at;
+  const inactiveDays = lastActivity ? Math.max(0, (now - Date.parse(lastActivity)) / 86_400_000) : Number.POSITIVE_INFINITY;
+  return student.redo_count * 1_000 + student.ungraded_count * 100 + (inactiveDays >= 7 ? 20 : 0) + Math.max(0, 100 - student.progress_percentage) / 10;
 }
 
 export function lessonCompletion(blocks: LessonContentBlock[]) {

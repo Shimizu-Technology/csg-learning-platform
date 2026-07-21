@@ -13,6 +13,10 @@ export async function openExternalPage(value: string | null | undefined) {
 }
 
 export async function openAuthenticatedWebLesson(api: CsgApi, lessonId: number) {
-  const result = await api.webHandoff(`/lessons/${lessonId}`);
+  await openAuthenticatedWebPage(api, `/lessons/${lessonId}`);
+}
+
+export async function openAuthenticatedWebPage(api: CsgApi, destination: string) {
+  const result = await api.webHandoff(destination);
   await openExternalPage(result.url);
 }

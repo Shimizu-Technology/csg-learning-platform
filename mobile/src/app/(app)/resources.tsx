@@ -19,7 +19,7 @@ export default function ResourcesScreen() {
   const query = useQuery({ queryKey: learningKeys.resources(user?.id || 0), queryFn: ({ signal }) => api.resources(signal), enabled: Boolean(user) });
   const resources = useMemo(() => (query.data?.resources || []).filter((resource) => `${resource.title} ${resource.category} ${resource.description || ''}`.toLowerCase().includes(filter.trim().toLowerCase())), [filter, query.data?.resources]);
   const grouped = useMemo(() => Object.entries(resources.reduce<Record<string, typeof resources>>((groups, resource) => {
-    const category = resource.category || 'General';
+    const category = resource.cohort_name ? `${resource.cohort_name} · ${resource.category || 'General'}` : resource.category || 'General';
     groups[category] = [...(groups[category] || []), resource];
     return groups;
   }, {})), [resources]);

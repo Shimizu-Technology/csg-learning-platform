@@ -5,26 +5,30 @@ module Api
 
       # GET /api/v1/resources
       def index
-        enrollment = current_user.enrollments.active.includes(:cohort).first
-
-        unless enrollment
+        cohorts = if current_user.staff?
+          Cohort.where(status: %i[active upcoming]).order(start_date: :desc)
+        else
+          current_user.enrollments.active.includes(:cohort).limit(1).map(&:cohort)
+        end
+        if cohorts.empty?
           render json: { resources: [] }
           return
         end
 
-        cohort = enrollment.cohort
-        resources = Array((cohort.settings || {})["class_resources"])
-
         render json: {
-          resources: resources.map.with_index { |r, i|
-            {
-              id: i + 1,
-              title: r["title"],
-              url: r["url"],
-              category: r["category"] || "general",
-              description: r["description"]
-            }
-          }
+          resources: cohorts.flat_map do |cohort|
+            Array((cohort.settings || {})["class_resources"]).map.with_index do |resource, index|
+              {
+                id: current_user.staff? ? "cohort-#{cohort.id}-#{index + 1}" : index + 1,
+                title: resource["title"],
+                url: resource["url"],
+                category: resource["category"] || "general",
+                description: resource["description"],
+                cohort_id: cohort.id,
+                cohort_name: cohort.name
+              }
+            end
+          end
         }
       end
     end

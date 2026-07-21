@@ -22,7 +22,7 @@ Included now:
 - Encrypted Clerk session persistence
 - A cached inbox fallback through local persisted state
 
-Curriculum, lesson progress, resources, submissions, office hours, and class recordings are now native. Grading and staff management remain in the responsive web/PWA until Phase 4 gives the phone-sized intervention workflows a dedicated native design.
+Curriculum, lesson progress, resources, submissions, office hours, class recordings, staff attention triage, student health, and quick grading are now native. Dense authoring, bulk operations, and comparison matrices remain deliberate authenticated handoffs to the responsive web app.
 
 ## Runtime flow
 
@@ -32,8 +32,8 @@ Curriculum, lesson progress, resources, submissions, office hours, and class rec
 4. The selected workspace is remembered per user. Staff receive all active workspaces; students receive only active cohort enrollments and explicit community memberships. The inbox and DM member picker filter the same server data to that selection.
 5. A short-lived, single-use cable token opens the authorized Action Cable stream for the active conversation.
 6. Message mutations go through REST; cable events reconcile changes from every participant.
-7. The native client registers an Expo device token with Rails. Existing notification jobs fan out independently to both Web Push and Expo Push.
-8. Notification taps route directly to the matching channel, DM, or updates surface.
+7. The native client registers an Expo device token with Rails. Existing notification jobs fan out independently to both Web Push and Expo Push while respecting the user's global notification preference.
+8. Notification taps route directly to the matching channel, DM, announcement, lesson, or staff submission-review surface through a strict native-route allowlist.
 
 ## Security and reliability
 
@@ -44,13 +44,14 @@ Curriculum, lesson progress, resources, submissions, office hours, and class rec
 - The inbox and workspace list cache only the signed-in user's scoped summaries. Signing out clears cached session, workspace selection, inbox, and device-token state.
 - Demo content is restricted to `__DEV__` builds and never substitutes for API authorization tests.
 
-## Next parity phases
+## Parity status
 
 - Curriculum, lesson delivery, progress, resources, and submissions are native as of Phase 2.
 - The Phase 3 recording library and S3/lesson-video player add native resume, progress sync, signed-URL renewal, speed control, fullscreen rotation, interruptions, and PiP. Legacy YouTube/external recordings use a safe system handoff.
 - Managed offline recording downloads remain deferred until retention, device-storage, privacy, and logout-deletion policy is approved. The player does not cache signed media URLs.
-- Grading, student/cohort operations, GitHub workflows, and other staff intervention tools
-- Intentional web handoffs for high-density administration that does not benefit from a native duplicate
+- Phase 4 gives staff a ranked cross-cohort attention queue, student health and progress drill-downs, a focused grading queue, native A/B/C/Redo reviews, concise feedback, and direct submission push routes.
+- Staff can browse active and upcoming cohort recordings and resources without pretending to be enrolled in those cohorts.
+- Curriculum authoring, bulk enrollment/team operations, dense grading/watch-progress matrices, and repository inspection retain labeled one-time authenticated web handoffs because they are desktop-shaped workflows.
 - Final App Store/Play Store metadata and screenshots after the parity program stabilizes
 
 The Rails API remains the single product backend, so every native phase is additive rather than a fork of web behavior.

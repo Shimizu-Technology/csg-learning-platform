@@ -128,6 +128,20 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     assert items.all? { |item| item.fetch("item_key").present? }
   end
 
+  test "staff recordings endpoint spans active cohorts without requiring enrollment" do
+    create_recording!(title: "Staff review recording")
+
+    as_user(@admin) do
+      get "/api/v1/recordings", headers: auth_headers
+    end
+
+    assert_response :success
+    item = JSON.parse(response.body).fetch("items").first
+    assert_equal "Staff review recording", item.fetch("title")
+    assert_equal @cohort.id, item.fetch("cohort_id")
+    assert_nil item["watch_progress"]
+  end
+
   test "unenrolled student cannot stream recording" do
     recording = create_recording!
 
