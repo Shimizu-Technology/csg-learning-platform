@@ -8,6 +8,8 @@ describe('isAllowedNotificationPath', () => {
     expect(isAllowedNotificationPath('/lesson/42')).toBe(true);
     expect(isAllowedNotificationPath('/module/7')).toBe(true);
     expect(isAllowedNotificationPath('/resources')).toBe(true);
+    expect(isAllowedNotificationPath('/recordings')).toBe(true);
+    expect(isAllowedNotificationPath('/recording/uploaded-25')).toBe(true);
   });
 
   it('rejects unknown, malformed, and non-string paths', () => {

@@ -109,6 +109,20 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert body.fetch("s3_video_uploaded_at").present?
   end
 
+  test "student video stream response includes explicit signed URL expiry" do
+    expires_in = with_s3_stream_url("https://signed.example/lesson.mp4") do
+      as_user(@student) do
+        get "/api/v1/content_blocks/#{@video_block.id}/video_stream", headers: auth_headers
+      end
+    end
+
+    assert_response :success
+    body = JSON.parse(response.body)
+    assert_equal "https://signed.example/lesson.mp4", body.fetch("stream_url")
+    assert_equal S3Service::VIDEO_STREAM_EXPIRY, expires_in
+    assert_in_delta S3Service::VIDEO_STREAM_EXPIRY.seconds.from_now.to_i, Time.iso8601(body.fetch("expires_at")).to_i, 2
+  end
+
   private
 
   def auth_headers
@@ -128,5 +142,22 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     yield
   ensure
     ClerkAuth.define_singleton_method(:verify, original_verify)
+  end
+
+  def with_s3_stream_url(url)
+    original_configured = S3Service.method(:configured?)
+    original_url = S3Service.method(:generate_presigned_url)
+    captured_expiry = nil
+
+    S3Service.define_singleton_method(:configured?) { true }
+    S3Service.define_singleton_method(:generate_presigned_url) do |_key, expires_in:|
+      captured_expiry = expires_in
+      url
+    end
+    yield
+    captured_expiry
+  ensure
+    S3Service.define_singleton_method(:configured?, original_configured)
+    S3Service.define_singleton_method(:generate_presigned_url, original_url)
   end
 end

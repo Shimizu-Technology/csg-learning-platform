@@ -7,6 +7,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { useEffect } from 'react';
 import { View } from 'react-native';
 
@@ -37,6 +38,7 @@ function AppProviders() {
 
 export default function RootLayout() {
   const [loaded] = useFonts({ Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold });
+  useEffect(() => { void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP); }, []);
   useEffect(() => { if (loaded) void SplashScreen.hideAsync(); }, [loaded]);
   if (!loaded) return <View style={{ flex: 1, backgroundColor: palette.ink }} />;
   if (isDemoMode) return <DemoAuthProvider><AppProviders /></DemoAuthProvider>;

@@ -22,7 +22,7 @@ Included now:
 - Encrypted Clerk session persistence
 - A cached inbox fallback through local persisted state
 
-Curriculum, recordings, submissions, grading, progress, office hours, and staff management stay in the responsive web/PWA until each native workflow earns its place.
+Curriculum, lesson progress, resources, submissions, office hours, and class recordings are now native. Grading and staff management remain in the responsive web/PWA until Phase 4 gives the phone-sized intervention workflows a dedicated native design.
 
 ## Runtime flow
 
@@ -46,8 +46,9 @@ Curriculum, recordings, submissions, grading, progress, office hours, and staff 
 
 ## Next parity phases
 
-- Curriculum, lesson delivery, progress, resources, and submissions
-- Recording playback and offline downloads
+- Curriculum, lesson delivery, progress, resources, and submissions are native as of Phase 2.
+- The Phase 3 recording library and S3/lesson-video player add native resume, progress sync, signed-URL renewal, speed control, fullscreen rotation, interruptions, and PiP. Legacy YouTube/external recordings use a safe system handoff.
+- Managed offline recording downloads remain deferred until retention, device-storage, privacy, and logout-deletion policy is approved. The player does not cache signed media URLs.
 - Grading, student/cohort operations, GitHub workflows, and other staff intervention tools
 - Intentional web handoffs for high-density administration that does not benefit from a native duplicate
 - Final App Store/Play Store metadata and screenshots after the parity program stabilizes

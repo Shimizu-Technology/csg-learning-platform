@@ -122,7 +122,16 @@ Returns role-appropriate dashboard data.
 
 ### `GET /api/v1/recordings`
 
-Returns recordings for the current user's active cohort.
+Returns one normalized `items` list across every active cohort enrollment. Each item includes `item_key`, `cohort_id`, `cohort_name`, `source` (`uploaded`, `youtube`, or `external`), recording date, media metadata, and the current user's watch progress when available.
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/api/v1/cohorts/:cohort_id/recordings/:id/stream_url` | Staff or active cohort member | Returns a two-hour `stream_url` and ISO 8601 `expires_at` |
+| `PATCH` | `/api/v1/watch_progress` | Staff or active cohort member | Saves monotonic watch time and resume position; completes at 90% |
+| `GET` | `/api/v1/content_blocks/:id/video_stream` | Authorized lesson viewer | Returns a two-hour lesson-video `stream_url`, `expires_at`, and current progress |
+| `PATCH` | `/api/v1/content_blocks/:id/video_progress` | Authorized lesson viewer | Saves authoritative lesson-video progress |
+
+Signed URLs are temporary secrets. Clients should renew before `expires_at`, avoid logging or persisting them, and retain playback position across source replacement.
 
 ### `GET /api/v1/resources`
 

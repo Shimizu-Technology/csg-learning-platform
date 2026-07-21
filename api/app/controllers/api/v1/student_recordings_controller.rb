@@ -9,7 +9,7 @@ module Api
       def index
         enrollments = current_user.enrollments.active.includes(:cohort).order(created_at: :desc)
         if enrollments.empty?
-          render json: { recordings: [], s3_recordings: [] }
+          render json: { recordings: [], s3_recordings: [], items: [] }
           return
         end
 
@@ -22,6 +22,7 @@ module Api
               # numeric spacing scheme or hidden per-cohort item-count ceiling.
               id: "legacy-#{cohort.id}-#{i + 1}",
               cohort_id: cohort.id,
+              cohort_name: cohort.name,
               title: r["title"],
               url: r["url"],
               date: r["date"],
@@ -42,6 +43,7 @@ module Api
           {
             id: r.id,
             cohort_id: r.cohort_id,
+            cohort_name: r.cohort.name,
             title: r.title,
             description: r.description,
             duration_seconds: r.duration_seconds,
