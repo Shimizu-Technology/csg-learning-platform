@@ -38,8 +38,10 @@ class SubmissionNotificationDeliveryServiceTest < ActiveJob::TestCase
     assert_equal "/lessons/#{@submission.content_block.lesson_id}", notification.path
 
     notification.mark_read!
-    @submission.update!(grade: "A", feedback: "Ready to ship")
-    NotificationDeliveryService.submission_graded(@submission, push: false)
+    travel 1.second do
+      @submission.update!(grade: "A", feedback: "Ready to ship", graded_at: Time.current)
+      NotificationDeliveryService.submission_graded(@submission, push: false)
+    end
     assert_nil notification.reload.read_at
     assert_equal "Submission graded A", notification.title
   end
@@ -59,7 +61,7 @@ class SubmissionNotificationDeliveryServiceTest < ActiveJob::TestCase
     Notification.define_singleton_method(:find_or_initialize_by) { |*| losing_record }
     losing_record.define_singleton_method(:save!) { raise ActiveRecord::RecordNotUnique }
 
-    NotificationDeliveryService.submission_graded(@submission, push: false)
+    NotificationDeliveryService.submission_graded(@submission, push: false, event_at: 1.second.from_now)
 
     existing.reload
     assert_equal "Submission graded B", existing.title

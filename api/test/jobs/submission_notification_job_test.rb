@@ -14,7 +14,7 @@ class SubmissionNotificationJobTest < ActiveJob::TestCase
 
   test "created event fans out staff notifications outside the request" do
     assert_enqueued_with(job: PushNotificationJob) do
-      SubmissionNotificationJob.perform_now("created", @submission.id)
+      SubmissionNotificationJob.perform_now("created", @submission.id, @submission.created_at.iso8601(6))
     end
 
     assert_equal [ @instructor.id, @admin.id ].sort,
@@ -25,7 +25,7 @@ class SubmissionNotificationJobTest < ActiveJob::TestCase
     @submission.update!(grade: "A", grader: @instructor, graded_at: Time.current)
 
     assert_no_enqueued_jobs only: PushNotificationJob do
-      SubmissionNotificationJob.perform_now("created", @submission.id)
+      SubmissionNotificationJob.perform_now("created", @submission.id, @submission.created_at.iso8601(6))
     end
     assert_not Notification.exists?(notifiable: @submission)
   end
@@ -34,11 +34,53 @@ class SubmissionNotificationJobTest < ActiveJob::TestCase
     @submission.update!(grade: "B", feedback: "Strong work", grader: @instructor, graded_at: Time.current)
 
     assert_enqueued_with(job: PushNotificationJob) do
-      SubmissionNotificationJob.perform_now("graded", @submission.id)
+      SubmissionNotificationJob.perform_now("graded", @submission.id, @submission.graded_at.iso8601(6))
     end
 
     notification = @student.notifications.find_by!(notifiable: @submission)
     assert_equal "Submission graded B", notification.title
     assert_equal "Strong work", notification.body
+  end
+
+  test "a duplicate graded event does not enqueue push or reset read state" do
+    @submission.update!(grade: "B", feedback: "Strong work", grader: @instructor, graded_at: Time.current)
+    event_at = @submission.graded_at.iso8601(6)
+    SubmissionNotificationJob.perform_now("graded", @submission.id, event_at)
+    notification = @student.notifications.find_by!(notifiable: @submission)
+    notification.mark_read!
+    push_jobs = enqueued_jobs.count { |job| job[:job] == PushNotificationJob }
+
+    SubmissionNotificationJob.perform_now("graded", @submission.id, event_at)
+
+    assert_equal push_jobs, enqueued_jobs.count { |job| job[:job] == PushNotificationJob }
+    assert_not_nil notification.reload.read_at
+  end
+
+  test "a stale graded event does not overwrite a newer grade" do
+    @submission.update!(grade: "B", feedback: "First review", grader: @instructor, graded_at: Time.current)
+    stale_event = @submission.graded_at.iso8601(6)
+    travel 1.second do
+      @submission.update!(grade: "R", feedback: "New review", graded_at: Time.current)
+    end
+
+    assert_no_enqueued_jobs only: PushNotificationJob do
+      SubmissionNotificationJob.perform_now("graded", @submission.id, stale_event)
+    end
+    assert_not Notification.exists?(notifiable: @submission, user: @student)
+  end
+
+  test "missing submissions are discarded" do
+    submission_id = @submission.id
+    @submission.destroy!
+
+    assert_nothing_raised do
+      SubmissionNotificationJob.perform_now("created", submission_id, Time.current.iso8601(6))
+    end
+  end
+
+  test "unknown events raise" do
+    assert_raises(ArgumentError) do
+      SubmissionNotificationJob.perform_now("unknown", @submission.id, Time.current.iso8601(6))
+    end
   end
 end
