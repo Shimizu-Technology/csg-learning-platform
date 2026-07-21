@@ -379,11 +379,11 @@ Implemented decisions:
 - Today becomes a staff command surface with cohort-level review/redo/student counts and a deterministic attention rank: redo, then ungraded work, inactivity, and low progress.
 - Student health drill-down combines identity, cohort, overall and module/lesson progress, pending submissions, video progress, and recent activity using existing server-authorized endpoints.
 - The focused grading queue and submission review remain native. A/B/C grades are one tap; Redo requires written feedback. Successful review invalidates dashboard, queue, and student caches immediately.
-- New submissions notify active instructors/admins, and grades notify the submitting student. Web Push and Expo delivery fail independently, respect global opt-out, and route to the closest native screen.
+- New submissions notify non-archived instructors/admins, whose access is currently platform-wide, and grades notify the submitting student. Web Push and Expo delivery fail independently and route to the closest native screen without misusing the message/email preference as a global learning-alert opt-out.
 - Staff recording/resource browsing spans active and upcoming cohorts; student scoping is unchanged.
 - Staff-only web handoffs are server-authorized and allowlisted for student/cohort administration, grading, content authoring, team administration, and dense progress views. Students cannot mint those links.
 - iPhone 16 Pro / iOS 18.5 Simulator interaction verified staff Today → student health → submission review, keyboard-following feedback entry, Redo save and notification confirmation, focused grading queue, and Learn operations toolkit.
-- Local release gate: Rails 283 tests / 851 assertions, mobile 16 suites / 52 tests, web 5 suites / 21 tests plus production build, RuboCop 210 files, Brakeman zero warnings, bundler-audit clean, Expo Doctor 20/20, web high-severity npm audit clean, and successful iOS and Android Hermes exports. The mobile audit's only finding is a moderate transitive `uuid` advisory in Expo/Clerk build tooling with no upstream fix available.
+- Local release gate: Rails 284 tests / 856 assertions, mobile 16 suites / 52 tests, web 5 suites / 21 tests plus production build, RuboCop 210 files, Brakeman zero warnings, bundler-audit clean, Expo Doctor 20/20, web high-severity npm audit clean, and successful iOS and Android Hermes exports. The mobile audit's only finding is a moderate transitive `uuid` advisory in Expo/Clerk build tooling with no upstream fix available.
 
 ## 9. Cross-phase security checklist
 

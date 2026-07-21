@@ -88,15 +88,21 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
     assert_equal 1, token_selects
   end
 
-  test "does not deliver to a user who disabled notifications" do
+  test "message email preference does not suppress unrelated mobile push" do
     user = User.create!(clerk_id: "expo_opted_out", email: "expo-opted-out@example.com", role: :student, message_email_notifications_enabled: false)
     user.mobile_push_tokens.create!(token: "ExpoPushToken[opted-out]", platform: "ios", last_seen_at: Time.current)
     announcement = Announcement.create!(title: "Opt out", body: "Test", author: user, audience: :global, status: :published)
     notification = user.notifications.create!(notifiable: announcement, notification_type: :announcement, title: "Update", body: "Test", path: "/updates")
+    response = Net::HTTPOK.new("1.1", "200", "OK")
+    response.instance_variable_set(:@read, true)
+    response.body = { data: [ { status: "ok" } ] }.to_json
 
-    delivered = ExpoPushNotificationService.new.deliver_notifications([ notification ]) { { title: "Test", body: "Test" } }
+    with_http_response(response) do |connection|
+      delivered = ExpoPushNotificationService.new.deliver_notifications([ notification ]) { { title: "Test", body: "Test" } }
 
-    assert_equal false, delivered
+      assert delivered
+      assert_equal "ExpoPushToken[opted-out]", JSON.parse(connection.request_received.body).first.fetch("to")
+    end
   end
 
   test "submission pushes use native staff and student destinations" do

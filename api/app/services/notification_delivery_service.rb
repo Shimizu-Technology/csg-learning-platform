@@ -65,6 +65,9 @@ class NotificationDeliveryService
   end
 
   def submission_created(submission, push: true)
+    # Staff authorization is intentionally platform-wide today: instructors and
+    # admins can view every active cohort, and there is no teaching-team
+    # assignment model to scope this further without silently dropping alerts.
     notifications = User.not_archived.where(role: %i[instructor admin]).find_each.filter_map do |staff|
       submission_notification_for(
         staff,
@@ -98,18 +101,21 @@ class NotificationDeliveryService
 
   def submission_notification_for(user, submission, actor:, title:, body:, path:)
     notification = Notification.find_or_initialize_by(notifiable: submission, user: user)
-    notification.assign_attributes(
+    attributes = {
       actor: actor,
       notification_type: :submission,
       title: title,
       body: body,
       path: path,
       read_at: nil
-    )
+    }
+    notification.assign_attributes(attributes)
     notification.save!
     notification
   rescue ActiveRecord::RecordNotUnique
-    Notification.find_by!(notifiable: submission, user: user)
+    Notification.find_by!(notifiable: submission, user: user).tap do |existing|
+      existing.update!(attributes)
+    end
   end
 
   def enqueue_submission_push(submission, notifications)

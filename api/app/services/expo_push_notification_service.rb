@@ -51,8 +51,6 @@ class ExpoPushNotificationService
     notification_list = Array.wrap(notifications)
     ActiveRecord::Associations::Preloader.new(records: notification_list, associations: { user: :mobile_push_tokens }).call
     entries = notification_list.flat_map do |notification|
-      next [] unless notification.user.message_email_notifications_enabled?
-
       notification.user.mobile_push_tokens.select { |token| token.failed_at.nil? }.map do |token|
         [ token, yield(notification).merge(to: token.token) ]
       end

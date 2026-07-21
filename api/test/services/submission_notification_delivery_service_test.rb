@@ -43,4 +43,30 @@ class SubmissionNotificationDeliveryServiceTest < ActiveJob::TestCase
     assert_nil notification.reload.read_at
     assert_equal "Submission graded A", notification.title
   end
+
+  test "a create race refreshes the winning notification before push" do
+    @submission.update!(grade: "B", feedback: "Ship it", grader: @instructor, graded_at: Time.current)
+    existing = @student.notifications.create!(
+      notifiable: @submission,
+      notification_type: :submission,
+      title: "Old review",
+      body: "Old body",
+      path: "/updates",
+      read_at: Time.current
+    )
+    losing_record = Notification.new(notifiable: @submission, user: @student)
+    original_find_or_initialize = Notification.method(:find_or_initialize_by)
+    Notification.define_singleton_method(:find_or_initialize_by) { |*| losing_record }
+    losing_record.define_singleton_method(:save!) { raise ActiveRecord::RecordNotUnique }
+
+    NotificationDeliveryService.submission_graded(@submission, push: false)
+
+    existing.reload
+    assert_equal "Submission graded B", existing.title
+    assert_equal "Ship it", existing.body
+    assert_equal "/lessons/#{@submission.content_block.lesson_id}", existing.path
+    assert_nil existing.read_at
+  ensure
+    Notification.define_singleton_method(:find_or_initialize_by, original_find_or_initialize) if original_find_or_initialize
+  end
 end

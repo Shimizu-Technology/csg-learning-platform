@@ -85,8 +85,6 @@ class WebPushNotificationService
   end
 
   def deliver_to_user(user_id, payload)
-    return unless User.where(id: user_id, message_email_notifications_enabled: true).exists?
-
     PushSubscription.active.where(user_id: user_id).find_each do |subscription|
       deliver(subscription, payload)
     end
