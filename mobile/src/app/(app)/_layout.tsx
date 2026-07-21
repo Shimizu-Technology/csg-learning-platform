@@ -28,6 +28,9 @@ export default function AppLayout() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="conversation/[kind]/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="thread/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="module/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="lesson/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="resources" options={{ headerShown: false }} />
       <Stack.Screen name="compose" options={{ presentation: 'modal', title: 'New message', headerRight: closeButton }} />
       <Stack.Screen name="search" options={{ presentation: 'modal', title: 'Search messages', headerRight: closeButton }} />
       <Stack.Screen name="manage-communications" options={{ title: 'Communication settings' }} />

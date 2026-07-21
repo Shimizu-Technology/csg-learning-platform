@@ -271,6 +271,8 @@ Device interaction:
 
 ## 6. Phase 2 — Student learning core
 
+Implementation status: complete on `codex/mobile-parity-phase-2`, pending PR review and merge.
+
 ### 6.1 Today
 
 - next best action;
@@ -298,8 +300,19 @@ Initial delivery uses native lesson reading with an authenticated in-app web han
 
 - A student can complete every ordinary daily learning action from a phone, except the explicitly handed-off interactive code runner.
 - Progress, submission, lock, and redo state match the web app after refresh.
+
+Implemented evidence:
+
+- Today combines next action, server-derived learning progress, current redo state, recently graded passing work, pinned/unread announcements, communication shortcuts, and upcoming office hours.
+- Learn provides searchable modules, explicit available/locked states, lesson navigation, rich native Markdown content, safe links, S3/external video opening, and searchable resources.
+- Text, repository, repository-plus-live-site, manual-complete, and GitHub-sync assignment states match the Rails submission contract. Ungraded work updates in place; redo work creates a new attempt; passing work is read-only.
+- TanStack Query uses Rails-user-scoped keys and a versioned SQLite persistence layer. Learning caches clear on logout and revoked access; mutations remain online-only and never silently queue.
+- Interactive runners use a Rails-issued 60-second, one-use Clerk Account Portal link to authenticate the same user into the responsive web lesson. Device JWTs are never placed in URLs.
+- Lesson payloads identify the exact server completion-driving blocks, preventing mixed video/exercise lessons from displaying progress that disagrees with the web app.
 - Lesson renderer fixtures cover every content-block type present in production data.
 - Revoked enrollment closes cached lesson access on the next authorization refresh.
+- iPhone 16 Pro / iOS 18.5 Simulator interaction verified Today → Learn → module → lesson → profile in the native development build, including locked-state labels and back navigation.
+- Local release gate: Rails 273 tests / 810 assertions, mobile 15 suites / 44 tests, web 5 suites / 21 tests, RuboCop 209 files, Brakeman zero warnings, bundler-audit clean, Expo Doctor 20/20, dependency validation clean, and successful iOS and Android Hermes exports.
 
 ## 7. Phase 3 — Native recordings
 

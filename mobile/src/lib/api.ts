@@ -8,8 +8,16 @@ import type {
   MessageEvent,
   MessageSearchResult,
   PaginationMeta,
+  ProfilePayload,
+  LearningResource,
+  LessonDetail,
+  ProgressEntry,
   PushConfig,
   SessionUser,
+  StaffDashboard,
+  StudentDashboard,
+  Submission,
+  SubmissionInput,
   UploadAttachmentInput,
   UserSummary,
   WorkspaceDetail,
@@ -53,6 +61,9 @@ export class CsgApi {
   async request<T>(path: string, init: RequestInit = {}, attempt = 0): Promise<T> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12_000);
+    const cancel = () => controller.abort();
+    init.signal?.addEventListener('abort', cancel, { once: true });
+    if (init.signal?.aborted) cancel();
     try {
       const token = await this.getToken({ skipCache: attempt > 0 });
       const response = await fetch(`${API_URL}${path}`, {
@@ -71,12 +82,27 @@ export class CsgApi {
       return response.json() as Promise<T>;
     } catch (error) {
       if (error instanceof ApiError) throw error;
+      if ((error as Error).name === 'AbortError' && init.signal?.aborted) throw error;
       if ((error as Error).name === 'AbortError') throw new ApiError('The request timed out. Check your connection and try again.');
       throw new ApiError('Could not reach Code School. Check your connection and try again.');
-    } finally { clearTimeout(timeout); }
+    } finally {
+      clearTimeout(timeout);
+      init.signal?.removeEventListener('abort', cancel);
+    }
   }
 
   session = () => this.request<{ user: SessionUser }>('/api/v1/sessions', { method: 'POST' });
+  dashboard = (signal?: AbortSignal) => this.request<{ dashboard: StudentDashboard | StaffDashboard }>('/api/v1/dashboard', { signal });
+  profile = (signal?: AbortSignal) => this.request<ProfilePayload>('/api/v1/profile', { signal });
+  updateProfile = (data: { github_username?: string | null }) => this.request<{ user: ProfilePayload['user'] }>('/api/v1/profile', { method: 'PATCH', body: JSON.stringify(data) });
+  webHandoff = (destination: string) => this.request<{ url: string }>('/api/v1/web_handoffs', { method: 'POST', body: JSON.stringify({ destination }) });
+  resources = (signal?: AbortSignal) => this.request<{ resources: LearningResource[] }>('/api/v1/resources', { signal });
+  lesson = (id: number, signal?: AbortSignal) => this.request<{ lesson: LessonDetail }>(`/api/v1/lessons/${id}`, { signal });
+  progress = (lessonId: number, signal?: AbortSignal) => this.request<{ progress: ProgressEntry[] }>(`/api/v1/progress?lesson_id=${lessonId}`, { signal });
+  updateProgress = (contentBlockId: number, status: string) => this.request<{ progress: ProgressEntry }>('/api/v1/progress', { method: 'PATCH', body: JSON.stringify({ content_block_id: contentBlockId, status }) });
+  createSubmission = (input: SubmissionInput) => this.request<{ submission: Submission }>('/api/v1/submissions', { method: 'POST', body: JSON.stringify(input) });
+  updateSubmission = (id: number, input: Omit<SubmissionInput, 'content_block_id'>) => this.request<{ submission: Submission }>(`/api/v1/submissions/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+  contentVideoStream = (id: number, signal?: AbortSignal) => this.request<{ stream_url: string; video_progress: { last_position: number; total_watched: number; duration: number; status: string } | null }>(`/api/v1/content_blocks/${id}/video_stream`, { signal });
   workspaces = () => this.request<{ workspaces: WorkspaceSummary[] }>('/api/v1/workspaces');
   workspace = (id: number) => this.request<{ workspace: WorkspaceDetail }>(`/api/v1/workspaces/${id}`);
   createWorkspace = (data: { name: string; description?: string; user_ids?: number[] }) => this.request<{ workspace: WorkspaceDetail }>('/api/v1/workspaces', { method: 'POST', body: JSON.stringify(data) });

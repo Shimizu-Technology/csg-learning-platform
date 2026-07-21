@@ -57,6 +57,16 @@ describe('CsgApi', () => {
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('token=ExpoPushToken%5Ba%2Bb%5D'), expect.objectContaining({ method: 'DELETE' }));
     expect(fetchMock.mock.calls[0][1]).not.toHaveProperty('body');
   });
+
+  it('creates a secure web handoff with a relative allowlisted destination', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ url: 'https://accounts.example.com/one-time' }), { status: 200 }));
+
+    await expect(new CsgApi(async () => 'session-token').webHandoff('/lessons/42')).resolves.toEqual({ url: 'https://accounts.example.com/one-time' });
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/v1/web_handoffs'), expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ destination: '/lessons/42' }),
+    }));
+  });
 });
 
 describe('websocketUrl', () => {

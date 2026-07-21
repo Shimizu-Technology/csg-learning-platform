@@ -14,6 +14,7 @@ import { palette } from '@/constants/csg-theme';
 import { NotificationObserver } from '@/components/notification-observer';
 import { ClerkAuthProvider, DemoAuthProvider, isDemoMode } from '@/providers/auth-provider';
 import { SessionProvider } from '@/providers/session-provider';
+import { ServerStateProvider } from '@/providers/server-state-provider';
 import { WorkspaceProvider } from '@/providers/workspace-provider';
 
 void SplashScreen.preventAutoHideAsync();
@@ -21,7 +22,7 @@ void SplashScreen.preventAutoHideAsync();
 function AppProviders() {
   return (
     <SessionProvider>
-      <WorkspaceProvider>
+      <ServerStateProvider><WorkspaceProvider>
         <StatusBar style="light" />
         <NotificationObserver />
         <Stack screenOptions={{ contentStyle: { backgroundColor: palette.ink }, headerStyle: { backgroundColor: palette.ink }, headerTintColor: palette.text, headerShadowVisible: false }}>
@@ -29,7 +30,7 @@ function AppProviders() {
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen name="(app)" options={{ headerShown: false }} />
         </Stack>
-      </WorkspaceProvider>
+      </WorkspaceProvider></ServerStateProvider>
     </SessionProvider>
   );
 }

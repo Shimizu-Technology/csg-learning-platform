@@ -9,6 +9,7 @@ Rails.application.routes.draw do
       # Auth
       post "sessions", to: "sessions#create"
       post "presence", to: "presence#create"
+      post "web_handoffs", to: "web_handoffs#create"
 
       # Profile (current user)
       get "profile", to: "profile#show"
