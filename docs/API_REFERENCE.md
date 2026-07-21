@@ -19,7 +19,7 @@
 
 ### `POST /api/v1/sessions`
 
-Syncs or creates a user record from the Clerk JWT. Called on first login to establish the backend user.
+Syncs an invited user record from the Clerk JWT. Production access is invite-only: the Clerk identity must already match an active CSG user by Clerk ID or email address.
 
 **Request:** No body required — user info is extracted from the JWT.
 
@@ -38,6 +38,16 @@ Syncs or creates a user record from the Clerk JWT. Called on first login to esta
   }
 }
 ```
+
+**Access-denied response (`403`):**
+```json
+{
+  "error": "This account does not have access to CSG Learning yet. Ask a Code School administrator to invite this email address.",
+  "code": "account_not_authorized"
+}
+```
+
+Archived users receive the same status with `code: "account_archived"`. Missing, invalid, and expired Clerk JWTs remain `401` responses.
 
 ---
 

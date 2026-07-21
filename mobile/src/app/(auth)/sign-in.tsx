@@ -70,7 +70,7 @@ export default function SignIn() {
     }
     if (step === 'reset-code') return `We sent a password reset code to ${emailValue}.`;
     if (step === 'new-password') return 'Use at least eight characters for your new password.';
-    return 'Use the account connected to your Code School cohort.';
+    return 'Use the exact email address invited to your Code School cohort.';
   }, [emailValue, step, verificationStrategy]);
 
   function clearError() {

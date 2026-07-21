@@ -254,7 +254,10 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
 
     post "/api/v1/sessions", headers: auth_headers
 
-    assert_response :unauthorized
+    assert_response :forbidden
+    body = JSON.parse(response.body)
+    assert_equal "account_not_authorized", body.fetch("code")
+    assert_includes body.fetch("error"), "does not have access"
     refute User.exists?(email: "unknown@example.com")
   ensure
     ClerkAuth.define_singleton_method(:verify, original_verify) if original_verify
@@ -277,7 +280,8 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
 
     post "/api/v1/sessions", headers: auth_headers
 
-    assert_response :unauthorized
+    assert_response :forbidden
+    assert_equal "account_not_authorized", JSON.parse(response.body).fetch("code")
     refute User.exists?(email: "env-signup@example.com")
   ensure
     ENV["ALLOW_OPEN_SIGNUPS"] = original_open_signups

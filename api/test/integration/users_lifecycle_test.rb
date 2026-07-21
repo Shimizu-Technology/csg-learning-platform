@@ -99,6 +99,32 @@ class UsersLifecycleTest < ActionDispatch::IntegrationTest
     assert_equal duplicate.id, announcement.reload.author_id
   end
 
+  test "archiving a user revokes browser and mobile push registrations" do
+    user = User.create!(
+      clerk_id: "clerk_push_revocation",
+      email: "push-revocation@example.com",
+      first_name: "Push",
+      last_name: "Revocation",
+      role: :student
+    )
+    user.mobile_push_tokens.create!(
+      token: "ExpoPushToken[archived-device]",
+      platform: "ios",
+      last_seen_at: Time.current
+    )
+    user.push_subscriptions.create!(
+      endpoint: "https://push.example.com/archived-device",
+      p256dh: "p256dh-key",
+      auth: "auth-key",
+      last_seen_at: Time.current
+    )
+
+    user.archive!
+
+    assert_empty user.mobile_push_tokens.reload
+    assert_empty user.push_subscriptions.reload
+  end
+
   test "archiving an already archived user is idempotent" do
     duplicate = User.create!(
       clerk_id: "clerk_archived_duplicate_staff",
@@ -295,7 +321,10 @@ class UsersLifecycleTest < ActionDispatch::IntegrationTest
       post "/api/v1/sessions", headers: auth_headers
     end
 
-    assert_response :unauthorized
+    assert_response :forbidden
+    body = JSON.parse(response.body)
+    assert_equal "account_archived", body.fetch("code")
+    assert_includes body.fetch("error"), "deactivated"
   end
 
   private

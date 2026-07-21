@@ -45,6 +45,8 @@ class User < ApplicationRecord
   def archive!
     transaction do
       update!(archived_at: Time.current)
+      mobile_push_tokens.destroy_all
+      push_subscriptions.destroy_all
       archive_or_detach_direct_conversations!
     end
   end
