@@ -1,6 +1,7 @@
 class S3Service
   MAX_UPLOAD_SIZE = 5.gigabytes
   PRESIGN_EXPIRY = 3600 # 1 hour
+  VIDEO_STREAM_EXPIRY = 2.hours.to_i
   MULTIPART_PRESIGN_EXPIRY = 24.hours.to_i
 
   class << self

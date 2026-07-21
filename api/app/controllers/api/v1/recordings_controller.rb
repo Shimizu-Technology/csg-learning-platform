@@ -155,8 +155,8 @@ module Api
           return
         end
 
-        expires_at = 2.hours.from_now
-        url = S3Service.generate_presigned_url(@recording.s3_key, expires_in: 7200)
+        expires_at = S3Service::VIDEO_STREAM_EXPIRY.seconds.from_now
+        url = S3Service.generate_presigned_url(@recording.s3_key, expires_in: S3Service::VIDEO_STREAM_EXPIRY)
         render json: { stream_url: url, expires_at: expires_at.iso8601 }
       end
 
