@@ -7,7 +7,7 @@ Product: CSG Connect
 Platforms: iOS and Android through Expo / React Native
 
 Backend: existing Rails `/api/v1` API
-Status: active execution plan
+Status: phases 1–4 implemented and merged; TestFlight build 4 is in internal acceptance
 
 ## 1. Outcome
 
@@ -101,6 +101,8 @@ Before Phase 2 production release, capture:
 - product events for the high-value flows in each phase.
 
 ## 5. Phase 1 — Communications parity and production identity
+
+Implementation status: merged through PR #62 after the full release gate and a clean final Greptile review.
 
 ### 5.1 Product identity
 
@@ -271,7 +273,7 @@ Device interaction:
 
 ## 6. Phase 2 — Student learning core
 
-Implementation status: complete on `codex/mobile-parity-phase-2`, pending PR review and merge.
+Implementation status: merged through PR #63 after the full release gate and a clean final Greptile review.
 
 ### 6.1 Today
 
@@ -421,7 +423,7 @@ After all phases:
 2. Perform production-backend smoke tests with student, instructor, and admin accounts.
 3. Increment native version/build numbers and update release notes.
 4. Confirm privacy nutrition labels, support URL, privacy URL, export-compliance response, age rating, and notification/data disclosures.
-5. Capture final screenshots from a release-equivalent build with representative authorized data and no private student information.
+5. Capture current product screenshots with representative, privacy-safe data. Prefer a release-equivalent build; if deterministic development-only sample data is necessary to avoid private student information, record that deviation and compare the final TestFlight build visually during physical acceptance.
 6. Produce the required current iPhone and iPad screenshot sizes; include Android store assets if Play submission is in scope.
 7. Upload the signed EAS production build.
 8. Wait for App Store processing and resolve any compliance prompts.
@@ -429,6 +431,18 @@ After all phases:
 10. Install from TestFlight on a physical iPhone and test authentication, production API access, push delivery, deep links, media, and critical role flows.
 
 App Store submission for public review remains a distinct final action after TestFlight acceptance. TestFlight distribution does not by itself submit the public App Store version.
+
+Current release status (2026-07-22):
+
+- Steps 1, 3, 4, and 6–9 are complete for iOS build `1.0.0 (4)` from source commit `070b4dc`.
+- App Store Connect has six current 6.9-inch iPhone screenshots, six current 13-inch iPad screenshots, refreshed product copy, and build 4 attached to the 1.0 draft.
+- Step 5's store images are complete using deterministic `__DEV__` sample data rather than a release-equivalent authenticated session. This deliberate privacy deviation excludes real student data; the physical TestFlight pass in step 10 must include a visual comparison against the uploaded surfaces.
+- Build 4 is processed and available in the `CSG Internal` TestFlight group to the active invited tester.
+- The production access-denied entry flow was rechecked locally against `https://csg-learn-api.onrender.com` without demo mode.
+- Authenticated role smoke testing and step 10 remain TestFlight acceptance work on the invited tester's physical iPhone. No local simulator credential was retained or manufactured for that check.
+- Public App Store review has intentionally not been submitted; it follows physical-device acceptance.
+
+The exact release record, screenshot inventory, and physical-device checklist are in [`app-store/README.md`](./app-store/README.md).
 
 ## 12. Completion evidence
 
@@ -442,4 +456,4 @@ A phase is complete only when all of the following exist:
 - updated architecture/product documentation;
 - a recorded list of intentionally deferred items with owner and target phase.
 
-The overall mobile-parity program is complete only after every phase gate passes, the final TestFlight build is installable, and the production-backend smoke test succeeds on the physical device.
+Implementation is complete when every phase gate passes and the final TestFlight build is installable. Release acceptance is complete only after the production-backend smoke test succeeds on the invited tester's physical device.
