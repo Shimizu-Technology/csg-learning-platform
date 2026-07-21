@@ -5,21 +5,28 @@ const CACHE_DATABASE = 'csg-connect.db';
 const CACHE_TABLE = 'learning_query_cache';
 const CACHE_VERSION = 1;
 
-let databasePromise: ReturnType<typeof SQLite.openDatabaseAsync> | null = null;
-
 export function learningCacheKey(userId: number) {
   return `learning-v${CACHE_VERSION}:user:${userId}`;
 }
 
-async function database() {
-  if (!databasePromise) {
-    databasePromise = SQLite.openDatabaseAsync(CACHE_DATABASE).then(async (db) => {
-      await db.execAsync(`CREATE TABLE IF NOT EXISTS ${CACHE_TABLE} (cache_key TEXT PRIMARY KEY NOT NULL, payload TEXT NOT NULL, updated_at INTEGER NOT NULL)`);
-      return db;
-    });
-  }
-  return databasePromise;
+export function createRetryableInitializer<T>(initialize: () => Promise<T>) {
+  let promise: Promise<T> | null = null;
+  return () => {
+    if (!promise) {
+      promise = initialize().catch((error) => {
+        promise = null;
+        throw error;
+      });
+    }
+    return promise;
+  };
 }
+
+const database = createRetryableInitializer(async () => {
+  const db = await SQLite.openDatabaseAsync(CACHE_DATABASE);
+  await db.execAsync(`CREATE TABLE IF NOT EXISTS ${CACHE_TABLE} (cache_key TEXT PRIMARY KEY NOT NULL, payload TEXT NOT NULL, updated_at INTEGER NOT NULL)`);
+  return db;
+});
 
 export function createLearningPersister(userId: number): Persister {
   const cacheKey = learningCacheKey(userId);

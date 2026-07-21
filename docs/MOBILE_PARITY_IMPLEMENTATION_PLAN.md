@@ -312,7 +312,7 @@ Implemented evidence:
 - Lesson renderer fixtures cover every content-block type present in production data.
 - Revoked enrollment closes cached lesson access on the next authorization refresh.
 - iPhone 16 Pro / iOS 18.5 Simulator interaction verified Today → Learn → module → lesson → profile in the native development build, including locked-state labels and back navigation.
-- Local release gate: Rails 273 tests / 810 assertions, mobile 14 suites / 41 tests, web 5 suites / 21 tests, RuboCop 209 files, Brakeman zero warnings, bundler-audit clean, Expo Doctor 20/20, dependency validation clean, and successful iOS and Android Hermes exports.
+- Local release gate: Rails 273 tests / 810 assertions, mobile 14 suites / 42 tests, web 5 suites / 21 tests, RuboCop 209 files, Brakeman zero warnings, bundler-audit clean, Expo Doctor 20/20, dependency validation clean, and successful iOS and Android Hermes exports.
 
 ## 7. Phase 3 — Native recordings
 
