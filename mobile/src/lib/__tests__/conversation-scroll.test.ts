@@ -9,10 +9,12 @@ describe('conversation scrolling', () => {
   });
 
   it('formats premium day dividers and detects date boundaries', () => {
-    const now = new Date('2026-07-21T15:00:00+10:00');
-    expect(formatConversationDay('2026-07-21T09:00:00+10:00', now)).toBe('Today');
-    expect(formatConversationDay('2026-07-20T09:00:00+10:00', now)).toBe('Yesterday');
-    expect(isDifferentConversationDay('2026-07-21T01:00:00+10:00', '2026-07-20T23:00:00+10:00')).toBe(true);
-    expect(isDifferentConversationDay('2026-07-21T03:00:00+10:00', '2026-07-21T01:00:00+10:00')).toBe(false);
+    const localTime = (day: number, hour: number) => new Date(2026, 6, day, hour).toISOString();
+    const now = new Date(2026, 6, 21, 15);
+
+    expect(formatConversationDay(localTime(21, 9), now)).toBe('Today');
+    expect(formatConversationDay(localTime(20, 9), now)).toBe('Yesterday');
+    expect(isDifferentConversationDay(localTime(21, 1), localTime(20, 23))).toBe(true);
+    expect(isDifferentConversationDay(localTime(21, 3), localTime(21, 1))).toBe(false);
   });
 });
