@@ -52,6 +52,6 @@ Curriculum, lesson progress, resources, submissions, office hours, class recordi
 - Phase 4 gives staff a ranked cross-cohort attention queue, student health and progress drill-downs, a focused grading queue, native A/B/C/Redo reviews, concise feedback, and direct submission push routes.
 - Staff can browse active and upcoming cohort recordings and resources without pretending to be enrolled in those cohorts.
 - Curriculum authoring, bulk enrollment/team operations, dense grading/watch-progress matrices, and repository inspection retain labeled one-time authenticated web handoffs because they are desktop-shaped workflows.
-- Final App Store/Play Store metadata and screenshots after the parity program stabilizes
+- App Store Connect product copy and the complete 6.9-inch iPhone / 13-inch iPad screenshot sets now describe the parity release. iOS build `1.0.0 (4)` is attached to the 1.0 draft and distributed through the `CSG Internal` TestFlight group; public review waits for physical-device acceptance.
 
 The Rails API remains the single product backend, so every native phase is additive rather than a fork of web behavior.

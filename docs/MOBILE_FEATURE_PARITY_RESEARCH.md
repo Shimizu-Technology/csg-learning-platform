@@ -1,6 +1,6 @@
 # CSG Connect: Native Brand and Feature-Parity Research
 
-Status: product and technical research only. This document does not change the current native product boundary or App Store build.
+Status: research complete. The four-phase parity program described here has shipped to `main`; the release and TestFlight evidence is tracked in [`app-store/README.md`](./app-store/README.md).
 
 The execution scope, phase acceptance criteria, review gates, and final TestFlight checklist are defined in [`MOBILE_PARITY_IMPLEMENTATION_PLAN.md`](./MOBILE_PARITY_IMPLEMENTATION_PLAN.md).
 
@@ -26,16 +26,16 @@ The recommended **Connected C** mark is in `docs/brand/csg-connect-mark.svg`. It
 
 The mark has no embedded text, fine detail, shadows, or pre-rounded outer mask. It is designed to remain identifiable at small sizes and to support default, dark, tinted, and monochrome treatments.
 
-### Production asset set still required
+### Production asset set delivered
 
-Before changing the shipped icon:
+Phase 1 delivered editable SVG masters plus generated PNG assets for:
 
-1. Approve the mark and test it at 16, 20, 29, 40, 60, 76, 120, 180, 512, and 1024 pixels.
-2. Create an Apple layered `.icon` directory in Icon Composer with default, dark, clear, and tinted previews. Keep the same silhouette in every appearance. Expo SDK 57 can reference this directory directly through `ios.icon`.
-3. Also export an opaque 1024px flattened fallback for older tooling and marketing previews. Do not pre-round the corners.
-4. Export separate Android foreground, background, and monochrome PNG layers. Keep critical geometry inside Android's 66-by-66 dp safe zone within the 108-by-108 dp canvas.
-5. Create a simplified splash treatment using the standalone mark rather than the entire app icon tile.
-6. Verify the result on a physical iPhone and at least one circular and one squircle Android launcher mask.
+- iOS light, dark, and tinted appearances;
+- an opaque 1024px fallback without pre-rounded corners;
+- Android adaptive foreground and monochrome layers with protected geometry;
+- a simplified splash mark and monochrome notification icon.
+
+Expo references each appearance directly in `mobile/app.json`. The editable sources and exact regeneration commands live in `mobile/assets/brand/README.md`; both iOS and Android resource generation pass. Final visual acceptance on physical launchers remains part of the TestFlight/device checklist rather than being inferred from a simulator.
 
 Official guidance:
 
@@ -43,9 +43,9 @@ Official guidance:
 - [Expo: Splash screen and app icon](https://docs.expo.dev/develop/user-interface/splash-screen-and-app-icon/)
 - [Android Developers: Adaptive icons](https://developer.android.com/develop/ui/compose/system/icon_design_adaptive)
 
-## Current parity baseline
+## Baseline at the start of research
 
-The Rails API already exposes most of the platform domain. The missing work is primarily native product design, API-client coverage, offline behavior, and mobile-specific interaction—not a ground-up backend rewrite.
+At the start of this research, the Rails API already exposed most of the platform domain. The missing work was primarily native product design, API-client coverage, offline behavior, and mobile-specific interaction—not a ground-up backend rewrite. The table below is historical; the implemented outcome is recorded in the phase plan and mobile architecture document.
 
 | Product area | Web | Native today | Parity gap |
 | --- | --- | --- | --- |
