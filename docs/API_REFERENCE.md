@@ -49,6 +49,16 @@ Syncs an invited user record from the Clerk JWT. Production access is invite-onl
 
 Archived users receive the same status with `code: "account_archived"`. Missing, invalid, and expired Clerk JWTs remain `401` responses.
 
+### `POST /api/v1/web_handoffs`
+
+Creates a one-time, 60-second Clerk sign-in link for an allowlisted responsive-web destination. Mobile uses this for browser-shaped tools such as the interactive code runner without placing the device session JWT in a URL. Supported destinations are numeric lesson and module paths, for example:
+
+```json
+{ "destination": "/lessons/42" }
+```
+
+The response contains a Clerk Account Portal URL whose post-authentication redirect is resolved from `PUBLIC_FRONTEND_URL`. External, malformed, and unsupported destinations are rejected.
+
 ---
 
 ## Profile
@@ -80,7 +90,7 @@ Updates the current user's profile.
 
 Returns role-appropriate dashboard data.
 
-**Student response:** Current cohort, latest announcements, unread notification count, modules with progress, upcoming lessons.
+**Student response:** Current cohort, pinned/unread announcements, unread notification count, modules with progress and unlock state, next lesson, current redo items, latest passing grades, resources, and upcoming office hours.
 
 **Admin response:** All active cohorts with student progress, at-risk indicators, ungraded counts.
 

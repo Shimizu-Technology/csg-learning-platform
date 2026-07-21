@@ -1,9 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { CsgApi } from '@/lib/api';
 import { demoUser } from '@/lib/demo-data';
 import { PUSH_TOKEN_KEY, registerPushNotifications } from '@/lib/push-notifications';
+import { clearLearningCache } from '@/lib/learning-cache';
 import { canUseCachedSession, isSessionAccessDenied } from '@/lib/session-access';
 import type { SessionUser } from '@/lib/types';
 import { useCsgAuth } from './auth-provider';
@@ -28,6 +29,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const [loading, setLoading] = useState(!auth.demo);
   const [error, setError] = useState<string | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
+  const userIdRef = useRef<number | null>(user?.id || null);
+  useEffect(() => { userIdRef.current = user?.id || null; }, [user?.id]);
 
   const refresh = useCallback(async () => {
     if (!auth.signedIn) { setUser(null); setError(null); setAccessDenied(false); setLoading(false); return; }
@@ -46,9 +49,13 @@ export function SessionProvider({ children }: PropsWithChildren) {
         if (cached) {
           try { cachedUserId = (JSON.parse(cached) as SessionUser).id; } catch { cachedUserId = null; }
         }
+        cachedUserId ||= userIdRef.current;
         const keys = [PUSH_TOKEN_KEY];
         if (userCacheKey) keys.push(userCacheKey);
-        if (cachedUserId) keys.push(`csg.inbox.${cachedUserId}`, `csg.workspaces.${cachedUserId}`, `csg.workspace.active.${cachedUserId}`);
+        if (cachedUserId) {
+          keys.push(`csg.inbox.${cachedUserId}`, `csg.workspaces.${cachedUserId}`, `csg.workspace.active.${cachedUserId}`);
+          await clearLearningCache(cachedUserId).catch(() => undefined);
+        }
         await AsyncStorage.multiRemove(keys);
         setUser(null);
         setAccessDenied(true);
@@ -72,6 +79,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     const keys = [PUSH_TOKEN_KEY];
     if (userCacheKey) keys.push(userCacheKey);
     if (user) keys.push(`csg.inbox.${user.id}`, `csg.workspaces.${user.id}`, `csg.workspace.active.${user.id}`);
+    if (user) await clearLearningCache(user.id).catch(() => undefined);
     await AsyncStorage.multiRemove(keys);
     await auth.signOut();
   }, [api, auth, user, userCacheKey]);

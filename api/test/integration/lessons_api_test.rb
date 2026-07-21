@@ -51,7 +51,21 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert_response :success
     block = JSON.parse(response.body).dig("lesson", "content_blocks").find { |item| item["id"] == @video_block.id }
     assert_equal @video_block.s3_video_key, block["s3_video_key"]
+    assert_equal true, block["completion_required"]
     refute block.key?("s3_video_content_type")
+  end
+
+  test "lesson payload identifies only actionable completion blocks when an exercise exists" do
+    exercise = @lesson.content_blocks.create!(block_type: :exercise, position: 2, title: "Submit")
+
+    as_user(@student) do
+      get "/api/v1/lessons/#{@lesson.id}", headers: auth_headers
+    end
+
+    assert_response :success
+    blocks = JSON.parse(response.body).dig("lesson", "content_blocks").index_by { |item| item["id"] }
+    assert_equal false, blocks.fetch(@video_block.id)["completion_required"]
+    assert_equal true, blocks.fetch(exercise.id)["completion_required"]
   end
 
   test "staff lesson payload still includes video metadata" do

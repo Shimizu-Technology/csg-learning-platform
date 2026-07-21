@@ -17,6 +17,17 @@ export interface SessionUser extends UserSummary {
   github_username: string | null;
 }
 
+export interface ProfilePayload {
+  user: Pick<SessionUser, 'id' | 'email' | 'first_name' | 'last_name' | 'full_name' | 'github_username' | 'avatar_url'>;
+  enrollments: {
+    id: number;
+    cohort_name: string;
+    curriculum_name: string;
+    status: string;
+    enrolled_at: string | null;
+  }[];
+}
+
 export interface WorkspaceSummary {
   id: number;
   name: string;
@@ -212,3 +223,211 @@ export type MessageSearchResult = Message & {
     workspace_id: number;
   };
 };
+
+export interface SubmissionWindowStatus {
+  week_number?: number;
+  opens_at?: string | null;
+  closes_at?: string | null;
+  submissions_open?: boolean;
+  submissions_closed?: boolean;
+  status?: string;
+}
+
+export interface LearningResource {
+  id: number;
+  title: string;
+  url: string;
+  category: string;
+  description: string | null;
+}
+
+export interface OfficeHourOccurrence {
+  id?: number | string;
+  title?: string;
+  starts_at?: string;
+  ends_at?: string;
+  start_time?: string;
+  end_time?: string;
+  meeting_url?: string | null;
+  location?: string | null;
+  description?: string | null;
+}
+
+export interface StudentDashboardLesson {
+  id: number;
+  title: string;
+  lesson_type: string;
+  release_day?: number;
+  required?: boolean;
+  available: boolean;
+  unlock_date: string | null;
+  completed: boolean;
+  total_blocks: number;
+  completed_blocks: number;
+  submission_window?: SubmissionWindowStatus;
+}
+
+export interface StudentDashboardModule {
+  id: number;
+  name: string;
+  module_type: string;
+  position?: number;
+  progress_percentage: number;
+  completed_blocks: number;
+  total_blocks: number;
+  assigned: boolean;
+  unlocked: boolean;
+  available: boolean;
+  unlock_date: string | null;
+  lessons: StudentDashboardLesson[];
+}
+
+export interface StudentDashboard {
+  enrolled: boolean;
+  user: { id: number; full_name: string; role: string };
+  cohort?: {
+    id: number;
+    name: string;
+    start_date: string;
+    status: string;
+    announcements?: Announcement[];
+    unread_notifications_count?: number;
+  };
+  overall_progress?: { completed: number; total: number; percentage: number };
+  modules?: StudentDashboardModule[];
+  continue_lesson?: { id: number; title: string } | null;
+  action_items?: {
+    type: string;
+    submission_id: number;
+    lesson_id: number;
+    lesson_title: string;
+    content_block_title: string;
+    feedback: string | null;
+    submission_window?: SubmissionWindowStatus;
+    submissions_closed?: boolean;
+  }[];
+  recently_graded?: {
+    submission_id: number;
+    lesson_id: number;
+    lesson_title: string;
+    content_block_title: string;
+    grade: string;
+    feedback: string | null;
+    graded_at: string | null;
+  }[];
+  resources?: LearningResource[];
+  office_hours?: OfficeHourOccurrence[];
+}
+
+export interface StaffDashboard {
+  user: { id: number; full_name: string; role: string };
+  cohorts: {
+    cohort: { id: number; name: string; status: string; active_count?: number; enrolled_count?: number };
+    ungraded_count: number;
+    students: unknown[];
+  }[];
+}
+
+export interface ProgressEntry {
+  id: number;
+  content_block_id: number;
+  status: 'not_started' | 'in_progress' | 'completed' | string;
+  completed_at: string | null;
+}
+
+export interface SubmissionBrief {
+  id: number;
+  submission_type?: string | null;
+  text: string | null;
+  grade: string | null;
+  feedback: string | null;
+  graded_at: string | null;
+  github_issue_url?: string | null;
+  github_code_url?: string | null;
+  repo_url?: string | null;
+  pr_url?: string | null;
+  live_url?: string | null;
+  branch?: string | null;
+  commit_sha?: string | null;
+  notes?: string | null;
+  num_submissions: number;
+  created_at: string;
+}
+
+export interface LessonContentBlock {
+  id: number;
+  block_type: 'video' | 'text' | 'exercise' | 'code_challenge' | 'checkpoint' | 'recording' | string;
+  position: number;
+  title: string | null;
+  body: string | null;
+  video_url: string | null;
+  s3_video_key?: string | null;
+  has_s3_video?: boolean;
+  completion_required?: boolean;
+  filename: string | null;
+  submission_type?: string | null;
+  submission_type_explicit?: string | null;
+  submission_config?: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  progress?: { status: string; completed_at: string | null; video_last_position?: number; video_total_watched?: number };
+  submissions?: SubmissionBrief[];
+}
+
+export interface LessonDetail {
+  id: number;
+  module_id: number;
+  title: string;
+  lesson_type: string;
+  position: number;
+  release_day: number;
+  required: boolean;
+  requires_submission: boolean;
+  requires_github?: boolean;
+  repository_name?: string | null;
+  submission_type?: string;
+  content_blocks_count: number;
+  submission_window?: SubmissionWindowStatus;
+  content_blocks: LessonContentBlock[];
+  prev_lesson: { id: number; title: string } | null;
+  next_lesson: { id: number; title: string } | null;
+}
+
+export interface Submission {
+  id: number;
+  content_block_id: number;
+  user_id: number;
+  user_name: string;
+  submission_type?: string | null;
+  text: string | null;
+  grade: string | null;
+  feedback: string | null;
+  graded_by: string | null;
+  graded_at: string | null;
+  github_issue_url: string | null;
+  github_code_url: string | null;
+  repo_url?: string | null;
+  pr_url?: string | null;
+  live_url?: string | null;
+  branch?: string | null;
+  commit_sha?: string | null;
+  notes?: string | null;
+  num_submissions: number;
+  created_at: string;
+  content_block_title: string;
+  content_block_type: string;
+  lesson_title: string;
+  filename: string | null;
+  submission_config?: Record<string, unknown>;
+  language_hint: string | null;
+}
+
+export interface SubmissionInput {
+  content_block_id: number;
+  text?: string;
+  repo_url?: string;
+  pr_url?: string;
+  live_url?: string;
+  branch?: string;
+  commit_sha?: string;
+  notes?: string;
+}

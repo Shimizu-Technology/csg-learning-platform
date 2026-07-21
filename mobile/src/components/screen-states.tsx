@@ -10,8 +10,8 @@ export function EmptyState({ title, copy }: { title: string; copy: string }) {
   return <View style={styles.empty}><View style={styles.icon}><MessageSquareText color={palette.rubySoft} size={24} /></View><Text style={styles.title}>{title}</Text><Text style={styles.muted}>{copy}</Text></View>;
 }
 
-export function ErrorState({ message, retry }: { message: string; retry: () => void }) {
-  return <View style={styles.empty}><AlertCircle color={palette.warning} size={28} /><Text style={styles.title}>Couldn’t load this</Text><Text style={styles.muted}>{message}</Text><Pressable accessibilityRole="button" onPress={retry} style={styles.button}><Text style={styles.buttonText}>Try again</Text></Pressable></View>;
+export function ErrorState({ message, retry }: { message: string; retry?: () => void }) {
+  return <View style={styles.empty}><AlertCircle color={palette.warning} size={28} /><Text style={styles.title}>Couldn’t load this</Text><Text style={styles.muted}>{message}</Text>{retry && <Pressable accessibilityRole="button" onPress={retry} style={styles.button}><Text style={styles.buttonText}>Try again</Text></Pressable>}</View>;
 }
 
 const styles = StyleSheet.create({

@@ -1,0 +1,41 @@
+import { useQuery } from '@tanstack/react-query';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { ArrowLeft, ArrowRight, BookOpen, ChevronLeft, Lock } from 'lucide-react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { LessonContentBlockCard } from '@/components/lesson-content-block';
+import { ProgressBar } from '@/components/learning-ui';
+import { ErrorState, LoadingState } from '@/components/screen-states';
+import { fonts, palette } from '@/constants/csg-theme';
+import { demoLesson } from '@/lib/demo-learning';
+import { learningKeys, lessonCompletion } from '@/lib/learning';
+import { useCsgAuth } from '@/providers/auth-provider';
+import { useSession } from '@/providers/session-provider';
+
+export default function LessonScreen() {
+  const id = Number(useLocalSearchParams<{ id: string }>().id);
+  const router = useRouter();
+  const auth = useCsgAuth();
+  const { api, user } = useSession();
+  const validId = Number.isInteger(id) && id > 0;
+  const query = useQuery({ queryKey: learningKeys.lesson(user?.id || 0, id), queryFn: ({ signal }) => auth.demo ? Promise.resolve({ lesson: { ...demoLesson, id } }) : api.lesson(id, signal), enabled: Boolean(user && validId) });
+  const lesson = query.data?.lesson;
+  if (!validId) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={palette.text} size={22} /></Pressable></View><ErrorState message="This lesson link is invalid." /></SafeAreaView>;
+  if (query.isPending && !lesson) return <SafeAreaView style={styles.safe}><LoadingState label="Opening lesson" /></SafeAreaView>;
+  if (!lesson) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={palette.text} size={22} /></Pressable></View><ErrorState message={query.error ? (query.error as Error).message : 'This lesson is unavailable.'} retry={() => void query.refetch()} /></SafeAreaView>;
+  const progress = lessonCompletion(lesson.content_blocks);
+  const closed = Boolean(lesson.submission_window?.submissions_closed);
+
+  return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={palette.text} size={22} /></Pressable><View style={styles.flex}><Text style={styles.headerKicker}>LESSON</Text><Text numberOfLines={1} style={styles.headerTitle}>{lesson.title}</Text></View><Text style={styles.headerProgress}>{progress.percentage}%</Text></View><ScrollView automaticallyAdjustKeyboardInsets keyboardDismissMode="interactive" keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={palette.rubySoft} />} contentContainerStyle={styles.content}>
+    {query.isError && <View style={styles.offline}><Text style={styles.offlineText}>Showing the saved lesson. Changes need a connection.</Text></View>}
+    <View style={styles.hero}><View style={styles.heroIcon}><BookOpen color={palette.rubySoft} size={21} /></View><Text style={styles.type}>{lesson.lesson_type.toUpperCase()}</Text><Text style={styles.title}>{lesson.title}</Text><View style={styles.progressCopy}><Text style={styles.progressText}>{progress.completed} of {progress.total} steps complete</Text><Text style={styles.percent}>{progress.percentage}%</Text></View><ProgressBar value={progress.percentage} label={`${lesson.title} progress`} />{closed && <View style={styles.window}><Lock color={palette.warning} size={15} /><Text style={styles.windowText}>{lesson.submission_window?.week_number ? `Week ${lesson.submission_window.week_number} submissions are closed` : 'Submissions are closed'} · review remains available</Text></View>}</View>
+    <View style={styles.blocks}>{[...lesson.content_blocks].sort((a, b) => a.position - b.position).map((block) => <LessonContentBlockCard key={block.id} block={block} lesson={lesson} />)}</View>
+    {!lesson.content_blocks.length && <View style={styles.empty}><BookOpen color={palette.rubySoft} size={30} /><Text style={styles.emptyTitle}>This lesson is being prepared</Text></View>}
+    <View style={styles.lessonNav}>{lesson.prev_lesson ? <Pressable accessibilityRole="button" accessibilityLabel={`Previous lesson: ${lesson.prev_lesson.title}`} onPress={() => router.replace(`/lesson/${lesson.prev_lesson!.id}`)} style={styles.navButton}><ChevronLeft color={palette.rubySoft} size={18} /><View style={styles.flex}><Text style={styles.navKicker}>PREVIOUS</Text><Text numberOfLines={2} style={styles.navTitle}>{lesson.prev_lesson.title}</Text></View></Pressable> : <View style={styles.navSpacer} />}{lesson.next_lesson ? <Pressable accessibilityRole="button" accessibilityLabel={`Next lesson: ${lesson.next_lesson.title}`} onPress={() => router.replace(`/lesson/${lesson.next_lesson!.id}`)} style={[styles.navButton, styles.navRight]}><View style={styles.flex}><Text style={[styles.navKicker, styles.textRight]}>NEXT</Text><Text numberOfLines={2} style={[styles.navTitle, styles.textRight]}>{lesson.next_lesson.title}</Text></View><ArrowRight color={palette.rubySoft} size={18} /></Pressable> : <View style={styles.navSpacer} />}</View>
+  </ScrollView></SafeAreaView>;
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: palette.ink }, header: { minHeight: 68, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.line, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 7 }, backRow: { minHeight: 68, paddingHorizontal: 10, justifyContent: 'center' }, back: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, flex: { flex: 1, minWidth: 0 }, headerKicker: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 8, letterSpacing: 1 }, headerTitle: { color: palette.text, fontFamily: fonts.bold, fontSize: 16, marginTop: 2 }, headerProgress: { color: palette.success, fontFamily: fonts.bold, fontSize: 11, marginRight: 10 }, content: { padding: 20, paddingBottom: 90 }, offline: { minHeight: 36, borderRadius: 12, backgroundColor: '#2A2115', justifyContent: 'center', paddingHorizontal: 12, marginBottom: 12 }, offlineText: { color: palette.warning, fontFamily: fonts.semibold, fontSize: 10 }, hero: { borderRadius: 22, borderWidth: 1, borderColor: '#4D2630', backgroundColor: '#211319', padding: 20 }, heroIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#351821', alignItems: 'center', justifyContent: 'center', marginBottom: 15 }, type: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 9, letterSpacing: 1 }, title: { color: palette.text, fontFamily: fonts.extraBold, fontSize: 27, lineHeight: 34, letterSpacing: -0.8, marginTop: 5 }, progressCopy: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20, marginBottom: 8 }, progressText: { color: palette.muted, fontFamily: fonts.medium, fontSize: 10 }, percent: { color: palette.text, fontFamily: fonts.bold, fontSize: 10 }, window: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 14 }, windowText: { flex: 1, color: palette.warning, fontFamily: fonts.semibold, fontSize: 9, lineHeight: 14 }, blocks: { gap: 12, marginTop: 16 }, empty: { alignItems: 'center', paddingVertical: 60 }, emptyTitle: { color: palette.text, fontFamily: fonts.bold, fontSize: 16, marginTop: 12 }, lessonNav: { flexDirection: 'row', gap: 10, marginTop: 22 }, navButton: { flex: 1, minHeight: 76, borderRadius: 17, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panel, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 7 }, navRight: { justifyContent: 'flex-end' }, navSpacer: { flex: 1 }, navKicker: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 8, letterSpacing: 0.8 }, navTitle: { color: palette.text, fontFamily: fonts.semibold, fontSize: 10, lineHeight: 15, marginTop: 3 }, textRight: { textAlign: 'right' },
+});

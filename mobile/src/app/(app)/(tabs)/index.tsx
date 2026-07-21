@@ -1,151 +1,75 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { Check, ChevronDown, Hash, MessageCircle, PenLine, Search, Users, X } from 'lucide-react-native';
-import { useCallback, useMemo, useState } from 'react';
-import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useQuery } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
+import { ArrowRight, BadgeCheck, BookOpen, CalendarClock, Megaphone, MessageSquare, RotateCcw, Users, type LucideIcon } from 'lucide-react-native';
+import { Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ConversationRow } from '@/components/conversation-row';
-import { EmptyState, ErrorState, LoadingState } from '@/components/screen-states';
+import { LearningCard, ProgressBar, SectionHeading } from '@/components/learning-ui';
+import { ErrorState, LoadingState } from '@/components/screen-states';
 import { fonts, palette } from '@/constants/csg-theme';
-import { demoChannels, demoDms } from '@/lib/demo-data';
-import { subscribeToUserMessages } from '@/lib/cable';
-import type { ChannelSummary, DirectConversationSummary, MessageEvent } from '@/lib/types';
-import { buildWorkspaceCards } from '@/lib/workspaces';
+import { demoDashboard } from '@/lib/demo-learning';
+import { openExternalPage } from '@/lib/external-links';
+import { isStudentDashboard, learningKeys } from '@/lib/learning';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
-import { useWorkspace } from '@/providers/workspace-provider';
 
-export default function InboxScreen() {
+export default function TodayScreen() {
   const router = useRouter();
   const auth = useCsgAuth();
   const { api, user } = useSession();
-  const { workspaces, activeWorkspaceId, activeWorkspace, loading: loadingWorkspaces, error: workspaceError, refresh: refreshWorkspaces, selectWorkspace } = useWorkspace();
-  const inboxCacheKey = user ? `csg.inbox.${user.id}` : null;
-  const [channels, setChannels] = useState<ChannelSummary[]>([]);
-  const [dms, setDms] = useState<DirectConversationSummary[]>([]);
-  const [query, setQuery] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [showWorkspaces, setShowWorkspaces] = useState(false);
+  const query = useQuery({
+    queryKey: learningKeys.dashboard(user?.id || 0),
+    queryFn: ({ signal }) => auth.demo ? Promise.resolve({ dashboard: demoDashboard }) : api.dashboard(signal),
+    enabled: Boolean(user),
+  });
+  const dashboard = query.data?.dashboard;
 
-  const load = useCallback(async (pull = false) => {
-    if (pull) setRefreshing(true); else setLoading(true);
-    try {
-      if (auth.demo) { setChannels(demoChannels); setDms(demoDms); }
-      else {
-        const [channelResult, dmResult] = await Promise.all([api.channels(), api.directConversations()]);
-        setChannels(channelResult.channels); setDms(dmResult.direct_conversations);
-        if (inboxCacheKey) await AsyncStorage.setItem(inboxCacheKey, JSON.stringify({ channels: channelResult.channels, dms: dmResult.direct_conversations }));
-      }
-      setError(null);
-    } catch (requestError) {
-      const cached = inboxCacheKey ? await AsyncStorage.getItem(inboxCacheKey) : null;
-      if (cached) {
-        try { const value = JSON.parse(cached) as { channels: ChannelSummary[]; dms: DirectConversationSummary[] }; setChannels(value.channels); setDms(value.dms); }
-        catch { await AsyncStorage.removeItem(inboxCacheKey!); setError((requestError as Error).message); }
-      } else setError((requestError as Error).message);
-    } finally { setLoading(false); setRefreshing(false); }
-  }, [api, auth.demo, inboxCacheKey]);
+  if (query.isPending && !dashboard) return <SafeAreaView style={styles.safe}><LoadingState label="Loading today" /></SafeAreaView>;
+  if (query.error && !dashboard) return <SafeAreaView style={styles.safe}><ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /></SafeAreaView>;
 
-  useFocusEffect(useCallback(() => { void load(); }, [load]));
-  useFocusEffect(useCallback(() => {
-    if (auth.demo || loading || error) return undefined;
-    return subscribeToUserMessages(api, (event: MessageEvent) => {
-      const channel = event.channel;
-      const conversation = event.direct_conversation;
-      if (channel) setChannels((current) => [channel, ...current.filter((item) => item.id !== channel.id)]);
-      if (conversation) setDms((current) => [conversation, ...current.filter((item) => item.id !== conversation.id)]);
-    });
-  }, [api, auth.demo, error, loading]));
-  const workspaceCards = useMemo(() => buildWorkspaceCards(workspaces, channels, dms), [channels, dms, workspaces]);
-  const activeWorkspaceCard = workspaceCards.find((workspace) => workspace.id === activeWorkspaceId) ?? null;
-  const filter = query.trim().toLowerCase();
-  const workspaceChannels = useMemo(() => channels.filter((item) => item.workspace_id === activeWorkspaceId), [activeWorkspaceId, channels]);
-  const workspaceDms = useMemo(() => dms.filter((item) => item.workspace_id === activeWorkspaceId), [activeWorkspaceId, dms]);
-  const visibleChannels = useMemo(() => workspaceChannels.filter((item) => `${item.name} ${item.latest_message?.body || ''}`.toLowerCase().includes(filter)), [filter, workspaceChannels]);
-  const visibleDms = useMemo(() => workspaceDms.filter((item) => `${item.title} ${item.latest_message?.body || ''}`.toLowerCase().includes(filter)), [filter, workspaceDms]);
-  const unread = workspaceCards.reduce((sum, workspace) => sum + workspace.unreadCount, 0);
-  const otherUnread = unread - (activeWorkspaceCard?.unreadCount ?? 0);
-  const open = (kind: 'channel' | 'dm', id: number) => router.push({ pathname: '/conversation/[kind]/[id]', params: { kind, id: String(id) } });
-  const refreshAll = async (pull = false) => { await Promise.all([load(pull), refreshWorkspaces()]); };
+  if (!dashboard || !isStudentDashboard(dashboard)) {
+    const cohorts = dashboard && 'cohorts' in dashboard ? dashboard.cohorts : [];
+    return <SafeAreaView style={styles.safe}><ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={palette.rubySoft} />} contentContainerStyle={styles.content}><Text style={styles.eyebrow}>TEACHING TODAY</Text><Text style={styles.heroTitle}>Good {dayPart()}</Text><Text style={styles.heroCopy}>Communication is native now. Student intervention tools arrive in the staff phase.</Text><LearningCard><View style={styles.staffMetric}><Users color={palette.rubySoft} size={22} /><View><Text style={styles.metricValue}>{cohorts.length}</Text><Text style={styles.metricLabel}>active cohort spaces</Text></View></View></LearningCard><View style={styles.section}><SectionHeading title="Quick actions" /><View style={styles.quickGrid}><QuickAction icon={MessageSquare} label="Messages" onPress={() => router.push('/messages')} /><QuickAction icon={Megaphone} label="Updates" onPress={() => router.push('/updates')} /></View></View></ScrollView></SafeAreaView>;
+  }
 
+  if (!dashboard.enrolled) return <SafeAreaView style={styles.safe}><View style={styles.center}><BookOpen color={palette.rubySoft} size={34} /><Text style={styles.emptyTitle}>No active learning path</Text><Text style={styles.emptyCopy}>Your lessons will appear here when your cohort enrollment is active.</Text></View></SafeAreaView>;
+
+  const progress = dashboard.overall_progress?.percentage || 0;
   return (
     <SafeAreaView edges={['top']} style={styles.safe}>
-      <View style={styles.header}><View><Text style={styles.eyebrow}>CSG CONNECT</Text><Text style={styles.heading}>Messages</Text><Text style={styles.subhead}>{unread ? `${unread} unread across your workspaces` : 'You’re all caught up'}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Start a direct message" onPress={() => router.push('/compose')} style={styles.compose}><PenLine color={palette.text} size={21} /></Pressable></View>
-      {activeWorkspace && (
-        <Pressable accessibilityRole="button" accessibilityLabel={`Current workspace: ${activeWorkspace.name}. ${workspaces.length > 1 ? 'Switch workspace' : ''}`} disabled={workspaces.length < 2} onPress={() => setShowWorkspaces(true)} style={styles.workspaceSelector}>
-          <View style={styles.workspaceMark}><Text style={styles.workspaceInitials}>{activeWorkspace.name.split(/\s+/).map((word) => word[0]).join('').slice(0, 2).toUpperCase()}</Text></View>
-          <View style={styles.workspaceCopy}><View style={styles.workspaceNameRow}><Text numberOfLines={1} style={styles.workspaceName}>{activeWorkspace.name}</Text><Text style={styles.workspaceType}>{activeWorkspace.workspace_type}</Text></View><Text numberOfLines={1} style={styles.workspaceMeta}>{activeWorkspace.member_count} {activeWorkspace.member_count === 1 ? 'member' : 'members'} · {activeWorkspaceCard?.unreadCount ? `${activeWorkspaceCard.unreadCount} unread here` : 'caught up'}{otherUnread > 0 ? ` · ${otherUnread} elsewhere` : ''}</Text></View>
-          {workspaces.length > 1 && <ChevronDown color={palette.muted} size={19} />}
-        </Pressable>
-      )}
-      <View style={styles.search}><Search color={palette.quiet} size={18} /><TextInput accessibilityLabel="Filter conversations" value={query} onChangeText={setQuery} placeholder="Find a conversation" placeholderTextColor={palette.quiet} style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel="Search all messages" onPress={() => router.push('/search')} style={styles.searchAllButton}><Text style={styles.searchAll}>Search all</Text></Pressable></View>
-      {loading || loadingWorkspaces ? <LoadingState /> : error || (workspaceError && !workspaces.length) ? <ErrorState message={error || workspaceError || 'Could not load messages'} retry={() => void refreshAll()} /> : (
-        <ScrollView keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refreshAll(true)} tintColor={palette.rubySoft} />} contentContainerStyle={styles.content}>
-          {visibleDms.length > 0 && <View style={styles.section}><Text style={styles.label}>DIRECT</Text>{visibleDms.map((item) => <ConversationRow key={`dm-${item.id}`} kind="dm" item={item} onPress={() => open('dm', item.id)} />)}</View>}
-          {visibleChannels.length > 0 && <View style={styles.section}><Text style={styles.label}>CHANNELS</Text>{visibleChannels.map((item) => <ConversationRow key={`channel-${item.id}`} kind="channel" item={item} onPress={() => open('channel', item.id)} />)}</View>}
-          {!activeWorkspace && <EmptyState title="No workspace yet" copy="Your cohort and community workspaces will appear here once you have access." />}
-          {activeWorkspace && !visibleDms.length && !visibleChannels.length && <EmptyState title={filter ? 'Nothing found' : `Nothing in ${activeWorkspace.name} yet`} copy={filter ? 'Try a different conversation name or message preview.' : 'Channels and direct messages for this workspace will appear here.'} />}
-        </ScrollView>
-      )}
-      <Modal visible={showWorkspaces} transparent animationType="slide" onRequestClose={() => setShowWorkspaces(false)}>
-        <View style={styles.modalRoot}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Close workspace switcher" onPress={() => setShowWorkspaces(false)} style={StyleSheet.absoluteFill} />
-          <View style={styles.sheet}>
-            <View style={styles.sheetHandle} />
-            <View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>Switch workspace</Text><Text style={styles.sheetSubtitle}>Your conversations stay separated by cohort and community.</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close workspace switcher" onPress={() => setShowWorkspaces(false)} style={styles.closeButton}><X color={palette.muted} size={20} /></Pressable></View>
-            <ScrollView contentContainerStyle={styles.workspaceList}>
-              {workspaceCards.map((workspace) => {
-                const current = workspace.id === activeWorkspaceId;
-                return <Pressable key={workspace.id} accessibilityRole="button" accessibilityState={{ selected: current }} onPress={() => { void selectWorkspace(workspace.id); setShowWorkspaces(false); setQuery(''); }} style={[styles.workspaceCard, current && styles.workspaceCardActive]}>
-                  <View style={[styles.workspaceMark, current && styles.workspaceMarkActive]}><Text style={styles.workspaceInitials}>{workspace.name.split(/\s+/).map((word) => word[0]).join('').slice(0, 2).toUpperCase()}</Text></View>
-                  <View style={styles.workspaceCopy}><View style={styles.workspaceNameRow}><Text numberOfLines={1} style={styles.workspaceName}>{workspace.name}</Text>{current && <Check color={palette.rubySoft} size={17} strokeWidth={2.5} />}</View><View style={styles.statRow}><Users color={palette.quiet} size={13} /><Text style={styles.stat}>{workspace.member_count}</Text><Hash color={palette.quiet} size={13} /><Text style={styles.stat}>{workspace.channelCount}</Text><MessageCircle color={palette.quiet} size={13} /><Text style={styles.stat}>{workspace.directMessageCount}</Text>{workspace.unreadCount > 0 && <Text style={styles.unreadPill}>{workspace.unreadCount} unread</Text>}</View></View>
-                </Pressable>;
-              })}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+      <ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={palette.rubySoft} />} contentContainerStyle={styles.content}>
+        {query.isError && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved learning data. Pull to reconnect.</Text></View>}
+        <Text style={styles.eyebrow}>YOUR LEARNING DAY</Text><Text style={styles.heroTitle}>Good {dayPart()}, {firstName(dashboard.user.full_name)}</Text><Text style={styles.heroCopy}>{dashboard.cohort?.name || 'Code School of Guam'} · focus on the next useful step.</Text>
+        <LearningCard onPress={dashboard.continue_lesson ? () => router.push(`/lesson/${dashboard.continue_lesson!.id}`) : undefined} label={dashboard.continue_lesson ? `Continue ${dashboard.continue_lesson.title}` : undefined}>
+          <View style={styles.cardTop}><View style={styles.continueIcon}><BookOpen color={palette.rubySoft} size={21} /></View><View style={styles.flex}><Text style={styles.cardKicker}>NEXT BEST ACTION</Text><Text style={styles.cardTitle}>{dashboard.continue_lesson?.title || 'You’re caught up'}</Text><Text style={styles.cardMeta}>{dashboard.continue_lesson ? 'Continue your current lesson' : 'Review your completed lessons anytime'}</Text></View>{dashboard.continue_lesson && <ArrowRight color={palette.muted} size={20} />}</View>
+          <View style={styles.progressCopy}><Text style={styles.progressLabel}>Overall progress</Text><Text style={styles.progressValue}>{Math.round(progress)}%</Text></View><ProgressBar value={progress} label="Overall learning progress" />
+        </LearningCard>
+
+        {!!dashboard.action_items?.length && <View style={styles.section}><SectionHeading eyebrow="Needs attention" title="Redo work" /><View style={styles.stack}>{dashboard.action_items.map((item) => <LearningCard key={item.submission_id} onPress={() => router.push(`/lesson/${item.lesson_id}`)} label={`Open redo for ${item.lesson_title}`}><View style={styles.row}><View style={styles.redoIcon}><RotateCcw color={palette.rubySoft} size={18} /></View><View style={styles.flex}><Text style={styles.cardTitle}>{item.lesson_title}</Text><Text style={styles.cardMeta}>{item.content_block_title}</Text>{item.feedback && <Text numberOfLines={3} style={styles.feedback}>{item.feedback}</Text>}</View><ArrowRight color={palette.quiet} size={18} /></View></LearningCard>)}</View></View>}
+
+        {!!dashboard.recently_graded?.length && <View style={styles.section}><SectionHeading eyebrow="Instructor feedback" title="Recently graded" /><View style={styles.stack}>{dashboard.recently_graded.map((item) => <LearningCard key={item.submission_id} onPress={() => router.push(`/lesson/${item.lesson_id}`)} label={`Review feedback for ${item.lesson_title}`}><View style={styles.row}><View style={styles.gradeIcon}><BadgeCheck color={palette.success} size={19} /></View><View style={styles.flex}><View style={styles.gradeRow}><Text style={styles.cardTitle}>{item.lesson_title}</Text><Text style={styles.grade}>{item.grade}</Text></View><Text style={styles.cardMeta}>{item.content_block_title}</Text>{item.feedback && <Text numberOfLines={3} style={styles.feedback}>{item.feedback}</Text>}</View><ArrowRight color={palette.quiet} size={18} /></View></LearningCard>)}</View></View>}
+
+        {!!dashboard.cohort?.announcements?.length && <View style={styles.section}><SectionHeading eyebrow="Class updates" title="Announcements" actionLabel="View all" onAction={() => router.push('/updates')} /><View style={styles.stack}>{dashboard.cohort.announcements.slice(0, 2).map((announcement) => <LearningCard key={announcement.id} onPress={() => router.push('/updates')} label={`Open announcement: ${announcement.title}`}><View style={styles.row}><View style={styles.announcementIcon}><Megaphone color={palette.rubySoft} size={18} /></View><View style={styles.flex}><Text style={styles.cardTitle}>{announcement.title}</Text><Text numberOfLines={3} style={styles.announcementBody}>{announcement.body}</Text></View>{!announcement.read_at && <View style={styles.unreadDot} />}</View></LearningCard>)}</View></View>}
+
+        <View style={styles.section}><SectionHeading title="Stay connected" /><View style={styles.quickGrid}><QuickAction icon={MessageSquare} label="Messages" onPress={() => router.push('/messages')} /><QuickAction icon={Megaphone} label={dashboard.cohort?.unread_notifications_count ? `${dashboard.cohort.unread_notifications_count} updates` : 'Updates'} onPress={() => router.push('/updates')} /></View></View>
+
+        {!!dashboard.office_hours?.length && <View style={styles.section}><SectionHeading eyebrow="Coming up" title="Office hours" /><LearningCard onPress={dashboard.office_hours[0].meeting_url ? () => void openExternalPage(dashboard.office_hours![0].meeting_url).catch((error) => Alert.alert('Could not open office hours', (error as Error).message)) : undefined} label={dashboard.office_hours[0].meeting_url ? `Join ${dashboard.office_hours[0].title || 'office hours'}` : undefined}><View style={styles.row}><CalendarClock color={palette.rubySoft} size={21} /><View style={styles.flex}><Text style={styles.cardTitle}>{dashboard.office_hours[0].title || 'Office hours'}</Text><Text style={styles.cardMeta}>{formatOfficeHours(dashboard.office_hours[0])}</Text></View>{dashboard.office_hours[0].meeting_url && <ArrowRight color={palette.quiet} size={18} />}</View></LearningCard></View>}
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
+function QuickAction({ icon: Icon, label, onPress }: { icon: LucideIcon; label: string; onPress: () => void }) { return <LearningCard onPress={onPress} label={label}><Icon color={palette.rubySoft} size={21} /><Text style={styles.quickLabel}>{label}</Text></LearningCard>; }
+function firstName(value: string) { return value.trim().split(/\s+/)[0] || 'there'; }
+function dayPart() { const hour = new Date().getHours(); return hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'; }
+function formatOfficeHours(value: { starts_at?: string; start_time?: string; location?: string | null }) { const raw = value.starts_at || value.start_time; if (!raw) return value.location || 'Schedule available in your cohort'; const date = new Date(raw); return `${new Intl.DateTimeFormat('en', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date)}${value.location ? ` · ${value.location}` : ''}`; }
+
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: palette.ink },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20 },
-  eyebrow: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 10, letterSpacing: 1.8 },
-  heading: { color: palette.text, fontFamily: fonts.extraBold, fontSize: 34, letterSpacing: -1.2 },
-  subhead: { color: palette.muted, fontFamily: fonts.regular, fontSize: 13, marginTop: 3 },
-  compose: { width: 48, height: 48, borderRadius: 16, backgroundColor: palette.ruby, alignItems: 'center', justifyContent: 'center' },
-  workspaceSelector: { marginHorizontal: 20, marginBottom: 12, minHeight: 64, borderRadius: 18, backgroundColor: palette.panelRaised, borderWidth: 1, borderColor: palette.line, padding: 10, paddingRight: 14, flexDirection: 'row', alignItems: 'center', gap: 11 },
-  workspaceMark: { width: 42, height: 42, borderRadius: 13, backgroundColor: '#252B3A', alignItems: 'center', justifyContent: 'center' },
-  workspaceMarkActive: { backgroundColor: '#32161D' },
-  workspaceInitials: { color: palette.text, fontFamily: fonts.bold, fontSize: 13 },
-  workspaceCopy: { flex: 1, minWidth: 0 },
-  workspaceNameRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  workspaceName: { color: palette.text, fontFamily: fonts.bold, fontSize: 14, flexShrink: 1 },
-  workspaceType: { color: palette.rubySoft, backgroundColor: '#2A151B', borderRadius: 8, overflow: 'hidden', paddingHorizontal: 7, paddingVertical: 3, fontFamily: fonts.semibold, fontSize: 8, textTransform: 'uppercase' },
-  workspaceMeta: { color: palette.quiet, fontFamily: fonts.regular, fontSize: 10, marginTop: 3 },
-  search: { marginHorizontal: 20, minHeight: 48, borderRadius: 16, backgroundColor: palette.panel, borderWidth: 1, borderColor: palette.line, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  input: { flex: 1, color: palette.text, fontFamily: fonts.regular, fontSize: 14, paddingVertical: 12 },
-  searchAllButton: { minHeight: 44, justifyContent: 'center' },
-  searchAll: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 11 },
-  content: { paddingHorizontal: 20, paddingTop: 26, paddingBottom: 30 },
-  section: { marginBottom: 28 },
-  label: { color: palette.quiet, fontFamily: fonts.bold, fontSize: 10, letterSpacing: 1.5, marginBottom: 4 },
-  modalRoot: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(2, 4, 8, 0.72)' },
-  sheet: { maxHeight: '78%', backgroundColor: palette.panel, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderColor: palette.line, paddingBottom: 28 },
-  sheetHandle: { width: 38, height: 4, borderRadius: 2, backgroundColor: palette.line, alignSelf: 'center', marginTop: 10 },
-  sheetHeader: { padding: 20, paddingBottom: 12, flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-  sheetTitle: { color: palette.text, fontFamily: fonts.bold, fontSize: 20 },
-  sheetSubtitle: { color: palette.muted, fontFamily: fonts.regular, fontSize: 11, lineHeight: 17, marginTop: 4, maxWidth: 280 },
-  closeButton: { width: 44, height: 44, borderRadius: 14, borderWidth: 1, borderColor: palette.line, alignItems: 'center', justifyContent: 'center' },
-  workspaceList: { paddingHorizontal: 16, paddingBottom: 20, gap: 9 },
-  workspaceCard: { minHeight: 74, borderRadius: 18, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panelRaised, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  workspaceCardActive: { borderColor: '#6A2A36', backgroundColor: '#201319' },
-  statRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
-  stat: { color: palette.quiet, fontFamily: fonts.medium, fontSize: 10, marginRight: 5 },
-  unreadPill: { color: palette.text, backgroundColor: palette.ruby, borderRadius: 9, overflow: 'hidden', paddingHorizontal: 7, paddingVertical: 3, fontFamily: fonts.bold, fontSize: 9, marginLeft: 'auto' },
+  safe: { flex: 1, backgroundColor: palette.ink }, content: { padding: 20, paddingBottom: 120, gap: 16 },
+  offline: { minHeight: 36, borderRadius: 12, backgroundColor: '#2A2115', justifyContent: 'center', paddingHorizontal: 12, marginBottom: 2 }, offlineText: { color: palette.warning, fontFamily: fonts.semibold, fontSize: 10 },
+  eyebrow: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 10, letterSpacing: 1.8, marginTop: 8 }, heroTitle: { color: palette.text, fontFamily: fonts.extraBold, fontSize: 32, letterSpacing: -1.1, marginTop: -8 }, heroCopy: { color: palette.muted, fontFamily: fonts.regular, fontSize: 13, lineHeight: 20, marginTop: -9, marginBottom: 4 },
+  cardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 }, continueIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#2A151B', alignItems: 'center', justifyContent: 'center' }, flex: { flex: 1, minWidth: 0 }, cardKicker: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 8, letterSpacing: 1 }, cardTitle: { color: palette.text, fontFamily: fonts.bold, fontSize: 15, lineHeight: 21 }, cardMeta: { color: palette.quiet, fontFamily: fonts.regular, fontSize: 10, lineHeight: 15, marginTop: 2 }, progressCopy: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 18, marginBottom: 7 }, progressLabel: { color: palette.muted, fontFamily: fonts.semibold, fontSize: 10 }, progressValue: { color: palette.text, fontFamily: fonts.bold, fontSize: 10 },
+  section: { gap: 12, marginTop: 10 }, stack: { gap: 9 }, row: { flexDirection: 'row', alignItems: 'center', gap: 12 }, redoIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: '#32161D', alignItems: 'center', justifyContent: 'center' }, gradeIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: '#10271F', alignItems: 'center', justifyContent: 'center' }, gradeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }, grade: { color: palette.success, fontFamily: fonts.extraBold, fontSize: 12 }, feedback: { color: '#D7D9E0', fontFamily: fonts.regular, fontSize: 11, lineHeight: 17, marginTop: 8 }, announcementIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: '#32161D', alignItems: 'center', justifyContent: 'center' }, announcementBody: { color: palette.muted, fontFamily: fonts.regular, fontSize: 10, lineHeight: 15, marginTop: 4 }, unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.rubySoft },
+  quickGrid: { flexDirection: 'row', gap: 10 }, quickLabel: { color: palette.text, fontFamily: fonts.bold, fontSize: 12, marginTop: 10 }, staffMetric: { flexDirection: 'row', alignItems: 'center', gap: 14 }, metricValue: { color: palette.text, fontFamily: fonts.extraBold, fontSize: 24 }, metricLabel: { color: palette.muted, fontFamily: fonts.regular, fontSize: 11 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 }, emptyTitle: { color: palette.text, fontFamily: fonts.bold, fontSize: 19, marginTop: 15 }, emptyCopy: { color: palette.muted, fontFamily: fonts.regular, fontSize: 13, lineHeight: 20, textAlign: 'center', marginTop: 7 },
 });

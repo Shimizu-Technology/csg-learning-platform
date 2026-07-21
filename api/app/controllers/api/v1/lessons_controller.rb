@@ -197,6 +197,7 @@ module Api
         json[:submission_type] = lesson.effective_submission_type(requires_github: requires_github)
 
         if include_content
+          completion_block_ids = lesson.completion_block_ids.to_set
           json[:content_blocks] = lesson.content_blocks.map { |cb|
             block = {
               id: cb.id,
@@ -211,7 +212,8 @@ module Api
               submission_type_explicit: cb.submission_type,
               submission_config: cb.submission_config || {},
               metadata: cb.metadata,
-              has_s3_video: cb.s3_video_key.present?
+              has_s3_video: cb.s3_video_key.present?,
+              completion_required: completion_block_ids.include?(cb.id)
             }
 
             if current_user.staff?

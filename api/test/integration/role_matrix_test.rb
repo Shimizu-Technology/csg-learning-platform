@@ -151,6 +151,26 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
     assert_equal true, lesson_data["completed"]
   end
 
+  test "student dashboard includes only the current student's recently graded passing work" do
+    enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+    ModuleAssignment.create!(enrollment: enrollment, curriculum_module: @mod, unlocked: true)
+    lesson = Lesson.create!(curriculum_module: @mod, title: "Portfolio", position: 0, release_day: 0)
+    block = ContentBlock.create!(lesson: lesson, block_type: :exercise, position: 0, title: "Ship it")
+    Submission.create!(user: @student, content_block: block, text: "redo", grade: "R", feedback: "Try again", grader: @instructor, graded_at: 1.hour.ago)
+    Submission.create!(user: @student, content_block: block, text: "done", grade: "A", feedback: "Strong work", grader: @instructor, graded_at: 30.minutes.ago)
+
+    as_user(@student) do
+      get "/api/v1/dashboard", headers: auth_headers
+    end
+
+    assert_response :success
+    graded = JSON.parse(response.body).dig("dashboard", "recently_graded")
+    assert_equal 1, graded.length
+    assert_equal "A", graded.first["grade"]
+    assert_equal "Portfolio", graded.first["lesson_title"]
+    assert_empty JSON.parse(response.body).dig("dashboard", "action_items")
+  end
+
   test "instructor gets admin dashboard" do
     as_user(@instructor) do
       get "/api/v1/dashboard", headers: auth_headers

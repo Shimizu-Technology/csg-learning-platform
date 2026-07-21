@@ -99,8 +99,19 @@ module Api
           break if continue_lesson
         end
 
-        # Action items: submissions with redo grade (most recent first)
-        redo_submissions = current_user.submissions.where(grade: "R").includes(content_block: :lesson).order(graded_at: :desc).limit(5)
+        latest_submission_ids = current_user.submissions
+          .where(content_block_id: all_block_ids)
+          .group(:content_block_id)
+          .select("MAX(id)")
+        latest_submissions = current_user.submissions
+          .where(id: latest_submission_ids)
+          .includes(content_block: :lesson)
+
+        # An older redo must disappear once the student has submitted newer work.
+        redo_submissions = latest_submissions.select { |submission| submission.grade == "R" }
+          .sort_by { |submission| submission.graded_at || Time.zone.at(0) }
+          .reverse
+          .first(5)
         action_items = redo_submissions.map { |s|
           lesson = s.content_block.lesson
           submission_window = SubmissionWindowStatus.for_lesson(cohort: cohort, lesson: lesson)
@@ -115,6 +126,23 @@ module Api
             submissions_closed: submission_window[:submissions_closed]
           }
         }
+
+        recently_graded = latest_submissions
+          .select { |submission| submission.grade.present? && submission.grade != "R" }
+          .sort_by { |submission| submission.graded_at || Time.zone.at(0) }
+          .reverse
+          .first(5)
+          .map do |submission|
+            {
+              submission_id: submission.id,
+              lesson_id: submission.content_block.lesson.id,
+              lesson_title: submission.content_block.lesson.title,
+              content_block_title: submission.content_block.title,
+              grade: submission.grade,
+              feedback: submission.feedback,
+              graded_at: submission.graded_at
+            }
+          end
 
         announcement_scope = Announcement.visible_for(current_user)
           .includes(:cohort, :author)
@@ -154,6 +182,7 @@ module Api
             modules: modules_data,
             continue_lesson: continue_lesson,
             action_items: action_items,
+            recently_graded: recently_graded,
             resources: dashboard_resources_json(cohort),
             office_hours: OfficeHourSerializer.upcoming(OfficeHourSerializer.active_for(cohort), limit: 3)
           }
