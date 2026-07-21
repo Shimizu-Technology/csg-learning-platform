@@ -25,10 +25,16 @@ export function insertMention(body: string, trigger: MentionTrigger, user: UserS
 }
 
 export function resolveMentionUserIds(body: string, users: UserSummary[]) {
-  const normalized = body.toLowerCase();
-  return users
-    .filter((user) => normalized.includes(`@${user.full_name.toLowerCase()}`))
-    .map((user) => user.id);
+  const names = users
+    .map((user) => user.full_name)
+    .filter(Boolean)
+    .sort((left, right) => right.length - left.length)
+    .map(escapeRegExp);
+  if (!names.length) return [];
+
+  const pattern = new RegExp(`(?:^|[\\s([{])@(${names.join('|')})(?![\\p{L}\\p{N}_’'-])`, 'giu');
+  const mentionedNames = new Set([...body.matchAll(pattern)].map((match) => match[1].toLowerCase()));
+  return users.filter((user) => mentionedNames.has(user.full_name.toLowerCase())).map((user) => user.id);
 }
 
 export function messageSegments(body: string, users: UserSummary[]) {
@@ -38,7 +44,7 @@ export function messageSegments(body: string, users: UserSummary[]) {
     .sort((left, right) => right.length - left.length)
     .map(escapeRegExp);
   if (!names.length) return [{ text: body, mention: false }];
-  const pattern = new RegExp(`(@(?:${names.join('|')}))`, 'gi');
+  const pattern = new RegExp(`(@(?:${names.join('|')})(?![\\p{L}\\p{N}_’'-]))`, 'giu');
   return body.split(pattern).filter(Boolean).map((text) => ({ text, mention: text.startsWith('@') }));
 }
 

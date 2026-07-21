@@ -81,7 +81,7 @@ module Api
         end
 
         root = @message.parent_message && thread_root(@message)
-        @message.update!(deleted_at: Time.current)
+        @message.update!(deleted_at: Time.current, pinned_at: nil, pinned_by: nil)
         MessageBroadcastService.deleted(@message)
         MessageBroadcastService.updated(root.reload) if root
         render json: { message: message_json(@message) }
@@ -307,9 +307,7 @@ module Api
       end
 
       def thread_root(message)
-        current = message
-        current = current.parent_message while current.parent_message
-        current
+        message.parent_message || message
       end
     end
   end

@@ -1,4 +1,4 @@
-import { mergeMessageEvent, prependOlderMessages, reconcileOptimistic } from '../message-state';
+import { mergeMessageEvent, mergePinnedMessageEvent, prependOlderMessages, reconcileOptimistic } from '../message-state';
 import type { Message } from '../types';
 
 const message = (id: number, body = String(id)): Message => ({
@@ -18,5 +18,12 @@ describe('message state', () => {
     const optimistic = { ...message(-1), client_status: 'sending' as const };
     expect(reconcileOptimistic([optimistic], -1, message(2))).toEqual([message(2)]);
     expect(prependOlderMessages([message(2)], [message(1), message(2)]).map((item) => item.id)).toEqual([1, 2]);
+  });
+
+  it('removes a pinned message when its realtime event deletes it', () => {
+    const pinned = { ...message(1), pinned_at: new Date().toISOString() };
+    const deleted = { ...pinned, deleted_at: new Date().toISOString() };
+
+    expect(mergePinnedMessageEvent([pinned], { event: 'deleted', channel_id: 1, direct_conversation_id: null, message: deleted })).toEqual([]);
   });
 });

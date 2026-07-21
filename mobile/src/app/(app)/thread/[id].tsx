@@ -14,10 +14,11 @@ import type { Message, MessageEvent, UserSummary } from '@/lib/types';
 import { useSession } from '@/providers/session-provider';
 
 export default function ThreadScreen() {
-  const params = useLocalSearchParams<{ id: string; kind: string; conversationId: string }>();
+  const params = useLocalSearchParams<{ id: string; kind: string; conversationId: string; workspaceId: string }>();
   const rootId = Number(params.id);
   const kind = params.kind === 'dm' ? 'dm' : 'channel';
   const conversationId = Number(params.conversationId);
+  const workspaceId = Number(params.workspaceId);
   const router = useRouter();
   const { api } = useSession();
   const listRef = useRef<FlatList<Message>>(null);
@@ -32,16 +33,15 @@ export default function ThreadScreen() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await api.messageThread(rootId);
-      const summary = kind === 'channel' ? (await api.channel(conversationId, { message_limit: 1 })).channel : (await api.directConversation(conversationId, { message_limit: 1 })).direct_conversation;
-      const workspace = await api.workspace(summary.workspace_id);
+      if (!Number.isInteger(workspaceId) || workspaceId <= 0) throw new Error('This thread link is incomplete. Open it again from the conversation.');
+      const [result, workspace] = await Promise.all([api.messageThread(rootId), api.workspace(workspaceId)]);
       setRoot(result.root_message);
       setReplies(result.replies);
       setUsers(workspace.workspace.members);
       setError(null);
     } catch (requestError) { setError((requestError as Error).message); }
     finally { setLoading(false); }
-  }, [api, conversationId, kind, rootId]);
+  }, [api, rootId, workspaceId]);
 
   useEffect(() => { const frame = requestAnimationFrame(() => void load()); return () => cancelAnimationFrame(frame); }, [load]);
   useEffect(() => loading || error ? undefined : subscribeToMessages(api, kind, conversationId, (event: MessageEvent) => {

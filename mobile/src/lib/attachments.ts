@@ -105,6 +105,7 @@ function postPresignedForm({
   return new Promise<void>((resolve, reject) => {
     const request = new XMLHttpRequest();
     const abort = () => request.abort();
+    const cleanup = () => signal?.removeEventListener('abort', abort);
     signal?.addEventListener('abort', abort, { once: true });
 
     request.open('POST', url);
@@ -113,11 +114,11 @@ function postPresignedForm({
       if (!event.lengthComputable) return;
       onProgress(Math.max(0, Math.min(1, event.loaded / event.total)));
     };
-    request.onerror = () => reject(new Error(`Could not upload ${attachment.filename}. Check your connection and try again.`));
-    request.ontimeout = () => reject(new Error(`${attachment.filename} took too long to upload.`));
-    request.onabort = () => reject(new Error(`${attachment.filename} upload was cancelled.`));
+    request.onerror = () => { cleanup(); reject(new Error(`Could not upload ${attachment.filename}. Check your connection and try again.`)); };
+    request.ontimeout = () => { cleanup(); reject(new Error(`${attachment.filename} took too long to upload.`)); };
+    request.onabort = () => { cleanup(); reject(new Error(`${attachment.filename} upload was cancelled.`)); };
     request.onload = () => {
-      signal?.removeEventListener('abort', abort);
+      cleanup();
       if (request.status >= 200 && request.status < 300) {
         onProgress(1);
         resolve();

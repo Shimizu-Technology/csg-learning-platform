@@ -435,6 +435,35 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_equal [ earlier.id, later.id ], body.fetch("replies").map { |reply| reply.fetch("id") }
   end
 
+  test "message replies cannot create nested thread chains" do
+    root = Message.create!(channel: @channel, author: @admin, body: "Thread root")
+    reply = Message.create!(channel: @channel, author: @student, body: "First-level reply", parent_message: root)
+
+    as_user(@student) do
+      post "/api/v1/channels/#{@channel.id}/messages",
+        params: { body: "Nested reply", parent_message_id: reply.id },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :unprocessable_entity
+    assert_includes JSON.parse(response.body).fetch("errors"), "Parent message must be a thread root"
+  end
+
+  test "deleting a pinned message clears its pin state" do
+    message = Message.create!(channel: @channel, author: @student, body: "Pinned then removed", pinned_at: Time.current, pinned_by: @admin)
+
+    as_user(@student) do
+      delete "/api/v1/messages/#{message.id}", headers: auth_headers
+    end
+
+    assert_response :success
+    message.reload
+    assert message.deleted?
+    assert_nil message.pinned_at
+    assert_nil message.pinned_by
+  end
+
   test "thread endpoint does not expose a conversation after access is lost" do
     root = Message.create!(channel: @channel, author: @admin, body: "Private after dropout")
     @student.enrollments.find_by!(cohort: @cohort).update!(status: :dropped)

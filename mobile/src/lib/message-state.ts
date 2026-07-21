@@ -21,6 +21,13 @@ export function mergeMessageEvent(messages: Message[], payload: MessageEvent) {
   return messages.map((message) => message.id === payload.message.id ? { ...message, ...payload.message } : message);
 }
 
+export function mergePinnedMessageEvent(messages: Message[], payload: MessageEvent) {
+  const withoutMessage = messages.filter((message) => message.id !== payload.message.id);
+  return payload.event !== 'deleted' && payload.message.pinned_at
+    ? [payload.message, ...withoutMessage]
+    : withoutMessage;
+}
+
 export function reconcileOptimistic(messages: Message[], optimisticId: number, canonical: Message) {
   return sortMessages([...messages.filter((message) => message.id !== optimisticId && message.id !== canonical.id), canonical]);
 }

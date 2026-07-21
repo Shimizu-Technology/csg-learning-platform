@@ -17,6 +17,7 @@ class Message < ApplicationRecord
   validates :body, length: { maximum: 5000 }, allow_blank: true
   validate :exactly_one_destination
   validate :parent_message_belongs_to_same_channel
+  validate :parent_message_is_thread_root
   validate :mention_user_ids_shape
 
   scope :visible, -> { where(deleted_at: nil) }
@@ -78,5 +79,11 @@ class Message < ApplicationRecord
     return if parent_message&.channel_id == channel_id && parent_message&.direct_conversation_id == direct_conversation_id
 
     errors.add(:parent_message, "must belong to the same conversation")
+  end
+
+  def parent_message_is_thread_root
+    return if parent_message_id.blank? || parent_message&.parent_message_id.blank?
+
+    errors.add(:parent_message, "must be a thread root")
   end
 end

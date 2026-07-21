@@ -17,7 +17,7 @@ import { formatConversationDay, isDifferentConversationDay, isNearConversationBo
 import { loadConversationDraft, loadFailedMessages, saveConversationDraft, saveFailedMessages } from '@/lib/conversation-storage';
 import { demoChannels, demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { insertMention, mentionSuggestions, mentionTriggerAt, resolveMentionUserIds } from '@/lib/mentions';
-import { mergeMessageEvent, prependOlderMessages, reconcileOptimistic, sortMessages } from '@/lib/message-state';
+import { mergeMessageEvent, mergePinnedMessageEvent, prependOlderMessages, reconcileOptimistic, sortMessages } from '@/lib/message-state';
 import { REACTION_OPTIONS } from '@/lib/reactions';
 import type { ChannelSummary, DirectConversationSummary, Message, MessageEvent, MessageWindowMeta, PendingAttachment, UserSummary } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
@@ -114,9 +114,7 @@ export default function ConversationScreen() {
       if (!payload.message.mine) setNewMessagesBelow((current) => current + 1);
     }
     setMessages((current) => mergeMessageEvent(current, payload));
-    setPinnedMessages((current) => payload.message.pinned_at
-      ? [payload.message, ...current.filter((message) => message.id !== payload.message.id)]
-      : current.filter((message) => message.id !== payload.message.id));
+    setPinnedMessages((current) => mergePinnedMessageEvent(current, payload));
     if (follow) scrollToLatest(false);
   }, setStatus), [api, auth.demo, error, id, kind, loading, scrollToLatest]);
 
@@ -198,7 +196,7 @@ export default function ConversationScreen() {
   const deleteMessage = (message: Message) => Alert.alert('Remove this message?', 'The message will no longer appear in the conversation.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: async () => { try { await api.deleteMessage(message.id); setMessages((current) => current.filter((item) => item.id !== message.id)); } catch (requestError) { Alert.alert('Could not remove message', (requestError as Error).message); } } }]);
   const togglePin = async (message: Message) => { try { const result = await api.pinMessage(message.id, Boolean(message.pinned_at)); setMessages((current) => current.map((item) => item.id === message.id ? result.message : item)); setPinnedMessages((current) => result.message.pinned_at ? [result.message, ...current.filter((item) => item.id !== message.id)] : current.filter((item) => item.id !== message.id)); setSelectedMessage(null); } catch (requestError) { Alert.alert('Could not update pin', (requestError as Error).message); } };
   const toggleReaction = async (message: Message, value: string) => { try { const remove = Boolean(message.reactions.find((reaction) => reaction.emoji === value)?.reacted); const result = await api.react(message.id, value, remove); setMessages((current) => current.map((item) => item.id === message.id ? result.message : item)); } catch (requestError) { Alert.alert('Could not update reaction', (requestError as Error).message); } };
-  const openThread = (message: Message) => router.push({ pathname: '/thread/[id]', params: { id: String(message.id), kind, conversationId: String(id) } } as unknown as Href);
+  const openThread = (message: Message) => router.push({ pathname: '/thread/[id]', params: { id: String(message.id), kind, conversationId: String(id), workspaceId: String(summary?.workspace_id || '') } } as unknown as Href);
 
   const pickDocument = async () => {
     const result = await DocumentPicker.getDocumentAsync({ multiple: true, copyToCacheDirectory: true });

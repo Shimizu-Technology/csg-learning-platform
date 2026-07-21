@@ -18,6 +18,21 @@ describe('mentions', () => {
     expect(resolveMentionUserIds('@Maya Santos please pair with @Noah Cruz', users)).toEqual([1, 2]);
   });
 
+  it('does not resolve a shorter name from a longer mention', () => {
+    const overlapping = [
+      ...users,
+      { ...users[0], id: 3, full_name: 'Maya' },
+      { ...users[1], id: 4, full_name: "Noah-Cruz" },
+    ];
+
+    expect(resolveMentionUserIds('@Maya Santos, please ask @Noah-Cruz.', overlapping)).toEqual([1, 4]);
+    expect(messageSegments('Thanks @Maya Santos!', overlapping)).toEqual([
+      { text: 'Thanks ', mention: false },
+      { text: '@Maya Santos', mention: true },
+      { text: '!', mention: false },
+    ]);
+  });
+
   it('segments known mentions for highlighted rendering', () => {
     expect(messageSegments('Thanks @Maya Santos!', users)).toEqual([
       { text: 'Thanks ', mention: false },
