@@ -582,7 +582,7 @@ Offset-bearing ISO 8601 values are treated as absolute instants. Values from `da
 
 Grade values: `A` (0), `B` (1), `C` (2), `R` (3 — redo required)
 
-Creating a submission produces an in-app `submission` notification for non-archived instructors and admins, whose access is currently platform-wide. Grading produces one for the student. Expo delivery deep-links staff to `/staff/submission/:id` and students to `/lesson/:lesson_id`; Web Push opens the equivalent web destination. Web and Expo fanout are isolated from one another. The existing message/email preference is not reused as a global opt-out for announcements or learning alerts.
+Creating a submission enqueues background creation of an in-app `submission` notification for non-archived instructors and admins, whose access is currently platform-wide. Grading enqueues the corresponding student notification. Expo delivery deep-links staff to `/staff/submission/:id` and students to `/lesson/:lesson_id`; Web Push opens the equivalent web destination. Web and Expo fanout are isolated from one another. The existing message/email preference is not reused as a global opt-out for announcements or learning alerts.
 
 ---
 

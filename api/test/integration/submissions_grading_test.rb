@@ -46,10 +46,12 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
   end
 
   test "staff can grade a submission with passing grade and it completes progress" do
-    as_user(@admin) do
-      patch "/api/v1/submissions/#{@submission.id}/grade",
-        params: { grade: "A", feedback: "Great work!" },
-        headers: auth_headers, as: :json
+    assert_enqueued_with(job: SubmissionNotificationJob, args: [ "graded", @submission.id ]) do
+      as_user(@admin) do
+        patch "/api/v1/submissions/#{@submission.id}/grade",
+          params: { grade: "A", feedback: "Great work!" },
+          headers: auth_headers, as: :json
+      end
     end
 
     assert_response :success
@@ -66,10 +68,13 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
   end
 
   test "student submission marks progress completed immediately" do
-    as_user(@student) do
-      post "/api/v1/submissions",
-        params: { content_block_id: @block.id, text: "fresh code" },
-        headers: auth_headers, as: :json
+    expected_job = ->(args) { args[0] == "created" && args[1].is_a?(Integer) }
+    assert_enqueued_with(job: SubmissionNotificationJob, args: expected_job) do
+      as_user(@student) do
+        post "/api/v1/submissions",
+          params: { content_block_id: @block.id, text: "fresh code" },
+          headers: auth_headers, as: :json
+      end
     end
 
     assert_response :created
