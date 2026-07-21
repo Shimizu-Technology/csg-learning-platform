@@ -546,8 +546,10 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
-    ids = JSON.parse(response.body).fetch("results").map { |result| result.fetch("id") }
+    results = JSON.parse(response.body).fetch("results")
+    ids = results.map { |result| result.fetch("id") }
     assert_equal [ visible_message.id ], ids
+    assert_equal @channel.workspace_id, results.first.fetch("context").fetch("workspace_id")
   end
 
   private

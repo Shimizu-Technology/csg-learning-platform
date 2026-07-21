@@ -40,6 +40,7 @@ module Api
             type: "channel",
             id: message.channel_id,
             label: "##{message.channel.name}",
+            workspace_id: message.channel.workspace_id,
             cohort_id: message.channel.cohort_id
           }
         else
@@ -47,6 +48,7 @@ module Api
             type: "direct_conversation",
             id: message.direct_conversation_id,
             label: message.direct_conversation.title_for(current_user),
+            workspace_id: message.direct_conversation.workspace_id,
             cohort_id: message.direct_conversation.cohort_id
           }
         end

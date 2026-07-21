@@ -6,6 +6,7 @@ import type {
   DirectConversationSummary,
   Message,
   MessageEvent,
+  MessageSearchResult,
   PaginationMeta,
   PushConfig,
   SessionUser,
@@ -115,7 +116,7 @@ export class CsgApi {
   cableToken = () => this.request<{ token: string; expires_in: number }>('/api/v1/cable_token', { method: 'POST' });
   registerDevice = (token: string, platform: string, deviceId: string | null, appVersion: string | null) => this.request('/api/v1/mobile_push_tokens', { method: 'POST', body: JSON.stringify({ token, platform, device_id: deviceId, app_version: appVersion }) });
   unregisterDevice = (token: string) => this.request(`/api/v1/mobile_push_tokens?token=${encodeURIComponent(token)}`, { method: 'DELETE' });
-  search = (query: string) => this.request<{ results: (Message & { context: { type: 'channel' | 'direct_conversation'; id: number; label: string } })[] }>(`/api/v1/messages/search?q=${encodeURIComponent(query)}&limit=30`);
+  search = (query: string) => this.request<{ results: MessageSearchResult[] }>(`/api/v1/messages/search?q=${encodeURIComponent(query)}&limit=30`);
 }
 
 export function websocketUrl(token: string) {

@@ -203,3 +203,12 @@ export interface MessageEvent {
   channel?: ChannelSummary | null;
   direct_conversation?: DirectConversationSummary | null;
 }
+
+export type MessageSearchResult = Message & {
+  context: {
+    type: 'channel' | 'direct_conversation';
+    id: number;
+    label: string;
+    workspace_id: number;
+  };
+};
