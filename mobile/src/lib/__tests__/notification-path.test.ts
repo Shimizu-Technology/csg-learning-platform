@@ -1,4 +1,4 @@
-import { isAllowedNotificationPath } from '../notification-path';
+import { isAllowedNotificationPath, mobileNotificationPath } from '../notification-path';
 
 describe('isAllowedNotificationPath', () => {
   it('allows only the mobile notification destinations', () => {
@@ -12,5 +12,12 @@ describe('isAllowedNotificationPath', () => {
     expect(isAllowedNotificationPath('/conversation/channel/not-an-id')).toBe(false);
     expect(isAllowedNotificationPath('https://example.com')).toBe(false);
     expect(isAllowedNotificationPath(null)).toBe(false);
+  });
+
+  it('maps backend web destinations onto safe native routes', () => {
+    expect(mobileNotificationPath('/messages/12')).toBe('/conversation/channel/12');
+    expect(mobileNotificationPath('/messages/dm/31')).toBe('/conversation/dm/31');
+    expect(mobileNotificationPath('/announcements/8')).toBe('/updates');
+    expect(mobileNotificationPath('https://example.com')).toBe('/updates');
   });
 });

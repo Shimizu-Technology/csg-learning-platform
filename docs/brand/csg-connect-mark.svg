@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
+  <title id="title">CSG Connect mark</title>
+  <desc id="description">An open conversation bubble shaped like the letter C with two connection points.</desc>
+  <path
+    d="M354 116H204c-80 0-124 50-124 140s44 140 124 140h88l72 58v-58h-10"
+    fill="none"
+    stroke="#F0445B"
+    stroke-width="58"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <circle cx="374" cy="198" r="27" fill="#AAB799" />
+  <circle cx="374" cy="314" r="27" fill="#AAB799" />
+</svg>

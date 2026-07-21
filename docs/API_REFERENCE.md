@@ -335,7 +335,7 @@ DM email notifications are enabled by default and are queued independently of br
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `GET` | `/api/v1/channels` | Any signed-in user | List channels visible to the current user with unread counts |
-| `GET` | `/api/v1/channels/:id` | Channel member / Staff | Show a channel and recent messages |
+| `GET` | `/api/v1/channels/:id` | Channel member / Staff | Show a channel and a window of messages |
 | `POST` | `/api/v1/channels` | Staff | Create a cohort or staff-only channel |
 | `PATCH` | `/api/v1/channels/:id` | Staff | Update channel metadata |
 | `DELETE` | `/api/v1/channels/:id` | Staff | Archive a channel |
@@ -353,18 +353,27 @@ DM email notifications are enabled by default and are queued independently of br
 
 `visibility` may be `cohort` or `staff_only`. A default `Class Chat` channel is created automatically for every cohort.
 
+Channel and direct-conversation show endpoints accept `message_limit`, `around_message_id`, and `before_message_id`. Responses include chronological `messages`, `pinned_messages`, and a `meta` object with `oldest_message_id`, `newest_message_id`, `has_older`, and `has_newer`. This lets web and native clients open a search result in context and page backward without overlaps.
+
 ### Messages
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `POST` | `/api/v1/channels/:channel_id/messages` | Channel member / Staff | Post a message |
+| `POST` | `/api/v1/direct_conversations/:direct_conversation_id/messages` | Conversation member | Post a direct or group message |
+| `GET` | `/api/v1/messages/:id/thread` | Conversation member | Return the root message and its chronological replies |
 | `PATCH` | `/api/v1/messages/:id` | Author / Staff | Edit a message |
 | `DELETE` | `/api/v1/messages/:id` | Author / Staff | Soft-delete a message |
+| `PATCH` / `DELETE` | `/api/v1/messages/:id/pin` | Staff | Pin or unpin a message |
+| `POST` / `DELETE` | `/api/v1/messages/:id/reactions` | Conversation member | Add or remove a reaction |
 
 **Create body:**
 ```json
 {
   "body": "Can someone share the Zoom link?",
+  "parent_message_id": null,
+  "mention_user_ids": [42],
+  "attachments": [],
   "send_push": true
 }
 ```

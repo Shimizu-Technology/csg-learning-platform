@@ -8,6 +8,18 @@ module MessageWindowing
   end
 
   def windowed_messages(scope)
+    if params[:before_message_id].present?
+      anchor = scope.find_by(id: params[:before_message_id])
+      return latest_messages(scope) unless anchor
+
+      messages = scope
+        .where("messages.created_at < ? OR (messages.created_at = ? AND messages.id < ?)", anchor.created_at, anchor.created_at, anchor.id)
+        .order(created_at: :desc, id: :desc)
+        .limit(message_limit)
+        .to_a
+      return preload_message_window(sort_messages(messages))
+    end
+
     if params[:around_message_id].present?
       anchor = scope.find_by(id: params[:around_message_id])
       return latest_messages(scope) unless anchor
@@ -38,9 +50,21 @@ module MessageWindowing
   def preload_message_window(messages)
     ActiveRecord::Associations::Preloader.new(
       records: messages,
-      associations: [ :author, :message_attachments, { message_reactions: :user } ]
+      associations: [ :author, :message_attachments, :replies, { message_reactions: :user } ]
     ).call
 
     messages
+  end
+
+  def message_window_meta(scope, messages)
+    first = messages.first
+    last = messages.last
+
+    {
+      oldest_message_id: first&.id,
+      newest_message_id: last&.id,
+      has_older: first ? scope.where("messages.created_at < ? OR (messages.created_at = ? AND messages.id < ?)", first.created_at, first.created_at, first.id).exists? : false,
+      has_newer: last ? scope.where("messages.created_at > ? OR (messages.created_at = ? AND messages.id > ?)", last.created_at, last.created_at, last.id).exists? : false
+    }
   end
 end

@@ -32,6 +32,14 @@ export interface WorkspaceSummary {
   updated_at: string;
 }
 
+export interface WorkspaceMember extends UserSummary {
+  membership_role: string;
+}
+
+export interface WorkspaceDetail extends WorkspaceSummary {
+  members: WorkspaceMember[];
+}
+
 export interface LatestMessage {
   id: number;
   body: string;
@@ -94,13 +102,51 @@ export interface Message {
   edited_at: string | null;
   deleted_at: string | null;
   pinned_at: string | null;
+  pinned_by_id?: number | null;
   created_at: string;
   updated_at: string;
   mine: boolean;
   reactions: MessageReaction[];
   attachments: { id: number; filename: string; content_type: string; byte_size: number; image: boolean; url?: string }[];
   read_receipts?: { count: number; users: Pick<UserSummary, 'id' | 'full_name' | 'avatar_url'>[] };
+  client_status?: 'sending' | 'failed';
+  client_error?: string;
+  client_uploads?: UploadAttachmentInput[];
+  reply_count?: number;
   author: Pick<UserSummary, 'id' | 'full_name' | 'email' | 'role' | 'avatar_url'>;
+}
+
+export interface MessageWindowMeta {
+  oldest_message_id: number | null;
+  newest_message_id: number | null;
+  has_older: boolean;
+  has_newer: boolean;
+}
+
+export interface ConversationPayload {
+  messages: Message[];
+  pinned_messages: Message[];
+  meta: MessageWindowMeta;
+}
+
+export interface UploadAttachmentInput {
+  s3_key: string;
+  filename: string;
+  content_type: string;
+  byte_size: number;
+}
+
+export interface PendingAttachment {
+  local_id: string;
+  uri: string;
+  filename: string;
+  content_type: string;
+  byte_size: number;
+  image: boolean;
+  status: 'queued' | 'uploading' | 'uploaded' | 'failed';
+  progress: number;
+  error?: string;
+  uploaded?: UploadAttachmentInput;
 }
 
 export interface Announcement {
@@ -110,9 +156,43 @@ export interface Announcement {
   pinned: boolean;
   published_at: string | null;
   audience: 'cohort' | 'global' | 'staff';
+  status: 'draft' | 'published' | 'archived';
   cohort_name: string | null;
+  cohort_id: number | null;
   read_at: string | null;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
   author?: Pick<UserSummary, 'id' | 'full_name' | 'email'>;
+}
+
+export interface PaginationMeta {
+  page: number;
+  per_page: number;
+  total_count: number;
+  total_pages: number;
+  has_next_page: boolean;
+  has_prev_page: boolean;
+}
+
+export interface AppNotification {
+  id: number;
+  notification_type: 'announcement' | 'message' | 'mention' | 'direct_message' | string;
+  title: string;
+  body: string;
+  path: string;
+  read_at: string | null;
+  created_at: string;
+  actor: Pick<UserSummary, 'id' | 'full_name' | 'email'> | null;
+  notifiable: { type: string; id: number };
+}
+
+export interface PushConfig {
+  configured?: boolean;
+  public_key?: string | null;
+  missing?: string[];
+  notifications_enabled: boolean;
+  active_subscription_count: number;
 }
 
 export interface MessageEvent {
@@ -123,3 +203,12 @@ export interface MessageEvent {
   channel?: ChannelSummary | null;
   direct_conversation?: DirectConversationSummary | null;
 }
+
+export type MessageSearchResult = Message & {
+  context: {
+    type: 'channel' | 'direct_conversation';
+    id: number;
+    label: string;
+    workspace_id: number;
+  };
+};

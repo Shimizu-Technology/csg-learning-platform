@@ -59,6 +59,7 @@ Rails.application.routes.draw do
       post "direct_conversations/:direct_conversation_id/messages", to: "messages#create_direct"
       resources :messages, only: [ :update, :destroy ] do
         member do
+          get :thread
           patch :pin
           delete :pin, action: :unpin
           post :reactions, action: :react

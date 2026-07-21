@@ -4,7 +4,25 @@ module Api
       before_action :authenticate_user!
       before_action :set_channel, only: [ :create ]
       before_action :set_direct_conversation, only: [ :create_direct ]
-      before_action :set_message, only: [ :update, :destroy, :pin, :unpin, :react, :unreact ]
+      before_action :set_message, only: [ :thread, :update, :destroy, :pin, :unpin, :react, :unreact ]
+
+      # GET /api/v1/messages/:id/thread
+      def thread
+        root = thread_root(@message)
+        unless root.destination.visible_to?(current_user)
+          render_forbidden("Conversation is not visible")
+          return
+        end
+
+        replies = root.replies.visible
+          .includes(:author, :message_attachments, :replies, message_reactions: :user)
+          .chronological
+
+        render json: {
+          root_message: message_json(root),
+          replies: replies.map { |reply| message_json(reply) }
+        }
+      end
 
       # POST /api/v1/channels/:channel_id/messages
       def create
@@ -62,8 +80,10 @@ module Api
           return
         end
 
-        @message.update!(deleted_at: Time.current)
+        root = @message.parent_message && thread_root(@message)
+        @message.update!(deleted_at: Time.current, pinned_at: nil, pinned_by: nil)
         MessageBroadcastService.deleted(@message)
+        MessageBroadcastService.updated(root.reload) if root
         render json: { message: message_json(@message) }
       end
 
@@ -209,6 +229,7 @@ module Api
         mark_read_for(message)
         NotificationDeliveryService.message_created(message, push: send_push?)
         MessageBroadcastService.created(message)
+        MessageBroadcastService.updated(thread_root(message).reload) if message.parent_message
         render json: { message: message_json(message.reload) }, status: :created
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
@@ -283,6 +304,10 @@ module Api
 
       def message_json(message)
         MessageJson.render(message, current_user: current_user, stream_url: true)
+      end
+
+      def thread_root(message)
+        message.parent_message || message
       end
     end
   end

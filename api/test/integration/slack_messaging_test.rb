@@ -362,8 +362,29 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
-    bodies = JSON.parse(response.body).fetch("messages").map { |message| message.fetch("body") }
+    body = JSON.parse(response.body)
+    bodies = body.fetch("messages").map { |message| message.fetch("body") }
     assert_equal [ "Channel message 1", "Channel message 0" ], bodies
+    assert body.fetch("meta").fetch("has_older")
+    assert_not body.fetch("meta").fetch("has_newer")
+  end
+
+  test "channel show pages older messages before an anchor without overlap" do
+    messages = 5.times.map do |index|
+      Message.create!(channel: @channel, author: @admin, body: "Paged channel message #{index}", created_at: (5 - index).minutes.ago)
+    end
+
+    as_user(@student) do
+      get "/api/v1/channels/#{@channel.id}",
+        params: { message_limit: 2, before_message_id: messages[3].id },
+        headers: auth_headers
+    end
+
+    assert_response :success
+    body = JSON.parse(response.body)
+    assert_equal [ messages[1].id, messages[2].id ], body.fetch("messages").map { |message| message.fetch("id") }
+    assert body.fetch("meta").fetch("has_older")
+    assert body.fetch("meta").fetch("has_newer")
   end
 
   test "direct conversation show returns a window around a searched message" do
@@ -379,8 +400,11 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
-    bodies = JSON.parse(response.body).fetch("messages").map { |message| message.fetch("body") }
+    body = JSON.parse(response.body)
+    bodies = body.fetch("messages").map { |message| message.fetch("body") }
     assert_equal [ "Direct message 4", "Direct message 3", "Direct message 2" ], bodies
+    assert_not body.fetch("meta").fetch("has_older")
+    assert body.fetch("meta").fetch("has_newer")
   end
 
   test "message create requires text or attachment" do
@@ -393,6 +417,62 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
 
     assert_response :unprocessable_entity
     assert_includes JSON.parse(response.body).fetch("errors"), "Message must include text or an attachment"
+  end
+
+  test "thread endpoint returns the root and chronological replies with a reply count" do
+    root = Message.create!(channel: @channel, author: @admin, body: "Thread root", created_at: 10.minutes.ago)
+    later = Message.create!(channel: @channel, author: @student, body: "Second reply", parent_message: root, created_at: 2.minutes.ago)
+    earlier = Message.create!(channel: @channel, author: @admin, body: "First reply", parent_message: root, created_at: 5.minutes.ago)
+
+    as_user(@student) do
+      get "/api/v1/messages/#{later.id}/thread", headers: auth_headers
+    end
+
+    assert_response :success
+    body = JSON.parse(response.body)
+    assert_equal root.id, body.fetch("root_message").fetch("id")
+    assert_equal 2, body.fetch("root_message").fetch("reply_count")
+    assert_equal [ earlier.id, later.id ], body.fetch("replies").map { |reply| reply.fetch("id") }
+  end
+
+  test "message replies cannot create nested thread chains" do
+    root = Message.create!(channel: @channel, author: @admin, body: "Thread root")
+    reply = Message.create!(channel: @channel, author: @student, body: "First-level reply", parent_message: root)
+
+    as_user(@student) do
+      post "/api/v1/channels/#{@channel.id}/messages",
+        params: { body: "Nested reply", parent_message_id: reply.id },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :unprocessable_entity
+    assert_includes JSON.parse(response.body).fetch("errors"), "Parent message must be a thread root"
+  end
+
+  test "deleting a pinned message clears its pin state" do
+    message = Message.create!(channel: @channel, author: @student, body: "Pinned then removed", pinned_at: Time.current, pinned_by: @admin)
+
+    as_user(@student) do
+      delete "/api/v1/messages/#{message.id}", headers: auth_headers
+    end
+
+    assert_response :success
+    message.reload
+    assert message.deleted?
+    assert_nil message.pinned_at
+    assert_nil message.pinned_by
+  end
+
+  test "thread endpoint does not expose a conversation after access is lost" do
+    root = Message.create!(channel: @channel, author: @admin, body: "Private after dropout")
+    @student.enrollments.find_by!(cohort: @cohort).update!(status: :dropped)
+
+    as_user(@student) do
+      get "/api/v1/messages/#{root.id}/thread", headers: auth_headers
+    end
+
+    assert_response :forbidden
   end
 
   test "mark read reuses existing read state without validation failure" do
@@ -466,8 +546,10 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
-    ids = JSON.parse(response.body).fetch("results").map { |result| result.fetch("id") }
+    results = JSON.parse(response.body).fetch("results")
+    ids = results.map { |result| result.fetch("id") }
     assert_equal [ visible_message.id ], ids
+    assert_equal @channel.workspace_id, results.first.fetch("context").fetch("workspace_id")
   end
 
   private

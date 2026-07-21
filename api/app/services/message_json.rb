@@ -17,7 +17,8 @@ class MessageJson
         mine: current_user && message.author_id == current_user.id,
         author: user_json(message.author),
         attachments: message.message_attachments.map { |attachment| attachment_json(attachment, stream_url: stream_url) },
-        reactions: reaction_json(message, current_user)
+        reactions: reaction_json(message, current_user),
+        reply_count: reply_count(message)
       }.tap do |json|
         json[:read_receipts] = read_receipts if read_receipts
       end
@@ -63,6 +64,14 @@ class MessageJson
           reacted: current_user ? reactions.any? { |reaction| reaction.user_id == current_user.id } : false,
           users: reactions.map { |reaction| reaction_user_json(reaction.user) }
         }
+      end
+    end
+
+    def reply_count(message)
+      if message.association(:replies).loaded?
+        message.replies.count { |reply| reply.deleted_at.nil? }
+      else
+        message.replies.visible.count
       end
     end
 

@@ -51,7 +51,8 @@ module Api
         end
 
         member = @conversation.direct_conversation_members.find_by!(user: current_user)
-        messages = windowed_messages(@conversation.messages.visible)
+        message_scope = @conversation.messages.visible
+        messages = windowed_messages(message_scope)
         pinned_messages = @conversation.messages.pinned_recent.to_a
         read_receipts = read_receipts_for(messages)
 
@@ -63,7 +64,8 @@ module Api
             latest_message: messages.last
           ),
           messages: messages.map { |message| MessageJson.render(message, current_user: current_user, stream_url: true, read_receipts: read_receipts[message.id]) },
-          pinned_messages: pinned_messages.map { |message| MessageJson.render(message, current_user: current_user, stream_url: true) }
+          pinned_messages: pinned_messages.map { |message| MessageJson.render(message, current_user: current_user, stream_url: true) },
+          meta: message_window_meta(message_scope, messages)
         }
       end
 

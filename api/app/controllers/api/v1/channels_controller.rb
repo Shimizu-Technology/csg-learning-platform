@@ -27,7 +27,8 @@ module Api
           return
         end
 
-        messages = windowed_messages(@channel.messages.visible)
+        message_scope = @channel.messages.visible
+        messages = windowed_messages(message_scope)
         pinned_messages = @channel.messages.pinned_recent.to_a
         read_state = current_user.channel_read_states.find_by(channel: @channel)
         read_receipts = read_receipts_for(messages)
@@ -35,7 +36,8 @@ module Api
         render json: {
           channel: channel_json(@channel, read_state, unread_count_for(@channel, read_state), messages.last),
           messages: messages.map { |message| message_json(message, read_receipts: read_receipts[message.id]) },
-          pinned_messages: pinned_messages.map { |message| message_json(message) }
+          pinned_messages: pinned_messages.map { |message| message_json(message) },
+          meta: message_window_meta(message_scope, messages)
         }
       end
 
