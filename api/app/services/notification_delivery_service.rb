@@ -7,12 +7,12 @@ class NotificationDeliveryService
     new.message_created(message, push: push)
   end
 
-  def self.submission_created(submission, push: true)
-    new.submission_created(submission, push: push)
+  def self.submission_created(submission, push: true, event_at: submission.created_at)
+    new.submission_created(submission, push: push, event_at: event_at)
   end
 
-  def self.submission_graded(submission, push: true)
-    new.submission_graded(submission, push: push)
+  def self.submission_graded(submission, push: true, event_at: submission.graded_at || Time.current)
+    new.submission_graded(submission, push: push, event_at: event_at)
   end
 
   def announcement_published(announcement, push: false)
@@ -64,42 +64,45 @@ class NotificationDeliveryService
     notifications
   end
 
-  def submission_created(submission, push: true)
+  def submission_created(submission, push: true, event_at: submission.created_at)
     # Staff authorization is intentionally platform-wide today: instructors and
     # admins can view every active cohort, and there is no teaching-team
     # assignment model to scope this further without silently dropping alerts.
     notifications = User.not_archived.where(role: %i[instructor admin]).find_each.filter_map do |staff|
-      submission_notification_for(
+      notification, claimed = submission_notification_for(
         staff,
         submission,
         actor: submission.user,
         title: "New submission ready for review",
         body: submission.content_block.lesson.title,
-        path: "/admin/grading"
+        path: "/admin/grading",
+        event_at: event_at
       )
+      notification if claimed
     end
     enqueue_submission_push(submission, notifications) if push
     notifications
   end
 
-  def submission_graded(submission, push: true)
+  def submission_graded(submission, push: true, event_at: submission.graded_at || Time.current)
     title = submission.grade == "R" ? "Redo requested" : "Submission graded #{submission.grade}"
     body = submission.feedback.presence || submission.content_block.lesson.title
-    notification = submission_notification_for(
+    notification, claimed = submission_notification_for(
       submission.user,
       submission,
       actor: submission.grader,
       title: title,
       body: body,
-      path: "/lessons/#{submission.content_block.lesson_id}"
+      path: "/lessons/#{submission.content_block.lesson_id}",
+      event_at: event_at
     )
-    enqueue_submission_push(submission, [ notification ]) if push
+    enqueue_submission_push(submission, [ notification ]) if push && claimed
     [ notification ]
   end
 
   private
 
-  def submission_notification_for(user, submission, actor:, title:, body:, path:)
+  def submission_notification_for(user, submission, actor:, title:, body:, path:, event_at:)
     notification = Notification.find_or_initialize_by(notifiable: submission, user: user)
     attributes = {
       actor: actor,
@@ -109,13 +112,29 @@ class NotificationDeliveryService
       path: path,
       read_at: nil
     }
+    return create_submission_notification(notification, attributes) if notification.new_record?
+
+    update_submission_notification(notification, attributes, event_at)
+  rescue ActiveRecord::RecordNotUnique
+    existing = Notification.find_by!(notifiable: submission, user: user)
+    update_submission_notification(existing, attributes, event_at)
+  end
+
+  def create_submission_notification(notification, attributes)
     notification.assign_attributes(attributes)
     notification.save!
-    notification
-  rescue ActiveRecord::RecordNotUnique
-    Notification.find_by!(notifiable: submission, user: user).tap do |existing|
-      existing.update!(attributes)
+    [ notification, true ]
+  end
+
+  def update_submission_notification(notification, attributes, event_at)
+    claimed = false
+    notification.with_lock do
+      next if notification.updated_at >= event_at
+
+      notification.update!(attributes)
+      claimed = true
     end
+    [ notification, claimed ]
   end
 
   def enqueue_submission_push(submission, notifications)

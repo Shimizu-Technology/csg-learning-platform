@@ -77,7 +77,7 @@ module Api
         if submission.save
           progress = Progress.find_or_initialize_by(user: current_user, content_block_id: submission.content_block_id)
           progress.update!(status: :completed)
-          NotificationDeliveryService.submission_created(submission)
+          SubmissionNotificationJob.perform_later("created", submission.id, submission.created_at.iso8601(6))
 
           render json: { submission: submission_json(submission) }, status: :created
         else
@@ -139,7 +139,7 @@ module Api
           )
         end
 
-        NotificationDeliveryService.submission_graded(@submission)
+        SubmissionNotificationJob.perform_later("graded", @submission.id, @submission.graded_at.iso8601(6))
 
         token = ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"]
         if token.present?
