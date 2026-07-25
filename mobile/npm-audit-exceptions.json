@@ -1,0 +1,5 @@
+{
+  "advisories": {
+    "https://github.com/advisories/GHSA-mh99-v99m-4gvg": "Not exploitable in the shipped app: affected brace-expansion copies are used transitively by Expo, Jest, and ESLint build tooling, which never receives attacker-controlled glob patterns. Forcing the patched major into legacy minimatch versions is API-incompatible; remove this exception when the Expo toolchain publishes a compatible graph."
+  }
+}

@@ -12,7 +12,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "audit:dependencies": "node scripts/audit-dependencies.mjs",
+    "audit:dependencies": "node ../.github/scripts/npm-audit.mjs npm-audit-exceptions.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "check": "npm run lint && npm run typecheck && npm run test && npm run build",

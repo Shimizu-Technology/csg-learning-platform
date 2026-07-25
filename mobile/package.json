@@ -58,6 +58,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
+    "audit:dependencies": "node ../.github/scripts/npm-audit.mjs npm-audit-exceptions.json",
     "typecheck": "tsc --noEmit",
     "test": "jest --runInBand",
     "check": "npm run typecheck && npm run lint && npm test"

@@ -1,0 +1,5 @@
+{
+  "advisories": {
+    "https://github.com/advisories/GHSA-qwww-vcr4-c8h2": "Not applicable: this client-rendered Vite SPA does not enable React Router's unstable React Server Components APIs, and the announced patched release is not yet available from npm."
+  }
+}

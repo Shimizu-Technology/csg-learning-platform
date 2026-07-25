@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
 const severityRank = {
@@ -9,17 +11,19 @@ const severityRank = {
 }
 
 const minimumSeverity = severityRank.high
+const exceptionsPath = process.argv[2]
 
-// This app is a client-rendered Vite SPA and does not use React Router's
-// unstable RSC APIs. GHSA-qwww-vcr4-c8h2 explicitly affects only those APIs,
-// and its patched 8.3.0 release is not yet available from npm. Keep this
-// exception narrow so every other high/critical advisory still fails CI.
-const acknowledgedAdvisories = new Map([
-  [
-    'https://github.com/advisories/GHSA-qwww-vcr4-c8h2',
-    'Not applicable: the web client does not enable React Server Components.',
-  ],
-])
+if (!exceptionsPath) {
+  console.error('Usage: node npm-audit.mjs <exceptions.json>')
+  process.exit(2)
+}
+
+const exceptions = JSON.parse(
+  readFileSync(resolve(process.cwd(), exceptionsPath), 'utf8'),
+)
+const acknowledgedAdvisories = new Map(
+  Object.entries(exceptions.advisories || {}),
+)
 
 const audit = spawnSync('npm', ['audit', '--audit-level=high', '--json'], {
   encoding: 'utf8',
