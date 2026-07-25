@@ -659,9 +659,9 @@ export function CohortModuleGrading() {
                             const key = `${student.user_id}:${ex.id}`
                             const sub = submissionLookup.get(key)
                             const progress = progressLookup.get(key)
-                            let cellClass = ''
-                            let label = ''
-                            let title = ''
+                            let cellClass: string
+                            let label: string
+                            let title: string
                             let clickable = false
 
                             if (sub) {

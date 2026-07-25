@@ -114,7 +114,7 @@ jobs:
         run: npm ci
 
       - name: Audit frontend dependencies
-        run: npm audit --audit-level=high
+        run: npm run audit:dependencies
 
       - name: Lint, typecheck, test, and build frontend
         run: npm run check
