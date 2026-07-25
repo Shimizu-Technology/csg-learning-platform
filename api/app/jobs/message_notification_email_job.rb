@@ -1,6 +1,12 @@
 class MessageNotificationEmailJob < ApplicationJob
   queue_as :default
   retry_on NotificationEmailService::DeliveryError, wait: :polynomially_longer, attempts: 4
+  discard_on NotificationEmailService::ConfigurationError, report: true do |job, error|
+    Rails.logger.error(
+      "[MessageEmailJob] discarded message_id=#{job.arguments.first} " \
+      "reason=configuration_error error=#{error.message}"
+    )
+  end
 
   def perform(message_id, notification_ids)
     return if notification_ids.blank?
@@ -11,8 +17,7 @@ class MessageNotificationEmailJob < ApplicationJob
 
     notifications = Notification.includes(:user).where(id: notification_ids)
     Rails.logger.info(
-      "[MessageEmailJob] started message_id=#{message.id} requested_notifications=#{notification_ids.size} " \
-      "found_notifications=#{notifications.size}"
+      "[MessageEmailJob] started message_id=#{message.id} requested_notifications=#{notification_ids.size}"
     )
 
     notifications.find_each do |notification|

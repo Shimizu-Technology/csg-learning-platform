@@ -23,6 +23,27 @@ class MessageNotificationEmailJobTest < ActiveJob::TestCase
     NotificationEmailService.define_singleton_method(:send_message_notification, original_send) if original_send
   end
 
+  test "configuration failures are reported and discarded without retrying" do
+    curriculum = Curriculum.create!(name: "Messaging Configuration")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Configuration Cohort", start_date: Date.current, status: :active)
+    author = User.create!(clerk_id: "email_config_author", email: "author@example.com", role: :student)
+    recipient = User.create!(clerk_id: "email_config_recipient", email: "recipient@example.com", role: :student)
+    conversation = DirectConversation.find_or_create_for!(workspace: cohort.workspace, users: [ author, recipient ])
+    message = Message.create!(direct_conversation: conversation, author: author, body: "Configuration check")
+    notification = NotificationDeliveryService.message_created(message).find { |item| item.user_id == recipient.id }
+
+    original_send = NotificationEmailService.method(:send_message_notification)
+    NotificationEmailService.define_singleton_method(:send_message_notification) do |**|
+      raise NotificationEmailService::ConfigurationError, "sender email is not configured"
+    end
+
+    assert_no_enqueued_jobs do
+      MessageNotificationEmailJob.perform_now(message.id, [ notification.id ])
+    end
+  ensure
+    NotificationEmailService.define_singleton_method(:send_message_notification, original_send) if original_send
+  end
+
   test "disabled recipients are diagnosed and skipped" do
     curriculum = Curriculum.create!(name: "Messaging Preferences")
     cohort = Cohort.create!(curriculum: curriculum, name: "Preference Cohort", start_date: Date.current, status: :active)
