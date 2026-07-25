@@ -31,6 +31,7 @@ import {
   IMAGE_VIEWER_MAX_SCALE,
   clamp,
   clampImageTranslation,
+  createSerialTaskQueue,
   zoomTranslationAtPoint,
 } from '@/lib/image-viewer';
 import type { Message } from '@/lib/types';
@@ -45,6 +46,7 @@ type Props = {
 };
 
 const spring = { damping: 22, stiffness: 260, mass: 0.75 };
+const queueOrientationTransition = createSerialTaskQueue();
 
 export function ImagePreview({ attachments, initialAttachmentId, onClose }: Props) {
   const initialIndex = Math.max(0, attachments.findIndex((attachment) => attachment.id === initialAttachmentId));
@@ -53,16 +55,18 @@ export function ImagePreview({ attachments, initialAttachmentId, onClose }: Prop
   const visible = Boolean(attachment);
 
   const restoreOrientationAndClose = useCallback(() => {
-    void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP)
-      .catch(() => undefined)
-      .finally(onClose);
+    void queueOrientationTransition(
+      () => ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP),
+    ).finally(onClose);
   }, [onClose]);
 
   useEffect(() => {
     if (!visible) return;
-    void ScreenOrientation.unlockAsync().catch(() => undefined);
+    void queueOrientationTransition(() => ScreenOrientation.unlockAsync());
     return () => {
-      void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => undefined);
+      void queueOrientationTransition(
+        () => ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP),
+      );
     };
   }, [visible]);
 

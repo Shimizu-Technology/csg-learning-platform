@@ -18,6 +18,14 @@ type TranslationInput = TranslationBoundsInput & {
   y: number;
 };
 
+export function createSerialTaskQueue() {
+  let pending = Promise.resolve();
+  return (task: () => Promise<void>) => {
+    pending = pending.then(task, task).catch(() => undefined);
+    return pending;
+  };
+}
+
 export function clamp(value: number, minimum: number, maximum: number) {
   'worklet';
   return Math.min(maximum, Math.max(minimum, value));

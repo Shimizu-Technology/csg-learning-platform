@@ -1,5 +1,6 @@
 import {
   clampImageTranslation,
+  createSerialTaskQueue,
   fittedImageSize,
   translationBounds,
   zoomTranslationAtPoint,
@@ -31,5 +32,37 @@ describe('image viewer geometry', () => {
       focalX: 300,
       focalY: 600,
     })).toEqual({ x: -105, y: -210 });
+  });
+});
+
+describe('image viewer lifecycle sequencing', () => {
+  it('runs orientation transitions in request order even when the first is delayed', async () => {
+    const queue = createSerialTaskQueue();
+    const events: string[] = [];
+    let releaseFirst: () => void = () => undefined;
+    const firstGate = new Promise<void>((resolve) => { releaseFirst = resolve; });
+
+    const unlock = queue(async () => {
+      events.push('unlock:start');
+      await firstGate;
+      events.push('unlock:end');
+    });
+    const lock = queue(async () => {
+      events.push('lock');
+    });
+
+    await Promise.resolve();
+    expect(events).toEqual(['unlock:start']);
+    releaseFirst();
+    await Promise.all([unlock, lock]);
+    expect(events).toEqual(['unlock:start', 'unlock:end', 'lock']);
+  });
+
+  it('continues the queue after a native transition rejects', async () => {
+    const queue = createSerialTaskQueue();
+    const events: string[] = [];
+    await queue(async () => { throw new Error('orientation unavailable'); });
+    await queue(async () => { events.push('recovered'); });
+    expect(events).toEqual(['recovered']);
   });
 });
