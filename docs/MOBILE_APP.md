@@ -14,6 +14,7 @@ Included now:
 - Cross-conversation message search
 - Anchored search results and paged message history
 - Attachments, mentions, reactions, edits, deletion, pins, and threads
+- A safe-area-aware image gallery with pinch/double-tap zoom, bounded panning, swipe navigation and dismissal, rotation, loading recovery, and accessible controls
 - Draft persistence and durable failed-message retry
 - Announcements, staff publishing controls, and the complete notification inbox
 - Staff workspace, membership, and channel controls

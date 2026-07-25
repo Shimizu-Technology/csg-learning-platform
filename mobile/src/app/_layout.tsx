@@ -10,6 +10,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { useEffect } from 'react';
 import { View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/csg-theme';
 import { NotificationObserver } from '@/components/notification-observer';
@@ -41,8 +43,10 @@ export default function RootLayout() {
   useEffect(() => { void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP); }, []);
   useEffect(() => { if (loaded) void SplashScreen.hideAsync(); }, [loaded]);
   if (!loaded) return <View style={{ flex: 1, backgroundColor: palette.ink }} />;
-  if (isDemoMode) return <DemoAuthProvider><AppProviders /></DemoAuthProvider>;
   const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
-  if (!publishableKey) throw new Error('EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY is required');
-  return <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}><ClerkAuthProvider><AppProviders /></ClerkAuthProvider></ClerkProvider>;
+  if (!isDemoMode && !publishableKey) throw new Error('EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY is required');
+  const app = isDemoMode
+    ? <DemoAuthProvider><AppProviders /></DemoAuthProvider>
+    : <ClerkProvider publishableKey={publishableKey!} tokenCache={tokenCache}><ClerkAuthProvider><AppProviders /></ClerkAuthProvider></ClerkProvider>;
+  return <GestureHandlerRootView style={{ flex: 1 }}><SafeAreaProvider>{app}</SafeAreaProvider></GestureHandlerRootView>;
 }
