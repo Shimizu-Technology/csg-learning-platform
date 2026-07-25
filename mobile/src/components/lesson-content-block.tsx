@@ -96,6 +96,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
 
 function LessonVideo({ block, lesson }: { block: LessonContentBlock; lesson: LessonDetail }) {
   const { api, user } = useSession();
+  const userId = user?.id ?? null;
   const queryClient = useQueryClient();
   const fetchStream = useCallback(async () => {
     const response = await api.contentVideoStream(block.id);
@@ -103,10 +104,10 @@ function LessonVideo({ block, lesson }: { block: LessonContentBlock; lesson: Les
   }, [api, block.id]);
   const saveProgress = useCallback(async (progress: VideoProgressInput) => {
     const response = await api.updateContentVideoProgress(block.id, progress);
-    if (!user) return;
-    queryClient.setQueryData<{ lesson: LessonDetail }>(learningKeys.lesson(user.id, lesson.id), (current) => current ? { lesson: { ...current.lesson, content_blocks: current.lesson.content_blocks.map((candidate) => candidate.id === block.id ? { ...candidate, progress: { ...candidate.progress, status: response.video_progress.status, completed_at: response.video_progress.completed ? new Date().toISOString() : candidate.progress?.completed_at || null, video_last_position: response.video_progress.last_position, video_total_watched: response.video_progress.total_watched } } : candidate) } } : current);
-    if (response.video_progress.completed) void queryClient.invalidateQueries({ queryKey: learningKeys.dashboard(user.id) });
-  }, [api, block.id, lesson.id, queryClient, user]);
+    if (!userId) return;
+    queryClient.setQueryData<{ lesson: LessonDetail }>(learningKeys.lesson(userId, lesson.id), (current) => current ? { lesson: { ...current.lesson, content_blocks: current.lesson.content_blocks.map((candidate) => candidate.id === block.id ? { ...candidate, progress: { ...candidate.progress, status: response.video_progress.status, completed_at: response.video_progress.completed ? new Date().toISOString() : candidate.progress?.completed_at || null, video_last_position: response.video_progress.last_position, video_total_watched: response.video_progress.total_watched } } : candidate) } } : current);
+    if (response.video_progress.completed) void queryClient.invalidateQueries({ queryKey: learningKeys.dashboard(userId) });
+  }, [api, block.id, lesson.id, queryClient, userId]);
 
   if (block.has_s3_video) return <View style={styles.nativeVideo}><NativeVideoPlayer fetchStream={fetchStream} initialPosition={block.progress?.video_last_position || 0} initialTotalWatched={block.progress?.video_total_watched || 0} saveProgress={saveProgress} title={block.title || lesson.title} /></View>;
   return <Pressable accessibilityRole="button" accessibilityLabel={`Play ${block.title || 'video'}`} onPress={() => void openExternalPage(block.video_url).catch((error) => Alert.alert('Video unavailable', (error as Error).message))} style={styles.outlineButton}><Play color={palette.rubySoft} size={17} /><Text style={styles.outlineText}>Open video</Text><ExternalLink color={palette.quiet} size={15} /></Pressable>;

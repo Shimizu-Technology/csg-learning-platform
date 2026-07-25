@@ -114,7 +114,7 @@ jobs:
         run: npm ci
 
       - name: Audit frontend dependencies
-        run: npm audit --audit-level=high
+        run: npm run audit:dependencies
 
       - name: Lint, typecheck, test, and build frontend
         run: npm run check
@@ -140,7 +140,7 @@ jobs:
         run: npm ci
 
       - name: Audit mobile dependencies
-        run: npm audit --audit-level=high
+        run: npm run audit:dependencies
 
       - name: Validate Expo dependency versions
         run: npx expo install --check

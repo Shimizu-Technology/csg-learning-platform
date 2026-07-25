@@ -1,4 +1,4 @@
-import { mergeMessageEvent, mergePinnedMessageEvent, prependOlderMessages, reconcileOptimistic } from '../message-state';
+import { mergeMessageEvent, mergePinnedMessageEvent, prependOlderMessages, reconcileOptimistic, toggleOwnReaction } from '../message-state';
 import type { Message } from '../types';
 
 const message = (id: number, body = String(id)): Message => ({
@@ -25,5 +25,21 @@ describe('message state', () => {
     const deleted = { ...pinned, deleted_at: new Date().toISOString() };
 
     expect(mergePinnedMessageEvent([pinned], { event: 'deleted', channel_id: 1, direct_conversation_id: null, message: deleted })).toEqual([]);
+  });
+
+  it('adds and removes the current user without losing other reaction participants', () => {
+    const user = { id: 9, full_name: 'Leon Shimizu', email: 'leon@example.com', role: 'admin', avatar_url: null };
+    const withReaction = {
+      ...message(1),
+      reactions: [{ emoji: '✅', count: 2, reacted: false, users: [{ id: 2, full_name: 'Student', avatar_url: null }] }],
+    };
+
+    const added = toggleOwnReaction(withReaction, '✅', user);
+    expect(added.reactions[0]).toMatchObject({ count: 3, reacted: true });
+    expect(added.reactions[0].users.map((person) => person.id)).toEqual([2, 9]);
+
+    const removed = toggleOwnReaction(added, '✅', user);
+    expect(removed.reactions[0]).toMatchObject({ count: 2, reacted: false });
+    expect(removed.reactions[0].users.map((person) => person.id)).toEqual([2]);
   });
 });

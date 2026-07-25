@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { demoWorkspaces } from '@/lib/demo-data';
 import type { WorkspaceSummary } from '@/lib/types';
@@ -25,21 +25,29 @@ export function activeWorkspaceCacheKey(userId: number) { return `csg.workspace.
 export function WorkspaceProvider({ children }: PropsWithChildren) {
   const auth = useCsgAuth();
   const { api, user } = useSession();
+  const userId = user?.id ?? null;
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>(auth.demo ? demoWorkspaces : []);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<number | null>(auth.demo ? demoWorkspaces[0]?.id ?? null : null);
   const [loading, setLoading] = useState(!auth.demo);
   const [error, setError] = useState<string | null>(null);
+  const workspaceCountRef = useRef(workspaces.length);
+  const activeUserIdRef = useRef<number | null>(userId);
+  useEffect(() => {
+    workspaceCountRef.current = workspaces.length;
+  }, [workspaces.length]);
 
   const refresh = useCallback(async () => {
-    if (!user) {
+    if (!userId) {
       setWorkspaces([]);
       setActiveWorkspaceId(null);
       setLoading(false);
       return;
     }
-    setLoading(true);
-    const listKey = workspaceCacheKey(user.id);
-    const activeKey = activeWorkspaceCacheKey(user.id);
+    // Only block the screen while a user has no workspace data yet. Subsequent
+    // refreshes retain the current workspace and update it in place.
+    setLoading(workspaceCountRef.current === 0);
+    const listKey = workspaceCacheKey(userId);
+    const activeKey = activeWorkspaceCacheKey(userId);
     try {
       const nextWorkspaces = auth.demo ? demoWorkspaces : (await api.workspaces()).workspaces;
       const storedId = Number(await AsyncStorage.getItem(activeKey)) || null;
@@ -67,18 +75,25 @@ export function WorkspaceProvider({ children }: PropsWithChildren) {
     } finally {
       setLoading(false);
     }
-  }, [api, auth.demo, user]);
+  }, [api, auth.demo, userId]);
 
   useEffect(() => {
+    const nextUserId = userId;
+    if (activeUserIdRef.current !== nextUserId) {
+      activeUserIdRef.current = nextUserId;
+      setWorkspaces(auth.demo ? demoWorkspaces : []);
+      setActiveWorkspaceId(auth.demo ? demoWorkspaces[0]?.id ?? null : null);
+      workspaceCountRef.current = auth.demo ? demoWorkspaces.length : 0;
+    }
     const frame = requestAnimationFrame(() => void refresh());
     return () => cancelAnimationFrame(frame);
-  }, [refresh]);
+  }, [auth.demo, refresh, userId]);
 
   const selectWorkspace = useCallback(async (workspaceId: number) => {
-    if (!user || !workspaces.some((workspace) => workspace.id === workspaceId)) return;
+    if (!userId || !workspaces.some((workspace) => workspace.id === workspaceId)) return;
     setActiveWorkspaceId(workspaceId);
-    await AsyncStorage.setItem(activeWorkspaceCacheKey(user.id), String(workspaceId));
-  }, [user, workspaces]);
+    await AsyncStorage.setItem(activeWorkspaceCacheKey(userId), String(workspaceId));
+  }, [userId, workspaces]);
 
   const activeWorkspace = useMemo(
     () => workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? null,

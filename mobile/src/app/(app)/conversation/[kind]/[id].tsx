@@ -8,7 +8,9 @@ import { Alert, FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, Press
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/avatar';
+import { ImagePreview } from '@/components/image-preview';
 import { MessageBubble } from '@/components/message-bubble';
+import { ReactionDetailsSheet } from '@/components/reaction-details-sheet';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { fonts, palette } from '@/constants/csg-theme';
 import { pendingAttachment, uploadAttachment } from '@/lib/attachments';
@@ -17,7 +19,7 @@ import { formatConversationDay, isDifferentConversationDay, isNearConversationBo
 import { loadConversationDraft, loadFailedMessages, saveConversationDraft, saveFailedMessages } from '@/lib/conversation-storage';
 import { demoChannels, demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { insertMention, mentionSuggestions, mentionTriggerAt, resolveMentionUserIds } from '@/lib/mentions';
-import { mergeMessageEvent, mergePinnedMessageEvent, prependOlderMessages, reconcileOptimistic, sortMessages } from '@/lib/message-state';
+import { mergeMessageEvent, mergePinnedMessageEvent, prependOlderMessages, reconcileOptimistic, sortMessages, toggleOwnReaction } from '@/lib/message-state';
 import { REACTION_OPTIONS } from '@/lib/reactions';
 import type { ChannelSummary, DirectConversationSummary, Message, MessageEvent, MessageWindowMeta, PendingAttachment, UserSummary } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
@@ -34,6 +36,7 @@ export default function ConversationScreen() {
   const router = useRouter();
   const auth = useCsgAuth();
   const { api, user } = useSession();
+  const userId = user?.id ?? null;
   const listRef = useRef<FlatList<ConversationItem>>(null);
   const nearBottomRef = useRef(true);
   const pendingScrollRef = useRef(!anchorMessageId);
@@ -58,12 +61,15 @@ export default function ConversationScreen() {
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [showPins, setShowPins] = useState(false);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [reactionDetails, setReactionDetails] = useState<{ messageId: number; emoji: string } | null>(null);
+  const [imagePreview, setImagePreview] = useState<{ attachments: Message['attachments']; attachmentId: number } | null>(null);
 
   const rootMessages = useMemo(() => messages.filter((message) => !message.parent_message_id), [messages]);
   const conversationItems = useMemo(() => rootMessages.map((message, index) => ({ message, previous: rootMessages[index - 1] })).reverse(), [rootMessages]);
   const mentionTrigger = useMemo(() => mentionTriggerAt(draft, selection.start), [draft, selection.start]);
   const suggestions = useMemo(() => mentionTrigger ? mentionSuggestions(mentionUsers.filter((member) => member.id !== user?.id), mentionTrigger.query) : [], [mentionTrigger, mentionUsers, user?.id]);
   const showEveryone = Boolean(kind === 'channel' && mentionTrigger && 'everyone'.startsWith(mentionTrigger.query.trim().toLowerCase()));
+  const reactionDetailsMessage = reactionDetails ? messages.find((message) => message.id === reactionDetails.messageId) || null : null;
 
   const scrollToLatest = useCallback((animated = true) => {
     nearBottomRef.current = true;
@@ -87,13 +93,13 @@ export default function ConversationScreen() {
           : await api.directConversation(id, { message_limit: 80, around_message_id: anchorMessageId });
         const nextSummary = 'channel' in result ? result.channel : result.direct_conversation;
         const workspaceResult = await api.workspace(nextSummary.workspace_id);
-        const failed = user ? await loadFailedMessages(user.id, kind, id) : [];
+        const failed = userId ? await loadFailedMessages(userId, kind, id) : [];
         setSummary(nextSummary);
         setMessages(sortMessages([...result.messages, ...failed]));
         setPinnedMessages(result.pinned_messages);
         setMeta(result.meta);
         setMentionUsers(workspaceResult.workspace.members);
-        if (user) setDraft(await loadConversationDraft(user.id, kind, id));
+        if (userId) setDraft(await loadConversationDraft(userId, kind, id));
         await api.markRead(kind, id);
       }
       nearBottomRef.current = !anchorMessageId;
@@ -102,7 +108,7 @@ export default function ConversationScreen() {
       setError(null);
     } catch (requestError) { setError((requestError as Error).message); }
     finally { setLoading(false); }
-  }, [anchorMessageId, api, auth.demo, id, kind, user]);
+  }, [anchorMessageId, api, auth.demo, id, kind, userId]);
 
   useEffect(() => { const frame = requestAnimationFrame(() => void load()); return () => cancelAnimationFrame(frame); }, [load]);
   useEffect(() => auth.demo || loading || error ? undefined : subscribeToMessages(api, kind, id, (payload: MessageEvent) => {
@@ -119,11 +125,11 @@ export default function ConversationScreen() {
   }, setStatus), [api, auth.demo, error, id, kind, loading, scrollToLatest]);
 
   useEffect(() => {
-    if (!user || loading) return;
+    if (!userId || loading) return;
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
-    draftTimerRef.current = setTimeout(() => void saveConversationDraft(user.id, kind, id, draft), 300);
+    draftTimerRef.current = setTimeout(() => void saveConversationDraft(userId, kind, id, draft), 300);
     return () => { if (draftTimerRef.current) clearTimeout(draftTimerRef.current); };
-  }, [draft, id, kind, loading, user]);
+  }, [draft, id, kind, loading, userId]);
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -145,7 +151,7 @@ export default function ConversationScreen() {
     finally { setLoadingOlder(false); }
   };
 
-  const persistFailed = useCallback((next: Message[]) => { if (user) void saveFailedMessages(user.id, kind, id, next); }, [id, kind, user]);
+  const persistFailed = useCallback((next: Message[]) => { if (userId) void saveFailedMessages(userId, kind, id, next); }, [id, kind, userId]);
 
   const send = async (retryMessage?: Message) => {
     const body = (retryMessage?.body || draft).trim();
@@ -168,7 +174,7 @@ export default function ConversationScreen() {
       if (auth.demo) { setMessages((current) => current.map((item) => item.id === optimisticId ? { ...item, client_status: undefined } : item)); return; }
       const { message } = await api.sendMessage(kind, id, { body, mention_user_ids: resolveMentionUserIds(body, mentionUsers), attachments: uploaded, send_push: true });
       setMessages((current) => { const next = reconcileOptimistic(current, optimisticId, message); persistFailed(next); return next; });
-      if (user) await saveConversationDraft(user.id, kind, id, '');
+      if (userId) await saveConversationDraft(userId, kind, id, '');
     } catch (requestError) {
       if (!optimistic) {
         setAttachments((current) => current.map((item) => item.status === 'uploading' ? { ...item, status: 'failed', error: (requestError as Error).message } : item));
@@ -195,7 +201,21 @@ export default function ConversationScreen() {
 
   const deleteMessage = (message: Message) => Alert.alert('Remove this message?', 'The message will no longer appear in the conversation.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: async () => { try { await api.deleteMessage(message.id); setMessages((current) => current.filter((item) => item.id !== message.id)); } catch (requestError) { Alert.alert('Could not remove message', (requestError as Error).message); } } }]);
   const togglePin = async (message: Message) => { try { const result = await api.pinMessage(message.id, Boolean(message.pinned_at)); setMessages((current) => current.map((item) => item.id === message.id ? result.message : item)); setPinnedMessages((current) => result.message.pinned_at ? [result.message, ...current.filter((item) => item.id !== message.id)] : current.filter((item) => item.id !== message.id)); setSelectedMessage(null); } catch (requestError) { Alert.alert('Could not update pin', (requestError as Error).message); } };
-  const toggleReaction = async (message: Message, value: string) => { try { const remove = Boolean(message.reactions.find((reaction) => reaction.emoji === value)?.reacted); const result = await api.react(message.id, value, remove); setMessages((current) => current.map((item) => item.id === message.id ? result.message : item)); } catch (requestError) { Alert.alert('Could not update reaction', (requestError as Error).message); } };
+  const toggleReaction = async (message: Message, value: string) => {
+    if (auth.demo) {
+      const actor = user || demoUser;
+      setMessages((current) => current.map((item) => item.id === message.id ? toggleOwnReaction(item, value, actor) : item));
+      return;
+    }
+
+    try {
+      const remove = Boolean(message.reactions.find((reaction) => reaction.emoji === value)?.reacted);
+      const result = await api.react(message.id, value, remove);
+      setMessages((current) => current.map((item) => item.id === message.id ? result.message : item));
+    } catch (requestError) {
+      Alert.alert('Could not update reaction', (requestError as Error).message);
+    }
+  };
   const openThread = (message: Message) => router.push({ pathname: '/thread/[id]', params: { id: String(message.id), kind, conversationId: String(id), workspaceId: String(summary?.workspace_id || '') } } as unknown as Href);
 
   const pickDocument = async () => {
@@ -240,7 +260,7 @@ export default function ConversationScreen() {
             contentContainerStyle={styles.list}
             ListFooterComponent={loadingOlder ? <Text style={styles.loadingOlder}>Loading earlier messages…</Text> : null}
             ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyTitle}>Start the conversation</Text><Text style={styles.emptyCopy}>Messages sent here stay connected to your Code School workspace.</Text></View>}
-            renderItem={({ item }) => <View style={item.message.id === anchorMessageId && styles.targetMessage}>{isDifferentConversationDay(item.message.created_at, item.previous?.created_at) && <DayDivider value={item.message.created_at} />}<MessageBubble message={item.message} showAuthor={!item.previous || item.previous.author.id !== item.message.author.id || isDifferentConversationDay(item.message.created_at, item.previous.created_at)} mentionUsers={mentionUsers} onLongPress={setSelectedMessage} onReact={(message, value) => void toggleReaction(message, value)} onThread={openThread} onRetry={(message) => void send(message)} /></View>}
+            renderItem={({ item }) => <View style={item.message.id === anchorMessageId && styles.targetMessage}>{isDifferentConversationDay(item.message.created_at, item.previous?.created_at) && <DayDivider value={item.message.created_at} />}<MessageBubble message={item.message} showAuthor={!item.previous || item.previous.author.id !== item.message.author.id || isDifferentConversationDay(item.message.created_at, item.previous.created_at)} mentionUsers={mentionUsers} onLongPress={setSelectedMessage} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} onThread={openThread} onRetry={(message) => void send(message)} /></View>}
           />
           {showScrollToLatest && <Pressable accessibilityRole="button" accessibilityLabel="Jump to latest message" onPress={() => { scrollToLatest(true); if (!auth.demo) void api.markRead(kind, id); }} style={styles.latestButton}><ChevronDown color={palette.text} size={17} strokeWidth={2.5} /><Text style={styles.latestText}>{newMessagesBelow ? `${newMessagesBelow} new` : 'Jump to latest'}</Text></Pressable>}
         </View>}
@@ -260,6 +280,15 @@ export default function ConversationScreen() {
       </>}</View></View></Modal>
 
       <Modal visible={showPins} transparent animationType="slide" onRequestClose={() => setShowPins(false)}><View style={styles.modalRoot}><Pressable style={StyleSheet.absoluteFill} onPress={() => setShowPins(false)} /><View style={styles.pinsSheet}><View style={styles.sheetHandle} /><Text style={styles.sheetTitle}>Pinned messages</Text><ScrollView contentContainerStyle={styles.pinsList}>{pinnedMessages.length ? pinnedMessages.map((message) => <Pressable key={message.id} accessibilityRole="button" onPress={() => { setShowPins(false); router.setParams({ messageId: String(message.id) }); }} style={styles.pinCard}><Pin color={palette.rubySoft} size={15} /><View style={styles.pinCardCopy}><Text numberOfLines={3} style={styles.pinBody}>{message.body || message.attachments[0]?.filename}</Text><Text style={styles.pinAuthor}>{message.author.full_name}</Text></View></Pressable>) : <Text style={styles.noPins}>Nothing has been pinned in this conversation.</Text>}</ScrollView></View></View></Modal>
+
+      <ReactionDetailsSheet
+        key={reactionDetails ? `${reactionDetails.messageId}-${reactionDetails.emoji}` : 'closed-reactions'}
+        initialEmoji={reactionDetails?.emoji || null}
+        message={reactionDetailsMessage}
+        onClose={() => setReactionDetails(null)}
+        onToggle={async (message, value) => { await toggleReaction(message, value); }}
+      />
+      <ImagePreview key={imagePreview?.attachmentId ?? 'closed-preview'} attachments={imagePreview?.attachments || []} initialAttachmentId={imagePreview?.attachmentId || null} onClose={() => setImagePreview(null)} />
 
     </SafeAreaView>
   );
