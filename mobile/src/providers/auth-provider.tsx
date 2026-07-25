@@ -1,5 +1,5 @@
 import { useAuth, useClerk } from '@clerk/expo';
-import { createContext, type PropsWithChildren, useContext, useMemo } from 'react';
+import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
 
 import type { TokenGetter } from '@/lib/api';
 
@@ -26,14 +26,22 @@ export function DemoAuthProvider({ children }: PropsWithChildren) {
 export function ClerkAuthProvider({ children }: PropsWithChildren) {
   const { isLoaded, isSignedIn, userId, getToken } = useAuth();
   const clerk = useClerk();
+  const clerkGetTokenRef = useRef(getToken);
+  useEffect(() => {
+    clerkGetTokenRef.current = getToken;
+  }, [getToken]);
+  const stableGetToken = useCallback<TokenGetter>(
+    ({ skipCache } = {}) => clerkGetTokenRef.current({ skipCache }),
+    [],
+  );
   const value = useMemo<CsgAuthValue>(() => ({
     loaded: isLoaded,
     signedIn: Boolean(isSignedIn),
     subject: userId ?? null,
     demo: false,
-    getToken: async ({ skipCache } = {}) => getToken({ skipCache }),
+    getToken: stableGetToken,
     signOut: async () => { await clerk.signOut(); },
-  }), [clerk, getToken, isLoaded, isSignedIn, userId]);
+  }), [clerk, isLoaded, isSignedIn, stableGetToken, userId]);
   return <CsgAuthContext.Provider value={value}>{children}</CsgAuthContext.Provider>;
 }
 

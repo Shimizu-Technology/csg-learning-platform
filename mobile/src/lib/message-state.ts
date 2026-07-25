@@ -36,3 +36,38 @@ export function prependOlderMessages(current: Message[], older: Message[]) {
   const ids = new Set(current.map((message) => message.id));
   return sortMessages([...older.filter((message) => !ids.has(message.id)), ...current]);
 }
+
+export function toggleOwnReaction(message: Message, emoji: string, user: Message['author']): Message {
+  const selected = message.reactions.find((reaction) => reaction.emoji === emoji);
+
+  if (!selected) {
+    return {
+      ...message,
+      reactions: [...message.reactions, { emoji, count: 1, reacted: true, users: [user] }],
+    };
+  }
+
+  if (selected.reacted) {
+    const count = Math.max(0, selected.count - 1);
+    return {
+      ...message,
+      reactions: count === 0
+        ? message.reactions.filter((reaction) => reaction.emoji !== emoji)
+        : message.reactions.map((reaction) => reaction.emoji === emoji
+          ? { ...reaction, count, reacted: false, users: reaction.users.filter((person) => person.id !== user.id) }
+          : reaction),
+    };
+  }
+
+  return {
+    ...message,
+    reactions: message.reactions.map((reaction) => reaction.emoji === emoji
+      ? {
+          ...reaction,
+          count: reaction.count + 1,
+          reacted: true,
+          users: reaction.users.some((person) => person.id === user.id) ? reaction.users : [...reaction.users, user],
+        }
+      : reaction),
+  };
+}

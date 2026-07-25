@@ -2,6 +2,8 @@ require "cgi"
 
 class NotificationEmailService
   BRAND_NAME = "Code School of Guam"
+  class DeliveryError < StandardError; end
+  class ConfigurationError < DeliveryError; end
 
   class << self
     def send_daily_unlock(user:, cohort:, lessons:)
@@ -75,8 +77,8 @@ class NotificationEmailService
     end
 
     def send_message_notification(user:, message:, notification:)
-      return false unless configured?
-      return false if user.email.blank?
+      ensure_configured!
+      raise ConfigurationError, "recipient email is unavailable" if user.email.blank?
 
       response = Resend::Emails.send(
         {
@@ -84,14 +86,30 @@ class NotificationEmailService
           to: user.email,
           subject: "#{notification.title} - #{BRAND_NAME}",
           html: message_notification_html(user: user, message: message, notification: notification)
-        }
+        },
+        options: { idempotency_key: "message-notification/#{notification.id}" }
       )
 
-      Rails.logger.info("[MessageEmail] sent to #{user.email} for message #{message.id} notification=#{notification.id} response=#{response.inspect}")
+      provider_message_id = provider_message_id(response)
+      raise DeliveryError, "email provider did not return a delivery id" if provider_message_id.blank?
+
+      Rails.logger.info(
+        "[MessageEmail] delivered message_id=#{message.id} notification_id=#{notification.id} " \
+        "recipient_user_id=#{user.id} provider_message_id=#{provider_message_id}"
+      )
       true
+    rescue DeliveryError => e
+      Rails.logger.error(
+        "[MessageEmail] delivery_failed message_id=#{message.id} notification_id=#{notification.id} " \
+        "recipient_user_id=#{user.id} error_class=#{e.class} error=#{e.message}"
+      )
+      raise
     rescue StandardError => e
-      Rails.logger.error("[MessageEmail] failed for #{user.email}: #{e.class} #{e.message}")
-      false
+      Rails.logger.error(
+        "[MessageEmail] delivery_failed message_id=#{message.id} notification_id=#{notification.id} " \
+        "recipient_user_id=#{user.id} error_class=#{e.class} error=#{e.message}"
+      )
+      raise DeliveryError, "email provider request failed: #{e.message}"
     end
 
     def configured?
@@ -107,6 +125,18 @@ class NotificationEmailService
     end
 
     private
+
+    def ensure_configured!
+      raise ConfigurationError, "RESEND_API_KEY is not configured" if ENV["RESEND_API_KEY"].blank?
+      raise ConfigurationError, "sender email is not configured" if from_email.blank?
+    end
+
+    def provider_message_id(response)
+      return response[:id] || response["id"] if response.respond_to?(:[])
+      return response.id if response.respond_to?(:id)
+
+      nil
+    end
 
     def from_email
       ENV["RESEND_FROM_EMAIL"].presence || ENV["MAILER_FROM_EMAIL"].presence

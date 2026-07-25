@@ -50,8 +50,8 @@ Clerk authentication is required in local development too. The current app does 
 | `CLERK_JWKS_URL` | No | Auto from issuer | Explicit JWKS endpoint override |
 | `CLERK_AUDIENCE` | No | — | JWT audience verification |
 | `DATABASE_URL` | Prod only | — | Neon PostgreSQL connection string |
-| `RESEND_API_KEY` | No | — | Transactional email (invite emails) |
-| `MAILER_FROM_EMAIL` | No | `noreply@codeschoolofguam.com` | From address for emails |
+| `RESEND_API_KEY` | No | — | Transactional email (invites, mentions, and direct-message notifications) |
+| `MAILER_FROM_EMAIL` | No | `noreply@codeschoolofguam.com` | Verified sender address for transactional emails |
 | `GITHUB_ORGANIZATION_ADMIN_TOKEN` | No | — | GitHub API token for repo sync and org invites |
 | `AWS_ACCESS_KEY_ID` | No | — | AWS IAM access key for S3 recording uploads |
 | `AWS_SECRET_ACCESS_KEY` | No | — | AWS IAM secret key for S3 recording uploads |

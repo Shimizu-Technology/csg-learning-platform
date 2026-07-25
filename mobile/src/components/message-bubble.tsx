@@ -13,14 +13,16 @@ type Props = {
   showAuthor: boolean;
   mentionUsers: UserSummary[];
   onLongPress?: (message: Message) => void;
-  onReact?: (message: Message, value: string) => void;
+  onOpenReaction?: (message: Message, value: string) => void;
+  onOpenImage?: (attachment: Message['attachments'][number], images: Message['attachments']) => void;
   onThread?: (message: Message) => void;
   onRetry?: (message: Message) => void;
 };
 
-export function MessageBubble({ message, showAuthor, mentionUsers, onLongPress, onReact, onThread, onRetry }: Props) {
+export function MessageBubble({ message, showAuthor, mentionUsers, onLongPress, onOpenReaction, onOpenImage, onThread, onRetry }: Props) {
   const deleted = Boolean(message.deleted_at);
   const segments = deleted ? [{ text: 'Message removed', mention: false }] : messageSegments(message.body, mentionUsers);
+  const images = message.attachments.filter((attachment) => attachment.image && attachment.url);
   return (
     <Pressable
       accessibilityRole="button"
@@ -37,7 +39,7 @@ export function MessageBubble({ message, showAuthor, mentionUsers, onLongPress, 
           {message.pinned_at && <View style={styles.pinLabel}><Pin color={message.mine ? '#FFE4E8' : palette.rubySoft} size={11} /><Text style={[styles.pinText, message.mine && styles.mineMeta]}>Pinned</Text></View>}
           {!!message.body && <Text style={[styles.body, deleted && styles.deleted]}>{segments.map((segment, index) => <Text key={`${segment.text}-${index}`} style={segment.mention && styles.mention}>{segment.text}</Text>)}</Text>}
           {!deleted && message.attachments.map((attachment) => (
-            <Pressable key={attachment.id} accessibilityRole="link" onPress={() => attachment.url && void Linking.openURL(attachment.url)} style={styles.attachment}>
+            <Pressable key={attachment.id} accessibilityRole={attachment.image ? 'button' : 'link'} accessibilityLabel={`${attachment.image ? 'Preview' : 'Open'} ${attachment.filename}`} onPress={() => attachment.image ? onOpenImage?.(attachment, images) : attachment.url && void Linking.openURL(attachment.url)} style={styles.attachment}>
               {attachment.image && attachment.url ? <Image source={{ uri: attachment.url }} resizeMode="cover" style={styles.attachmentImage} /> : <View style={styles.fileIcon}><FileText color={palette.rubySoft} size={19} /></View>}
               <View style={styles.attachmentCopy}><Text numberOfLines={1} style={styles.attachmentName}>{attachment.filename}</Text><Text style={styles.attachmentSize}>{formatFileSize(attachment.byte_size)}</Text></View>
             </Pressable>
@@ -46,7 +48,7 @@ export function MessageBubble({ message, showAuthor, mentionUsers, onLongPress, 
         {!!message.reactions.length && <View style={[styles.reactions, message.mine && styles.mineReactions]}>{message.reactions.map((reaction) => {
           const option = reactionOption(reaction.emoji);
           const Icon = option?.Icon;
-          return <Pressable key={reaction.emoji} accessibilityRole="button" accessibilityLabel={`${option?.label || 'Reaction'}, ${reaction.count}`} onPress={() => onReact?.(message, reaction.emoji)} style={[styles.reaction, reaction.reacted && styles.reacted]}>{Icon ? <Icon color={reaction.reacted ? palette.rubySoft : palette.muted} size={13} /> : <Text style={styles.fallbackReaction}>{reaction.emoji}</Text>}<Text style={[styles.reactionCount, reaction.reacted && styles.reactedCount]}>{reaction.count}</Text></Pressable>;
+          return <Pressable key={reaction.emoji} accessibilityRole="button" accessibilityHint="Shows everyone who reacted and lets you manage your reaction" accessibilityLabel={`${option?.label || 'Reaction'}, ${reaction.count}`} onPress={() => onOpenReaction?.(message, reaction.emoji)} style={[styles.reaction, reaction.reacted && styles.reacted]}>{Icon ? <Icon color={reaction.reacted ? palette.rubySoft : palette.muted} size={13} /> : <Text style={styles.fallbackReaction}>{reaction.emoji}</Text>}<Text style={[styles.reactionCount, reaction.reacted && styles.reactedCount]}>{reaction.count}</Text></Pressable>;
         })}</View>}
         {!!message.reply_count && !message.parent_message_id && <Pressable accessibilityRole="button" accessibilityLabel={`Open ${message.reply_count} replies`} onPress={() => onThread?.(message)} style={[styles.threadButton, message.mine && styles.mineThread]}><MessageSquare color={palette.rubySoft} size={13} /><Text style={styles.threadText}>{message.reply_count} {message.reply_count === 1 ? 'reply' : 'replies'}</Text></Pressable>}
         <View style={[styles.messageMeta, message.mine && styles.mineMessageMeta]}>

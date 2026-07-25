@@ -1,5 +1,6 @@
 class MessageNotificationEmailJob < ApplicationJob
   queue_as :default
+  retry_on NotificationEmailService::DeliveryError, wait: :polynomially_longer, attempts: 4
 
   def perform(message_id, notification_ids)
     return if notification_ids.blank?
@@ -8,10 +9,26 @@ class MessageNotificationEmailJob < ApplicationJob
     return unless message
     return if message.deleted?
 
-    Notification.includes(:user).where(id: notification_ids).find_each do |notification|
+    notifications = Notification.includes(:user).where(id: notification_ids)
+    Rails.logger.info(
+      "[MessageEmailJob] started message_id=#{message.id} requested_notifications=#{notification_ids.size} " \
+      "found_notifications=#{notifications.size}"
+    )
+
+    notifications.find_each do |notification|
       user = notification.user
-      next if user.archived?
-      next unless user.message_email_notifications_enabled?
+      if user.archived?
+        Rails.logger.info("[MessageEmailJob] skipped notification_id=#{notification.id} recipient_user_id=#{user.id} reason=archived")
+        next
+      end
+      unless user.message_email_notifications_enabled?
+        Rails.logger.info("[MessageEmailJob] skipped notification_id=#{notification.id} recipient_user_id=#{user.id} reason=preference_disabled")
+        next
+      end
+      if user.email.blank?
+        Rails.logger.warn("[MessageEmailJob] skipped notification_id=#{notification.id} recipient_user_id=#{user.id} reason=email_unavailable")
+        next
+      end
 
       NotificationEmailService.send_message_notification(user: user, message: message, notification: notification)
     end

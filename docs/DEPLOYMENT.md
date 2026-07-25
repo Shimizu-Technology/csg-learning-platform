@@ -74,6 +74,23 @@ AWS_REGION=ap-southeast-2
 AWS_S3_BUCKET=csg-learning-platform
 ```
 
+### Message email delivery diagnostics
+
+Direct-message email jobs are idempotent per notification and retry provider
+failures. In Render logs, filter for:
+
+- `[MessageEmailJob] started` to confirm the job found its notification rows;
+- `[MessageEmailJob] skipped` to see a safe reason such as
+  `preference_disabled`, `archived`, or `email_unavailable`;
+- `[MessageEmail] delivered` for the Resend provider message ID; and
+- `[MessageEmail] delivery_failed` for the retryable provider/configuration
+  error.
+
+These entries intentionally identify the recipient by internal user ID and do
+not include email addresses or message contents. If a job starts but never
+reaches a delivered or failed entry, confirm the web service and worker use the
+same `RESEND_API_KEY`, sender variable, database, and queue adapter.
+
 ### S3 Direct Upload Requirements
 
 Recording uploads do **not** stream through Render or Netlify. The API generates presigned S3 requests, and the browser then uploads the file directly to S3. Large videos use S3 multipart upload so failed chunks can retry without restarting the whole recording.

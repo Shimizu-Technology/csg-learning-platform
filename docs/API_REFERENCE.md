@@ -326,7 +326,7 @@ Archived users are hidden from default user lists, team management, active cohor
 }
 ```
 
-DM email notifications are enabled by default and are queued independently of browser-push support. Disabling the preference suppresses DM and mention emails; browser subscriptions remain device-specific.
+DM email notifications are enabled by default and are queued independently of browser-push support. Disabling the preference suppresses DM and mention emails; browser subscriptions remain device-specific. Each DM email uses the notification ID as a provider idempotency key, verifies that the provider returned a delivery ID, and retries typed delivery failures. Operational logs use internal user and notification IDs without recording recipient addresses or message bodies.
 
 ### Mobile Push Tokens
 

@@ -701,6 +701,7 @@ export function Messages() {
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([])
   const [lightboxAttachments, setLightboxAttachments] = useState<MessageAttachment[]>([])
   const [lightboxIndex, setLightboxIndex] = useState(0)
+  const [reactionDetails, setReactionDetails] = useState<{ messageId: number; emoji: string } | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [channelsCollapsed, setChannelsCollapsed] = useState(false)
   const [dmsCollapsed, setDmsCollapsed] = useState(false)
@@ -803,6 +804,10 @@ export function Messages() {
   )
   const activeThreadRoot = activeThreadRootId ? messagesById.get(activeThreadRootId) || null : null
   const mobileActionsMessage = mobileActionsMessageId ? messagesById.get(mobileActionsMessageId) || null : null
+  const reactionDetailsMessage = reactionDetails ? messagesById.get(reactionDetails.messageId) || null : null
+  const selectedReaction = reactionDetailsMessage?.reactions.find((reaction) => reaction.emoji === reactionDetails?.emoji)
+    || reactionDetailsMessage?.reactions[0]
+    || null
   const activeThreadMessages = useMemo(() => {
     if (!activeThreadRoot) return []
 
@@ -2802,6 +2807,7 @@ export function Messages() {
                             if (!isDesktop) setMobilePane('thread')
                           }}
                           onReact={(emoji) => toggleReaction(message, emoji)}
+                          onInspectReaction={(emoji) => setReactionDetails({ messageId: message.id, emoji })}
                           onOpenImage={(attachment, imageAttachments) => {
                             setLightboxAttachments(imageAttachments)
                             setLightboxIndex(Math.max(0, imageAttachments.findIndex((item) => item.id === attachment.id)))
@@ -2870,6 +2876,7 @@ export function Messages() {
                             replyCount={0}
                             onReply={() => setActiveThreadRootId(activeThreadRoot.id)}
                             onReact={(emoji) => toggleReaction(message, emoji)}
+                            onInspectReaction={(emoji) => setReactionDetails({ messageId: message.id, emoji })}
                             onOpenImage={(attachment, imageAttachments) => {
                               setLightboxAttachments(imageAttachments)
                               setLightboxIndex(Math.max(0, imageAttachments.findIndex((item) => item.id === attachment.id)))
@@ -2902,6 +2909,74 @@ export function Messages() {
         </section>
         )}
       </div>
+      <Modal
+        open={Boolean(reactionDetailsMessage && selectedReaction)}
+        onClose={() => setReactionDetails(null)}
+        title="Who reacted"
+        subtitle="See everyone behind each reaction and manage your own."
+        size="md"
+      >
+        {reactionDetailsMessage && selectedReaction && (() => {
+          const selectedDisplay = REACTIONS_BY_VALUE.get(selectedReaction.emoji) || { label: 'Reaction', Icon: SmilePlus }
+          const SelectedIcon = selectedDisplay.Icon
+          return (
+            <div>
+              <div role="tablist" aria-label="Message reactions" className="flex gap-2 overflow-x-auto pb-4">
+                {reactionDetailsMessage.reactions.map((reaction) => {
+                  const display = REACTIONS_BY_VALUE.get(reaction.emoji) || { label: 'Reaction', Icon: SmilePlus }
+                  const Icon = display.Icon
+                  const active = reaction.emoji === selectedReaction.emoji
+                  return (
+                    <button
+                      key={reaction.emoji}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      aria-label={`${display.label}, ${reaction.count}`}
+                      onClick={() => setReactionDetails({ messageId: reactionDetailsMessage.id, emoji: reaction.emoji })}
+                      className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border px-3.5 text-sm font-semibold transition ${
+                        active
+                          ? 'border-primary-200 bg-primary-50 text-primary-700'
+                          : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {reaction.count}
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="flex min-h-12 items-center gap-2 border-b border-slate-200">
+                <SelectedIcon className="h-4 w-4 text-primary-600" />
+                <p className="flex-1 text-sm font-semibold text-slate-900">{selectedDisplay.label}</p>
+                <span className="text-xs font-semibold text-slate-500">{selectedReaction.count}</span>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {selectedReaction.users.map((person) => (
+                  <div key={person.id} className="flex min-h-14 items-center gap-3 py-2">
+                    {person.avatar_url
+                      ? <img src={person.avatar_url} alt="" className="h-9 w-9 rounded-full object-cover" />
+                      : <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 text-xs font-bold text-slate-600">{person.full_name.slice(0, 1)}</span>}
+                    <span className="text-sm font-medium text-slate-800">{person.full_name}</span>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => void toggleReaction(reactionDetailsMessage, selectedReaction.emoji)}
+                className={`mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold transition ${
+                  selectedReaction.reacted
+                    ? 'border border-primary-200 bg-primary-50 text-primary-700 hover:bg-primary-100'
+                    : 'bg-primary-600 text-white hover:bg-primary-700'
+                }`}
+              >
+                <SelectedIcon className="h-4 w-4" />
+                {selectedReaction.reacted ? `Remove your ${selectedDisplay.label.toLowerCase()}` : `React with ${selectedDisplay.label.toLowerCase()}`}
+              </button>
+            </div>
+          )
+        })()}
+      </Modal>
       <Modal
         open={showWorkspaceSwitcher}
         onClose={() => setShowWorkspaceSwitcher(false)}
@@ -3737,6 +3812,7 @@ function MessageRow({
   replyCount,
   onReply,
   onReact,
+  onInspectReaction,
   onOpenImage,
   mentionPatterns,
 }: {
@@ -3757,6 +3833,7 @@ function MessageRow({
   replyCount: number
   onReply: () => void
   onReact: (emoji: string) => void
+  onInspectReaction: (emoji: string) => void
   onOpenImage: (attachment: MessageAttachment, imageAttachments: MessageAttachment[]) => void
   mentionPatterns: MentionPattern[]
 }) {
@@ -3851,9 +3928,9 @@ function MessageRow({
               <div key={reaction.emoji} className="group/reaction relative">
                 <button
                   type="button"
-                  onClick={() => onReact(reaction.emoji)}
+                  onClick={() => onInspectReaction(reaction.emoji)}
                   className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs ${reaction?.reacted ? 'border-primary-200 bg-primary-50 text-primary-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
-                  aria-label={`${reactionDisplay.label}: ${reaction?.count || 0}`}
+                  aria-label={`${reactionDisplay.label}: ${reaction?.count || 0}. Show who reacted.`}
                 >
                   <ReactionIcon className="h-3.5 w-3.5" />
                   {reaction?.count || ''}

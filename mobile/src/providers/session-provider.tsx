@@ -35,8 +35,10 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const refresh = useCallback(async () => {
     if (!auth.signedIn) { setUser(null); setError(null); setAccessDenied(false); setLoading(false); return; }
     if (auth.demo) { setUser(demoUser); setError(null); setAccessDenied(false); setLoading(false); return; }
-    setLoading(true);
-    setAccessDenied(false);
+    // Session validation after the first successful load is background work.
+    // Keeping the existing user mounted prevents token refreshes and foreground
+    // revalidation from tearing down the active navigation stack.
+    setLoading(userIdRef.current === null);
     try {
       const result = await api.session();
       setUser(result.user); setError(null); setAccessDenied(false);
@@ -72,7 +74,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     if (!auth.loaded) return undefined;
     const frame = requestAnimationFrame(() => void refresh());
     return () => cancelAnimationFrame(frame);
-  }, [auth.loaded, refresh]);
+  }, [auth.loaded, auth.signedIn, auth.subject, refresh]);
   const signOut = useCallback(async () => {
     const pushToken = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
     if (pushToken && !auth.demo) await api.unregisterDevice(pushToken).catch(() => undefined);
