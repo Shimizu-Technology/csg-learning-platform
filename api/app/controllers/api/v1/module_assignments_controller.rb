@@ -21,29 +21,35 @@ module Api
 
       # POST /api/v1/enrollments/:enrollment_id/module_assignments
       def create
-        assignment = @enrollment.module_assignments.find_or_initialize_by(module_id: module_assignment_params[:module_id])
-        assignment.assign_attributes(module_assignment_params)
+        with_learning_write_guard(@enrollment) do
+          assignment = @enrollment.module_assignments.find_or_initialize_by(module_id: module_assignment_params[:module_id])
+          assignment.assign_attributes(module_assignment_params)
 
-        if assignment.save
-          render json: { module_assignment: module_assignment_json(assignment) }, status: :created
-        else
-          render json: { errors: assignment.errors.full_messages }, status: :unprocessable_entity
+          if assignment.save
+            render json: { module_assignment: module_assignment_json(assignment) }, status: :created
+          else
+            render json: { errors: assignment.errors.full_messages }, status: :unprocessable_entity
+          end
         end
       end
 
       # PATCH /api/v1/module_assignments/:id
       def update
-        if @module_assignment.update(module_assignment_params)
-          render json: { module_assignment: module_assignment_json(@module_assignment) }
-        else
-          render json: { errors: @module_assignment.errors.full_messages }, status: :unprocessable_entity
+        with_learning_write_guard(@module_assignment.enrollment) do
+          if @module_assignment.update(module_assignment_params)
+            render json: { module_assignment: module_assignment_json(@module_assignment) }
+          else
+            render json: { errors: @module_assignment.errors.full_messages }, status: :unprocessable_entity
+          end
         end
       end
 
       # DELETE /api/v1/module_assignments/:id
       def destroy
-        @module_assignment.destroy
-        head :no_content
+        with_learning_write_guard(@module_assignment.enrollment) do
+          @module_assignment.destroy
+          head :no_content
+        end
       end
 
       private

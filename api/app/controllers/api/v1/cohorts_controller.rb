@@ -60,7 +60,7 @@ module Api
       # PATCH /api/v1/cohorts/:id/module_access
       def module_access
         curriculum_module = @cohort.curriculum.modules.find(module_access_params[:module_id])
-        enrollments = @cohort.enrollments.active.includes(:module_assignments, :lesson_assignments)
+        enrollments = @cohort.enrollments.active.order(:id).includes(:module_assignments, :lesson_assignments)
         assigned = module_access_params[:assigned]
         schedule_exists = @cohort.cohort_module_schedules.any? { |schedule| schedule.module_id == curriculum_module.id }
         assignments_exist = enrollments.any? do |enrollment|
@@ -77,15 +77,17 @@ module Api
 
         ActiveRecord::Base.transaction do
           enrollments.each do |enrollment|
-            if assigned == false
-              enrollment.lesson_assignments.where(lesson_id: lesson_ids).destroy_all
-              enrollment.module_assignments.where(module_id: curriculum_module.id).destroy_all
-              next
-            end
+            with_learning_write_guard(enrollment) do
+              if assigned == false
+                enrollment.lesson_assignments.where(lesson_id: lesson_ids).destroy_all
+                enrollment.module_assignments.where(module_id: curriculum_module.id).destroy_all
+                next
+              end
 
-            assignment = enrollment.module_assignments.find_or_initialize_by(module_id: curriculum_module.id)
-            assignment.unlocked = module_access_params[:unlocked] unless module_access_params[:unlocked].nil?
-            assignment.save!
+              assignment = enrollment.module_assignments.find_or_initialize_by(module_id: curriculum_module.id)
+              assignment.unlocked = module_access_params[:unlocked] unless module_access_params[:unlocked].nil?
+              assignment.save!
+            end
           end
 
           if assigned == false

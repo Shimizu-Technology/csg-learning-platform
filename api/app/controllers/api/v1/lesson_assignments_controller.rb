@@ -18,26 +18,32 @@ module Api
       end
 
       def create
-        assignment = @enrollment.lesson_assignments.new(lesson_assignment_params)
+        with_learning_write_guard(@enrollment) do
+          assignment = @enrollment.lesson_assignments.new(lesson_assignment_params)
 
-        if assignment.save
-          render json: { lesson_assignment: lesson_assignment_json(assignment) }, status: :created
-        else
-          render json: { errors: assignment.errors.full_messages }, status: :unprocessable_entity
+          if assignment.save
+            render json: { lesson_assignment: lesson_assignment_json(assignment) }, status: :created
+          else
+            render json: { errors: assignment.errors.full_messages }, status: :unprocessable_entity
+          end
         end
       end
 
       def update
-        if @lesson_assignment.update(lesson_assignment_params)
-          render json: { lesson_assignment: lesson_assignment_json(@lesson_assignment) }
-        else
-          render json: { errors: @lesson_assignment.errors.full_messages }, status: :unprocessable_entity
+        with_learning_write_guard(@lesson_assignment.enrollment) do
+          if @lesson_assignment.update(lesson_assignment_params)
+            render json: { lesson_assignment: lesson_assignment_json(@lesson_assignment) }
+          else
+            render json: { errors: @lesson_assignment.errors.full_messages }, status: :unprocessable_entity
+          end
         end
       end
 
       def destroy
-        @lesson_assignment.destroy
-        head :no_content
+        with_learning_write_guard(@lesson_assignment.enrollment) do
+          @lesson_assignment.destroy
+          head :no_content
+        end
       end
 
       private

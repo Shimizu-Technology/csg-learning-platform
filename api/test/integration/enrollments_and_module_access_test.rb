@@ -131,6 +131,43 @@ class EnrollmentsAndModuleAccessTest < ActionDispatch::IntegrationTest
     refute CohortModuleSchedule.exists?(cohort: @cohort, curriculum_module: @mod1)
   end
 
+  test "module assignment update rejects a request from before restart" do
+    enrollment = Enrollment.create!(
+      user: @student,
+      cohort: @cohort,
+      status: :active,
+      learning_state_reset_at: 1.minute.from_now
+    )
+    assignment = ModuleAssignment.create!(enrollment: enrollment, curriculum_module: @mod1, unlocked: false)
+
+    as_user(@admin) do
+      patch "/api/v1/module_assignments/#{assignment.id}",
+        params: { unlocked: true },
+        headers: auth_headers, as: :json
+    end
+
+    assert_response :conflict
+    assert_not assignment.reload.unlocked?
+  end
+
+  test "lesson assignment create rejects a request from before restart" do
+    enrollment = Enrollment.create!(
+      user: @student,
+      cohort: @cohort,
+      status: :active,
+      learning_state_reset_at: 1.minute.from_now
+    )
+
+    as_user(@admin) do
+      post "/api/v1/enrollments/#{enrollment.id}/lesson_assignments",
+        params: { lesson_id: @lesson1.id, unlocked: true },
+        headers: auth_headers, as: :json
+    end
+
+    assert_response :conflict
+    assert_not LessonAssignment.exists?(enrollment: enrollment, lesson: @lesson1)
+  end
+
   test "student cannot create enrollments" do
     as_user(@student) do
       post "/api/v1/cohorts/#{@cohort.id}/enrollments",
