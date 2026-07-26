@@ -160,7 +160,9 @@ module Api
         begin
           SendUserInviteEmailJob.perform_later(user.id, current_user&.id, invitation_url)
         rescue StandardError => e
-          Rails.logger.error("[InviteEmail] Failed to enqueue invite for #{user.email}: #{e.message}")
+          Rails.logger.error(
+            "[InviteEmail] enqueue_failed recipient_user_id=#{user.id} error_class=#{e.class.name}"
+          )
         end
       end
 

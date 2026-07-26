@@ -344,7 +344,7 @@ export default function SignIn() {
                   <View style={styles.fieldGroup}>
                     <View style={styles.labelRow}>
                       <Text style={styles.label}>{step === 'new-password' ? 'New password' : 'Password'}</Text>
-                      {step === 'password' && <Pressable hitSlop={10} onPress={() => void handleForgotPassword()}><Text style={styles.forgotText}>Forgot password?</Text></Pressable>}
+                      {step === 'password' && <Pressable accessibilityRole="button" accessibilityLabel="Reset password" hitSlop={10} onPress={() => void handleForgotPassword()}><Text style={styles.forgotText}>Forgot password?</Text></Pressable>}
                     </View>
                     <View style={styles.passwordField}>
                       <TextInput

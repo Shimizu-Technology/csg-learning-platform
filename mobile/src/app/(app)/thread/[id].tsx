@@ -10,9 +10,11 @@ import { ReactionDetailsSheet } from '@/components/reaction-details-sheet';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { fonts, palette } from '@/constants/csg-theme';
 import { subscribeToMessages } from '@/lib/cable';
+import { demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { resolveMentionUserIds } from '@/lib/mentions';
 import { mergeMessageEvent, sortMessages } from '@/lib/message-state';
 import type { Message, MessageEvent, UserSummary } from '@/lib/types';
+import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 
 export default function ThreadScreen() {
@@ -22,6 +24,7 @@ export default function ThreadScreen() {
   const conversationId = Number(params.conversationId);
   const workspaceId = Number(params.workspaceId);
   const router = useRouter();
+  const auth = useCsgAuth();
   const { api } = useSession();
   const listRef = useRef<FlatList<Message>>(null);
   const [root, setRoot] = useState<Message | null>(null);
@@ -38,6 +41,28 @@ export default function ThreadScreen() {
     setLoading(true);
     try {
       if (!Number.isInteger(workspaceId) || workspaceId <= 0) throw new Error('This thread link is incomplete. Open it again from the conversation.');
+      if (auth.demo) {
+        const conversationMessages = demoMessages[`${kind}:${conversationId}`] || [];
+        const demoRoot = conversationMessages.find((message) => message.id === rootId) || conversationMessages[0];
+        if (!demoRoot) throw new Error('This demo conversation has no message to open as a thread.');
+        const demoReply: Message = {
+          ...demoRoot,
+          id: 9_001,
+          parent_message_id: demoRoot.id,
+          body: 'That makes sense. I added the question to my notes for class.',
+          mine: false,
+          reactions: [],
+          read_receipts: undefined,
+          author: demoDms[0]?.users.find((member) => member.id !== demoUser.id) || demoRoot.author,
+          created_at: new Date(Date.now() - 4 * 60_000).toISOString(),
+          updated_at: new Date(Date.now() - 4 * 60_000).toISOString(),
+        };
+        setRoot(demoRoot);
+        setReplies([demoReply]);
+        setUsers(demoDms[0]?.users || [demoUser]);
+        setError(null);
+        return;
+      }
       const [result, workspace] = await Promise.all([api.messageThread(rootId), api.workspace(workspaceId)]);
       setRoot(result.root_message);
       setReplies(result.replies);
@@ -45,13 +70,13 @@ export default function ThreadScreen() {
       setError(null);
     } catch (requestError) { setError((requestError as Error).message); }
     finally { setLoading(false); }
-  }, [api, rootId, workspaceId]);
+  }, [api, auth.demo, conversationId, kind, rootId, workspaceId]);
 
   useEffect(() => { const frame = requestAnimationFrame(() => void load()); return () => cancelAnimationFrame(frame); }, [load]);
-  useEffect(() => loading || error ? undefined : subscribeToMessages(api, kind, conversationId, (event: MessageEvent) => {
+  useEffect(() => auth.demo || loading || error ? undefined : subscribeToMessages(api, kind, conversationId, (event: MessageEvent) => {
     if (event.message.id === rootId) setRoot(event.event === 'deleted' ? null : event.message);
     else if (event.message.parent_message_id === rootId) setReplies((current) => mergeMessageEvent(current, event));
-  }, () => undefined), [api, conversationId, error, kind, loading, rootId]);
+  }, () => undefined), [api, auth.demo, conversationId, error, kind, loading, rootId]);
 
   const visible = useMemo(() => sortMessages(replies), [replies]);
   const reactionDetailsMessage = reactionDetails
@@ -62,6 +87,23 @@ export default function ThreadScreen() {
     if (!body || sending) return;
     setSending(true); setDraft('');
     try {
+      if (auth.demo) {
+        const demoReply: Message = {
+          ...(root as Message),
+          id: -Date.now(),
+          parent_message_id: rootId,
+          body,
+          mine: true,
+          reactions: [],
+          read_receipts: undefined,
+          author: demoUser,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        setReplies((current) => sortMessages([...current, demoReply]));
+        requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+        return;
+      }
       const result = await api.sendMessage(kind, conversationId, { body, parent_message_id: rootId, mention_user_ids: resolveMentionUserIds(body, users), send_push: true });
       setReplies((current) => sortMessages([...current.filter((message) => message.id !== result.message.id), result.message]));
       requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
@@ -70,6 +112,7 @@ export default function ThreadScreen() {
   };
 
   const toggleReaction = async (message: Message, value: string) => {
+    if (auth.demo) return;
     try { const remove = Boolean(message.reactions.find((reaction) => reaction.emoji === value)?.reacted); const result = await api.react(message.id, value, remove); if (message.id === rootId) setRoot(result.message); else setReplies((current) => current.map((item) => item.id === message.id ? result.message : item)); }
     catch (requestError) { Alert.alert('Could not update reaction', (requestError as Error).message); }
   };

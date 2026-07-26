@@ -8,15 +8,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LearningCard } from '@/components/learning-ui';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { fonts, palette } from '@/constants/csg-theme';
+import { demoDashboard } from '@/lib/demo-learning';
 import { openExternalPage } from '@/lib/external-links';
 import { learningKeys } from '@/lib/learning';
+import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 
 export default function ResourcesScreen() {
   const router = useRouter();
+  const auth = useCsgAuth();
   const { api, user } = useSession();
   const [filter, setFilter] = useState('');
-  const query = useQuery({ queryKey: learningKeys.resources(user?.id || 0), queryFn: ({ signal }) => api.resources(signal), enabled: Boolean(user) });
+  const query = useQuery({
+    queryKey: learningKeys.resources(user?.id || 0),
+    queryFn: ({ signal }) => auth.demo ? Promise.resolve({ resources: demoDashboard.resources }) : api.resources(signal),
+    enabled: Boolean(user),
+  });
   const resources = useMemo(() => (query.data?.resources || []).filter((resource) => `${resource.title} ${resource.category} ${resource.description || ''}`.toLowerCase().includes(filter.trim().toLowerCase())), [filter, query.data?.resources]);
   const grouped = useMemo(() => Object.entries(resources.reduce<Record<string, typeof resources>>((groups, resource) => {
     const category = resource.cohort_name ? `${resource.cohort_name} · ${resource.category || 'General'}` : resource.category || 'General';

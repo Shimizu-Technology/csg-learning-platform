@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_20_000100) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_26_000100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -175,6 +175,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_20_000100) do
     t.index ["cohort_id"], name: "index_direct_conversations_on_cohort_id"
     t.index ["workspace_id", "member_key"], name: "index_direct_conversations_on_workspace_id_and_member_key", unique: true
     t.index ["workspace_id"], name: "index_direct_conversations_on_workspace_id"
+  end
+
+  create_table "enrollment_restarts", force: :cascade do |t|
+    t.bigint "cohort_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "enrollment_id"
+    t.bigint "performed_by_id", null: false
+    t.text "reason"
+    t.jsonb "records_removed", default: {}, null: false
+    t.jsonb "snapshot", default: {}, null: false
+    t.bigint "student_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["cohort_id"], name: "index_enrollment_restarts_on_cohort_id"
+    t.index ["enrollment_id"], name: "index_enrollment_restarts_on_enrollment_id"
+    t.index ["performed_by_id"], name: "index_enrollment_restarts_on_performed_by_id"
+    t.index ["student_id", "cohort_id", "created_at"], name: "index_enrollment_restarts_on_student_cohort_created"
+    t.index ["student_id"], name: "index_enrollment_restarts_on_student_id"
   end
 
   create_table "enrollments", force: :cascade do |t|
@@ -635,6 +652,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_20_000100) do
   add_foreign_key "direct_conversation_members", "users"
   add_foreign_key "direct_conversations", "cohorts"
   add_foreign_key "direct_conversations", "workspaces"
+  add_foreign_key "enrollment_restarts", "cohorts"
+  add_foreign_key "enrollment_restarts", "enrollments", on_delete: :nullify
+  add_foreign_key "enrollment_restarts", "users", column: "performed_by_id"
+  add_foreign_key "enrollment_restarts", "users", column: "student_id"
   add_foreign_key "enrollments", "cohorts"
   add_foreign_key "enrollments", "users"
   add_foreign_key "lesson_assignments", "enrollments"

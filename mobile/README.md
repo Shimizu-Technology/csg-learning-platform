@@ -1,6 +1,9 @@
 # CSG Connect Mobile
 
-The native communications client for the CSG Learning Platform. This first release intentionally focuses on the daily loop: channels, direct messages, announcements, unread state, real-time updates, and native push notifications.
+The native companion for the CSG Learning Platform. It covers the daily
+learning and communication loop: staff/student dashboards, lessons, class
+resources and recordings, grading, channels, direct messages, announcements,
+real-time updates, and native push notifications.
 
 ## Stack
 
@@ -29,6 +32,13 @@ npx expo start --dev-client --clear
 ```
 
 The inbox loads its workspace list from Rails. Staff can switch among every active cohort and community workspace; students see only active cohort enrollments and explicit community memberships. Channels, DMs, unread counts, and member pickers are filtered to the selected workspace without weakening the API authorization boundary.
+
+Staff can publish a class recording from **Learn → Class recordings → Upload**.
+Videos below 100 MB use a presigned form upload; larger videos use retryable
+multipart upload through 5 GB. Keep the upload screen open until publishing
+finishes. Admins can restart one student's live-class progress from the student
+health screen; the action requires explicit confirmation and retains a recovery
+snapshot without removing the account, messages, or other curricula.
 
 The mobile package pins Node 22.22.3 independently from the web package because Expo SDK 57 dependencies require a newer Node runtime.
 
@@ -64,6 +74,22 @@ EXPO_PUBLIC_DEMO_MODE=true npx expo start --dev-client --clear
 ```
 
 Demo mode only activates when React Native's `__DEV__` flag is true. Production builds cannot enter it from this environment variable alone. Prefer the one-command override above instead of saving demo mode in `.env`, so the next normal launch returns to real account data. It exercises navigation, filtering, composition, message sending, unread states, updates, profile, and empty states against local sample data. API contracts and native push delivery are covered separately by mobile and Rails tests.
+
+### Native iOS smoke test
+
+The checked-in Maestro flows exercise the real native navigation tree, open a
+conversation, focus the composer, type with the keyboard open, and traverse
+every shipped mobile route. Install Maestro, start the development server in
+demo mode, and run the flows against a booted simulator:
+
+```bash
+EXPO_PUBLIC_DEMO_MODE=true npx expo start --dev-client --host lan --clear
+CSG_METRO_HOST="$(ipconfig getifaddr en0)" npm run test:e2e:ios
+```
+
+If more than one simulator is booted, set `CSG_IOS_DEVICE` to the desired
+simulator UDID. Test artifacts stay in the ignored `.maestro-artifacts/`
+directory.
 
 ## Quality checks
 

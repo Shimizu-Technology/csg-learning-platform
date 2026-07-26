@@ -7,6 +7,9 @@ web/.env.local
 web/.env.production
 web/dist/
 web/node_modules/
+web/playwright-report/
+web/test-results/
+mobile/.maestro-artifacts/
 
 # Data exports containing PII — never commit
 scripts/cohort3_*.json

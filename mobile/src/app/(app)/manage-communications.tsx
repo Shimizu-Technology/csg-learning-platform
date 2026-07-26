@@ -6,13 +6,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/avatar';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { fonts, palette } from '@/constants/csg-theme';
+import { demoChannels, demoDms, demoUser, demoWorkspaces } from '@/lib/demo-data';
 import type { ChannelSummary, UserSummary, WorkspaceDetail } from '@/lib/types';
+import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
 type Editor = 'workspace' | 'channel' | 'members' | null;
 
 export default function ManageCommunicationsScreen() {
+  const auth = useCsgAuth();
   const { api, user } = useSession();
   const isStaff = Boolean(user?.is_staff);
   const currentUserId = user?.id ?? null;
@@ -32,6 +35,17 @@ export default function ManageCommunicationsScreen() {
     if (!isStaff || !activeWorkspaceId) { setLoading(false); return; }
     if (pull) setRefreshing(true); else setLoading(true);
     try {
+      if (auth.demo) {
+        const summary = demoWorkspaces.find((item) => item.id === activeWorkspaceId) || demoWorkspaces[0];
+        const members = [demoUser, ...demoDms.flatMap((conversation) => conversation.users)]
+          .filter((member, index, all) => all.findIndex((candidate) => candidate.id === member.id) === index)
+          .map((member) => ({ ...member, membership_role: member.is_staff ? 'manager' : 'member' }));
+        setWorkspace({ ...summary, can_manage: true, members });
+        setChannels(demoChannels.filter((channel) => channel.workspace_id === activeWorkspaceId));
+        setUsers(members);
+        setError(null);
+        return;
+      }
       const [workspaceResult, channelResult, userResult] = await Promise.all([api.workspace(activeWorkspaceId), api.channels(), api.users()]);
       setWorkspace(workspaceResult.workspace);
       setChannels(channelResult.channels.filter((channel) => channel.workspace_id === activeWorkspaceId));
@@ -39,7 +53,7 @@ export default function ManageCommunicationsScreen() {
       setError(null);
     } catch (requestError) { setError((requestError as Error).message); }
     finally { setLoading(false); setRefreshing(false); }
-  }, [activeWorkspaceId, api, isStaff]);
+  }, [activeWorkspaceId, api, auth.demo, isStaff]);
   useEffect(() => { const frame = requestAnimationFrame(() => void load()); return () => cancelAnimationFrame(frame); }, [load]);
 
   if (!isStaff) return <SafeAreaView style={styles.safe}><ErrorState message="Staff access is required to manage communications." retry={() => undefined} /></SafeAreaView>;

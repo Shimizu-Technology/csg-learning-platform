@@ -1,0 +1,38 @@
+appId: com.codeschoolofguam.connect
+name: CSG Connect iOS smoke
+tags:
+  - smoke
+  - ios
+---
+- launchApp
+- openLink: ${CSG_DEVELOPMENT_URL}
+- tapOn:
+    text: "Open"
+    optional: true
+- runFlow:
+    when:
+      visible: "DEVELOPMENT SERVERS"
+    commands:
+      - tapOn:
+          point: "50%,22%"
+- extendedWaitUntil:
+    visible: "Needs attention"
+    timeout: 60000
+- tapOn:
+    point: "62%,94%"
+- extendedWaitUntil:
+    visible: "Messages"
+    timeout: 15000
+- assertVisible: "Open Maya Santos"
+- tapOn: "Open Maya Santos"
+- extendedWaitUntil:
+    visible: "Message composer.*"
+    timeout: 15000
+- tapOn: "Message composer.*"
+- inputText: "Native E2E draft"
+- assertVisible: ".*Native E2E draft.*"
+- tapOn: "Back"
+- tapOn:
+    point: "87%,94%"
+- assertVisible: "YOUR ACCOUNT"
+- assertVisible: "Leon Shimizu"

@@ -119,6 +119,20 @@ jobs:
       - name: Lint, typecheck, test, and build frontend
         run: npm run check
 
+      - name: Install Playwright Chromium
+        if: ${{ vars.VITE_CLERK_PUBLISHABLE_KEY != '' }}
+        run: npx playwright install --with-deps chromium
+
+      - name: Run public browser and accessibility tests
+        if: ${{ vars.VITE_CLERK_PUBLISHABLE_KEY != '' }}
+        env:
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ vars.VITE_CLERK_PUBLISHABLE_KEY }}
+        run: npm run test:e2e
+
+      - name: Report missing browser-test configuration
+        if: ${{ vars.VITE_CLERK_PUBLISHABLE_KEY == '' }}
+        run: echo "::notice::Set the VITE_CLERK_PUBLISHABLE_KEY repository variable to enable Playwright accessibility tests in CI."
+
   mobile:
     runs-on: ubuntu-latest
     defaults:
@@ -150,3 +164,6 @@ jobs:
 
       - name: Export iOS JavaScript bundle
         run: npx expo export --platform ios --output-dir /tmp/csg-mobile-ios-export
+
+      - name: Export Android JavaScript bundle
+        run: npx expo export --platform android --output-dir /tmp/csg-mobile-android-export

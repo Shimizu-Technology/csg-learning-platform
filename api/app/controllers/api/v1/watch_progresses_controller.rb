@@ -100,9 +100,9 @@ module Api
         video_blocks_by_curriculum = ContentBlock
           .joins(lesson: :curriculum_module)
           .includes(lesson: :curriculum_module)
-          .where(curriculum_modules: { curriculum_id: curriculum_ids }, block_type: %w[video recording])
+          .where(modules: { curriculum_id: curriculum_ids }, block_type: %w[video recording])
           .where.not(s3_video_key: [ nil, "" ])
-          .order("curriculum_modules.position ASC, lessons.position ASC, content_blocks.position ASC")
+          .order("modules.position ASC, lessons.position ASC, content_blocks.position ASC")
           .group_by { |cb| cb.lesson.curriculum_module.curriculum_id }
 
         # Keep the per-enrollment shape (a student in two cohorts with the same
@@ -199,9 +199,9 @@ module Api
         video_blocks = ContentBlock
           .joins(lesson: :curriculum_module)
           .includes(lesson: :curriculum_module)
-          .where(curriculum_modules: { curriculum_id: cohort.curriculum_id }, block_type: %w[video recording])
+          .where(modules: { curriculum_id: cohort.curriculum_id }, block_type: %w[video recording])
           .where.not(s3_video_key: [ nil, "" ])
-          .order("curriculum_modules.position ASC, lessons.position ASC, content_blocks.position ASC")
+          .order("modules.position ASC, lessons.position ASC, content_blocks.position ASC")
           .map { |cb| [ cb, cb.lesson.curriculum_module, cb.lesson ] }
 
         block_ids = video_blocks.map { |cb, _m, _l| cb.id }

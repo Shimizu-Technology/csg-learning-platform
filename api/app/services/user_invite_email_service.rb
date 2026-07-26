@@ -19,10 +19,15 @@ class UserInviteEmailService
         }
       )
 
-      Rails.logger.info("[InviteEmail] sent invite to #{user.email} response=#{response.inspect}")
+      Rails.logger.info(
+        "[InviteEmail] delivered recipient_user_id=#{user.id} " \
+        "provider_message_id=#{provider_message_id(response).presence || "unavailable"}"
+      )
       true
     rescue StandardError => e
-      Rails.logger.error("[InviteEmail] failed for #{user.email}: #{e.class} #{e.message}")
+      Rails.logger.error(
+        "[InviteEmail] delivery_failed recipient_user_id=#{user.id} error_class=#{e.class.name}"
+      )
       false
     end
 
@@ -41,6 +46,13 @@ class UserInviteEmailService
     end
 
     private
+
+    def provider_message_id(response)
+      return response[:id] || response["id"] if response.respond_to?(:[])
+      return response.id if response.respond_to?(:id)
+
+      nil
+    end
 
     def from_email
       ENV["RESEND_FROM_EMAIL"].presence || ENV["MAILER_FROM_EMAIL"].presence

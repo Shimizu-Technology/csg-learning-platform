@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import '@fontsource-variable/manrope'
 import { ClerkProvider } from '@clerk/clerk-react'
 import { AuthProvider } from './contexts/AuthContext'
+import { AppErrorBoundary } from './components/shared/AppErrorBoundary'
 import { PostHogProvider } from './providers/PostHogProvider'
 import App from './App'
 import './index.css'
@@ -40,7 +41,9 @@ function Root() {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <Root />
+    <AppErrorBoundary>
+      <Root />
+    </AppErrorBoundary>
   </StrictMode>,
 )
 

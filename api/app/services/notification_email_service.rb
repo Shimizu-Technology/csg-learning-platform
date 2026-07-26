@@ -23,10 +23,15 @@ class NotificationEmailService
         }
       )
 
-      Rails.logger.info("[DailyUnlock] sent to #{user.email} (#{lessons.size} lessons) response=#{response.inspect}")
+      Rails.logger.info(
+        "[DailyUnlock] delivered recipient_user_id=#{user.id} lesson_count=#{lessons.size} " \
+        "provider_message_id=#{provider_message_id(response).presence || "unavailable"}"
+      )
       true
     rescue StandardError => e
-      Rails.logger.error("[DailyUnlock] failed for #{user.email}: #{e.class} #{e.message}")
+      Rails.logger.error(
+        "[DailyUnlock] delivery_failed recipient_user_id=#{user.id} error_class=#{e.class.name}"
+      )
       false
     end
 
@@ -36,7 +41,7 @@ class NotificationEmailService
       content_block = submission.content_block
       lesson = content_block.lesson
 
-      response = Resend::Emails.send(
+      Resend::Emails.send(
         {
           from: from_email,
           to: user.email,
@@ -49,10 +54,15 @@ class NotificationEmailService
         }
       )
 
-      Rails.logger.info("[RedoEmail] sent to #{user.email} for #{content_block.title}")
+      Rails.logger.info(
+        "[RedoEmail] delivered recipient_user_id=#{user.id} content_block_id=#{content_block.id}"
+      )
       true
     rescue StandardError => e
-      Rails.logger.error("[RedoEmail] failed for #{user.email}: #{e.class} #{e.message}")
+      Rails.logger.error(
+        "[RedoEmail] delivery_failed recipient_user_id=#{user.id} " \
+        "content_block_id=#{submission.content_block_id} error_class=#{e.class.name}"
+      )
       false
     end
 
@@ -69,10 +79,16 @@ class NotificationEmailService
         }
       )
 
-      Rails.logger.info("[MentionEmail] sent to #{user.email} for message #{message.id} response=#{response.inspect}")
+      Rails.logger.info(
+        "[MentionEmail] delivered recipient_user_id=#{user.id} message_id=#{message.id} " \
+        "provider_message_id=#{provider_message_id(response).presence || "unavailable"}"
+      )
       true
     rescue StandardError => e
-      Rails.logger.error("[MentionEmail] failed for #{user.email}: #{e.class} #{e.message}")
+      Rails.logger.error(
+        "[MentionEmail] delivery_failed recipient_user_id=#{user.id} message_id=#{message.id} " \
+        "error_class=#{e.class.name}"
+      )
       false
     end
 
