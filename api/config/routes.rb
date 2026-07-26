@@ -2,7 +2,7 @@ Rails.application.routes.draw do
   mount ActionCable.server => "/cable"
 
   get "up" => "rails/health#show", as: :rails_health_check
-  get "health", to: proc { [ 200, { "Content-Type" => "application/json" }, [ '{"status":"ok"}' ] ] }
+  get "health", to: "health#show", as: :readiness_check
 
   namespace :api do
     namespace :v1 do
@@ -151,6 +151,7 @@ Rails.application.routes.draw do
       resources :enrollments, only: [ :show, :update, :destroy ] do
         resources :module_assignments, only: [ :index, :create ]
         resources :lesson_assignments, only: [ :index, :create ]
+        resource :restart, only: :create, controller: "enrollment_restarts"
       end
 
       # Access overrides (shallow)

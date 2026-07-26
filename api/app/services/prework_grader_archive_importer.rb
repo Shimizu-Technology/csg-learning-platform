@@ -23,6 +23,7 @@ class PreworkGraderArchiveImporter
   end
 
   def call
+    @learning_request_started_at = Time.current
     load_archive!
     validate_archive!
     load_destination!
@@ -171,24 +172,23 @@ class PreworkGraderArchiveImporter
   end
 
   def maybe_ensure_enrollment(user, student_data)
-    enrollment = Enrollment.find_by(user: user, cohort: cohort)
-    if enrollment
-      report[:students][:enrolled] += 1
-      return
-    end
-
-    if @create_missing_enrollments
-      report[:students][:enrolled] += 1
-      return if @dry_run
-
-      Enrollment.create!(
-        user: user,
-        cohort: cohort,
-        status: active_student?(student_data) ? :active : :dropped,
-        enrolled_at: Time.current
-      )
-    else
-      report[:students][:enrollment_missing] += 1
+    user.with_lock do
+      enrollment = Enrollment.find_by(user: user, cohort: cohort)
+      if enrollment
+        report[:students][:enrolled] += 1
+      elsif @create_missing_enrollments
+        report[:students][:enrolled] += 1
+        unless @dry_run
+          Enrollment.create!(
+            user: user,
+            cohort: cohort,
+            status: active_student?(student_data) ? :active : :dropped,
+            enrolled_at: Time.current
+          )
+        end
+      else
+        report[:students][:enrollment_missing] += 1
+      end
     end
   end
 
@@ -231,6 +231,17 @@ class PreworkGraderArchiveImporter
       report[:submissions][:unknown_grades][prework_grade] += 1
     end
 
+    enrollment = Enrollment.find_by(user: user, cohort: cohort)
+    if @dry_run || !enrollment
+      import_submission_record(user, block, submission_data, grade)
+    else
+      enrollment.with_learning_write_guard(request_started_at: @learning_request_started_at) do
+        import_submission_record(user, block, submission_data, grade)
+      end
+    end
+  end
+
+  def import_submission_record(user, block, submission_data, grade)
     existing = Submission.find_by(user: user, content_block: block)
     if existing
       update_existing_submission(existing, submission_data, grade)

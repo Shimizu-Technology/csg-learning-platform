@@ -201,41 +201,45 @@ module Api
         # honest one and overwrite the legitimate duration with a tiny value.
         # Compare-and-swap via UPDATE ... WHERE s3_video_duration_seconds IS NULL
         # makes only one writer succeed; the loser re-reads the winner's value.
-        authoritative_duration = @content_block.s3_video_duration_seconds
-        if authoritative_duration.blank? && params[:duration_seconds].to_i.positive?
-          candidate = params[:duration_seconds].to_i
-          updated = ContentBlock.where(id: @content_block.id, s3_video_duration_seconds: nil)
-                                .update_all(s3_video_duration_seconds: candidate)
-          authoritative_duration = if updated == 1
-            candidate
-          else
-            # Lost the CAS — another request set a value first. Trust theirs.
-            @content_block.reload.s3_video_duration_seconds
+        with_learning_write_guard(@learning_write_enrollment) do
+          authoritative_duration = @content_block.s3_video_duration_seconds
+          if authoritative_duration.blank? && params[:duration_seconds].to_i.positive?
+            candidate = params[:duration_seconds].to_i
+            updated = ContentBlock.where(id: @content_block.id, s3_video_duration_seconds: nil)
+                                  .update_all(s3_video_duration_seconds: candidate)
+            authoritative_duration = if updated == 1
+              candidate
+            else
+              # Lost the CAS — another request set a value first. Trust theirs.
+              @content_block.reload.s3_video_duration_seconds
+            end
+            # Mirror onto the in-memory instance so downstream reads here and
+            # the eventual response match the row, not the stale @content_block.
+            @content_block.s3_video_duration_seconds = authoritative_duration
           end
-          # Mirror onto the in-memory instance so downstream reads here and
-          # the eventual response match the row, not the stale @content_block.
-          @content_block.s3_video_duration_seconds = authoritative_duration
-        end
 
-        # find_or_initialize_by + save races against the unique index
-        # index_progresses_on_user_id_and_content_block_id when the player
-        # fires its first progress ping concurrently with another tab or with
-        # the lesson view that lazily creates a not_started row. The second
-        # save would raise ActiveRecord::RecordNotUnique → unrescued 500. Try
-        # once, and on collision re-fetch the row the racing request inserted
-        # and merge our update into it.
-        progress = upsert_video_progress(authoritative_duration)
-        if progress.save
-          render_video_progress(progress)
-        else
-          render json: { errors: progress.errors.full_messages }, status: :unprocessable_entity
+          # find_or_initialize_by + save races against the unique index
+          # index_progresses_on_user_id_and_content_block_id when the player
+          # fires its first progress ping concurrently with another tab or with
+          # the lesson view that lazily creates a not_started row. The second
+          # save would raise ActiveRecord::RecordNotUnique → unrescued 500. Try
+          # once, and on collision re-fetch the row the racing request inserted
+          # and merge our update into it.
+          progress = upsert_video_progress(authoritative_duration)
+          if progress.save
+            render_video_progress(progress)
+          else
+            render json: { errors: progress.errors.full_messages }, status: :unprocessable_entity
+          end
         end
       rescue ActiveRecord::RecordNotUnique
-        progress = upsert_video_progress(authoritative_duration, force_existing: true)
-        if progress.save
-          render_video_progress(progress)
-        else
-          render json: { errors: progress.errors.full_messages }, status: :unprocessable_entity
+        with_learning_write_guard(@learning_write_enrollment) do
+          progress = upsert_video_progress(authoritative_duration, force_existing: true)
+          if progress.save
+            render_video_progress(progress)
+          else
+            render json: { errors: progress.errors.full_messages }, status: :unprocessable_entity
+          end
         end
       end
 
@@ -310,12 +314,12 @@ module Api
         return if current_user.staff?
 
         lesson = @content_block.lesson
-        enrolled = current_user.enrollments
+        @learning_write_enrollment = current_user.enrollments
           .active
           .joins(:cohort)
-          .exists?(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
+          .find_by(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
 
-        render_forbidden("Not enrolled in this curriculum") unless enrolled
+        render_forbidden("Not enrolled in this curriculum") unless @learning_write_enrollment
       end
 
       def block_params

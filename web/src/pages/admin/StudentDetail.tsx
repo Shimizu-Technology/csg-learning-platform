@@ -21,6 +21,7 @@ import {
   Trash2,
   Film,
   Eye,
+  RotateCcw,
 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { ProgressBar } from '../../components/shared/ProgressBar'
@@ -30,6 +31,8 @@ import { useToast } from '../../contexts/ToastContext'
 import { presenceStatus, usePresenceNow } from '../../lib/presence'
 import { subscribeToStaffPresence } from '../../lib/realtime'
 import { PresenceBadge, PresenceDot } from '../../components/shared/PresenceBadge'
+import { useConfirm } from '../../contexts/ConfirmContext'
+import { useAuthContext } from '../../contexts/AuthContext'
 
 const BLOCK_ICONS: Record<string, React.ElementType> = {
   reading: FileText,
@@ -445,6 +448,8 @@ export function StudentDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const toast = useToast()
+  const confirmAction = useConfirm()
+  const { user: currentUser } = useAuthContext()
   const presenceNow = usePresenceNow()
   const [data, setData] = useState<ProgressData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -460,6 +465,7 @@ export function StudentDetail() {
   const [editingUser, setEditingUser] = useState(false)
   const [editForm, setEditForm] = useState({ first_name: '', last_name: '', email: '', github_username: '' })
   const [savingUser, setSavingUser] = useState(false)
+  const [restartingEnrollment, setRestartingEnrollment] = useState(false)
   const [recordingProgress, setRecordingProgress] = useState<RecordingProgress[]>([])
   const [lessonVideoProgress, setLessonVideoProgress] = useState<LessonVideoProgress[]>([])
 
@@ -478,6 +484,47 @@ export function StudentDetail() {
     lessonVideoProgress.forEach((v) => map.set(v.content_block_id, v))
     return map
   }, [lessonVideoProgress])
+
+  const restartEnrollment = async () => {
+    if (!data || restartingEnrollment) return
+
+    const confirmed = await confirmAction({
+      title: `Restart ${data.user.full_name}'s class progress?`,
+      description: `This clears submissions, lesson and recording progress, and student-specific lesson overrides for ${data.cohort.name}. Messages, identity, and work from other curricula stay intact. A recovery snapshot is kept in the audit log.`,
+      confirmLabel: 'Restart class progress',
+      tone: 'danger',
+      confirmationText: data.user.email,
+      confirmationLabel: `Type ${data.user.email} to confirm`,
+    })
+    if (!confirmed) return
+
+    setRestartingEnrollment(true)
+    try {
+      const response = await api.restartEnrollment(
+        data.enrollment.id,
+        data.user.email,
+        'Restarted from student detail'
+      )
+      if (response.error) {
+        notifyError(response.error)
+        return
+      }
+
+      const refreshed = await api.getStudentProgress(data.user.id)
+      if (refreshed.error) {
+        notifyError(`Progress restarted, but the refreshed student view could not load: ${refreshed.error}`)
+        return
+      }
+      if (refreshed.data) setData(refreshed.data)
+      setRecordingProgress([])
+      setLessonVideoProgress([])
+      notifySuccess('Class progress restarted. The previous learning records are preserved in the audit snapshot.')
+    } catch (restartError) {
+      notifyError(restartError instanceof Error ? restartError.message : 'Could not restart class progress')
+    } finally {
+      setRestartingEnrollment(false)
+    }
+  }
 
   useEffect(() => {
     if (!id) return
@@ -901,6 +948,17 @@ export function StudentDetail() {
               <Eye className="h-3.5 w-3.5" />
               Cohort student view
             </Link>
+            {currentUser?.is_admin && (
+              <button
+                type="button"
+                onClick={restartEnrollment}
+                disabled={restartingEnrollment}
+                className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RotateCcw className={`h-3.5 w-3.5 ${restartingEnrollment ? 'animate-spin' : ''}`} />
+                {restartingEnrollment ? 'Restarting…' : 'Restart class progress'}
+              </button>
+            )}
           </div>
         </div>
 

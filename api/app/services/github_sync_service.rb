@@ -8,8 +8,14 @@ class GithubSyncService
   # Sync a single student's repo for a specific module's exercises.
   # Returns { synced: Integer, errors: Array<String> }
   def sync_student(user:, cohort:, curriculum_module:, repository_name_override: nil)
+    request_started_at = Time.current
     errors = []
     repo_name = repository_name_override.presence || cohort.repository_name
+    enrollment = user.enrollments.find_by(cohort: cohort)
+
+    unless enrollment
+      return { synced: 0, errors: [ "Student is not enrolled in this cohort" ] }
+    end
 
     unless user.github_username.present?
       return { synced: 0, errors: [ "Student has no GitHub username" ] }
@@ -54,53 +60,55 @@ class GithubSyncService
     commit_hash = repo_data[:commit_hash]
     synced_count = 0
 
-    files.each do |file|
-      file_text = file["text"]
-      next unless file_text.present?
+    enrollment.with_learning_write_guard(request_started_at: request_started_at) do
+      files.each do |file|
+        file_text = file["text"]
+        next unless file_text.present?
 
-      block = exercise_blocks.find { |b| b.filename&.downcase == file["name"]&.downcase }
-      next unless block
+        block = exercise_blocks.find { |b| b.filename&.downcase == file["name"]&.downcase }
+        next unless block
 
-      line_count = file_text.count("\n") + 1
-      ref = commit_hash.presence || "HEAD"
-      github_code_url = "https://github.com/#{user.github_username}/#{repo_name}/blob/#{ref}/#{file['name']}#L1-L#{line_count}"
+        line_count = file_text.count("\n") + 1
+        ref = commit_hash.presence || "HEAD"
+        github_code_url = "https://github.com/#{user.github_username}/#{repo_name}/blob/#{ref}/#{file['name']}#L1-L#{line_count}"
 
-      existing = Submission.where(user: user, content_block_id: block.id).order(:created_at).last
+        existing = Submission.where(user: user, content_block_id: block.id).order(:created_at).last
 
-      if existing
-        if existing.text != file_text
-          attrs = {
+        if existing
+          if existing.text != file_text
+            attrs = {
+              submission_type: :prework_github_sync,
+              text: file_text,
+              github_code_url: github_code_url,
+              num_submissions: existing.num_submissions + 1
+            }
+
+            passing = %w[A B C].include?(existing.grade)
+            unless passing
+              attrs[:grade] = nil
+              attrs[:feedback] = nil
+              attrs[:graded_at] = nil
+              attrs[:graded_by_id] = nil
+            end
+
+            existing.update!(attrs)
+            progress = Progress.find_or_initialize_by(user: user, content_block_id: block.id)
+            progress.update!(status: :completed)
+            synced_count += 1
+          end
+        else
+          Submission.create!(
+            user: user,
+            content_block_id: block.id,
             submission_type: :prework_github_sync,
             text: file_text,
             github_code_url: github_code_url,
-            num_submissions: existing.num_submissions + 1
-          }
-
-          passing = %w[A B C].include?(existing.grade)
-          unless passing
-            attrs[:grade] = nil
-            attrs[:feedback] = nil
-            attrs[:graded_at] = nil
-            attrs[:graded_by_id] = nil
-          end
-
-          existing.update!(attrs)
+            num_submissions: 1
+          )
           progress = Progress.find_or_initialize_by(user: user, content_block_id: block.id)
           progress.update!(status: :completed)
           synced_count += 1
         end
-      else
-        Submission.create!(
-          user: user,
-          content_block_id: block.id,
-          submission_type: :prework_github_sync,
-          text: file_text,
-          github_code_url: github_code_url,
-          num_submissions: 1
-        )
-        progress = Progress.find_or_initialize_by(user: user, content_block_id: block.id)
-        progress.update!(status: :completed)
-        synced_count += 1
       end
     end
 

@@ -29,7 +29,7 @@
 | Runtime | Docker |
 | Branch | `main` |
 | Root directory | `api` |
-| Health check path | `/up` |
+| Health check path | `/health` |
 
 Create a second Render service for background jobs before switching production
 job delivery to Solid Queue:
@@ -142,7 +142,12 @@ orphaned storage indefinitely.
 1. Push to `main` triggers auto-deploy on Render
 2. Docker build runs from `api/Dockerfile`
 3. `bin/docker-entrypoint` runs migrations automatically on startup
-4. Health check at `/up` confirms the app is ready
+4. Readiness check at `/health` confirms Rails can reach PostgreSQL
+
+`/up` remains the process-level liveness endpoint. It can prove that Rails has
+booted, but it intentionally does not prove that the database is reachable.
+Render should use `/health`; monitoring may check both endpoints to distinguish
+an application dependency failure from a dead process.
 
 ### Manual Deploy
 

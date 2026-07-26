@@ -27,6 +27,13 @@ class RecordingsTest < ActionDispatch::IntegrationTest
       last_name: "User",
       role: :admin
     )
+    @instructor = User.create!(
+      clerk_id: "clerk_instructor",
+      email: "instructor@example.com",
+      first_name: "Instructor",
+      last_name: "User",
+      role: :instructor
+    )
 
     @enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
     ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @module)
@@ -49,6 +56,45 @@ class RecordingsTest < ActionDispatch::IntegrationTest
 
     assert_response :created
     assert_equal "Class 1", Recording.last.title
+  end
+
+  test "instructor can presign and publish a cohort recording" do
+    post_data = Struct.new(:url, :fields).new("https://s3.example/upload", { "key" => "signed-key" })
+    original_configured = S3Service.method(:configured?)
+    original_post = S3Service.method(:generate_presigned_post)
+    S3Service.define_singleton_method(:configured?) { true }
+    S3Service.define_singleton_method(:generate_presigned_post) { |_key, _content_type| post_data }
+
+    as_user(@instructor) do
+      post "/api/v1/cohorts/#{@cohort.id}/recordings_presign",
+        params: { filename: "Class 1.mov", content_type: "video/quicktime" },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :success
+    signed = JSON.parse(response.body)
+    assert_equal "https://s3.example/upload", signed.fetch("upload_url")
+
+    with_s3_metadata(content_type: "video/quicktime", content_length: 1234) do
+      as_user(@instructor) do
+        post "/api/v1/cohorts/#{@cohort.id}/recordings",
+          params: {
+            title: "Class 1",
+            s3_key: signed.fetch("s3_key"),
+            content_type: "video/quicktime",
+            file_size: 1234
+          },
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :created
+    assert_equal @instructor, Recording.last.uploaded_by
+  ensure
+    S3Service.define_singleton_method(:configured?, original_configured) if original_configured
+    S3Service.define_singleton_method(:generate_presigned_post, original_post) if original_post
   end
 
   test "recording create rejects keys outside cohort prefix" do
@@ -176,6 +222,27 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     assert progress.completed?
   end
 
+  test "watch progress rejects a request from before the enrollment reset" do
+    recording = create_recording!(duration_seconds: 100)
+    @enrollment.update!(learning_state_reset_at: 1.minute.from_now)
+
+    as_user(@student) do
+      patch "/api/v1/watch_progress",
+        params: {
+          recording_id: recording.id,
+          last_position_seconds: 30,
+          total_watched_seconds: 30,
+          duration_seconds: 100
+        },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :conflict
+    assert_not WatchProgress.exists?(user: @student, recording: recording)
+    assert_match "restarted", JSON.parse(response.body).fetch("error")
+  end
+
   test "cohort watch matrix includes not started recordings" do
     create_recording!(title: "Class 1")
     create_recording!(title: "Class 2", s3_key: "recordings/cohort_#{@cohort.id}/class-2.mp4", position: 1)
@@ -189,6 +256,43 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     assert_equal [ "Class 1", "Class 2" ], body.fetch("recordings").map { |r| r.fetch("title") }
     student_row = body.fetch("students").find { |s| s.fetch("user_id") == @student.id }
     assert_equal [ 0, 0 ], student_row.fetch("recordings").map { |r| r.fetch("progress_percentage") }
+  end
+
+  test "student and cohort lesson video progress use the modules table alias" do
+    lesson = Lesson.create!(curriculum_module: @module, title: "Replay lesson", release_day: 0, position: 0)
+    block = ContentBlock.create!(
+      lesson: lesson,
+      block_type: :video,
+      title: "Replay",
+      position: 0,
+      s3_video_key: "content_videos/replay.mp4",
+      s3_video_duration_seconds: 120
+    )
+    Progress.create!(
+      user: @student,
+      content_block: block,
+      status: :in_progress,
+      video_last_position: 30,
+      video_total_watched: 45
+    )
+
+    as_user(@admin) do
+      get "/api/v1/watch_progress/student/#{@student.id}/lesson_videos", headers: auth_headers
+    end
+
+    assert_response :success
+    student_row = JSON.parse(response.body).fetch("lesson_videos").sole
+    assert_equal block.id, student_row.fetch("content_block_id")
+    assert_equal 37.5, student_row.fetch("progress_percentage")
+
+    as_user(@admin) do
+      get "/api/v1/cohorts/#{@cohort.id}/lesson_video_progress", headers: auth_headers
+    end
+
+    assert_response :success
+    body = JSON.parse(response.body)
+    assert_equal [ block.id ], body.fetch("videos").map { |video| video.fetch("id") }
+    assert_equal 37.5, body.fetch("students").sole.fetch("videos").sole.fetch("progress_percentage")
   end
 
   private

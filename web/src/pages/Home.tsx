@@ -51,7 +51,7 @@ export function HomePage() {
               </span>
               <span>
                 <span className="block text-sm font-extrabold tracking-tight">CSG Learning</span>
-                <span className="hidden text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45 sm:block">Code School of Guam</span>
+                <span className="hidden text-[10px] font-semibold uppercase tracking-[0.18em] text-white/60 sm:block">Code School of Guam</span>
               </span>
             </Link>
 
@@ -113,7 +113,7 @@ export function HomePage() {
                       <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary-600 text-white"><GraduationCap className="h-4 w-4" /></span>
                       <div>
                         <p className="text-xs font-extrabold">Your learning path</p>
-                        <p className="text-[10px] font-semibold text-slate-400">Live Class · Week 4</p>
+                        <p className="text-[10px] font-semibold text-slate-600">Live Class · Week 4</p>
                       </div>
                     </div>
                     <span className="rounded-full bg-green-100 px-2.5 py-1 text-[10px] font-bold text-green-700">On track</span>
@@ -137,7 +137,7 @@ export function HomePage() {
                         <span className="absolute bottom-3 left-[9px] top-3 w-px bg-slate-200" />
                         <div className="relative flex items-center gap-3">
                           <span className="absolute -left-7 flex h-5 w-5 items-center justify-center rounded-full bg-green-100 ring-4 ring-[#fbfbfc]"><CheckCircle2 className="h-3.5 w-3.5 text-green-600" /></span>
-                          <div className="min-w-0"><p className="text-xs font-bold">HTML & CSS foundations</p><p className="text-[10px] text-slate-400">Complete</p></div>
+                          <div className="min-w-0"><p className="text-xs font-bold">HTML & CSS foundations</p><p className="text-[10px] text-slate-600">Complete</p></div>
                         </div>
                         <div className="relative flex items-center gap-3">
                           <span className="absolute -left-7 h-5 w-5 rounded-full border-[5px] border-primary-100 bg-primary-600 ring-4 ring-[#fbfbfc]" />
@@ -145,7 +145,7 @@ export function HomePage() {
                         </div>
                         <div className="relative flex items-center gap-3">
                           <span className="absolute -left-7 h-5 w-5 rounded-full border-2 border-slate-200 bg-white ring-4 ring-[#fbfbfc]" />
-                          <div className="min-w-0"><p className="text-xs font-bold text-slate-500">React applications</p><p className="text-[10px] text-slate-400">Up next</p></div>
+                          <div className="min-w-0"><p className="text-xs font-bold text-slate-500">React applications</p><p className="text-[10px] text-slate-600">Up next</p></div>
                         </div>
                       </div>
                     </div>
@@ -153,17 +153,17 @@ export function HomePage() {
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-1">
                       <div className="rounded-2xl border border-slate-200 bg-white p-3">
                         <Clock3 className="h-4 w-4 text-primary-600" />
-                        <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Office hours</p>
+                        <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-slate-600">Office hours</p>
                         <p className="mt-0.5 text-xs font-extrabold">Today · 4:00 PM</p>
                       </div>
                       <div className="rounded-2xl border border-slate-200 bg-white p-3">
                         <PlayCircle className="h-4 w-4 text-primary-600" />
-                        <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Recordings</p>
+                        <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-slate-600">Recordings</p>
                         <p className="mt-0.5 text-xs font-extrabold">2 new this week</p>
                       </div>
                       <div className="col-span-2 rounded-2xl border border-primary-100 bg-primary-50 p-3 sm:col-span-1">
                         <MessageCircle className="h-4 w-4 text-primary-600" />
-                        <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-primary-500">Class update</p>
+                        <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-primary-700">Class update</p>
                         <p className="mt-0.5 text-xs font-extrabold">Demo moved to Friday</p>
                       </div>
                     </div>
@@ -203,7 +203,7 @@ export function HomePage() {
                     <item.icon className="h-5 w-5" />
                   </span>
                   <div>
-                    <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-slate-400">0{index + 1}</span>
+                    <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-slate-600">0{index + 1}</span>
                     <h3 className="mt-1 text-lg font-extrabold tracking-tight text-slate-950">{item.label}</h3>
                   </div>
                   <p className="text-sm leading-6 text-slate-600 sm:text-base sm:leading-7">{item.body}</p>
@@ -217,7 +217,7 @@ export function HomePage() {
       <section className="border-t border-[#d8d1c4] bg-primary-700 text-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-8 px-4 py-12 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8 lg:py-16">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary-200">Your cohort is already moving</p>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary-100">Your cohort is already moving</p>
             <h2 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">Pick up exactly where you left off.</h2>
           </div>
           <Link to={isSignedIn ? dashboardPath : '/sign-in'} className="group inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-extrabold text-primary-800 transition hover:-translate-y-0.5 hover:bg-primary-50">

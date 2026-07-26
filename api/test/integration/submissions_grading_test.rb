@@ -39,8 +39,8 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     @cohort = Cohort.create!(
       curriculum: @curriculum, name: "Cohort", start_date: Date.current, status: :active
     )
-    enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
-    ModuleAssignment.create!(enrollment: enrollment, curriculum_module: @mod, unlocked: true)
+    @enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+    ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @mod, unlocked: true)
 
     @submission = Submission.create!(user: @student, content_block: @block, submission_type: :text_submission, text: "my code")
   end
@@ -66,6 +66,20 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     assert_not_nil progress
     assert progress.completed?
     assert_not_nil progress.completed_at
+  end
+
+  test "staff grade rejects a request from before the enrollment restart" do
+    @enrollment.update!(learning_state_reset_at: 1.minute.from_now)
+
+    as_user(@admin) do
+      patch "/api/v1/submissions/#{@submission.id}/grade",
+        params: { grade: "A", feedback: "Stale grade" },
+        headers: auth_headers, as: :json
+    end
+
+    assert_response :conflict
+    assert_nil @submission.reload.grade
+    assert_not Progress.exists?(user: @student, content_block: @block)
   end
 
   test "student submission marks progress completed immediately" do

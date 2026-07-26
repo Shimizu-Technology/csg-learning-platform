@@ -32,15 +32,21 @@ class ClerkInvitationService
 
     if response.success?
       parsed = response.parsed_response
-      Rails.logger.info("Clerk invitation created for #{email}: id=#{parsed['id']}")
+      Rails.logger.info(
+        "[ClerkInvitation] created invitation_id=#{parsed['id']}"
+      )
       { success: true, invitation_id: parsed["id"], status: parsed["status"], url: parsed["url"] }
     else
       error_message = extract_error_message(response.parsed_response)
-      Rails.logger.error("Clerk invitation failed for #{email}: #{error_message}")
+      Rails.logger.error(
+        "[ClerkInvitation] create_failed status_code=#{response.code}"
+      )
       { success: false, error: error_message, status_code: response.code }
     end
   rescue HTTParty::Error, Timeout::Error, Errno::ECONNREFUSED => e
-    Rails.logger.error("Clerk invitation network error for #{email}: #{e.message}")
+    Rails.logger.error(
+      "[ClerkInvitation] request_failed error_class=#{e.class.name}"
+    )
     { success: false, error: "Could not reach Clerk API: #{e.message}" }
   end
 

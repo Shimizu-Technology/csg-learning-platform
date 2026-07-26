@@ -15,6 +15,8 @@
     "audit:dependencies": "node ../.github/scripts/npm-audit.mjs npm-audit-exceptions.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:a11y": "playwright test --grep @accessibility",
     "check": "npm run lint && npm run typecheck && npm run test && npm run build",
     "preview": "vite preview"
   },
@@ -45,7 +47,9 @@
     "react-router-dom": "7.18.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@eslint/js": "10.0.1",
+    "@playwright/test": "^1.62.0",
     "@tailwindcss/vite": "^4.2.1",
     "@types/node": "^24.10.15",
     "@types/react": "^19.2.7",

@@ -112,11 +112,23 @@ export class CsgApi {
   submission = (id: number, signal?: AbortSignal) => this.request<{ submission: Submission }>(`/api/v1/submissions/${id}`, { signal });
   gradeSubmission = (id: number, grade: 'A' | 'B' | 'C' | 'R', feedback: string) => this.request<{ submission: Submission }>(`/api/v1/submissions/${id}/grade`, { method: 'PATCH', body: JSON.stringify({ grade, feedback }) });
   studentProgress = (studentId: number, signal?: AbortSignal) => this.request<StudentProgressDetail>(`/api/v1/progress/student/${studentId}`, { signal });
+  restartEnrollment = (enrollmentId: number, confirmation: string, reason?: string) => this.request<{
+    message: string;
+    restart: { id: number; student_id: number; cohort_id: number; records_removed: Record<string, number>; created_at: string };
+  }>(`/api/v1/enrollments/${enrollmentId}/restart`, { method: 'POST', body: JSON.stringify({ confirmation, reason }) });
   studentRecordingProgress = (studentId: number, signal?: AbortSignal) => this.request<{ watch_progresses: StaffVideoProgress[] }>(`/api/v1/watch_progress/student/${studentId}`, { signal });
   studentLessonVideoProgress = (studentId: number, signal?: AbortSignal) => this.request<{ lesson_videos: StaffVideoProgress[] }>(`/api/v1/watch_progress/student/${studentId}/lesson_videos`, { signal });
   contentVideoStream = (id: number, signal?: AbortSignal) => this.request<{ stream_url: string; expires_at: string; video_progress: ContentVideoProgress | null }>(`/api/v1/content_blocks/${id}/video_stream`, { signal });
   updateContentVideoProgress = (id: number, input: VideoProgressInput) => this.request<{ video_progress: ContentVideoProgress & { content_block_id: number; completed: boolean } }>(`/api/v1/content_blocks/${id}/video_progress`, { method: 'PATCH', body: JSON.stringify(input) });
   recordings = (signal?: AbortSignal) => this.request<{ recordings: RecordingItem[]; s3_recordings: RecordingItem[]; items: RecordingItem[] }>('/api/v1/recordings', { signal });
+  cohorts = (signal?: AbortSignal) => this.request<{ cohorts: { id: number; name: string; status: string; start_date: string }[] }>('/api/v1/cohorts', { signal });
+  presignRecordingUpload = (cohortId: number, filename: string, contentType: string) => this.request<{ upload_url: string; fields: Record<string, string>; s3_key: string }>(`/api/v1/cohorts/${cohortId}/recordings_presign`, { method: 'POST', body: JSON.stringify({ filename, content_type: contentType }) });
+  initiateMultipartUpload = (cohortId: number, filename: string, contentType: string, fileSize: number) => this.request<{ s3_key: string; upload_id: string }>('/api/v1/uploads/multipart/initiate', { method: 'POST', body: JSON.stringify({ cohort_id: cohortId, filename, content_type: contentType, file_size: fileSize }) });
+  multipartPartUrl = (s3Key: string, uploadId: string, partNumber: number) => this.request<{ upload_url: string }>('/api/v1/uploads/multipart/part_url', { method: 'POST', body: JSON.stringify({ s3_key: s3Key, upload_id: uploadId, part_number: partNumber }) });
+  completeMultipartUpload = (s3Key: string, uploadId: string, parts: { part_number: number; etag: string }[]) => this.request<void>('/api/v1/uploads/multipart/complete', { method: 'POST', body: JSON.stringify({ s3_key: s3Key, upload_id: uploadId, parts }) });
+  abortMultipartUpload = (s3Key: string, uploadId: string) => this.request<void>('/api/v1/uploads/multipart/abort', { method: 'DELETE', body: JSON.stringify({ s3_key: s3Key, upload_id: uploadId }) });
+  abandonUpload = (s3Key: string) => this.request<void>(`/api/v1/uploads/abandon?s3_key=${encodeURIComponent(s3Key)}`, { method: 'DELETE' });
+  createRecording = (cohortId: number, input: { title: string; description?: string; recorded_date?: string; s3_key: string; content_type: string; file_size: number }) => this.request<{ recording: RecordingItem }>(`/api/v1/cohorts/${cohortId}/recordings`, { method: 'POST', body: JSON.stringify(input) });
   recordingStream = (cohortId: number, recordingId: number, signal?: AbortSignal) => this.request<{ stream_url: string; expires_at: string }>(`/api/v1/cohorts/${cohortId}/recordings/${recordingId}/stream_url`, { signal });
   updateWatchProgress = (recordingId: number, input: VideoProgressInput) => this.request<{ watch_progress: WatchProgress }>('/api/v1/watch_progress', { method: 'PATCH', body: JSON.stringify({ recording_id: recordingId, ...input }) });
   workspaces = () => this.request<{ workspaces: WorkspaceSummary[] }>('/api/v1/workspaces');

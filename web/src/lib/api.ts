@@ -556,6 +556,20 @@ export const api = {
   // Student progress (admin)
   getStudentProgress: (userId: number) =>
     fetchApi<StudentProgressResponse>(`/api/v1/progress/student/${userId}`),
+  restartEnrollment: (enrollmentId: number, confirmation: string, reason?: string) =>
+    fetchApi<{
+      message: string;
+      restart: {
+        id: number;
+        student_id: number;
+        cohort_id: number;
+        records_removed: Record<string, number>;
+        created_at: string;
+      };
+    }>(`/api/v1/enrollments/${enrollmentId}/restart`, {
+      method: 'POST',
+      body: JSON.stringify({ confirmation, reason }),
+    }),
 
   // Admin — Users
   getUsers: (params?: Record<string, string>) => {
