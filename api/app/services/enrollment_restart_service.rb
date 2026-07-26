@@ -11,6 +11,7 @@ class EnrollmentRestartService
 
   def call
     EnrollmentRestart.transaction do
+      student.lock!
       enrollment.lock!
       ensure_unambiguous_curriculum!
 
@@ -59,7 +60,12 @@ class EnrollmentRestartService
       watch_progresses.delete_all
       lesson_assignments.delete_all
       enrollment.module_assignments.update_all(unlock_date_override: nil, updated_at: Time.current)
-      enrollment.update!(status: :active, enrolled_at: Time.current, completed_at: nil)
+      enrollment.update!(
+        status: :active,
+        enrolled_at: Time.current,
+        completed_at: nil,
+        learning_state_reset_at: Time.current
+      )
 
       restart
     end
@@ -70,13 +76,13 @@ class EnrollmentRestartService
   attr_reader :enrollment, :student, :cohort, :performed_by, :reason
 
   def ensure_unambiguous_curriculum!
-    overlapping = student.enrollments.active
+    overlapping = student.enrollments
       .joins(:cohort)
       .where(cohorts: { curriculum_id: cohort.curriculum_id })
       .where.not(id: enrollment.id)
 
     return unless overlapping.exists?
 
-    raise Conflict, "This student has another active enrollment using the same curriculum. End that enrollment before restarting this one."
+    raise Conflict, "This student has another enrollment using the same curriculum. Remove that enrollment before restarting this one."
   end
 end

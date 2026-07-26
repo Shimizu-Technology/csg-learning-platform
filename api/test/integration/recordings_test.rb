@@ -222,6 +222,27 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     assert progress.completed?
   end
 
+  test "watch progress rejects a request from before the enrollment reset" do
+    recording = create_recording!(duration_seconds: 100)
+    @enrollment.update!(learning_state_reset_at: 1.minute.from_now)
+
+    as_user(@student) do
+      patch "/api/v1/watch_progress",
+        params: {
+          recording_id: recording.id,
+          last_position_seconds: 30,
+          total_watched_seconds: 30,
+          duration_seconds: 100
+        },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :conflict
+    assert_not WatchProgress.exists?(user: @student, recording: recording)
+    assert_match "restarted", JSON.parse(response.body).fetch("error")
+  end
+
   test "cohort watch matrix includes not started recordings" do
     create_recording!(title: "Class 1")
     create_recording!(title: "Class 2", s3_key: "recordings/cohort_#{@cohort.id}/class-2.mp4", position: 1)

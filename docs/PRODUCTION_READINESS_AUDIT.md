@@ -38,8 +38,8 @@ restore, and authenticated E2E items below are configured and rehearsed.
 
 | Surface | Verification | Result |
 | --- | --- | --- |
-| Rails | Minitest | 302 tests / 926 assertions passed |
-| Rails | RuboCop | 221 files, no offenses |
+| Rails | Minitest | 304 tests / 933 assertions passed |
+| Rails | RuboCop | 222 files, no offenses |
 | Rails | Brakeman | no warnings (one documented ignored warning) |
 | Rails | bundler-audit | no vulnerable gems |
 | Web | Vitest | 5 suites / 21 tests passed |
@@ -104,9 +104,12 @@ assignments. It clears that curriculum's progress and submissions, the
 cohort's recording progress, lesson-level overrides, submission notifications,
 and module unlock-date overrides. The API writes a complete audit/recovery
 snapshot in the same transaction before removal. Only admins can run it, the
-student's exact email is required, and a second active enrollment using the
-same curriculum blocks the operation because progress records are currently
-user-and-content scoped rather than enrollment scoped.
+student's exact email must be typed, and any second enrollment using the same
+curriculum blocks the operation because progress records are currently
+user-and-content scoped rather than enrollment scoped. A reset-generation
+timestamp and enrollment row lock reject learning writes that began before the
+reset committed, preventing an in-flight player or submission request from
+recreating cleared state.
 
 ## Findings by track
 

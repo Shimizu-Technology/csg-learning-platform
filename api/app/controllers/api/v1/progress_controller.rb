@@ -13,24 +13,26 @@ module Api
           return if performed?
         end
 
-        progress = Progress.find_or_initialize_by(
-          user: current_user,
-          content_block: content_block
-        )
+        with_learning_write_guard(@learning_write_enrollment) do
+          progress = Progress.find_or_initialize_by(
+            user: current_user,
+            content_block: content_block
+          )
 
-        progress.status = params[:status]
+          progress.status = params[:status]
 
-        if progress.save
-          render json: {
-            progress: {
-              id: progress.id,
-              content_block_id: progress.content_block_id,
-              status: progress.status,
-              completed_at: progress.completed_at
+          if progress.save
+            render json: {
+              progress: {
+                id: progress.id,
+                content_block_id: progress.content_block_id,
+                status: progress.status,
+                completed_at: progress.completed_at
+              }
             }
-          }
-        else
-          render json: { errors: progress.errors.full_messages }, status: :unprocessable_entity
+          else
+            render json: { errors: progress.errors.full_messages }, status: :unprocessable_entity
+          end
         end
       end
 

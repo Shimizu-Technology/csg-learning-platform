@@ -96,10 +96,9 @@ class EnrollmentRestartsTest < ActionDispatch::IntegrationTest
     assert Progress.exists?(@progress.id)
   end
 
-  test "restart refuses ambiguous progress shared by two active enrollments" do
-    @enrollment.update!(status: :active)
+  test "restart refuses progress shared by any other same-curriculum enrollment" do
     second_cohort = Cohort.create!(curriculum: @curriculum, name: "Cohort 8", start_date: Date.current, status: :active)
-    Enrollment.create!(user: @student, cohort: second_cohort, status: :active)
+    Enrollment.create!(user: @student, cohort: second_cohort, status: :dropped)
 
     as_user(@admin) do
       post "/api/v1/enrollments/#{@enrollment.id}/restart",
@@ -111,6 +110,19 @@ class EnrollmentRestartsTest < ActionDispatch::IntegrationTest
     assert_response :conflict
     assert Progress.exists?(@progress.id)
     assert_equal 0, EnrollmentRestart.count
+  end
+
+  test "learning write guard rejects requests that started before a restart" do
+    request_started_at = Time.current
+    @enrollment.update!(learning_state_reset_at: request_started_at + 1.second)
+
+    error = assert_raises(Enrollment::StaleLearningWrite) do
+      @enrollment.with_learning_write_guard(request_started_at: request_started_at) do
+        flunk "stale write must not run"
+      end
+    end
+
+    assert_match "restarted", error.message
   end
 
   private

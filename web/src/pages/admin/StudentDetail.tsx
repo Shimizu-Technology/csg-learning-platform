@@ -493,6 +493,8 @@ export function StudentDetail() {
       description: `This clears submissions, lesson and recording progress, and student-specific lesson overrides for ${data.cohort.name}. Messages, identity, and work from other curricula stay intact. A recovery snapshot is kept in the audit log.`,
       confirmLabel: 'Restart class progress',
       tone: 'danger',
+      confirmationText: data.user.email,
+      confirmationLabel: `Type ${data.user.email} to confirm`,
     })
     if (!confirmed) return
 

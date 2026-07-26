@@ -1,6 +1,12 @@
 class ApplicationController < ActionController::API
   include ClerkAuthenticatable
 
+  before_action :capture_learning_request_started_at
+
+  rescue_from Enrollment::StaleLearningWrite do |error|
+    render json: { error: error.message }, status: :conflict
+  end
+
   # Permissive but strict-enough video MIME validator: matches `video/<subtype>`
   # for any valid subtype token, rejects everything else (image/, application/,
   # text/, blank, etc.). Used by every presign action so a forged content_type
@@ -8,6 +14,16 @@ class ApplicationController < ActionController::API
   VIDEO_MIME_PATTERN = /\Avideo\/[a-z0-9][a-z0-9.\-+]*\z/i
 
   private
+
+  def capture_learning_request_started_at
+    @learning_request_started_at = Time.current
+  end
+
+  def with_learning_write_guard(enrollment, &)
+    return yield unless enrollment
+
+    enrollment.with_learning_write_guard(request_started_at: @learning_request_started_at, &)
+  end
 
   # Returns the validated, lowercased MIME if it matches `video/<subtype>`,
   # otherwise renders 422 and returns nil so the caller can `return if nil`.
@@ -32,6 +48,7 @@ class ApplicationController < ActionController::API
       return
     end
 
+    @learning_write_enrollment = enrollment
     assignment = enrollment.module_assignments.find { |ma| ma.module_id == lesson.module_id }
     lesson_assignment = enrollment.lesson_assignments.find { |la| la.lesson_id == lesson.id }
 

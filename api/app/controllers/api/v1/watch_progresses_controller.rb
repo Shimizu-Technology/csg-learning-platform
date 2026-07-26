@@ -6,8 +6,13 @@ module Api
       # PATCH /api/v1/watch_progress
       def update
         recording = Recording.find(params[:recording_id])
+        enrollment = nil
 
-        unless current_user.staff? || current_user.enrollments.exists?(cohort: recording.cohort, status: :active)
+        unless current_user.staff?
+          enrollment = current_user.enrollments.find_by(cohort: recording.cohort, status: :active)
+        end
+
+        unless current_user.staff? || enrollment
           render_forbidden("Not enrolled in this cohort")
           return
         end
@@ -19,37 +24,41 @@ module Api
         # against index_watch_progresses_on_user_id_and_recording_id, surfacing
         # as an unrescued 500. Retry once after looking the row back up so the
         # second ping merges with the first.
-        progress = upsert_watch_progress(recording)
+        with_learning_write_guard(enrollment) do
+          progress = upsert_watch_progress(recording)
 
-        if progress.save
-          render json: {
-            watch_progress: {
-              recording_id: progress.recording_id,
-              last_position_seconds: progress.last_position_seconds,
-              total_watched_seconds: progress.total_watched_seconds,
-              progress_percentage: progress.progress_percentage,
-              completed: progress.completed,
-              last_watched_at: progress.last_watched_at
+          if progress.save
+            render json: {
+              watch_progress: {
+                recording_id: progress.recording_id,
+                last_position_seconds: progress.last_position_seconds,
+                total_watched_seconds: progress.total_watched_seconds,
+                progress_percentage: progress.progress_percentage,
+                completed: progress.completed,
+                last_watched_at: progress.last_watched_at
+              }
             }
-          }
-        else
-          render json: { errors: progress.errors.full_messages }, status: :unprocessable_entity
+          else
+            render json: { errors: progress.errors.full_messages }, status: :unprocessable_entity
+          end
         end
       rescue ActiveRecord::RecordNotUnique
-        progress = upsert_watch_progress(recording, force_existing: true)
-        if progress.save
-          render json: {
-            watch_progress: {
-              recording_id: progress.recording_id,
-              last_position_seconds: progress.last_position_seconds,
-              total_watched_seconds: progress.total_watched_seconds,
-              progress_percentage: progress.progress_percentage,
-              completed: progress.completed,
-              last_watched_at: progress.last_watched_at
+        with_learning_write_guard(enrollment) do
+          progress = upsert_watch_progress(recording, force_existing: true)
+          if progress.save
+            render json: {
+              watch_progress: {
+                recording_id: progress.recording_id,
+                last_position_seconds: progress.last_position_seconds,
+                total_watched_seconds: progress.total_watched_seconds,
+                progress_percentage: progress.progress_percentage,
+                completed: progress.completed,
+                last_watched_at: progress.last_watched_at
+              }
             }
-          }
-        else
-          render json: { errors: progress.errors.full_messages }, status: :unprocessable_entity
+          else
+            render json: { errors: progress.errors.full_messages }, status: :unprocessable_entity
+          end
         end
       end
 

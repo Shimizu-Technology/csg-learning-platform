@@ -74,14 +74,16 @@ module Api
           submission.num_submissions = existing.num_submissions + 1
         end
 
-        if submission.save
-          progress = Progress.find_or_initialize_by(user: current_user, content_block_id: submission.content_block_id)
-          progress.update!(status: :completed)
-          SubmissionNotificationJob.perform_later("created", submission.id, submission.created_at.iso8601(6))
+        with_learning_write_guard(@learning_write_enrollment) do
+          if submission.save
+            progress = Progress.find_or_initialize_by(user: current_user, content_block_id: submission.content_block_id)
+            progress.update!(status: :completed)
+            SubmissionNotificationJob.perform_later("created", submission.id, submission.created_at.iso8601(6))
 
-          render json: { submission: submission_json(submission) }, status: :created
-        else
-          render json: { errors: submission.errors.full_messages }, status: :unprocessable_entity
+            render json: { submission: submission_json(submission) }, status: :created
+          else
+            render json: { errors: submission.errors.full_messages }, status: :unprocessable_entity
+          end
         end
       end
 
@@ -100,10 +102,12 @@ module Api
           return if performed?
         end
 
-        if @submission.update(submission_update_params)
-          render json: { submission: submission_json(@submission) }
-        else
-          render json: { errors: @submission.errors.full_messages }, status: :unprocessable_entity
+        with_learning_write_guard(@learning_write_enrollment) do
+          if @submission.update(submission_update_params)
+            render json: { submission: submission_json(@submission) }
+          else
+            render json: { errors: @submission.errors.full_messages }, status: :unprocessable_entity
+          end
         end
       end
 

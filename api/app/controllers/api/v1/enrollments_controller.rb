@@ -22,14 +22,18 @@ module Api
       # POST /api/v1/cohorts/:cohort_id/enrollments
       def create
         user = User.find(params[:user_id])
-        enrollment = @cohort.enrollments.new(user: user)
+        enrollment = nil
 
-        if enrollment.save
-          # Create module assignments for all curriculum modules
-          @cohort.curriculum.modules.each do |mod|
-            ModuleAssignment.create(enrollment: enrollment, curriculum_module: mod)
+        user.with_lock do
+          enrollment = @cohort.enrollments.new(user: user)
+          if enrollment.save
+            @cohort.curriculum.modules.each do |mod|
+              ModuleAssignment.create!(enrollment: enrollment, curriculum_module: mod)
+            end
           end
+        end
 
+        if enrollment.persisted?
           render json: { enrollment: enrollment_json(enrollment) }, status: :created
         else
           render json: { errors: enrollment.errors.full_messages }, status: :unprocessable_entity
@@ -38,7 +42,8 @@ module Api
 
       # PATCH /api/v1/enrollments/:id
       def update
-        if @enrollment.update(enrollment_params)
+        updated = @enrollment.user.with_lock { @enrollment.update(enrollment_params) }
+        if updated
           render json: { enrollment: enrollment_json(@enrollment) }
         else
           render json: { errors: @enrollment.errors.full_messages }, status: :unprocessable_entity

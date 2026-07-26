@@ -37,8 +37,9 @@ Staff can publish a class recording from **Learn → Class recordings → Upload
 Videos below 100 MB use a presigned form upload; larger videos use retryable
 multipart upload through 5 GB. Keep the upload screen open until publishing
 finishes. Admins can restart one student's live-class progress from the student
-health screen; the action requires explicit confirmation and retains a recovery
-snapshot without removing the account, messages, or other curricula.
+health screen through the authenticated web handoff; the action requires typing
+the student's email and retains a recovery snapshot without removing the
+account, messages, or other curricula.
 
 The mobile package pins Node 22.22.3 independently from the web package because Expo SDK 57 dependencies require a newer Node runtime.
 

@@ -516,6 +516,7 @@ Offset-bearing ISO 8601 values are treated as absolute instants. Values from `da
 | `GET` | `/api/v1/enrollments/:id` | Staff | Show enrollment details |
 | `PATCH` | `/api/v1/enrollments/:id` | Staff | Update enrollment status |
 | `DELETE` | `/api/v1/enrollments/:id` | Staff | Remove enrollment |
+| `POST` | `/api/v1/enrollments/:id/restart` | Admin | Audit and clear the enrollment's scoped learning state; requires the student's email as `confirmation` |
 
 ---
 
