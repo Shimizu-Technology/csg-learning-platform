@@ -165,11 +165,13 @@ module ClerkAuthenticatable
       if user.persisted? && !owner_admin
         active_cohort = Cohort.active.bootcamp.first
         if active_cohort
-          enrollment = Enrollment.create(user: user, cohort: active_cohort)
-          # Create module assignments for all curriculum modules
-          if enrollment.persisted?
-            active_cohort.curriculum.modules.each do |mod|
-              ModuleAssignment.create(enrollment: enrollment, curriculum_module: mod)
+          user.with_lock do
+            enrollment = Enrollment.create(user: user, cohort: active_cohort)
+            # Create module assignments for all curriculum modules
+            if enrollment.persisted?
+              active_cohort.curriculum.modules.each do |mod|
+                ModuleAssignment.create(enrollment: enrollment, curriculum_module: mod)
+              end
             end
           end
         end

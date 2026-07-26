@@ -116,26 +116,23 @@ module Api
         require_staff!
         return if performed?
 
-        @submission.update!(
-          grade: params[:grade],
-          feedback: params[:feedback],
-          graded_by_id: current_user.id,
-          graded_at: Time.current
-        )
+        enrollment = learning_enrollment_for(@submission.user, @submission.content_block)
+        with_learning_write_guard(enrollment) do
+          @submission.update!(
+            grade: params[:grade],
+            feedback: params[:feedback],
+            graded_by_id: current_user.id,
+            graded_at: Time.current
+          )
 
-        if @submission.grade != "R"
           progress = Progress.find_or_initialize_by(
             user_id: @submission.user_id,
             content_block_id: @submission.content_block_id
           )
-          progress.update!(status: :completed)
-        else
-          progress = Progress.find_or_initialize_by(
-            user_id: @submission.user_id,
-            content_block_id: @submission.content_block_id
-          )
-          progress.update!(status: :in_progress)
+          progress.update!(status: @submission.grade == "R" ? :in_progress : :completed)
+        end
 
+        if @submission.grade == "R"
           NotificationEmailService.send_redo_notification(
             user: @submission.user,
             submission: @submission,
@@ -188,6 +185,11 @@ module Api
       end
 
       private
+
+      def learning_enrollment_for(user, content_block)
+        curriculum_id = content_block.lesson.curriculum_module.curriculum_id
+        user.enrollments.joins(:cohort).find_by(cohorts: { curriculum_id: curriculum_id })
+      end
 
       def set_submission
         @submission = Submission.find(params[:id])

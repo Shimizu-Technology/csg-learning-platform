@@ -97,4 +97,26 @@ class GithubSyncServiceTest < ActiveSupport::TestCase
   ensure
     service.define_singleton_method(:fetch_exercise_files, original_fetch)
   end
+
+  test "sync_student rejects writes that began before an enrollment restart" do
+    @student.enrollments.find_by!(cohort: @cohort).update!(learning_state_reset_at: 1.minute.from_now)
+    service = GithubSyncService.new(github_token: "test-token")
+    original_fetch = service.method(:fetch_exercise_files)
+    service.define_singleton_method(:fetch_exercise_files) do |_owner, _repo_name, _filenames|
+      {
+        files: [ { "name" => "exercise_1.rb", "text" => "puts 'stale'" } ],
+        commit_hash: "stale123",
+        error: nil
+      }
+    end
+
+    result = service.sync_student(user: @student, cohort: @cohort, curriculum_module: @mod)
+
+    assert_equal 0, result[:synced]
+    assert_match "restarted", result[:errors].sole
+    assert_not Submission.exists?(user: @student, content_block: @block)
+    assert_not Progress.exists?(user: @student, content_block: @block)
+  ensure
+    service.define_singleton_method(:fetch_exercise_files, original_fetch)
+  end
 end

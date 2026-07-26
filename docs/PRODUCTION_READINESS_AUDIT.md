@@ -38,7 +38,7 @@ restore, and authenticated E2E items below are configured and rehearsed.
 
 | Surface | Verification | Result |
 | --- | --- | --- |
-| Rails | Minitest | 304 tests / 933 assertions passed |
+| Rails | Minitest | 306 tests / 941 assertions passed |
 | Rails | RuboCop | 222 files, no offenses |
 | Rails | Brakeman | no warnings (one documented ignored warning) |
 | Rails | bundler-audit | no vulnerable gems |
