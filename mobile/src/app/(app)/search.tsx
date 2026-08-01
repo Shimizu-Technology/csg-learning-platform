@@ -5,6 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 
 import { EmptyState, ErrorState, LoadingState } from '@/components/screen-states';
 import { fonts, palette } from '@/constants/csg-theme';
+import { plainMessageText } from '@/lib/message-format';
 import { messageSearchRoute } from '@/lib/message-route';
 import type { MessageSearchResult } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
@@ -40,7 +41,7 @@ export default function SearchScreen() {
       <View style={styles.search}><SearchIcon color={palette.quiet} size={18} /><TextInput accessibilityLabel="Search every message" autoFocus returnKeyType="search" value={query} onChangeText={setQuery} onSubmitEditing={() => void submit()} placeholder="Search every message" placeholderTextColor={palette.quiet} style={styles.input} /></View>
       {loading ? <LoadingState label="Searching messages" /> : error ? <ErrorState message={error} retry={() => void submit()} /> : (
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list}>
-          {results.map((result) => <Pressable key={result.id} accessibilityRole="button" accessibilityLabel={`Open ${result.context.label} at this message`} onPress={() => router.replace(messageSearchRoute(result) as Href)} style={styles.result}><View style={styles.meta}><Hash color={palette.rubySoft} size={14} /><Text style={styles.label}>{result.context.label}</Text><Text style={styles.author}>{result.author.full_name}</Text></View><Text numberOfLines={3} style={styles.body}>{result.body}</Text></Pressable>)}
+          {results.map((result) => <Pressable key={result.id} accessibilityRole="button" accessibilityLabel={`Open ${result.context.label} at this message`} onPress={() => router.replace(messageSearchRoute(result) as Href)} style={styles.result}><View style={styles.meta}><Hash color={palette.rubySoft} size={14} /><Text style={styles.label}>{result.context.label}</Text><Text style={styles.author}>{result.author.full_name}</Text></View><Text numberOfLines={3} style={styles.body}>{plainMessageText(result.body)}</Text></Pressable>)}
           {searched && !results.length && <EmptyState title="No matching messages" copy={auth.demo ? 'Full message search connects to the live API outside simulator walkthrough mode.' : 'Try another word or a less specific phrase.'} />}
           {!searched && <EmptyState title="Search across CSG" copy="Find a question, link, decision, or class note from any conversation you can access." />}
         </ScrollView>

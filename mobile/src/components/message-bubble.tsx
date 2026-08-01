@@ -2,9 +2,9 @@ import { FileText, MessageSquare, Pin, RefreshCw, TriangleAlert } from 'lucide-r
 import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar } from '@/components/avatar';
+import { FormattedMessage } from '@/components/formatted-message';
 import { fonts, palette } from '@/constants/csg-theme';
 import { formatFileSize } from '@/lib/attachments';
-import { messageSegments } from '@/lib/mentions';
 import { reactionOption } from '@/lib/reactions';
 import type { Message, UserSummary } from '@/lib/types';
 
@@ -21,7 +21,6 @@ type Props = {
 
 export function MessageBubble({ message, showAuthor, mentionUsers, onLongPress, onOpenReaction, onOpenImage, onThread, onRetry }: Props) {
   const deleted = Boolean(message.deleted_at);
-  const segments = deleted ? [{ text: 'Message removed', mention: false }] : messageSegments(message.body, mentionUsers);
   const images = message.attachments.filter((attachment) => attachment.image && attachment.url);
   return (
     <Pressable
@@ -37,7 +36,9 @@ export function MessageBubble({ message, showAuthor, mentionUsers, onLongPress, 
         {showAuthor && !message.mine && <Text style={styles.author}>{message.author.full_name}</Text>}
         <View style={[styles.bubble, message.mine && styles.mineBubble, message.client_status === 'failed' && styles.failedBubble]}>
           {message.pinned_at && <View style={styles.pinLabel}><Pin color={message.mine ? '#FFE4E8' : palette.rubySoft} size={11} /><Text style={[styles.pinText, message.mine && styles.mineMeta]}>Pinned</Text></View>}
-          {!!message.body && <Text style={[styles.body, deleted && styles.deleted]}>{segments.map((segment, index) => <Text key={`${segment.text}-${index}`} style={segment.mention && styles.mention}>{segment.text}</Text>)}</Text>}
+          {!!message.body && (deleted
+            ? <Text style={[styles.body, styles.deleted]}>Message removed</Text>
+            : <FormattedMessage body={message.body} mentionUsers={mentionUsers} mine={message.mine} />)}
           {!deleted && message.attachments.map((attachment) => (
             <Pressable key={attachment.id} accessibilityRole={attachment.image ? 'button' : 'link'} accessibilityLabel={`${attachment.image ? 'Preview' : 'Open'} ${attachment.filename}`} onPress={() => attachment.image ? onOpenImage?.(attachment, images) : attachment.url && void Linking.openURL(attachment.url)} style={styles.attachment}>
               {attachment.image && attachment.url ? <Image source={{ uri: attachment.url }} resizeMode="cover" style={styles.attachmentImage} /> : <View style={styles.fileIcon}><FileText color={palette.rubySoft} size={19} /></View>}
@@ -71,7 +72,7 @@ const styles = StyleSheet.create({
   bubble: { minWidth: 44, backgroundColor: palette.panelRaised, borderWidth: 1, borderColor: palette.line, borderRadius: 18, borderTopLeftRadius: 5, paddingHorizontal: 14, paddingVertical: 10, overflow: 'hidden' },
   mineBubble: { backgroundColor: palette.ruby, borderColor: palette.ruby, borderTopLeftRadius: 18, borderTopRightRadius: 5 },
   failedBubble: { borderColor: palette.warning, backgroundColor: '#2A1D16' },
-  body: { color: palette.text, fontFamily: fonts.regular, fontSize: 14, lineHeight: 20 }, deleted: { color: palette.quiet, fontStyle: 'italic' }, mention: { color: '#FFD1D7', fontFamily: fonts.bold },
+  body: { color: palette.text, fontFamily: fonts.regular, fontSize: 14, lineHeight: 20 }, deleted: { color: palette.quiet, fontStyle: 'italic' },
   pinLabel: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 5 }, pinText: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5 }, mineMeta: { color: '#FFE4E8' },
   attachment: { minWidth: 190, minHeight: 54, marginTop: 9, borderRadius: 13, backgroundColor: 'rgba(4,7,12,0.2)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.13)', flexDirection: 'row', alignItems: 'center', overflow: 'hidden' },
   attachmentImage: { width: 70, height: 70 }, fileIcon: { width: 50, height: 50, margin: 2, borderRadius: 11, backgroundColor: '#251A20', alignItems: 'center', justifyContent: 'center' }, attachmentCopy: { flex: 1, paddingHorizontal: 10 }, attachmentName: { color: palette.text, fontFamily: fonts.semibold, fontSize: 11 }, attachmentSize: { color: '#C9CDD6', fontFamily: fonts.medium, fontSize: 9, marginTop: 3 },
