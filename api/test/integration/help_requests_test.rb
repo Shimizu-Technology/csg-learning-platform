@@ -144,12 +144,15 @@ class HelpRequestsTest < ActionDispatch::IntegrationTest
     assert_response :not_found
 
     NotificationDeliveryService.help_request_created(request, push: false)
+    request.acknowledge!(@staff)
+    NotificationDeliveryService.help_request_changed(request, push: false)
     as_user(@student) do
       patch "/api/v1/help_requests/#{request.id}", params: { help_request: { status: "canceled" } }, headers: auth_headers
     end
     assert_response :success
     assert request.reload.status_canceled?
     assert Notification.find_by!(notifiable: request, user: @staff).read_at
+    assert Notification.find_by!(notifiable: request, user: @student).read_at
 
     as_user(@other_student) do
       post "/api/v1/help_requests", params: {

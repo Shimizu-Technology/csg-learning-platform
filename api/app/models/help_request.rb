@@ -53,9 +53,11 @@ class HelpRequest < ApplicationRecord
   end
 
   def cancel!
-    return self if status_resolved? || status_canceled?
+    with_lock do
+      return self if status_resolved? || status_canceled?
 
-    update!(status: :canceled, canceled_at: Time.current)
+      update!(status: :canceled, canceled_at: Time.current)
+    end
     self
   end
 

@@ -145,6 +145,8 @@ class NotificationDeliveryService
 
   def help_request_canceled(help_request)
     close_staff_help_notifications(help_request)
+    help_request.notifications.where(user: help_request.student)
+      .update_all(read_at: Time.current, updated_at: Time.current)
   end
 
   private

@@ -58,6 +58,18 @@ class HelpRequestTest < ActiveSupport::TestCase
     assert_includes request.errors[:resolved_at], "can't be blank"
   end
 
+  test "stale cancellation cannot overwrite a concurrent resolution" do
+    stale_request = create_request
+    current_request = HelpRequest.find(stale_request.id)
+    current_request.resolve!(@staff, response: "Try the smallest route first.")
+
+    stale_request.cancel!
+
+    assert stale_request.reload.status_resolved?
+    assert_nil stale_request.canceled_at
+    assert_equal "Try the smallest route first.", stale_request.staff_response
+  end
+
   private
 
   def create_request(student: @student, owner: nil)
