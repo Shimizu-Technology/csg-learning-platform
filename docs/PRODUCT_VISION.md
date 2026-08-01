@@ -1,6 +1,6 @@
 # CSG Learning Platform — Product Vision & Direction
 
-**Last updated:** 2026-07-10
+**Last updated:** 2026-08-01
 **Status:** Active north-star document
 **Repo:** `csg-learning-platform`
 
@@ -244,6 +244,21 @@ Replace manual email → Stripe link flow:
 - Notification and reminder system
 - Education-focused live classroom sessions built into the platform
 
+### 6.6 Next product chapter — Learning feedback and intervention
+
+The learning core, communications hub, native companion, and recording workflows are now broad enough that the next priority is not more surface area. It is making the platform better at producing and demonstrating learning:
+
+- a shared weekly plan with deadlines, live events, redos, and optional stretch work;
+- reviewed voice-to-text drafts that make mobile questions and instructor feedback easier without automatic sending or retained audio;
+- contextual help requests and staff-owned interventions;
+- explicit learning objectives and reusable rubrics;
+- low-stakes retrieval practice and criterion-level feedback;
+- captions, searchable transcripts, and chapters for recordings;
+- restart/recovery plans for interrupted students;
+- privacy-safe learning analytics and, later, explainable mastery views.
+
+The detailed decisions, market research, measurement plan, mobile/web boundary, and phased execution plan live in `docs/PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md`. The voice composer is specified in `docs/VOICE_TO_TEXT_PLAN.md`.
+
 ---
 
 ## 7. Core domain model
@@ -292,3 +307,5 @@ If a feature helps CSG stop depending on multiple scattered tools, it is probabl
 - `docs/API_REFERENCE.md` — Complete API endpoint documentation
 - `docs/BUILD_PLAN.md` — Original architecture and data model design
 - `docs/FUTURE_IMPROVEMENTS.md` — Planned enhancements (GitHub onboarding, etc.)
+- `docs/PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md` — Current product audit, market research, learning strategy, KPIs, and phased plan
+- `docs/VOICE_TO_TEXT_PLAN.md` — Reviewed voice-draft experience, privacy contract, technical shape, rollout, and acceptance criteria

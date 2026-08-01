@@ -1,8 +1,8 @@
 # CSG Learning Platform — Roadmap
 
-**Last updated:** 2026-07-20
+**Last updated:** 2026-08-01
 **Status:** Active execution roadmap  
-**Companion docs:** `docs/PRODUCT_VISION.md`, `docs/DEPLOYMENT.md`, `docs/API_REFERENCE.md`
+**Companion docs:** `docs/PRODUCT_VISION.md`, `docs/PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md`, `docs/DEPLOYMENT.md`, `docs/API_REFERENCE.md`
 
 ---
 
@@ -42,7 +42,29 @@ The platform is **production-ready for its core use case** — managing cohorts,
 
 ---
 
-## Phase 1: Documentation & Hardening (Current)
+## 2026-08-01 Strategic Priority
+
+The platform has completed far more of the native and communications roadmap than the historical phase numbering below reflects. The current execution order is now governed by `docs/PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md`:
+
+1. Native code-block horizontal navigation, semantic type, contrast, and Dynamic Type quality.
+2. Reviewed native voice-to-text message drafts: record, transcribe, lightly format, edit, then explicitly send.
+3. Privacy-safe web/native learning-event instrumentation and four teaching weeks of baseline data.
+4. A shared **This Week** plan, contextual help requests, and a staff-owned intervention queue.
+5. Learning objectives, reusable rubrics, feedback snippets, and selected formative retrieval checks.
+6. Recording captions/transcripts/chapters and restart/recovery plans.
+7. Explainable mastery views, GitHub test feedback, and curriculum-effectiveness analytics.
+
+This sequence supersedes the old assumption that payments, advanced analytics, or a built-in classroom should automatically come next. Those remain valid initiatives, but they should be prioritized against learning impact and current operating pain rather than their historical phase number.
+
+Voice-to-text is detailed in `docs/VOICE_TO_TEXT_PLAN.md`. Its native message draft belongs in the current strategic Phase 1 after the Phase 0 message-readability gate; thread, help-request, and grading-feedback reuse follows in Phase 2. Web and streaming behavior remain conditional on measured use.
+
+---
+
+## Historical delivery roadmap (superseded)
+
+The sections below preserve the delivery history that produced the current platform. Their phase numbers are not the active Phase 0–4 execution plan. New work must follow `docs/PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md` and the strategic priority above.
+
+## Historical Phase 1: Documentation & Hardening
 
 > **Goal:** Ensure the platform is well-documented, maintainable, and safe to iterate on.
 
@@ -78,7 +100,7 @@ The platform is **production-ready for its core use case** — managing cohorts,
 
 ---
 
-## Phase 2: Self-Hosted Recordings (AWS S3) ✅
+## Historical Phase 2: Self-Hosted Recordings (AWS S3) ✅
 
 > **Goal:** Make S3-hosted recordings the preferred path while preserving legacy YouTube links during migration.
 
@@ -125,7 +147,7 @@ Phase 3 was intentionally skipped for now. The team pulled Phase 4 forward and b
 
 ---
 
-## Phase 3: Stripe Payment Integration (Deferred)
+## Historical Phase 3: Stripe Payment Integration (Deferred)
 
 > **Goal:** Replace manual email → Stripe link flow with in-app payments.
 
@@ -154,7 +176,7 @@ Phase 3 was intentionally skipped for now. The team pulled Phase 4 forward and b
 
 ---
 
-## Phase 4: Communication Hub + PWA Notifications (Pulled Forward)
+## Historical Phase 4: Communication Hub + PWA Notifications (Pulled Forward)
 
 > **Goal:** Make the platform the daily communication home for CSG, with Slack-like class updates, unread state, and installable PWA push notifications.
 
@@ -254,7 +276,7 @@ Phase 3 was intentionally skipped for now. The team pulled Phase 4 forward and b
 - No sensitive student data appears in lock-screen notifications unless explicitly allowed later
 - Browser support is documented, especially iOS installed-PWA requirements
 
-### 4.6 Native Communications Companion ✅
+### 4.6 Native Daily-Use Companion ✅
 - Expo SDK 57 / React Native client for iOS and Android
 - Clerk native authentication with encrypted session persistence
 - Messaging-first inbox for cohort channels and direct conversations
@@ -263,16 +285,20 @@ Phase 3 was intentionally skipped for now. The team pulled Phase 4 forward and b
 - Announcement feed and notification deep links
 - Expo push token lifecycle and Rails fan-out alongside existing Web Push
 - Cached inbox fallback for intermittent mobile connectivity
+- Native Today and Learn surfaces with lessons, progress, resources, office hours, and submissions
+- Native recordings with resume/progress plus instructor recording upload
+- Staff attention queue, student health, focused grading, and submission push routes
+- Secure web handoffs for authoring, bulk operations, repository inspection, and dense matrices
 - Native unit checks, Expo Doctor validation, iOS bundle export, and simulator walkthrough
 
-Curriculum, submissions, grading, recordings, and staff administration remain in the responsive web application until their mobile workflows are intentionally designed and prioritized.
+Curriculum authoring, bulk enrollment/team operations, repository inspection, and dense grading/watch matrices remain deliberate responsive-web workflows. Routine student learning, submissions, recordings, communication, and focused staff intervention are native.
 
 ### Overall Definition of Done
 > CSG can run class communication from the platform: announcements, unread notification state, cohort messages, DMs, and PWA push notifications replace the daily Slack loop for active cohorts.
 
 ---
 
-## Phase 5: Extended Features
+## Historical Phase 5: Extended Features
 
 These features are valuable but should not block the phases above:
 
@@ -285,10 +311,11 @@ Already works via the module system — a workshop is just a cohort with a works
 - Configurable notification preferences
 
 ### 5.3 Advanced Analytics
-- Cohort-level progress analytics
-- Time-on-task tracking
-- Engagement metrics dashboard
-- Export to CSV/PDF
+- Instrument the learning and intervention funnels before building dashboards
+- Cohort-level weekly momentum, feedback-loop, and objective-evidence views
+- Curriculum struggle/redo patterns with drill-down to source records
+- Privacy-safe event definitions that exclude message bodies, code, submission text, and private feedback
+- Export only when it supports a real operating or reporting decision
 
 ### 5.4 GitHub Organization Onboarding
 Dedicated workflow for GitHub org invites (see `docs/FUTURE_IMPROVEMENTS.md` for detailed plan).
@@ -296,7 +323,7 @@ Dedicated workflow for GitHub org invites (see `docs/FUTURE_IMPROVEMENTS.md` for
 ### 5.5 Zoom Integration
 Zoom integration is no longer the preferred long-term direction. If needed as a temporary bridge, Zoom links can still live in class resources, but the target state is a built-in classroom platform with a specialist realtime media provider underneath.
 
-### 5.6 Classroom Platform (Planned)
+### 5.6 Classroom Platform (Deferred)
 
 > **Goal:** Replace Zoom for CSG's core class workflow without trying to build a full Zoom clone.
 
@@ -331,7 +358,7 @@ MVP target:
 - recording and replay
 - basic host controls
 
-This should ship before any attempt to broaden into open-ended student-created meetings or a large feature surface.
+Do not begin this work until the learning-feedback, intervention, accessibility, and measurement phases in the current strategy are operating successfully. If revisited, it should still ship before any attempt to broaden into open-ended student-created meetings or a large feature surface.
 
 ---
 

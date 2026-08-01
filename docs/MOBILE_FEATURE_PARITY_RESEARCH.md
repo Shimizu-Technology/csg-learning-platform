@@ -1,5 +1,7 @@
 # CSG Connect: Native Brand and Feature-Parity Research
 
+> **2026-08-01 status:** The native app has now shipped the student learning core, recordings, submissions, staff attention/student-health views, focused grading, recording upload, and deliberate web handoffs described as future phases in this original research. Use `PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md` for the current parity boundary and next priorities. The immediate native release blocker is reliable horizontal navigation for long message code blocks, followed by semantic type/contrast and Dynamic Type quality. Reviewed voice-to-text drafts are the next planned native composer capability; see `VOICE_TO_TEXT_PLAN.md`.
+
 Status: research complete. The four-phase parity program described here has shipped to `main`; the release and TestFlight evidence is tracked in [`app-store/README.md`](./app-store/README.md).
 
 The execution scope, phase acceptance criteria, review gates, and final TestFlight checklist are defined in [`MOBILE_PARITY_IMPLEMENTATION_PLAN.md`](./MOBILE_PARITY_IMPLEMENTATION_PLAN.md).
@@ -180,3 +182,5 @@ Choose one target:
 - **Literal parity:** recreate every web feature natively, including curriculum authoring and bulk administration.
 
 The first option protects quality, reaches students sooner, and still makes the app a complete everyday product.
+
+That recommended decision is now adopted: CSG Connect targets **mobile task parity**, while curriculum authoring, bulk enrollment/team operations, repository comparison, and dense matrices remain secure web handoffs.
