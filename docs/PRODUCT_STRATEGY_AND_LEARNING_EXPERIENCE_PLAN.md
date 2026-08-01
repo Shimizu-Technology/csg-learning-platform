@@ -506,6 +506,8 @@ Weekly orientation implementation status: the shared student API projection and 
 
 Contextual-support implementation status: web and native students can create one durable active request from an authorized lesson, exercise, or recording, see staff acknowledgment and ownership, cancel an active request, and retain the written response after resolution. Web and native staff queues prioritize urgent/direct requests and separately expose explainable redo, ungraded, and seven-day inactivity signals. The state model, operating expectations, privacy boundary, and release checks are documented in `docs/SUPPORT_WORKFLOW.md`. Full intervention cases, follow-up, recovery plans, and outcomes remain Phase 3.
 
+Offline-continuity implementation status: the seven-day user-scoped query cache covers previously loaded lesson text, resources, feedback, and **This Week**. Channel, DM, and thread composers retain local drafts; channel/DM send failures remain visibly **Not sent** with intentional retry; text submissions autosave a version-aware device draft and never report success before server acknowledgment. Sign-out removes authored local state. Media downloads and automatic background write queues remain deliberately deferred under `docs/OFFLINE_CONTINUITY.md`.
+
 Exit gate: every active student can see required work and ask for contextual help; every request has visible state; voice drafts never auto-send or retain audio; event data reconciles with source records.
 
 ### Phase 2 — Feedback quality (4–7 weeks)

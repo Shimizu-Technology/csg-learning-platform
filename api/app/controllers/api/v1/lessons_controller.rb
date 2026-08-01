@@ -258,7 +258,8 @@ module Api
                   commit_sha: s.commit_sha,
                   notes: s.notes,
                   num_submissions: s.num_submissions,
-                  created_at: s.created_at
+                  created_at: s.created_at,
+                  updated_at: s.updated_at
                 }
               }
             end

@@ -24,16 +24,17 @@ import { insertMention, mentionSuggestions, mentionTriggerAt, resolveMentionUser
 import { messagePreview } from '@/lib/message-format';
 import { mergeMessageEvent, mergePinnedMessageEvent, prependOlderMessages, reconcileOptimistic, sortMessages, toggleOwnReaction } from '@/lib/message-state';
 import { REACTION_OPTIONS } from '@/lib/reactions';
-import type { ChannelSummary, DirectConversationSummary, Message, MessageEvent, MessageWindowMeta, PendingAttachment, UserSummary } from '@/lib/types';
+import type { ChannelSummary, ConversationKind, DirectConversationSummary, Message, MessageEvent, MessageWindowMeta, PendingAttachment, UserSummary } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 
 type ConnectionStatus = 'connecting' | 'connected' | 'offline';
 type ConversationItem = { message: Message; previous?: Message };
+type PendingConversationDraft = { userId: number; kind: ConversationKind; id: number; body: string };
 
 export default function ConversationScreen() {
   const params = useLocalSearchParams<{ kind: string; id: string; messageId?: string }>();
-  const kind = params.kind === 'dm' ? 'dm' : 'channel';
+  const kind: ConversationKind = params.kind === 'dm' ? 'dm' : 'channel';
   const id = Number(params.id);
   const anchorMessageId = Number(params.messageId) || undefined;
   const router = useRouter();
@@ -45,6 +46,7 @@ export default function ConversationScreen() {
   const pendingScrollRef = useRef(!anchorMessageId);
   const keyboardShouldFollowRef = useRef(false);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingDraftRef = useRef<PendingConversationDraft | null>(null);
   const anchorScrolledRef = useRef(false);
   const [summary, setSummary] = useState<ChannelSummary | DirectConversationSummary | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -95,6 +97,7 @@ export default function ConversationScreen() {
     setLoading(true);
     anchorScrolledRef.current = false;
     try {
+      if (userId && !auth.demo) setDraft(await loadConversationDraft(userId, kind, id));
       if (auth.demo) {
         setSummary(kind === 'channel' ? demoChannels.find((item) => item.id === id) || null : demoDms.find((item) => item.id === id) || null);
         setMessages(demoMessages[`${kind}:${id}`] || []);
@@ -111,7 +114,6 @@ export default function ConversationScreen() {
         setPinnedMessages(result.pinned_messages);
         setMeta(result.meta);
         setMentionUsers(workspaceResult.workspace.members);
-        if (userId) setDraft(await loadConversationDraft(userId, kind, id));
         await api.markRead(kind, id);
       }
       nearBottomRef.current = !anchorMessageId;
@@ -139,9 +141,17 @@ export default function ConversationScreen() {
   useEffect(() => {
     if (!userId || loading) return;
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
-    draftTimerRef.current = setTimeout(() => void saveConversationDraft(userId, kind, id, draft), 300);
+    const pending = { userId, kind, id, body: draft };
+    pendingDraftRef.current = pending;
+    draftTimerRef.current = setTimeout(() => void saveConversationDraft(pending.userId, pending.kind, pending.id, pending.body).then(() => { if (pendingDraftRef.current === pending) pendingDraftRef.current = null; }).catch(() => undefined), 300);
     return () => { if (draftTimerRef.current) clearTimeout(draftTimerRef.current); };
   }, [draft, id, kind, loading, userId]);
+
+  useEffect(() => () => {
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    const pending = pendingDraftRef.current;
+    if (pending) void saveConversationDraft(pending.userId, pending.kind, pending.id, pending.body).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -191,7 +201,11 @@ export default function ConversationScreen() {
       const { message } = await api.sendMessage(kind, id, { body, mention_user_ids: resolveMentionUserIds(body, mentionUsers), attachments: uploaded, send_push: true });
       setMessages((current) => { const next = reconcileOptimistic(current, optimisticId, message); persistFailed(next); return next; });
       if (!retryMessage) voiceDraft.markSent(body);
-      if (userId) await saveConversationDraft(userId, kind, id, '');
+      if (userId) {
+        if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+        pendingDraftRef.current = null;
+        await saveConversationDraft(userId, kind, id, '');
+      }
     } catch (requestError) {
       if (!optimistic) {
         setAttachments((current) => current.map((item) => item.status === 'uploading' ? { ...item, status: 'failed', error: (requestError as Error).message } : item));

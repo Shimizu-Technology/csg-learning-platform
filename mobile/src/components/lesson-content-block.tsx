@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { BadgeCheck, Check, Circle, Code2, ExternalLink, FileText, GitBranch, Lock, Play, RotateCcw, Send } from 'lucide-react-native';
+import { BadgeCheck, Check, Circle, Code2, ExternalLink, FileText, GitBranch, Lock, Play, RotateCcw, Save, Send } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -7,6 +7,7 @@ import { fonts, palette } from '@/constants/csg-theme';
 import { openAuthenticatedWebLesson, openExternalPage } from '@/lib/external-links';
 import { buildSubmissionInput, canSubmitWork, isNewSubmissionAttempt, learningKeys, submissionState, submissionTypeFor } from '@/lib/learning';
 import { analyticsAgeBucket, captureProductEvent } from '@/lib/analytics';
+import { clearSubmissionDraft, loadSubmissionDraft, saveSubmissionDraft, submissionDraftMatches, type SubmissionDraft } from '@/lib/submission-storage';
 import type { LessonContentBlock, LessonDetail, SubmissionInput, VideoProgressInput } from '@/lib/types';
 import { useSession } from '@/providers/session-provider';
 import { LessonMarkdown } from './lesson-markdown';
@@ -15,6 +16,15 @@ import { NativeVideoPlayer } from './native-video-player';
 interface LessonContentBlockProps {
   block: LessonContentBlock;
   lesson: LessonDetail;
+}
+
+interface PendingSubmissionDraft {
+  userId: number;
+  contentBlockId: number;
+  text: string;
+  baseSubmissionId: number | null;
+  baseSubmissionUpdatedAt: string | null;
+  changed: boolean;
 }
 
 export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProps) {
@@ -37,8 +47,60 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
   const [commitSha, setCommitSha] = useState(latest?.commit_sha || '');
   const [notes, setNotes] = useState(latest?.notes || '');
   const [showDetails, setShowDetails] = useState(Boolean(latest?.pr_url || latest?.branch || latest?.commit_sha || latest?.notes));
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ body: string; success: boolean } | null>(null);
+  const [draftNotice, setDraftNotice] = useState<string | null>(null);
+  const [olderDraft, setOlderDraft] = useState<SubmissionDraft | null>(null);
+  const [draftHydrated, setDraftHydrated] = useState(false);
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingDraftRef = useRef<PendingSubmissionDraft | null>(null);
+  const studentEditedRef = useRef(false);
   const trackedFeedbackRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!studentMode || submissionType !== 'text_submission' || !user) return;
+    let canceled = false;
+    void loadSubmissionDraft(user.id, block.id).then((draft) => {
+      if (canceled) return;
+      if (draft && studentEditedRef.current) {
+        setOlderDraft(draft);
+        setDraftNotice('A device draft is available to restore.');
+      } else if (draft && submissionDraftMatches(draft, latest?.id ?? null, latest?.updated_at ?? null) && draft.text !== (latest?.text || '')) {
+        setText(draft.text);
+        setDraftNotice('Draft restored from this device. It has not been submitted.');
+      } else if (draft && !submissionDraftMatches(draft, latest?.id ?? null, latest?.updated_at ?? null)) {
+        setOlderDraft(draft);
+        setDraftNotice('An older device draft is available to restore.');
+      } else if (draft) {
+        void clearSubmissionDraft(user.id, block.id);
+      }
+    }).catch(() => {
+      if (!canceled) setDraftNotice('Draft storage is temporarily unavailable. Keep this screen open.');
+    }).finally(() => {
+      if (!canceled) setDraftHydrated(true);
+    });
+    return () => { canceled = true; };
+  }, [block.id, latest?.id, latest?.text, latest?.updated_at, studentMode, submissionType, user]);
+
+  useEffect(() => {
+    if (!studentMode || submissionType !== 'text_submission' || !user || !draftHydrated) return;
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    const changed = text !== (latest?.text || '');
+    const pending: PendingSubmissionDraft = { userId: user.id, contentBlockId: block.id, text, baseSubmissionId: latest?.id ?? null, baseSubmissionUpdatedAt: latest?.updated_at ?? null, changed };
+    pendingDraftRef.current = pending;
+    draftTimerRef.current = setTimeout(() => {
+      void persistSubmissionDraft(pending).then(() => {
+        if (pendingDraftRef.current !== pending) return;
+        pendingDraftRef.current = null;
+        setDraftNotice(changed ? 'Draft saved on this device · not submitted' : null);
+      }).catch(() => setDraftNotice('Draft could not be saved. Keep this screen open.'));
+    }, 300);
+    return () => { if (draftTimerRef.current) clearTimeout(draftTimerRef.current); };
+  }, [block.id, draftHydrated, latest?.id, latest?.text, latest?.updated_at, studentMode, submissionType, text, user]);
+
+  useEffect(() => () => {
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    if (pendingDraftRef.current) void persistSubmissionDraft(pendingDraftRef.current).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     if (!latest?.grade || trackedFeedbackRef.current === latest.id) return;
@@ -74,6 +136,11 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
       return api.createSubmission(input);
     },
     onSuccess: async (result) => {
+      if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+      pendingDraftRef.current = null;
+      if (user) await clearSubmissionDraft(user.id, block.id).catch(() => undefined);
+      setDraftNotice(null);
+      setOlderDraft(null);
       const attempt = result.submission.num_submissions || (latest?.num_submissions || 0) + 1;
       const isNewAttempt = isNewSubmissionAttempt(editable);
       if (isNewAttempt) captureProductEvent('submission_created', { content_block_id: block.id, submission_type: submissionType, attempt });
@@ -81,10 +148,20 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
       if (isNewAttempt) captureProductEvent('learning_step_completed', {
         module_id: lesson.module_id, lesson_id: lesson.id, content_block_id: block.id, block_type: block.block_type, source: 'submission',
       });
-      setMessage(editable ? 'Submission updated.' : redo ? 'Redo submitted.' : 'Work submitted.');
+      setMessage({ body: editable ? 'Submission updated.' : redo ? 'Redo submitted.' : 'Work submitted.', success: true });
       await refresh();
     },
-    onError: (error) => setMessage((error as Error).message),
+    onError: async (error) => {
+      if (user && submissionType === 'text_submission') {
+        try {
+          await saveSubmissionDraft(user.id, block.id, text, latest?.id ?? null, latest?.updated_at ?? null);
+          setDraftNotice('Draft saved on this device · not submitted');
+        } catch {
+          setDraftNotice('Draft could not be saved. Keep this screen open.');
+        }
+      }
+      setMessage({ body: `Not submitted. ${(error as Error).message}`, success: false });
+    },
   });
   const handoffMutation = useMutation({
     mutationFn: () => openAuthenticatedWebLesson(api, lesson.id),
@@ -108,13 +185,15 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
     {locked && <View style={styles.locked}><Lock color={palette.warning} size={17} /><View style={styles.flex}><Text style={styles.lockedTitle}>Submissions are closed</Text><Text style={styles.lockedCopy}>You can review this lesson and existing feedback.</Text></View></View>}
     {studentMode && isExercise && submissionType === 'prework_github_sync' && <View style={styles.sync}><GitBranch color={palette.rubySoft} size={18} /><View style={styles.flex}><Text style={styles.syncTitle}>Reviewed through GitHub</Text><Text style={styles.syncCopy}>{lesson.repository_name ? `Your work syncs from ${lesson.repository_name}.` : 'Your linked class repository is the source of truth.'}</Text></View></View>}
     {studentMode && isExercise && (submissionType === 'text_submission' || submissionType.includes('repo_')) && !passed && <View style={styles.form}>
-      {submissionType === 'text_submission' ? <Field label={editable ? 'Update your response' : redo ? 'Submit your redo' : 'Your response'} value={text} onChangeText={(value) => { setText(value); setMessage(null); }} multiline placeholder="Explain your solution or share your work…" /> : <>
+      {submissionType === 'text_submission' ? <Field label={editable ? 'Update your response' : redo ? 'Submit your redo' : 'Your response'} value={text} onChangeText={(value) => { studentEditedRef.current = true; setText(value); setDraftNotice('Saving draft on this device…'); setMessage(null); }} multiline placeholder="Explain your solution or share your work…" /> : <>
         <Field label="Repository URL" value={repoUrl} onChangeText={(value) => { setRepoUrl(value); setMessage(null); }} placeholder="https://github.com/…" keyboardType="url" />
         {submissionType === 'repo_and_live_url_submission' && <Field label="Live site URL" value={liveUrl} onChangeText={(value) => { setLiveUrl(value); setMessage(null); }} placeholder="https://…" keyboardType="url" />}
         <Pressable accessibilityRole="button" onPress={() => setShowDetails((value) => !value)} style={styles.detailsButton}><Text style={styles.detailsText}>{showDetails ? 'Hide optional details' : 'Add PR, branch, commit, or notes'}</Text></Pressable>
         {showDetails && <><Field label="Pull request URL" value={prUrl} onChangeText={setPrUrl} placeholder="https://github.com/…/pull/…" keyboardType="url" /><Field label="Branch" value={branch} onChangeText={setBranch} placeholder="feature/my-work" /><Field label="Commit" value={commitSha} onChangeText={setCommitSha} placeholder="Commit SHA" /><Field label="Notes" value={notes} onChangeText={setNotes} multiline placeholder="Anything your instructor should know…" /></>}
       </>}
-      {message && <Text accessibilityLiveRegion="polite" style={[styles.message, message.includes('submitted') || message.includes('updated') ? styles.messageSuccess : undefined]}>{message}</Text>}
+      {olderDraft && <Pressable accessibilityRole="button" onPress={() => { setText(olderDraft.text); setOlderDraft(null); setDraftNotice('Older draft restored · not submitted'); }} style={styles.restoreDraft}><RotateCcw color={palette.rubySoft} size={15} /><Text style={styles.restoreDraftText}>Restore older device draft</Text></Pressable>}
+      {draftNotice && <View accessibilityLiveRegion="polite" style={styles.draftNotice}><Save color={palette.subtle} size={14} /><Text style={styles.draftNoticeText}>{draftNotice}</Text></View>}
+      {message && <Text accessibilityLiveRegion="polite" style={[styles.message, message.success && styles.messageSuccess]}>{message.body}</Text>}
       <Pressable accessibilityRole="button" accessibilityLabel={editable ? 'Update submission' : 'Submit work'} disabled={!canSubmit} onPress={() => submissionMutation.mutate()} style={[styles.primaryButton, !canSubmit && styles.buttonDisabled]}>{submissionMutation.isPending ? <ActivityIndicator color={palette.text} /> : <><Send color={palette.text} size={17} /><Text style={styles.primaryText}>{editable ? 'Update submission' : redo ? 'Submit redo' : 'Submit work'}</Text></>}</Pressable>
     </View>}
     {studentMode && (!isExercise || submissionType === 'manual_complete') && !(isVideo && block.has_s3_video) ? <Pressable accessibilityRole="button" accessibilityLabel={completed ? 'Mark incomplete' : 'Mark complete'} disabled={locked || progressMutation.isPending} onPress={() => progressMutation.mutate(completed ? 'not_started' : 'completed')} style={[styles.completeButton, completed && styles.completeButtonDone, (locked || progressMutation.isPending) && styles.buttonDisabled]}>{progressMutation.isPending ? <ActivityIndicator color={palette.text} /> : <>{completed ? <Check color={palette.success} size={18} /> : <Circle color={palette.rubySoft} size={18} />}<Text style={[styles.completeButtonText, completed && styles.completeButtonTextDone]}>{completed ? 'Completed' : 'Mark complete'}</Text></>}</Pressable> : null}
@@ -157,9 +236,10 @@ function Field(props: { label: string; value: string; onChangeText: (value: stri
 }
 
 function withoutContentBlock(input: SubmissionInput): Omit<SubmissionInput, 'content_block_id'> { const { content_block_id: _ignored, ...rest } = input; return rest; }
+function persistSubmissionDraft(pending: PendingSubmissionDraft) { return pending.changed ? saveSubmissionDraft(pending.userId, pending.contentBlockId, pending.text, pending.baseSubmissionId, pending.baseSubmissionUpdatedAt) : clearSubmissionDraft(pending.userId, pending.contentBlockId); }
 function blockLabel(value: string) { return value === 'text' ? 'Lesson notes' : value === 'checkpoint' ? 'Checkpoint' : value === 'recording' ? 'Class recording' : 'Learning step'; }
 function formatDate(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date); }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: 21, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panel, padding: 17 }, header: { flexDirection: 'row', alignItems: 'center', gap: 11 }, icon: { width: 40, height: 40, borderRadius: 13, backgroundColor: '#2A151B', alignItems: 'center', justifyContent: 'center' }, flex: { flex: 1, minWidth: 0 }, kicker: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 0.9 }, title: { color: palette.text, fontFamily: fonts.bold, fontSize: 15, lineHeight: 21, marginTop: 2 }, completeBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 99, backgroundColor: '#10271F', paddingHorizontal: 8, paddingVertical: 5 }, completeText: { color: palette.success, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 0.6 }, body: { marginTop: 15 }, file: { minHeight: 40, borderRadius: 12, backgroundColor: '#090B10', borderWidth: 1, borderColor: palette.line, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 }, fileText: { color: '#C9CED8', fontFamily: 'Menlo', fontSize: 11 }, nativeVideo: { marginTop: 14 }, outlineButton: { minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: '#3E2530', backgroundColor: '#211319', paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12 }, outlineText: { flex: 1, color: palette.text, fontFamily: fonts.bold, fontSize: 12 }, locked: { borderRadius: 14, borderWidth: 1, borderColor: '#4C3A1C', backgroundColor: '#251E13', padding: 12, flexDirection: 'row', gap: 10, marginTop: 14 }, lockedTitle: { color: palette.warning, fontFamily: fonts.bold, fontSize: 12 }, lockedCopy: { color: '#C8B68E', fontFamily: fonts.regular, fontSize: 11, lineHeight: 16, marginTop: 2 }, sync: { borderRadius: 14, borderWidth: 1, borderColor: '#3E2530', backgroundColor: '#211319', padding: 12, flexDirection: 'row', gap: 10, marginTop: 14 }, syncTitle: { color: palette.text, fontFamily: fonts.bold, fontSize: 12 }, syncCopy: { color: palette.muted, fontFamily: fonts.regular, fontSize: 11, lineHeight: 16, marginTop: 2 }, status: { borderRadius: 14, backgroundColor: '#1A1E28', borderWidth: 1, borderColor: palette.line, padding: 12, flexDirection: 'row', gap: 10, marginTop: 14 }, statusRedo: { backgroundColor: '#251E13', borderColor: '#4C3A1C' }, statusPassed: { backgroundColor: '#10231C', borderColor: '#214D3A' }, statusTitle: { color: palette.text, fontFamily: fonts.bold, fontSize: 12 }, statusCopy: { color: '#D4D7DE', fontFamily: fonts.regular, fontSize: 11, lineHeight: 17, marginTop: 5 }, statusMeta: { color: palette.subtle, fontFamily: fonts.medium, fontSize: 11, marginTop: 6 }, form: { gap: 12, marginTop: 16 }, field: { gap: 6 }, label: { color: '#CDD1DA', fontFamily: fonts.bold, fontSize: 11 }, input: { minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: palette.line, backgroundColor: '#0A0C11', color: palette.text, fontFamily: fonts.regular, fontSize: 13, paddingHorizontal: 13, paddingVertical: 12 }, inputMultiline: { minHeight: 108, textAlignVertical: 'top' }, detailsButton: { minHeight: 44, alignItems: 'flex-start', justifyContent: 'center' }, detailsText: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 11 }, message: { color: '#F19A8C', fontFamily: fonts.semibold, fontSize: 11, lineHeight: 16 }, messageSuccess: { color: palette.success }, primaryButton: { minHeight: 50, borderRadius: 15, backgroundColor: palette.ruby, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, primaryText: { color: palette.text, fontFamily: fonts.bold, fontSize: 12 }, buttonDisabled: { opacity: 0.42 }, completeButton: { minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: '#4D2630', backgroundColor: '#211319', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 15 }, completeButtonDone: { borderColor: '#214D3A', backgroundColor: '#10231C' }, completeButtonText: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 12 }, completeButtonTextDone: { color: palette.success },
+  card: { borderRadius: 21, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panel, padding: 17 }, header: { flexDirection: 'row', alignItems: 'center', gap: 11 }, icon: { width: 40, height: 40, borderRadius: 13, backgroundColor: '#2A151B', alignItems: 'center', justifyContent: 'center' }, flex: { flex: 1, minWidth: 0 }, kicker: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 0.9 }, title: { color: palette.text, fontFamily: fonts.bold, fontSize: 15, lineHeight: 21, marginTop: 2 }, completeBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 99, backgroundColor: '#10271F', paddingHorizontal: 8, paddingVertical: 5 }, completeText: { color: palette.success, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 0.6 }, body: { marginTop: 15 }, file: { minHeight: 40, borderRadius: 12, backgroundColor: '#090B10', borderWidth: 1, borderColor: palette.line, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 }, fileText: { color: '#C9CED8', fontFamily: 'Menlo', fontSize: 11 }, nativeVideo: { marginTop: 14 }, outlineButton: { minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: '#3E2530', backgroundColor: '#211319', paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12 }, outlineText: { flex: 1, color: palette.text, fontFamily: fonts.bold, fontSize: 12 }, locked: { borderRadius: 14, borderWidth: 1, borderColor: '#4C3A1C', backgroundColor: '#251E13', padding: 12, flexDirection: 'row', gap: 10, marginTop: 14 }, lockedTitle: { color: palette.warning, fontFamily: fonts.bold, fontSize: 12 }, lockedCopy: { color: '#C8B68E', fontFamily: fonts.regular, fontSize: 11, lineHeight: 16, marginTop: 2 }, sync: { borderRadius: 14, borderWidth: 1, borderColor: '#3E2530', backgroundColor: '#211319', padding: 12, flexDirection: 'row', gap: 10, marginTop: 14 }, syncTitle: { color: palette.text, fontFamily: fonts.bold, fontSize: 12 }, syncCopy: { color: palette.muted, fontFamily: fonts.regular, fontSize: 11, lineHeight: 16, marginTop: 2 }, status: { borderRadius: 14, backgroundColor: '#1A1E28', borderWidth: 1, borderColor: palette.line, padding: 12, flexDirection: 'row', gap: 10, marginTop: 14 }, statusRedo: { backgroundColor: '#251E13', borderColor: '#4C3A1C' }, statusPassed: { backgroundColor: '#10231C', borderColor: '#214D3A' }, statusTitle: { color: palette.text, fontFamily: fonts.bold, fontSize: 12 }, statusCopy: { color: '#D4D7DE', fontFamily: fonts.regular, fontSize: 11, lineHeight: 17, marginTop: 5 }, statusMeta: { color: palette.subtle, fontFamily: fonts.medium, fontSize: 11, marginTop: 6 }, form: { gap: 12, marginTop: 16 }, field: { gap: 6 }, label: { color: '#CDD1DA', fontFamily: fonts.bold, fontSize: 11 }, input: { minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: palette.line, backgroundColor: '#0A0C11', color: palette.text, fontFamily: fonts.regular, fontSize: 13, paddingHorizontal: 13, paddingVertical: 12 }, inputMultiline: { minHeight: 108, textAlignVertical: 'top' }, detailsButton: { minHeight: 44, alignItems: 'flex-start', justifyContent: 'center' }, detailsText: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 11 }, restoreDraft: { minHeight: 44, borderRadius: 13, borderWidth: 1, borderColor: '#3E2530', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 7 }, restoreDraftText: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 11 }, draftNotice: { minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 6 }, draftNoticeText: { flex: 1, color: palette.subtle, fontFamily: fonts.medium, fontSize: 11, lineHeight: 16 }, message: { color: '#F19A8C', fontFamily: fonts.semibold, fontSize: 11, lineHeight: 16 }, messageSuccess: { color: palette.success }, primaryButton: { minHeight: 50, borderRadius: 15, backgroundColor: palette.ruby, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, primaryText: { color: palette.text, fontFamily: fonts.bold, fontSize: 12 }, buttonDisabled: { opacity: 0.42 }, completeButton: { minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: '#4D2630', backgroundColor: '#211319', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 15 }, completeButtonDone: { borderColor: '#214D3A', backgroundColor: '#10231C' }, completeButtonText: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 12 }, completeButtonTextDone: { color: palette.success },
 });

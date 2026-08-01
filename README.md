@@ -13,7 +13,7 @@ The all-in-one learning hub for Code School of Guam — prework, live class, wor
 | Database | PostgreSQL | Neon (production), local Postgres (development) |
 | Frontend Hosting | Netlify | `learn.codeschoolofguam.com` |
 | API Hosting | Render (Singapore) | `learn-api.codeschoolofguam.com` |
-| Analytics | PostHog | Web identity, page views, and render exceptions; learning-event and native instrumentation are planned |
+| Analytics | PostHog | Privacy-safe typed web/native product and learning events; autocapture and session replay disabled |
 
 ## Monorepo Structure
 

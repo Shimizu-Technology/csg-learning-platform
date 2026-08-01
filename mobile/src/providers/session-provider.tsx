@@ -5,7 +5,9 @@ import { CsgApi } from '@/lib/api';
 import { demoUser } from '@/lib/demo-data';
 import { PUSH_TOKEN_KEY, registerPushNotifications } from '@/lib/push-notifications';
 import { clearLearningCache } from '@/lib/learning-cache';
+import { clearUserConversationStorage } from '@/lib/conversation-storage';
 import { canUseCachedSession, isSessionAccessDenied } from '@/lib/session-access';
+import { clearUserSubmissionDrafts } from '@/lib/submission-storage';
 import type { SessionUser } from '@/lib/types';
 import { useCsgAuth } from './auth-provider';
 
@@ -30,7 +32,11 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const [error, setError] = useState<string | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
   const userIdRef = useRef<number | null>(user?.id ?? null);
-  useEffect(() => { userIdRef.current = user?.id ?? null; }, [user?.id]);
+  const lastUserIdRef = useRef<number | null>(user?.id ?? null);
+  useEffect(() => {
+    userIdRef.current = user?.id ?? null;
+    if (user?.id) lastUserIdRef.current = user.id;
+  }, [user?.id]);
 
   const refresh = useCallback(async () => {
     if (!auth.signedIn) { setUser(null); setError(null); setAccessDenied(false); setLoading(false); return; }
@@ -51,12 +57,16 @@ export function SessionProvider({ children }: PropsWithChildren) {
         if (cached) {
           try { cachedUserId = (JSON.parse(cached) as SessionUser).id; } catch { cachedUserId = null; }
         }
-        cachedUserId ||= userIdRef.current;
+        cachedUserId ||= userIdRef.current || lastUserIdRef.current;
         const keys = [PUSH_TOKEN_KEY];
         if (userCacheKey) keys.push(userCacheKey);
         if (cachedUserId) {
           keys.push(`csg.inbox.${cachedUserId}`, `csg.workspaces.${cachedUserId}`, `csg.workspace.active.${cachedUserId}`);
-          await clearLearningCache(cachedUserId).catch(() => undefined);
+          await Promise.all([
+            clearLearningCache(cachedUserId),
+            clearUserConversationStorage(cachedUserId),
+            clearUserSubmissionDrafts(cachedUserId),
+          ].map((operation) => operation.catch(() => undefined)));
         }
         await AsyncStorage.multiRemove(keys);
         setUser(null);
@@ -78,12 +88,24 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const signOut = useCallback(async () => {
     const pushToken = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
     if (pushToken && !auth.demo) await api.unregisterDevice(pushToken).catch(() => undefined);
+    let cleanupUserId = user?.id || lastUserIdRef.current;
+    if (!cleanupUserId && userCacheKey) {
+      const cached = await AsyncStorage.getItem(userCacheKey);
+      if (cached) {
+        try { cleanupUserId = (JSON.parse(cached) as SessionUser).id; } catch { cleanupUserId = null; }
+      }
+    }
     const keys = [PUSH_TOKEN_KEY];
     if (userCacheKey) keys.push(userCacheKey);
-    if (user) keys.push(`csg.inbox.${user.id}`, `csg.workspaces.${user.id}`, `csg.workspace.active.${user.id}`);
-    if (user) await clearLearningCache(user.id).catch(() => undefined);
+    if (cleanupUserId) keys.push(`csg.inbox.${cleanupUserId}`, `csg.workspaces.${cleanupUserId}`, `csg.workspace.active.${cleanupUserId}`);
+    if (cleanupUserId) await Promise.all([
+      clearLearningCache(cleanupUserId),
+      clearUserConversationStorage(cleanupUserId),
+      clearUserSubmissionDrafts(cleanupUserId),
+    ].map((operation) => operation.catch(() => undefined)));
     await AsyncStorage.multiRemove(keys);
     await auth.signOut();
+    lastUserIdRef.current = null;
   }, [api, auth, user, userCacheKey]);
   const value = useMemo(() => ({ api, user, loading, error, accessDenied, refresh, signOut }), [api, user, loading, error, accessDenied, refresh, signOut]);
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

@@ -62,6 +62,8 @@ Voice message drafts use the Expo SDK 57 `expo-audio` config plugin with an expl
 
 The student Today tab also loads `/api/v1/weekly_plan`. This is the canonical **This Week** contract shared with web; do not derive a second weekly schedule from dashboard modules in native code. React Query persists this read-only projection for seven days inside the signed-in Rails user’s SQLite cache and sign-out removes that cache.
 
+Offline continuity follows `docs/OFFLINE_CONTINUITY.md`. Previously loaded learning queries remain readable from the user-scoped cache. Channel, DM, thread, and text-submission composers persist device drafts; failed writes are explicitly **Not sent** or **not submitted**, require intentional retry, and clear only after server acknowledgment. Sign-out removes authored draft/retry state. Media downloads and automatic background write queues remain deferred.
+
 ### Clerk social sign-in
 
 Google sign-in uses Clerk's browser-based SSO flow and returns through

@@ -13,6 +13,7 @@ import { subscribeToMessages } from '@/lib/cable';
 import { demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { resolveMentionUserIds } from '@/lib/mentions';
 import { mergeMessageEvent, sortMessages } from '@/lib/message-state';
+import { loadThreadDraft, saveThreadDraft } from '@/lib/conversation-storage';
 import type { Message, MessageEvent, UserSummary } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
@@ -25,7 +26,8 @@ export default function ThreadScreen() {
   const workspaceId = Number(params.workspaceId);
   const router = useRouter();
   const auth = useCsgAuth();
-  const { api } = useSession();
+  const { api, user } = useSession();
+  const userId = user?.id ?? null;
   const listRef = useRef<FlatList<Message>>(null);
   const [root, setRoot] = useState<Message | null>(null);
   const [replies, setReplies] = useState<Message[]>([]);
@@ -36,10 +38,13 @@ export default function ThreadScreen() {
   const [error, setError] = useState<string | null>(null);
   const [reactionDetails, setReactionDetails] = useState<{ messageId: number; emoji: string } | null>(null);
   const [imagePreview, setImagePreview] = useState<{ attachments: Message['attachments']; attachmentId: number } | null>(null);
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingDraftRef = useRef<{ userId: number; rootId: number; body: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      if (userId && !auth.demo) setDraft(await loadThreadDraft(userId, rootId));
       if (!Number.isInteger(workspaceId) || workspaceId <= 0) throw new Error('This thread link is incomplete. Open it again from the conversation.');
       if (auth.demo) {
         const conversationMessages = demoMessages[`${kind}:${conversationId}`] || [];
@@ -70,13 +75,28 @@ export default function ThreadScreen() {
       setError(null);
     } catch (requestError) { setError((requestError as Error).message); }
     finally { setLoading(false); }
-  }, [api, auth.demo, conversationId, kind, rootId, workspaceId]);
+  }, [api, auth.demo, conversationId, kind, rootId, userId, workspaceId]);
 
   useEffect(() => { const frame = requestAnimationFrame(() => void load()); return () => cancelAnimationFrame(frame); }, [load]);
   useEffect(() => auth.demo || loading || error ? undefined : subscribeToMessages(api, kind, conversationId, (event: MessageEvent) => {
     if (event.message.id === rootId) setRoot(event.event === 'deleted' ? null : event.message);
     else if (event.message.parent_message_id === rootId) setReplies((current) => mergeMessageEvent(current, event));
   }, () => undefined), [api, auth.demo, conversationId, error, kind, loading, rootId]);
+
+  useEffect(() => {
+    if (!userId || loading) return;
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    const pending = { userId, rootId, body: draft };
+    pendingDraftRef.current = pending;
+    draftTimerRef.current = setTimeout(() => void saveThreadDraft(pending.userId, pending.rootId, pending.body).then(() => { if (pendingDraftRef.current === pending) pendingDraftRef.current = null; }).catch(() => undefined), 300);
+    return () => { if (draftTimerRef.current) clearTimeout(draftTimerRef.current); };
+  }, [draft, loading, rootId, userId]);
+
+  useEffect(() => () => {
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    const pending = pendingDraftRef.current;
+    if (pending) void saveThreadDraft(pending.userId, pending.rootId, pending.body).catch(() => undefined);
+  }, []);
 
   const visible = useMemo(() => sortMessages(replies), [replies]);
   const reactionDetailsMessage = reactionDetails
@@ -107,6 +127,11 @@ export default function ThreadScreen() {
       const result = await api.sendMessage(kind, conversationId, { body, parent_message_id: rootId, mention_user_ids: resolveMentionUserIds(body, users), send_push: true });
       setReplies((current) => sortMessages([...current.filter((message) => message.id !== result.message.id), result.message]));
       requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+      if (userId) {
+        if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+        pendingDraftRef.current = null;
+        await saveThreadDraft(userId, rootId, '');
+      }
     } catch (requestError) { setDraft(body); Alert.alert('Reply not sent', (requestError as Error).message); }
     finally { setSending(false); }
   };

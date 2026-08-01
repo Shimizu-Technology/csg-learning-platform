@@ -59,6 +59,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
 
   test "lesson payload identifies only actionable completion blocks when an exercise exists" do
     exercise = @lesson.content_blocks.create!(block_type: :exercise, position: 2, title: "Submit")
+    submission = Submission.create!(user: @student, content_block: exercise, text: "Versioned draft base")
 
     as_user(@student) do
       get "/api/v1/lessons/#{@lesson.id}", headers: auth_headers
@@ -68,6 +69,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     blocks = JSON.parse(response.body).dig("lesson", "content_blocks").index_by { |item| item["id"] }
     assert_equal false, blocks.fetch(@video_block.id)["completion_required"]
     assert_equal true, blocks.fetch(exercise.id)["completion_required"]
+    assert_equal submission.updated_at.to_i, Time.iso8601(blocks.fetch(exercise.id).dig("submissions", 0, "updated_at")).to_i
   end
 
   test "staff lesson payload still includes video metadata" do
