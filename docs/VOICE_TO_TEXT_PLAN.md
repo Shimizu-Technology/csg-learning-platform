@@ -1,6 +1,6 @@
 # Voice-to-Text Messaging Plan
 
-**Status:** Planned
+**Status:** Phase 1 native message implementation complete behind release gates
 **Last updated:** 2026-08-01
 **Owner:** Product and engineering
 
@@ -115,7 +115,7 @@ Keep the raw transcript in memory until the draft is sent, discarded, or the com
 
 ### Mobile
 
-The current Expo app has no recording library and its image-picker configuration explicitly sets `microphonePermission` to `false`. Voice input therefore requires a new native build, not an over-the-air JavaScript-only release.
+At planning time, the Expo app had no recording library and its image-picker configuration explicitly set `microphonePermission` to `false`. The implemented voice input adds `expo-audio` and an explicit microphone usage description, so it requires a new native build rather than an over-the-air JavaScript-only release.
 
 Recommended implementation:
 
@@ -169,7 +169,16 @@ A dedicated database model is not required for the first version. The transcript
 
 ### Provider choice
 
-Use a short technical spike to compare transcription accuracy, latency, cost, data handling, and Guam network behavior. A server-side transcription API is the preferred first architecture because it provides consistent native/web behavior and keeps provider credentials off clients. OpenAI’s transcription endpoint accepts common mobile formats including M4A and WebM, but provider selection remains an implementation decision rather than a permanent product dependency.
+The Phase 1 implementation uses OpenAI server-side through a replaceable Rails adapter:
+
+- `gpt-4o-transcribe` for the faithful transcript and a small approved CSG vocabulary hint;
+- `gpt-5.6-luna` with reasoning set to `none`, strict structured output, and `store: false` for conservative cleanup;
+- a raw-transcript fallback when cleanup is unavailable, while transcription failures remain explicit errors;
+- M4A input only for the first native release, with signature and MP4 movie-duration verification on the server.
+
+This matches the workload roles: transcription uses the current dedicated speech model, while the short, high-volume formatting task uses the efficient GPT-5.6 tier. Models remain configurable through server environment variables so clients do not depend on a permanent model choice.
+
+OpenAI states that API data is not used for model training unless the customer opts in, but default abuse-monitoring logs may retain customer content for up to 30 days. CSG must disclose temporary third-party processing in its privacy policy and review the production project's data controls before setting `VOICE_TRANSCRIPTION_ENABLED=true`. The feature fails closed until that explicit flag is enabled. See [OpenAI data controls](https://developers.openai.com/api/docs/guides/your-data) and [audio transcription documentation](https://developers.openai.com/api/docs/guides/speech-to-text).
 
 Do not build realtime streaming first. A short recorded request followed by transcription is simpler to secure, test, retry, and explain. Add streaming only if measured end-to-end latency fails the acceptance target.
 
@@ -252,7 +261,9 @@ High discard, restore, or heavy-edit rates are quality signals—not reasons to 
 - finalize permission copy, duration, formats, and the cleanup contract;
 - prototype audio-session interaction with existing video playback.
 
-**Gate:** one provider/architecture passes privacy, accuracy, and device feasibility review.
+**Implementation status:** architecture, retention review, format/duration contract, provider adapter, and permission copy are implemented. Real Guam latency, representative vocabulary accuracy, and physical iPhone/Android audio-session acceptance remain release gates rather than claims made from simulator tests.
+
+**Gate:** the provider/architecture passes privacy, accuracy, Guam-network, and physical-device feasibility review.
 
 ### Voice B — Native message draft (1–2 weeks)
 
@@ -260,6 +271,8 @@ High discard, restore, or heavy-edit rates are quality signals—not reasons to 
 - add the authenticated API endpoint and provider adapter;
 - ship the record → transcribe → review → send flow in channel and direct messages;
 - add deletion guarantees, analytics, unit/integration tests, and device tests.
+
+**Implementation status:** complete in code for direct messages and channels. The managed iOS project compiles, installs, and launches with the generated microphone usage description; iOS and Android production JavaScript exports also pass. Production enablement still requires the privacy/data-control decision and the physical iPhone/Android acceptance below.
 
 **Gate:** no automatic send, no draft loss, no retained audio, and the physical-device acceptance suite passes.
 

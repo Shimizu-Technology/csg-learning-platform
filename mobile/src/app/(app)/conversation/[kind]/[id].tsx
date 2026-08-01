@@ -12,7 +12,9 @@ import { ImagePreview } from '@/components/image-preview';
 import { MessageBubble } from '@/components/message-bubble';
 import { ReactionDetailsSheet } from '@/components/reaction-details-sheet';
 import { ErrorState, LoadingState } from '@/components/screen-states';
+import { VoiceDraftButton, VoiceDraftPanel } from '@/components/voice-draft-controls';
 import { fontScaleLimits, fonts, palette } from '@/constants/csg-theme';
+import { useVoiceDraft } from '@/hooks/use-voice-draft';
 import { pendingAttachment, uploadAttachment } from '@/lib/attachments';
 import { subscribeToMessages } from '@/lib/cable';
 import { formatConversationDay, isDifferentConversationDay, isNearConversationBottom } from '@/lib/conversation-scroll';
@@ -64,6 +66,15 @@ export default function ConversationScreen() {
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const [reactionDetails, setReactionDetails] = useState<{ messageId: number; emoji: string } | null>(null);
   const [imagePreview, setImagePreview] = useState<{ attachments: Message['attachments']; attachmentId: number } | null>(null);
+  const voiceDraft = useVoiceDraft({
+    api,
+    demo: auth.demo,
+    draft,
+    selection,
+    disabled: sending || Boolean(editingMessage),
+    onDraftChange: setDraft,
+    onSelectionChange: setSelection,
+  });
 
   const rootMessages = useMemo(() => messages.filter((message) => !message.parent_message_id), [messages]);
   const conversationItems = useMemo(() => rootMessages.map((message, index) => ({ message, previous: rootMessages[index - 1] })).reverse(), [rootMessages]);
@@ -172,9 +183,14 @@ export default function ConversationScreen() {
       setMessages((current) => sortMessages([...current.filter((item) => item.id !== optimisticId), sendingMessage]));
       scrollToLatest(false);
       if (!retryMessage) { setDraft(''); setAttachments([]); }
-      if (auth.demo) { setMessages((current) => current.map((item) => item.id === optimisticId ? { ...item, client_status: undefined } : item)); return; }
+      if (auth.demo) {
+        setMessages((current) => current.map((item) => item.id === optimisticId ? { ...item, client_status: undefined } : item));
+        if (!retryMessage) voiceDraft.markSent(body);
+        return;
+      }
       const { message } = await api.sendMessage(kind, id, { body, mention_user_ids: resolveMentionUserIds(body, mentionUsers), attachments: uploaded, send_push: true });
       setMessages((current) => { const next = reconcileOptimistic(current, optimisticId, message); persistFailed(next); return next; });
+      if (!retryMessage) voiceDraft.markSent(body);
       if (userId) await saveConversationDraft(userId, kind, id, '');
     } catch (requestError) {
       if (!optimistic) {
@@ -267,8 +283,9 @@ export default function ConversationScreen() {
         </View>}
         {mentionTrigger && (showEveryone || suggestions.length > 0) && <View style={styles.mentionPanel}>{showEveryone && <Pressable accessibilityRole="button" accessibilityLabel="Mention everyone" onPress={() => { const value = `${draft.slice(0, mentionTrigger.start)}@everyone ${draft.slice(mentionTrigger.end)}`; const cursor = mentionTrigger.start + 10; setDraft(value); setSelection({ start: cursor, end: cursor }); }} style={styles.mentionRow}><View style={styles.everyoneIcon}><Hash color={palette.rubySoft} size={15} /></View><View><Text style={styles.mentionName}>@everyone</Text><Text style={styles.mentionEmail}>Notify everyone in this channel</Text></View></Pressable>}{suggestions.map((member) => <Pressable key={member.id} accessibilityRole="button" onPress={() => { const next = insertMention(draft, mentionTrigger, member); setDraft(next.value); setSelection({ start: next.cursor, end: next.cursor }); }} style={styles.mentionRow}><Avatar name={member.full_name} size={30} /><View><Text style={styles.mentionName}>{member.full_name}</Text><Text style={styles.mentionEmail}>{member.email}</Text></View></Pressable>)}</View>}
         {!!attachments.length && <ScrollView horizontal keyboardShouldPersistTaps="handled" contentContainerStyle={styles.attachmentTray}>{attachments.map((attachment) => <View key={attachment.local_id} style={styles.pendingAttachment}><Paperclip color={palette.rubySoft} size={14} /><View style={styles.pendingCopy}><Text numberOfLines={1} style={styles.pendingName}>{attachment.filename}</Text><Text style={styles.pendingStatus}>{attachment.status === 'uploading' ? `${Math.round(attachment.progress * 100)}%` : 'Ready to send'}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Remove ${attachment.filename}`} onPress={() => setAttachments((current) => current.filter((item) => item.local_id !== attachment.local_id))} style={styles.removeAttachment}><X color={palette.muted} size={14} /></Pressable></View>)}</ScrollView>}
+        <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />
         {editingMessage && <View style={styles.editBanner}><Edit3 color={palette.rubySoft} size={15} /><Text style={styles.editText}>Editing message</Text><Pressable accessibilityRole="button" accessibilityLabel="Cancel editing" onPress={() => { setEditingMessage(null); setDraft(''); }} style={styles.editClose}><X color={palette.muted} size={16} /></Pressable></View>}
-        <View style={styles.composer}><Pressable accessibilityRole="button" accessibilityLabel="Add an attachment" disabled={sending || Boolean(editingMessage)} onPress={() => Alert.alert('Add an attachment', undefined, [{ text: 'Photo library', onPress: () => void pickImage() }, { text: 'Choose a file', onPress: () => void pickDocument() }, { text: 'Cancel', style: 'cancel' }])} style={styles.attachButton}><Paperclip color={palette.muted} size={19} /></Pressable><TextInput accessibilityLabel="Message composer" accessibilityHint={`Enter a message for ${title}`} maxFontSizeMultiplier={fontScaleLimits.content} value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={setDraft} onFocus={() => { keyboardShouldFollowRef.current = nearBottomRef.current; if (nearBottomRef.current) scrollToLatest(false); }} placeholder={`Message ${kind === 'channel' ? '#' : ''}${title}`} placeholderTextColor={palette.quiet} multiline maxLength={10_000} style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel={editingMessage ? 'Save edit' : 'Send message'} disabled={(!draft.trim() && !attachments.length) || sending} onPress={() => void (editingMessage ? saveEdit() : send())} style={({ pressed }) => [styles.send, ((!draft.trim() && !attachments.length) || sending) && styles.sendDisabled, pressed && styles.pressed]}><Send color={palette.text} size={19} /></Pressable></View>
+        <View style={styles.composer}><Pressable accessibilityRole="button" accessibilityLabel="Add an attachment" disabled={sending || Boolean(editingMessage)} onPress={() => Alert.alert('Add an attachment', undefined, [{ text: 'Photo library', onPress: () => void pickImage() }, { text: 'Choose a file', onPress: () => void pickDocument() }, { text: 'Cancel', style: 'cancel' }])} style={styles.attachButton}><Paperclip color={palette.muted} size={19} /></Pressable><VoiceDraftButton state={voiceDraft.state} disabled={sending || Boolean(editingMessage)} onPress={() => void voiceDraft.start()} /><TextInput accessibilityLabel="Message composer" accessibilityHint={`Enter a message for ${title}`} maxFontSizeMultiplier={fontScaleLimits.content} value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={setDraft} onFocus={() => { keyboardShouldFollowRef.current = nearBottomRef.current; if (nearBottomRef.current) scrollToLatest(false); }} placeholder={`Message ${kind === 'channel' ? '#' : ''}${title}`} placeholderTextColor={palette.quiet} multiline maxLength={10_000} style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel={editingMessage ? 'Save edit' : 'Send message'} disabled={(!draft.trim() && !attachments.length) || sending} onPress={() => void (editingMessage ? saveEdit() : send())} style={({ pressed }) => [styles.send, ((!draft.trim() && !attachments.length) || sending) && styles.sendDisabled, pressed && styles.pressed]}><Send color={palette.text} size={19} /></Pressable></View>
       </KeyboardAvoidingView>
 
       <Modal visible={Boolean(selectedMessage)} transparent animationType="fade" onRequestClose={() => setSelectedMessage(null)}><View style={styles.modalRoot}><Pressable accessibilityRole="button" accessibilityLabel="Close message actions" style={StyleSheet.absoluteFill} onPress={() => setSelectedMessage(null)} /><View style={styles.actionSheet}><View style={styles.sheetHandle} /><Text style={styles.sheetTitle}>Message actions</Text>{selectedMessage && <>

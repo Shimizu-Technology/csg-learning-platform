@@ -72,9 +72,9 @@ Automated tests guard the type floor and contrast ratios. Local iOS acceptance c
 
 The original diagnosis and acceptance criteria remain in `PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md`.
 
-## Planned voice-to-text composer
+## Reviewed voice-to-text composer
 
-After the current code/readability quality gate, native messaging should add reviewed voice-to-text drafts:
+The native channel and direct-message composers now support reviewed voice-to-text drafts:
 
 - tap a microphone, record a short message, stop, and transcribe;
 - apply only meaning-preserving punctuation, paragraphs, and clearly spoken lists;
@@ -83,4 +83,4 @@ After the current code/readability quality gate, native messaging should add rev
 - retain no raw audio after processing and capture no transcript/message content in analytics;
 - ship direct messages and channels first, then reuse the shared flow in threads, contextual help, and concise grading feedback.
 
-The current app has no audio-recording dependency and explicitly disables microphone permission, so this requires a new native binary. The architecture, privacy contract, staged rollout, and physical-device acceptance criteria are in `VOICE_TO_TEXT_PLAN.md`.
+The implementation uses `expo-audio` for foreground-only, cache-backed M4A recording and an authenticated Rails endpoint for server-side transcription and conservative cleanup. It requires a new native binary. The production endpoint remains disabled until the privacy disclosure, provider data controls, representative Guam-network checks, and physical-device acceptance in `VOICE_TO_TEXT_PLAN.md` are complete.

@@ -1,7 +1,22 @@
+const mockExpoFetch = jest.fn();
+
+jest.mock('expo/fetch', () => ({ fetch: (...args: unknown[]) => mockExpoFetch(args[0], args[1]) }));
+jest.mock('expo-file-system', () => ({
+  File: class MockFile {
+    uri: string;
+    constructor(uri: string) { this.uri = uri; }
+  },
+}));
+
+// The API module must load after the native Expo mocks above.
+// eslint-disable-next-line import/first
 import { CsgApi, websocketOrigin, websocketUrl } from '../api';
 
 describe('CsgApi', () => {
-  afterEach(() => jest.restoreAllMocks());
+  afterEach(() => {
+    jest.restoreAllMocks();
+    mockExpoFetch.mockReset();
+  });
 
   it('adds a Clerk bearer token and parses JSON', async () => {
     const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ channels: [] }), { status: 200 }));
@@ -104,6 +119,39 @@ describe('CsgApi', () => {
     expect(fetchMock.mock.calls[1][0]).toContain('user_id=18&ungraded=true');
     expect(fetchMock.mock.calls[2][0]).toContain('/api/v1/submissions/9');
     expect(fetchMock.mock.calls[3][1]).toEqual(expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ grade: 'A', feedback: 'Clear work' }) }));
+  });
+
+  it('uploads a voice draft with authorization and the review-only contract', async () => {
+    mockExpoFetch.mockResolvedValue(new Response(JSON.stringify({
+      raw_text: 'hello there',
+      suggested_text: 'Hello there.',
+      duration_seconds: 2,
+      warnings: [],
+    }), { status: 200 }));
+
+    await expect(new CsgApi(async () => 'session-token').transcribeVoice('file:///voice.m4a')).resolves.toMatchObject({
+      raw_text: 'hello there',
+      suggested_text: 'Hello there.',
+    });
+
+    expect(mockExpoFetch).toHaveBeenCalledWith(expect.stringContaining('/api/v1/transcriptions'), expect.objectContaining({
+      method: 'POST',
+      headers: { Authorization: 'Bearer session-token' },
+      body: expect.any(FormData),
+    }));
+  });
+
+  it('refreshes a voice request token once after a 401', async () => {
+    const getToken = jest.fn(async ({ skipCache }: { skipCache?: boolean } = {}) => skipCache ? 'fresh-token' : 'old-token');
+    mockExpoFetch
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ raw_text: 'Hi', suggested_text: 'Hi.', duration_seconds: 1, warnings: [] }), { status: 200 }));
+
+    await expect(new CsgApi(getToken).transcribeVoice('file:///voice.m4a')).resolves.toMatchObject({ suggested_text: 'Hi.' });
+    expect(getToken).toHaveBeenNthCalledWith(2, { skipCache: true });
+    expect(mockExpoFetch).toHaveBeenLastCalledWith(expect.any(String), expect.objectContaining({
+      headers: { Authorization: 'Bearer fresh-token' },
+    }));
   });
 });
 
