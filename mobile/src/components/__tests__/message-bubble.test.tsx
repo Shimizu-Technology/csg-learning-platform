@@ -1,4 +1,5 @@
 import { fireEvent, render } from '@testing-library/react-native';
+import { Linking } from 'react-native';
 
 import type { Message } from '@/lib/types';
 import { MessageBubble } from '../message-bubble';
@@ -69,5 +70,31 @@ describe('MessageBubble', () => {
     fireEvent.press(screen.getByLabelText('Preview layout.png'));
 
     expect(onOpenImage).toHaveBeenCalledWith(message.attachments[0], message.attachments);
+  });
+
+  it('renders fenced code, lists, quotes, and inline formatting without showing markdown markers', () => {
+    const formatted = {
+      ...message,
+      body: '```sh\nls - list\n```\n\n- **First**\n- `Second`\n\n> Remember this',
+      attachments: [],
+    };
+    const screen = render(<MessageBubble message={formatted} showAuthor mentionUsers={[]} />);
+
+    expect(screen.getByText('sh')).toBeTruthy();
+    expect(screen.getByText('ls - list')).toBeTruthy();
+    expect(screen.getByText('First')).toBeTruthy();
+    expect(screen.getByText('Second')).toBeTruthy();
+    expect(screen.getByText('Remember this')).toBeTruthy();
+    expect(screen.queryByText(/```/)).toBeNull();
+  });
+
+  it('opens safe links from formatted message text', () => {
+    const openUrl = jest.spyOn(Linking, 'openURL').mockResolvedValueOnce(true);
+    const linked = { ...message, body: 'Read [the guide](https://example.com/docs).', attachments: [] };
+    const screen = render(<MessageBubble message={linked} showAuthor mentionUsers={[]} />);
+
+    fireEvent.press(screen.getByRole('link'));
+
+    expect(openUrl).toHaveBeenCalledWith('https://example.com/docs');
   });
 });

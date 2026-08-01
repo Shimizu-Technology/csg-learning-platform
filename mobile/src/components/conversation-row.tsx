@@ -1,13 +1,14 @@
 import { BellOff, ChevronRight, Hash } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { fonts, palette } from '@/constants/csg-theme';
+import { messagePreview } from '@/lib/message-format';
 import type { ChannelSummary, DirectConversationSummary } from '@/lib/types';
 import { Avatar } from './avatar';
 
 export function ConversationRow({ kind, item, onPress }: { kind: 'channel' | 'dm'; item: ChannelSummary | DirectConversationSummary; onPress: () => void }) {
   const channel = kind === 'channel' ? item as ChannelSummary : null;
   const title = channel ? channel.name : (item as DirectConversationSummary).title;
-  const preview = item.latest_message ? `${item.latest_message.author_name}: ${item.latest_message.body}` : 'No messages yet';
+  const preview = item.latest_message ? `${item.latest_message.author_name}: ${messagePreview(item.latest_message.body)}` : 'No messages yet';
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={`Open ${title}`} onPress={onPress} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
       {channel ? <View style={styles.channelIcon}><Hash color={palette.rubySoft} size={20} /></View> : <Avatar name={title} />}

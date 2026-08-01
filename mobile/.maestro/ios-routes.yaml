@@ -36,7 +36,7 @@ tags:
     timeout: 15000
 - scrollUntilVisible:
     element:
-      text: "Restart .* class progress"
+      text: "Open safe restart controls for Maya Santos"
     direction: DOWN
     timeout: 15000
 
@@ -114,6 +114,7 @@ tags:
 - extendedWaitUntil:
     visible: "Open Maya Santos"
     timeout: 15000
+- assertVisible: "Leon Shimizu: Command recap ls - list.*"
 
 - openLink: "csgconnect://conversation/channel/12"
 - tapOn:
@@ -122,6 +123,10 @@ tags:
 - extendedWaitUntil:
     visible: "Message composer.*"
     timeout: 15000
+- assertVisible: "Command recap"
+- assertVisible: "ls - list.*"
+- assertVisible: "Tab completion saves time."
+- assertNotVisible: ".*```.*"
 
 - openLink: "csgconnect://thread/101?kind=channel&conversationId=12&workspaceId=1"
 - tapOn:
