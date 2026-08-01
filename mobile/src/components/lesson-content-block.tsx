@@ -5,7 +5,7 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View 
 
 import { fonts, palette } from '@/constants/csg-theme';
 import { openAuthenticatedWebLesson, openExternalPage } from '@/lib/external-links';
-import { buildSubmissionInput, canSubmitWork, learningKeys, submissionState, submissionTypeFor } from '@/lib/learning';
+import { buildSubmissionInput, canSubmitWork, isNewSubmissionAttempt, learningKeys, submissionState, submissionTypeFor } from '@/lib/learning';
 import { analyticsAgeBucket, captureProductEvent } from '@/lib/analytics';
 import type { LessonContentBlock, LessonDetail, SubmissionInput, VideoProgressInput } from '@/lib/types';
 import { useSession } from '@/providers/session-provider';
@@ -75,9 +75,10 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
     },
     onSuccess: async (result) => {
       const attempt = result.submission.num_submissions || (latest?.num_submissions || 0) + 1;
-      if (!editable) captureProductEvent('submission_created', { content_block_id: block.id, submission_type: submissionType, attempt });
+      const isNewAttempt = isNewSubmissionAttempt(editable);
+      if (isNewAttempt) captureProductEvent('submission_created', { content_block_id: block.id, submission_type: submissionType, attempt });
       if (redo && latest) captureProductEvent('redo_submitted', { submission_id: result.submission.id, attempt, age_bucket: analyticsAgeBucket(latest.graded_at) });
-      captureProductEvent('learning_step_completed', {
+      if (isNewAttempt) captureProductEvent('learning_step_completed', {
         module_id: lesson.module_id, lesson_id: lesson.id, content_block_id: block.id, block_type: block.block_type, source: 'submission',
       });
       setMessage(editable ? 'Submission updated.' : redo ? 'Redo submitted.' : 'Work submitted.');

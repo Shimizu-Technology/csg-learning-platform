@@ -1,4 +1,4 @@
-import { buildSubmissionInput, canSubmitWork, lessonCompletion, safeExternalUrl, staffAttentionRank, submissionState, submissionTypeFor } from '../learning';
+import { buildSubmissionInput, canSubmitWork, isNewSubmissionAttempt, lessonCompletion, safeExternalUrl, staffAttentionRank, submissionState, submissionTypeFor } from '../learning';
 import type { LessonContentBlock, StaffStudentSummary, Submission } from '../types';
 
 const block = (id: number, status: string): LessonContentBlock => ({ id, block_type: 'checkpoint', position: id, title: null, body: null, video_url: null, filename: null, metadata: {}, progress: { status, completed_at: null } });
@@ -28,6 +28,11 @@ describe('learning helpers', () => {
 
     const latestDraft = submission({ id: 12, grade: null, created_at: '2026-07-22T10:00:00Z' });
     expect(submissionState([priorPass, latestDraft])).toMatchObject({ latest: latestDraft, passed: false, redo: false, editable: true });
+  });
+
+  it('does not count edits to an ungraded submission as a new attempt', () => {
+    expect(isNewSubmissionAttempt(true)).toBe(false);
+    expect(isNewSubmissionAttempt(false)).toBe(true);
   });
 
   it('validates and normalizes native submission payloads', () => {
