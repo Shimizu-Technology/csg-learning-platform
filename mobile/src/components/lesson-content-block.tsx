@@ -41,7 +41,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
   const [message, setMessage] = useState<{ body: string; success: boolean } | null>(null);
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
   const [olderDraft, setOlderDraft] = useState<SubmissionDraft | null>(null);
-  const draftHydratedRef = useRef(false);
+  const [draftHydrated, setDraftHydrated] = useState(false);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const studentEditedRef = useRef(false);
   const trackedFeedbackRef = useRef<number | null>(null);
@@ -49,7 +49,6 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
   useEffect(() => {
     if (!studentMode || submissionType !== 'text_submission' || !user) return;
     let canceled = false;
-    draftHydratedRef.current = false;
     void loadSubmissionDraft(user.id, block.id).then((draft) => {
       if (canceled) return;
       if (draft && studentEditedRef.current) {
@@ -61,17 +60,21 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
       } else if (draft && draft.base_submission_id !== (latest?.id ?? null)) {
         setOlderDraft(draft);
         setDraftNotice('An older device draft is available to restore.');
+      } else if (draft) {
+        void clearSubmissionDraft(user.id, block.id);
       }
-      draftHydratedRef.current = true;
+    }).catch(() => {
+      if (!canceled) setDraftNotice('Draft storage is temporarily unavailable. Keep this screen open.');
+    }).finally(() => {
+      if (!canceled) setDraftHydrated(true);
     });
     return () => { canceled = true; };
   }, [block.id, latest?.id, latest?.text, studentMode, submissionType, user]);
 
   useEffect(() => {
-    if (!studentMode || submissionType !== 'text_submission' || !user || !draftHydratedRef.current) return;
+    if (!studentMode || submissionType !== 'text_submission' || !user || !draftHydrated) return;
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
     const changed = text !== (latest?.text || '');
-    setDraftNotice(changed ? 'Saving draft on this device…' : null);
     draftTimerRef.current = setTimeout(() => {
       const operation = changed
         ? saveSubmissionDraft(user.id, block.id, text, latest?.id ?? null)
@@ -79,7 +82,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
       void operation.then(() => setDraftNotice(changed ? 'Draft saved on this device · not submitted' : null)).catch(() => setDraftNotice('Draft could not be saved. Keep this screen open.'));
     }, 300);
     return () => { if (draftTimerRef.current) clearTimeout(draftTimerRef.current); };
-  }, [block.id, latest?.id, latest?.text, studentMode, submissionType, text, user]);
+  }, [block.id, draftHydrated, latest?.id, latest?.text, studentMode, submissionType, text, user]);
 
   useEffect(() => {
     if (!latest?.grade || trackedFeedbackRef.current === latest.id) return;
@@ -163,7 +166,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
     {locked && <View style={styles.locked}><Lock color={palette.warning} size={17} /><View style={styles.flex}><Text style={styles.lockedTitle}>Submissions are closed</Text><Text style={styles.lockedCopy}>You can review this lesson and existing feedback.</Text></View></View>}
     {studentMode && isExercise && submissionType === 'prework_github_sync' && <View style={styles.sync}><GitBranch color={palette.rubySoft} size={18} /><View style={styles.flex}><Text style={styles.syncTitle}>Reviewed through GitHub</Text><Text style={styles.syncCopy}>{lesson.repository_name ? `Your work syncs from ${lesson.repository_name}.` : 'Your linked class repository is the source of truth.'}</Text></View></View>}
     {studentMode && isExercise && (submissionType === 'text_submission' || submissionType.includes('repo_')) && !passed && <View style={styles.form}>
-      {submissionType === 'text_submission' ? <Field label={editable ? 'Update your response' : redo ? 'Submit your redo' : 'Your response'} value={text} onChangeText={(value) => { studentEditedRef.current = true; setText(value); setMessage(null); }} multiline placeholder="Explain your solution or share your work…" /> : <>
+      {submissionType === 'text_submission' ? <Field label={editable ? 'Update your response' : redo ? 'Submit your redo' : 'Your response'} value={text} onChangeText={(value) => { studentEditedRef.current = true; setText(value); setDraftNotice('Saving draft on this device…'); setMessage(null); }} multiline placeholder="Explain your solution or share your work…" /> : <>
         <Field label="Repository URL" value={repoUrl} onChangeText={(value) => { setRepoUrl(value); setMessage(null); }} placeholder="https://github.com/…" keyboardType="url" />
         {submissionType === 'repo_and_live_url_submission' && <Field label="Live site URL" value={liveUrl} onChangeText={(value) => { setLiveUrl(value); setMessage(null); }} placeholder="https://…" keyboardType="url" />}
         <Pressable accessibilityRole="button" onPress={() => setShowDetails((value) => !value)} style={styles.detailsButton}><Text style={styles.detailsText}>{showDetails ? 'Hide optional details' : 'Add PR, branch, commit, or notes'}</Text></Pressable>
