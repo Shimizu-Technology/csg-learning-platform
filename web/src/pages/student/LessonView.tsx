@@ -6,6 +6,7 @@ import { ContentBlockRenderer } from '../../components/shared/ContentBlockRender
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { formatShortDateTime } from '../../lib/format'
+import { captureProductEvent } from '../../lib/analytics'
 
 interface LessonData {
   id: number
@@ -47,6 +48,15 @@ export function LessonView() {
   useEffect(() => {
     loadLesson()
   }, [loadLesson])
+
+  useEffect(() => {
+    if (!lesson) return
+    captureProductEvent('learning_step_started', {
+      module_id: lesson.module_id,
+      lesson_id: lesson.id,
+      block_type: 'lesson',
+    })
+  }, [lesson?.id, lesson?.module_id])
 
   if (loading) return <LoadingSpinner message="Loading lesson..." />
   if (!lesson) return <div className="text-center text-slate-500 py-12">Lesson not found</div>
@@ -120,6 +130,7 @@ export function LessonView() {
             submissionsLocked={lesson.submission_window?.submissions_closed || false}
             submissionsCloseAt={lesson.submission_window?.submissions_close_at || null}
             submissionWeekNumber={lesson.submission_window?.week_number}
+            analyticsContext={{ moduleId: lesson.module_id, lessonId: lesson.id }}
             onProgressUpdate={() => loadLesson({ silent: true })}
           />
         ))}

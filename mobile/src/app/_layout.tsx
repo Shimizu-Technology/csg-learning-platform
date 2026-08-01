@@ -15,6 +15,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/csg-theme';
 import { NotificationObserver } from '@/components/notification-observer';
+import { AnalyticsProvider } from '@/providers/analytics-provider';
 import { ClerkAuthProvider, DemoAuthProvider, isDemoMode } from '@/providers/auth-provider';
 import { SessionProvider } from '@/providers/session-provider';
 import { ServerStateProvider } from '@/providers/server-state-provider';
@@ -25,7 +26,7 @@ void SplashScreen.preventAutoHideAsync();
 function AppProviders() {
   return (
     <SessionProvider>
-      <ServerStateProvider><WorkspaceProvider>
+      <AnalyticsProvider><ServerStateProvider><WorkspaceProvider>
         <StatusBar style="light" />
         <NotificationObserver />
         <Stack screenOptions={{ contentStyle: { backgroundColor: palette.ink }, headerStyle: { backgroundColor: palette.ink }, headerTintColor: palette.text, headerShadowVisible: false }}>
@@ -33,7 +34,7 @@ function AppProviders() {
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen name="(app)" options={{ headerShown: false }} />
         </Stack>
-      </WorkspaceProvider></ServerStateProvider>
+      </WorkspaceProvider></ServerStateProvider></AnalyticsProvider>
     </SessionProvider>
   );
 }

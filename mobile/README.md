@@ -13,6 +13,7 @@ real-time updates, and native push notifications.
 - Rails REST API for history and mutations
 - Action Cable for live conversation events
 - Expo Notifications for iOS and Android push delivery
+- PostHog manual product events with autocapture and session replay disabled
 - Manrope and Lucide React Native for the CSG design system
 
 ## Local setup
@@ -50,8 +51,10 @@ Required environment variables:
 | `EXPO_PUBLIC_API_URL` | Rails API origin; `http://localhost:3000` works in the iOS Simulator |
 | `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk native application publishable key |
 | `EXPO_PUBLIC_EAS_PROJECT_ID` | Expo project ID used to issue push tokens |
+| `EXPO_PUBLIC_POSTHOG_KEY` | Optional CSG PostHog project key; development and demo builds never capture |
+| `EXPO_PUBLIC_POSTHOG_HOST` | Optional PostHog ingest endpoint; defaults to `https://us.i.posthog.com` |
 
-Clerk Native API must be enabled for the Clerk instance. Native push token creation also requires an EAS project and platform push credentials.
+Clerk Native API must be enabled for the Clerk instance. Native push token creation also requires an EAS project and platform push credentials. Analytics events must follow `docs/ANALYTICS_EVENT_CONTRACT.md`; do not add direct PostHog capture calls outside the typed helper.
 
 ### Clerk social sign-in
 

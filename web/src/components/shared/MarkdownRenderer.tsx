@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import DOMPurify from 'dompurify'
 import { Copy, Check } from 'lucide-react'
+import { analyticsLanguage, captureProductEvent } from '../../lib/analytics'
 
 interface MarkdownRendererProps {
   content: string
@@ -12,11 +13,12 @@ function isHtml(str: string): boolean {
   return /^\s*<(p|div|h[1-6]|ul|ol|li|pre|blockquote|table|br|hr|!DOCTYPE)[\s>]/i.test(str)
 }
 
-function CopyButton({ text }: { text: string }) {
+function CopyButton({ text, language }: { text: string; language?: string }) {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(text).then(() => {
+      captureProductEvent('code_block_copied', { surface: 'lesson', language: analyticsLanguage(language) })
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
@@ -73,6 +75,7 @@ function HtmlContentRenderer({ html }: { html: string }) {
       btn.addEventListener('click', () => {
         const text = pre.textContent || ''
         navigator.clipboard.writeText(text).then(() => {
+          captureProductEvent('code_block_copied', { surface: 'lesson', language: 'other' })
           btn.innerHTML = `${CHECK_SVG}<span>Copied</span>`
           setTimeout(() => {
             btn.innerHTML = `${COPY_SVG}<span>Copy Code</span>`
@@ -122,9 +125,10 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
             const isBlock = !className && text.includes('\n')
 
             if (isBlock || className) {
+              const language = className?.replace(/^language-/, '')
               return (
                 <div className="code-block-wrapper">
-                  <CopyButton text={text} />
+                  <CopyButton text={text} language={language} />
                   <pre>
                     <code {...props}>{children}</code>
                   </pre>

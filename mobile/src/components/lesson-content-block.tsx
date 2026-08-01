@@ -1,11 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { BadgeCheck, Check, Circle, Code2, ExternalLink, FileText, GitBranch, Lock, Play, RotateCcw, Send } from 'lucide-react-native';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { fonts, palette } from '@/constants/csg-theme';
 import { openAuthenticatedWebLesson, openExternalPage } from '@/lib/external-links';
 import { buildSubmissionInput, canSubmitWork, learningKeys, submissionState, submissionTypeFor } from '@/lib/learning';
+import { analyticsAgeBucket, captureProductEvent } from '@/lib/analytics';
 import type { LessonContentBlock, LessonDetail, SubmissionInput, VideoProgressInput } from '@/lib/types';
 import { useSession } from '@/providers/session-provider';
 import { LessonMarkdown } from './lesson-markdown';
@@ -37,6 +38,17 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
   const [notes, setNotes] = useState(latest?.notes || '');
   const [showDetails, setShowDetails] = useState(Boolean(latest?.pr_url || latest?.branch || latest?.commit_sha || latest?.notes));
   const [message, setMessage] = useState<string | null>(null);
+  const trackedFeedbackRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!latest?.grade || trackedFeedbackRef.current === latest.id) return;
+    trackedFeedbackRef.current = latest.id;
+    captureProductEvent('feedback_viewed', {
+      submission_id: latest.id,
+      grade_state: latest.grade === 'R' ? 'redo' : 'passed',
+      age_bucket: analyticsAgeBucket(latest.graded_at),
+    });
+  }, [latest?.grade, latest?.graded_at, latest?.id]);
 
   const refresh = async () => {
     if (!user) return;
@@ -47,7 +59,12 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
   };
   const progressMutation = useMutation({
     mutationFn: (status: string) => api.updateProgress(block.id, status),
-    onSuccess: () => void refresh(),
+    onSuccess: (_result, status) => {
+      if (status === 'completed') captureProductEvent('learning_step_completed', {
+        module_id: lesson.module_id, lesson_id: lesson.id, content_block_id: block.id, block_type: block.block_type, source: 'manual',
+      });
+      void refresh();
+    },
     onError: (error) => Alert.alert('Could not update progress', (error as Error).message),
   });
   const submissionMutation = useMutation({
@@ -56,7 +73,16 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
       if (editable && latest) return api.updateSubmission(latest.id, withoutContentBlock(input));
       return api.createSubmission(input);
     },
-    onSuccess: async () => { setMessage(editable ? 'Submission updated.' : redo ? 'Redo submitted.' : 'Work submitted.'); await refresh(); },
+    onSuccess: async (result) => {
+      const attempt = result.submission.num_submissions || (latest?.num_submissions || 0) + 1;
+      if (!editable) captureProductEvent('submission_created', { content_block_id: block.id, submission_type: submissionType, attempt });
+      if (redo && latest) captureProductEvent('redo_submitted', { submission_id: result.submission.id, attempt, age_bucket: analyticsAgeBucket(latest.graded_at) });
+      captureProductEvent('learning_step_completed', {
+        module_id: lesson.module_id, lesson_id: lesson.id, content_block_id: block.id, block_type: block.block_type, source: 'submission',
+      });
+      setMessage(editable ? 'Submission updated.' : redo ? 'Redo submitted.' : 'Work submitted.');
+      await refresh();
+    },
     onError: (error) => setMessage((error as Error).message),
   });
   const handoffMutation = useMutation({
@@ -98,16 +124,23 @@ function LessonVideo({ block, lesson }: { block: LessonContentBlock; lesson: Les
   const { api, user } = useSession();
   const userId = user?.id ?? null;
   const queryClient = useQueryClient();
+  const trackedCompletionRef = useRef(block.progress?.status === 'completed');
   const fetchStream = useCallback(async () => {
     const response = await api.contentVideoStream(block.id);
     return { stream_url: response.stream_url, expires_at: response.expires_at };
   }, [api, block.id]);
   const saveProgress = useCallback(async (progress: VideoProgressInput) => {
     const response = await api.updateContentVideoProgress(block.id, progress);
+    if (response.video_progress.completed && !trackedCompletionRef.current) {
+      trackedCompletionRef.current = true;
+      captureProductEvent('learning_step_completed', {
+        module_id: lesson.module_id, lesson_id: lesson.id, content_block_id: block.id, block_type: block.block_type, source: 'video',
+      });
+    }
     if (!userId) return;
     queryClient.setQueryData<{ lesson: LessonDetail }>(learningKeys.lesson(userId, lesson.id), (current) => current ? { lesson: { ...current.lesson, content_blocks: current.lesson.content_blocks.map((candidate) => candidate.id === block.id ? { ...candidate, progress: { ...candidate.progress, status: response.video_progress.status, completed_at: response.video_progress.completed ? new Date().toISOString() : candidate.progress?.completed_at || null, video_last_position: response.video_progress.last_position, video_total_watched: response.video_progress.total_watched } } : candidate) } } : current);
     if (response.video_progress.completed) void queryClient.invalidateQueries({ queryKey: learningKeys.dashboard(userId) });
-  }, [api, block.id, lesson.id, queryClient, userId]);
+  }, [api, block.block_type, block.id, lesson.id, lesson.module_id, queryClient, userId]);
 
   if (block.has_s3_video) return <View style={styles.nativeVideo}><NativeVideoPlayer fetchStream={fetchStream} initialPosition={block.progress?.video_last_position || 0} initialTotalWatched={block.progress?.video_total_watched || 0} saveProgress={saveProgress} title={block.title || lesson.title} /></View>;
   return <Pressable accessibilityRole="button" accessibilityLabel={`Play ${block.title || 'video'}`} onPress={() => void openExternalPage(block.video_url).catch((error) => Alert.alert('Video unavailable', (error as Error).message))} style={styles.outlineButton}><Play color={palette.rubySoft} size={17} /><Text style={styles.outlineText}>Open video</Text><ExternalLink color={palette.quiet} size={15} /></Pressable>;
