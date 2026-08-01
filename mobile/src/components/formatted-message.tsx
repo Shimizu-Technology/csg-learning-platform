@@ -65,7 +65,6 @@ export function FormattedMessage({ body, mentionUsers, mine = false }: Props) {
 function formatInline(text: string, mentionUsers: UserSummary[], mine: boolean, keyPrefix: string): ReactNode[] {
   const nodes: ReactNode[] = [];
   const codePattern = /`[^`]+`/g;
-  const linkPattern = /\[([^\]]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi;
   const nestedFormatPattern = /(\*\*[^*]+\*\*|_[^_]+_|~~[^~]+~~|\+\+[^+]+\+\+|`[^`]+`|\[[^\]]+\]\([^)\s]+\)|https?:\/\/|www\.)/i;
 
   const renderNestedInline = (value: string, nestedKey: string) => (
@@ -104,21 +103,21 @@ function formatInline(text: string, mentionUsers: UserSummary[], mine: boolean, 
 
   const appendTextWithLinks = (chunk: string, chunkKey: string) => {
     let cursor = 0;
-    let match: RegExpExecArray | null;
+    let link = nextInlineLink(chunk, cursor);
 
-    linkPattern.lastIndex = 0;
-    while ((match = linkPattern.exec(chunk)) !== null) {
-      if (cursor < match.index) appendFormattedText(chunk.slice(cursor, match.index), `${chunkKey}-text-${cursor}`);
+    while (link) {
+      if (cursor < link.index) appendFormattedText(chunk.slice(cursor, link.index), `${chunkKey}-text-${cursor}`);
 
-      if (match[1] !== undefined && match[2] !== undefined) {
-        appendLink(nodes, renderNestedInline(match[1], `${chunkKey}-link-label-${match.index}`), match[2], mine, `${chunkKey}-markdown-link-${match.index}`);
+      if (link.label !== undefined) {
+        appendLink(nodes, renderNestedInline(link.label, `${chunkKey}-link-label-${link.index}`), link.href, mine, `${chunkKey}-markdown-link-${link.index}`);
       } else {
-        const { href, trailing } = splitTrailingUrlPunctuation(match[3]);
-        appendLink(nodes, href, href, mine, `${chunkKey}-bare-link-${match.index}`);
-        if (trailing) nodes.push(<Text key={`${chunkKey}-trailing-${match.index}`}>{trailing}</Text>);
+        const { href, trailing } = splitTrailingUrlPunctuation(link.href);
+        appendLink(nodes, href, href, mine, `${chunkKey}-bare-link-${link.index}`);
+        if (trailing) nodes.push(<Text key={`${chunkKey}-trailing-${link.index}`}>{trailing}</Text>);
       }
 
-      cursor = match.index + match[0].length;
+      cursor = link.index + link.length;
+      link = nextInlineLink(chunk, cursor);
     }
 
     if (cursor < chunk.length) appendFormattedText(chunk.slice(cursor), `${chunkKey}-tail-${cursor}`);
@@ -136,6 +135,58 @@ function formatInline(text: string, mentionUsers: UserSummary[], mine: boolean, 
   if (cursor < text.length) appendTextWithLinks(text.slice(cursor), `${keyPrefix}-inline-${cursor}`);
   if (nodes.length === 0) return renderMentions(text, mentionUsers, `${keyPrefix}-plain`);
   return nodes;
+}
+
+type InlineLink = {
+  index: number;
+  length: number;
+  href: string;
+  label?: string;
+};
+
+function nextInlineLink(text: string, start: number): InlineLink | null {
+  const markdown = nextMarkdownLink(text, start);
+  const barePattern = /(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi;
+  barePattern.lastIndex = start;
+  const bare = barePattern.exec(text);
+
+  if (markdown && (!bare || markdown.index <= bare.index)) return markdown;
+  if (!bare) return null;
+  return { index: bare.index, length: bare[0].length, href: bare[0] };
+}
+
+function nextMarkdownLink(text: string, start: number): InlineLink | null {
+  const opener = /\[([^\]]+)\]\(/g;
+  opener.lastIndex = start;
+  let match: RegExpExecArray | null;
+
+  while ((match = opener.exec(text)) !== null) {
+    let cursor = opener.lastIndex;
+    let depth = 1;
+
+    while (cursor < text.length) {
+      const character = text[cursor];
+      if (/\s/.test(character)) break;
+      if (character === '(') depth += 1;
+      if (character === ')') {
+        depth -= 1;
+        if (depth === 0) {
+          const end = cursor + 1;
+          return {
+            index: match.index,
+            length: end - match.index,
+            label: match[1],
+            href: text.slice(opener.lastIndex, cursor),
+          };
+        }
+      }
+      cursor += 1;
+    }
+
+    opener.lastIndex = match.index + 1;
+  }
+
+  return null;
 }
 
 function appendLink(nodes: ReactNode[], label: ReactNode, href: string, mine: boolean, key: string) {

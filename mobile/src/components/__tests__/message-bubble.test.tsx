@@ -97,4 +97,16 @@ describe('MessageBubble', () => {
 
     expect(openUrl).toHaveBeenCalledWith('https://example.com/docs');
   });
+
+  it('opens the complete destination when a markdown link URL contains parentheses', () => {
+    const openUrl = jest.spyOn(Linking, 'openURL').mockResolvedValueOnce(true);
+    const href = 'https://en.wikipedia.org/wiki/Function_(computer_programming)';
+    const linked = { ...message, body: `Read [about functions](${href}).`, attachments: [] };
+    const screen = render(<MessageBubble message={linked} showAuthor mentionUsers={[]} />);
+
+    fireEvent.press(screen.getByRole('link'));
+
+    expect(openUrl).toHaveBeenCalledWith(href);
+    expect(screen.queryByText(').')).toBeNull();
+  });
 });
