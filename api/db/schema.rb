@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_26_000200) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_01_000100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -364,6 +364,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_000200) do
     t.bigint "created_by_id"
     t.text "description"
     t.datetime "ends_at", null: false
+    t.integer "event_kind", default: 0, null: false
     t.string "meeting_url", null: false
     t.integer "recurrence", default: 0, null: false
     t.datetime "starts_at", null: false
@@ -371,6 +372,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_000200) do
     t.string "title", null: false
     t.datetime "updated_at", null: false
     t.index ["cohort_id", "active", "starts_at"], name: "index_office_hours_on_cohort_id_and_active_and_starts_at"
+    t.index ["cohort_id", "event_kind", "active"], name: "index_office_hours_on_cohort_kind_and_active"
     t.index ["cohort_id"], name: "index_office_hours_on_cohort_id"
     t.index ["created_by_id"], name: "index_office_hours_on_created_by_id"
   end

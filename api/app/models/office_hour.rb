@@ -4,6 +4,7 @@ class OfficeHour < ApplicationRecord
   DEFAULT_TIMEZONE = "Pacific/Guam".freeze
 
   enum :recurrence, { once: 0, weekly: 1 }, prefix: true
+  enum :event_kind, { office_hours: 0, live_class: 1 }, prefix: true
 
   belongs_to :cohort
   belongs_to :created_by, class_name: "User", optional: true

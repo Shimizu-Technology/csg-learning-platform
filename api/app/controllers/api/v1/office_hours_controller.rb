@@ -66,7 +66,7 @@ module Api
       end
 
       def office_hour_params
-        permitted = params.permit(:title, :description, :starts_at, :ends_at, :meeting_url, :timezone, :recurrence, :active)
+        permitted = params.permit(:title, :description, :starts_at, :ends_at, :meeting_url, :timezone, :recurrence, :event_kind, :active)
         timezone = permitted[:timezone].presence || @office_hour&.timezone || OfficeHour::DEFAULT_TIMEZONE
         zone = Time.find_zone!(timezone)
 

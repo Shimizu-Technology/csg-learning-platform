@@ -72,7 +72,7 @@ The foundation release captures:
 - native message code-block horizontal use and Copy;
 - web lesson code-block Copy.
 
-Weekly-plan, help-request, intervention, recording, and voice events are added at their feature success boundaries in their own pull requests. A client event must not fire before the corresponding server write succeeds unless the event describes a clearly client-only action such as opening a view, starting a voice draft, scrolling, or copying.
+Weekly-plan and voice events are now implemented at their feature boundaries; help-request, intervention, and remaining recording events are added with their own product slices. A client event must not fire before the corresponding server write succeeds unless the event describes a clearly client-only action such as opening a view, starting a voice draft, scrolling, or copying.
 
 ## 5. Configuration
 

@@ -59,6 +59,8 @@ Clerk Native API must be enabled for the Clerk instance. Native push token creat
 
 Voice message drafts use the Expo SDK 57 `expo-audio` config plugin with an explicit microphone permission string. This requires a new native build and cannot ship as a JavaScript-only update. Audio stays in the app cache, is sent only after an intentional recording action, and is deleted after success, cancellation, or terminal dismissal. The Rails endpoint remains disabled until its server-side provider/privacy gate is enabled.
 
+The student Today tab also loads `/api/v1/weekly_plan`. This is the canonical **This Week** contract shared with web; do not derive a second weekly schedule from dashboard modules in native code. React Query persists this read-only projection for seven days inside the signed-in Rails user’s SQLite cache and sign-out removes that cache.
+
 ### Clerk social sign-in
 
 Google sign-in uses Clerk's browser-based SSO flow and returns through

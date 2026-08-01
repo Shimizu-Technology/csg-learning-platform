@@ -17,6 +17,7 @@ Rails.application.routes.draw do
 
       # Dashboard / student hubs
       get "dashboard", to: "dashboard#show"
+      get "weekly_plan", to: "weekly_plans#show"
       get "recordings", to: "student_recordings#index"
       get "resources", to: "resources#index"
 

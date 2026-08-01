@@ -49,7 +49,7 @@ The platform has completed far more of the native and communications roadmap tha
 1. **Completed:** native code-block horizontal navigation, semantic type, contrast, and Dynamic Type quality.
 2. **Implemented behind a release gate:** reviewed native voice-to-text message drafts: record, transcribe, lightly format, edit, then explicitly send. Privacy, provider, Guam-network, and physical-device acceptance remain before enablement.
 3. **Foundation complete:** privacy-safe web/native learning-event instrumentation. Four teaching weeks of baseline data remain necessarily time-gated after production release.
-4. A shared **This Week** plan, contextual help requests, and a staff-owned intervention queue.
+4. **This Week implemented:** one API projection now powers web/native required work, deadlines, redos, live schedule, unlocks, optional stretch work, and recording catch-up. Contextual help requests and the staff-owned intervention queue follow in the next Phase 1 slice.
 5. Learning objectives, reusable rubrics, feedback snippets, and selected formative retrieval checks.
 6. Recording captions/transcripts/chapters and restart/recovery plans.
 7. Explainable mastery views, GitHub test feedback, and curriculum-effectiveness analytics.

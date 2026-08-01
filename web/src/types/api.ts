@@ -482,6 +482,7 @@ export interface OfficeHourOccurrence {
   meeting_url: string;
   timezone: string;
   recurrence: 'once' | 'weekly';
+  event_kind: 'office_hours' | 'live_class';
 }
 
 export interface OfficeHour {
@@ -494,6 +495,7 @@ export interface OfficeHour {
   meeting_url: string;
   timezone: string;
   recurrence: 'once' | 'weekly';
+  event_kind: 'office_hours' | 'live_class';
   active: boolean;
   occurrences: OfficeHourOccurrence[];
   created_by?: {
@@ -501,6 +503,39 @@ export interface OfficeHour {
     full_name: string;
     email: string;
   } | null;
+}
+
+export interface WeeklyPlanLessonItem {
+  id: string;
+  kind: 'lesson';
+  lesson_id: number;
+  module_id: number;
+  title: string;
+  module_title: string;
+  lesson_type: string;
+  required: boolean;
+  scheduled_for: string;
+  carried_forward: boolean;
+  state: 'completed' | 'open' | 'upcoming' | 'closed';
+  submission_close_at: string | null;
+  submissions_closed: boolean;
+}
+
+export interface WeeklyPlan {
+  enrolled: boolean;
+  cohort?: { id: number; name: string };
+  week_number?: number;
+  starts_on?: string;
+  ends_on?: string;
+  timezone: string;
+  generated_at?: string;
+  summary?: { required_count: number; required_completed_count: number; open_redo_count: number; optional_count: number };
+  required?: WeeklyPlanLessonItem[];
+  optional?: WeeklyPlanLessonItem[];
+  redos?: Array<{ id: string; kind: 'redo'; submission_id: number; lesson_id: number; title: string; lesson_title: string; feedback: string | null; state: 'open' | 'closed'; submission_close_at: string | null }>;
+  events?: Array<{ id: string; kind: 'office_hours' | 'live_class'; office_hour_id: number; title: string; description: string | null; starts_at: string; ends_at: string; meeting_url: string; timezone: string; recurrence: 'once' | 'weekly'; event_kind: 'office_hours' | 'live_class' }>;
+  upcoming_unlocks?: Array<{ id: string; kind: 'unlock'; lesson_id: number; module_id: number; title: string; module_title: string; unlocks_on: string; required: boolean }>;
+  recording_catch_up?: Array<{ id: string; kind: 'recording'; recording_id: number; title: string; recorded_on: string | null; progress_percentage: number }>;
 }
 
 export interface CohortSummary {
@@ -1107,6 +1142,10 @@ export interface SessionResponse {
 export interface DashboardResponse {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   dashboard: any;
+}
+
+export interface WeeklyPlanResponse {
+  weekly_plan: WeeklyPlan;
 }
 
 export interface ProfileResponse {

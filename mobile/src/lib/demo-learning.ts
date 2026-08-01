@@ -1,4 +1,24 @@
-import type { LessonDetail, RecordingItem, StudentDashboard } from './types';
+import type { LessonDetail, RecordingItem, StudentDashboard, WeeklyPlan } from './types';
+
+export const demoWeeklyPlan: WeeklyPlan = {
+  enrolled: true,
+  cohort: { id: 4, name: 'Web Dev Cohort 4' },
+  week_number: 8,
+  starts_on: '2026-07-20',
+  ends_on: '2026-07-26',
+  timezone: 'Pacific/Guam',
+  summary: { required_count: 3, required_completed_count: 1, open_redo_count: 1, optional_count: 1 },
+  required: [
+    { id: 'lesson-100', kind: 'lesson', lesson_id: 100, module_id: 10, title: 'HTML and semantic structure', module_title: 'Frontend Foundations', lesson_type: 'reading', required: true, scheduled_for: '2026-07-20', carried_forward: false, state: 'completed', submission_close_at: null, submissions_closed: false },
+    { id: 'lesson-101', kind: 'lesson', lesson_id: 101, module_id: 10, title: 'Responsive layouts with Grid', module_title: 'Frontend Foundations', lesson_type: 'exercise', required: true, scheduled_for: '2026-07-22', carried_forward: false, state: 'open', submission_close_at: '2026-07-25T23:59:00+10:00', submissions_closed: false },
+    { id: 'lesson-102', kind: 'lesson', lesson_id: 102, module_id: 10, title: 'Accessible forms', module_title: 'Frontend Foundations', lesson_type: 'exercise', required: true, scheduled_for: '2026-07-21', carried_forward: true, state: 'open', submission_close_at: '2026-07-25T23:59:00+10:00', submissions_closed: false },
+  ],
+  optional: [{ id: 'lesson-104', kind: 'lesson', lesson_id: 104, module_id: 10, title: 'Container query stretch', module_title: 'Frontend Foundations', lesson_type: 'exercise', required: false, scheduled_for: '2026-07-24', carried_forward: false, state: 'upcoming', submission_close_at: null, submissions_closed: false }],
+  redos: [{ id: 'redo-9', kind: 'redo', submission_id: 9, lesson_id: 102, title: 'Contact form exercise', lesson_title: 'Accessible forms', feedback: 'Add an explicit label for every field.', state: 'open', submission_close_at: '2026-07-25T23:59:00+10:00' }],
+  events: [{ id: 'event-1', kind: 'live_class', office_hour_id: 1, title: 'Frontend live class', description: null, starts_at: '2026-07-22T18:00:00+10:00', ends_at: '2026-07-22T20:00:00+10:00', meeting_url: 'https://meet.google.com/', timezone: 'Pacific/Guam', recurrence: 'weekly', event_kind: 'live_class' }],
+  upcoming_unlocks: [{ id: 'unlock-103', kind: 'unlock', lesson_id: 103, module_id: 10, title: 'JavaScript interactions', module_title: 'Frontend Foundations', unlocks_on: '2026-07-25', required: true }],
+  recording_catch_up: [{ id: 'recording-2', kind: 'recording', recording_id: 2, title: 'APIs, authentication, and deployment', recorded_on: '2026-07-15', progress_percentage: 28 }],
+};
 
 export const demoDashboard: StudentDashboard = {
   enrolled: true,

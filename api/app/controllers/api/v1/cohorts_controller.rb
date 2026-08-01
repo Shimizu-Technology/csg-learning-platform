@@ -94,7 +94,7 @@ module Api
             @cohort.cohort_module_schedules.where(module_id: curriculum_module.id).destroy_all
           elsif assigned == true || module_already_assigned
             schedule = @cohort.cohort_module_schedules.find_or_initialize_by(module_id: curriculum_module.id)
-            schedule.start_date = module_start_date || schedule.start_date || curriculum_module.next_start_date_on_or_after(Date.current)
+            schedule.start_date = module_start_date || schedule.start_date || curriculum_module.next_start_date_on_or_after(LearningCalendar.today)
             schedule.save!
           end
 
@@ -419,12 +419,12 @@ module Api
         return false unless start_date.present?
         return true if assignments.any?(&:unlocked?)
 
-        Date.current >= start_date
+        LearningCalendar.today >= start_date
       end
 
       def cohort_student_view_lesson_json(cohort, mod, lesson, module_start_date, module_available, requires_github)
         unlock_date = module_start_date.present? ? module_start_date + mod.calendar_offset_for(lesson.release_day) : nil
-        available = module_available && unlock_date.present? && Date.current >= unlock_date
+        available = module_available && unlock_date.present? && LearningCalendar.today >= unlock_date
 
         {
           id: lesson.id,

@@ -41,16 +41,16 @@ class Lesson < ApplicationRecord
     base_date + curriculum_module.calendar_offset_for(release_day)
   end
 
-  def available?(cohort, module_assignment = nil, lesson_assignment = nil)
-    return Date.current >= lesson_assignment.unlock_date_override if lesson_assignment&.unlock_date_override.present?
+  def available?(cohort, module_assignment = nil, lesson_assignment = nil, on: LearningCalendar.today)
+    return on >= lesson_assignment.unlock_date_override if lesson_assignment&.unlock_date_override.present?
     return lesson_assignment.unlocked? if lesson_assignment.present?
 
     if module_assignment
-      return false unless module_assignment.accessible?(cohort)
-      return Date.current >= unlock_date(cohort, module_assignment)
+      return false unless module_assignment.accessible?(cohort, on: on)
+      return on >= unlock_date(cohort, module_assignment)
     end
 
-    Date.current >= unlock_date(cohort, module_assignment)
+    on >= unlock_date(cohort, module_assignment)
   end
 
   private

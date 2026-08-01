@@ -2,6 +2,7 @@ import type { LessonContentBlock, StaffDashboard, StaffStudentSummary, StudentDa
 
 export const learningKeys = {
   dashboard: (userId: number) => ['learning', userId, 'dashboard'] as const,
+  weeklyPlan: (userId: number) => ['learning', userId, 'weekly-plan'] as const,
   lesson: (userId: number, lessonId: number) => ['learning', userId, 'lesson', lessonId] as const,
   resources: (userId: number) => ['learning', userId, 'resources'] as const,
   recordings: (userId: number) => ['learning', userId, 'recordings'] as const,

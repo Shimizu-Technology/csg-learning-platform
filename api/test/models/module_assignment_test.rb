@@ -32,6 +32,14 @@ class ModuleAssignmentTest < ActiveSupport::TestCase
     end
   end
 
+  test "accessible? uses the Guam learning date at the UTC day boundary" do
+    ma = ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @mod, unlocked: false)
+
+    travel_to Time.utc(2026, 4, 5, 14, 5) do
+      assert ma.accessible?
+    end
+  end
+
   test "accessible? returns true when override date is in the past" do
     ma = ModuleAssignment.create!(
       enrollment: @enrollment, curriculum_module: @mod,

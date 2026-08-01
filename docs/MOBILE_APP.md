@@ -50,6 +50,7 @@ Curriculum, lesson progress, resources, submissions, office hours, class recordi
 - Curriculum, lesson delivery, progress, resources, and submissions are native as of Phase 2.
 - The Phase 3 recording library and S3/lesson-video player add native resume, progress sync, signed-URL renewal, speed control, fullscreen rotation, interruptions, and PiP. Legacy YouTube/external recordings use a safe system handoff.
 - Managed offline recording downloads remain deferred until retention, device-storage, privacy, and logout-deletion policy is approved. The player does not cache signed media URLs.
+- Today includes the shared **This Week** plan: required and optional lessons, carried-forward work, close times, redos, live classes/office hours, upcoming unlocks, and recording catch-up. Its query is retained by the existing seven-day user-scoped SQLite cache alongside the separately encrypted session and is removed at sign-out.
 - Phase 4 gives staff a ranked cross-cohort attention queue, student health and progress drill-downs, a focused grading queue, native A/B/C/Redo reviews, concise feedback, and direct submission push routes.
 - Staff can browse active and upcoming cohort recordings and resources without pretending to be enrolled in those cohorts.
 - Curriculum authoring, bulk enrollment/team operations, dense grading/watch-progress matrices, and repository inspection retain labeled one-time authenticated web handoffs because they are desktop-shaped workflows.
