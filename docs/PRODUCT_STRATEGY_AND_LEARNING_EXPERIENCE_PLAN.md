@@ -213,7 +213,7 @@ Students who work ahead should be supported. The interface should say what is re
 
 Add a microphone action to native message composers so students and instructors can speak a short message, receive a conservatively cleaned-up transcript in the editable composer, review it, and then press **Send**. Never auto-send and never treat raw audio as a durable message attachment.
 
-The current mobile configuration explicitly disables microphone permission and has no audio-recording dependency, so this requires a new native build plus an authenticated server-transcription endpoint. Record only after an intentional tap, show an unmistakable recording state, keep background recording disabled, delete temporary audio, and preserve typing/system dictation as fallbacks. Begin with direct messages and channels, then reuse the same controller in threads, contextual help, and concise grading feedback.
+The native implementation now includes a foreground-only recording dependency, explicit microphone permission, and an authenticated server-transcription endpoint. It records only after an intentional tap, shows an unmistakable recording state, keeps background recording disabled, deletes temporary audio, and preserves typing/system dictation as fallbacks. Direct messages and channels are complete behind the documented release gate; threads, contextual help, and concise grading feedback remain later reuse surfaces.
 
 The complete product flow, meaning-preserving formatting contract, privacy rules, architecture, rollout, analytics, and acceptance criteria are in `docs/VOICE_TO_TEXT_PLAN.md`.
 

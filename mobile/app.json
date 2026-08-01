@@ -68,8 +68,15 @@
         "expo-image-picker",
         {
           "photosPermission": "CSG Connect uses selected photos only when you choose to share them in a conversation.",
-          "cameraPermission": false,
-          "microphonePermission": false
+          "cameraPermission": false
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "CSG Connect uses the microphone only when you choose to dictate a message draft.",
+          "recordAudioAndroid": true,
+          "enableBackgroundRecording": false
         }
       ],
       "expo-sharing",

@@ -14,6 +14,7 @@ real-time updates, and native push notifications.
 - Action Cable for live conversation events
 - Expo Notifications for iOS and Android push delivery
 - PostHog manual product events with autocapture and session replay disabled
+- Expo Audio for reviewed, foreground-only voice-to-text message drafts
 - Manrope and Lucide React Native for the CSG design system
 
 ## Local setup
@@ -55,6 +56,8 @@ Required environment variables:
 | `EXPO_PUBLIC_POSTHOG_HOST` | Optional PostHog ingest endpoint; defaults to `https://us.i.posthog.com` |
 
 Clerk Native API must be enabled for the Clerk instance. Native push token creation also requires an EAS project and platform push credentials. Analytics events must follow `docs/ANALYTICS_EVENT_CONTRACT.md`; do not add direct PostHog capture calls outside the typed helper.
+
+Voice message drafts use the Expo SDK 57 `expo-audio` config plugin with an explicit microphone permission string. This requires a new native build and cannot ship as a JavaScript-only update. Audio stays in the app cache, is sent only after an intentional recording action, and is deleted after success, cancellation, or terminal dismissal. The Rails endpoint remains disabled until its server-side provider/privacy gate is enabled.
 
 ### Clerk social sign-in
 

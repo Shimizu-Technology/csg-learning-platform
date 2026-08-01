@@ -29,6 +29,8 @@ import type {
   WorkspaceDetail,
   WorkspaceSummary,
 } from './types';
+import { fetch as expoFetch } from 'expo/fetch';
+import { File } from 'expo-file-system';
 
 export type TokenGetter = (options?: { skipCache?: boolean }) => Promise<string | null>;
 
@@ -94,6 +96,39 @@ export class CsgApi {
     } finally {
       clearTimeout(timeout);
       init.signal?.removeEventListener('abort', cancel);
+    }
+  }
+
+  async transcribeVoice(uri: string, signal?: AbortSignal, attempt = 0): Promise<{ raw_text: string; suggested_text: string; duration_seconds: number; warnings: string[] }> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 45_000);
+    const cancel = () => controller.abort();
+    signal?.addEventListener('abort', cancel, { once: true });
+    if (signal?.aborted) cancel();
+    try {
+      const token = await this.getToken({ skipCache: attempt > 0 });
+      const form = new FormData();
+      form.append('audio', new File(uri));
+      form.append('surface', 'message');
+      form.append('cleanup', 'conservative');
+      const response = await expoFetch(`${API_URL}/api/v1/transcriptions`, {
+        method: 'POST', body: form, signal: controller.signal,
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({})) as { error?: string; errors?: string[]; code?: string };
+        if (attempt === 0 && response.status === 401) return this.transcribeVoice(uri, signal, attempt + 1);
+        throw new ApiError(payload.error || payload.errors?.join(', ') || `Request failed (${response.status})`, response.status, payload.code);
+      }
+      return response.json();
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      if ((error as Error).name === 'AbortError' && signal?.aborted) throw error;
+      if ((error as Error).name === 'AbortError') throw new ApiError('Transcription timed out. Your recording is still available to retry.');
+      throw new ApiError('Could not reach Code School. Your recording is still available to retry.');
+    } finally {
+      clearTimeout(timeout);
+      signal?.removeEventListener('abort', cancel);
     }
   }
 

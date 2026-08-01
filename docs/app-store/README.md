@@ -1,6 +1,6 @@
 # CSG Connect App Store Release Record
 
-Last updated: 2026-07-22 (Pacific/Guam)
+Last updated: 2026-08-01 (Pacific/Guam)
 
 This directory is the durable source record for the App Store presentation of the completed mobile-parity program. It records what was uploaded, how the images were produced, and what remains before public App Review.
 
@@ -18,6 +18,8 @@ This directory is the durable source record for the App Store presentation of th
 | Public App Review | Intentionally not submitted pending physical TestFlight acceptance |
 
 Build 4 finished successfully, was processed by App Store Connect, is attached to the 1.0 App Store draft, and is available to the internal group.
+
+The next native binary must include the reviewed voice-draft capability. Do not enable its production endpoint or submit that binary for public review until the temporary transcription-provider processing is accurately disclosed, the production OpenAI data controls are approved, and the voice-specific physical-device checks below pass. Build 4 does not contain this capability.
 
 ## Store presentation
 
@@ -77,10 +79,15 @@ The invited tester must update to build 4 in TestFlight and complete this final 
 - open Today, Learn, Messages, Updates, Recordings, and You against production data;
 - send and receive a message, test keyboard following, load older history, and use scroll to latest;
 - exercise attachments, mentions, reactions, edits, deletion, pins, threads, and failed-send recovery;
+- on a physical iPhone and Android device, open a direct message and a channel, read the pre-permission voice explanation, grant microphone access, record, stop, transcribe, review, edit, restore the original transcript, and explicitly send;
+- deny microphone access and confirm typing/device keyboard dictation remain available; verify Cancel, Retry, interruption, screen lock, backgrounding, a 90-second recording, and a poor network never lose existing typed text or auto-send;
+- verify technical terms, commands, code, URLs, names, numbers, dates, and grades with representative CSG speech over a Guam mobile network; record latency and any meaning-changing cleanup before enablement;
+- after successful transcription, cancellation, failure dismissal, sign-out, and app termination, confirm no playable voice-draft file remains in app-visible cache or conversation history;
+- interrupt recording and transcription with existing class-recording playback, calls, route changes, and app background/foreground transitions; confirm playback and the audio session recover predictably;
 - open a push notification from foreground, background, and terminated states and verify its deep link;
 - open a lesson, submit or update eligible work, and confirm progress/feedback convergence with web;
 - play a secure recording, background/foreground it, use fullscreen/PiP, and confirm resume progress;
 - exercise the staff attention queue and one grading action with an authorized staff account;
 - verify sign-out clears account-scoped cached content.
 
-Record any device-only defect before submitting the public version. After this checklist passes, confirm the privacy, age-rating, support, export-compliance, and review-contact fields one final time and explicitly submit the 1.0 version to App Review.
+Record any device-only defect before submitting the public version. Before enabling voice, update the public privacy policy and App Store privacy answers to describe microphone audio and temporary third-party transcription processing accurately; approve the production provider project's retention/data controls; then set `VOICE_TRANSCRIPTION_ENABLED=true`. After this checklist passes, confirm the privacy, age-rating, support, export-compliance, and review-contact fields one final time and explicitly submit the version to App Review.

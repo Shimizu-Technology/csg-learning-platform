@@ -38,6 +38,7 @@ Rails.application.routes.draw do
       post "mobile_push_tokens", to: "mobile_push_tokens#create"
       delete "mobile_push_tokens", to: "mobile_push_tokens#destroy"
       post "message_attachments/presign", to: "message_attachments#presign"
+      post "transcriptions", to: "transcriptions#create"
       patch "message_preferences", to: "message_preferences#update"
       get "messages/search", to: "messages_search#index"
       resources :workspaces, only: [ :index, :show, :create, :update ] do

@@ -10,6 +10,7 @@
     "@tanstack/react-query-persist-client": "^5.101.3",
     "expo": "~57.0.9",
     "expo-application": "~57.0.2",
+    "expo-audio": "~57.0.3",
     "expo-auth-session": "~57.0.5",
     "expo-clipboard": "~57.0.1",
     "expo-constants": "~57.0.8",
