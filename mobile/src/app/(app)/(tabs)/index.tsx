@@ -6,8 +6,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { LearningCard, ProgressBar, SectionHeading } from '@/components/learning-ui';
 import { ErrorState, LoadingState } from '@/components/screen-states';
+import { WeeklyPlanCard } from '@/components/weekly-plan';
 import { fontScaleLimits, fonts, palette, typography } from '@/constants/csg-theme';
-import { demoDashboard } from '@/lib/demo-learning';
+import { demoDashboard, demoWeeklyPlan } from '@/lib/demo-learning';
 import { demoStaffDashboard } from '@/lib/demo-staff';
 import { openAuthenticatedWebPage, openExternalPage } from '@/lib/external-links';
 import { isStudentDashboard, learningKeys, staffAttentionRank } from '@/lib/learning';
@@ -26,6 +27,13 @@ export default function TodayScreen() {
     enabled: Boolean(user),
   });
   const dashboard = query.data?.dashboard;
+  const weeklyQuery = useQuery({
+    queryKey: learningKeys.weeklyPlan(user?.id || 0),
+    queryFn: ({ signal }) => auth.demo ? Promise.resolve({ weekly_plan: demoWeeklyPlan }) : api.weeklyPlan(signal),
+    enabled: Boolean(user && !user.is_staff),
+  });
+  const weeklyPlan = weeklyQuery.data?.weekly_plan;
+  const refresh = () => void Promise.all([query.refetch(), user?.is_staff ? Promise.resolve() : weeklyQuery.refetch()]);
 
   if (query.isPending && !dashboard) return <SafeAreaView style={styles.safe}><LoadingState label="Loading today" /></SafeAreaView>;
   if (query.error && !dashboard) return <SafeAreaView style={styles.safe}><ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /></SafeAreaView>;
@@ -36,7 +44,7 @@ export default function TodayScreen() {
     const attention = [...students].sort((a, b) => staffAttentionRank(b) - staffAttentionRank(a));
     const ungraded = cohorts.reduce((total, cohort) => total + cohort.ungraded_count, 0);
     const redos = students.reduce((total, student) => total + student.redo_count, 0);
-    return <SafeAreaView edges={['top']} style={styles.safe}><ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={palette.rubySoft} />} contentContainerStyle={styles.content}>
+    return <SafeAreaView edges={['top']} style={styles.safe}><ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={refresh} tintColor={palette.rubySoft} />} contentContainerStyle={styles.content}>
       {query.isError && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved staff data. Pull to reconnect.</Text></View>}
       <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>TEACHING TODAY</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heroTitle}>Good {dayPart()}, {firstName(dashboard?.user.full_name || user?.full_name || '')}</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.heroCopy}>See who needs a response, review work, and move the class forward from your phone.</Text>
       <View style={[styles.metricGrid, largeText && styles.singleColumn]}><MetricCard icon={ClipboardCheck} value={ungraded} label="to review" tone="ruby" large={largeText} /><MetricCard icon={RotateCcw} value={redos} label="redo requests" tone="warning" large={largeText} /><MetricCard icon={Users} value={students.length} label="active students" tone="success" large={largeText} /></View>
@@ -50,17 +58,20 @@ export default function TodayScreen() {
   if (!dashboard.enrolled) return <SafeAreaView style={styles.safe}><View style={styles.center}><BookOpen color={palette.rubySoft} size={34} /><Text style={styles.emptyTitle}>No active learning path</Text><Text style={styles.emptyCopy}>Your lessons will appear here when your cohort enrollment is active.</Text></View></SafeAreaView>;
 
   const progress = dashboard.overall_progress?.percentage || 0;
+  const showWeeklyFallback = !weeklyQuery.isPending && !weeklyPlan?.enrolled;
   return (
     <SafeAreaView edges={['top']} style={styles.safe}>
-      <ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={palette.rubySoft} />} contentContainerStyle={styles.content}>
-        {query.isError && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved learning data. Pull to reconnect.</Text></View>}
+      <ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching || weeklyQuery.isRefetching} onRefresh={refresh} tintColor={palette.rubySoft} />} contentContainerStyle={styles.content}>
+        {(query.isError || weeklyQuery.isError) && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved learning data. Pull to reconnect.</Text></View>}
         <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>YOUR LEARNING DAY</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heroTitle}>Good {dayPart()}, {firstName(dashboard.user.full_name)}</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.heroCopy}>{dashboard.cohort?.name || 'Code School of Guam'} · focus on the next useful step.</Text>
         <LearningCard onPress={dashboard.continue_lesson ? () => router.push(`/lesson/${dashboard.continue_lesson!.id}`) : undefined} label={dashboard.continue_lesson ? `Continue ${dashboard.continue_lesson.title}` : undefined}>
           <View style={styles.cardTop}><View style={styles.continueIcon}><BookOpen color={palette.rubySoft} size={21} /></View><View style={styles.flex}><Text style={styles.cardKicker}>NEXT BEST ACTION</Text><Text style={styles.cardTitle}>{dashboard.continue_lesson?.title || 'You’re caught up'}</Text><Text style={styles.cardMeta}>{dashboard.continue_lesson ? 'Continue your current lesson' : 'Review your completed lessons anytime'}</Text></View>{dashboard.continue_lesson && <ArrowRight color={palette.muted} size={20} />}</View>
           <View style={styles.progressCopy}><Text style={styles.progressLabel}>Overall progress</Text><Text style={styles.progressValue}>{Math.round(progress)}%</Text></View><ProgressBar value={progress} label="Overall learning progress" />
         </LearningCard>
 
-        {!!dashboard.action_items?.length && <View style={styles.section}><SectionHeading eyebrow="Needs attention" title="Redo work" /><View style={styles.stack}>{dashboard.action_items.map((item) => <LearningCard key={item.submission_id} onPress={() => router.push(`/lesson/${item.lesson_id}`)} label={`Open redo for ${item.lesson_title}`}><View style={styles.row}><View style={styles.redoIcon}><RotateCcw color={palette.rubySoft} size={18} /></View><View style={styles.flex}><Text style={styles.cardTitle}>{item.lesson_title}</Text><Text style={styles.cardMeta}>{item.content_block_title}</Text>{item.feedback && <Text numberOfLines={3} style={styles.feedback}>{item.feedback}</Text>}</View><ArrowRight color={palette.quiet} size={18} /></View></LearningCard>)}</View></View>}
+        {weeklyPlan?.enrolled && <WeeklyPlanCard plan={weeklyPlan} />}
+
+        {showWeeklyFallback && !!dashboard.action_items?.length && <View style={styles.section}><SectionHeading eyebrow="Needs attention" title="Redo work" /><View style={styles.stack}>{dashboard.action_items.map((item) => <LearningCard key={item.submission_id} onPress={() => router.push(`/lesson/${item.lesson_id}`)} label={`Open redo for ${item.lesson_title}`}><View style={styles.row}><View style={styles.redoIcon}><RotateCcw color={palette.rubySoft} size={18} /></View><View style={styles.flex}><Text style={styles.cardTitle}>{item.lesson_title}</Text><Text style={styles.cardMeta}>{item.content_block_title}</Text>{item.feedback && <Text numberOfLines={3} style={styles.feedback}>{item.feedback}</Text>}</View><ArrowRight color={palette.quiet} size={18} /></View></LearningCard>)}</View></View>}
 
         {!!dashboard.recently_graded?.length && <View style={styles.section}><SectionHeading eyebrow="Instructor feedback" title="Recently graded" /><View style={styles.stack}>{dashboard.recently_graded.map((item) => <LearningCard key={item.submission_id} onPress={() => router.push(`/lesson/${item.lesson_id}`)} label={`Review feedback for ${item.lesson_title}`}><View style={styles.row}><View style={styles.gradeIcon}><BadgeCheck color={palette.success} size={19} /></View><View style={styles.flex}><View style={styles.gradeRow}><Text style={styles.cardTitle}>{item.lesson_title}</Text><Text style={styles.grade}>{item.grade}</Text></View><Text style={styles.cardMeta}>{item.content_block_title}</Text>{item.feedback && <Text numberOfLines={3} style={styles.feedback}>{item.feedback}</Text>}</View><ArrowRight color={palette.quiet} size={18} /></View></LearningCard>)}</View></View>}
 
@@ -68,7 +79,7 @@ export default function TodayScreen() {
 
         <View style={styles.section}><SectionHeading title="Stay connected" /><View style={[styles.quickGrid, largeText && styles.singleColumn]}><QuickAction icon={MessageSquare} label="Messages" large={largeText} onPress={() => router.push('/messages')} /><QuickAction icon={Megaphone} label={dashboard.cohort?.unread_notifications_count ? `${dashboard.cohort.unread_notifications_count} updates` : 'Updates'} large={largeText} onPress={() => router.push('/updates')} /></View></View>
 
-        {!!dashboard.office_hours?.length && <View style={styles.section}><SectionHeading eyebrow="Coming up" title="Office hours" /><LearningCard onPress={dashboard.office_hours[0].meeting_url ? () => void openExternalPage(dashboard.office_hours![0].meeting_url).catch((error) => Alert.alert('Could not open office hours', (error as Error).message)) : undefined} label={dashboard.office_hours[0].meeting_url ? `Join ${dashboard.office_hours[0].title || 'office hours'}` : undefined}><View style={styles.row}><CalendarClock color={palette.rubySoft} size={21} /><View style={styles.flex}><Text style={styles.cardTitle}>{dashboard.office_hours[0].title || 'Office hours'}</Text><Text style={styles.cardMeta}>{formatOfficeHours(dashboard.office_hours[0])}</Text></View>{dashboard.office_hours[0].meeting_url && <ArrowRight color={palette.quiet} size={18} />}</View></LearningCard></View>}
+        {showWeeklyFallback && !!dashboard.office_hours?.length && <View style={styles.section}><SectionHeading eyebrow="Coming up" title="Live schedule" /><LearningCard onPress={dashboard.office_hours[0].meeting_url ? () => void openExternalPage(dashboard.office_hours![0].meeting_url).catch((error) => Alert.alert('Could not open session', (error as Error).message)) : undefined} label={dashboard.office_hours[0].meeting_url ? `Join ${dashboard.office_hours[0].title || 'session'}` : undefined}><View style={styles.row}><CalendarClock color={palette.rubySoft} size={21} /><View style={styles.flex}><Text style={styles.cardTitle}>{dashboard.office_hours[0].title || 'Live session'}</Text><Text style={styles.cardMeta}>{formatOfficeHours(dashboard.office_hours[0])}</Text></View>{dashboard.office_hours[0].meeting_url && <ArrowRight color={palette.quiet} size={18} />}</View></LearningCard></View>}
       </ScrollView>
     </SafeAreaView>
   );

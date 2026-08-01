@@ -34,7 +34,7 @@ Local development still uses Clerk authentication. There is no supported auth-by
 
 | Path | Component | Purpose |
 |------|-----------|---------|
-| `/dashboard` | `Dashboard` | Student home — progress, modules, next actions |
+| `/dashboard` | `Dashboard` | Student home — shared This Week plan, progress, modules, and next actions |
 | `/modules/:id` | `ModuleView` | Module detail — lessons grouped by week/day |
 | `/lessons/:id` | `LessonView` | Lesson content — videos, text, exercises |
 | `/recordings` | `Recordings` | Cohort recordings library |

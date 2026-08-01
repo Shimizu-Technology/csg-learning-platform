@@ -207,6 +207,7 @@ interface OfficeHourFormState {
   meeting_url: string
   timezone: string
   recurrence: 'once' | 'weekly'
+  event_kind: 'office_hours' | 'live_class'
 }
 
 function emptyOfficeHourForm(): OfficeHourFormState {
@@ -224,6 +225,7 @@ function emptyOfficeHourForm(): OfficeHourFormState {
     meeting_url: '',
     timezone,
     recurrence: 'weekly',
+    event_kind: 'office_hours',
   }
 }
 
@@ -604,6 +606,7 @@ export function CohortDetail() {
       meeting_url: officeHour.meeting_url,
       timezone,
       recurrence: officeHour.recurrence,
+      event_kind: officeHour.event_kind,
     })
   }
 
@@ -627,6 +630,7 @@ export function CohortDetail() {
       meeting_url: officeHourForm.meeting_url.trim(),
       timezone: officeHourForm.timezone || 'Pacific/Guam',
       recurrence: officeHourForm.recurrence,
+      event_kind: officeHourForm.event_kind,
       active: true,
     }
 
@@ -638,7 +642,7 @@ export function CohortDetail() {
       notifyError(res.error)
     } else {
       await reloadCohort()
-      notifySuccess(editingOfficeHourId ? 'Updated office hours' : 'Added office hours')
+      notifySuccess(editingOfficeHourId ? 'Updated scheduled session' : 'Added scheduled session')
       resetOfficeHourForm()
     }
     setSavingOfficeHour(false)
@@ -653,7 +657,7 @@ export function CohortDetail() {
       notifyError(res.error)
     } else {
       await reloadCohort()
-      notifySuccess('Removed office hours')
+      notifySuccess('Removed scheduled session')
       if (editingOfficeHourId === officeHourId) resetOfficeHourForm()
     }
     setDeletingOfficeHourId(null)
@@ -1366,8 +1370,8 @@ export function CohortDetail() {
           <div className="rounded-2xl bg-white border border-slate-200 p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 id="schedule" className="scroll-mt-32 text-lg font-semibold text-slate-900">Office hours</h2>
-                <p className="mt-1 text-sm text-slate-500">Shown clearly on the student dashboard.</p>
+                <h2 id="schedule" className="scroll-mt-32 text-lg font-semibold text-slate-900">Live schedule</h2>
+                <p className="mt-1 text-sm text-slate-500">Live classes and office hours appear in each student’s This Week plan.</p>
               </div>
               <button
                 type="button"
@@ -1379,7 +1383,7 @@ export function CohortDetail() {
             </div>
             {officeHours.length === 0 ? (
               <div className="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
-                No office hours yet. Add recurring or one-time help sessions for this cohort.
+                No live sessions yet. Add recurring or one-time classes or office hours for this cohort.
               </div>
             ) : (
               <div className="mt-3 space-y-2">
@@ -1393,7 +1397,7 @@ export function CohortDetail() {
                   >
                     <p className="text-sm font-medium text-slate-900">{occurrence.title}</p>
                     <p className="mt-0.5 text-xs text-slate-500">{formatShortDateTime(occurrence.starts_at, 'Not scheduled', occurrence.timezone)}</p>
-                    <p className="mt-0.5 text-[11px] font-medium uppercase tracking-wide text-primary-600">{occurrence.recurrence === 'weekly' ? 'Weekly' : 'One-time'}</p>
+                    <p className="mt-0.5 text-[11px] font-medium uppercase tracking-wide text-primary-600">{occurrence.event_kind === 'live_class' ? 'Live class' : 'Office hours'} · {occurrence.recurrence === 'weekly' ? 'Weekly' : 'One-time'}</p>
                   </a>
                 ))}
               </div>
@@ -1597,17 +1601,28 @@ export function CohortDetail() {
       <Modal
         open={showOfficeHoursModal}
         onClose={() => setShowOfficeHoursModal(false)}
-        title="Office Hours"
-        subtitle="Create one-time or weekly help sessions that students will see on their dashboard. Entered times are interpreted in the selected timezone."
+        title="Live schedule"
+        subtitle="Create one-time or weekly live classes and office hours for the shared student plan. Entered times are interpreted in the selected timezone."
         icon={<Clock className="h-6 w-6 text-primary-500" />}
         size="xl"
       >
         <div className="grid gap-5 lg:grid-cols-[1fr_1.1fr]">
           <form onSubmit={saveOfficeHour} className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <div>
-              <h3 className="text-sm font-semibold text-slate-900">{editingOfficeHourId ? 'Edit session' : 'Add office hours'}</h3>
+              <h3 className="text-sm font-semibold text-slate-900">{editingOfficeHourId ? 'Edit session' : 'Add session'}</h3>
               <p className="mt-1 text-xs text-slate-500">Weekly recurrence repeats from the first start time.</p>
             </div>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-slate-600">Session type</span>
+              <select
+                value={officeHourForm.event_kind}
+                onChange={(event) => setOfficeHourForm((current) => ({ ...current, event_kind: event.target.value as 'office_hours' | 'live_class' }))}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                <option value="live_class">Live class</option>
+                <option value="office_hours">Office hours</option>
+              </select>
+            </label>
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-slate-600">Title</span>
               <input
@@ -1690,7 +1705,7 @@ export function CohortDetail() {
                 className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
               >
                 <Save className="h-4 w-4" />
-                {savingOfficeHour ? 'Saving...' : editingOfficeHourId ? 'Save office hours' : 'Add office hours'}
+                {savingOfficeHour ? 'Saving...' : editingOfficeHourId ? 'Save session' : 'Add session'}
               </button>
               {editingOfficeHourId && (
                 <button
@@ -1711,7 +1726,7 @@ export function CohortDetail() {
             </div>
             {officeHours.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
-                No office hours have been added yet.
+                No live classes or office hours have been added yet.
               </div>
             ) : (
               <div className="space-y-3">
@@ -1722,7 +1737,7 @@ export function CohortDetail() {
                         <div className="flex flex-wrap items-center gap-2">
                           <h4 className="text-sm font-semibold text-slate-900">{officeHour.title}</h4>
                           <span className="rounded-full border border-primary-200 bg-primary-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-700">
-                            {officeHour.recurrence === 'weekly' ? 'Weekly' : 'One-time'}
+                            {officeHour.event_kind === 'live_class' ? 'Live class' : 'Office hours'} · {officeHour.recurrence === 'weekly' ? 'Weekly' : 'One-time'}
                           </span>
                         </div>
                         <p className="mt-1 text-xs text-slate-500">{formatShortDateTime(officeHour.starts_at, 'Not scheduled', officeHour.timezone)} – {formatShortDateTime(officeHour.ends_at, 'Not scheduled', officeHour.timezone)}</p>

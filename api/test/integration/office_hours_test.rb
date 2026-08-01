@@ -34,7 +34,7 @@ class OfficeHoursTest < ActionDispatch::IntegrationTest
     ModuleAssignment.create!(enrollment: enrollment, curriculum_module: @mod, unlocked: true)
   end
 
-  test "instructor can create weekly office hours and students see upcoming sessions on dashboard" do
+  test "instructor can create a typed weekly session and students see it on the dashboard" do
     starts_at = 1.day.from_now.change(usec: 0)
     ends_at = starts_at + 1.hour
 
@@ -47,6 +47,7 @@ class OfficeHoursTest < ActionDispatch::IntegrationTest
           ends_at: ends_at.iso8601,
           meeting_url: "https://zoom.example.com/j/123",
           recurrence: "weekly",
+          event_kind: "live_class",
           timezone: "Pacific/Guam"
         },
         headers: auth_headers,
@@ -56,6 +57,7 @@ class OfficeHoursTest < ActionDispatch::IntegrationTest
     assert_response :created
     office_hour = JSON.parse(response.body).fetch("office_hour")
     assert_equal "weekly", office_hour.fetch("recurrence")
+    assert_equal "live_class", office_hour.fetch("event_kind")
     assert_equal 3, office_hour.fetch("occurrences").length
 
     as_user(@student) do
@@ -66,6 +68,7 @@ class OfficeHoursTest < ActionDispatch::IntegrationTest
     dashboard = JSON.parse(response.body).fetch("dashboard")
     upcoming = dashboard.fetch("office_hours")
     assert_equal "Instructor Office Hours", upcoming.first.fetch("title")
+    assert_equal "live_class", upcoming.first.fetch("event_kind")
     assert_equal "https://zoom.example.com/j/123", upcoming.first.fetch("meeting_url")
   end
 

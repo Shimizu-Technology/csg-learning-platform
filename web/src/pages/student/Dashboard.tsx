@@ -9,7 +9,8 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { formatShortDateTime } from '../../lib/format'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
-import type { DashboardData } from '../../types/api'
+import { WeeklyPlanCard } from '../../components/student/WeeklyPlan'
+import type { DashboardData, WeeklyPlan } from '../../types/api'
 
 function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return 'TBD'
@@ -29,6 +30,8 @@ export function Dashboard({ previewData, previewBanner, disableStaffRedirect = f
   const [loading, setLoading] = useState(!previewData)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showingSavedData, setShowingSavedData] = useState(false)
+  const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan | null>(null)
+  const [weeklyPlanLoaded, setWeeklyPlanLoaded] = useState(Boolean(previewData))
 
   const announcementTimestamp = (dateStr?: string | null) => {
     if (!dateStr) return 0
@@ -71,6 +74,17 @@ export function Dashboard({ previewData, previewBanner, disableStaffRedirect = f
   useEffect(() => {
     loadDashboard()
   }, [loadDashboard])
+
+  useEffect(() => {
+    if (!user || previewData || user.is_staff) return
+    let active = true
+    setWeeklyPlan(null)
+    setWeeklyPlanLoaded(false)
+    api.getWeeklyPlan().then((res) => {
+      if (active && res.data?.weekly_plan) setWeeklyPlan(res.data.weekly_plan)
+    }).finally(() => { if (active) setWeeklyPlanLoaded(true) })
+    return () => { active = false }
+  }, [previewData, user])
 
   const retryAction = (
     <button
@@ -150,6 +164,7 @@ export function Dashboard({ previewData, previewBanner, disableStaffRedirect = f
   }
 
   const progress = data.overall_progress
+  const showWeeklyFallback = weeklyPlanLoaded && !weeklyPlan?.enrolled
 
   return (
     <div className="app-page max-w-5xl">
@@ -218,7 +233,9 @@ export function Dashboard({ previewData, previewBanner, disableStaffRedirect = f
         </div>
       </section>
 
-      {data.action_items && data.action_items.length > 0 && (
+      {weeklyPlan?.enrolled && <WeeklyPlanCard plan={weeklyPlan} />}
+
+      {showWeeklyFallback && data.action_items && data.action_items.length > 0 && (
         <section className="rounded-2xl border border-amber-300 bg-amber-50 p-4 sm:p-5">
           <h2 className="flex items-center gap-2 text-sm font-extrabold text-amber-900">
             <RotateCcw className="h-4 w-4" />
@@ -243,7 +260,7 @@ export function Dashboard({ previewData, previewBanner, disableStaffRedirect = f
         </section>
       )}
 
-      {(derived.nextSubmissionDeadline || derived.closedSubmissionWindowCount > 0) && (
+      {showWeeklyFallback && (derived.nextSubmissionDeadline || derived.closedSubmissionWindowCount > 0) && (
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -268,12 +285,12 @@ export function Dashboard({ previewData, previewBanner, disableStaffRedirect = f
         </div>
       )}
 
-      {data.office_hours && data.office_hours.length > 0 && (
+      {showWeeklyFallback && data.office_hours && data.office_hours.length > 0 && (
         <div className="rounded-2xl bg-white border border-slate-200 p-4 space-y-3">
           <div className="flex items-center justify-between gap-3">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
               <Clock className="h-4 w-4 text-primary-500" />
-              Office Hours
+              Live schedule
             </h3>
           </div>
           <div className="rounded-xl border border-primary-200 bg-primary-50 p-4">
@@ -287,7 +304,7 @@ export function Dashboard({ previewData, previewBanner, disableStaffRedirect = f
               rel="noopener noreferrer"
               className="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 transition-colors"
             >
-              Join office hours
+              Join session
               <ExternalLink className="h-4 w-4" />
             </a>
           </div>

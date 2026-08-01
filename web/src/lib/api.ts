@@ -1,6 +1,7 @@
 import type {
   SessionResponse,
   DashboardResponse,
+  WeeklyPlanResponse,
   RecordingsResponse,
   ResourcesResponse,
   ProfileResponse,
@@ -346,6 +347,8 @@ export const api = {
   // Dashboard
   getDashboard: () =>
     fetchApi<DashboardResponse>('/api/v1/dashboard'),
+  getWeeklyPlan: () =>
+    fetchApi<WeeklyPlanResponse>('/api/v1/weekly_plan'),
   getRecordings: () =>
     fetchApi<RecordingsResponse>('/api/v1/recordings'),
   getResources: () =>
@@ -644,12 +647,12 @@ export const api = {
     }),
   getOfficeHours: (cohortId: number) =>
     fetchApi<OfficeHoursResponse>(`/api/v1/cohorts/${cohortId}/office_hours`),
-  createOfficeHour: (cohortId: number, data: { title: string; description?: string | null; starts_at: string; ends_at: string; meeting_url: string; timezone?: string; recurrence?: 'once' | 'weekly'; active?: boolean }) =>
+  createOfficeHour: (cohortId: number, data: { title: string; description?: string | null; starts_at: string; ends_at: string; meeting_url: string; timezone?: string; recurrence?: 'once' | 'weekly'; event_kind?: 'office_hours' | 'live_class'; active?: boolean }) =>
     fetchApi<OfficeHourResponse>(`/api/v1/cohorts/${cohortId}/office_hours`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  updateOfficeHour: (cohortId: number, officeHourId: number, data: { title?: string; description?: string | null; starts_at?: string; ends_at?: string; meeting_url?: string; timezone?: string; recurrence?: 'once' | 'weekly'; active?: boolean }) =>
+  updateOfficeHour: (cohortId: number, officeHourId: number, data: { title?: string; description?: string | null; starts_at?: string; ends_at?: string; meeting_url?: string; timezone?: string; recurrence?: 'once' | 'weekly'; event_kind?: 'office_hours' | 'live_class'; active?: boolean }) =>
     fetchApi<OfficeHourResponse>(`/api/v1/cohorts/${cohortId}/office_hours/${officeHourId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),

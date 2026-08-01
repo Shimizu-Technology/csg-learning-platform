@@ -43,6 +43,7 @@ class OfficeHourSerializer
         meeting_url: office_hour.meeting_url,
         timezone: office_hour.timezone,
         recurrence: office_hour.recurrence,
+        event_kind: office_hour.event_kind,
         active: office_hour.active,
         occurrences: occurrences.first(occurrence_limit).map do |occurrence|
           occurrence_json(office_hour, occurrence)
@@ -78,7 +79,8 @@ class OfficeHourSerializer
         ends_at: occurrence[:ends_at],
         meeting_url: office_hour.meeting_url,
         timezone: office_hour.timezone,
-        recurrence: office_hour.recurrence
+        recurrence: office_hour.recurrence,
+        event_kind: office_hour.event_kind
       }
     end
   end

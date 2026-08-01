@@ -28,6 +28,7 @@ import type {
   WatchProgress,
   WorkspaceDetail,
   WorkspaceSummary,
+  WeeklyPlan,
 } from './types';
 import { fetch as expoFetch } from 'expo/fetch';
 import { File } from 'expo-file-system';
@@ -134,6 +135,7 @@ export class CsgApi {
 
   session = () => this.request<{ user: SessionUser }>('/api/v1/sessions', { method: 'POST' });
   dashboard = (signal?: AbortSignal) => this.request<{ dashboard: StudentDashboard | StaffDashboard }>('/api/v1/dashboard', { signal });
+  weeklyPlan = (signal?: AbortSignal) => this.request<{ weekly_plan: WeeklyPlan }>('/api/v1/weekly_plan', { signal });
   profile = (signal?: AbortSignal) => this.request<ProfilePayload>('/api/v1/profile', { signal });
   updateProfile = (data: { github_username?: string | null }) => this.request<{ user: ProfilePayload['user'] }>('/api/v1/profile', { method: 'PATCH', body: JSON.stringify(data) });
   webHandoff = (destination: string) => this.request<{ url: string }>('/api/v1/web_handoffs', { method: 'POST', body: JSON.stringify({ destination }) });

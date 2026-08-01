@@ -13,6 +13,7 @@ class OfficeHourSerializerTest < ActiveSupport::TestCase
       :meeting_url,
       :timezone,
       :recurrence,
+      :event_kind,
       :active,
       :created_by,
       keyword_init: true
@@ -25,6 +26,7 @@ class OfficeHourSerializerTest < ActiveSupport::TestCase
       meeting_url: "https://meet.example.com/weekly",
       timezone: "Pacific/Guam",
       recurrence: "weekly",
+      event_kind: "office_hours",
       active: true
     )
     occurrences = 4.times.map do |week|

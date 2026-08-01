@@ -502,6 +502,8 @@ Exit gate: long code is fully reachable; common native tasks remain usable at la
 
 Measurement implementation status: event contract and initial capture points complete; the 28-day baseline window starts with the first production release containing the instrumentation.
 
+Weekly orientation implementation status: the shared student API projection and web/native **This Week** surfaces are complete. The projection uses Guam Monday–Sunday boundaries, keeps required and optional work distinct, carries unfinished required work forward, and combines submission close times, current redos, typed live-class/office-hour events, upcoming unlocks, and recording catch-up. Both clients capture the existing content-free view event, and their user-scoped caches provide read-only offline continuity.
+
 Exit gate: every active student can see required work and ask for contextual help; every request has visible state; voice drafts never auto-send or retain audio; event data reconciles with source records.
 
 ### Phase 2 — Feedback quality (4–7 weeks)

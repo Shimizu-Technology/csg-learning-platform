@@ -118,6 +118,21 @@ Returns role-appropriate dashboard data.
 }
 ```
 
+### `GET /api/v1/weekly_plan`
+
+Returns the authenticated student’s shared web/native **This Week** projection. Staff receive `403`; students without an active enrollment receive `{ "enrolled": false }`.
+
+The `Pacific/Guam` Monday–Sunday projection contains:
+
+- required and optional lessons, including incomplete work carried forward from earlier weeks;
+- completion/open/upcoming/closed state and any submission close instant;
+- the latest open redo per assignment;
+- one-time or recurring live-class and office-hour occurrences;
+- the next lesson unlocks and up to three incomplete class recordings;
+- content-free summary counts used by `weekly_plan_viewed` analytics.
+
+Clients should link lesson, recording, and meeting actions from the provided typed IDs/URLs and cache the projection only inside the signed-in user’s existing scoped cache.
+
 ---
 
 ## Hub Endpoints
@@ -491,12 +506,12 @@ Close times use ISO 8601 instants and must include `Z` or a numeric UTC offset. 
 
 Closed windows prevent student submissions, resubmissions, redo updates, manual work completion, and GitHub sync for that week. Staff actions, lesson reading, and video progress remain available.
 
-### Office hours
+### Live schedule
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/api/v1/cohorts/:cohort_id/office_hours` | Enrolled student or Staff | List active definitions and upcoming occurrences |
-| `POST` | `/api/v1/cohorts/:cohort_id/office_hours` | Staff | Create a one-time or weekly session |
+| `GET` | `/api/v1/cohorts/:cohort_id/office_hours` | Enrolled student or Staff | List active live-class/office-hour definitions and upcoming occurrences |
+| `POST` | `/api/v1/cohorts/:cohort_id/office_hours` | Staff | Create a one-time or weekly live class or office-hours session |
 | `PATCH` | `/api/v1/cohorts/:cohort_id/office_hours/:id` | Staff | Update a session |
 | `DELETE` | `/api/v1/cohorts/:cohort_id/office_hours/:id` | Staff | Delete a session |
 
@@ -511,9 +526,12 @@ Offset-bearing ISO 8601 values are treated as absolute instants. Values from `da
   "meeting_url": "https://meet.example.com/csg",
   "timezone": "Pacific/Guam",
   "recurrence": "weekly",
+  "event_kind": "office_hours",
   "active": true
 }
 ```
+
+`event_kind` is `live_class` or `office_hours`; existing records default to `office_hours`.
 
 ---
 
