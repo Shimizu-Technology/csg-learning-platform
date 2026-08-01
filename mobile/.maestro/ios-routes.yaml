@@ -114,7 +114,7 @@ tags:
 - extendedWaitUntil:
     visible: "Open Maya Santos"
     timeout: 15000
-- assertVisible: "Leon Shimizu: Command recap ls - list.*"
+- assertVisible: "general"
 
 - openLink: "csgconnect://conversation/channel/12"
 - tapOn:
@@ -125,6 +125,19 @@ tags:
     timeout: 15000
 - assertVisible: "Command recap"
 - assertVisible: "ls - list.*"
+- assertVisible: "Copy code"
+- assertVisible: "Code continues horizontally"
+- swipe:
+    start: "85%,68%"
+    end: "30%,68%"
+    duration: 700
+- assertVisible: "Scroll code left"
+- tapOn: "Scroll code left"
+- assertVisible: "Scroll code right"
+- tapOn: "Scroll code right"
+- assertVisible: "Scroll code left"
+- tapOn: "Copy code"
+- assertVisible: "Code copied"
 - assertVisible: "Tab completion saves time."
 - assertNotVisible: ".*```.*"
 
