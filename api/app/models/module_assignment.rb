@@ -12,11 +12,11 @@ class ModuleAssignment < ApplicationRecord
 
   # True if the module is accessible right now — either force-unlocked
   # or the date-based override has been reached.
-  def accessible?(cohort = nil)
+  def accessible?(cohort = nil, on: LearningCalendar.today)
     return true if unlocked?
 
     start_date = effective_start_date(cohort)
-    start_date.present? && Date.current >= start_date
+    start_date.present? && on >= start_date
   end
 
   def available_for?(cohort)

@@ -1,5 +1,5 @@
 class WeeklyPlanProjection
-  TIMEZONE = "Pacific/Guam".freeze
+  TIMEZONE = LearningCalendar::TIMEZONE
   RECORDING_LIMIT = 3
   UPCOMING_UNLOCK_LIMIT = 5
 
@@ -7,7 +7,7 @@ class WeeklyPlanProjection
     @user = user
     @now = now
     @zone = Time.find_zone!(TIMEZONE)
-    @today = now.in_time_zone(@zone).to_date
+    @today = LearningCalendar.today(at: now)
     @week_start = @today.beginning_of_week(:monday)
     @week_end = @week_start + 6.days
   end
@@ -83,7 +83,7 @@ class WeeklyPlanProjection
     unlock_on = lesson_unlock_on(lesson)
     completed = lesson_completed?(lesson)
     in_current_week = unlock_on.between?(@week_start, @week_end)
-    carried_forward = unlock_on < @week_start && !completed && lesson_available?(lesson, unlock_on)
+    carried_forward = unlock_on < @week_start && !completed && lesson_available?(lesson)
     return unless in_current_week || carried_forward
 
     window = SubmissionWindowStatus.for_lesson(cohort: @cohort, lesson: lesson, at: @now)
@@ -98,7 +98,7 @@ class WeeklyPlanProjection
       required: lesson.required?,
       scheduled_for: unlock_on,
       carried_forward: carried_forward,
-      state: lesson_state(completed: completed, available: lesson_available?(lesson, unlock_on), window: window),
+      state: lesson_state(completed: completed, available: lesson_available?(lesson), window: window),
       submission_close_at: window[:submissions_close_at],
       submissions_closed: window[:submissions_closed]
     }
@@ -109,14 +109,13 @@ class WeeklyPlanProjection
     assignment&.unlock_date_override || lesson.unlock_date(@cohort, @module_assignments[lesson.module_id])
   end
 
-  def lesson_available?(lesson, unlock_on = lesson_unlock_on(lesson))
-    lesson_assignment = @lesson_assignments[lesson.id]
-    return @today >= lesson_assignment.unlock_date_override if lesson_assignment&.unlock_date_override.present?
-    return lesson_assignment.unlocked? if lesson_assignment.present?
-
-    module_assignment = @module_assignments[lesson.module_id]
-    module_accessible = module_assignment&.unlocked? || (module_assignment&.effective_start_date(@cohort).present? && @today >= module_assignment.effective_start_date(@cohort))
-    module_accessible && @today >= unlock_on
+  def lesson_available?(lesson)
+    lesson.available?(
+      @cohort,
+      @module_assignments[lesson.module_id],
+      @lesson_assignments[lesson.id],
+      on: @today
+    )
   end
 
   def lesson_completed?(lesson)

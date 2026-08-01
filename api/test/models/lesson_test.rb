@@ -75,6 +75,14 @@ class LessonTest < ActiveSupport::TestCase
     end
   end
 
+  test "available? uses the Guam learning date at the UTC day boundary" do
+    travel_to Time.utc(2026, 4, 5, 14, 5) do
+      assert_equal Date.new(2026, 4, 5), Date.current
+      assert_equal Date.new(2026, 4, 6), LearningCalendar.today
+      assert @lesson.available?(@cohort, @module_assignment)
+    end
+  end
+
   test "available? returns false when date has not passed" do
     future_lesson = Lesson.create!(curriculum_module: @mod, title: "Future", position: 1, release_day: 30)
     travel_to Date.new(2026, 4, 6) do
