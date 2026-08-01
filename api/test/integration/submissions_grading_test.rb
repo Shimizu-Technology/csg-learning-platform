@@ -93,6 +93,7 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :created
+    assert JSON.parse(response.body).dig("submission", "updated_at").present?
     progress = Progress.find_by(user: @student, content_block: @block)
     assert_not_nil progress
     assert progress.completed?

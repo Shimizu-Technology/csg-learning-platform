@@ -7,7 +7,7 @@ import { fonts, palette } from '@/constants/csg-theme';
 import { openAuthenticatedWebLesson, openExternalPage } from '@/lib/external-links';
 import { buildSubmissionInput, canSubmitWork, isNewSubmissionAttempt, learningKeys, submissionState, submissionTypeFor } from '@/lib/learning';
 import { analyticsAgeBucket, captureProductEvent } from '@/lib/analytics';
-import { clearSubmissionDraft, loadSubmissionDraft, saveSubmissionDraft, type SubmissionDraft } from '@/lib/submission-storage';
+import { clearSubmissionDraft, loadSubmissionDraft, saveSubmissionDraft, submissionDraftMatches, type SubmissionDraft } from '@/lib/submission-storage';
 import type { LessonContentBlock, LessonDetail, SubmissionInput, VideoProgressInput } from '@/lib/types';
 import { useSession } from '@/providers/session-provider';
 import { LessonMarkdown } from './lesson-markdown';
@@ -16,6 +16,15 @@ import { NativeVideoPlayer } from './native-video-player';
 interface LessonContentBlockProps {
   block: LessonContentBlock;
   lesson: LessonDetail;
+}
+
+interface PendingSubmissionDraft {
+  userId: number;
+  contentBlockId: number;
+  text: string;
+  baseSubmissionId: number | null;
+  baseSubmissionUpdatedAt: string | null;
+  changed: boolean;
 }
 
 export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProps) {
@@ -43,6 +52,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
   const [olderDraft, setOlderDraft] = useState<SubmissionDraft | null>(null);
   const [draftHydrated, setDraftHydrated] = useState(false);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingDraftRef = useRef<PendingSubmissionDraft | null>(null);
   const studentEditedRef = useRef(false);
   const trackedFeedbackRef = useRef<number | null>(null);
 
@@ -54,10 +64,10 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
       if (draft && studentEditedRef.current) {
         setOlderDraft(draft);
         setDraftNotice('A device draft is available to restore.');
-      } else if (draft && draft.base_submission_id === (latest?.id ?? null) && draft.text !== (latest?.text || '')) {
+      } else if (draft && submissionDraftMatches(draft, latest?.id ?? null, latest?.updated_at ?? null) && draft.text !== (latest?.text || '')) {
         setText(draft.text);
         setDraftNotice('Draft restored from this device. It has not been submitted.');
-      } else if (draft && draft.base_submission_id !== (latest?.id ?? null)) {
+      } else if (draft && !submissionDraftMatches(draft, latest?.id ?? null, latest?.updated_at ?? null)) {
         setOlderDraft(draft);
         setDraftNotice('An older device draft is available to restore.');
       } else if (draft) {
@@ -69,20 +79,28 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
       if (!canceled) setDraftHydrated(true);
     });
     return () => { canceled = true; };
-  }, [block.id, latest?.id, latest?.text, studentMode, submissionType, user]);
+  }, [block.id, latest?.id, latest?.text, latest?.updated_at, studentMode, submissionType, user]);
 
   useEffect(() => {
     if (!studentMode || submissionType !== 'text_submission' || !user || !draftHydrated) return;
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
     const changed = text !== (latest?.text || '');
+    const pending: PendingSubmissionDraft = { userId: user.id, contentBlockId: block.id, text, baseSubmissionId: latest?.id ?? null, baseSubmissionUpdatedAt: latest?.updated_at ?? null, changed };
+    pendingDraftRef.current = pending;
     draftTimerRef.current = setTimeout(() => {
-      const operation = changed
-        ? saveSubmissionDraft(user.id, block.id, text, latest?.id ?? null)
-        : clearSubmissionDraft(user.id, block.id);
-      void operation.then(() => setDraftNotice(changed ? 'Draft saved on this device · not submitted' : null)).catch(() => setDraftNotice('Draft could not be saved. Keep this screen open.'));
+      void persistSubmissionDraft(pending).then(() => {
+        if (pendingDraftRef.current !== pending) return;
+        pendingDraftRef.current = null;
+        setDraftNotice(changed ? 'Draft saved on this device · not submitted' : null);
+      }).catch(() => setDraftNotice('Draft could not be saved. Keep this screen open.'));
     }, 300);
     return () => { if (draftTimerRef.current) clearTimeout(draftTimerRef.current); };
-  }, [block.id, draftHydrated, latest?.id, latest?.text, studentMode, submissionType, text, user]);
+  }, [block.id, draftHydrated, latest?.id, latest?.text, latest?.updated_at, studentMode, submissionType, text, user]);
+
+  useEffect(() => () => {
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    if (pendingDraftRef.current) void persistSubmissionDraft(pendingDraftRef.current).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     if (!latest?.grade || trackedFeedbackRef.current === latest.id) return;
@@ -119,6 +137,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
     },
     onSuccess: async (result) => {
       if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+      pendingDraftRef.current = null;
       if (user) await clearSubmissionDraft(user.id, block.id).catch(() => undefined);
       setDraftNotice(null);
       setOlderDraft(null);
@@ -135,7 +154,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
     onError: async (error) => {
       if (user && submissionType === 'text_submission') {
         try {
-          await saveSubmissionDraft(user.id, block.id, text, latest?.id ?? null);
+          await saveSubmissionDraft(user.id, block.id, text, latest?.id ?? null, latest?.updated_at ?? null);
           setDraftNotice('Draft saved on this device · not submitted');
         } catch {
           setDraftNotice('Draft could not be saved. Keep this screen open.');
@@ -217,6 +236,7 @@ function Field(props: { label: string; value: string; onChangeText: (value: stri
 }
 
 function withoutContentBlock(input: SubmissionInput): Omit<SubmissionInput, 'content_block_id'> { const { content_block_id: _ignored, ...rest } = input; return rest; }
+function persistSubmissionDraft(pending: PendingSubmissionDraft) { return pending.changed ? saveSubmissionDraft(pending.userId, pending.contentBlockId, pending.text, pending.baseSubmissionId, pending.baseSubmissionUpdatedAt) : clearSubmissionDraft(pending.userId, pending.contentBlockId); }
 function blockLabel(value: string) { return value === 'text' ? 'Lesson notes' : value === 'checkpoint' ? 'Checkpoint' : value === 'recording' ? 'Class recording' : 'Learning step'; }
 function formatDate(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date); }
 

@@ -39,6 +39,7 @@ export default function ThreadScreen() {
   const [reactionDetails, setReactionDetails] = useState<{ messageId: number; emoji: string } | null>(null);
   const [imagePreview, setImagePreview] = useState<{ attachments: Message['attachments']; attachmentId: number } | null>(null);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingDraftRef = useRef<{ userId: number; rootId: number; body: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -85,9 +86,17 @@ export default function ThreadScreen() {
   useEffect(() => {
     if (!userId || loading) return;
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
-    draftTimerRef.current = setTimeout(() => void saveThreadDraft(userId, rootId, draft), 300);
+    const pending = { userId, rootId, body: draft };
+    pendingDraftRef.current = pending;
+    draftTimerRef.current = setTimeout(() => void saveThreadDraft(pending.userId, pending.rootId, pending.body).then(() => { if (pendingDraftRef.current === pending) pendingDraftRef.current = null; }).catch(() => undefined), 300);
     return () => { if (draftTimerRef.current) clearTimeout(draftTimerRef.current); };
   }, [draft, loading, rootId, userId]);
+
+  useEffect(() => () => {
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    const pending = pendingDraftRef.current;
+    if (pending) void saveThreadDraft(pending.userId, pending.rootId, pending.body).catch(() => undefined);
+  }, []);
 
   const visible = useMemo(() => sortMessages(replies), [replies]);
   const reactionDetailsMessage = reactionDetails
@@ -118,7 +127,11 @@ export default function ThreadScreen() {
       const result = await api.sendMessage(kind, conversationId, { body, parent_message_id: rootId, mention_user_ids: resolveMentionUserIds(body, users), send_push: true });
       setReplies((current) => sortMessages([...current.filter((message) => message.id !== result.message.id), result.message]));
       requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
-      if (userId) await saveThreadDraft(userId, rootId, '');
+      if (userId) {
+        if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+        pendingDraftRef.current = null;
+        await saveThreadDraft(userId, rootId, '');
+      }
     } catch (requestError) { setDraft(body); Alert.alert('Reply not sent', (requestError as Error).message); }
     finally { setSending(false); }
   };

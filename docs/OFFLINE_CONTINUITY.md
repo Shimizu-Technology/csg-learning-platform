@@ -17,7 +17,7 @@ AsyncStorage is persistent but unencrypted, so it is used only for the minimum a
 
 1. After the server-authorized lesson loads, text changes are saved locally after a short debounce.
 2. The interface says when the device draft is saving or saved and explicitly says it is not submitted.
-3. A draft records the submission ID it was based on. If the server submission changes on another device, CSG does not silently overwrite it; the student can intentionally restore the older device draft.
+3. A draft records the submission ID and server update version it was based on. If the server submission changes on another device—even when Rails updates the same record—CSG does not silently overwrite it; the student can intentionally restore the older device draft.
 4. A failed submit keeps the response visible, performs an immediate local save, and reports **Not submitted**.
 5. Only a successful API response clears the local draft and reports submitted/updated success.
 

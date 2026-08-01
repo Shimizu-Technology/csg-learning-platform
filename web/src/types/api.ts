@@ -834,6 +834,7 @@ export interface SubmissionBrief {
   notes?: string | null;
   num_submissions: number;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface Submission {
@@ -857,6 +858,7 @@ export interface Submission {
   notes?: string | null;
   num_submissions: number;
   created_at: string;
+  updated_at?: string;
   content_block_title: string;
   content_block_type: string;
   lesson_title: string;
