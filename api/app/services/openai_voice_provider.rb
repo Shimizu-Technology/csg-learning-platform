@@ -121,11 +121,9 @@ class OpenaiVoiceProvider
     return response if response.is_a?(Net::HTTPSuccess)
 
     raise ProviderError, "The voice service is temporarily unavailable."
-  rescue Net::OpenTimeout, Net::ReadTimeout
+  rescue Net::OpenTimeout, Net::ReadTimeout, Net::WriteTimeout, Errno::ETIMEDOUT
     raise ProviderError, "The voice service timed out. Try again."
-  rescue SocketError, EOFError, IOError, OpenSSL::SSL::SSLError,
-    Errno::ECONNREFUSED, Errno::ECONNRESET, Errno::ECONNABORTED,
-    Errno::EHOSTUNREACH, Errno::ENETUNREACH, Errno::EPIPE,
+  rescue SocketError, EOFError, IOError, SystemCallError, OpenSSL::SSL::SSLError,
     Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError
     raise ProviderError, "The voice service is temporarily unavailable. Try again."
   end

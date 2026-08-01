@@ -47,6 +47,16 @@ class OpenaiVoiceProviderTest < ActiveSupport::TestCase
     end
   end
 
+  test "normalizes operating-system socket timeouts" do
+    provider = OpenaiVoiceProvider.new(api_key: "test-key")
+    with_upload("m4a bytes") do |upload|
+      with_singleton_method(Net::HTTP, :start, ->(*) { raise Errno::ETIMEDOUT }) do
+        error = assert_raises(OpenaiVoiceProvider::ProviderError) { provider.transcribe(upload) }
+        assert_equal "The voice service timed out. Try again.", error.message
+      end
+    end
+  end
+
   private
 
   def with_upload(bytes)
