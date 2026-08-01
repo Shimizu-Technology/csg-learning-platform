@@ -477,6 +477,8 @@ These are service-level proposals, not measured product targets yet.
 
 ### Phase 0 — Interaction and readability gate (1–2 weeks)
 
+Implementation status: complete in the product code. Final physical-device smoke testing remains part of the TestFlight release checklist.
+
 - reproduce and fix code-block horizontal navigation;
 - add Copy and overflow affordance;
 - create semantic native type tokens and strengthen readable muted text;

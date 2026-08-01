@@ -102,7 +102,7 @@ export function ReactionDetailsSheet({ message, initialEmoji, onClose, onToggle 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.ink },
   header: { minHeight: 80, paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.line, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  eyebrow: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 9, letterSpacing: 1.6 },
+  eyebrow: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.6 },
   title: { color: palette.text, fontFamily: fonts.extraBold, fontSize: 22, letterSpacing: -0.5, marginTop: 2 },
   close: { width: 44, height: 44, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.panel, borderWidth: 1, borderColor: palette.line },
   tabs: { paddingHorizontal: 20, paddingVertical: 14, gap: 8 },

@@ -515,7 +515,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(151,160,184,0.18)',
   },
   filename: { color: palette.text, fontFamily: fonts.semibold, fontSize: 13, maxWidth: '100%' },
-  position: { color: palette.quiet, fontFamily: fonts.medium, fontSize: 10, marginTop: 2 },
+  position: { color: palette.subtle, fontFamily: fonts.medium, fontSize: 11, marginTop: 2 },
   bottomBar: {
     position: 'absolute',
     left: 12,
@@ -538,7 +538,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(151,160,184,0.18)',
   },
   footerName: { color: palette.text, fontFamily: fonts.semibold, fontSize: 12 },
-  footerMeta: { color: palette.quiet, fontFamily: fonts.medium, fontSize: 10, marginTop: 3 },
+  footerMeta: { color: palette.subtle, fontFamily: fonts.medium, fontSize: 11, marginTop: 3 },
   pageButton: {
     width: 48,
     height: 48,

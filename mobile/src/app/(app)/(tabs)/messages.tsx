@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ConversationRow } from '@/components/conversation-row';
 import { EmptyState, ErrorState, LoadingState } from '@/components/screen-states';
-import { fonts, palette } from '@/constants/csg-theme';
+import { fontScaleLimits, fonts, palette, typography } from '@/constants/csg-theme';
 import { demoChannels, demoDms } from '@/lib/demo-data';
 import { subscribeToUserMessages } from '@/lib/cable';
 import type { ChannelSummary, DirectConversationSummary, MessageEvent } from '@/lib/types';
@@ -73,19 +73,19 @@ export default function MessagesScreen() {
 
   return (
     <SafeAreaView edges={['top']} style={styles.safe}>
-      <View style={styles.header}><View><Text style={styles.eyebrow}>CSG CONNECT</Text><Text style={styles.heading}>Messages</Text><Text style={styles.subhead}>{unread ? `${unread} unread across your workspaces` : 'You’re all caught up'}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Start a direct message" onPress={() => router.push('/compose')} style={styles.compose}><PenLine color={palette.text} size={21} /></Pressable></View>
+      <View style={styles.header}><View style={styles.headerCopy}><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>CSG CONNECT</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heading}>Messages</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.subhead}>{unread ? `${unread} unread across your workspaces` : 'You’re all caught up'}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Start a direct message" onPress={() => router.push('/compose')} style={styles.compose}><PenLine color={palette.text} size={21} /></Pressable></View>
       {activeWorkspace && (
         <Pressable accessibilityRole="button" accessibilityLabel={`Current workspace: ${activeWorkspace.name}. ${workspaces.length > 1 ? 'Switch workspace' : ''}`} disabled={workspaces.length < 2} onPress={() => setShowWorkspaces(true)} style={styles.workspaceSelector}>
-          <View style={styles.workspaceMark}><Text style={styles.workspaceInitials}>{activeWorkspace.name.split(/\s+/).map((word) => word[0]).join('').slice(0, 2).toUpperCase()}</Text></View>
-          <View style={styles.workspaceCopy}><View style={styles.workspaceNameRow}><Text numberOfLines={1} style={styles.workspaceName}>{activeWorkspace.name}</Text><Text style={styles.workspaceType}>{activeWorkspace.workspace_type}</Text></View><Text numberOfLines={1} style={styles.workspaceMeta}>{activeWorkspace.member_count} {activeWorkspace.member_count === 1 ? 'member' : 'members'} · {activeWorkspaceCard?.unreadCount ? `${activeWorkspaceCard.unreadCount} unread here` : 'caught up'}{otherUnread > 0 ? ` · ${otherUnread} elsewhere` : ''}</Text></View>
+          <View style={styles.workspaceMark}><Text allowFontScaling={false} style={styles.workspaceInitials}>{activeWorkspace.name.split(/\s+/).map((word) => word[0]).join('').slice(0, 2).toUpperCase()}</Text></View>
+          <View style={styles.workspaceCopy}><View style={styles.workspaceNameRow}><Text maxFontSizeMultiplier={fontScaleLimits.content} numberOfLines={1} style={styles.workspaceName}>{activeWorkspace.name}</Text><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.workspaceType}>{activeWorkspace.workspace_type}</Text></View><Text maxFontSizeMultiplier={fontScaleLimits.content} numberOfLines={2} style={styles.workspaceMeta}>{activeWorkspace.member_count} {activeWorkspace.member_count === 1 ? 'member' : 'members'} · {activeWorkspaceCard?.unreadCount ? `${activeWorkspaceCard.unreadCount} unread here` : 'caught up'}{otherUnread > 0 ? ` · ${otherUnread} elsewhere` : ''}</Text></View>
           {workspaces.length > 1 && <ChevronDown color={palette.muted} size={19} />}
         </Pressable>
       )}
-      <View style={styles.search}><Search color={palette.quiet} size={18} /><TextInput accessibilityLabel="Filter conversations" value={query} onChangeText={setQuery} placeholder="Find a conversation" placeholderTextColor={palette.quiet} style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel="Search all messages" onPress={() => router.push('/search')} style={styles.searchAllButton}><Text style={styles.searchAll}>Search all</Text></Pressable></View>
+      <View style={styles.search}><Search color={palette.quiet} size={18} /><TextInput accessibilityLabel="Filter conversations" maxFontSizeMultiplier={fontScaleLimits.content} value={query} onChangeText={setQuery} placeholder="Find a conversation" placeholderTextColor={palette.quiet} style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel="Search all messages" onPress={() => router.push('/search')} style={styles.searchAllButton}><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.searchAll}>Search all</Text></Pressable></View>
       {loading || loadingWorkspaces ? <LoadingState /> : error || (workspaceError && !workspaces.length) ? <ErrorState message={error || workspaceError || 'Could not load messages'} retry={() => void refreshAll()} /> : (
         <ScrollView keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refreshAll(true)} tintColor={palette.rubySoft} />} contentContainerStyle={styles.content}>
-          {visibleDms.length > 0 && <View style={styles.section}><Text style={styles.label}>DIRECT</Text>{visibleDms.map((item) => <ConversationRow key={`dm-${item.id}`} kind="dm" item={item} onPress={() => open('dm', item.id)} />)}</View>}
-          {visibleChannels.length > 0 && <View style={styles.section}><Text style={styles.label}>CHANNELS</Text>{visibleChannels.map((item) => <ConversationRow key={`channel-${item.id}`} kind="channel" item={item} onPress={() => open('channel', item.id)} />)}</View>}
+          {visibleDms.length > 0 && <View style={styles.section}><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.label}>DIRECT</Text>{visibleDms.map((item) => <ConversationRow key={`dm-${item.id}`} kind="dm" item={item} onPress={() => open('dm', item.id)} />)}</View>}
+          {visibleChannels.length > 0 && <View style={styles.section}><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.label}>CHANNELS</Text>{visibleChannels.map((item) => <ConversationRow key={`channel-${item.id}`} kind="channel" item={item} onPress={() => open('channel', item.id)} />)}</View>}
           {!activeWorkspace && <EmptyState title="No workspace yet" copy="Your cohort and community workspaces will appear here once you have access." />}
           {activeWorkspace && !visibleDms.length && !visibleChannels.length && <EmptyState title={filter ? 'Nothing found' : `Nothing in ${activeWorkspace.name} yet`} copy={filter ? 'Try a different conversation name or message preview.' : 'Channels and direct messages for this workspace will appear here.'} />}
         </ScrollView>
@@ -100,7 +100,7 @@ export default function MessagesScreen() {
               {workspaceCards.map((workspace) => {
                 const current = workspace.id === activeWorkspaceId;
                 return <Pressable key={workspace.id} accessibilityRole="button" accessibilityState={{ selected: current }} onPress={() => { void selectWorkspace(workspace.id); setShowWorkspaces(false); setQuery(''); }} style={[styles.workspaceCard, current && styles.workspaceCardActive]}>
-                  <View style={[styles.workspaceMark, current && styles.workspaceMarkActive]}><Text style={styles.workspaceInitials}>{workspace.name.split(/\s+/).map((word) => word[0]).join('').slice(0, 2).toUpperCase()}</Text></View>
+                  <View style={[styles.workspaceMark, current && styles.workspaceMarkActive]}><Text allowFontScaling={false} style={styles.workspaceInitials}>{workspace.name.split(/\s+/).map((word) => word[0]).join('').slice(0, 2).toUpperCase()}</Text></View>
                   <View style={styles.workspaceCopy}><View style={styles.workspaceNameRow}><Text numberOfLines={1} style={styles.workspaceName}>{workspace.name}</Text>{current && <Check color={palette.rubySoft} size={17} strokeWidth={2.5} />}</View><View style={styles.statRow}><Users color={palette.quiet} size={13} /><Text style={styles.stat}>{workspace.member_count}</Text><Hash color={palette.quiet} size={13} /><Text style={styles.stat}>{workspace.channelCount}</Text><MessageCircle color={palette.quiet} size={13} /><Text style={styles.stat}>{workspace.directMessageCount}</Text>{workspace.unreadCount > 0 && <Text style={styles.unreadPill}>{workspace.unreadCount} unread</Text>}</View></View>
                 </Pressable>;
               })}
@@ -114,27 +114,28 @@ export default function MessagesScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.ink },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20 },
-  eyebrow: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 10, letterSpacing: 1.8 },
-  heading: { color: palette.text, fontFamily: fonts.extraBold, fontSize: 34, letterSpacing: -1.2 },
-  subhead: { color: palette.muted, fontFamily: fonts.regular, fontSize: 13, marginTop: 3 },
-  compose: { width: 48, height: 48, borderRadius: 16, backgroundColor: palette.ruby, alignItems: 'center', justifyContent: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20, gap: 12 },
+  headerCopy: { flex: 1, minWidth: 0 },
+  eyebrow: { ...typography.label, color: palette.rubySoft, fontFamily: fonts.bold, letterSpacing: 1.8 },
+  heading: { ...typography.display, color: palette.text, fontFamily: fonts.extraBold, letterSpacing: -1.2 },
+  subhead: { ...typography.support, color: palette.muted, fontFamily: fonts.regular, marginTop: 3 },
+  compose: { flexShrink: 0, width: 48, height: 48, borderRadius: 16, backgroundColor: palette.ruby, alignItems: 'center', justifyContent: 'center' },
   workspaceSelector: { marginHorizontal: 20, marginBottom: 12, minHeight: 64, borderRadius: 18, backgroundColor: palette.panelRaised, borderWidth: 1, borderColor: palette.line, padding: 10, paddingRight: 14, flexDirection: 'row', alignItems: 'center', gap: 11 },
   workspaceMark: { width: 42, height: 42, borderRadius: 13, backgroundColor: '#252B3A', alignItems: 'center', justifyContent: 'center' },
   workspaceMarkActive: { backgroundColor: '#32161D' },
   workspaceInitials: { color: palette.text, fontFamily: fonts.bold, fontSize: 13 },
   workspaceCopy: { flex: 1, minWidth: 0 },
-  workspaceNameRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  workspaceNameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 7 },
   workspaceName: { color: palette.text, fontFamily: fonts.bold, fontSize: 14, flexShrink: 1 },
-  workspaceType: { color: palette.rubySoft, backgroundColor: '#2A151B', borderRadius: 8, overflow: 'hidden', paddingHorizontal: 7, paddingVertical: 3, fontFamily: fonts.semibold, fontSize: 8, textTransform: 'uppercase' },
-  workspaceMeta: { color: palette.quiet, fontFamily: fonts.regular, fontSize: 10, marginTop: 3 },
+  workspaceType: { color: palette.rubySoft, backgroundColor: '#2A151B', borderRadius: 8, overflow: 'hidden', paddingHorizontal: 7, paddingVertical: 3, fontFamily: fonts.semibold, fontSize: 11, textTransform: 'uppercase' },
+  workspaceMeta: { color: palette.subtle, fontFamily: fonts.regular, fontSize: 11, marginTop: 3 },
   search: { marginHorizontal: 20, minHeight: 48, borderRadius: 16, backgroundColor: palette.panel, borderWidth: 1, borderColor: palette.line, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
   input: { flex: 1, color: palette.text, fontFamily: fonts.regular, fontSize: 14, paddingVertical: 12 },
   searchAllButton: { minHeight: 44, justifyContent: 'center' },
   searchAll: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 11 },
   content: { paddingHorizontal: 20, paddingTop: 26, paddingBottom: 30 },
   section: { marginBottom: 28 },
-  label: { color: palette.quiet, fontFamily: fonts.bold, fontSize: 10, letterSpacing: 1.5, marginBottom: 4 },
+  label: { color: palette.subtle, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.5, marginBottom: 4 },
   modalRoot: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(2, 4, 8, 0.72)' },
   sheet: { maxHeight: '78%', backgroundColor: palette.panel, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderColor: palette.line, paddingBottom: 28 },
   sheetHandle: { width: 38, height: 4, borderRadius: 2, backgroundColor: palette.line, alignSelf: 'center', marginTop: 10 },
@@ -146,6 +147,6 @@ const styles = StyleSheet.create({
   workspaceCard: { minHeight: 74, borderRadius: 18, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panelRaised, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
   workspaceCardActive: { borderColor: '#6A2A36', backgroundColor: '#201319' },
   statRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
-  stat: { color: palette.quiet, fontFamily: fonts.medium, fontSize: 10, marginRight: 5 },
-  unreadPill: { color: palette.text, backgroundColor: palette.ruby, borderRadius: 9, overflow: 'hidden', paddingHorizontal: 7, paddingVertical: 3, fontFamily: fonts.bold, fontSize: 9, marginLeft: 'auto' },
+  stat: { color: palette.subtle, fontFamily: fonts.medium, fontSize: 11, marginRight: 5 },
+  unreadPill: { color: palette.text, backgroundColor: palette.ruby, borderRadius: 9, overflow: 'hidden', paddingHorizontal: 7, paddingVertical: 3, fontFamily: fonts.bold, fontSize: 11, marginLeft: 'auto' },
 });

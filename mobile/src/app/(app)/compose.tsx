@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
   list: { padding: 20, paddingBottom: 100 },
   person: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.line },
   name: { color: palette.text, fontFamily: fonts.semibold, fontSize: 14 },
-  email: { color: palette.quiet, fontFamily: fonts.regular, fontSize: 11, marginTop: 2 },
+  email: { color: palette.subtle, fontFamily: fonts.regular, fontSize: 11, marginTop: 2 },
   check: { width: 26, height: 26, borderRadius: 9, borderWidth: 1, borderColor: palette.line, alignItems: 'center', justifyContent: 'center' },
   checkActive: { backgroundColor: palette.ruby, borderColor: palette.ruby },
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, backgroundColor: palette.panel, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.line },

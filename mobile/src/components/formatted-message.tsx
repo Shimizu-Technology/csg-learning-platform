@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { Linking, StyleSheet, Text, View } from 'react-native';
 
 import { MessageCodeBlock } from '@/components/message-code-block';
-import { fonts, palette } from '@/constants/csg-theme';
+import { fontScaleLimits, fonts, palette, typography } from '@/constants/csg-theme';
 import { messageSegments } from '@/lib/mentions';
 import { normalizeMessageLink, parseMessageBlocks, splitTrailingUrlPunctuation } from '@/lib/message-format';
 import type { UserSummary } from '@/lib/types';
@@ -34,8 +34,8 @@ export function FormattedMessage({ body, mentionUsers, mine = false }: Props) {
             <View key={key} style={styles.list}>
               {block.items.map((item, itemIndex) => (
                 <View key={`${key}-${itemIndex}`} style={styles.listRow}>
-                  <Text style={[styles.listMarker, mine && styles.mineText]}>{block.type === 'bulletList' ? '•' : `${itemIndex + 1}.`}</Text>
-                  <Text style={[styles.body, styles.listItem, mine && styles.mineText]}>{formatInline(item, mentionUsers, mine, `${key}-${itemIndex}`)}</Text>
+                  <Text maxFontSizeMultiplier={fontScaleLimits.content} style={[styles.listMarker, mine && styles.mineText]}>{block.type === 'bulletList' ? '•' : `${itemIndex + 1}.`}</Text>
+                  <Text maxFontSizeMultiplier={fontScaleLimits.content} style={[styles.body, styles.listItem, mine && styles.mineText]}>{formatInline(item, mentionUsers, mine, `${key}-${itemIndex}`)}</Text>
                 </View>
               ))}
             </View>
@@ -45,12 +45,12 @@ export function FormattedMessage({ body, mentionUsers, mine = false }: Props) {
         if (block.type === 'blockquote') {
           return (
             <View key={key} style={[styles.blockquote, mine && styles.mineBlockquote]}>
-              <Text style={[styles.body, styles.quoteText, mine && styles.mineText]}>{formatInline(block.text, mentionUsers, mine, key)}</Text>
+              <Text maxFontSizeMultiplier={fontScaleLimits.content} style={[styles.body, styles.quoteText, mine && styles.mineText]}>{formatInline(block.text, mentionUsers, mine, key)}</Text>
             </View>
           );
         }
 
-        return <Text key={key} style={[styles.body, mine && styles.mineText]}>{formatInline(block.text, mentionUsers, mine, key)}</Text>;
+        return <Text key={key} maxFontSizeMultiplier={fontScaleLimits.content} style={[styles.body, mine && styles.mineText]}>{formatInline(block.text, mentionUsers, mine, key)}</Text>;
       })}
     </View>
   );
@@ -216,7 +216,7 @@ function renderMentions(text: string, mentionUsers: UserSummary[], keyPrefix: st
 const styles = StyleSheet.create({
   content: { maxWidth: '100%', gap: 4 },
   spacer: { height: 2 },
-  body: { color: palette.text, fontFamily: fonts.regular, fontSize: 14, lineHeight: 20 },
+  body: { ...typography.body, color: palette.text, fontFamily: fonts.regular },
   mineText: { color: '#FFFFFF' },
   bold: { fontFamily: fonts.bold },
   italic: { fontStyle: 'italic' },
@@ -225,11 +225,11 @@ const styles = StyleSheet.create({
   mention: { color: '#FFD1D7', fontFamily: fonts.bold },
   link: { color: palette.rubySoft, fontFamily: fonts.semibold, textDecorationLine: 'underline' },
   mineLink: { color: '#FFE4E8' },
-  inlineCode: { color: '#F5A3AF', fontFamily: 'Menlo', fontSize: 12, backgroundColor: '#20151A' },
+  inlineCode: { ...typography.code, color: '#F5A3AF', fontFamily: 'Menlo', backgroundColor: '#20151A' },
   mineInlineCode: { color: '#FFFFFF', backgroundColor: 'rgba(6, 9, 14, 0.28)' },
   list: { gap: 3 },
   listRow: { flexDirection: 'row', alignItems: 'flex-start', paddingRight: 2 },
-  listMarker: { width: 23, color: palette.muted, fontFamily: fonts.semibold, fontSize: 13, lineHeight: 20, textAlign: 'right', paddingRight: 7 },
+  listMarker: { ...typography.body, width: 23, color: palette.muted, fontFamily: fonts.semibold, textAlign: 'right', paddingRight: 7 },
   listItem: { flex: 1 },
   blockquote: { borderLeftWidth: 3, borderLeftColor: palette.rubySoft, paddingLeft: 10, paddingVertical: 2 },
   mineBlockquote: { borderLeftColor: '#FFE4E8' },

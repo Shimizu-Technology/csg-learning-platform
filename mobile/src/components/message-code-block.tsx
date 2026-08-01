@@ -13,7 +13,7 @@ import {
   type TextLayoutEventData,
 } from 'react-native';
 
-import { fonts, palette } from '@/constants/csg-theme';
+import { fontScaleLimits, fonts, palette, typography } from '@/constants/csg-theme';
 
 type Props = {
   code: string;
@@ -79,12 +79,12 @@ export function MessageCodeBlock({ code, language = '' }: Props) {
   return (
     <View style={styles.block} testID="message-code-block">
       <View style={styles.header}>
-        <Text numberOfLines={1} style={styles.language}>{language || 'Code'}</Text>
+        <Text maxFontSizeMultiplier={fontScaleLimits.utility} numberOfLines={1} style={styles.language}>{language || 'Code'}</Text>
         <View style={styles.headerActions}>
           {overflowing && (
             <View style={styles.overflowActions}>
               <View accessible accessibilityLabel="Code continues horizontally" style={styles.overflowLabel}>
-                <Text style={styles.overflowText}>Scroll</Text>
+                <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.overflowText}>Scroll</Text>
               </View>
               {canScrollLeft && (
                 <Pressable accessibilityLabel="Scroll code left" accessibilityRole="button" onPress={() => pageCode(-1)} style={({ pressed }) => [styles.pageButton, pressed && styles.pressed]}>
@@ -107,7 +107,7 @@ export function MessageCodeBlock({ code, language = '' }: Props) {
             style={({ pressed }) => [styles.copyButton, copied && styles.copyButtonCopied, pressed && styles.pressed]}
           >
             {copied ? <Check color={palette.success} size={15} /> : <Copy color={palette.muted} size={15} />}
-            <Text style={[styles.copyText, copied && styles.copyTextCopied]}>{copied ? 'Copied' : 'Copy'}</Text>
+            <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={[styles.copyText, copied && styles.copyTextCopied]}>{copied ? 'Copied' : 'Copy'}</Text>
           </Pressable>
         </View>
       </View>
@@ -131,7 +131,7 @@ export function MessageCodeBlock({ code, language = '' }: Props) {
           style={styles.scroller}
           testID="message-code-scroller"
         >
-          <Text onTextLayout={measureCode} style={styles.code} testID="message-code-text">{code}</Text>
+          <Text maxFontSizeMultiplier={fontScaleLimits.utility} onTextLayout={measureCode} style={styles.code} testID="message-code-text">{code}</Text>
         </ScrollView>
       </View>
     </View>
@@ -162,14 +162,14 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     color: '#B5BBC8',
     fontFamily: fonts.bold,
-    fontSize: 11,
+    ...typography.label,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   overflowActions: { flexDirection: 'row', alignItems: 'center' },
   overflowLabel: { minHeight: 32, flexDirection: 'row', alignItems: 'center', paddingLeft: 7 },
-  overflowText: { color: palette.muted, fontFamily: fonts.semibold, fontSize: 11 },
+  overflowText: { ...typography.label, color: palette.muted, fontFamily: fonts.semibold },
   pageButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
   copyButton: {
     minWidth: 68,
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   copyButtonCopied: { backgroundColor: 'rgba(48, 184, 120, 0.1)' },
-  copyText: { color: palette.muted, fontFamily: fonts.semibold, fontSize: 11 },
+  copyText: { ...typography.label, color: palette.muted, fontFamily: fonts.semibold },
   copyTextCopied: { color: palette.success },
   pressed: { opacity: 0.66 },
   viewport: { maxWidth: '100%' },
@@ -192,7 +192,6 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     color: '#E5E7EB',
     fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }),
-    fontSize: 12,
-    lineHeight: 18,
+    ...typography.code,
   },
 });

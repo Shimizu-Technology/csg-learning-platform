@@ -46,7 +46,7 @@ The platform is **production-ready for its core use case** — managing cohorts,
 
 The platform has completed far more of the native and communications roadmap than the historical phase numbering below reflects. The current execution order is now governed by `docs/PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md`:
 
-1. Native code-block horizontal navigation, semantic type, contrast, and Dynamic Type quality.
+1. **Completed:** native code-block horizontal navigation, semantic type, contrast, and Dynamic Type quality.
 2. Reviewed native voice-to-text message drafts: record, transcribe, lightly format, edit, then explicitly send.
 3. Privacy-safe web/native learning-event instrumentation and four teaching weeks of baseline data.
 4. A shared **This Week** plan, contextual help requests, and a staff-owned intervention queue.
