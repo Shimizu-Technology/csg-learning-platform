@@ -6,7 +6,7 @@ const LEARNING_PATH = /^\/(lesson|module)\/\d+$/;
 const STAFF_PATH = /^\/staff\/(student|submission)\/\d+$/;
 
 export function isAllowedNotificationPath(value: unknown): value is string {
-  return value === '/' || value === '/learn' || value === '/resources' || value === '/recordings' || value === '/updates' || value === '/staff/grading' || (typeof value === 'string' && (CONVERSATION_PATH.test(value) || LEARNING_PATH.test(value) || STAFF_PATH.test(value) || /^\/recording\/[A-Za-z0-9-]+$/.test(value)));
+  return value === '/' || value === '/learn' || value === '/resources' || value === '/recordings' || value === '/updates' || value === '/staff/grading' || value === '/staff/support' || (typeof value === 'string' && (CONVERSATION_PATH.test(value) || LEARNING_PATH.test(value) || STAFF_PATH.test(value) || /^\/recording\/[A-Za-z0-9-]+$/.test(value)));
 }
 
 export function mobileNotificationPath(value: unknown) {
@@ -21,5 +21,6 @@ export function mobileNotificationPath(value: unknown) {
   if (/^\/modules\/\d+$/.test(value)) return value.replace('/modules/', '/module/');
   if (value === '/dashboard') return '/';
   if (value === '/admin/grading') return '/staff/grading';
+  if (value === '/admin/support') return '/staff/support';
   return '/updates';
 }

@@ -51,6 +51,7 @@ Local development still uses Clerk authentication. There is no supported auth-by
 | Path | Component | Purpose |
 |------|-----------|---------|
 | `/admin` | `AdminDashboard` | Overview — cohort stats, student health, quick actions |
+| `/admin/support` | `SupportQueue` | Direct contextual-help requests and explainable learning signals |
 | `/admin/students` | `StudentManagement` | All students grouped by cohort with search/filter |
 | `/admin/students/:id` | `StudentDetail` | Individual student progress and submissions |
 | `/admin/cohorts` | `CohortManagement` | Cohort CRUD and settings |

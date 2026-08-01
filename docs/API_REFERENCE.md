@@ -133,6 +133,19 @@ The `Pacific/Guam` Monday–Sunday projection contains:
 
 Clients should link lesson, recording, and meeting actions from the provided typed IDs/URLs and cache the projection only inside the signed-in user’s existing scoped cache.
 
+### Contextual help and staff support
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/api/v1/help_requests` | Signed-in user | Students list their own requests; staff list all. Optional `cohort_id`, valid `status`, and valid `context_type` filters apply. |
+| `POST` | `/api/v1/help_requests` | Student | Create one active request for an authorized lesson, exercise, uploaded recording, or legacy recording. Duplicate active context returns the existing record with `created: false`. |
+| `PATCH` | `/api/v1/help_requests/:id` | Owner student / Staff | Students may cancel active requests. Staff may acknowledge or resolve; resolution requires a nonblank `staff_response`. |
+| `GET` | `/api/v1/support_queue` | Staff | Return active requests, recent resolutions, summary counts, and explainable redo/ungraded/inactivity student signals. |
+
+Create input is nested under `help_request` and includes `cohort_id`, `context_type` (`lesson`, `exercise`, or `recording`), `context_source` (`primary` or legacy recordings only), numeric `context_id`, `category`, `urgency`, and `message`. The server re-resolves the context label/path and rechecks active enrollment, curriculum, assignment, release, and recording ownership; clients cannot choose those display values.
+
+States are `open`, `acknowledged`, `resolved`, and `canceled`. Terminal records cannot be reopened. Notifications omit authored request text. See `SUPPORT_WORKFLOW.md` for the product and operating contract.
+
 ---
 
 ## Hub Endpoints

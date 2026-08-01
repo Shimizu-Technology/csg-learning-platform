@@ -60,6 +60,13 @@ import type {
   MessageAttachmentPresignResponse,
   MessagePreferenceResponse,
   MessageSearchResponse,
+  HelpRequestsResponse,
+  HelpRequestResponse,
+  SupportQueueResponse,
+  HelpCategory,
+  HelpContextSource,
+  HelpContextType,
+  HelpUrgency,
 } from '../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
@@ -285,6 +292,7 @@ function writeCachedResponse<T>(scope: string | null, endpoint: string, data: T)
 
 function shouldCacheResponse<T>(endpoint: string, data: T) {
   if (!data || typeof data !== 'object') return false;
+  if (endpoint.startsWith('/api/v1/help_requests') || endpoint === '/api/v1/support_queue') return false;
 
   if (endpoint === '/api/v1/dashboard') {
     const dashboard = (data as { dashboard?: { enrolled?: boolean } }).dashboard;
@@ -527,6 +535,20 @@ export const api = {
   // Lessons
   getLesson: (id: number) =>
     fetchApi<LessonResponse>(`/api/v1/lessons/${id}`),
+
+  getHelpRequests: (params: { cohort_id?: number; status?: string; context_type?: HelpContextType } = {}) =>
+    fetchApi<HelpRequestsResponse>(`/api/v1/help_requests${queryString(params)}`),
+  createHelpRequest: (data: { cohort_id: number; context_type: HelpContextType; context_source?: HelpContextSource; context_id: number; category: HelpCategory; urgency: HelpUrgency; message: string }) =>
+    fetchApi<HelpRequestResponse>('/api/v1/help_requests', {
+      method: 'POST',
+      body: JSON.stringify({ help_request: data }),
+    }),
+  updateHelpRequest: (id: number, data: { status: 'acknowledged' | 'resolved' | 'canceled'; staff_response?: string }) =>
+    fetchApi<HelpRequestResponse>(`/api/v1/help_requests/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ help_request: data }),
+    }),
+  getSupportQueue: () => fetchApi<SupportQueueResponse>('/api/v1/support_queue'),
 
   // Progress
   updateProgress: (contentBlockId: number, status: string) =>

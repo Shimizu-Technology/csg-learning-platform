@@ -18,6 +18,9 @@ class PushNotificationJob < ApplicationJob
     when Submission
       deliver(WebPushNotificationService, :submission_changed, notifiable, notifications)
       deliver(ExpoPushNotificationService, :submission_changed, notifiable, notifications)
+    when HelpRequest
+      deliver(WebPushNotificationService, :help_request_changed, notifiable, notifications)
+      deliver(ExpoPushNotificationService, :help_request_changed, notifiable, notifications)
     end
   end
 

@@ -10,6 +10,8 @@ export const learningKeys = {
   studentDetail: (userId: number, studentId: number) => ['learning', userId, 'staff-student', studentId] as const,
   submission: (userId: number, submissionId: number) => ['learning', userId, 'staff-submission', submissionId] as const,
   submissions: (userId: number, studentId?: number) => ['learning', userId, 'staff-submissions', studentId || 'all'] as const,
+  helpRequests: (userId: number, cohortId?: number, contextType?: string) => ['learning', userId, 'help-requests', cohortId || 'all', contextType || 'all'] as const,
+  supportQueue: (userId: number) => ['learning', userId, 'support-queue'] as const,
 };
 
 export function isStudentDashboard(value: StudentDashboard | object): value is StudentDashboard {

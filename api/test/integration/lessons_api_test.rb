@@ -49,7 +49,9 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
-    block = JSON.parse(response.body).dig("lesson", "content_blocks").find { |item| item["id"] == @video_block.id }
+    lesson = JSON.parse(response.body).fetch("lesson")
+    assert_equal @cohort.id, lesson.fetch("cohort_id")
+    block = lesson.fetch("content_blocks").find { |item| item["id"] == @video_block.id }
     assert_equal @video_block.s3_video_key, block["s3_video_key"]
     assert_equal true, block["completion_required"]
     refute block.key?("s3_video_content_type")

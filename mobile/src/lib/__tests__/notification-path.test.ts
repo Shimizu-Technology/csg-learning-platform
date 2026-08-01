@@ -13,6 +13,7 @@ describe('isAllowedNotificationPath', () => {
     expect(isAllowedNotificationPath('/staff/submission/31')).toBe(true);
     expect(isAllowedNotificationPath('/staff/student/18')).toBe(true);
     expect(isAllowedNotificationPath('/staff/grading')).toBe(true);
+    expect(isAllowedNotificationPath('/staff/support')).toBe(true);
   });
 
   it('rejects unknown, malformed, and non-string paths', () => {
@@ -31,6 +32,7 @@ describe('isAllowedNotificationPath', () => {
     expect(mobileNotificationPath('/modules/7')).toBe('/module/7');
     expect(mobileNotificationPath('/dashboard')).toBe('/');
     expect(mobileNotificationPath('/admin/grading')).toBe('/staff/grading');
+    expect(mobileNotificationPath('/admin/support')).toBe('/staff/support');
     expect(mobileNotificationPath('https://example.com')).toBe('/updates');
   });
 });

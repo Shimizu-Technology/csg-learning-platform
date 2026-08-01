@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_01_000100) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_01_000200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -206,6 +206,33 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_01_000100) do
     t.index ["cohort_id"], name: "index_enrollments_on_cohort_id"
     t.index ["user_id", "cohort_id"], name: "index_enrollments_on_user_id_and_cohort_id", unique: true
     t.index ["user_id"], name: "index_enrollments_on_user_id"
+  end
+
+  create_table "help_requests", force: :cascade do |t|
+    t.datetime "acknowledged_at"
+    t.datetime "canceled_at"
+    t.integer "category", null: false
+    t.bigint "cohort_id", null: false
+    t.bigint "context_id", null: false
+    t.string "context_label", null: false
+    t.string "context_path", null: false
+    t.integer "context_source", default: 0, null: false
+    t.integer "context_type", null: false
+    t.datetime "created_at", null: false
+    t.text "message", null: false
+    t.bigint "owner_id"
+    t.datetime "resolved_at"
+    t.text "staff_response"
+    t.integer "status", default: 0, null: false
+    t.bigint "student_id", null: false
+    t.datetime "updated_at", null: false
+    t.integer "urgency", default: 0, null: false
+    t.index ["cohort_id", "status", "urgency", "created_at"], name: "index_help_requests_queue"
+    t.index ["cohort_id"], name: "index_help_requests_on_cohort_id"
+    t.index ["owner_id"], name: "index_help_requests_on_owner_id"
+    t.index ["student_id", "cohort_id", "context_type", "context_source", "context_id"], name: "index_help_requests_one_active_context", unique: true, where: "(status = ANY (ARRAY[0, 1]))"
+    t.index ["student_id", "status", "created_at"], name: "index_help_requests_student_state"
+    t.index ["student_id"], name: "index_help_requests_on_student_id"
   end
 
   create_table "lesson_assignments", force: :cascade do |t|
@@ -661,6 +688,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_01_000100) do
   add_foreign_key "enrollment_restarts", "users", column: "student_id"
   add_foreign_key "enrollments", "cohorts"
   add_foreign_key "enrollments", "users"
+  add_foreign_key "help_requests", "cohorts"
+  add_foreign_key "help_requests", "users", column: "owner_id"
+  add_foreign_key "help_requests", "users", column: "student_id"
   add_foreign_key "lesson_assignments", "enrollments"
   add_foreign_key "lesson_assignments", "lessons"
   add_foreign_key "lessons", "modules"

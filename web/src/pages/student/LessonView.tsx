@@ -3,13 +3,16 @@ import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, ChevronLeft, Lock, RotateCcw } from 'lucide-react'
 import { api } from '../../lib/api'
 import { ContentBlockRenderer } from '../../components/shared/ContentBlockRenderer'
+import { ContextualHelp } from '../../components/student/ContextualHelp'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { formatShortDateTime } from '../../lib/format'
 import { captureProductEvent } from '../../lib/analytics'
+import type { HelpRequest } from '../../types/api'
 
 interface LessonData {
   id: number
+  cohort_id?: number
   module_id: number
   title: string
   lesson_type: string
@@ -34,6 +37,8 @@ export function LessonView() {
   const { id } = useParams<{ id: string }>()
   const [lesson, setLesson] = useState<LessonData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [helpRequests, setHelpRequests] = useState<HelpRequest[]>([])
+  const [helpRequestsLoading, setHelpRequestsLoading] = useState(true)
   const { user } = useAuthContext()
 
   const loadLesson = useCallback((options?: { silent?: boolean }) => {
@@ -48,6 +53,19 @@ export function LessonView() {
   useEffect(() => {
     loadLesson()
   }, [loadLesson])
+
+  const loadHelpRequests = useCallback(async () => {
+    if (!lesson?.cohort_id || user?.is_staff) {
+      setHelpRequestsLoading(false)
+      return
+    }
+    setHelpRequestsLoading(true)
+    const response = await api.getHelpRequests({ cohort_id: lesson.cohort_id })
+    if (response.data) setHelpRequests(response.data.help_requests)
+    setHelpRequestsLoading(false)
+  }, [lesson?.cohort_id, user?.is_staff])
+
+  useEffect(() => { void loadHelpRequests() }, [loadHelpRequests])
 
   useEffect(() => {
     if (!lesson) return
@@ -76,12 +94,19 @@ export function LessonView() {
 
       {/* Lesson header */}
       <header className="relative overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_16px_50px_rgba(15,23,42,0.05)] before:absolute before:inset-y-0 before:left-0 before:w-1.5 before:bg-primary-600">
-        <p className="app-eyebrow">Lesson</p>
-        <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">{lesson.title}</h1>
-        <div className="mt-1 flex items-center gap-2 text-sm text-slate-500">
-          <span className="capitalize">{lesson.lesson_type}</span>
-          <span>· {lesson.content_blocks.length} blocks</span>
-          {lesson.required && <span className="text-primary-500 font-medium">Required</span>}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="app-eyebrow">Lesson</p>
+            <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">{lesson.title}</h1>
+            <div className="mt-1 flex items-center gap-2 text-sm text-slate-500">
+              <span className="capitalize">{lesson.lesson_type}</span>
+              <span>· {lesson.content_blocks.length} blocks</span>
+              {lesson.required && <span className="text-primary-500 font-medium">Required</span>}
+            </div>
+          </div>
+          {!user?.is_staff && lesson.cohort_id && (
+            <ContextualHelp cohortId={lesson.cohort_id} contextType="lesson" contextId={lesson.id} contextLabel={lesson.title} requests={helpRequests} requestsLoading={helpRequestsLoading} onRequestsChange={setHelpRequests} onRequestsRefresh={loadHelpRequests} />
+          )}
         </div>
       </header>
 
@@ -120,19 +145,25 @@ export function LessonView() {
       {/* Content blocks */}
       <div className="space-y-4">
         {lesson.content_blocks.map((block: any) => (
-          <ContentBlockRenderer
-            key={block.id}
-            block={block}
-            isStaff={user?.is_staff}
-            requiresGithub={lesson.requires_github}
-            requiresSubmission={lesson.requires_submission}
-            repositoryName={lesson.repository_name}
-            submissionsLocked={lesson.submission_window?.submissions_closed || false}
-            submissionsCloseAt={lesson.submission_window?.submissions_close_at || null}
-            submissionWeekNumber={lesson.submission_window?.week_number}
-            analyticsContext={{ moduleId: lesson.module_id, lessonId: lesson.id }}
-            onProgressUpdate={() => loadLesson({ silent: true })}
-          />
+          <div key={block.id} className="space-y-2">
+            <ContentBlockRenderer
+              block={block}
+              isStaff={user?.is_staff}
+              requiresGithub={lesson.requires_github}
+              requiresSubmission={lesson.requires_submission}
+              repositoryName={lesson.repository_name}
+              submissionsLocked={lesson.submission_window?.submissions_closed || false}
+              submissionsCloseAt={lesson.submission_window?.submissions_close_at || null}
+              submissionWeekNumber={lesson.submission_window?.week_number}
+              analyticsContext={{ moduleId: lesson.module_id, lessonId: lesson.id }}
+              onProgressUpdate={() => loadLesson({ silent: true })}
+            />
+            {!user?.is_staff && lesson.cohort_id && ['exercise', 'code_challenge'].includes(block.block_type) && (
+              <div className="flex justify-end">
+                <ContextualHelp cohortId={lesson.cohort_id} contextType="exercise" contextId={block.id} contextLabel={block.title || lesson.title} requests={helpRequests} requestsLoading={helpRequestsLoading} onRequestsChange={setHelpRequests} onRequestsRefresh={loadHelpRequests} />
+              </div>
+            )}
+          </div>
         ))}
       </div>
 

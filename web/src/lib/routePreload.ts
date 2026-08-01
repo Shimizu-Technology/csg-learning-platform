@@ -23,6 +23,7 @@ const profileLoader = () => import('../pages/student/Profile').then((module) => 
 const announcementsLoader = () => import('../pages/shared/Announcements').then((module) => ({ default: module.Announcements }))
 const messagesLoader = () => import('../pages/shared/Messages').then((module) => ({ default: module.Messages }))
 const adminDashboardLoader = () => import('../pages/admin/AdminDashboard').then((module) => ({ default: module.AdminDashboard }))
+const supportQueueLoader = () => import('../pages/admin/SupportQueue').then((module) => ({ default: module.SupportQueue }))
 const studentDetailLoader = () => import('../pages/admin/StudentDetail').then((module) => ({ default: module.StudentDetail }))
 const studentManagementLoader = () => import('../pages/admin/StudentManagement').then((module) => ({ default: module.StudentManagement }))
 const cohortManagementLoader = () => import('../pages/admin/CohortManagement').then((module) => ({ default: module.CohortManagement }))
@@ -48,6 +49,7 @@ export const Profile = lazyWithPreload(profileLoader)
 export const Announcements = lazyWithPreload(announcementsLoader)
 export const Messages = lazyWithPreload(messagesLoader)
 export const AdminDashboard = lazyWithPreload(adminDashboardLoader)
+export const SupportQueue = lazyWithPreload(supportQueueLoader)
 export const StudentDetail = lazyWithPreload(studentDetailLoader)
 export const StudentManagement = lazyWithPreload(studentManagementLoader)
 export const CohortManagement = lazyWithPreload(cohortManagementLoader)
@@ -72,6 +74,7 @@ const routePreloaders: Record<string, Array<() => Promise<unknown>>> = {
   '/announcements': [announcementsLoader],
   '/messages': [messagesLoader],
   '/admin': [adminDashboardLoader],
+  '/admin/support': [supportQueueLoader],
   '/admin/students': [studentManagementLoader, studentDetailLoader],
   '/admin/cohorts': [cohortManagementLoader, cohortDetailLoader, cohortStudentViewLoader, cohortWatchProgressLoader],
   '/admin/content': [contentManagementLoader, lessonEditorLoader],
