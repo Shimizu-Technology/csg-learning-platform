@@ -13,7 +13,7 @@ The all-in-one learning hub for Code School of Guam — prework, live class, wor
 | Database | PostgreSQL | Neon (production), local Postgres (development) |
 | Frontend Hosting | Netlify | `learn.codeschoolofguam.com` |
 | API Hosting | Render (Singapore) | `learn-api.codeschoolofguam.com` |
-| Analytics | PostHog | Page views, feature flags, session replay |
+| Analytics | PostHog | Web identity, page views, and render exceptions; learning-event and native instrumentation are planned |
 
 ## Monorepo Structure
 
@@ -22,7 +22,7 @@ csg-learning-platform/
 ├── api/            Rails 8.1 API backend
 ├── web/            React + Vite frontend
 ├── mobile/         Expo + React Native communications client
-├── docs/           Product vision, roadmap, deployment guides
+├── docs/           Product vision, learning strategy, roadmap, deployment guides
 ├── scripts/        Data import and utility scripts
 └── AGENTS.md       AI/developer conventions
 ```
@@ -126,19 +126,21 @@ User
 - **Submission Windows** — Per-cohort, per-module weekly deadlines that stop new work without hiding lessons or videos
 - **Progress Tracking** — S3 watch progress plus legacy YouTube/Vimeo completion tracking, exercise marking, per-block granularity
 - **Grading & Feedback** — Submission queue, A/B/C/R grading, redo workflow, GitHub issue integration
-- **Communication Hub** — Announcements, cohort channels, direct messages, and push notifications in the same app
+- **Communication Hub** — Announcements, cohort channels, direct messages, and push notifications in the same app; reviewed voice-to-text drafts are planned
 - **Recordings Library** — Self-hosted AWS S3 uploads are the preferred path, with legacy external video support during migration
 - **Office Hours** — One-time and timezone-aware recurring help sessions surfaced on student dashboards
-- **Live Classroom Platform (Planned)** — Education-focused video sessions for classes, workshops, replays, and lightweight meetings
+- **Live Classroom Platform (Deferred)** — Documented future direction; Zoom remains operational while learning-feedback and intervention work takes priority
 - **Role-Based Access** — Student, instructor, and admin roles with appropriate UI and API gates
-- **Mobile-First UI** — Responsive design, collapsible sidebar, PWA support
-- **Analytics** — PostHog integration for page views and feature flags
+- **Mobile + Responsive UI** — Native daily learning/communication companion plus responsive web administration and authoring
+- **Analytics** — PostHog web identity, page views, and render exceptions; learning-event and native instrumentation are planned
 
 ## Documentation
 
 | Document | Purpose |
 |----------|---------|
 | [`docs/PRODUCT_VISION.md`](docs/PRODUCT_VISION.md) | Why this product exists and where it's going |
+| [`docs/PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md`](docs/PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md) | Current audit, platform research, learning strategy, KPIs, and phased plan |
+| [`docs/VOICE_TO_TEXT_PLAN.md`](docs/VOICE_TO_TEXT_PLAN.md) | Voice-draft product flow, privacy, architecture, rollout, and quality gates |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | What to build now, next, and later |
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Step-by-step deployment for Render + Netlify |
 | [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md) | All API endpoints with request/response details |

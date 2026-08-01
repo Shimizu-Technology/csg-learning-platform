@@ -56,3 +56,28 @@ Curriculum, lesson progress, resources, submissions, office hours, class recordi
 - App Store Connect product copy and the complete 6.9-inch iPhone / 13-inch iPad screenshot sets now describe the parity release. iOS build `1.0.0 (4)` is attached to the 1.0 draft and distributed through the `CSG Internal` TestFlight group; public review waits for physical-device acceptance.
 
 The Rails API remains the single product backend, so every native phase is additive rather than a fork of web behavior.
+
+## Current quality gate
+
+Before the next TestFlight submission:
+
+- long fenced-code lines in messages must pan horizontally to the final character on a physical iPhone;
+- code Copy must work without conflicting with message long-press or text selection;
+- the common 8–10 pt instructional/status text must move to semantic, Dynamic Type-capable roles with meaningful text at 11 pt or larger;
+- readable muted text must meet contrast requirements on `ink`, `panel`, and `panelRaised`;
+- large-text, VoiceOver, vertical conversation scrolling, and code-block horizontal scrolling must pass together.
+
+The diagnosis, recommended `MessageCodeBlock` boundary, and acceptance criteria are in `PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md`.
+
+## Planned voice-to-text composer
+
+After the current code/readability quality gate, native messaging should add reviewed voice-to-text drafts:
+
+- tap a microphone, record a short message, stop, and transcribe;
+- apply only meaning-preserving punctuation, paragraphs, and clearly spoken lists;
+- insert the result into the editable composer and require an explicit **Send**;
+- keep typed text safe through cancellation, permission denial, interruptions, and errors;
+- retain no raw audio after processing and capture no transcript/message content in analytics;
+- ship direct messages and channels first, then reuse the shared flow in threads, contextual help, and concise grading feedback.
+
+The current app has no audio-recording dependency and explicitly disables microphone permission, so this requires a new native binary. The architecture, privacy contract, staged rollout, and physical-device acceptance criteria are in `VOICE_TO_TEXT_PLAN.md`.

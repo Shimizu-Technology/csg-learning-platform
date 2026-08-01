@@ -1,6 +1,6 @@
 # Premium Messaging Quality Audit
 
-Last reviewed: July 25, 2026
+Last reviewed: August 1, 2026
 
 ## Product standard
 
@@ -28,6 +28,8 @@ background loading occurs and to preserve context across state changes:
 | Notification setting | The mobile row was labeled only as push even though the stored preference controls DM email and device alerts. The native switch's intrinsic size also floated above the visual center of the card. | The setting is labeled **Message notifications**, explains email and device alerts, uses a centered 44-point switch slot, and shows an inline loading indicator. The same switch treatment is used in staff communication and announcement editors. |
 | DM email reliability | Provider exceptions were converted to `false` and ignored by the job. Failed sends appeared successful, could not retry, and logs included recipient email addresses and unbounded provider responses. | DM email sends now use a per-notification Resend idempotency key, verify the provider delivery ID, raise a typed failure, and retry with polynomial backoff. Structured logs identify message, notification, recipient user, skip reason, and provider delivery ID without logging addresses or message contents. |
 | Accessibility | Reaction participation was not keyboard/touch discoverable on web, and image/reaction controls did not describe their result on mobile. | Web uses a focus-trapped dialog with tabs and explicit actions. Mobile controls have semantic roles, labels, hints, and at least 44-point primary targets. |
+| Long code blocks | Native fenced code has a horizontal `ScrollView`, but long lines can still be clipped and fail to pan reliably because the scroll surface competes with selectable text, the parent message long-press `Pressable`, and the conversation responder hierarchy. `nestedScrollEnabled` does not solve iOS because React Native documents it as Android-only. | Release blocker: create a dedicated code-block gesture boundary, guarantee intrinsic content width, replace selection on the pan surface with an accessible Copy action, show overflow affordance only when needed, and verify the gesture on a physical iPhone. Full criteria are in `PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md`. |
+| Voice composition | CSG Connect currently relies on typing or operating-system keyboard dictation. The app has no recording dependency and explicitly disables microphone permission. | Planned after the code/readability gate: record a short clip, transcribe and conservatively format it into the editable composer, require explicit Send, and delete temporary audio. The complete plan is in `VOICE_TO_TEXT_PLAN.md`. |
 
 Slack also exposes reaction authors as a deliberate interaction on both desktop
 and mobile rather than making participant information hover-only:
@@ -76,3 +78,6 @@ Before TestFlight submission:
   logs and no delivery attempt.
 - Check profile, staff communication, and announcement switches in light/dark
   simulator accessibility sizes for consistent vertical alignment.
+- Send a fenced code block with an unbroken line longer than 160 characters,
+  pan to its final character on a physical iPhone, copy it exactly, then confirm
+  vertical list scrolling and message long-press still work outside the block.
