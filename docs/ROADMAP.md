@@ -60,7 +60,11 @@ Voice-to-text is detailed in `docs/VOICE_TO_TEXT_PLAN.md`. Its native message dr
 
 ---
 
-## Phase 1: Documentation & Hardening (Current)
+## Historical delivery roadmap (superseded)
+
+The sections below preserve the delivery history that produced the current platform. Their phase numbers are not the active Phase 0–4 execution plan. New work must follow `docs/PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md` and the strategic priority above.
+
+## Historical Phase 1: Documentation & Hardening
 
 > **Goal:** Ensure the platform is well-documented, maintainable, and safe to iterate on.
 
@@ -96,7 +100,7 @@ Voice-to-text is detailed in `docs/VOICE_TO_TEXT_PLAN.md`. Its native message dr
 
 ---
 
-## Phase 2: Self-Hosted Recordings (AWS S3) ✅
+## Historical Phase 2: Self-Hosted Recordings (AWS S3) ✅
 
 > **Goal:** Make S3-hosted recordings the preferred path while preserving legacy YouTube links during migration.
 
@@ -143,7 +147,7 @@ Phase 3 was intentionally skipped for now. The team pulled Phase 4 forward and b
 
 ---
 
-## Phase 3: Stripe Payment Integration (Deferred)
+## Historical Phase 3: Stripe Payment Integration (Deferred)
 
 > **Goal:** Replace manual email → Stripe link flow with in-app payments.
 
@@ -172,7 +176,7 @@ Phase 3 was intentionally skipped for now. The team pulled Phase 4 forward and b
 
 ---
 
-## Phase 4: Communication Hub + PWA Notifications (Pulled Forward)
+## Historical Phase 4: Communication Hub + PWA Notifications (Pulled Forward)
 
 > **Goal:** Make the platform the daily communication home for CSG, with Slack-like class updates, unread state, and installable PWA push notifications.
 
@@ -294,7 +298,7 @@ Curriculum authoring, bulk enrollment/team operations, repository inspection, an
 
 ---
 
-## Phase 5: Extended Features
+## Historical Phase 5: Extended Features
 
 These features are valuable but should not block the phases above:
 

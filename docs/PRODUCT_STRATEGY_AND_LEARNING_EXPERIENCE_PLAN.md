@@ -446,9 +446,14 @@ Use privacy-safe IDs and categorical properties; never capture message bodies, s
 | `code_block_scrolled` | surface, overflow_bucket |
 | `code_block_copied` | surface, language |
 | `voice_draft_started` | surface, platform, permission_state |
-| `voice_draft_transcribed` | surface, duration_bucket, latency_bucket, outcome |
+| `voice_draft_recorded` | surface, duration_bucket |
+| `voice_draft_transcribed` | surface, latency_bucket, outcome |
+| `voice_draft_inserted` | surface, raw_or_cleaned |
+| `voice_draft_restored` | surface |
 | `voice_draft_sent` | surface, edit_distance_bucket |
 | `voice_draft_discarded` | surface, stage |
+
+`docs/VOICE_TO_TEXT_PLAN.md` is the canonical voice-event contract. Any future change to these events or properties must update both documents in the same pull request.
 
 ### Target-setting method
 
