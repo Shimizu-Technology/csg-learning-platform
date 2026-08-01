@@ -95,6 +95,7 @@ export default function ConversationScreen() {
     setLoading(true);
     anchorScrolledRef.current = false;
     try {
+      if (userId && !auth.demo) setDraft(await loadConversationDraft(userId, kind, id));
       if (auth.demo) {
         setSummary(kind === 'channel' ? demoChannels.find((item) => item.id === id) || null : demoDms.find((item) => item.id === id) || null);
         setMessages(demoMessages[`${kind}:${id}`] || []);
@@ -111,7 +112,6 @@ export default function ConversationScreen() {
         setPinnedMessages(result.pinned_messages);
         setMeta(result.meta);
         setMentionUsers(workspaceResult.workspace.members);
-        if (userId) setDraft(await loadConversationDraft(userId, kind, id));
         await api.markRead(kind, id);
       }
       nearBottomRef.current = !anchorMessageId;

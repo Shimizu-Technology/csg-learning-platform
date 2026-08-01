@@ -16,6 +16,7 @@ Included now:
 - Attachments, mentions, reactions, edits, deletion, pins, and threads
 - A safe-area-aware image gallery with pinch/double-tap zoom, bounded panning, swipe navigation and dismissal, rotation, loading recovery, and accessible controls
 - Draft persistence and durable failed-message retry
+- Thread-reply and text-submission draft persistence with explicit unsent/not-submitted states
 - Announcements, staff publishing controls, and the complete notification inbox
 - Staff workspace, membership, and channel controls
 - Global and per-conversation notification preferences
@@ -51,6 +52,7 @@ Curriculum, lesson progress, resources, submissions, office hours, class recordi
 - The Phase 3 recording library and S3/lesson-video player add native resume, progress sync, signed-URL renewal, speed control, fullscreen rotation, interruptions, and PiP. Legacy YouTube/external recordings use a safe system handoff.
 - Managed offline recording downloads remain deferred until retention, device-storage, privacy, and logout-deletion policy is approved. The player does not cache signed media URLs.
 - Today includes the shared **This Week** plan: required and optional lessons, carried-forward work, close times, redos, live classes/office hours, upcoming unlocks, and recording catch-up. Its query is retained by the existing seven-day user-scoped SQLite cache alongside the separately encrypted session and is removed at sign-out.
+- Text submissions autosave a version-aware device draft, older drafts require intentional restore after a server-side change, and only server acknowledgment produces success. Channel, DM, and thread drafts restore during network failures; sign-out removes authored drafts and failed-message retry copies. The detailed contract is in `OFFLINE_CONTINUITY.md`.
 - Students can ask for contextual help from a lesson, individual exercise, or recording and see open, acknowledged, resolved, and canceled state plus the instructor response. Staff have a native urgent-action support queue with direct requests and explainable current learning signals; dense case history remains web-first until the Phase 3 intervention model exists.
 - Phase 4 gives staff a ranked cross-cohort attention queue, student health and progress drill-downs, a focused grading queue, native A/B/C/Redo reviews, concise feedback, and direct submission push routes.
 - Staff can browse active and upcoming cohort recordings and resources without pretending to be enrolled in those cohorts.
