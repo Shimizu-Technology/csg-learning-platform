@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 
 import { fontScaleLimits, fonts, palette, typography } from '@/constants/csg-theme';
+import { analyticsLanguage, captureProductEvent } from '@/lib/analytics';
 
 type Props = {
   code: string;
@@ -43,6 +44,7 @@ export function MessageCodeBlock({ code, language = '' }: Props) {
   const [copied, setCopied] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const trackedScroll = useRef(false);
   const estimatedWidth = useMemo(() => estimatedCodeWidth(code), [code]);
   const intrinsicContentWidth = Math.ceil(Math.max(codeWidth, estimatedWidth)) + CODE_HORIZONTAL_PADDING;
   const overflowing = viewportWidth > 0 && intrinsicContentWidth > viewportWidth + OVERFLOW_TOLERANCE;
@@ -56,6 +58,7 @@ export function MessageCodeBlock({ code, language = '' }: Props) {
 
   const copy = async () => {
     await Clipboard.setStringAsync(code);
+    captureProductEvent('code_block_copied', { surface: 'message', language: analyticsLanguage(language) });
     setCopied(true);
     if (resetTimer.current) clearTimeout(resetTimer.current);
     resetTimer.current = setTimeout(() => setCopied(false), COPIED_RESET_MS);
@@ -125,7 +128,15 @@ export function MessageCodeBlock({ code, language = '' }: Props) {
           directionalLockEnabled
           horizontal
           keyboardShouldPersistTaps="handled"
-          onScroll={(event) => setHorizontalOffset(event.nativeEvent.contentOffset.x)}
+          onScroll={(event) => {
+            const offset = event.nativeEvent.contentOffset.x;
+            setHorizontalOffset(offset);
+            if (!trackedScroll.current && offset > OVERFLOW_TOLERANCE) {
+              trackedScroll.current = true;
+              const overflow = Math.max(0, intrinsicContentWidth - viewportWidth);
+              captureProductEvent('code_block_scrolled', { surface: 'message', overflow_bucket: overflow < 80 ? 'short' : overflow < 240 ? 'medium' : 'long' });
+            }
+          }}
           scrollEventThrottle={16}
           showsHorizontalScrollIndicator={overflowing}
           style={styles.scroller}

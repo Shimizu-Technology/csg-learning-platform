@@ -386,9 +386,11 @@ Begin with objectives, rubrics, help requests, and interventions. Do not create 
 
 ## 13. Measurement plan
 
-### Current limitation
+### Baseline before Phase 1 instrumentation
 
-The web app disables autocapture and only explicitly sends pageviews, user identity, and render exceptions. Native has no product analytics integration. No trustworthy baseline exists yet for task completion, feedback turnaround, support response, or intervention outcomes.
+Before this phase, the web app disabled autocapture and only explicitly sent pageviews, user identity, and render exceptions; native had no product analytics integration. No trustworthy baseline existed for task completion, feedback turnaround, support response, or intervention outcomes.
+
+Implementation update (2026-08-01): the shared Phase 1 event contract, privacy guards, native SDK foundation, and initial web/native learning events are implemented. Production reconciliation and the necessarily time-gated four-teaching-week baseline follow the process in `docs/ANALYTICS_EVENT_CONTRACT.md`.
 
 ### Primary KPIs
 
@@ -497,6 +499,8 @@ Exit gate: long code is fully reachable; common native tasks remain usable at la
 - instrument web and native learning/support events;
 - build the first staff support queue using existing attention signals plus help requests;
 - establish the four-week baseline review.
+
+Measurement implementation status: event contract and initial capture points complete; the 28-day baseline window starts with the first production release containing the instrumentation.
 
 Exit gate: every active student can see required work and ask for contextual help; every request has visible state; voice drafts never auto-send or retain audio; event data reconciles with source records.
 

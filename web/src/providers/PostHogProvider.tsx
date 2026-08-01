@@ -11,8 +11,9 @@ if (isPostHogEnabled && typeof window !== 'undefined') {
   posthog.init(POSTHOG_KEY, {
     api_host: POSTHOG_HOST,
     capture_pageview: false,
-    capture_pageleave: true,
+    capture_pageleave: false,
     autocapture: false,
+    disable_session_recording: true,
     loaded: (ph) => {
       if (import.meta.env.DEV) {
         ph.opt_out_capturing()
@@ -28,7 +29,7 @@ export function PostHogPageView() {
   useEffect(() => {
     if (posthogClient && isPostHogEnabled) {
       posthogClient.capture('$pageview', {
-        $current_url: window.location.href,
+        $current_url: `${window.location.origin}${location.pathname}`,
         $pathname: location.pathname,
       })
     }

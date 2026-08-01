@@ -58,6 +58,8 @@ This sequence supersedes the old assumption that payments, advanced analytics, o
 
 Voice-to-text is detailed in `docs/VOICE_TO_TEXT_PLAN.md`. Its native message draft belongs in the current strategic Phase 1 after the Phase 0 message-readability gate; thread, help-request, and grading-feedback reuse follows in Phase 2. Web and streaming behavior remain conditional on measured use.
 
+Analytics implementation is governed by `docs/ANALYTICS_EVENT_CONTRACT.md`. The typed privacy contract and initial web/native capture points are complete; the four-week outcome baseline remains time-gated from the first production release.
+
 ---
 
 ## Historical delivery roadmap (superseded)

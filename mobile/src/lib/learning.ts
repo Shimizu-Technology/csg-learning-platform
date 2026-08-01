@@ -58,6 +58,10 @@ export function submissionState(submissions: SubmissionBrief[]) {
   };
 }
 
+export function isNewSubmissionAttempt(editable: boolean) {
+  return !editable;
+}
+
 export function canSubmitWork(type: string, values: { text: string; repoUrl: string; liveUrl: string }) {
   if (type === 'text_submission') return Boolean(values.text.trim());
   if (type === 'repo_url_submission') return Boolean(values.repoUrl.trim());

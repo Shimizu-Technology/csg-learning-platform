@@ -70,10 +70,10 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
       if (res.data?.user) {
         setUser(res.data.user)
         if (isPostHogEnabled) {
+          const activeCohortId = res.data.enrollments.find((enrollment) => enrollment.status === 'active')?.cohort.id
           posthog.identify(String(res.data!.user.id), {
-            email: res.data!.user.email,
-            name: res.data!.user.full_name,
             role: res.data!.user.role,
+            ...(activeCohortId ? { cohort_id: activeCohortId } : {}),
           })
         }
         return true

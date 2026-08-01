@@ -196,6 +196,8 @@ VITE_PUBLIC_POSTHOG_KEY=phc_...
 VITE_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
 ```
 
+Production EAS builds should set the matching `EXPO_PUBLIC_POSTHOG_KEY` and `EXPO_PUBLIC_POSTHOG_HOST` values for the `csg-learning-platform` project. Native development and demo builds intentionally remain analytics-free.
+
 ### SPA Routing
 
 The `netlify.toml` includes a catch-all redirect for SPA routing:
@@ -261,6 +263,7 @@ After first deployment or major changes:
 - [ ] Verify Clerk auth works (sign in with test account)
 - [ ] Run seed data if needed: `bin/rails db:seed` via Render Shell
 - [ ] Check PostHog is receiving events
+- [ ] Confirm custom events match `docs/ANALYTICS_EVENT_CONTRACT.md`, contain no authored content, and report under the `csg-learning-platform` project
 - [ ] Verify CORS is working (frontend can call API)
 - [ ] Test student and admin flows end-to-end
 

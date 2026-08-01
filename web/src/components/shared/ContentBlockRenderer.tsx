@@ -11,6 +11,7 @@ import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { CODE_RUNNER_TIMEOUT_MS, codeRunnerLanguageFromEditor, normalizeCodeRunnerConfig } from '../../lib/codeRunner'
 import { formatShortDateTime } from '../../lib/format'
 import { useToast } from '../../contexts/ToastContext'
+import { analyticsAgeBucket, captureProductEvent } from '../../lib/analytics'
 
 interface ContentBlock {
   id: number
@@ -55,6 +56,7 @@ interface ContentBlockRendererProps {
   submissionsLocked?: boolean
   submissionsCloseAt?: string | null
   submissionWeekNumber?: number
+  analyticsContext?: { moduleId: number; lessonId: number }
   onProgressUpdate?: () => void
 }
 
@@ -69,7 +71,7 @@ function getVimeoEmbed(url: string): { id: string; hash?: string } | null {
   return { id: match[1], hash: match[2] }
 }
 
-export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresSubmission = true, repositoryName, submissionsLocked = false, submissionsCloseAt, submissionWeekNumber, onProgressUpdate }: ContentBlockRendererProps) {
+export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresSubmission = true, repositoryName, submissionsLocked = false, submissionsCloseAt, submissionWeekNumber, analyticsContext, onProgressUpdate }: ContentBlockRendererProps) {
   const toast = useToast()
   const submissions = block.submissions ?? []
   const latestSubmission = submissions[0] || null
@@ -92,10 +94,21 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
   const vimeoContainerRef = useRef<HTMLDivElement>(null)
   const ytIframeRef = useRef<HTMLIFrameElement>(null)
   const isCompletedRef = useRef(isCompleted)
+  const trackedFeedbackRef = useRef<number | null>(null)
   useEffect(() => { isCompletedRef.current = isCompleted }, [isCompleted])
   useEffect(() => {
     setIsCompleted(block.progress?.status === 'completed')
   }, [block.id, block.progress?.status])
+
+  useEffect(() => {
+    if (!analyticsContext || !latestSubmission?.grade || trackedFeedbackRef.current === latestSubmission.id) return
+    trackedFeedbackRef.current = latestSubmission.id
+    captureProductEvent('feedback_viewed', {
+      submission_id: latestSubmission.id,
+      grade_state: latestSubmission.grade === 'R' ? 'redo' : 'passed',
+      age_bucket: analyticsAgeBucket(latestSubmission.graded_at),
+    })
+  }, [analyticsContext, latestSubmission?.grade, latestSubmission?.graded_at, latestSubmission?.id])
 
   const isExerciseType = block.block_type === 'exercise' || block.block_type === 'code_challenge'
   const detectedLang = detectLanguage(block.filename, block.metadata?.language)
@@ -150,9 +163,16 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
     const res = await api.updateProgress(block.id, 'completed')
     if (!res.error) {
       setIsCompleted(true)
+      if (analyticsContext) captureProductEvent('learning_step_completed', {
+        module_id: analyticsContext.moduleId,
+        lesson_id: analyticsContext.lessonId,
+        content_block_id: block.id,
+        block_type: block.block_type,
+        source: 'video',
+      })
       onProgressUpdate?.()
     }
-  }, [block.id, onProgressUpdate])
+  }, [analyticsContext, block.block_type, block.id, onProgressUpdate])
 
   // Vimeo completion tracking
   useEffect(() => {
@@ -249,6 +269,13 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
     const res = await api.updateProgress(block.id, newStatus)
     if (!res.error) {
       setIsCompleted(!isCompleted)
+      if (newStatus === 'completed' && analyticsContext) captureProductEvent('learning_step_completed', {
+        module_id: analyticsContext.moduleId,
+        lesson_id: analyticsContext.lessonId,
+        content_block_id: block.id,
+        block_type: block.block_type,
+        source: 'manual',
+      })
       onProgressUpdate?.()
       toast.success(newStatus === 'completed' ? 'Marked complete' : 'Marked incomplete')
     } else {
@@ -320,6 +347,25 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
       toast.error(res.error)
     } else {
       setHasEditedSubmissionDraft(false)
+      const savedSubmission = res.data?.submission
+      const attempt = savedSubmission?.num_submissions || (latestSubmission?.num_submissions || 0) + 1
+      captureProductEvent('submission_created', {
+        content_block_id: block.id,
+        submission_type: submissionType,
+        attempt,
+      })
+      if (hasRedoRequest && latestSubmission) captureProductEvent('redo_submitted', {
+        submission_id: savedSubmission?.id || latestSubmission.id,
+        attempt,
+        age_bucket: analyticsAgeBucket(latestSubmission.graded_at),
+      })
+      if (analyticsContext) captureProductEvent('learning_step_completed', {
+        module_id: analyticsContext.moduleId,
+        lesson_id: analyticsContext.lessonId,
+        content_block_id: block.id,
+        block_type: block.block_type,
+        source: 'submission',
+      })
       const message = latestSubmission ? 'Resubmission saved successfully.' : 'Submission saved successfully.'
       setSubmissionSuccess(message)
       toast.success(message)

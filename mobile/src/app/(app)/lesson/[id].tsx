@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, ArrowRight, BookOpen, ChevronLeft, Lock } from 'lucide-react-native';
+import { useEffect } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -10,6 +11,7 @@ import { ErrorState, LoadingState } from '@/components/screen-states';
 import { fonts, palette } from '@/constants/csg-theme';
 import { demoLesson } from '@/lib/demo-learning';
 import { latestSubmission, learningKeys, lessonCompletion } from '@/lib/learning';
+import { captureProductEvent } from '@/lib/analytics';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 
@@ -21,6 +23,12 @@ export default function LessonScreen() {
   const validId = Number.isInteger(id) && id > 0;
   const query = useQuery({ queryKey: learningKeys.lesson(user?.id || 0, id), queryFn: ({ signal }) => auth.demo ? Promise.resolve({ lesson: { ...demoLesson, id } }) : api.lesson(id, signal), enabled: Boolean(user && validId) });
   const lesson = query.data?.lesson;
+  const lessonId = lesson?.id;
+  const moduleId = lesson?.module_id;
+  useEffect(() => {
+    if (!lessonId || !moduleId) return;
+    captureProductEvent('learning_step_started', { module_id: moduleId, lesson_id: lessonId, block_type: 'lesson' });
+  }, [lessonId, moduleId]);
   if (!validId) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={palette.text} size={22} /></Pressable></View><ErrorState message="This lesson link is invalid." /></SafeAreaView>;
   if (query.isPending && !lesson) return <SafeAreaView style={styles.safe}><LoadingState label="Opening lesson" /></SafeAreaView>;
   if (!lesson) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={palette.text} size={22} /></Pressable></View><ErrorState message={query.error ? (query.error as Error).message : 'This lesson is unavailable.'} retry={() => void query.refetch()} /></SafeAreaView>;
