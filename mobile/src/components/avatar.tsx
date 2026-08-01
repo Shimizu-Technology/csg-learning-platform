@@ -3,7 +3,7 @@ import { fonts, palette } from '@/constants/csg-theme';
 
 export function Avatar({ name, size = 44 }: { name: string; size?: number }) {
   const initials = name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
-  return <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}><Text style={[styles.text, { fontSize: size * 0.31 }]}>{initials}</Text></View>;
+  return <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}><Text allowFontScaling={false} style={[styles.text, { fontSize: size * 0.31 }]}>{initials}</Text></View>;
 }
 
 const styles = StyleSheet.create({

@@ -58,6 +58,6 @@ const styles = StyleSheet.create({
   result: { minHeight: 68, paddingVertical: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.line },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   label: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 11, flex: 1 },
-  author: { color: palette.quiet, fontFamily: fonts.medium, fontSize: 10 },
+  author: { color: palette.subtle, fontFamily: fonts.medium, fontSize: 11 },
   body: { color: palette.text, fontFamily: fonts.regular, fontSize: 14, lineHeight: 21, marginTop: 8 },
 });

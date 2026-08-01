@@ -57,17 +57,20 @@ Curriculum, lesson progress, resources, submissions, office hours, class recordi
 
 The Rails API remains the single product backend, so every native phase is additive rather than a fork of web behavior.
 
-## Current quality gate
+## Phase 0 readability gate
 
-Before the next TestFlight submission:
+The native interaction and readability work is implemented:
 
-- long fenced-code lines in messages must pan horizontally to the final character on a physical iPhone;
-- code Copy must work without conflicting with message long-press or text selection;
-- the common 8–10 pt instructional/status text must move to semantic, Dynamic Type-capable roles with meaningful text at 11 pt or larger;
-- readable muted text must meet contrast requirements on `ink`, `panel`, and `panelRaised`;
-- large-text, VoiceOver, vertical conversation scrolling, and code-block horizontal scrolling must pass together.
+- long fenced-code lines create a real horizontal scroll range and provide exact Copy plus overflow-only page controls;
+- semantic `display`, `title`, `section`, `body`, `support`, `label`, `meta`, and `code` roles define the native type ramp;
+- meaningful text starts at 11 pt or larger and continues to use React Native's Dynamic Type scaling;
+- primary display text is capped conservatively while content and utility text can reach at least 200%, keeping common navigation and actions usable at accessibility sizes;
+- readable low-emphasis copy uses `subtle` (`#858EA2`), which stays above 4.5:1 on `ink`, `panel`, and `panelRaised`; `quiet` remains available only for decorative icons and placeholders;
+- Today changes multi-column metrics and quick actions to a single column at large text, while message headers, workspace controls, search, badges, rows, and decorative initials avoid clipping.
 
-The diagnosis, recommended `MessageCodeBlock` boundary, and acceptance criteria are in `PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md`.
+Automated tests guard the type floor and contrast ratios. Local iOS acceptance covers the largest accessibility text category with Increase Contrast enabled, plus code-block navigation and independently reachable nested actions. A physical-device VoiceOver smoke test remains part of the final TestFlight release checklist.
+
+The original diagnosis and acceptance criteria remain in `PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md`.
 
 ## Planned voice-to-text composer
 
