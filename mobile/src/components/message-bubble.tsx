@@ -1,4 +1,4 @@
-import { FileText, MessageSquare, Pin, RefreshCw, TriangleAlert } from 'lucide-react-native';
+import { FileText, MessageSquare, MoreHorizontal, Pin, RefreshCw, TriangleAlert } from 'lucide-react-native';
 import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar } from '@/components/avatar';
@@ -56,6 +56,7 @@ export function MessageBubble({ message, showAuthor, mentionUsers, onLongPress, 
           {message.client_status === 'failed' && <TriangleAlert color={palette.warning} size={11} />}
           <Text style={[styles.time, message.mine && styles.mineTime, message.client_status === 'failed' && styles.failedText]}>{message.client_status === 'sending' ? 'Sending…' : message.client_status === 'failed' ? 'Not sent' : formatTime(message.created_at)}{message.edited_at ? ' · edited' : ''}{message.mine && message.read_receipts?.count ? ` · read by ${message.read_receipts.count}` : ''}</Text>
           {message.client_status === 'failed' && <Pressable accessibilityRole="button" accessibilityLabel="Retry message" onPress={() => onRetry?.(message)} hitSlop={8}><RefreshCw color={palette.warning} size={12} /></Pressable>}
+          {onLongPress && <Pressable accessibilityRole="button" accessibilityLabel={`Actions for message from ${message.author.full_name}`} accessibilityHint="Opens reply, reaction, and message management actions" onPress={() => onLongPress(message)} style={({ pressed }) => [styles.messageActions, pressed && styles.messageActionsPressed]}><MoreHorizontal color={palette.muted} size={17} /></Pressable>}
         </View>
       </View>
     </Pressable>
@@ -79,4 +80,6 @@ const styles = StyleSheet.create({
   reactions: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 6 }, mineReactions: { justifyContent: 'flex-end' }, reaction: { minHeight: 30, minWidth: 38, paddingHorizontal: 8, borderRadius: 15, backgroundColor: palette.panelRaised, borderWidth: 1, borderColor: palette.line, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 }, reacted: { borderColor: '#6A2A36', backgroundColor: '#2A151B' }, fallbackReaction: { color: palette.text, fontSize: 12 }, reactionCount: { color: palette.muted, fontFamily: fonts.bold, fontSize: 9 }, reactedCount: { color: palette.rubySoft },
   threadButton: { minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', paddingHorizontal: 3, marginTop: 3 }, mineThread: { alignSelf: 'flex-end' }, threadText: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 10 },
   messageMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4, marginHorizontal: 2 }, mineMessageMeta: { justifyContent: 'flex-end' }, time: { color: palette.quiet, fontFamily: fonts.medium, fontSize: 9 }, mineTime: { textAlign: 'right' }, failedText: { color: palette.warning },
+  messageActions: { width: 44, height: 44, marginVertical: -14, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  messageActionsPressed: { backgroundColor: palette.panelRaised, opacity: 0.72 },
 });
