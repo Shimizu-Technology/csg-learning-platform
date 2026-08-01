@@ -1,4 +1,5 @@
 require "net/http"
+require "openssl"
 require "securerandom"
 
 class OpenaiVoiceProvider
@@ -120,7 +121,12 @@ class OpenaiVoiceProvider
     return response if response.is_a?(Net::HTTPSuccess)
 
     raise ProviderError, "The voice service is temporarily unavailable."
-  rescue Net::OpenTimeout, Net::ReadTimeout, SocketError, Errno::ECONNREFUSED
+  rescue Net::OpenTimeout, Net::ReadTimeout
     raise ProviderError, "The voice service timed out. Try again."
+  rescue SocketError, EOFError, IOError, OpenSSL::SSL::SSLError,
+    Errno::ECONNREFUSED, Errno::ECONNRESET, Errno::ECONNABORTED,
+    Errno::EHOSTUNREACH, Errno::ENETUNREACH, Errno::EPIPE,
+    Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError
+    raise ProviderError, "The voice service is temporarily unavailable. Try again."
   end
 end

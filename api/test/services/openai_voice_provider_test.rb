@@ -28,6 +28,25 @@ class OpenaiVoiceProviderTest < ActiveSupport::TestCase
     assert_equal true, payload.dig("text", "format", "strict")
   end
 
+  test "normalizes connection resets so callers can use their safe fallback" do
+    provider = OpenaiVoiceProvider.new(api_key: "test-key")
+    with_upload("m4a bytes") do |upload|
+      with_singleton_method(Net::HTTP, :start, ->(*) { raise Errno::ECONNRESET }) do
+        error = assert_raises(OpenaiVoiceProvider::ProviderError) { provider.transcribe(upload) }
+        assert_equal "The voice service is temporarily unavailable. Try again.", error.message
+      end
+    end
+  end
+
+  test "normalizes TLS negotiation failures" do
+    provider = OpenaiVoiceProvider.new(api_key: "test-key")
+    with_upload("m4a bytes") do |upload|
+      with_singleton_method(Net::HTTP, :start, ->(*) { raise OpenSSL::SSL::SSLError, "handshake failed" }) do
+        assert_raises(OpenaiVoiceProvider::ProviderError) { provider.transcribe(upload) }
+      end
+    end
+  end
+
   private
 
   def with_upload(bytes)
@@ -39,6 +58,14 @@ class OpenaiVoiceProviderTest < ActiveSupport::TestCase
     yield upload
   ensure
     tempfile&.close!
+  end
+
+  def with_singleton_method(target, name, replacement)
+    original = target.method(name)
+    target.define_singleton_method(name, replacement)
+    yield
+  ensure
+    target.define_singleton_method(name, original)
   end
 
   class FakeOpenaiVoiceProvider < OpenaiVoiceProvider
