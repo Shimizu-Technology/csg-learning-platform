@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { useMemo } from 'react';
-import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, StyleSheet, Text, View } from 'react-native';
 
+import { MessageCodeBlock } from '@/components/message-code-block';
 import { fonts, palette } from '@/constants/csg-theme';
 import { messageSegments } from '@/lib/mentions';
 import { normalizeMessageLink, parseMessageBlocks, splitTrailingUrlPunctuation } from '@/lib/message-format';
@@ -25,14 +26,7 @@ export function FormattedMessage({ body, mentionUsers, mine = false }: Props) {
         if (block.type === 'spacer') return <View key={key} style={styles.spacer} />;
 
         if (block.type === 'code') {
-          return (
-            <View key={key} style={styles.codeBlock}>
-              {!!block.language && <Text style={styles.codeLanguage}>{block.language}</Text>}
-              <ScrollView horizontal showsHorizontalScrollIndicator nestedScrollEnabled style={styles.codeScroller} contentContainerStyle={styles.codeScroll}>
-                <Text selectable style={styles.codeText}>{block.code}</Text>
-              </ScrollView>
-            </View>
-          );
+          return <MessageCodeBlock code={block.code} key={key} language={block.language} />;
         }
 
         if (block.type === 'bulletList' || block.type === 'orderedList') {
@@ -240,9 +234,4 @@ const styles = StyleSheet.create({
   blockquote: { borderLeftWidth: 3, borderLeftColor: palette.rubySoft, paddingLeft: 10, paddingVertical: 2 },
   mineBlockquote: { borderLeftColor: '#FFE4E8' },
   quoteText: { color: '#D6D9E1' },
-  codeBlock: { maxWidth: '100%', overflow: 'hidden', borderRadius: 12, backgroundColor: '#080A0E', borderWidth: 1, borderColor: '#303542' },
-  codeScroller: { flexGrow: 0, flexShrink: 1 },
-  codeLanguage: { color: '#9CA3AF', fontFamily: fonts.bold, fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.6, paddingHorizontal: 12, paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#303542' },
-  codeScroll: { minWidth: '100%', paddingHorizontal: 12, paddingVertical: 10 },
-  codeText: { color: '#E5E7EB', fontFamily: 'Menlo', fontSize: 12, lineHeight: 18 },
 });

@@ -8,6 +8,9 @@ jest.mock('lucide-react-native', () => {
   const Icon = () => null;
   return {
     Check: Icon,
+    ChevronLeft: Icon,
+    ChevronRight: Icon,
+    Copy: Icon,
     FileText: Icon,
     Heart: Icon,
     Laugh: Icon,
@@ -54,6 +57,14 @@ const message: Message = {
 };
 
 describe('MessageBubble', () => {
+  it('keeps nested message actions in the native accessibility tree', () => {
+    const screen = render(<MessageBubble message={message} showAuthor mentionUsers={[]} />);
+
+    expect(screen.getByTestId('message-row-42').props.accessible).toBe(false);
+    expect(screen.getByLabelText('Preview layout.png')).toBeTruthy();
+    expect(screen.getByLabelText('Thumbs up, 2')).toBeTruthy();
+  });
+
   it('opens reaction details instead of removing a reaction immediately', () => {
     const onOpenReaction = jest.fn();
     const screen = render(<MessageBubble message={message} showAuthor mentionUsers={[]} onOpenReaction={onOpenReaction} />);

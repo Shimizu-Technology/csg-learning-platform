@@ -24,11 +24,11 @@ export function MessageBubble({ message, showAuthor, mentionUsers, onLongPress, 
   const images = message.attachments.filter((attachment) => attachment.image && attachment.url);
   return (
     <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Message from ${message.author.full_name}. Hold for actions.`}
+      accessible={false}
       delayLongPress={260}
       onLongPress={() => onLongPress?.(message)}
       style={[styles.messageRow, message.mine && styles.mineRow]}
+      testID={`message-row-${message.id}`}
     >
       {!message.mine && showAuthor && <Avatar name={message.author.full_name} size={30} />}
       {!message.mine && !showAuthor && <View style={styles.avatarSpacer} />}
