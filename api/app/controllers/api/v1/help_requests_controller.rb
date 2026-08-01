@@ -81,8 +81,7 @@ module Api
 
         case update_params[:status]
         when "acknowledged"
-          changed = @help_request.status_open?
-          @help_request.acknowledge!(current_user)
+          changed = @help_request.acknowledge!(current_user)
           NotificationDeliveryService.help_request_changed(@help_request) if changed
         when "resolved"
           if update_params[:staff_response].to_s.strip.blank?
@@ -90,9 +89,8 @@ module Api
             return
           end
 
-          changed = true
-          @help_request.resolve!(current_user, response: update_params[:staff_response])
-          NotificationDeliveryService.help_request_changed(@help_request)
+          changed = @help_request.resolve!(current_user, response: update_params[:staff_response])
+          NotificationDeliveryService.help_request_changed(@help_request) if changed
         else
           render json: { error: "Staff can acknowledge or resolve a help request" }, status: :unprocessable_entity
           return
@@ -111,9 +109,9 @@ module Api
           return
         end
 
-        @help_request.cancel!
-        NotificationDeliveryService.help_request_canceled(@help_request)
-        render json: { help_request: HelpRequestSerializer.as_json(@help_request.reload), status_changed: true }
+        changed = @help_request.cancel!
+        NotificationDeliveryService.help_request_canceled(@help_request) if changed
+        render json: { help_request: HelpRequestSerializer.as_json(@help_request.reload), status_changed: changed }
       end
 
       def help_request_params

@@ -63,11 +63,24 @@ class HelpRequestTest < ActiveSupport::TestCase
     current_request = HelpRequest.find(stale_request.id)
     current_request.resolve!(@staff, response: "Try the smallest route first.")
 
-    stale_request.cancel!
+    changed = stale_request.cancel!
 
+    refute changed
     assert stale_request.reload.status_resolved?
     assert_nil stale_request.canceled_at
     assert_equal "Try the smallest route first.", stale_request.staff_response
+  end
+
+  test "stale staff transitions cannot overwrite a concurrent cancellation" do
+    stale_request = create_request
+    current_request = HelpRequest.find(stale_request.id)
+    assert current_request.cancel!
+
+    refute stale_request.acknowledge!(@staff)
+    refute stale_request.resolve!(@staff, response: "This must not be sent.")
+    assert stale_request.reload.status_canceled?
+    assert_nil stale_request.owner
+    assert_nil stale_request.staff_response
   end
 
   private

@@ -30,16 +30,16 @@ class HelpRequest < ApplicationRecord
 
   def acknowledge!(staff)
     with_lock do
-      return self if status_resolved? || status_canceled?
+      return false unless status_open?
 
       update!(status: :acknowledged, owner: staff, acknowledged_at: acknowledged_at || Time.current)
     end
-    self
+    true
   end
 
   def resolve!(staff, response: nil)
     with_lock do
-      return self if status_resolved? || status_canceled?
+      return false unless status_open? || status_acknowledged?
 
       update!(
         status: :resolved,
@@ -49,16 +49,16 @@ class HelpRequest < ApplicationRecord
         staff_response: response.to_s.strip
       )
     end
-    self
+    true
   end
 
   def cancel!
     with_lock do
-      return self if status_resolved? || status_canceled?
+      return false unless status_open? || status_acknowledged?
 
       update!(status: :canceled, canceled_at: Time.current)
     end
-    self
+    true
   end
 
   private
