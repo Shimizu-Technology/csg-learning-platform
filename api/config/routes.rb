@@ -18,6 +18,7 @@ Rails.application.routes.draw do
       # Dashboard / student hubs
       get "dashboard", to: "dashboard#show"
       get "weekly_plan", to: "weekly_plans#show"
+      get "support_queue", to: "support_queue#show"
       get "recordings", to: "student_recordings#index"
       get "resources", to: "resources#index"
 
@@ -32,6 +33,7 @@ Rails.application.routes.draw do
           patch :mark_all_read
         end
       end
+      resources :help_requests, only: [ :index, :create, :update ]
       get "push_subscriptions/config", to: "push_subscriptions#config"
       patch "push_subscriptions/preferences", to: "push_subscriptions#update_preferences"
       post "push_subscriptions", to: "push_subscriptions#create"

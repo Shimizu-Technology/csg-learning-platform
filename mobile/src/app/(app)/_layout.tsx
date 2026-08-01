@@ -36,6 +36,7 @@ export default function AppLayout() {
       <Stack.Screen name="staff/student/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="staff/submission/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="staff/grading" options={{ headerShown: false }} />
+      <Stack.Screen name="staff/support" options={{ headerShown: false }} />
       <Stack.Screen name="compose" options={{ presentation: 'modal', title: 'New message', headerRight: closeButton }} />
       <Stack.Screen name="search" options={{ presentation: 'modal', title: 'Search messages', headerRight: closeButton }} />
       <Stack.Screen name="manage-communications" options={{ title: 'Communication settings' }} />

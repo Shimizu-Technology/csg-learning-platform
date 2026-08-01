@@ -18,6 +18,7 @@ import {
   Bell,
   MessageCircle,
   Home,
+  LifeBuoy,
   type LucideIcon,
 } from 'lucide-react'
 import { UserButton } from '@clerk/clerk-react'
@@ -215,6 +216,7 @@ export function Layout({ children }: LayoutProps) {
     { to: '/admin/cohorts', icon: Layers3, label: 'Cohorts' },
     { to: '/admin/content', icon: FileText, label: 'Content' },
     { to: '/admin/grading', icon: ClipboardCheck, label: 'Grading' },
+    { to: '/admin/support', icon: LifeBuoy, label: 'Student support' },
     { to: '/messages', icon: MessageCircle, label: 'Messages' },
     { to: '/announcements', icon: Bell, label: 'Updates' },
     { to: '/admin/team', icon: Users, label: 'Team' },
@@ -225,6 +227,7 @@ export function Layout({ children }: LayoutProps) {
     { to: '/admin', icon: LayoutDashboard, label: 'Staff home', exact: true },
     { to: '/admin/cohorts', icon: Layers3, label: 'Cohorts' },
     { to: '/admin/grading', icon: ClipboardCheck, label: 'Grading' },
+    { to: '/admin/support', icon: LifeBuoy, label: 'Student support' },
     { to: '/messages', icon: MessageCircle, label: 'Messages' },
     { to: '/announcements', icon: Bell, label: 'Updates' },
     { to: '/profile', icon: User, label: 'Profile' },

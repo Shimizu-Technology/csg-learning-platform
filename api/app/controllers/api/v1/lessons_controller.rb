@@ -151,6 +151,7 @@ module Api
           render_forbidden("Cannot access this lesson")
           return
         end
+        @lesson_enrollment = enrollment
 
         assignment = enrollment.module_assignments.find_by(module_id: @lesson.module_id)
         lesson_assignment = enrollment.lesson_assignments.find_by(lesson_id: @lesson.id)
@@ -179,12 +180,13 @@ module Api
         }
 
         if current_user.student?
-          enrollment = current_user.enrollments.active
+          enrollment = @lesson_enrollment || current_user.enrollments.active
             .joins(:cohort)
             .includes(cohort: :cohort_module_submission_windows)
             .find_by(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
           if enrollment
             cohort = enrollment.cohort
+            json[:cohort_id] = cohort.id
             mod_gh = (cohort.settings || {}).dig("module_github_config", lesson.module_id.to_s) || {}
             requires_github = mod_gh["requires_github"] || false
             json[:requires_github] = requires_github

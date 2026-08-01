@@ -3,7 +3,8 @@
 The native companion for the CSG Learning Platform. It covers the daily
 learning and communication loop: staff/student dashboards, lessons, class
 resources and recordings, grading, channels, direct messages, announcements,
-real-time updates, and native push notifications.
+contextual student help, a focused staff support queue, real-time updates, and
+native push notifications.
 
 ## Stack
 

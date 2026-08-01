@@ -504,6 +504,8 @@ Measurement implementation status: event contract and initial capture points com
 
 Weekly orientation implementation status: the shared student API projection and web/native **This Week** surfaces are complete. The projection uses Guam Monday–Sunday boundaries, keeps required and optional work distinct, carries unfinished required work forward, and combines submission close times, current redos, typed live-class/office-hour events, upcoming unlocks, and recording catch-up. Both clients capture the existing content-free view event, and their user-scoped caches provide read-only offline continuity.
 
+Contextual-support implementation status: web and native students can create one durable active request from an authorized lesson, exercise, or recording, see staff acknowledgment and ownership, cancel an active request, and retain the written response after resolution. Web and native staff queues prioritize urgent/direct requests and separately expose explainable redo, ungraded, and seven-day inactivity signals. The state model, operating expectations, privacy boundary, and release checks are documented in `docs/SUPPORT_WORKFLOW.md`. Full intervention cases, follow-up, recovery plans, and outcomes remain Phase 3.
+
 Exit gate: every active student can see required work and ask for contextual help; every request has visible state; voice drafts never auto-send or retain audio; event data reconciles with source records.
 
 ### Phase 2 — Feedback quality (4–7 weeks)

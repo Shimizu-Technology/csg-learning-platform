@@ -15,6 +15,18 @@ class NotificationDeliveryService
     new.submission_graded(submission, push: push, event_at: event_at)
   end
 
+  def self.help_request_created(help_request, push: true)
+    new.help_request_created(help_request, push: push)
+  end
+
+  def self.help_request_changed(help_request, push: true)
+    new.help_request_changed(help_request, push: push)
+  end
+
+  def self.help_request_canceled(help_request)
+    new.help_request_canceled(help_request)
+  end
+
   def announcement_published(announcement, push: false)
     return [] unless announcement.published?
 
@@ -100,7 +112,67 @@ class NotificationDeliveryService
     [ notification ]
   end
 
+  def help_request_created(help_request, push: true)
+    notifications = User.not_archived.where(role: %i[instructor admin]).find_each.map do |staff|
+      help_request_notification_for(
+        staff,
+        help_request,
+        actor: help_request.student,
+        title: help_request.urgency_urgent? ? "Urgent student help request" : "Student asked for help",
+        body: "#{help_request.student.full_name} · #{help_request.context_label}",
+        path: "/admin/support"
+      )
+    end
+    PushNotificationJob.perform_later("HelpRequest", help_request.id, notifications.map(&:id)) if push && notifications.any?
+    notifications
+  end
+
+  def help_request_changed(help_request, push: true)
+    close_staff_help_notifications(help_request) if help_request.status_resolved?
+    title = help_request.status_resolved? ? "Help request resolved" : "Instructor acknowledged your request"
+    body = help_request.status_resolved? ? "Review the response for #{help_request.context_label}" : "#{help_request.owner&.full_name || 'Your instructor'} is taking a look"
+    notification = help_request_notification_for(
+      help_request.student,
+      help_request,
+      actor: help_request.owner,
+      title: title,
+      body: body,
+      path: help_request.context_path
+    )
+    PushNotificationJob.perform_later("HelpRequest", help_request.id, [ notification.id ]) if push
+    [ notification ]
+  end
+
+  def help_request_canceled(help_request)
+    close_staff_help_notifications(help_request)
+    help_request.notifications.where(user: help_request.student)
+      .update_all(read_at: Time.current, updated_at: Time.current)
+  end
+
   private
+
+  def close_staff_help_notifications(help_request)
+    help_request.notifications.joins(:user).merge(User.where(role: %i[instructor admin]))
+      .update_all(read_at: Time.current, updated_at: Time.current)
+  end
+
+  def help_request_notification_for(user, help_request, actor:, title:, body:, path:)
+    notification = Notification.find_or_initialize_by(notifiable: help_request, user: user)
+    notification.assign_attributes(
+      actor: actor,
+      notification_type: :help_request,
+      title: title,
+      body: body,
+      path: path,
+      read_at: nil
+    )
+    notification.save!
+    notification
+  rescue ActiveRecord::RecordNotUnique
+    existing = Notification.find_by!(notifiable: help_request, user: user)
+    existing.update!(actor: actor, notification_type: :help_request, title: title, body: body, path: path, read_at: nil)
+    existing
+  end
 
   def submission_notification_for(user, submission, actor:, title:, body:, path:, event_at:)
     notification = Notification.find_or_initialize_by(notifiable: submission, user: user)

@@ -47,6 +47,25 @@ class ExpoPushNotificationService
     end
   end
 
+  def self.help_request_changed(help_request, notifications)
+    new.deliver_notifications(notifications) do |notification|
+      path = notification.user.staff? ? "/staff/support" : mobile_help_path(help_request)
+      {
+        title: notification.title,
+        body: notification.body,
+        data: { path: path },
+        sound: "default",
+        channelId: "messages"
+      }
+    end
+  end
+
+  def self.mobile_help_path(help_request)
+    return "/lesson/#{help_request.context_path.delete_prefix('/lessons/')}" if help_request.context_path.start_with?("/lessons/")
+
+    "/recordings"
+  end
+
   def deliver_notifications(notifications)
     notification_list = Array.wrap(notifications)
     ActiveRecord::Associations::Preloader.new(records: notification_list, associations: { user: :mobile_push_tokens }).call

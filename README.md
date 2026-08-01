@@ -126,13 +126,14 @@ User
 - **Submission Windows** — Per-cohort, per-module weekly deadlines that stop new work without hiding lessons or videos
 - **Progress Tracking** — S3 watch progress plus legacy YouTube/Vimeo completion tracking, exercise marking, per-block granularity
 - **Grading & Feedback** — Submission queue, A/B/C/R grading, redo workflow, GitHub issue integration
-- **Communication Hub** — Announcements, cohort channels, direct messages, and push notifications in the same app; reviewed voice-to-text drafts are planned
+- **Communication Hub** — Announcements, cohort channels, direct messages, push notifications, and reviewed native voice-to-text drafts in the same app
+- **Contextual Student Support** — Durable lesson/exercise/recording help requests with visible acknowledgment, instructor response, and a shared staff queue
 - **Recordings Library** — Self-hosted AWS S3 uploads are the preferred path, with legacy external video support during migration
 - **Office Hours** — One-time and timezone-aware recurring help sessions surfaced on student dashboards
 - **Live Classroom Platform (Deferred)** — Documented future direction; Zoom remains operational while learning-feedback and intervention work takes priority
 - **Role-Based Access** — Student, instructor, and admin roles with appropriate UI and API gates
 - **Mobile + Responsive UI** — Native daily learning/communication companion plus responsive web administration and authoring
-- **Analytics** — PostHog web identity, page views, and render exceptions; learning-event and native instrumentation are planned
+- **Analytics** — Explicit privacy-safe PostHog learning, support, code-navigation, and voice-draft events across web and native
 
 ## Documentation
 

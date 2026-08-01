@@ -270,6 +270,60 @@ export interface RecordingItem {
   watch_progress?: WatchProgress | null;
 }
 
+export type HelpContextType = 'lesson' | 'exercise' | 'recording';
+export type HelpContextSource = 'primary' | 'legacy';
+export type HelpCategory = 'concept' | 'technical' | 'instructions' | 'feedback' | 'other';
+export type HelpUrgency = 'normal' | 'urgent';
+export type HelpRequestStatus = 'open' | 'acknowledged' | 'resolved' | 'canceled';
+
+export interface HelpRequest {
+  id: number;
+  cohort: { id: number; name: string };
+  context_type: HelpContextType;
+  context_source: HelpContextSource;
+  context_id: number;
+  context_label: string;
+  context_path: string;
+  category: HelpCategory;
+  urgency: HelpUrgency;
+  status: HelpRequestStatus;
+  message: string;
+  staff_response: string | null;
+  acknowledged_at: string | null;
+  resolved_at: string | null;
+  canceled_at: string | null;
+  created_at: string;
+  updated_at: string;
+  owner: { id: number; full_name: string } | null;
+  student?: { id: number; full_name: string; email: string };
+}
+
+export interface SupportQueueStudent {
+  user_id: number;
+  cohort_id: number;
+  full_name: string;
+  email: string;
+  cohort_name: string;
+  progress_percentage: number;
+  completed_blocks: number;
+  total_blocks: number;
+  last_activity_at: string | null;
+  help_request_count: number;
+  urgent_help_count: number;
+  redo_count: number;
+  ungraded_count: number;
+  inactive: boolean;
+  priority: number;
+}
+
+export interface SupportQueue {
+  generated_at: string;
+  summary: { open_help_count: number; acknowledged_help_count: number; urgent_help_count: number; student_count: number };
+  help_requests: HelpRequest[];
+  recently_resolved: HelpRequest[];
+  students: SupportQueueStudent[];
+}
+
 export interface VideoProgressInput {
   last_position_seconds: number;
   total_watched_seconds: number;
@@ -518,6 +572,7 @@ export interface LessonContentBlock {
 
 export interface LessonDetail {
   id: number;
+  cohort_id?: number;
   module_id: number;
   title: string;
   lesson_type: string;

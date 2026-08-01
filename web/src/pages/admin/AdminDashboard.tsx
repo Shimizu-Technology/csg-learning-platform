@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Activity, AlertTriangle, ArrowRight, ClipboardCheck, FileText, Layers3, Users } from 'lucide-react'
+import { Activity, AlertTriangle, ArrowRight, ClipboardCheck, FileText, Layers3, LifeBuoy, Users } from 'lucide-react'
 import { api } from '../../lib/api'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -136,8 +136,9 @@ export function AdminDashboard() {
             <h2 id="shortcuts-heading" className="mt-1 text-lg font-extrabold tracking-tight text-slate-950">Jump back in</h2>
           </div>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           {[
+            ['/admin/support', LifeBuoy, 'Student support', 'Requests and explainable signals'],
             ['/admin/students', Users, 'Students', 'Progress, access, and intervention'],
             ['/admin/grading', ClipboardCheck, 'Grading', 'Review submissions and redos'],
             ['/admin/content', FileText, 'Curriculum', 'Modules, lessons, and exercises'],

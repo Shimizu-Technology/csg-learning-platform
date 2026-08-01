@@ -35,7 +35,12 @@ function UserServerState({ children, userId }: PropsWithChildren<{ userId: numbe
   return (
     <PersistQueryClientProvider
       client={queryClient}
-      persistOptions={{ persister, buster: CACHE_BUSTER, maxAge: CACHE_MAX_AGE }}
+      persistOptions={{
+        persister,
+        buster: CACHE_BUSTER,
+        maxAge: CACHE_MAX_AGE,
+        dehydrateOptions: { shouldDehydrateQuery: (query) => query.meta?.persist !== false },
+      }}
     >
       {children}
     </PersistQueryClientProvider>

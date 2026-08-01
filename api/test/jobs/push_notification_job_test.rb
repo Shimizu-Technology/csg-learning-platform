@@ -65,4 +65,28 @@ class PushNotificationJobTest < ActiveJob::TestCase
     WebPushNotificationService.define_singleton_method(:submission_changed, original_web_delivery) if defined?(original_web_delivery) && original_web_delivery
     ExpoPushNotificationService.define_singleton_method(:submission_changed, original_expo_delivery) if defined?(original_expo_delivery) && original_expo_delivery
   end
+
+  test "help request events fan out to web and Expo delivery" do
+    student = User.create!(clerk_id: "push_job_help_student", email: "push-job-help-student@example.com", role: :student)
+    staff = User.create!(clerk_id: "push_job_help_staff", email: "push-job-help-staff@example.com", role: :instructor)
+    curriculum = Curriculum.create!(name: "Push help curriculum")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Push help cohort", start_date: Date.current, status: :active)
+    Enrollment.create!(user: student, cohort: cohort, status: :active)
+    help_request = HelpRequest.create!(student: student, cohort: cohort, context_type: :lesson, context_source: :primary, context_id: 1, context_label: "Routes", context_path: "/lessons/1", category: :concept, urgency: :normal, message: "How do these pieces connect?")
+    notification = staff.notifications.create!(notifiable: help_request, notification_type: :help_request, title: "Student asked for help", body: "Routes", path: "/admin/support")
+    web_deliveries = []
+    expo_deliveries = []
+    original_web_delivery = WebPushNotificationService.method(:help_request_changed)
+    original_expo_delivery = ExpoPushNotificationService.method(:help_request_changed)
+    WebPushNotificationService.define_singleton_method(:help_request_changed) { |item, notifications| web_deliveries << [ item, notifications.pluck(:id) ] }
+    ExpoPushNotificationService.define_singleton_method(:help_request_changed) { |item, notifications| expo_deliveries << [ item, notifications.pluck(:id) ] }
+
+    PushNotificationJob.perform_now("HelpRequest", help_request.id, [ notification.id ])
+
+    assert_equal [ [ help_request, [ notification.id ] ] ], web_deliveries
+    assert_equal [ [ help_request, [ notification.id ] ] ], expo_deliveries
+  ensure
+    WebPushNotificationService.define_singleton_method(:help_request_changed, original_web_delivery) if defined?(original_web_delivery) && original_web_delivery
+    ExpoPushNotificationService.define_singleton_method(:help_request_changed, original_expo_delivery) if defined?(original_expo_delivery) && original_expo_delivery
+  end
 end

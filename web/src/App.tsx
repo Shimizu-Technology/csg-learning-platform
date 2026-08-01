@@ -32,6 +32,7 @@ import {
   SignUpPage,
   StudentDetail,
   StudentManagement,
+  SupportQueue,
   TeamManagement,
 } from './lib/routePreload'
 
@@ -69,6 +70,7 @@ const routeTitles: Array<[RegExp, string]> = [
   [/^\/admin\/cohorts\//, 'Cohort workspace'],
   [/^\/admin\/cohorts/, 'Cohorts'],
   [/^\/admin\/grading/, 'Grading inbox'],
+  [/^\/admin\/support/, 'Student support'],
   [/^\/admin\/content/, 'Content'],
   [/^\/admin\/team/, 'Team'],
   [/^\/admin/, 'Staff home'],
@@ -125,6 +127,7 @@ function AppRoutes() {
             <Route path="/admin/cohorts/:id" element={<SuspendedRoute><CohortDetail /></SuspendedRoute>} />
             <Route path="/admin/cohorts/:id/watch-progress" element={<SuspendedRoute><CohortWatchProgress /></SuspendedRoute>} />
             <Route path="/admin/grading" element={<SuspendedRoute><Grading /></SuspendedRoute>} />
+            <Route path="/admin/support" element={<SuspendedRoute><SupportQueue /></SuspendedRoute>} />
             <Route path="/admin/cohorts/:cohortId/modules/:moduleId/grading" element={<SuspendedRoute><CohortModuleGrading /></SuspendedRoute>} />
           </Route>
 

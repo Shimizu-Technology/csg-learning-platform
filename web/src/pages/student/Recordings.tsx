@@ -6,6 +6,7 @@ import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { VideoPlayer } from '../../components/shared/VideoPlayer'
+import { ContextualHelp } from '../../components/student/ContextualHelp'
 import type { RecordingEntry, RecordingItem as ApiRecordingItem, S3Recording as ApiS3Recording } from '../../types/api'
 
 interface LegacyRecording {
@@ -176,7 +177,14 @@ export function Recordings() {
   }, [selectedItem, s3Recordings])
 
   const selectedId = liveSelectedItem?.source === 'uploaded' ? liveSelectedItem.id : null
-  const selectedCohortId = liveSelectedItem?.source === 'uploaded' ? liveSelectedItem.cohort_id ?? null : null
+  const selectedCohortId = liveSelectedItem?.cohort_id ?? null
+  const selectedHelpContext = useMemo(() => {
+    if (!liveSelectedItem || !selectedCohortId) return null
+    if (liveSelectedItem.source === 'uploaded') return { source: 'primary' as const, id: liveSelectedItem.id }
+    const ordinal = Number(String(liveSelectedItem.id).split('-').at(-1))
+    if (!Number.isInteger(ordinal) || ordinal < 1) return null
+    return { source: 'legacy' as const, id: ordinal - 1 }
+  }, [liveSelectedItem, selectedCohortId])
 
   const fetchSelectedStreamUrl = useCallback(async () => {
     if (!selectedCohortId || !selectedId) return null
@@ -310,6 +318,18 @@ export function Recordings() {
           ) : liveSelectedItem && (liveSelectedItem.source === 'youtube' || liveSelectedItem.source === 'external') ? (
             <LegacyPlayer recording={liveSelectedItem as LegacyRecording} />
           ) : null}
+          {liveSelectedItem && selectedCohortId && selectedHelpContext && (
+            <div className="mt-3 flex justify-end">
+              <ContextualHelp
+                key={`${liveSelectedItem.source}-${liveSelectedItem.id}`}
+                cohortId={selectedCohortId}
+                contextType="recording"
+                contextSource={selectedHelpContext.source}
+                contextId={selectedHelpContext.id}
+                contextLabel={liveSelectedItem.title}
+              />
+            </div>
+          )}
         </div>
 
         {/* Playlist sidebar */}
