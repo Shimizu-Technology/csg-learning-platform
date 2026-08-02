@@ -259,6 +259,27 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert_equal [ objective.id ], @lesson.objective_alignments.pluck(:learning_objective_id)
   end
 
+  test "editor save remains successful when post-commit S3 cleanup fails" do
+    with_failing_s3_delete do
+      as_user(@admin) do
+        patch "/api/v1/lessons/#{@lesson.id}/editor",
+              params: {
+                editor: {
+                  title: "Saved despite cleanup",
+                  requires_submission: false,
+                  video: { id: @video_block.id, title: "Saved video", s3_video_key: "content_videos/replacement.mp4" },
+                  alignments: []
+                }
+              },
+              headers: auth_headers
+      end
+    end
+
+    assert_response :success
+    assert_equal "Saved despite cleanup", @lesson.reload.title
+    assert_equal "content_videos/replacement.mp4", @video_block.reload.s3_video_key
+  end
+
   test "student video stream response includes explicit signed URL expiry" do
     expires_in = with_s3_stream_url("https://signed.example/lesson.mp4") do
       as_user(@student) do
@@ -309,5 +330,16 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
   ensure
     S3Service.define_singleton_method(:configured?, original_configured)
     S3Service.define_singleton_method(:generate_presigned_url, original_url)
+  end
+
+  def with_failing_s3_delete
+    original_configured = S3Service.method(:configured?)
+    original_delete = S3Service.method(:delete_object)
+    S3Service.define_singleton_method(:configured?) { true }
+    S3Service.define_singleton_method(:delete_object) { |_key| raise IOError, "network unavailable" }
+    yield
+  ensure
+    S3Service.define_singleton_method(:configured?, original_configured)
+    S3Service.define_singleton_method(:delete_object, original_delete)
   end
 end
