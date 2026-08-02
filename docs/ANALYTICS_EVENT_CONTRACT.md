@@ -1,6 +1,6 @@
 # Product Analytics Event Contract
 
-**Status:** Phase 1 foundation implemented; production EAS configuration complete; build 9 submitted; baseline begins after verified TestFlight availability
+**Status:** Phase 1 foundation implemented; production EAS configuration complete; build 9 available in TestFlight; baseline begins after the first verified production event
 
 **Last updated:** 2026-08-02
 

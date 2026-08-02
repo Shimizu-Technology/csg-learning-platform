@@ -7,7 +7,7 @@ Product: CSG Connect
 Platforms: iOS and Android through Expo / React Native
 
 Backend: existing Rails `/api/v1` API
-Status: phases 1–4 and strategic phases 0–1 implemented and merged; build 9 built and submitted for internal TestFlight processing
+Status: phases 1–4 and strategic phases 0–1 implemented and merged; build 9 available to the invited internal TestFlight tester
 
 ## 1. Outcome
 
@@ -441,7 +441,7 @@ Current release status (2026-08-02):
 - EAS production archives and submissions 5–8 completed successfully. Build 8 is the newest of that set, from source commit `8731815`; the exact build/submission identifiers are preserved in `app-store/README.md`, and App Store processing or internal-group availability is not inferred from EAS status.
 - Strategic Phase 0–1 product code is merged on `main`. Production EAS analytics configuration is complete, and build `1.0.0 (9)` from `ba70743` plus EAS submission `2aaf6efa-1b6d-4c74-8b48-da29401f8d58` finished successfully with `CSG Internal` requested.
 - The production access-denied entry flow was rechecked locally against `https://csg-learn-api.onrender.com` without demo mode.
-- Apple processing, build 9 internal-group installability, authenticated role smoke testing, and step 10 remain TestFlight acceptance work. No local simulator credential was retained or manufactured for that check.
+- Apple confirmed build 9 availability to the invited internal tester at 11:59 AM Pacific/Guam on 2026-08-02. Installation, authenticated role smoke testing, and step 10 remain physical TestFlight acceptance work. No local simulator credential was retained or manufactured for that check.
 - Public App Store review has intentionally not been submitted; it follows physical-device acceptance.
 
 The exact release record, screenshot inventory, and physical-device checklist are in [`app-store/README.md`](./app-store/README.md).
