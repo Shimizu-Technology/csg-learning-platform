@@ -75,9 +75,32 @@ export interface ContentBlockSummary {
   submission_config?: Record<string, unknown>;
   metadata: Record<string, unknown>;
   objective_ids?: number[];
+  rubric?: Rubric | null;
   solution?: string | null;
   progress?: { status: string; completed_at: string | null };
   submissions?: SubmissionBrief[];
+}
+
+export type RubricRating = 'exceeds' | 'meets' | 'developing' | 'redo';
+
+export interface RubricCriterion {
+  id: number;
+  title: string;
+  description: string;
+  position?: number;
+  learning_objective_id?: number | null;
+  objective_code?: string | null;
+  rating?: RubricRating | null;
+  feedback?: string | null;
+}
+
+export interface Rubric {
+  id: number;
+  curriculum_id?: number;
+  title: string;
+  description: string | null;
+  active?: boolean;
+  criteria: RubricCriterion[];
 }
 
 export interface LearningObjective {
@@ -889,6 +912,7 @@ export interface Submission {
   solution?: string;
   exercise_body?: string;
   exercise_video_url?: string;
+  rubric?: Rubric | null;
 }
 
 export interface ProgressEntry {

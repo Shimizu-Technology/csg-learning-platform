@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_02_010000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_02_020000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -125,6 +125,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_010000) do
     t.bigint "lesson_id", null: false
     t.jsonb "metadata", default: {}, null: false
     t.integer "position", default: 0, null: false
+    t.bigint "rubric_id"
     t.string "s3_video_content_type"
     t.integer "s3_video_duration_seconds"
     t.string "s3_video_key"
@@ -140,6 +141,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_010000) do
     t.index ["block_type"], name: "index_content_blocks_on_block_type"
     t.index ["lesson_id", "position"], name: "index_content_blocks_on_lesson_id_and_position"
     t.index ["lesson_id"], name: "index_content_blocks_on_lesson_id"
+    t.index ["rubric_id"], name: "index_content_blocks_on_rubric_id"
     t.index ["s3_video_uploaded_by_id"], name: "index_content_blocks_on_s3_video_uploaded_by_id"
     t.index ["submission_type"], name: "index_content_blocks_on_submission_type"
   end
@@ -483,6 +485,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_010000) do
     t.index ["uploaded_by_id"], name: "index_recordings_on_uploaded_by_id"
   end
 
+  create_table "rubric_criteria", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "description", null: false
+    t.bigint "learning_objective_id"
+    t.integer "position", default: 0, null: false
+    t.bigint "rubric_id", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["learning_objective_id"], name: "index_rubric_criteria_on_learning_objective_id"
+    t.index ["rubric_id"], name: "index_rubric_criteria_on_rubric_id"
+    t.check_constraint "position >= 0", name: "rubric_criteria_position_nonnegative"
+  end
+
+  create_table "rubrics", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.bigint "curriculum_id", null: false
+    t.text "description"
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["curriculum_id"], name: "index_rubrics_on_curriculum_id"
+  end
+
   create_table "solid_queue_blocked_executions", force: :cascade do |t|
     t.string "concurrency_key", null: false
     t.datetime "created_at", null: false
@@ -604,6 +629,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_010000) do
     t.index ["key"], name: "index_solid_queue_semaphores_on_key", unique: true
   end
 
+  create_table "submission_criterion_results", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "feedback"
+    t.integer "rating", null: false
+    t.bigint "rubric_criterion_id", null: false
+    t.bigint "submission_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["rubric_criterion_id"], name: "index_submission_criterion_results_on_rubric_criterion_id"
+    t.index ["submission_id", "rubric_criterion_id"], name: "idx_submission_criterion_results_unique", unique: true
+    t.index ["submission_id"], name: "index_submission_criterion_results_on_submission_id"
+  end
+
   create_table "submissions", force: :cascade do |t|
     t.string "branch"
     t.string "commit_sha"
@@ -707,6 +744,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_010000) do
   add_foreign_key "cohort_module_submission_windows", "users", column: "updated_by_id"
   add_foreign_key "cohorts", "curricula", column: "curriculum_id"
   add_foreign_key "content_blocks", "lessons"
+  add_foreign_key "content_blocks", "rubrics"
   add_foreign_key "content_blocks", "users", column: "s3_video_uploaded_by_id"
   add_foreign_key "direct_conversation_members", "direct_conversations"
   add_foreign_key "direct_conversation_members", "users"
@@ -751,12 +789,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_010000) do
   add_foreign_key "push_subscriptions", "users"
   add_foreign_key "recordings", "cohorts"
   add_foreign_key "recordings", "users", column: "uploaded_by_id", on_delete: :nullify
+  add_foreign_key "rubric_criteria", "learning_objectives"
+  add_foreign_key "rubric_criteria", "rubrics"
+  add_foreign_key "rubrics", "curricula", column: "curriculum_id"
   add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_claimed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_failed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_ready_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "submission_criterion_results", "rubric_criteria", column: "rubric_criterion_id"
+  add_foreign_key "submission_criterion_results", "submissions"
   add_foreign_key "submissions", "content_blocks"
   add_foreign_key "submissions", "users"
   add_foreign_key "submissions", "users", column: "graded_by_id"

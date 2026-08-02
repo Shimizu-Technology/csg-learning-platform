@@ -116,20 +116,38 @@ module Api
         require_staff!
         return if performed?
 
+        rubric = @submission.content_block.rubric
+        requested_results = criterion_results_params
+        expected_criterion_ids = rubric&.rubric_criteria&.pluck(:id) || []
+        criterion_results_provided = params.key?(:criterion_results)
+        if criterion_results_provided && requested_results.map { |result| result[:rubric_criterion_id].to_i }.sort != expected_criterion_ids.sort
+          render json: { errors: [ rubric ? "Rate every rubric criterion before grading" : "This submission does not use a rubric" ] }, status: :unprocessable_entity
+          return
+        end
+
         enrollment = learning_enrollment_for(@submission.user, @submission.content_block)
         with_learning_write_guard(enrollment) do
-          @submission.update!(
-            grade: params[:grade],
-            feedback: params[:feedback],
-            graded_by_id: current_user.id,
-            graded_at: Time.current
-          )
+          Submission.transaction do
+            @submission.update!(
+              grade: params[:grade],
+              feedback: params[:feedback],
+              graded_by_id: current_user.id,
+              graded_at: Time.current
+            )
 
-          progress = Progress.find_or_initialize_by(
-            user_id: @submission.user_id,
-            content_block_id: @submission.content_block_id
-          )
-          progress.update!(status: @submission.grade == "R" ? :in_progress : :completed)
+            if criterion_results_provided
+              @submission.submission_criterion_results.destroy_all
+              requested_results.each do |result|
+                @submission.submission_criterion_results.create!(result)
+              end
+            end
+
+            progress = Progress.find_or_initialize_by(
+              user_id: @submission.user_id,
+              content_block_id: @submission.content_block_id
+            )
+            progress.update!(status: @submission.grade == "R" ? :in_progress : :completed)
+          end
         end
 
         if @submission.grade == "R"
@@ -154,6 +172,8 @@ module Api
         end
 
         render json: { submission: submission_json(@submission) }
+      rescue ActiveRecord::RecordInvalid => error
+        render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
       end
 
       # GET /api/v1/submissions/:id/github_issue
@@ -243,6 +263,8 @@ module Api
           language_hint: submission.content_block.metadata.is_a?(Hash) ? submission.content_block.metadata["language"] : nil
         }
 
+        json[:rubric] = rubric_json(submission)
+
         if include_solution
           json[:solution] = submission.content_block.solution
           json[:exercise_body] = submission.content_block.body
@@ -250,6 +272,38 @@ module Api
         end
 
         json
+      end
+
+      def criterion_results_params
+        raw = params[:criterion_results]
+        return [] if raw.blank?
+
+        params.require(:criterion_results).map do |result|
+          result.permit(:rubric_criterion_id, :rating, :feedback).to_h.symbolize_keys
+        end
+      end
+
+      def rubric_json(submission)
+        rubric = submission.content_block.rubric
+        return nil unless rubric
+
+        results = submission.submission_criterion_results.index_by(&:rubric_criterion_id)
+        {
+          id: rubric.id,
+          title: rubric.title,
+          description: rubric.description,
+          criteria: rubric.rubric_criteria.ordered.map do |criterion|
+            result = results[criterion.id]
+            {
+              id: criterion.id,
+              title: criterion.title,
+              description: criterion.description,
+              objective_code: criterion.learning_objective&.code,
+              rating: result&.rating,
+              feedback: result&.feedback
+            }
+          end
+        }
       end
 
       def effective_submission_type_for(content_block)

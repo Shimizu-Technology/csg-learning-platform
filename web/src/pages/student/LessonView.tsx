@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, ChevronLeft, Lock, RotateCcw } from 'lucide-react'
 import { api } from '../../lib/api'
 import { ContentBlockRenderer } from '../../components/shared/ContentBlockRenderer'
+import { RubricPanel } from '../../components/shared/RubricPanel'
 import { ContextualHelp } from '../../components/student/ContextualHelp'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { useAuthContext } from '../../contexts/AuthContext'
@@ -151,6 +152,7 @@ export function LessonView() {
       <div className="space-y-4">
         {lesson.content_blocks.map((block: any) => (
           <div key={block.id} className="space-y-2">
+            <RubricPanel rubric={block.rubric} />
             <ContentBlockRenderer
               block={block}
               isStaff={user?.is_staff}

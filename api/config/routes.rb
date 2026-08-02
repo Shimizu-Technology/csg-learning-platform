@@ -90,6 +90,7 @@ Rails.application.routes.draw do
         resources :modules, only: [ :index, :create ]
       end
       resources :learning_objectives, only: [ :index, :create, :update, :destroy ]
+      resources :rubrics, only: [ :index, :create, :update, :destroy ]
 
       # Modules (shallow) with nested lessons
       resources :modules, only: [ :show, :update, :destroy ] do

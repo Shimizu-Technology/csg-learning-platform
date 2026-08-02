@@ -173,7 +173,7 @@ module Api
           :title,
           :requires_submission,
           video: [ :id, :title, :video_url, :s3_video_key ],
-          exercise: [ :id, :title, :body, :solution, :filename, :submission_type, { submission_config: {} } ],
+          exercise: [ :id, :title, :body, :solution, :filename, :submission_type, :rubric_id, { submission_config: {} } ],
           alignments: [ :learning_objective_id, :content_block_id ]
         )
       end
@@ -344,7 +344,8 @@ module Api
               has_s3_video: cb.s3_video_key.present?,
               completion_required: completion_block_ids.include?(cb.id),
               objective_ids: lesson.objective_alignments.select { |alignment| alignment.content_block_id == cb.id }
-                .map(&:learning_objective_id)
+                .map(&:learning_objective_id),
+              rubric: rubric_json(cb.rubric, submission_map[cb.id]&.first)
             }
 
             if current_user.staff?
@@ -448,6 +449,28 @@ module Api
             content_block_title: alignment.content_block&.title
           }
         end
+      end
+
+      def rubric_json(rubric, submission = nil)
+        return nil unless rubric&.active? || (rubric && current_user.staff?)
+
+        results = submission&.submission_criterion_results&.index_by(&:rubric_criterion_id) || {}
+        {
+          id: rubric.id,
+          title: rubric.title,
+          description: rubric.description,
+          criteria: rubric.rubric_criteria.ordered.map do |criterion|
+            result = results[criterion.id]
+            {
+              id: criterion.id,
+              title: criterion.title,
+              description: criterion.description,
+              objective_code: criterion.learning_objective&.code,
+              rating: result&.rating,
+              feedback: result&.feedback
+            }
+          end
+        }
       end
 
       def normalized_submission_type_for_create

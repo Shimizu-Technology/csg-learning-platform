@@ -569,7 +569,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  gradeSubmission: (id: number, data: { grade: string; feedback?: string }) =>
+  gradeSubmission: (id: number, data: { grade: string; feedback?: string; criterion_results?: { rubric_criterion_id: number; rating: import('../types/api').RubricRating; feedback?: string }[] }) =>
     fetchApi<SubmissionResponse>(`/api/v1/submissions/${id}/grade`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -743,7 +743,7 @@ export const api = {
     title: string;
     requires_submission: boolean;
     video?: { id?: number; title: string; video_url: string | null; s3_video_key?: string | null };
-    exercise?: { id?: number; title: string; body: string | null; solution: string | null; filename: string | null; submission_type: string; submission_config: Record<string, unknown> };
+    exercise?: { id?: number; title: string; body: string | null; solution: string | null; filename: string | null; submission_type: string; submission_config: Record<string, unknown>; rubric_id: number | null };
     alignments: { learning_objective_id: number; content_block_id?: number | null }[];
   }) =>
     fetchApi<LessonResponse>(`/api/v1/lessons/${id}/editor`, {
@@ -754,6 +754,13 @@ export const api = {
     fetchApi<void>(`/api/v1/lessons/${id}`, { method: 'DELETE' }),
   getLearningObjectives: (curriculumId: number) =>
     fetchApi<{ learning_objectives: import('../types/api').LearningObjective[] }>(`/api/v1/learning_objectives?curriculum_id=${curriculumId}`),
+  getRubrics: (curriculumId: number) =>
+    fetchApi<{ rubrics: import('../types/api').Rubric[] }>(`/api/v1/rubrics?curriculum_id=${curriculumId}`),
+  createRubric: (data: { curriculum_id: number; title: string; description?: string; criteria: { title: string; description: string; learning_objective_id?: number | null }[] }) =>
+    fetchApi<{ rubric: import('../types/api').Rubric }>('/api/v1/rubrics', {
+      method: 'POST',
+      body: JSON.stringify({ rubric: data }),
+    }),
   createLearningObjective: (data: { curriculum_id: number; code: string; title: string; description?: string; success_criteria: string; position?: number; active?: boolean; lesson_id?: number }) => {
     const { lesson_id, ...objective } = data
     return fetchApi<{ learning_objective: import('../types/api').LearningObjective }>('/api/v1/learning_objectives', {
