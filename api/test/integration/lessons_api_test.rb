@@ -341,6 +341,32 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert @student.progresses.find_by!(content_block: check.content_block).completed?
   end
 
+  test "student cannot bypass a retrieval check through generic progress" do
+    block = @lesson.content_blocks.create!(block_type: :checkpoint, position: 2)
+    check = KnowledgeCheck.create!(
+      content_block: block,
+      prompt: "Which command prints the current folder?",
+      options: [ "cd", "pwd" ],
+      correct_option: 1,
+      explanation: "pwd is correct."
+    )
+
+    as_user(@student) do
+      patch "/api/v1/progress", params: { content_block_id: block.id, status: "completed" }, headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_match "retrieval check", JSON.parse(response.body).fetch("error")
+    assert_not Progress.exists?(user: @student, content_block: block, status: :completed)
+
+    check.attempts.create!(user: @student, selected_option: check.correct_option, correct: true)
+    as_user(@student) do
+      patch "/api/v1/progress", params: { content_block_id: block.id, status: "completed" }, headers: auth_headers
+    end
+
+    assert_response :success
+  end
+
   test "retrieval check rejects an objective from another curriculum atomically" do
     other_curriculum = Curriculum.create!(name: "Other")
     objective = LearningObjective.create!(
