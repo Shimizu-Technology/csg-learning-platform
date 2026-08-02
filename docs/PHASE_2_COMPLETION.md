@@ -32,7 +32,7 @@ The product path is complete end to end. Operational acceptance should author at
 
 ## Release candidate and verification
 
-The next production EAS archive will be iOS `1.0.0 (10)` because `eas.json` uses remote versioning with production auto-increment. It includes Phase 0–2 changes merged through PR #88. The build must be created and submitted from updated `main`; its EAS build/submission identifiers belong in `docs/app-store/README.md` after the services return them.
+iOS `1.0.0 (10)` was archived from merged `main` at commit `690a84d` as EAS build `2f310674-05f7-4eca-b97d-ff7590e58eeb`. Submission `69a8a286-8c5a-4ba1-9f0a-45fcc30788e1` uploaded successfully and Apple finished processing the binary. EAS then marked the submission errored because Fastlane's manual `CSG Internal` group assignment was rejected, but Apple emailed the invited tester at 3:52 PM Pacific/Guam on 2026-08-02 that build 10 was available to test. The successful Apple tester notice is the authoritative release outcome; the full release record is in `docs/app-store/README.md`.
 
 Current automated evidence:
 
