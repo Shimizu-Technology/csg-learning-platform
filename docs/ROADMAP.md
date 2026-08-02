@@ -52,19 +52,21 @@ The platform has completed far more of the native and communications roadmap tha
 4. **This Week implemented:** one API projection now powers web/native required work, deadlines, redos, live schedule, unlocks, optional stretch work, and recording catch-up.
 5. **Contextual support implemented:** students can ask for durable help from lessons, exercises, and recordings on web/native; staff can acknowledge, respond, and resolve from one web/native queue that also shows explainable redo, ungraded, and inactivity signals. Full intervention cases remain Phase 3.
 6. **Offline continuity implemented:** previously loaded learning data remains available from the user-scoped cache; channel, DM, thread, and text-submission drafts survive interruptions; failed writes are explicitly unsent/not submitted and require intentional retry. Media downloads and automatic background queues remain deferred.
-7. Learning objectives, reusable rubrics, feedback snippets, and selected formative retrieval checks.
+7. **Phase 2 complete in code:** learning objectives/success criteria, reusable rubrics, criterion feedback, editable shared feedback snippets, selected formative retrieval checks, and reviewed voice-draft reuse in thread/help/grading workflows.
 8. Recording captions/transcripts/chapters and restart/recovery plans.
 9. Explainable mastery views, GitHub test feedback, and curriculum-effectiveness analytics.
 
 This sequence supersedes the old assumption that payments, advanced analytics, or a built-in classroom should automatically come next. Those remain valid initiatives, but they should be prioritized against learning impact and current operating pain rather than their historical phase number.
 
-Voice-to-text is detailed in `docs/VOICE_TO_TEXT_PLAN.md`. Its native message draft belongs in the current strategic Phase 1 after the Phase 0 message-readability gate; thread, help-request, and grading-feedback reuse follows in Phase 2. Web and streaming behavior remain conditional on measured use.
+Voice-to-text is detailed in `docs/VOICE_TO_TEXT_PLAN.md`. Native message drafts and Phase 2 reuse in threads, student/staff help, and grading feedback are complete in code behind the same fail-closed release gate. Web and streaming behavior remain conditional on measured use.
 
 Analytics implementation is governed by `docs/ANALYTICS_EVENT_CONTRACT.md`. The typed privacy contract and initial web/native capture points are complete; the four-week outcome baseline remains time-gated from the first production release.
 
 Release update (2026-08-02): production EAS analytics configuration is complete, and iOS build `1.0.0 (9)` is available to the invited internal TestFlight tester. Installation and physical-device acceptance remain operational gates; public App Review remains intentionally separate.
 
 Strategic Phase 0–1 code completion, evidence, operational gates, and later-phase boundaries are summarized in `docs/PHASE_0_1_COMPLETION.md`.
+
+Strategic Phase 2 code completion, learning-evidence flow, release gates, and Phase 3 handoff are summarized in `docs/PHASE_2_COMPLETION.md`.
 
 ---
 

@@ -521,6 +521,8 @@ Exit gate: every active student can see required work and ask for contextual hel
 
 Exit gate: at least one module can show objective → task → rubric/check evidence → student feedback end to end.
 
+Implementation status (2026-08-02): complete in product code. Admins can author ordered curriculum objectives and success criteria, align lessons, attach reusable rubrics to submission work, and add objective-linked retrieval checks to checkpoints. Students see success criteria before work, receive immediate check evidence, and see criterion-level grading afterward. Staff can insert, edit, save, and manage shared feedback snippets. The reviewed native voice-draft controller is reused in messages, threads, student help questions, staff help responses, and concise grading feedback without automatic sending or retained audio. `docs/PHASE_2_COMPLETION.md` records the implementation evidence, remaining operational gates, and Phase 3 boundary.
+
 ### Phase 3 — Recovery and accessible media (4–7 weeks)
 
 - create intervention ownership, follow-up, and outcomes;

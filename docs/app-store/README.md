@@ -22,6 +22,7 @@ This directory is the durable source record for the App Store presentation of th
 | Internal group | `CSG Internal` |
 | Tester access | Active invited internal tester; identity retained in App Store Connect only |
 | Public App Review | Intentionally not submitted pending physical TestFlight acceptance |
+| Phase 2 internal candidate | `1.0.0 (10)` prepared; EAS build/submission pending |
 
 Build 4 finished successfully, was processed by App Store Connect, is attached to the 1.0 App Store draft, and is available to the internal group. EAS production archives 5–8 and their submissions also finished successfully. Build 9 was generated from merged `main` on 2026-08-02 and submitted without an EAS error with `CSG Internal` requested as its internal group. At 11:59 AM Pacific/Guam, Apple sent the invited tester the TestFlight availability notice for `CSG Connect 1.0.0 (9)`, confirming processing and tester availability.
 
@@ -38,6 +39,8 @@ Verified EAS production history:
 These are EAS states only. Build 9's Apple processing and tester availability are separately confirmed by the TestFlight notice; physical installation and the acceptance matrix below remain device work.
 
 Build 9 is the Phase 0–1 TestFlight candidate. It includes the reviewed voice-draft client, Phase 0 readability work, weekly plan, contextual help, privacy-safe analytics, and offline continuity. Its production EAS environment points to the CSG API with demo mode disabled and includes the `csg-learning-platform` PostHog project configuration. Do not enable the voice production endpoint or submit this binary for public App Review until the temporary transcription-provider processing is accurately disclosed, the production OpenAI data controls are approved, and the voice-specific physical-device checks below pass.
+
+Build 10 is the prepared Phase 2 internal candidate. Production auto-increment uses EAS remote versioning; the source `app.json` build number is therefore not the release authority. Build 10 adds direct touch-drag navigation for long code, student-facing objectives/success criteria, reusable rubrics and criterion feedback, editable shared feedback snippets, objective-linked retrieval checks, and reviewed voice-draft reuse in threads/help/grading. Its actual EAS build and submission identifiers must be recorded here after completion.
 
 The requested release action is upload to App Store Connect for internal TestFlight testing only. Public App Review remains a separate, intentionally deferred action.
 
@@ -100,6 +103,13 @@ Phase 0–1 candidate preflight recorded on 2026-08-02:
 - EAS build 9 completes successfully with SDK 57, build number 9, production signing, and source commit `ba70743`.
 - EAS submission `2aaf6efa-1b6d-4c74-8b48-da29401f8d58` finishes without error and requests the `CSG Internal` group. The optional automated **What to Test** note is unavailable on the current EAS plan and must be entered in App Store Connect if desired.
 
+Phase 2 candidate preflight recorded on 2026-08-02:
+
+- Rails passes 369 tests / 1,227 assertions, RuboCop across 269 files, Brakeman with zero warnings, and bundler-audit with no vulnerabilities.
+- Web strict TypeScript, ESLint, 10 suites / 29 tests, and the production build pass.
+- Mobile strict TypeScript, Expo lint, 28 suites / 103 tests, Expo Doctor 20/20, and CI iOS/Android production exports pass.
+- Greptile reviewed every Phase 2 PR; all findings were fixed/resolved and each final review passed before merge.
+
 ## Physical TestFlight acceptance
 
 The invited tester must update to the Phase 0–1 candidate build in TestFlight and complete this final acceptance pass with real authorized accounts:
@@ -116,6 +126,10 @@ The invited tester must update to the Phase 0–1 candidate build in TestFlight 
 - interrupt recording and transcription with existing class-recording playback, calls, route changes, and app background/foreground transitions; confirm playback and the audio session recover predictably;
 - open a push notification from foreground, background, and terminated states and verify its deep link;
 - open a lesson, submit or update eligible work, and confirm progress/feedback convergence with web;
+- drag a long lesson/message code block horizontally with one finger and confirm its full contents remain reachable without using page controls;
+- open a Phase 2 lesson and confirm objectives/success criteria appear before work, rubric criteria appear before submission, and criterion ratings/feedback appear after grading;
+- answer a retrieval check incorrectly and correctly, confirm immediate explanation/retry state, and confirm only the correct attempt completes the checkpoint;
+- dictate, review, edit, restore, and explicitly submit a thread reply, help question/response, and grading-feedback draft where authorized; confirm none auto-send or auto-save;
 - play a secure recording, background/foreground it, use fullscreen/PiP, and confirm resume progress;
 - exercise the staff attention queue and one grading action with an authorized staff account;
 - verify sign-out clears account-scoped cached content.

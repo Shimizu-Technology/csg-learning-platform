@@ -1,6 +1,6 @@
 # Voice-to-Text Messaging Plan
 
-**Status:** Phase 1 native message implementation complete behind release gates
+**Status:** Phase 1 message flow and Phase 2 learning/instructor reuse complete behind release gates
 **Last updated:** 2026-08-01
 **Owner:** Product and engineering
 
@@ -283,6 +283,8 @@ High discard, restore, or heavy-edit rates are quality signals—not reasons to 
 - evaluate whether cleanup helps or merely creates editing work.
 
 **Gate:** student and instructor surfaces use one shared implementation and role authorization remains correct.
+
+**Implementation status:** complete in code. The shared controller now accepts an explicit allowlisted surface and is reused for thread replies, contextual student questions, staff help responses, and concise grading feedback. Every flow inserts editable text at the current selection, retains raw-transcript restoration, and requires the existing Send, Resolve, or Grade action before anything becomes durable. Production enablement remains blocked on the same privacy/data-control and physical-device acceptance gates as Voice B.
 
 ### Voice D — Web and advanced behavior (only if validated)
 

@@ -14,7 +14,6 @@
         "tinted": "./assets/images/icon-tinted.png"
       },
       "bundleIdentifier": "com.codeschoolofguam.connect",
-      "buildNumber": "1",
       "supportsTablet": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -74,7 +73,7 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "CSG Connect uses the microphone only when you choose to dictate a message draft.",
+          "microphonePermission": "CSG Connect uses the microphone only when you choose to dictate an editable draft.",
           "recordAudioAndroid": true,
           "enableBackgroundRecording": false
         }
