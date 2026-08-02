@@ -17,13 +17,13 @@ This directory is the durable source record for the App Store presentation of th
 | Source commit | `ba70743` (`main`) |
 | EAS submission ID | `2aaf6efa-1b6d-4c74-8b48-da29401f8d58` |
 | EAS build/submission state | Finished successfully; no EAS error |
-| Apple processing / installability | Awaiting verification in authenticated App Store Connect / TestFlight |
+| Apple processing / installability | Processed and available to the invited internal tester in TestFlight |
 | App Store version | `1.0`, Prepare for Submission |
 | Internal group | `CSG Internal` |
 | Tester access | Active invited internal tester; identity retained in App Store Connect only |
 | Public App Review | Intentionally not submitted pending physical TestFlight acceptance |
 
-Build 4 finished successfully, was processed by App Store Connect, is attached to the 1.0 App Store draft, and is available to the internal group. EAS production archives 5–8 and their submissions also finished successfully. Build 9 was generated from merged `main` on 2026-08-02 and submitted without an EAS error with `CSG Internal` requested as its internal group. Apple processing and tester installability must still be verified in an authenticated App Store Connect or TestFlight session.
+Build 4 finished successfully, was processed by App Store Connect, is attached to the 1.0 App Store draft, and is available to the internal group. EAS production archives 5–8 and their submissions also finished successfully. Build 9 was generated from merged `main` on 2026-08-02 and submitted without an EAS error with `CSG Internal` requested as its internal group. At 11:59 AM Pacific/Guam, Apple sent the invited tester the TestFlight availability notice for `CSG Connect 1.0.0 (9)`, confirming processing and tester availability.
 
 Verified EAS production history:
 
@@ -35,7 +35,7 @@ Verified EAS production history:
 | `8` | `deb0452d-949a-46b2-bc4e-fccd7cc6924b` | `4cf6cbe7-74c5-437b-b01e-7d137d5dfa1f` | Finished |
 | `9` | `098bdef7-9320-41ef-92b7-255cd6f61912` | `2aaf6efa-1b6d-4c74-8b48-da29401f8d58` | Finished |
 
-These are EAS states only. They do not replace App Store Connect verification of Apple processing, internal-group availability, or installability.
+These are EAS states only. Build 9's Apple processing and tester availability are separately confirmed by the TestFlight notice; physical installation and the acceptance matrix below remain device work.
 
 Build 9 is the Phase 0–1 TestFlight candidate. It includes the reviewed voice-draft client, Phase 0 readability work, weekly plan, contextual help, privacy-safe analytics, and offline continuity. Its production EAS environment points to the CSG API with demo mode disabled and includes the `csg-learning-platform` PostHog project configuration. Do not enable the voice production endpoint or submit this binary for public App Review until the temporary transcription-provider processing is accurately disclosed, the production OpenAI data controls are approved, and the voice-specific physical-device checks below pass.
 

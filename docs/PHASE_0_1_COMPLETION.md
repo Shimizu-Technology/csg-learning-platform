@@ -6,7 +6,7 @@ Status date: 2026-08-02
 
 Phase 0 and Phase 1 are complete in product code. The remaining work below is release/measurement acceptance that cannot be truthfully completed in a local branch: physical-device checks, enabling the reviewed voice provider after privacy acceptance, and collecting the first 28 production days of event data.
 
-Release status: production EAS configuration includes the CSG PostHog project and ingest host. Build `1.0.0 (9)` and EAS submission `2aaf6efa-1b6d-4c74-8b48-da29401f8d58` finished successfully on 2026-08-02 with `CSG Internal` requested. Apple processing, internal-tester installability, and physical-device results remain to be recorded.
+Release status: production EAS configuration includes the CSG PostHog project and ingest host. Build `1.0.0 (9)` and EAS submission `2aaf6efa-1b6d-4c74-8b48-da29401f8d58` finished successfully on 2026-08-02, and Apple confirmed availability to the invited internal tester. Installation and physical-device results remain to be recorded.
 
 ## Phase 0 — interaction and readability
 
@@ -31,7 +31,7 @@ Operational gate: run the documented VoiceOver, largest Dynamic Type, Increase C
 
 Operational gates:
 
-1. Wait for Apple to process candidate build 9 and verify that the intended internal tester can install it from TestFlight.
+1. Install candidate build 9 from TestFlight and complete the authenticated physical-device acceptance pass.
 2. Complete the voice privacy/provider checklist and representative Guam-network physical-device checks before enabling server transcription.
 3. Reconcile build 9 events against Rails source records and complete the first 28-day baseline review. This is observation, not unfinished feature code.
 4. Run the physical-device Phase 0 and offline-interruption smoke matrices on the release candidate.
