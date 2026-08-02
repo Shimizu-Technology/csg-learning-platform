@@ -1,6 +1,8 @@
 module Api
   module V1
     class TranscriptionsController < ApplicationController
+      SURFACES = %w[message thread help_request grading_feedback].freeze
+
       before_action :authenticate_user!
 
       def create
@@ -8,8 +10,8 @@ module Api
           render json: { error: "Voice transcription is not enabled yet." }, status: :service_unavailable
           return
         end
-        unless params[:surface] == "message"
-          render json: { error: "surface must be message" }, status: :unprocessable_entity
+        unless SURFACES.include?(params[:surface])
+          render json: { error: "surface must be one of: #{SURFACES.join(', ')}" }, status: :unprocessable_entity
           return
         end
         unless params[:cleanup] == "conservative"

@@ -39,6 +39,7 @@ import type {
 } from './types';
 import { fetch as expoFetch } from 'expo/fetch';
 import { File } from 'expo-file-system';
+import type { VoiceSurface } from './analytics';
 
 export type TokenGetter = (options?: { skipCache?: boolean }) => Promise<string | null>;
 
@@ -107,7 +108,7 @@ export class CsgApi {
     }
   }
 
-  async transcribeVoice(uri: string, signal?: AbortSignal, attempt = 0): Promise<{ raw_text: string; suggested_text: string; duration_seconds: number; warnings: string[] }> {
+  async transcribeVoice(uri: string, surface: VoiceSurface = 'message', signal?: AbortSignal, attempt = 0): Promise<{ raw_text: string; suggested_text: string; duration_seconds: number; warnings: string[] }> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 45_000);
     const cancel = () => controller.abort();
@@ -117,7 +118,7 @@ export class CsgApi {
       const token = await this.getToken({ skipCache: attempt > 0 });
       const form = new FormData();
       form.append('audio', new File(uri));
-      form.append('surface', 'message');
+      form.append('surface', surface);
       form.append('cleanup', 'conservative');
       const response = await expoFetch(`${API_URL}/api/v1/transcriptions`, {
         method: 'POST', body: form, signal: controller.signal,
@@ -125,7 +126,7 @@ export class CsgApi {
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({})) as { error?: string; errors?: string[]; code?: string };
-        if (attempt === 0 && response.status === 401) return this.transcribeVoice(uri, signal, attempt + 1);
+        if (attempt === 0 && response.status === 401) return this.transcribeVoice(uri, surface, signal, attempt + 1);
         throw new ApiError(payload.error || payload.errors?.join(', ') || `Request failed (${response.status})`, response.status, payload.code);
       }
       return response.json();

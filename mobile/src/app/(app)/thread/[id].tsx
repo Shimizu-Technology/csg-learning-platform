@@ -8,7 +8,9 @@ import { MessageBubble } from '@/components/message-bubble';
 import { ImagePreview } from '@/components/image-preview';
 import { ReactionDetailsSheet } from '@/components/reaction-details-sheet';
 import { ErrorState, LoadingState } from '@/components/screen-states';
+import { VoiceDraftButton, VoiceDraftPanel } from '@/components/voice-draft-controls';
 import { fonts, palette } from '@/constants/csg-theme';
+import { useVoiceDraft } from '@/hooks/use-voice-draft';
 import { subscribeToMessages } from '@/lib/cable';
 import { demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { resolveMentionUserIds } from '@/lib/mentions';
@@ -33,6 +35,7 @@ export default function ThreadScreen() {
   const [replies, setReplies] = useState<Message[]>([]);
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [draft, setDraft] = useState('');
+  const [selection, setSelection] = useState({ start: 0, end: 0 });
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +43,16 @@ export default function ThreadScreen() {
   const [imagePreview, setImagePreview] = useState<{ attachments: Message['attachments']; attachmentId: number } | null>(null);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingDraftRef = useRef<{ userId: number; rootId: number; body: string } | null>(null);
+  const voiceDraft = useVoiceDraft({
+    api,
+    demo: auth.demo,
+    surface: 'thread',
+    draft,
+    selection,
+    disabled: sending,
+    onDraftChange: setDraft,
+    onSelectionChange: setSelection,
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -122,10 +135,12 @@ export default function ThreadScreen() {
         };
         setReplies((current) => sortMessages([...current, demoReply]));
         requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+        voiceDraft.markSent(body);
         return;
       }
       const result = await api.sendMessage(kind, conversationId, { body, parent_message_id: rootId, mention_user_ids: resolveMentionUserIds(body, users), send_push: true });
       setReplies((current) => sortMessages([...current.filter((message) => message.id !== result.message.id), result.message]));
+      voiceDraft.markSent(body);
       requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
       if (userId) {
         if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
@@ -149,7 +164,8 @@ export default function ThreadScreen() {
       <View style={styles.divider}><Text style={styles.dividerText}>REPLIES</Text><View style={styles.line} /></View>
       <FlatList ref={listRef} data={visible} keyExtractor={(message) => String(message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list} renderItem={({ item, index }) => <MessageBubble message={item} showAuthor={!visible[index - 1] || visible[index - 1].author.id !== item.author.id} mentionUsers={users} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} />} ListEmptyComponent={<Text style={styles.empty}>Start a focused conversation about this message.</Text>} />
     </>}
-    <View style={styles.composer}><TextInput accessibilityLabel="Reply to thread" value={draft} onChangeText={setDraft} placeholder="Reply to thread" placeholderTextColor={palette.quiet} multiline maxLength={10_000} style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel="Send reply" disabled={!draft.trim() || sending} onPress={() => void send()} style={[styles.send, (!draft.trim() || sending) && styles.disabled]}><Send color={palette.text} size={19} /></Pressable></View>
+    <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />
+    <View style={styles.composer}><VoiceDraftButton state={voiceDraft.state} disabled={sending} onPress={() => void voiceDraft.start()} /><TextInput accessibilityLabel="Reply to thread" value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={setDraft} placeholder="Reply to thread" placeholderTextColor={palette.quiet} multiline maxLength={10_000} style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel="Send reply" disabled={!draft.trim() || sending} onPress={() => void send()} style={[styles.send, (!draft.trim() || sending) && styles.disabled]}><Send color={palette.text} size={19} /></Pressable></View>
     <ReactionDetailsSheet key={reactionDetails ? `${reactionDetails.messageId}-${reactionDetails.emoji}` : 'closed-reactions'} initialEmoji={reactionDetails?.emoji || null} message={reactionDetailsMessage} onClose={() => setReactionDetails(null)} onToggle={async (message, value) => { await toggleReaction(message, value); }} />
     <ImagePreview key={imagePreview?.attachmentId ?? 'closed-preview'} attachments={imagePreview?.attachments || []} initialAttachmentId={imagePreview?.attachmentId || null} onClose={() => setImagePreview(null)} />
   </KeyboardAvoidingView></SafeAreaView>;

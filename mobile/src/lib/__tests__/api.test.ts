@@ -129,7 +129,7 @@ describe('CsgApi', () => {
       warnings: [],
     }), { status: 200 }));
 
-    await expect(new CsgApi(async () => 'session-token').transcribeVoice('file:///voice.m4a')).resolves.toMatchObject({
+    await expect(new CsgApi(async () => 'session-token').transcribeVoice('file:///voice.m4a', 'thread')).resolves.toMatchObject({
       raw_text: 'hello there',
       suggested_text: 'Hello there.',
     });
@@ -139,6 +139,8 @@ describe('CsgApi', () => {
       headers: { Authorization: 'Bearer session-token' },
       body: expect.any(FormData),
     }));
+    const form = mockExpoFetch.mock.calls[0][1].body as FormData;
+    expect(form.get('surface')).toBe('thread');
   });
 
   it('refreshes a voice request token once after a 401', async () => {
