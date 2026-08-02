@@ -1,25 +1,31 @@
 # CSG Connect App Store Release Record
 
-Last updated: 2026-08-01 (Pacific/Guam)
+Last updated: 2026-08-02 (Pacific/Guam)
 
 This directory is the durable source record for the App Store presentation of the completed mobile-parity program. It records what was uploaded, how the images were produced, and what remains before public App Review.
 
-## Current iOS release
+## Current iOS release state
 
 | Item | State |
 | --- | --- |
 | Marketing version | `1.0.0` |
-| TestFlight build | `4` |
-| EAS build ID | `b031b7f6-6758-4f41-b330-90a88b63e6dc` |
-| Source commit | `070b4dc` (`main`) |
+| Confirmed internal TestFlight baseline | `1.0.0 (4)` |
+| Baseline EAS build ID | `b031b7f6-6758-4f41-b330-90a88b63e6dc` |
+| Baseline source commit | `070b4dc` (`main`) |
+| Latest completed EAS archive | `1.0.0 (8)` |
+| Latest completed EAS build ID | `deb0452d-949a-46b2-bc4e-fccd7cc6924b` |
+| Latest completed source commit | `8731815` (`main`) |
+| Phase 0–1 release candidate | `1.0.0 (9)` planned; build and submission pending |
 | App Store version | `1.0`, Prepare for Submission |
 | Internal group | `CSG Internal` |
 | Tester access | Active invited internal tester; identity retained in App Store Connect only |
 | Public App Review | Intentionally not submitted pending physical TestFlight acceptance |
 
-Build 4 finished successfully, was processed by App Store Connect, is attached to the 1.0 App Store draft, and is available to the internal group.
+Build 4 finished successfully, was processed by App Store Connect, is attached to the 1.0 App Store draft, and is available to the internal group. EAS also contains successful production archives 5–8; this record does not infer their App Store processing or TestFlight-group state from EAS build success alone.
 
-The next native binary must include the reviewed voice-draft capability. Do not enable its production endpoint or submit that binary for public review until the temporary transcription-provider processing is accurately disclosed, the production OpenAI data controls are approved, and the voice-specific physical-device checks below pass. Build 4 does not contain this capability.
+Build 9 is the planned Phase 0–1 TestFlight candidate. It includes the reviewed voice-draft client, Phase 0 readability work, weekly plan, contextual help, privacy-safe analytics, and offline continuity. Its production EAS environment points to the CSG API with demo mode disabled and now includes the `csg-learning-platform` PostHog project configuration. Do not enable the voice production endpoint or submit this binary for public App Review until the temporary transcription-provider processing is accurately disclosed, the production OpenAI data controls are approved, and the voice-specific physical-device checks below pass.
+
+The requested release action is upload to App Store Connect for internal TestFlight testing only. Public App Review remains a separate, intentionally deferred action.
 
 ## Store presentation
 
@@ -62,7 +68,7 @@ find docs/app-store/screenshots -name '*.png' -print0 | xargs -0 sips -g pixelWi
 
 The release build itself must use `EXPO_PUBLIC_DEMO_MODE=false` and the production API URL. A local production-backend check on 2026-07-22 confirmed that a signed-out installation presents the restricted-access sign-in surface and does not expose demo or cached account data.
 
-Final regression evidence recorded on 2026-07-22:
+Baseline regression evidence recorded on 2026-07-22 remains below:
 
 - Rails: 291 tests / 877 assertions; RuboCop 212 files; Brakeman zero warnings; bundler-audit clean.
 - Web: 5 suites / 21 tests, ESLint clean, production build successful, and no high-severity npm audit finding.
@@ -70,9 +76,17 @@ Final regression evidence recorded on 2026-07-22:
 - Store assets: all 12 PNG files match their required 1320×2868 or 2064×2752 dimensions.
 - The mobile npm audit reports only known moderate transitive advisories in Expo/Clerk build tooling; no direct production dependency upgrade currently resolves them without a breaking toolchain change.
 
+Phase 0–1 candidate preflight recorded on 2026-08-02:
+
+- Expo Doctor initially identified `expo-asset` as a missing direct peer required by `expo-audio`; the SDK 57-compatible module and config plugin were added before generating the native binary.
+- Mobile strict TypeScript and Expo lint pass; all 26 suites / 100 tests pass.
+- Expo Doctor passes 20/20 after the dependency fix.
+- The dependency audit has no unacknowledged high or critical finding.
+- A local iOS Hermes production export completes successfully.
+
 ## Physical TestFlight acceptance
 
-The invited tester must update to build 4 in TestFlight and complete this final acceptance pass with real authorized accounts:
+The invited tester must update to the Phase 0–1 candidate build in TestFlight and complete this final acceptance pass with real authorized accounts:
 
 - sign in with Google and confirm unauthorized accounts receive the explicit no-access state;
 - verify student, instructor, and admin role scoping where test accounts are available;

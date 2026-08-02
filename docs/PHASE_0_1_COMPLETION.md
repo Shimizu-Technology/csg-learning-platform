@@ -1,10 +1,12 @@
 # Strategic Phase 0–1 Completion
 
-Status date: 2026-08-01
+Status date: 2026-08-02
 
 ## Decision
 
 Phase 0 and Phase 1 are complete in product code. The remaining work below is release/measurement acceptance that cannot be truthfully completed in a local branch: physical-device checks, enabling the reviewed voice provider after privacy acceptance, and collecting the first 28 production days of event data.
+
+Release status: production EAS configuration now includes the CSG PostHog project and ingest host. Build `1.0.0 (9)` is the planned first Phase 0–1 TestFlight candidate; its build, App Store Connect upload, Apple processing, internal-group availability, and physical-device results remain to be recorded as they complete.
 
 ## Phase 0 — interaction and readability
 
@@ -29,9 +31,10 @@ Operational gate: run the documented VoiceOver, largest Dynamic Type, Increase C
 
 Operational gates:
 
-1. Complete the voice privacy/provider checklist and representative Guam-network physical-device checks before enabling server transcription.
-2. Release the instrumented build, reconcile events against Rails source records, and complete the first 28-day baseline review. This is observation, not unfinished feature code.
-3. Run the physical-device Phase 0 and offline-interruption smoke matrices on the release candidate.
+1. Build and upload candidate build 9 to App Store Connect, wait for processing, and make it available to the internal TestFlight tester.
+2. Complete the voice privacy/provider checklist and representative Guam-network physical-device checks before enabling server transcription.
+3. Reconcile build 9 events against Rails source records and complete the first 28-day baseline review. This is observation, not unfinished feature code.
+4. Run the physical-device Phase 0 and offline-interruption smoke matrices on the release candidate.
 
 ## Deliberate later-phase boundaries
 

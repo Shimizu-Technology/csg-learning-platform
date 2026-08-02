@@ -1,8 +1,8 @@
 # Product Analytics Event Contract
 
-**Status:** Phase 1 foundation implemented; production baseline begins with the first release containing this contract
+**Status:** Phase 1 foundation implemented; production EAS configuration complete; baseline begins with build 9 after TestFlight release
 
-**Last updated:** 2026-08-01
+**Last updated:** 2026-08-02
 
 **Canonical project:** PostHog `csg-learning-platform`
 
@@ -84,9 +84,11 @@ Set `VITE_PUBLIC_POSTHOG_KEY` and optionally `VITE_PUBLIC_POSTHOG_HOST`. Develop
 
 Set `EXPO_PUBLIC_POSTHOG_KEY` and optionally `EXPO_PUBLIC_POSTHOG_HOST` in the EAS build environment. Development and demo builds do not capture. Automatic screens, touches, lifecycle events, and session replay remain disabled. The app uses the internal user ID and role after the authenticated CSG session resolves.
 
+The production EAS environment was configured on 2026-08-02 for the canonical `csg-learning-platform` project and `https://us.i.posthog.com`. Build 9 is the first planned native release containing both this instrumentation and that production configuration.
+
 ## 6. Reconciliation and four-week baseline
 
-Week 1 begins on the first production deployment containing this instrumentation. For each Guam teaching week:
+Week 1 begins when build 9 is available to the intended TestFlight users and emits its first verified production event. For each Guam teaching week:
 
 1. Query event counts by event, platform, cohort ID, and Guam-local day.
 2. Compare server-write events with the matching Rails records created or resolved in the same interval.
