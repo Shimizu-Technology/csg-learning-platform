@@ -1,6 +1,6 @@
 # Product Analytics Event Contract
 
-**Status:** Phase 1 foundation implemented; production EAS configuration complete; baseline begins with build 9 after TestFlight release
+**Status:** Phase 1 foundation implemented; production EAS configuration complete; build 9 submitted; baseline begins after verified TestFlight availability
 
 **Last updated:** 2026-08-02
 
@@ -84,7 +84,7 @@ Set `VITE_PUBLIC_POSTHOG_KEY` and optionally `VITE_PUBLIC_POSTHOG_HOST`. Develop
 
 Set `EXPO_PUBLIC_POSTHOG_KEY` and optionally `EXPO_PUBLIC_POSTHOG_HOST` in the EAS build environment. Development and demo builds do not capture. Automatic screens, touches, lifecycle events, and session replay remain disabled. The app uses the internal user ID and role after the authenticated CSG session resolves.
 
-The production EAS environment was configured on 2026-08-02 for the canonical `csg-learning-platform` project and `https://us.i.posthog.com`. Build 9 is the first planned native release containing both this instrumentation and that production configuration.
+The production EAS environment was configured on 2026-08-02 for the canonical `csg-learning-platform` project and `https://us.i.posthog.com`. Build 9 is the first submitted native release containing both this instrumentation and that production configuration.
 
 ## 6. Reconciliation and four-week baseline
 

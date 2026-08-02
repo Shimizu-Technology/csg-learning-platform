@@ -12,18 +12,20 @@ This directory is the durable source record for the App Store presentation of th
 | Confirmed internal TestFlight baseline | `1.0.0 (4)` |
 | Baseline EAS build ID | `b031b7f6-6758-4f41-b330-90a88b63e6dc` |
 | Baseline source commit | `070b4dc` (`main`) |
-| Latest completed EAS archive | `1.0.0 (8)` |
-| Latest completed EAS build ID | `deb0452d-949a-46b2-bc4e-fccd7cc6924b` |
-| Latest completed source commit | `8731815` (`main`) |
-| Phase 0–1 release candidate | `1.0.0 (9)` planned; build and submission pending |
+| Phase 0–1 release candidate | `1.0.0 (9)` |
+| EAS build ID | `098bdef7-9320-41ef-92b7-255cd6f61912` |
+| Source commit | `ba70743` (`main`) |
+| EAS submission ID | `2aaf6efa-1b6d-4c74-8b48-da29401f8d58` |
+| EAS build/submission state | Finished successfully; no EAS error |
+| Apple processing / installability | Awaiting verification in authenticated App Store Connect / TestFlight |
 | App Store version | `1.0`, Prepare for Submission |
 | Internal group | `CSG Internal` |
 | Tester access | Active invited internal tester; identity retained in App Store Connect only |
 | Public App Review | Intentionally not submitted pending physical TestFlight acceptance |
 
-Build 4 finished successfully, was processed by App Store Connect, is attached to the 1.0 App Store draft, and is available to the internal group. EAS also contains successful production archives 5–8; this record does not infer their App Store processing or TestFlight-group state from EAS build success alone.
+Build 4 finished successfully, was processed by App Store Connect, is attached to the 1.0 App Store draft, and is available to the internal group. EAS production archives 5–8 and their submissions also finished successfully. Build 9 was generated from merged `main` on 2026-08-02 and submitted without an EAS error with `CSG Internal` requested as its internal group. Apple processing and tester installability must still be verified in an authenticated App Store Connect or TestFlight session.
 
-Build 9 is the planned Phase 0–1 TestFlight candidate. It includes the reviewed voice-draft client, Phase 0 readability work, weekly plan, contextual help, privacy-safe analytics, and offline continuity. Its production EAS environment points to the CSG API with demo mode disabled and now includes the `csg-learning-platform` PostHog project configuration. Do not enable the voice production endpoint or submit this binary for public App Review until the temporary transcription-provider processing is accurately disclosed, the production OpenAI data controls are approved, and the voice-specific physical-device checks below pass.
+Build 9 is the Phase 0–1 TestFlight candidate. It includes the reviewed voice-draft client, Phase 0 readability work, weekly plan, contextual help, privacy-safe analytics, and offline continuity. Its production EAS environment points to the CSG API with demo mode disabled and includes the `csg-learning-platform` PostHog project configuration. Do not enable the voice production endpoint or submit this binary for public App Review until the temporary transcription-provider processing is accurately disclosed, the production OpenAI data controls are approved, and the voice-specific physical-device checks below pass.
 
 The requested release action is upload to App Store Connect for internal TestFlight testing only. Public App Review remains a separate, intentionally deferred action.
 
@@ -83,6 +85,8 @@ Phase 0–1 candidate preflight recorded on 2026-08-02:
 - Expo Doctor passes 20/20 after the dependency fix.
 - The dependency audit has no unacknowledged high or critical finding.
 - A local iOS Hermes production export completes successfully.
+- EAS build 9 completes successfully with SDK 57, build number 9, production signing, and source commit `ba70743`.
+- EAS submission `2aaf6efa-1b6d-4c74-8b48-da29401f8d58` finishes without error and requests the `CSG Internal` group. The optional automated **What to Test** note is unavailable on the current EAS plan and must be entered in App Store Connect if desired.
 
 ## Physical TestFlight acceptance
 
