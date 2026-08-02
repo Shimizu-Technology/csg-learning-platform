@@ -62,7 +62,7 @@ Voice-to-text is detailed in `docs/VOICE_TO_TEXT_PLAN.md`. Its native message dr
 
 Analytics implementation is governed by `docs/ANALYTICS_EVENT_CONTRACT.md`. The typed privacy contract and initial web/native capture points are complete; the four-week outcome baseline remains time-gated from the first production release.
 
-Release update (2026-08-02): production EAS analytics configuration is complete, and iOS build `1.0.0 (9)` is the planned Phase 0–1 internal TestFlight candidate. Build/upload/processing and physical-device acceptance remain operational gates; public App Review remains intentionally separate.
+Release update (2026-08-02): production EAS analytics configuration is complete, and iOS build `1.0.0 (9)` has completed its EAS build and submission with `CSG Internal` requested. Apple processing, tester installability, and physical-device acceptance remain operational gates; public App Review remains intentionally separate.
 
 Strategic Phase 0–1 code completion, evidence, operational gates, and later-phase boundaries are summarized in `docs/PHASE_0_1_COMPLETION.md`.
 

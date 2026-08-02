@@ -7,7 +7,7 @@ Product: CSG Connect
 Platforms: iOS and Android through Expo / React Native
 
 Backend: existing Rails `/api/v1` API
-Status: phases 1–4 and strategic phases 0–1 implemented and merged; build 9 is the planned Phase 0–1 TestFlight candidate
+Status: phases 1–4 and strategic phases 0–1 implemented and merged; build 9 built and submitted for internal TestFlight processing
 
 ## 1. Outcome
 
@@ -438,10 +438,10 @@ Current release status (2026-08-02):
 - App Store Connect has six current 6.9-inch iPhone screenshots, six current 13-inch iPad screenshots, refreshed product copy, and build 4 attached to the 1.0 draft.
 - Step 5's store images are complete using deterministic `__DEV__` sample data rather than a release-equivalent authenticated session. This deliberate privacy deviation excludes real student data; the physical TestFlight pass in step 10 must include a visual comparison against the uploaded surfaces.
 - Build 4 is processed and available in the `CSG Internal` TestFlight group to the active invited tester.
-- EAS production archives 5–8 also completed successfully. Build 8 is the newest of those archives, from source commit `8731815`; App Store processing and internal-group availability are not inferred from EAS archive status.
-- Strategic Phase 0–1 product code is merged on `main`. Production EAS analytics configuration is complete, and build `1.0.0 (9)` is the next candidate to build and upload for internal TestFlight acceptance.
+- EAS production archives and submissions 5–8 completed successfully. Build 8 is the newest of that set, from source commit `8731815`; the exact build/submission identifiers are preserved in `app-store/README.md`, and App Store processing or internal-group availability is not inferred from EAS status.
+- Strategic Phase 0–1 product code is merged on `main`. Production EAS analytics configuration is complete, and build `1.0.0 (9)` from `ba70743` plus EAS submission `2aaf6efa-1b6d-4c74-8b48-da29401f8d58` finished successfully with `CSG Internal` requested.
 - The production access-denied entry flow was rechecked locally against `https://csg-learn-api.onrender.com` without demo mode.
-- Build 9 processing, internal-group availability, authenticated role smoke testing, and step 10 remain TestFlight acceptance work. No local simulator credential was retained or manufactured for that check.
+- Apple processing, build 9 internal-group installability, authenticated role smoke testing, and step 10 remain TestFlight acceptance work. No local simulator credential was retained or manufactured for that check.
 - Public App Store review has intentionally not been submitted; it follows physical-device acceptance.
 
 The exact release record, screenshot inventory, and physical-device checklist are in [`app-store/README.md`](./app-store/README.md).
