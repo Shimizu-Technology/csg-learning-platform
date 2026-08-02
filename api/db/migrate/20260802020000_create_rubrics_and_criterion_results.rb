@@ -22,7 +22,7 @@ class CreateRubricsAndCriterionResults < ActiveRecord::Migration[8.1]
 
     create_table :submission_criterion_results do |t|
       t.references :submission, null: false, foreign_key: true
-      t.references :rubric_criterion, null: false, foreign_key: true
+      t.references :rubric_criterion, null: false, foreign_key: { to_table: :rubric_criteria }
       t.integer :rating, null: false
       t.text :feedback
       t.timestamps

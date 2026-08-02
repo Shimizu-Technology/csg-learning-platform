@@ -31,6 +31,7 @@ class User < ApplicationRecord
   has_many :updated_submission_windows, class_name: "CohortModuleSubmissionWindow", foreign_key: :updated_by_id, dependent: :nullify
   has_many :help_requests, foreign_key: :student_id, dependent: :destroy
   has_many :owned_help_requests, class_name: "HelpRequest", foreign_key: :owner_id, dependent: :nullify
+  has_many :feedback_snippets, foreign_key: :created_by_id, inverse_of: :created_by, dependent: :destroy
 
   validates :clerk_id, presence: true, uniqueness: true
   validates :email, presence: true, uniqueness: { case_sensitive: false }
@@ -69,7 +70,8 @@ class User < ApplicationRecord
       uploaded_content_block_videos.none? &&
       message_attachments.none? &&
       direct_conversation_members.none? &&
-      help_requests.none?
+      help_requests.none? &&
+      feedback_snippets.none?
   end
 
   def full_name

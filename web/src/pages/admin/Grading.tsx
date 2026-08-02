@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Filter, Check, RotateCcw, Clock, ChevronRight, Layers3 } from 'lucide-react'
+import { ArrowLeft, Filter, Check, RotateCcw, Clock, ChevronRight, Layers3, BookmarkPlus, MessageSquareText } from 'lucide-react'
 import { api } from '../../lib/api'
 import { GradeDisplay } from '../../components/shared/GradeDisplay'
 import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
@@ -9,7 +9,8 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { CODE_RUNNER_TIMEOUT_MS, codeRunnerLanguageFromEditor, normalizeCodeRunnerConfig } from '../../lib/codeRunner'
 import { useToast } from '../../contexts/ToastContext'
-import type { Rubric, RubricRating } from '../../types/api'
+import { appendFeedbackSnippet } from '../../lib/feedbackSnippets'
+import type { FeedbackSnippet, Rubric, RubricRating } from '../../types/api'
 
 type QueueFilter = 'ungraded' | 'redo' | 'all'
 
@@ -53,6 +54,8 @@ export function Grading() {
   const [criterionResults, setCriterionResults] = useState<Record<number, { rating: RubricRating | null; feedback: string }>>({})
   const [grading, setGrading] = useState(false)
   const [loadingDetail, setLoadingDetail] = useState(false)
+  const [feedbackSnippets, setFeedbackSnippets] = useState<FeedbackSnippet[]>([])
+  const [savingSnippet, setSavingSnippet] = useState(false)
 
   const latestSubmissionIds = useMemo(() => {
     const latest = new Map<string, number>()
@@ -98,7 +101,30 @@ export function Grading() {
 
   useEffect(() => {
     loadSubmissions()
+    void api.getFeedbackSnippets().then((response) => {
+      if (response.data) setFeedbackSnippets(response.data.feedback_snippets)
+    })
   }, [])
+
+  const applyFeedbackSnippet = (snippet: FeedbackSnippet) => {
+    setFeedback((current) => appendFeedbackSnippet(current, snippet.body))
+    setFeedbackSnippets((current) => current.map((item) => item.id === snippet.id ? { ...item, usage_count: item.usage_count + 1 } : item))
+    void api.useFeedbackSnippet(snippet.id)
+  }
+
+  const saveFeedbackSnippet = async () => {
+    const body = feedback.trim()
+    if (!body) return
+    setSavingSnippet(true)
+    const response = await api.createFeedbackSnippet(body)
+    if (response.data) {
+      setFeedbackSnippets((current) => [response.data!.feedback_snippet, ...current])
+      toast.success('Feedback snippet saved')
+    } else {
+      toast.error(response.error || 'Could not save feedback snippet')
+    }
+    setSavingSnippet(false)
+  }
 
   const selectSubmission = async (submission: SubmissionItem) => {
     setLoadingDetail(true)
@@ -339,6 +365,7 @@ export function Grading() {
 
                 <div>
                   {selectedSubmission.rubric && <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Criterion review</p><h3 className="mt-1 font-extrabold text-slate-950">{selectedSubmission.rubric.title}</h3><div className="mt-4 space-y-3">{selectedSubmission.rubric.criteria.map((criterion) => <div key={criterion.id} className="rounded-xl border border-emerald-100 bg-white p-3"><p className="text-sm font-bold text-slate-900">{criterion.title}</p><p className="mt-1 text-xs leading-5 text-slate-500">{criterion.description}</p><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{([['exceeds', 'Exceeds'], ['meets', 'Meets'], ['developing', 'Developing'], ['redo', 'Revision']] as [RubricRating, string][]).map(([rating, label]) => <button key={rating} type="button" onClick={() => setCriterionResults((current) => ({ ...current, [criterion.id]: { rating, feedback: current[criterion.id]?.feedback || '' } }))} className={`min-h-11 rounded-xl border px-2 text-xs font-bold ${criterionResults[criterion.id]?.rating === rating ? 'border-emerald-500 bg-emerald-100 text-emerald-900' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{label}</button>)}</div><textarea aria-label={`Feedback for ${criterion.title}`} value={criterionResults[criterion.id]?.feedback || ''} onChange={(event) => setCriterionResults((current) => ({ ...current, [criterion.id]: { rating: current[criterion.id]?.rating || null, feedback: event.target.value } }))} placeholder="Optional focused feedback for this criterion" className="mt-2 min-h-20 w-full rounded-xl border border-slate-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" /></div>)}</div></div>}
+                  {feedbackSnippets.length > 0 && <div className="mb-3 rounded-2xl border border-slate-200 bg-slate-50 p-3"><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500"><MessageSquareText className="h-4 w-4" />Reusable snippets</div><div className="mt-2 flex flex-wrap gap-2">{feedbackSnippets.map((snippet) => <button key={snippet.id} type="button" title={snippet.body} onClick={() => applyFeedbackSnippet(snippet)} className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-left text-xs font-bold text-slate-700 hover:border-primary-300 hover:text-primary-700">{snippet.title}</button>)}</div><p className="mt-2 text-xs leading-5 text-slate-500">A snippet is inserted into the draft below. Edit it for this student before grading.</p></div>}
                   <label className="text-sm font-medium text-slate-700">Feedback</label>
                   <textarea
                     value={feedback}
@@ -346,6 +373,7 @@ export function Grading() {
                     placeholder="Feedback for the student..."
                     className="mt-1 w-full rounded-lg border border-slate-200 p-3 text-sm resize-y min-h-[100px] focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
+                  <button type="button" disabled={!feedback.trim() || savingSnippet} onClick={() => void saveFeedbackSnippet()} className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-40"><BookmarkPlus className="h-4 w-4" />{savingSnippet ? 'Saving…' : 'Save draft as reusable snippet'}</button>
                 </div>
 
                 <div className="flex flex-wrap gap-2">

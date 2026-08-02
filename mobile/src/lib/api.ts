@@ -4,6 +4,7 @@ import type {
   ChannelSummary,
   ConversationPayload,
   DirectConversationSummary,
+  FeedbackSnippet,
   Message,
   MessageEvent,
   MessageSearchResult,
@@ -158,6 +159,9 @@ export class CsgApi {
   submissions = (params: { user_id?: number; ungraded?: boolean; module_id?: number } = {}, signal?: AbortSignal) => this.request<{ submissions: Submission[] }>(`/api/v1/submissions${queryString(params)}`, { signal });
   submission = (id: number, signal?: AbortSignal) => this.request<{ submission: Submission }>(`/api/v1/submissions/${id}`, { signal });
   gradeSubmission = (id: number, grade: 'A' | 'B' | 'C' | 'R', feedback: string, criterionResults?: { rubric_criterion_id: number; rating: import('./types').RubricRating; feedback?: string }[]) => this.request<{ submission: Submission }>(`/api/v1/submissions/${id}/grade`, { method: 'PATCH', body: JSON.stringify({ grade, feedback, criterion_results: criterionResults }) });
+  feedbackSnippets = (signal?: AbortSignal) => this.request<{ feedback_snippets: FeedbackSnippet[] }>('/api/v1/feedback_snippets', { signal });
+  createFeedbackSnippet = (body: string) => this.request<{ feedback_snippet: FeedbackSnippet }>('/api/v1/feedback_snippets', { method: 'POST', body: JSON.stringify({ feedback_snippet: { body } }) });
+  useFeedbackSnippet = (id: number) => this.request<{ feedback_snippet: FeedbackSnippet }>(`/api/v1/feedback_snippets/${id}/use`, { method: 'POST' });
   studentProgress = (studentId: number, signal?: AbortSignal) => this.request<StudentProgressDetail>(`/api/v1/progress/student/${studentId}`, { signal });
   restartEnrollment = (enrollmentId: number, confirmation: string, reason?: string) => this.request<{
     message: string;

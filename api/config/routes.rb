@@ -91,6 +91,11 @@ Rails.application.routes.draw do
       end
       resources :learning_objectives, only: [ :index, :create, :update, :destroy ]
       resources :rubrics, only: [ :index, :create, :update, :destroy ]
+      resources :feedback_snippets, only: [ :index, :create, :update, :destroy ] do
+        member do
+          post :use
+        end
+      end
 
       # Modules (shallow) with nested lessons
       resources :modules, only: [ :show, :update, :destroy ] do

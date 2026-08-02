@@ -591,6 +591,15 @@ export interface Rubric {
   criteria: RubricCriterion[];
 }
 
+export interface FeedbackSnippet {
+  id: number;
+  title: string;
+  body: string;
+  usage_count: number;
+  created_by: string;
+  can_manage: boolean;
+}
+
 export interface LessonObjective {
   alignment_id: number;
   id: number;
