@@ -7,7 +7,7 @@ import { MessageCodeBlock } from '../message-code-block';
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn().mockResolvedValue(undefined) }));
 jest.mock('lucide-react-native', () => {
   const Icon = () => null;
-  return { Check: Icon, ChevronLeft: Icon, ChevronRight: Icon, Copy: Icon };
+  return { Check: Icon, Copy: Icon, MoveHorizontal: Icon };
 });
 
 describe('MessageCodeBlock', () => {
@@ -19,6 +19,7 @@ describe('MessageCodeBlock', () => {
 
     expect(scroller.props.horizontal).toBe(true);
     expect(scroller.props.directionalLockEnabled).toBe(true);
+    expect(scroller.props.nestedScrollEnabled).toBe(true);
     expect(StyleSheet.flatten(codeText.props.style)).toMatchObject({ alignSelf: 'flex-start', flexShrink: 0 });
     expect(codeText.props.selectable).toBeUndefined();
   });
@@ -31,17 +32,21 @@ describe('MessageCodeBlock', () => {
       nativeEvent: { lines: [{ width: 496 }] },
     });
 
-    expect(screen.getByText('Scroll')).toBeTruthy();
-    expect(screen.getByLabelText('Scroll code right')).toBeTruthy();
-    expect(screen.queryByLabelText('Scroll code left')).toBeNull();
+    expect(screen.getByText('Drag')).toBeTruthy();
+    expect(screen.getByLabelText('Code continues horizontally. Drag to read more.')).toBeTruthy();
     expect(screen.getByLabelText('Code block, scroll horizontally for more')).toBeTruthy();
+    expect(screen.getByTestId('message-code-scroller').props.accessibilityActions).toEqual([
+      { name: 'decrement', label: 'Scroll code left' },
+      { name: 'increment', label: 'Scroll code right' },
+    ]);
     expect(screen.getByTestId('message-code-scroller').props.showsHorizontalScrollIndicator).toBe(true);
     expect(StyleSheet.flatten(screen.getByTestId('message-code-scroller').props.contentContainerStyle).minWidth).toBeGreaterThanOrEqual(520);
 
     fireEvent.scroll(screen.getByTestId('message-code-scroller'), {
       nativeEvent: { contentOffset: { x: 100, y: 0 } },
     });
-    expect(screen.getByLabelText('Scroll code left')).toBeTruthy();
+    expect(screen.queryByLabelText('Scroll code left')).toBeNull();
+    expect(screen.queryByLabelText('Scroll code right')).toBeNull();
   });
 
   it('does not offer horizontal navigation for code that fits', () => {
@@ -52,9 +57,10 @@ describe('MessageCodeBlock', () => {
       nativeEvent: { lines: [{ width: 112 }] },
     });
 
-    expect(screen.queryByText('Scroll')).toBeNull();
+    expect(screen.queryByText('Drag')).toBeNull();
     expect(screen.queryByLabelText('Scroll code right')).toBeNull();
     expect(screen.getByLabelText('Code block')).toBeTruthy();
+    expect(screen.getByTestId('message-code-scroller').props.accessibilityActions).toBeUndefined();
     expect(screen.getByTestId('message-code-scroller').props.showsHorizontalScrollIndicator).toBe(false);
   });
 
