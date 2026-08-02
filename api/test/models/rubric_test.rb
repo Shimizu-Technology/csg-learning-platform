@@ -61,4 +61,16 @@ class RubricTest < ActiveSupport::TestCase
     assert_not criterion.update(title: "A different standard")
     assert_includes criterion.errors[:base], "Criterion cannot be changed after feedback has been recorded"
   end
+
+  test "attached rubric cannot be deleted out from under student work" do
+    curriculum = Curriculum.create!(name: "Web")
+    curriculum_module = CurriculumModule.create!(curriculum: curriculum, name: "Week 1", position: 0, day_offset: 0)
+    lesson = Lesson.create!(curriculum_module: curriculum_module, title: "Project", position: 0, release_day: 0)
+    rubric = Rubric.create!(curriculum: curriculum, title: "Quality", rubric_criteria_attributes: [ { title: "Correctness", description: "The result works." } ])
+    lesson.content_blocks.create!(block_type: :exercise, position: 0, rubric: rubric)
+
+    assert_not rubric.destroy
+    assert_includes rubric.errors[:base], "Cannot delete record because dependent content blocks exist"
+    assert Rubric.exists?(rubric.id)
+  end
 end
