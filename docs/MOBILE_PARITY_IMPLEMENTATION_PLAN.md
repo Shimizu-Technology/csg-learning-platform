@@ -7,7 +7,7 @@ Product: CSG Connect
 Platforms: iOS and Android through Expo / React Native
 
 Backend: existing Rails `/api/v1` API
-Status: phases 1–4 implemented and merged; TestFlight build 4 is in internal acceptance
+Status: phases 1–4 and strategic phases 0–1 implemented and merged; build 9 is the planned Phase 0–1 TestFlight candidate
 
 ## 1. Outcome
 
@@ -432,14 +432,16 @@ After all phases:
 
 App Store submission for public review remains a distinct final action after TestFlight acceptance. TestFlight distribution does not by itself submit the public App Store version.
 
-Current release status (2026-07-22):
+Current release status (2026-08-02):
 
-- Steps 1, 3, 4, and 6–9 are complete for iOS build `1.0.0 (4)` from source commit `070b4dc`.
+- Steps 1, 3, 4, and 6–9 were completed for the confirmed baseline iOS build `1.0.0 (4)` from source commit `070b4dc`.
 - App Store Connect has six current 6.9-inch iPhone screenshots, six current 13-inch iPad screenshots, refreshed product copy, and build 4 attached to the 1.0 draft.
 - Step 5's store images are complete using deterministic `__DEV__` sample data rather than a release-equivalent authenticated session. This deliberate privacy deviation excludes real student data; the physical TestFlight pass in step 10 must include a visual comparison against the uploaded surfaces.
 - Build 4 is processed and available in the `CSG Internal` TestFlight group to the active invited tester.
+- EAS production archives 5–8 also completed successfully. Build 8 is the newest of those archives, from source commit `8731815`; App Store processing and internal-group availability are not inferred from EAS archive status.
+- Strategic Phase 0–1 product code is merged on `main`. Production EAS analytics configuration is complete, and build `1.0.0 (9)` is the next candidate to build and upload for internal TestFlight acceptance.
 - The production access-denied entry flow was rechecked locally against `https://csg-learn-api.onrender.com` without demo mode.
-- Authenticated role smoke testing and step 10 remain TestFlight acceptance work on the invited tester's physical iPhone. No local simulator credential was retained or manufactured for that check.
+- Build 9 processing, internal-group availability, authenticated role smoke testing, and step 10 remain TestFlight acceptance work. No local simulator credential was retained or manufactured for that check.
 - Public App Store review has intentionally not been submitted; it follows physical-device acceptance.
 
 The exact release record, screenshot inventory, and physical-device checklist are in [`app-store/README.md`](./app-store/README.md).
