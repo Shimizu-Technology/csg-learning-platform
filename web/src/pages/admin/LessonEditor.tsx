@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Save, Trash2, Eye, Pencil } from 'lucide-react'
+import { ArrowLeft, Save, Trash2, Eye, Pencil, Plus, Target, X } from 'lucide-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { RichTextEditor } from '../../components/shared/RichTextEditor'
@@ -17,6 +17,8 @@ import {
   normalizeCodeRunnerConfig,
   type CodeRunnerConfig,
 } from '../../lib/codeRunner'
+import { LearningObjectivesPanel } from '../../components/shared/LearningObjectivesPanel'
+import type { LearningObjective, LessonObjective } from '../../types/api'
 
 interface ContentBlock {
   id: number
@@ -37,6 +39,7 @@ interface ContentBlock {
 
 interface Lesson {
   id: number
+  curriculum_id: number
   title: string
   module_id: number
   lesson_type?: string
@@ -44,7 +47,10 @@ interface Lesson {
   requires_submission?: boolean
   submission_type?: string
   content_blocks: ContentBlock[]
+  objectives: LessonObjective[]
 }
+
+type ObjectiveAlignmentDraft = { learning_objective_id: number; content_block_id: number | null }
 
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
@@ -53,6 +59,10 @@ export function LessonEditor() {
   const navigate = useNavigate()
   const toast = useToast()
   const [lesson, setLesson] = useState<Lesson | null>(null)
+  const [objectiveCatalog, setObjectiveCatalog] = useState<LearningObjective[]>([])
+  const [objectiveAlignments, setObjectiveAlignments] = useState<ObjectiveAlignmentDraft[]>([])
+  const [creatingObjective, setCreatingObjective] = useState(false)
+  const [objectiveDraft, setObjectiveDraft] = useState({ code: '', title: '', description: '', success_criteria: '' })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchParams] = useSearchParams()
@@ -102,6 +112,10 @@ export function LessonEditor() {
         const data = res.data as { lesson: Lesson }
         const l = data.lesson
         setLesson(l)
+        setObjectiveAlignments((l.objectives || []).map((objective) => ({ learning_objective_id: objective.id, content_block_id: objective.content_block_id })))
+        void api.getLearningObjectives(l.curriculum_id).then((objectiveRes) => {
+          if (objectiveRes.data) setObjectiveCatalog(objectiveRes.data.learning_objectives)
+        })
         setTitle(l.title || '')
         const videoBlock = l.content_blocks.find(b => b.block_type === 'video' || b.block_type === 'recording')
         if (videoBlock) {
@@ -219,6 +233,9 @@ export function LessonEditor() {
         if (eRes.error) { setSaveError(eRes.error); toast.error(eRes.error); setSaving(false); return }
       }
 
+      const objectiveRes = await api.updateObjectiveAlignments(lesson.id, objectiveAlignments)
+      if (objectiveRes.error) { setSaveError(objectiveRes.error); toast.error(objectiveRes.error); setSaving(false); return }
+
       setSaveSuccess(true)
       toast.success('Exercise saved successfully')
       setTimeout(() => setSaveSuccess(false), 3000)
@@ -227,6 +244,7 @@ export function LessonEditor() {
       if (refreshRes.data) {
         const data = refreshRes.data as { lesson: Lesson }
         setLesson(data.lesson)
+        setObjectiveAlignments((data.lesson.objectives || []).map((objective) => ({ learning_objective_id: objective.id, content_block_id: objective.content_block_id })))
         const refreshedVideo = data.lesson.content_blocks.find(b => b.block_type === 'video' || b.block_type === 'recording')
         if (refreshedVideo) {
           setVideoBlockId(refreshedVideo.id)
@@ -272,6 +290,52 @@ export function LessonEditor() {
       setRunnerConfig((current) => ({ ...current, enabled: false }))
     }
   }
+
+  const handleCreateObjective = async () => {
+    if (!lesson || !objectiveDraft.code.trim() || !objectiveDraft.title.trim() || !objectiveDraft.success_criteria.trim()) {
+      setSaveError('Objective code, title, and success criteria are required.')
+      return
+    }
+    setCreatingObjective(true)
+    setSaveError(null)
+    const response = await api.createLearningObjective({
+      curriculum_id: lesson.curriculum_id,
+      code: objectiveDraft.code,
+      title: objectiveDraft.title,
+      description: objectiveDraft.description || undefined,
+      success_criteria: objectiveDraft.success_criteria,
+      position: objectiveCatalog.length,
+    })
+    setCreatingObjective(false)
+    if (response.error || !response.data) {
+      setSaveError(response.error || 'Could not create the objective.')
+      return
+    }
+    const objective = response.data.learning_objective
+    setObjectiveCatalog((current) => [...current, objective])
+    setObjectiveAlignments((current) => [...current, { learning_objective_id: objective.id, content_block_id: null }])
+    setObjectiveDraft({ code: '', title: '', description: '', success_criteria: '' })
+    toast.success('Objective created and added to this lesson')
+  }
+
+  const previewObjectives: LessonObjective[] = objectiveAlignments.flatMap((alignment, index) => {
+    const objective = objectiveCatalog.find((item) => item.id === alignment.learning_objective_id)
+    if (!objective) return []
+    const block = lesson?.content_blocks.find((item) => item.id === alignment.content_block_id)
+    return [{
+      alignment_id: -(index + 1),
+      id: objective.id,
+      code: objective.code,
+      title: objective.title,
+      description: objective.description,
+      success_criteria: objective.success_criteria,
+      active: objective.active,
+      content_block_id: alignment.content_block_id,
+      content_block_title: block?.title || null,
+    }]
+  })
+
+  const availableObjectives = objectiveCatalog.filter((objective) => !objectiveAlignments.some((alignment) => alignment.learning_objective_id === objective.id))
 
   const previewBlocks = useMemo(() => {
     const blocks: ContentBlock[] = []
@@ -405,6 +469,8 @@ export function LessonEditor() {
             </div>
           </div>
 
+          <LearningObjectivesPanel objectives={previewObjectives} preview />
+
           <div className="space-y-4">
             {previewBlocks.map((block) => (
               <ContentBlockRenderer
@@ -505,6 +571,75 @@ export function LessonEditor() {
               title={title}
             />
           </div>
+
+
+          <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_14px_40px_rgba(15,23,42,0.04)]">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-start gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary-50 text-primary-600"><Target className="h-5 w-5" /></span>
+                <div>
+                  <p className="app-eyebrow">Learning design</p>
+                  <h2 className="mt-1 text-lg font-extrabold tracking-tight text-slate-950">Objectives and success criteria</h2>
+                  <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">Tell students what they are building toward before they begin. Reuse objectives across lessons and attach each one to the whole lesson or a specific block.</p>
+                </div>
+              </div>
+              {availableObjectives.length > 0 && (
+                <select
+                  aria-label="Add an existing objective"
+                  value=""
+                  onChange={(event) => {
+                    if (!event.target.value) return
+                    setObjectiveAlignments((current) => [...current, { learning_objective_id: Number(event.target.value), content_block_id: null }])
+                  }}
+                  className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="">Add existing objective…</option>
+                  {availableObjectives.map((objective) => <option key={objective.id} value={objective.id}>{objective.code} · {objective.title}</option>)}
+                </select>
+              )}
+            </div>
+
+            <div className="mt-5 space-y-3">
+              {objectiveAlignments.map((alignment) => {
+                const objective = objectiveCatalog.find((item) => item.id === alignment.learning_objective_id)
+                if (!objective) return null
+                return (
+                  <div key={objective.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                    <div className="flex items-start gap-3">
+                      <span className="rounded-lg bg-white px-2 py-1 font-mono text-[11px] font-bold text-slate-600 shadow-sm">{objective.code}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-extrabold text-slate-950">{objective.title}</p>
+                        <p className="mt-1 text-sm leading-6 text-slate-600">{objective.success_criteria}</p>
+                        <label className="mt-3 block text-xs font-bold uppercase tracking-wide text-slate-500">
+                          Applies to
+                          <select
+                            value={alignment.content_block_id || ''}
+                            onChange={(event) => setObjectiveAlignments((current) => current.map((item) => item.learning_objective_id === objective.id ? { ...item, content_block_id: event.target.value ? Number(event.target.value) : null } : item))}
+                            className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold normal-case tracking-normal text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-500 sm:max-w-md"
+                          >
+                            <option value="">Entire lesson</option>
+                            {lesson.content_blocks.map((block) => <option key={block.id} value={block.id}>{block.title || `${block.block_type} block`}</option>)}
+                          </select>
+                        </label>
+                      </div>
+                      <button type="button" aria-label={`Remove ${objective.title}`} onClick={() => setObjectiveAlignments((current) => current.filter((item) => item.learning_objective_id !== objective.id))} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-white hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"><X className="h-4 w-4" /></button>
+                    </div>
+                  </div>
+                )
+              })}
+              {!objectiveAlignments.length && <div className="rounded-2xl border border-dashed border-slate-300 px-5 py-7 text-center text-sm text-slate-500">No objectives yet. Create the first one below or reuse one from this curriculum.</div>}
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-primary-100 bg-primary-50/40 p-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Objective code<input value={objectiveDraft.code} onChange={(event) => setObjectiveDraft((current) => ({ ...current, code: event.target.value }))} placeholder="TERM.1" className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 font-mono text-sm normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-primary-500" /></label>
+                <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Student-facing title<input value={objectiveDraft.title} onChange={(event) => setObjectiveDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Navigate folders from the terminal" className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-primary-500" /></label>
+                <label className="text-xs font-bold uppercase tracking-wide text-slate-600 sm:col-span-2">Context (optional)<textarea value={objectiveDraft.description} onChange={(event) => setObjectiveDraft((current) => ({ ...current, description: event.target.value }))} placeholder="What concept or skill this objective covers." rows={2} className="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-primary-500" /></label>
+                <label className="text-xs font-bold uppercase tracking-wide text-slate-600 sm:col-span-2">Success criteria<textarea value={objectiveDraft.success_criteria} onChange={(event) => setObjectiveDraft((current) => ({ ...current, success_criteria: event.target.value }))} placeholder="I can move into a requested folder, go back one level, and confirm where I am." rows={3} className="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-primary-500" /></label>
+              </div>
+              <button type="button" disabled={creatingObjective} onClick={() => void handleCreateObjective()} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-bold text-white transition hover:bg-slate-800 disabled:opacity-50"><Plus className="h-4 w-4" />{creatingObjective ? 'Creating…' : 'Create and add objective'}</button>
+            </div>
+          </section>
 
           {/* Instructions — WYSIWYG editor */}
           <div className="rounded-2xl border border-slate-200 bg-white p-6">

@@ -89,6 +89,7 @@ Rails.application.routes.draw do
       resources :curricula, only: [ :index, :show, :create, :update, :destroy ] do
         resources :modules, only: [ :index, :create ]
       end
+      resources :learning_objectives, only: [ :index, :create, :update, :destroy ]
 
       # Modules (shallow) with nested lessons
       resources :modules, only: [ :show, :update, :destroy ] do
@@ -99,6 +100,7 @@ Rails.application.routes.draw do
       # Lessons (shallow) with nested content blocks
       resources :lessons, only: [ :show, :update, :destroy ] do
         resources :content_blocks, only: [ :index, :create ]
+        resource :objective_alignments, only: :update
       end
 
       # Generic video presign (staff, no content block needed)

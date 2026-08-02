@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_01_000200) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_02_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -235,6 +235,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_01_000200) do
     t.index ["student_id"], name: "index_help_requests_on_student_id"
   end
 
+  create_table "learning_objectives", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.string "code", null: false
+    t.datetime "created_at", null: false
+    t.bigint "curriculum_id", null: false
+    t.text "description"
+    t.integer "position", default: 0, null: false
+    t.text "success_criteria", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["curriculum_id", "code"], name: "index_learning_objectives_on_curriculum_id_and_code", unique: true
+    t.index ["curriculum_id"], name: "index_learning_objectives_on_curriculum_id"
+    t.check_constraint "position >= 0", name: "learning_objectives_position_nonnegative"
+  end
+
   create_table "lesson_assignments", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.bigint "enrollment_id", null: false
@@ -382,6 +397,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_01_000200) do
     t.index ["notifiable_type", "notifiable_id"], name: "index_notifications_on_notifiable"
     t.index ["user_id", "read_at", "created_at"], name: "index_notifications_on_user_id_and_read_at_and_created_at"
     t.index ["user_id"], name: "index_notifications_on_user_id"
+  end
+
+  create_table "objective_alignments", force: :cascade do |t|
+    t.bigint "content_block_id"
+    t.datetime "created_at", null: false
+    t.bigint "learning_objective_id", null: false
+    t.bigint "lesson_id", null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["content_block_id", "learning_objective_id"], name: "idx_objective_alignments_unique_block", unique: true, where: "(content_block_id IS NOT NULL)"
+    t.index ["content_block_id"], name: "index_objective_alignments_on_content_block_id"
+    t.index ["learning_objective_id"], name: "index_objective_alignments_on_learning_objective_id"
+    t.index ["lesson_id", "learning_objective_id"], name: "idx_objective_alignments_unique_lesson", unique: true, where: "(content_block_id IS NULL)"
+    t.index ["lesson_id"], name: "index_objective_alignments_on_lesson_id"
+    t.check_constraint "position >= 0", name: "objective_alignments_position_nonnegative"
   end
 
   create_table "office_hours", force: :cascade do |t|
@@ -691,6 +721,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_01_000200) do
   add_foreign_key "help_requests", "cohorts"
   add_foreign_key "help_requests", "users", column: "owner_id"
   add_foreign_key "help_requests", "users", column: "student_id"
+  add_foreign_key "learning_objectives", "curricula", column: "curriculum_id"
   add_foreign_key "lesson_assignments", "enrollments"
   add_foreign_key "lesson_assignments", "lessons"
   add_foreign_key "lessons", "modules"
@@ -710,6 +741,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_01_000200) do
   add_foreign_key "modules", "curricula", column: "curriculum_id"
   add_foreign_key "notifications", "users"
   add_foreign_key "notifications", "users", column: "actor_id"
+  add_foreign_key "objective_alignments", "content_blocks"
+  add_foreign_key "objective_alignments", "learning_objectives"
+  add_foreign_key "objective_alignments", "lessons"
   add_foreign_key "office_hours", "cohorts"
   add_foreign_key "office_hours", "users", column: "created_by_id"
   add_foreign_key "progresses", "content_blocks"

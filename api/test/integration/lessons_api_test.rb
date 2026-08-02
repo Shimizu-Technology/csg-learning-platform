@@ -113,6 +113,66 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert body.fetch("s3_video_uploaded_at").present?
   end
 
+  test "admin can create and align reusable objectives while students receive active success criteria" do
+    objective_id = nil
+    as_user(@admin) do
+      post "/api/v1/learning_objectives",
+           params: {
+             learning_objective: {
+               curriculum_id: @curriculum.id,
+               code: " rb.1 ",
+               title: "Explain variables",
+               description: "Connect names to stored values.",
+               success_criteria: "I can assign, read, and update a variable.",
+               position: 1
+             }
+           },
+           headers: auth_headers
+      assert_response :created
+      objective_id = JSON.parse(response.body).dig("learning_objective", "id")
+
+      put "/api/v1/lessons/#{@lesson.id}/objective_alignments",
+          params: { alignments: [ { learning_objective_id: objective_id, content_block_id: @video_block.id } ] },
+          headers: auth_headers
+      assert_response :success
+    end
+
+    as_user(@student) do
+      get "/api/v1/lessons/#{@lesson.id}", headers: auth_headers
+    end
+    assert_response :success
+    objective = JSON.parse(response.body).dig("lesson", "objectives", 0)
+    assert_equal "RB.1", objective.fetch("code")
+    assert_equal "I can assign, read, and update a variable.", objective.fetch("success_criteria")
+    assert_equal @video_block.id, objective.fetch("content_block_id")
+  end
+
+  test "objective alignment replacement rejects another curriculum and preserves existing alignments" do
+    objective = LearningObjective.create!(
+      curriculum: @curriculum,
+      code: "BASE.1",
+      title: "Use the terminal",
+      success_criteria: "I can run a command and explain its output."
+    )
+    ObjectiveAlignment.create!(lesson: @lesson, learning_objective: objective)
+    other_curriculum = Curriculum.create!(name: "Other")
+    other_objective = LearningObjective.create!(
+      curriculum: other_curriculum,
+      code: "OTHER.1",
+      title: "Unrelated",
+      success_criteria: "I can complete the unrelated task."
+    )
+
+    as_user(@admin) do
+      put "/api/v1/lessons/#{@lesson.id}/objective_alignments",
+          params: { alignments: [ { learning_objective_id: other_objective.id } ] },
+          headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal [ objective.id ], @lesson.reload.objective_alignments.pluck(:learning_objective_id)
+  end
+
   test "student video stream response includes explicit signed URL expiry" do
     expires_in = with_s3_stream_url("https://signed.example/lesson.mp4") do
       as_user(@student) do

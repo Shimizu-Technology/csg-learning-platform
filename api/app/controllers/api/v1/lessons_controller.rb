@@ -170,6 +170,7 @@ module Api
         requires_github = false
         json = {
           id: lesson.id,
+          curriculum_id: lesson.curriculum_module.curriculum_id,
           module_id: lesson.module_id,
           title: lesson.title,
           lesson_type: lesson.lesson_type,
@@ -178,6 +179,8 @@ module Api
           required: lesson.required,
           content_blocks_count: lesson.content_blocks.size
         }
+
+        json[:objectives] = objective_json(lesson, include_inactive: current_user.staff?)
 
         if current_user.student?
           enrollment = @lesson_enrollment || current_user.enrollments.active
@@ -215,7 +218,9 @@ module Api
               submission_config: cb.submission_config || {},
               metadata: cb.metadata,
               has_s3_video: cb.s3_video_key.present?,
-              completion_required: completion_block_ids.include?(cb.id)
+              completion_required: completion_block_ids.include?(cb.id),
+              objective_ids: lesson.objective_alignments.select { |alignment| alignment.content_block_id == cb.id }
+                .map(&:learning_objective_id)
             }
 
             if current_user.staff?
@@ -300,6 +305,25 @@ module Api
         end
 
         json
+      end
+
+      def objective_json(lesson, include_inactive: false)
+        alignments = lesson.objective_alignments.includes(:learning_objective, :content_block).ordered
+        alignments = alignments.select { |alignment| alignment.learning_objective.active? } unless include_inactive
+        alignments.map do |alignment|
+          objective = alignment.learning_objective
+          {
+            alignment_id: alignment.id,
+            id: objective.id,
+            code: objective.code,
+            title: objective.title,
+            description: objective.description,
+            success_criteria: objective.success_criteria,
+            active: objective.active,
+            content_block_id: alignment.content_block_id,
+            content_block_title: alignment.content_block&.title
+          }
+        end
       end
 
       def normalized_submission_type_for_create

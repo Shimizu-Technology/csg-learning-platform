@@ -12,6 +12,8 @@ class ContentBlock < ApplicationRecord
   belongs_to :s3_video_uploaded_by, class_name: "User", optional: true
   has_many :progresses, dependent: :destroy
   has_many :submissions, dependent: :destroy
+  has_many :objective_alignments, dependent: :destroy
+  has_many :learning_objectives, through: :objective_alignments
 
   validates :block_type, presence: true
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
