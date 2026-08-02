@@ -11,12 +11,25 @@ module Api
       end
 
       def create
-        objective = LearningObjective.new(objective_params)
-        if objective.save
-          render json: { learning_objective: objective_json(objective) }, status: :created
-        else
-          render json: { errors: objective.errors.full_messages }, status: :unprocessable_entity
+        objective = nil
+        LearningObjective.transaction do
+          objective = LearningObjective.create!(objective_params)
+          if params[:lesson_id].present?
+            lesson = Lesson.find(params[:lesson_id])
+            unless lesson.curriculum_module.curriculum_id == objective.curriculum_id
+              objective.errors.add(:curriculum, "must match the lesson curriculum")
+              raise ActiveRecord::RecordInvalid, objective
+            end
+            lesson.objective_alignments.create!(
+              learning_objective: objective,
+              position: lesson.objective_alignments.maximum(:position).to_i + 1
+            )
+          end
         end
+        render json: { learning_objective: objective_json(objective) }, status: :created
+      rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound => error
+        messages = error.respond_to?(:record) ? error.record.errors.full_messages : [ error.message ]
+        render json: { errors: messages }, status: :unprocessable_entity
       end
 
       def update

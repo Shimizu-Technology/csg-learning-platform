@@ -739,15 +739,28 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
+  updateLessonEditor: (id: number, data: {
+    title: string;
+    requires_submission: boolean;
+    video?: { id?: number; title: string; video_url: string | null; s3_video_key?: string | null };
+    exercise?: { id?: number; title: string; body: string | null; solution: string | null; filename: string | null; submission_type: string; submission_config: Record<string, unknown> };
+    alignments: { learning_objective_id: number; content_block_id?: number | null }[];
+  }) =>
+    fetchApi<LessonResponse>(`/api/v1/lessons/${id}/editor`, {
+      method: 'PATCH',
+      body: JSON.stringify({ editor: data }),
+    }),
   deleteLesson: (id: number) =>
     fetchApi<void>(`/api/v1/lessons/${id}`, { method: 'DELETE' }),
   getLearningObjectives: (curriculumId: number) =>
     fetchApi<{ learning_objectives: import('../types/api').LearningObjective[] }>(`/api/v1/learning_objectives?curriculum_id=${curriculumId}`),
-  createLearningObjective: (data: { curriculum_id: number; code: string; title: string; description?: string; success_criteria: string; position?: number; active?: boolean }) =>
-    fetchApi<{ learning_objective: import('../types/api').LearningObjective }>('/api/v1/learning_objectives', {
+  createLearningObjective: (data: { curriculum_id: number; code: string; title: string; description?: string; success_criteria: string; position?: number; active?: boolean; lesson_id?: number }) => {
+    const { lesson_id, ...objective } = data
+    return fetchApi<{ learning_objective: import('../types/api').LearningObjective }>('/api/v1/learning_objectives', {
       method: 'POST',
-      body: JSON.stringify({ learning_objective: data }),
-    }),
+      body: JSON.stringify({ learning_objective: objective, lesson_id }),
+    })
+  },
   updateLearningObjective: (id: number, data: Partial<{ code: string; title: string; description: string; success_criteria: string; position: number; active: boolean }>) =>
     fetchApi<{ learning_objective: import('../types/api').LearningObjective }>(`/api/v1/learning_objectives/${id}`, {
       method: 'PATCH',

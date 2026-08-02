@@ -164,91 +164,47 @@ export function LessonEditor() {
     setSaveSuccess(false)
 
     try {
-      // Persist alignments before the multi-request lesson save. If an objective is
-      // invalid or stale, fail without committing unrelated lesson/block changes.
-      const objectiveRes = await api.updateObjectiveAlignments(lesson.id, objectiveAlignments)
-      if (objectiveRes.error) {
-        setSaveError(objectiveRes.error)
-        toast.error(objectiveRes.error)
-        return
-      }
-
-      const lessonRes = await api.updateLesson(lesson.id, {
-        title: title.trim(),
-        requires_submission: submissionType !== 'manual_complete',
-      })
-      if (lessonRes.error) {
-        setSaveError(lessonRes.error)
-        toast.error(lessonRes.error)
-        setSaving(false)
-        return
-      }
-
-      const nextPosition = Math.max(0, ...lesson.content_blocks.map(b => b.position)) + 1
-
       const videoBlock = lesson.content_blocks.find(b => b.block_type === 'video' || b.block_type === 'recording')
-      if (videoBlock) {
-        // Don't include s3_video_key if there's an in-flight upload for this block — the
-        // UploadContext will PATCH the key when the upload completes; sending null here
-        // could otherwise clobber a value that's about to be saved.
-        const inFlight = uploadsRef.current.find(
-          u => u.contentBlockId === videoBlock.id && u.status !== 'done' && u.status !== 'error'
-        )
-        const updatePayload: { title: string; video_url: string | null; s3_video_key?: string | null } = {
-          title: title.trim(),
-          video_url: videoUrl.trim() || null,
-        }
-        if (!inFlight) updatePayload.s3_video_key = s3VideoKey
-        const vRes = await api.updateContentBlock(videoBlock.id, updatePayload)
-        if (vRes.error) { setSaveError(vRes.error); toast.error(vRes.error); setSaving(false); return }
-      } else if (videoUrl.trim() || s3VideoKey) {
-        const vRes = await api.createContentBlock(lesson.id, {
-          block_type: 'video',
-          position: nextPosition,
-          title: title.trim(),
-          video_url: videoUrl.trim() || undefined,
-          s3_video_key: s3VideoKey || undefined,
-        })
-        if (vRes.error) { setSaveError(vRes.error); toast.error(vRes.error); setSaving(false); return }
-        if (vRes.data?.content_block) setVideoBlockId(vRes.data.content_block.id)
-      }
-
       const exerciseBlock = lesson.content_blocks.find(b => b.block_type === 'exercise' || b.block_type === 'code_challenge')
       const submissionConfig = buildSubmissionConfigWithRunner(
         exerciseBlock?.submission_config,
         submissionType === 'text_submission' ? runnerConfig : { ...runnerConfig, enabled: false }
       )
-      if (exerciseBlock) {
-        const eRes = await api.updateContentBlock(exerciseBlock.id, {
-          title: title.trim(),
-          body: instructions.trim() || null,
-          solution: solution.trim() || null,
-          filename: filename.trim() || null,
-          submission_type: submissionType,
-          submission_config: submissionConfig,
-        })
-        if (eRes.error) { setSaveError(eRes.error); toast.error(eRes.error); setSaving(false); return }
-      } else if (instructions.trim() || filename.trim()) {
-        const eRes = await api.createContentBlock(lesson.id, {
-          block_type: 'exercise',
-          position: nextPosition + 1,
-          title: title.trim(),
-          body: instructions.trim() || undefined,
-          solution: solution.trim() || undefined,
-          filename: filename.trim() || undefined,
-          submission_type: submissionType,
-          submission_config: submissionConfig,
-        })
-        if (eRes.error) { setSaveError(eRes.error); toast.error(eRes.error); setSaving(false); return }
+      const inFlightVideo = videoBlock && uploadsRef.current.some(
+        upload => upload.contentBlockId === videoBlock.id && upload.status !== 'done' && upload.status !== 'error'
+      )
+      const video = videoBlock || videoUrl.trim() || s3VideoKey ? {
+        ...(videoBlock ? { id: videoBlock.id } : {}),
+        title: title.trim(),
+        video_url: videoUrl.trim() || null,
+        ...(!inFlightVideo ? { s3_video_key: s3VideoKey } : {}),
+      } : undefined
+      const exercise = exerciseBlock || instructions.trim() || filename.trim() ? {
+        ...(exerciseBlock ? { id: exerciseBlock.id } : {}),
+        title: title.trim(),
+        body: instructions.trim() || null,
+        solution: solution.trim() || null,
+        filename: filename.trim() || null,
+        submission_type: submissionType,
+        submission_config: submissionConfig,
+      } : undefined
+
+      const response = await api.updateLessonEditor(lesson.id, {
+        title: title.trim(),
+        requires_submission: submissionType !== 'manual_complete',
+        video,
+        exercise,
+        alignments: objectiveAlignments,
+      })
+      if (response.error || !response.data) {
+        const message = response.error || 'Exercise could not be saved.'
+        setSaveError(message)
+        toast.error(message)
+        return
       }
 
-      setSaveSuccess(true)
-      toast.success('Exercise saved successfully')
-      setTimeout(() => setSaveSuccess(false), 3000)
-
-      const refreshRes = await api.getLesson(lesson.id)
-      if (refreshRes.data) {
-        const data = refreshRes.data as { lesson: Lesson }
+      const data = response.data as { lesson: Lesson }
+      if (data.lesson) {
         setLesson(data.lesson)
         setObjectiveAlignments((data.lesson.objectives || []).map((objective) => ({ learning_objective_id: objective.id, content_block_id: objective.content_block_id })))
         const refreshedVideo = data.lesson.content_blocks.find(b => b.block_type === 'video' || b.block_type === 'recording')
@@ -267,6 +223,9 @@ export function LessonEditor() {
           ))
         }
       }
+      setSaveSuccess(true)
+      toast.success('Exercise saved successfully')
+      setTimeout(() => setSaveSuccess(false), 3000)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Save failed'
       setSaveError(message)
@@ -312,6 +271,7 @@ export function LessonEditor() {
         description: objectiveDraft.description || undefined,
         success_criteria: objectiveDraft.success_criteria,
         position: objectiveCatalog.length,
+        lesson_id: lesson.id,
       })
       if (response.error || !response.data) {
         setSaveError(response.error || 'Could not create the objective.')
@@ -320,13 +280,6 @@ export function LessonEditor() {
       const objective = response.data.learning_objective
       setObjectiveCatalog((current) => [...current, objective])
       const nextAlignments = [...objectiveAlignments, { learning_objective_id: objective.id, content_block_id: null }]
-      const alignmentResponse = await api.updateObjectiveAlignments(lesson.id, nextAlignments)
-      if (alignmentResponse.error) {
-        const message = `Objective created, but it could not be added to this lesson: ${alignmentResponse.error}`
-        setSaveError(message)
-        toast.error(message)
-        return
-      }
       setObjectiveAlignments(nextAlignments)
       setObjectiveDraft({ code: '', title: '', description: '', success_criteria: '' })
       toast.success('Objective created and added to this lesson')

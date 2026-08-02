@@ -99,6 +99,9 @@ Rails.application.routes.draw do
 
       # Lessons (shallow) with nested content blocks
       resources :lessons, only: [ :show, :update, :destroy ] do
+        member do
+          patch :editor, to: "lessons#update_editor"
+        end
         resources :content_blocks, only: [ :index, :create ]
         resource :objective_alignments, only: :update
       end
