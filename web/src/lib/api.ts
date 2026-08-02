@@ -739,8 +739,38 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
+  updateLessonEditor: (id: number, data: {
+    title: string;
+    requires_submission: boolean;
+    video?: { id?: number; title: string; video_url: string | null; s3_video_key?: string | null };
+    exercise?: { id?: number; title: string; body: string | null; solution: string | null; filename: string | null; submission_type: string; submission_config: Record<string, unknown> };
+    alignments: { learning_objective_id: number; content_block_id?: number | null }[];
+  }) =>
+    fetchApi<LessonResponse>(`/api/v1/lessons/${id}/editor`, {
+      method: 'PATCH',
+      body: JSON.stringify({ editor: data }),
+    }),
   deleteLesson: (id: number) =>
     fetchApi<void>(`/api/v1/lessons/${id}`, { method: 'DELETE' }),
+  getLearningObjectives: (curriculumId: number) =>
+    fetchApi<{ learning_objectives: import('../types/api').LearningObjective[] }>(`/api/v1/learning_objectives?curriculum_id=${curriculumId}`),
+  createLearningObjective: (data: { curriculum_id: number; code: string; title: string; description?: string; success_criteria: string; position?: number; active?: boolean; lesson_id?: number }) => {
+    const { lesson_id, ...objective } = data
+    return fetchApi<{ learning_objective: import('../types/api').LearningObjective }>('/api/v1/learning_objectives', {
+      method: 'POST',
+      body: JSON.stringify({ learning_objective: objective, lesson_id }),
+    })
+  },
+  updateLearningObjective: (id: number, data: Partial<{ code: string; title: string; description: string; success_criteria: string; position: number; active: boolean }>) =>
+    fetchApi<{ learning_objective: import('../types/api').LearningObjective }>(`/api/v1/learning_objectives/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ learning_objective: data }),
+    }),
+  updateObjectiveAlignments: (lessonId: number, alignments: { learning_objective_id: number; content_block_id?: number | null }[]) =>
+    fetchApi<{ objectives: import('../types/api').LessonObjective[] }>(`/api/v1/lessons/${lessonId}/objective_alignments`, {
+      method: 'PUT',
+      body: JSON.stringify({ alignments }),
+    }),
   createExercise: (moduleId: number, data: { title: string; release_day: number; video_url?: string; instructions?: string; solution?: string; filename?: string; requires_submission?: boolean; submission_type?: string; submission_config?: Record<string, unknown>; s3_video_key?: string; s3_video_content_type?: string; s3_video_size?: number }) =>
     fetchApi<LessonResponse>(`/api/v1/modules/${moduleId}/exercises`, {
       method: 'POST',

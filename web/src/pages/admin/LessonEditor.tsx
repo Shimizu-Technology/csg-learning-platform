@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Save, Trash2, Eye, Pencil } from 'lucide-react'
+import { ArrowLeft, Save, Trash2, Eye, Pencil, Plus, Target, X } from 'lucide-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { RichTextEditor } from '../../components/shared/RichTextEditor'
@@ -17,6 +17,8 @@ import {
   normalizeCodeRunnerConfig,
   type CodeRunnerConfig,
 } from '../../lib/codeRunner'
+import { LearningObjectivesPanel } from '../../components/shared/LearningObjectivesPanel'
+import type { LearningObjective, LessonObjective } from '../../types/api'
 
 interface ContentBlock {
   id: number
@@ -37,6 +39,7 @@ interface ContentBlock {
 
 interface Lesson {
   id: number
+  curriculum_id: number
   title: string
   module_id: number
   lesson_type?: string
@@ -44,7 +47,10 @@ interface Lesson {
   requires_submission?: boolean
   submission_type?: string
   content_blocks: ContentBlock[]
+  objectives: LessonObjective[]
 }
+
+type ObjectiveAlignmentDraft = { learning_objective_id: number; content_block_id: number | null }
 
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
@@ -53,6 +59,10 @@ export function LessonEditor() {
   const navigate = useNavigate()
   const toast = useToast()
   const [lesson, setLesson] = useState<Lesson | null>(null)
+  const [objectiveCatalog, setObjectiveCatalog] = useState<LearningObjective[]>([])
+  const [objectiveAlignments, setObjectiveAlignments] = useState<ObjectiveAlignmentDraft[]>([])
+  const [creatingObjective, setCreatingObjective] = useState(false)
+  const [objectiveDraft, setObjectiveDraft] = useState({ code: '', title: '', description: '', success_criteria: '' })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchParams] = useSearchParams()
@@ -72,6 +82,7 @@ export function LessonEditor() {
   const [s3VideoUploadedAt, setS3VideoUploadedAt] = useState<string | null>(null)
   const [s3VideoUploadedBy, setS3VideoUploadedBy] = useState<string | null>(null)
   const [videoBlockId, setVideoBlockId] = useState<number | null>(null)
+  const [pendingVideoUploadId, setPendingVideoUploadId] = useState<string | null>(null)
 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -80,7 +91,7 @@ export function LessonEditor() {
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   // Upload context — used to prefer in-flight upload's s3_key over a stale (null) fetch result.
-  const { uploads } = useUpload()
+  const { uploads, completeDeferredUpload } = useUpload()
   const uploadsRef = useRef(uploads)
   uploadsRef.current = uploads
 
@@ -88,8 +99,9 @@ export function LessonEditor() {
   // upload's s3_key for the same content block (handles the case where the user navigates
   // away and back while an upload is still in progress and hasn't yet PATCHed the block).
   const resolveS3Key = useCallback((blockId: number, fetchedKey: string | null): string | null => {
+    const live = uploadsRef.current.find(u => u.contentBlockId === blockId && u.deferPersistence && u.s3Key && u.status !== 'error')
+    if (live?.s3Key) return live.s3Key
     if (fetchedKey) return fetchedKey
-    const live = uploadsRef.current.find(u => u.contentBlockId === blockId && u.s3Key && u.status !== 'error')
     return live?.s3Key || null
   }, [])
 
@@ -102,6 +114,10 @@ export function LessonEditor() {
         const data = res.data as { lesson: Lesson }
         const l = data.lesson
         setLesson(l)
+        setObjectiveAlignments((l.objectives || []).map((objective) => ({ learning_objective_id: objective.id, content_block_id: objective.content_block_id })))
+        void api.getLearningObjectives(l.curriculum_id).then((objectiveRes) => {
+          if (objectiveRes.data) setObjectiveCatalog(objectiveRes.data.learning_objectives)
+        })
         setTitle(l.title || '')
         const videoBlock = l.content_blocks.find(b => b.block_type === 'video' || b.block_type === 'recording')
         if (videoBlock) {
@@ -141,92 +157,72 @@ export function LessonEditor() {
     setS3VideoKey(null)
     setS3VideoUploadedAt(null)
     setS3VideoUploadedBy(null)
+    setPendingVideoUploadId(null)
   }, [])
 
   const handleSave = async () => {
     if (!lesson) return
+    const lessonEditorPath = `/admin/lessons/${lesson.id}/edit`
+    const activeVideoUpload = uploadsRef.current.find((upload) => (
+      upload.status !== 'error' && (
+        upload.id === pendingVideoUploadId ||
+        (upload.deferPersistence && (upload.contentBlockId === videoBlockId || upload.linkTo === lessonEditorPath))
+      )
+    ))
+    if (activeVideoUpload && activeVideoUpload.status !== 'waiting' && activeVideoUpload.status !== 'done') {
+      const message = 'Wait for the video upload to finish before saving this lesson.'
+      setSaveError(message)
+      toast.error(message)
+      return
+    }
     setSaving(true)
     setSaveError(null)
     setSaveSuccess(false)
 
     try {
-      const lessonRes = await api.updateLesson(lesson.id, {
-        title: title.trim(),
-        requires_submission: submissionType !== 'manual_complete',
-      })
-      if (lessonRes.error) {
-        setSaveError(lessonRes.error)
-        toast.error(lessonRes.error)
-        setSaving(false)
-        return
-      }
-
-      const nextPosition = Math.max(0, ...lesson.content_blocks.map(b => b.position)) + 1
-
       const videoBlock = lesson.content_blocks.find(b => b.block_type === 'video' || b.block_type === 'recording')
-      if (videoBlock) {
-        // Don't include s3_video_key if there's an in-flight upload for this block — the
-        // UploadContext will PATCH the key when the upload completes; sending null here
-        // could otherwise clobber a value that's about to be saved.
-        const inFlight = uploadsRef.current.find(
-          u => u.contentBlockId === videoBlock.id && u.status !== 'done' && u.status !== 'error'
-        )
-        const updatePayload: { title: string; video_url: string | null; s3_video_key?: string | null } = {
-          title: title.trim(),
-          video_url: videoUrl.trim() || null,
-        }
-        if (!inFlight) updatePayload.s3_video_key = s3VideoKey
-        const vRes = await api.updateContentBlock(videoBlock.id, updatePayload)
-        if (vRes.error) { setSaveError(vRes.error); toast.error(vRes.error); setSaving(false); return }
-      } else if (videoUrl.trim() || s3VideoKey) {
-        const vRes = await api.createContentBlock(lesson.id, {
-          block_type: 'video',
-          position: nextPosition,
-          title: title.trim(),
-          video_url: videoUrl.trim() || undefined,
-          s3_video_key: s3VideoKey || undefined,
-        })
-        if (vRes.error) { setSaveError(vRes.error); toast.error(vRes.error); setSaving(false); return }
-        if (vRes.data?.content_block) setVideoBlockId(vRes.data.content_block.id)
-      }
-
       const exerciseBlock = lesson.content_blocks.find(b => b.block_type === 'exercise' || b.block_type === 'code_challenge')
       const submissionConfig = buildSubmissionConfigWithRunner(
         exerciseBlock?.submission_config,
         submissionType === 'text_submission' ? runnerConfig : { ...runnerConfig, enabled: false }
       )
-      if (exerciseBlock) {
-        const eRes = await api.updateContentBlock(exerciseBlock.id, {
-          title: title.trim(),
-          body: instructions.trim() || null,
-          solution: solution.trim() || null,
-          filename: filename.trim() || null,
-          submission_type: submissionType,
-          submission_config: submissionConfig,
-        })
-        if (eRes.error) { setSaveError(eRes.error); toast.error(eRes.error); setSaving(false); return }
-      } else if (instructions.trim() || filename.trim()) {
-        const eRes = await api.createContentBlock(lesson.id, {
-          block_type: 'exercise',
-          position: nextPosition + 1,
-          title: title.trim(),
-          body: instructions.trim() || undefined,
-          solution: solution.trim() || undefined,
-          filename: filename.trim() || undefined,
-          submission_type: submissionType,
-          submission_config: submissionConfig,
-        })
-        if (eRes.error) { setSaveError(eRes.error); toast.error(eRes.error); setSaving(false); return }
+      const inFlightVideo = videoBlock && uploadsRef.current.some(
+        upload => upload.contentBlockId === videoBlock.id && ['presigning', 'uploading', 'saving'].includes(upload.status)
+      )
+      const video = videoBlock || videoUrl.trim() || s3VideoKey ? {
+        ...(videoBlock ? { id: videoBlock.id } : {}),
+        title: title.trim(),
+        video_url: videoUrl.trim() || null,
+        ...(!inFlightVideo ? { s3_video_key: s3VideoKey } : {}),
+      } : undefined
+      const exercise = exerciseBlock || instructions.trim() || filename.trim() ? {
+        ...(exerciseBlock ? { id: exerciseBlock.id } : {}),
+        title: title.trim(),
+        body: instructions.trim() || null,
+        solution: solution.trim() || null,
+        filename: filename.trim() || null,
+        submission_type: submissionType,
+        submission_config: submissionConfig,
+      } : undefined
+
+      const response = await api.updateLessonEditor(lesson.id, {
+        title: title.trim(),
+        requires_submission: submissionType !== 'manual_complete',
+        video,
+        exercise,
+        alignments: objectiveAlignments,
+      })
+      if (response.error || !response.data) {
+        const message = response.error || 'Exercise could not be saved.'
+        setSaveError(message)
+        toast.error(message)
+        return
       }
 
-      setSaveSuccess(true)
-      toast.success('Exercise saved successfully')
-      setTimeout(() => setSaveSuccess(false), 3000)
-
-      const refreshRes = await api.getLesson(lesson.id)
-      if (refreshRes.data) {
-        const data = refreshRes.data as { lesson: Lesson }
+      const data = response.data as { lesson: Lesson }
+      if (data.lesson) {
         setLesson(data.lesson)
+        setObjectiveAlignments((data.lesson.objectives || []).map((objective) => ({ learning_objective_id: objective.id, content_block_id: objective.content_block_id })))
         const refreshedVideo = data.lesson.content_blocks.find(b => b.block_type === 'video' || b.block_type === 'recording')
         if (refreshedVideo) {
           setVideoBlockId(refreshedVideo.id)
@@ -243,6 +239,13 @@ export function LessonEditor() {
           ))
         }
       }
+      if (activeVideoUpload) {
+        completeDeferredUpload(activeVideoUpload.id)
+        setPendingVideoUploadId(null)
+      }
+      setSaveSuccess(true)
+      toast.success('Exercise saved successfully')
+      setTimeout(() => setSaveSuccess(false), 3000)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Save failed'
       setSaveError(message)
@@ -272,6 +275,57 @@ export function LessonEditor() {
       setRunnerConfig((current) => ({ ...current, enabled: false }))
     }
   }
+
+  const handleCreateObjective = async () => {
+    if (!lesson || !objectiveDraft.code.trim() || !objectiveDraft.title.trim() || !objectiveDraft.success_criteria.trim()) {
+      setSaveError('Objective code, title, and success criteria are required.')
+      return
+    }
+    setCreatingObjective(true)
+    setSaveError(null)
+    try {
+      const response = await api.createLearningObjective({
+        curriculum_id: lesson.curriculum_id,
+        code: objectiveDraft.code,
+        title: objectiveDraft.title,
+        description: objectiveDraft.description || undefined,
+        success_criteria: objectiveDraft.success_criteria,
+        position: objectiveCatalog.length,
+        lesson_id: lesson.id,
+      })
+      if (response.error || !response.data) {
+        setSaveError(response.error || 'Could not create the objective.')
+        return
+      }
+      const objective = response.data.learning_objective
+      setObjectiveCatalog((current) => [...current, objective])
+      const nextAlignments = [...objectiveAlignments, { learning_objective_id: objective.id, content_block_id: null }]
+      setObjectiveAlignments(nextAlignments)
+      setObjectiveDraft({ code: '', title: '', description: '', success_criteria: '' })
+      toast.success('Objective created and added to this lesson')
+    } finally {
+      setCreatingObjective(false)
+    }
+  }
+
+  const previewObjectives: LessonObjective[] = objectiveAlignments.flatMap((alignment, index) => {
+    const objective = objectiveCatalog.find((item) => item.id === alignment.learning_objective_id)
+    if (!objective) return []
+    const block = lesson?.content_blocks.find((item) => item.id === alignment.content_block_id)
+    return [{
+      alignment_id: -(index + 1),
+      id: objective.id,
+      code: objective.code,
+      title: objective.title,
+      description: objective.description,
+      success_criteria: objective.success_criteria,
+      active: objective.active,
+      content_block_id: alignment.content_block_id,
+      content_block_title: block?.title || null,
+    }]
+  })
+
+  const availableObjectives = objectiveCatalog.filter((objective) => !objectiveAlignments.some((alignment) => alignment.learning_objective_id === objective.id))
 
   const previewBlocks = useMemo(() => {
     const blocks: ContentBlock[] = []
@@ -405,6 +459,8 @@ export function LessonEditor() {
             </div>
           </div>
 
+          <LearningObjectivesPanel objectives={previewObjectives} preview />
+
           <div className="space-y-4">
             {previewBlocks.map((block) => (
               <ContentBlockRenderer
@@ -449,6 +505,8 @@ export function LessonEditor() {
                   s3VideoUploadedBy={s3VideoUploadedBy}
                   onS3VideoUploaded={handleS3VideoUploaded}
                   onS3VideoRemoved={handleS3VideoRemoved}
+                  onUploadStarted={setPendingVideoUploadId}
+                  deferPersistence
                 />
               </div>
               <div className="space-y-3">
@@ -505,6 +563,75 @@ export function LessonEditor() {
               title={title}
             />
           </div>
+
+
+          <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_14px_40px_rgba(15,23,42,0.04)]">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-start gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary-50 text-primary-600"><Target className="h-5 w-5" /></span>
+                <div>
+                  <p className="app-eyebrow">Learning design</p>
+                  <h2 className="mt-1 text-lg font-extrabold tracking-tight text-slate-950">Objectives and success criteria</h2>
+                  <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">Tell students what they are building toward before they begin. Reuse objectives across lessons and attach each one to the whole lesson or a specific block.</p>
+                </div>
+              </div>
+              {availableObjectives.length > 0 && (
+                <select
+                  aria-label="Add an existing objective"
+                  value=""
+                  onChange={(event) => {
+                    if (!event.target.value) return
+                    setObjectiveAlignments((current) => [...current, { learning_objective_id: Number(event.target.value), content_block_id: null }])
+                  }}
+                  className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="">Add existing objective…</option>
+                  {availableObjectives.map((objective) => <option key={objective.id} value={objective.id}>{objective.code} · {objective.title}</option>)}
+                </select>
+              )}
+            </div>
+
+            <div className="mt-5 space-y-3">
+              {objectiveAlignments.map((alignment) => {
+                const objective = objectiveCatalog.find((item) => item.id === alignment.learning_objective_id)
+                if (!objective) return null
+                return (
+                  <div key={objective.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                    <div className="flex items-start gap-3">
+                      <span className="rounded-lg bg-white px-2 py-1 font-mono text-[11px] font-bold text-slate-600 shadow-sm">{objective.code}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-extrabold text-slate-950">{objective.title}</p>
+                        <p className="mt-1 text-sm leading-6 text-slate-600">{objective.success_criteria}</p>
+                        <label className="mt-3 block text-xs font-bold uppercase tracking-wide text-slate-500">
+                          Applies to
+                          <select
+                            value={alignment.content_block_id || ''}
+                            onChange={(event) => setObjectiveAlignments((current) => current.map((item) => item.learning_objective_id === objective.id ? { ...item, content_block_id: event.target.value ? Number(event.target.value) : null } : item))}
+                            className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold normal-case tracking-normal text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-500 sm:max-w-md"
+                          >
+                            <option value="">Entire lesson</option>
+                            {lesson.content_blocks.map((block) => <option key={block.id} value={block.id}>{block.title || `${block.block_type} block`}</option>)}
+                          </select>
+                        </label>
+                      </div>
+                      <button type="button" aria-label={`Remove ${objective.title}`} onClick={() => setObjectiveAlignments((current) => current.filter((item) => item.learning_objective_id !== objective.id))} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-white hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"><X className="h-4 w-4" /></button>
+                    </div>
+                  </div>
+                )
+              })}
+              {!objectiveAlignments.length && <div className="rounded-2xl border border-dashed border-slate-300 px-5 py-7 text-center text-sm text-slate-500">No objectives yet. Create the first one below or reuse one from this curriculum.</div>}
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-primary-100 bg-primary-50/40 p-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Objective code<input value={objectiveDraft.code} onChange={(event) => setObjectiveDraft((current) => ({ ...current, code: event.target.value }))} placeholder="TERM.1" className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 font-mono text-sm normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-primary-500" /></label>
+                <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Student-facing title<input value={objectiveDraft.title} onChange={(event) => setObjectiveDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Navigate folders from the terminal" className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-primary-500" /></label>
+                <label className="text-xs font-bold uppercase tracking-wide text-slate-600 sm:col-span-2">Context (optional)<textarea value={objectiveDraft.description} onChange={(event) => setObjectiveDraft((current) => ({ ...current, description: event.target.value }))} placeholder="What concept or skill this objective covers." rows={2} className="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-primary-500" /></label>
+                <label className="text-xs font-bold uppercase tracking-wide text-slate-600 sm:col-span-2">Success criteria<textarea value={objectiveDraft.success_criteria} onChange={(event) => setObjectiveDraft((current) => ({ ...current, success_criteria: event.target.value }))} placeholder="I can move into a requested folder, go back one level, and confirm where I am." rows={3} className="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-primary-500" /></label>
+              </div>
+              <button type="button" disabled={creatingObjective} onClick={() => void handleCreateObjective()} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-bold text-white transition hover:bg-slate-800 disabled:opacity-50"><Plus className="h-4 w-4" />{creatingObjective ? 'Creating…' : 'Create and add objective'}</button>
+            </div>
+          </section>
 
           {/* Instructions — WYSIWYG editor */}
           <div className="rounded-2xl border border-slate-200 bg-white p-6">

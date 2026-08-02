@@ -113,6 +113,173 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert body.fetch("s3_video_uploaded_at").present?
   end
 
+  test "admin can create and align reusable objectives while students receive active success criteria" do
+    objective_id = nil
+    as_user(@admin) do
+      post "/api/v1/learning_objectives",
+           params: {
+             learning_objective: {
+               curriculum_id: @curriculum.id,
+               code: " rb.1 ",
+               title: "Explain variables",
+               description: "Connect names to stored values.",
+               success_criteria: "I can assign, read, and update a variable.",
+               position: 1
+             }
+           },
+           headers: auth_headers
+      assert_response :created
+      objective_id = JSON.parse(response.body).dig("learning_objective", "id")
+
+      put "/api/v1/lessons/#{@lesson.id}/objective_alignments",
+          params: { alignments: [ { learning_objective_id: objective_id, content_block_id: @video_block.id } ] },
+          headers: auth_headers
+      assert_response :success
+    end
+
+    as_user(@student) do
+      get "/api/v1/lessons/#{@lesson.id}", headers: auth_headers
+    end
+    assert_response :success
+    objective = JSON.parse(response.body).dig("lesson", "objectives", 0)
+    assert_equal "RB.1", objective.fetch("code")
+    assert_equal "I can assign, read, and update a variable.", objective.fetch("success_criteria")
+    assert_equal @video_block.id, objective.fetch("content_block_id")
+  end
+
+  test "objective alignment replacement rejects another curriculum and preserves existing alignments" do
+    objective = LearningObjective.create!(
+      curriculum: @curriculum,
+      code: "BASE.1",
+      title: "Use the terminal",
+      success_criteria: "I can run a command and explain its output."
+    )
+    ObjectiveAlignment.create!(lesson: @lesson, learning_objective: objective)
+    other_curriculum = Curriculum.create!(name: "Other")
+    other_objective = LearningObjective.create!(
+      curriculum: other_curriculum,
+      code: "OTHER.1",
+      title: "Unrelated",
+      success_criteria: "I can complete the unrelated task."
+    )
+
+    as_user(@admin) do
+      put "/api/v1/lessons/#{@lesson.id}/objective_alignments",
+          params: { alignments: [ { learning_objective_id: other_objective.id } ] },
+          headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal [ objective.id ], @lesson.reload.objective_alignments.pluck(:learning_objective_id)
+  end
+
+  test "admin creates and adds an objective to a lesson atomically" do
+    as_user(@admin) do
+      assert_difference([ "LearningObjective.count", "ObjectiveAlignment.count" ], 1) do
+        post "/api/v1/learning_objectives",
+             params: {
+               lesson_id: @lesson.id,
+               learning_objective: {
+                 curriculum_id: @curriculum.id,
+                 code: "TERM.1",
+                 title: "Navigate folders",
+                 success_criteria: "I can move between folders and verify my location."
+               }
+             },
+             headers: auth_headers
+      end
+    end
+
+    assert_response :created
+    objective_id = JSON.parse(response.body).dig("learning_objective", "id")
+    assert_equal [ objective_id ], @lesson.reload.objective_alignments.pluck(:learning_objective_id)
+  end
+
+  test "editor save rolls back lesson and block changes when an alignment is invalid" do
+    other_curriculum = Curriculum.create!(name: "Other")
+    other_objective = LearningObjective.create!(
+      curriculum: other_curriculum,
+      code: "OTHER.1",
+      title: "Unrelated",
+      success_criteria: "I can complete an unrelated task."
+    )
+
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor",
+            params: {
+              editor: {
+                title: "Changed title",
+                requires_submission: false,
+                video: { id: @video_block.id, title: "Changed video", video_url: "https://example.com/video" },
+                alignments: [ { learning_objective_id: other_objective.id } ]
+              }
+            },
+            headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "Lesson 1", @lesson.reload.title
+    assert_equal "Intro", @video_block.reload.title
+    assert_nil @video_block.video_url
+    assert_empty @lesson.objective_alignments
+  end
+
+  test "editor save commits lesson blocks and objectives together" do
+    objective = LearningObjective.create!(
+      curriculum: @curriculum,
+      code: "TERM.2",
+      title: "Create folders",
+      success_criteria: "I can create a named folder."
+    )
+
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor",
+            params: {
+              editor: {
+                title: "Terminal practice",
+                requires_submission: true,
+                video: { id: @video_block.id, title: "Terminal practice", video_url: "https://example.com/video" },
+                exercise: {
+                  title: "Terminal practice",
+                  body: "Create a folder.",
+                  filename: "commands.txt",
+                  submission_type: "text_submission",
+                  submission_config: {}
+                },
+                alignments: [ { learning_objective_id: objective.id } ]
+              }
+            },
+            headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal "Terminal practice", @lesson.reload.title
+    assert_equal "https://example.com/video", @video_block.reload.video_url
+    assert_equal "Create a folder.", @lesson.content_blocks.find_by!(block_type: :exercise).body
+    assert_equal [ objective.id ], @lesson.objective_alignments.pluck(:learning_objective_id)
+  end
+
+  test "editor save remains successful when post-commit S3 cleanup fails" do
+    with_failing_s3_delete do
+      as_user(@admin) do
+        patch "/api/v1/lessons/#{@lesson.id}/editor",
+              params: {
+                editor: {
+                  title: "Saved despite cleanup",
+                  requires_submission: false,
+                  video: { id: @video_block.id, title: "Saved video", s3_video_key: "content_videos/replacement.mp4" },
+                  alignments: []
+                }
+              },
+              headers: auth_headers
+      end
+    end
+
+    assert_response :success
+    assert_equal "Saved despite cleanup", @lesson.reload.title
+    assert_equal "content_videos/replacement.mp4", @video_block.reload.s3_video_key
+  end
+
   test "student video stream response includes explicit signed URL expiry" do
     expires_in = with_s3_stream_url("https://signed.example/lesson.mp4") do
       as_user(@student) do
@@ -163,5 +330,16 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
   ensure
     S3Service.define_singleton_method(:configured?, original_configured)
     S3Service.define_singleton_method(:generate_presigned_url, original_url)
+  end
+
+  def with_failing_s3_delete
+    original_configured = S3Service.method(:configured?)
+    original_delete = S3Service.method(:delete_object)
+    S3Service.define_singleton_method(:configured?) { true }
+    S3Service.define_singleton_method(:delete_object) { |_key| raise IOError, "network unavailable" }
+    yield
+  ensure
+    S3Service.define_singleton_method(:configured?, original_configured)
+    S3Service.define_singleton_method(:delete_object, original_delete)
   end
 end

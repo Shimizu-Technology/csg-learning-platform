@@ -4,6 +4,8 @@ class Lesson < ApplicationRecord
   belongs_to :curriculum_module, foreign_key: :module_id
   has_many :content_blocks, -> { order(:position) }, dependent: :destroy
   has_many :lesson_assignments, dependent: :destroy
+  has_many :objective_alignments, dependent: :destroy
+  has_many :learning_objectives, through: :objective_alignments
 
   validates :title, presence: true
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }

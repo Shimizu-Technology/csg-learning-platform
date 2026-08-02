@@ -567,12 +567,26 @@ export interface LessonContentBlock {
   submission_type_explicit?: string | null;
   submission_config?: Record<string, unknown>;
   metadata: Record<string, unknown>;
+  objective_ids?: number[];
   progress?: { status: string; completed_at: string | null; video_last_position?: number; video_total_watched?: number };
   submissions?: SubmissionBrief[];
 }
 
+export interface LessonObjective {
+  alignment_id: number;
+  id: number;
+  code: string;
+  title: string;
+  description: string | null;
+  success_criteria: string;
+  active: boolean;
+  content_block_id: number | null;
+  content_block_title: string | null;
+}
+
 export interface LessonDetail {
   id: number;
+  curriculum_id?: number;
   cohort_id?: number;
   module_id: number;
   title: string;
@@ -585,6 +599,7 @@ export interface LessonDetail {
   repository_name?: string | null;
   submission_type?: string;
   content_blocks_count: number;
+  objectives?: LessonObjective[];
   submission_window?: SubmissionWindowStatus;
   content_blocks: LessonContentBlock[];
   prev_lesson: { id: number; title: string } | null;

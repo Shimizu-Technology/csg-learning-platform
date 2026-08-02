@@ -21,6 +21,7 @@ interface ActiveUpload {
   error?: string
   s3Key?: string
   contentBlockId?: number
+  deferPersistence?: boolean
   cohortRecording?: { cohortId: number; title: string; description?: string; recordedDate?: string }
   linkTo?: string
   linkLabel?: string
@@ -40,6 +41,7 @@ interface UploadStartResult {
 
 interface UploadStartOpts {
   contentBlockId?: number
+  deferPersistence?: boolean
   cohortRecording?: { cohortId: number; title: string; description?: string; recordedDate?: string }
   linkTo?: string
   linkLabel?: string
@@ -49,6 +51,7 @@ interface UploadContextValue {
   uploads: ActiveUpload[]
   startVideoUpload: (file: File, opts?: UploadStartOpts) => UploadStartResult
   cancelUpload: (id: string) => void
+  completeDeferredUpload: (id: string) => void
   attachUpload: (id: string, patch: { contentBlockId?: number; linkTo?: string; linkLabel?: string }) => void
 }
 
@@ -106,9 +109,11 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
   ) => {
     const liveUpload = uploadsRef.current.find((upload) => upload.id === uploadId)
     const contentBlockId = liveUpload?.contentBlockId ?? fallbackOpts.contentBlockId
+    const deferPersistence = liveUpload?.deferPersistence ?? fallbackOpts.deferPersistence
     const cohortRecording = liveUpload?.cohortRecording ?? fallbackOpts.cohortRecording
 
     if (contentBlockId) {
+      if (deferPersistence) return false
       updateUpload(uploadId, { status: 'saving' })
       const res = await api.updateContentBlock(contentBlockId, {
         s3_video_key: s3Key,
@@ -149,6 +154,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
       id, fileName: file.name, fileSize: file.size, contentType,
       progress: 0, status: 'presigning', abortController,
       contentBlockId: opts?.contentBlockId,
+      deferPersistence: opts?.deferPersistence,
       cohortRecording: opts?.cohortRecording,
       linkTo: opts?.linkTo,
       linkLabel: opts?.linkLabel,
@@ -300,7 +306,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
   }, [completeUpload, persistUploadTarget, updateUpload])
 
   return (
-    <UploadContext.Provider value={{ uploads, startVideoUpload, cancelUpload, attachUpload }}>
+    <UploadContext.Provider value={{ uploads, startVideoUpload, cancelUpload, attachUpload, completeDeferredUpload: completeUpload }}>
       {children}
       <UploadIndicator uploads={uploads} onCancel={cancelUpload} onDismiss={removeUpload} />
     </UploadContext.Provider>

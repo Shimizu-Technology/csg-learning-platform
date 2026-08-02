@@ -74,9 +74,28 @@ export interface ContentBlockSummary {
   submission_type_explicit?: string | null;
   submission_config?: Record<string, unknown>;
   metadata: Record<string, unknown>;
+  objective_ids?: number[];
   solution?: string | null;
   progress?: { status: string; completed_at: string | null };
   submissions?: SubmissionBrief[];
+}
+
+export interface LearningObjective {
+  id: number;
+  curriculum_id: number;
+  code: string;
+  title: string;
+  description: string | null;
+  success_criteria: string;
+  position: number;
+  active: boolean;
+  alignment_count?: number;
+}
+
+export interface LessonObjective extends Omit<LearningObjective, 'curriculum_id' | 'position'> {
+  alignment_id: number;
+  content_block_id: number | null;
+  content_block_title: string | null;
 }
 
 export interface LessonSummary {
@@ -93,6 +112,7 @@ export interface LessonSummary {
 
 export interface LessonDetail {
   id: number;
+  curriculum_id: number;
   cohort_id?: number;
   module_id: number;
   title: string;
@@ -103,6 +123,7 @@ export interface LessonDetail {
   requires_submission: boolean;
   submission_type?: string;
   content_blocks_count: number;
+  objectives: LessonObjective[];
   submission_window?: SubmissionWindowStatus;
   content_blocks: ContentBlockSummary[];
   prev_lesson: { id: number; title: string } | null;

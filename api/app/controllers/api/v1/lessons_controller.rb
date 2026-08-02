@@ -2,9 +2,9 @@ module Api
   module V1
     class LessonsController < ApplicationController
       before_action :authenticate_user!
-      before_action :require_admin!, only: [ :create, :create_exercise, :update, :destroy ]
+      before_action :require_admin!, only: [ :create, :create_exercise, :update, :update_editor, :destroy ]
       before_action :set_module, only: [ :index, :create, :create_exercise ]
-      before_action :set_lesson, only: [ :show, :update, :destroy ]
+      before_action :set_lesson, only: [ :show, :update, :update_editor, :destroy ]
       before_action :authorize_lesson_read!, only: [ :show ]
 
       # GET /api/v1/modules/:module_id/lessons
@@ -118,6 +118,36 @@ module Api
         end
       end
 
+      # PATCH /api/v1/lessons/:id/editor
+      # Saves the exercise editor as one unit so lesson fields, content blocks,
+      # and objective alignments cannot drift apart on a partial request failure.
+      def update_editor
+        old_s3_key = nil
+        new_s3_key = nil
+
+        ActiveRecord::Base.transaction do
+          @lesson.update!(editor_lesson_params)
+          old_s3_key, new_s3_key = update_editor_video!
+          update_editor_exercise!
+          replace_editor_objective_alignments!
+        end
+
+        if old_s3_key.present? && old_s3_key != new_s3_key && S3Service.configured?
+          begin
+            S3Service.delete_object(old_s3_key)
+          rescue StandardError => error
+            # The database save has already committed and S3 cleanup cannot be
+            # rolled back. Report the save accurately and leave cleanup retryable.
+            Rails.logger.error("Failed to delete replaced lesson video #{old_s3_key}: #{error.class}")
+          end
+        end
+
+        @lesson.reload
+        render json: { lesson: lesson_json(@lesson, include_content: true) }
+      rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound, KeyError => error
+        render json: { errors: [ error.message ] }, status: :unprocessable_entity
+      end
+
       # DELETE /api/v1/lessons/:id
       def destroy
         @lesson.destroy
@@ -136,6 +166,100 @@ module Api
 
       def lesson_params
         params.permit(:title, :lesson_type, :position, :release_day, :required, :requires_submission)
+      end
+
+      def editor_params
+        params.require(:editor).permit(
+          :title,
+          :requires_submission,
+          video: [ :id, :title, :video_url, :s3_video_key ],
+          exercise: [ :id, :title, :body, :solution, :filename, :submission_type, { submission_config: {} } ],
+          alignments: [ :learning_objective_id, :content_block_id ]
+        )
+      end
+
+      def editor_lesson_params
+        editor_params.slice(:title, :requires_submission)
+      end
+
+      def update_editor_video!
+        payload = editor_params[:video]
+        return [ nil, nil ] if payload.blank?
+
+        block = if payload[:id].present?
+          @lesson.content_blocks.where(block_type: %i[video recording]).find(payload[:id])
+        else
+          return [ nil, nil ] if payload[:video_url].blank? && payload[:s3_video_key].blank?
+
+          @lesson.content_blocks.new(block_type: :video, position: next_editor_block_position)
+        end
+
+        old_s3_key = block.s3_video_key
+        attributes = payload.slice(:title, :video_url)
+        attributes[:s3_video_key] = payload[:s3_video_key] if payload.key?(:s3_video_key)
+        block.assign_attributes(attributes)
+
+        if block.s3_video_key != old_s3_key
+          block.s3_video_duration_seconds = nil
+          if block.s3_video_key.present?
+            block.s3_video_uploaded_by = current_user
+            block.s3_video_uploaded_at = Time.current
+          else
+            block.s3_video_uploaded_by = nil
+            block.s3_video_uploaded_at = nil
+          end
+        end
+        block.save!
+
+        if old_s3_key.present? && block.s3_video_key != old_s3_key
+          block.progresses.update_all(
+            video_last_position: 0,
+            video_total_watched: 0,
+            video_duration: nil,
+            status: Progress.statuses[:not_started],
+            completed_at: nil,
+            updated_at: Time.current
+          )
+        end
+
+        [ old_s3_key, block.s3_video_key ]
+      end
+
+      def update_editor_exercise!
+        payload = editor_params[:exercise]
+        return if payload.blank?
+
+        block = if payload[:id].present?
+          @lesson.content_blocks.where(block_type: %i[exercise code_challenge]).find(payload[:id])
+        else
+          return if payload[:body].blank? && payload[:filename].blank?
+
+          @lesson.content_blocks.new(block_type: :exercise, position: next_editor_block_position)
+        end
+        block.update!(payload.except(:id))
+      end
+
+      def replace_editor_objective_alignments!
+        requested = editor_params[:alignments] || []
+        if requested.length > ObjectiveAlignmentsController::MAX_ALIGNMENTS
+          @lesson.errors.add(:objectives, "can have at most #{ObjectiveAlignmentsController::MAX_ALIGNMENTS} alignments")
+          raise ActiveRecord::RecordInvalid, @lesson
+        end
+
+        @lesson.objective_alignments.destroy_all
+        requested.each_with_index do |alignment, position|
+          objective = LearningObjective.find(alignment.fetch(:learning_objective_id))
+          content_block = alignment[:content_block_id].present? ? @lesson.content_blocks.find(alignment[:content_block_id]) : nil
+          @lesson.objective_alignments.create!(
+            learning_objective: objective,
+            content_block: content_block,
+            position: position
+          )
+        end
+      end
+
+      def next_editor_block_position
+        @lesson.content_blocks.maximum(:position).to_i + 1
       end
 
       def authorize_lesson_read!
@@ -170,6 +294,7 @@ module Api
         requires_github = false
         json = {
           id: lesson.id,
+          curriculum_id: lesson.curriculum_module.curriculum_id,
           module_id: lesson.module_id,
           title: lesson.title,
           lesson_type: lesson.lesson_type,
@@ -178,6 +303,8 @@ module Api
           required: lesson.required,
           content_blocks_count: lesson.content_blocks.size
         }
+
+        json[:objectives] = objective_json(lesson, include_inactive: current_user.staff?)
 
         if current_user.student?
           enrollment = @lesson_enrollment || current_user.enrollments.active
@@ -215,7 +342,9 @@ module Api
               submission_config: cb.submission_config || {},
               metadata: cb.metadata,
               has_s3_video: cb.s3_video_key.present?,
-              completion_required: completion_block_ids.include?(cb.id)
+              completion_required: completion_block_ids.include?(cb.id),
+              objective_ids: lesson.objective_alignments.select { |alignment| alignment.content_block_id == cb.id }
+                .map(&:learning_objective_id)
             }
 
             if current_user.staff?
@@ -300,6 +429,25 @@ module Api
         end
 
         json
+      end
+
+      def objective_json(lesson, include_inactive: false)
+        alignments = lesson.objective_alignments.includes(:learning_objective, :content_block).ordered
+        alignments = alignments.select { |alignment| alignment.learning_objective.active? } unless include_inactive
+        alignments.map do |alignment|
+          objective = alignment.learning_objective
+          {
+            alignment_id: alignment.id,
+            id: objective.id,
+            code: objective.code,
+            title: objective.title,
+            description: objective.description,
+            success_criteria: objective.success_criteria,
+            active: objective.active,
+            content_block_id: alignment.content_block_id,
+            content_block_title: alignment.content_block&.title
+          }
+        end
       end
 
       def normalized_submission_type_for_create

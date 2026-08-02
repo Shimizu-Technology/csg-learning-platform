@@ -9,6 +9,8 @@ import { useAuthContext } from '../../contexts/AuthContext'
 import { formatShortDateTime } from '../../lib/format'
 import { captureProductEvent } from '../../lib/analytics'
 import type { HelpRequest } from '../../types/api'
+import { LearningObjectivesPanel } from '../../components/shared/LearningObjectivesPanel'
+import type { LessonObjective } from '../../types/api'
 
 interface LessonData {
   id: number
@@ -29,6 +31,7 @@ interface LessonData {
     status: 'open' | 'scheduled' | 'closed'
   }
   content_blocks: Array<any>
+  objectives: LessonObjective[]
   prev_lesson: { id: number; title: string } | null
   next_lesson: { id: number; title: string } | null
 }
@@ -109,6 +112,8 @@ export function LessonView() {
           )}
         </div>
       </header>
+
+      <LearningObjectivesPanel objectives={lesson.objectives || []} />
 
       {lesson.submission_window?.submissions_close_at && (
         <div className={`rounded-2xl border p-4 ${lesson.submission_window.submissions_closed ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}`}>
