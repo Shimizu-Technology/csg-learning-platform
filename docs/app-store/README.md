@@ -9,22 +9,22 @@ This directory is the durable source record for the App Store presentation of th
 | Item | State |
 | --- | --- |
 | Marketing version | `1.0.0` |
-| Confirmed internal TestFlight baseline | `1.0.0 (4)` |
-| Baseline EAS build ID | `b031b7f6-6758-4f41-b330-90a88b63e6dc` |
-| Baseline source commit | `070b4dc` (`main`) |
-| Phase 0–1 release candidate | `1.0.0 (9)` |
-| EAS build ID | `098bdef7-9320-41ef-92b7-255cd6f61912` |
-| Source commit | `ba70743` (`main`) |
-| EAS submission ID | `2aaf6efa-1b6d-4c74-8b48-da29401f8d58` |
-| EAS build/submission state | Finished successfully; no EAS error |
+| Latest internal TestFlight build | `1.0.0 (10)` |
+| Phase 2 EAS build ID | `2f310674-05f7-4eca-b97d-ff7590e58eeb` |
+| Phase 2 source commit | `690a84d` (`main`) |
+| Phase 2 EAS submission ID | `69a8a286-8c5a-4ba1-9f0a-45fcc30788e1` |
+| Phase 2 EAS build state | Finished successfully |
+| Phase 2 EAS submission state | Binary uploaded and processed; EAS marked the submission errored when Fastlane attempted a redundant internal-group assignment |
 | Apple processing / installability | Processed and available to the invited internal tester in TestFlight |
+| Phase 0–1 release candidate | `1.0.0 (9)` |
 | App Store version | `1.0`, Prepare for Submission |
 | Internal group | `CSG Internal` |
 | Tester access | Active invited internal tester; identity retained in App Store Connect only |
 | Public App Review | Intentionally not submitted pending physical TestFlight acceptance |
-| Phase 2 internal candidate | `1.0.0 (10)` prepared; EAS build/submission pending |
 
 Build 4 finished successfully, was processed by App Store Connect, is attached to the 1.0 App Store draft, and is available to the internal group. EAS production archives 5–8 and their submissions also finished successfully. Build 9 was generated from merged `main` on 2026-08-02 and submitted without an EAS error with `CSG Internal` requested as its internal group. At 11:59 AM Pacific/Guam, Apple sent the invited tester the TestFlight availability notice for `CSG Connect 1.0.0 (9)`, confirming processing and tester availability.
+
+Build 10 was archived from merged `main` at source commit `690a84d`. EAS uploaded the binary and Fastlane reported that Apple finished processing `1.0.0 (10)`. Fastlane then attempted to add `CSG Internal` manually and Apple rejected that operation because the build could not be added to that internal group, causing EAS to label the overall submission `ERRORED`. This did not invalidate the uploaded build or tester distribution: at 3:52 PM Pacific/Guam on 2026-08-02, Apple emailed the invited tester that `CSG Connect 1.0.0 (10)` was available to test. Treat that Apple notice as the authoritative release outcome and the EAS error as a post-upload group-assignment automation quirk.
 
 Verified EAS production history:
 
@@ -35,12 +35,13 @@ Verified EAS production history:
 | `7` | `9f4c2108-f9b9-47ac-8b11-5999aa786245` | `890d5a09-a462-4d5a-9759-2dae22c92454` | Finished |
 | `8` | `deb0452d-949a-46b2-bc4e-fccd7cc6924b` | `4cf6cbe7-74c5-437b-b01e-7d137d5dfa1f` | Finished |
 | `9` | `098bdef7-9320-41ef-92b7-255cd6f61912` | `2aaf6efa-1b6d-4c74-8b48-da29401f8d58` | Finished |
+| `10` | `2f310674-05f7-4eca-b97d-ff7590e58eeb` | `69a8a286-8c5a-4ba1-9f0a-45fcc30788e1` | Errored after successful upload and processing while assigning the internal group; Apple confirmed tester availability |
 
-These are EAS states only. Build 9's Apple processing and tester availability are separately confirmed by the TestFlight notice; physical installation and the acceptance matrix below remain device work.
+These are EAS states only. Builds 9 and 10 have separate Apple TestFlight notices confirming processing and tester availability; physical installation and the acceptance matrix below remain device work.
 
 Build 9 is the Phase 0–1 TestFlight candidate. It includes the reviewed voice-draft client, Phase 0 readability work, weekly plan, contextual help, privacy-safe analytics, and offline continuity. Its production EAS environment points to the CSG API with demo mode disabled and includes the `csg-learning-platform` PostHog project configuration. Do not enable the voice production endpoint or submit this binary for public App Review until the temporary transcription-provider processing is accurately disclosed, the production OpenAI data controls are approved, and the voice-specific physical-device checks below pass.
 
-Build 10 is the prepared Phase 2 internal candidate. Production auto-increment uses EAS remote versioning; the source `app.json` build number is therefore not the release authority. Build 10 adds direct touch-drag navigation for long code, student-facing objectives/success criteria, reusable rubrics and criterion feedback, editable shared feedback snippets, objective-linked retrieval checks, and reviewed voice-draft reuse in threads/help/grading. Its actual EAS build and submission identifiers must be recorded here after completion.
+Build 10 is the delivered Phase 2 internal candidate. Production auto-increment uses EAS remote versioning; the source `app.json` build number is therefore not the release authority. Build 10 adds direct touch-drag navigation for long code, student-facing objectives/success criteria, reusable rubrics and criterion feedback, editable shared feedback snippets, objective-linked retrieval checks, and reviewed voice-draft reuse in threads/help/grading.
 
 The requested release action is upload to App Store Connect for internal TestFlight testing only. Public App Review remains a separate, intentionally deferred action.
 
@@ -109,10 +110,12 @@ Phase 2 candidate preflight recorded on 2026-08-02:
 - Web strict TypeScript, ESLint, 10 suites / 29 tests, and the production build pass.
 - Mobile strict TypeScript, Expo lint, 28 suites / 103 tests, Expo Doctor 20/20, and CI iOS/Android production exports pass.
 - Greptile reviewed every Phase 2 PR; all findings were fixed/resolved and each final review passed before merge.
+- EAS build `2f310674-05f7-4eca-b97d-ff7590e58eeb` completed with SDK 57, build number 10, production signing, and source commit `690a84d`.
+- Submission `69a8a286-8c5a-4ba1-9f0a-45fcc30788e1` uploaded successfully and Apple processed the binary. EAS reported an error only after Fastlane tried to assign `CSG Internal`; Apple's tester email independently confirms build 10 is available in TestFlight.
 
 ## Physical TestFlight acceptance
 
-The invited tester must update to the Phase 0–1 candidate build in TestFlight and complete this final acceptance pass with real authorized accounts:
+The invited tester must update to Phase 2 candidate build 10 in TestFlight and complete this final acceptance pass with real authorized accounts:
 
 - sign in with Google and confirm unauthorized accounts receive the explicit no-access state;
 - verify student, instructor, and admin role scoping where test accounts are available;

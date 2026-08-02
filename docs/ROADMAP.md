@@ -1,6 +1,6 @@
 # CSG Learning Platform — Roadmap
 
-**Last updated:** 2026-08-01
+**Last updated:** 2026-08-02
 **Status:** Active execution roadmap  
 **Companion docs:** `docs/PRODUCT_VISION.md`, `docs/PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md`, `docs/DEPLOYMENT.md`, `docs/API_REFERENCE.md`
 
@@ -62,7 +62,7 @@ Voice-to-text is detailed in `docs/VOICE_TO_TEXT_PLAN.md`. Native message drafts
 
 Analytics implementation is governed by `docs/ANALYTICS_EVENT_CONTRACT.md`. The typed privacy contract and initial web/native capture points are complete; the four-week outcome baseline remains time-gated from the first production release.
 
-Release update (2026-08-02): production EAS analytics configuration is complete, and iOS build `1.0.0 (9)` is available to the invited internal TestFlight tester. Installation and physical-device acceptance remain operational gates; public App Review remains intentionally separate.
+Release update (2026-08-02): production EAS analytics configuration is complete, and Phase 2 iOS build `1.0.0 (10)` is available to the invited internal TestFlight tester. EAS build `2f310674-05f7-4eca-b97d-ff7590e58eeb` completed from merged `main`; Apple accepted and processed the binary. EAS submission `69a8a286-8c5a-4ba1-9f0a-45fcc30788e1` was marked errored only when Fastlane's post-upload internal-group assignment was rejected, while Apple's tester notice independently confirms availability. Installation and physical-device acceptance remain operational gates; public App Review remains intentionally separate.
 
 Strategic Phase 0–1 code completion, evidence, operational gates, and later-phase boundaries are summarized in `docs/PHASE_0_1_COMPLETION.md`.
 
