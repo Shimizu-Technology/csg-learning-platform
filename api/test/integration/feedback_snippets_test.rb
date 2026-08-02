@@ -60,6 +60,17 @@ class FeedbackSnippetsTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  test "inactive snippets cannot be used by a stale client" do
+    snippet = @instructor.feedback_snippets.create!(title: "Archived", body: "Old feedback", active: false)
+
+    as_user(@other_instructor) do
+      post "/api/v1/feedback_snippets/#{snippet.id}/use", headers: auth_headers
+    end
+
+    assert_response :not_found
+    assert_equal 0, snippet.reload.usage_count
+  end
+
   private
 
   def auth_headers = { "Authorization" => "Bearer test_token" }

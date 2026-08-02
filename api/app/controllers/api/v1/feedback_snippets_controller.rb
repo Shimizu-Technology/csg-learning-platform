@@ -3,7 +3,8 @@ module Api
     class FeedbackSnippetsController < ApplicationController
       before_action :authenticate_user!
       before_action :require_staff!
-      before_action :set_snippet, only: [ :update, :destroy, :use ]
+      before_action :set_snippet, only: [ :update, :destroy ]
+      before_action :set_active_snippet, only: :use
       before_action :require_owner_or_admin!, only: [ :update, :destroy ]
 
       def index
@@ -42,6 +43,10 @@ module Api
 
       def set_snippet
         @snippet = FeedbackSnippet.find(params[:id])
+      end
+
+      def set_active_snippet
+        @snippet = FeedbackSnippet.active.find(params[:id])
       end
 
       def require_owner_or_admin!
