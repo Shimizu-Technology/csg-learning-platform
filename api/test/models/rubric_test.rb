@@ -30,4 +30,35 @@ class RubricTest < ActiveSupport::TestCase
     assert_not block.valid?
     assert_includes block.errors[:rubric], "must belong to the lesson curriculum"
   end
+
+  test "content block preserves its rubric after criterion feedback is recorded" do
+    curriculum = Curriculum.create!(name: "Web")
+    curriculum_module = CurriculumModule.create!(curriculum: curriculum, name: "Week 1", position: 0, day_offset: 0)
+    lesson = Lesson.create!(curriculum_module: curriculum_module, title: "Project", position: 0, release_day: 0)
+    first_rubric = Rubric.create!(curriculum: curriculum, title: "Original", rubric_criteria_attributes: [ { title: "Quality", description: "The result works." } ])
+    replacement = Rubric.create!(curriculum: curriculum, title: "Replacement", rubric_criteria_attributes: [ { title: "Clarity", description: "The result is clear." } ])
+    block = lesson.content_blocks.create!(block_type: :exercise, position: 0, rubric: first_rubric)
+    user = User.create!(clerk_id: "rubric-history-student", email: "rubric-history@example.com", first_name: "Student", role: :student)
+    submission = Submission.create!(content_block: block, user: user, text: "My work")
+    SubmissionCriterionResult.create!(submission: submission, rubric_criterion: first_rubric.rubric_criteria.first, rating: :meets)
+
+    assert_not block.update(rubric: replacement)
+    assert_includes block.errors[:rubric], "cannot be changed after criterion feedback has been recorded"
+    assert_equal first_rubric, block.reload.rubric
+  end
+
+  test "criterion wording is immutable after feedback is recorded" do
+    curriculum = Curriculum.create!(name: "Web")
+    curriculum_module = CurriculumModule.create!(curriculum: curriculum, name: "Week 1", position: 0, day_offset: 0)
+    lesson = Lesson.create!(curriculum_module: curriculum_module, title: "Project", position: 0, release_day: 0)
+    rubric = Rubric.create!(curriculum: curriculum, title: "Quality", rubric_criteria_attributes: [ { title: "Correctness", description: "The result works." } ])
+    block = lesson.content_blocks.create!(block_type: :exercise, position: 0, rubric: rubric)
+    user = User.create!(clerk_id: "rubric-criterion-student", email: "rubric-criterion@example.com", first_name: "Student", role: :student)
+    submission = Submission.create!(content_block: block, user: user, text: "My work")
+    criterion = rubric.rubric_criteria.first
+    SubmissionCriterionResult.create!(submission: submission, rubric_criterion: criterion, rating: :meets)
+
+    assert_not criterion.update(title: "A different standard")
+    assert_includes criterion.errors[:base], "Criterion cannot be changed after feedback has been recorded"
+  end
 end

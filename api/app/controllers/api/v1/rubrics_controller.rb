@@ -25,11 +25,14 @@ module Api
       end
 
       def update
-        if @rubric.update(rubric_params.except(:criteria, :curriculum_id))
-          render json: { rubric: rubric_json(@rubric) }
-        else
-          render json: { errors: @rubric.errors.full_messages }, status: :unprocessable_entity
+        Rubric.transaction do
+          @rubric.assign_attributes(rubric_params.except(:criteria, :curriculum_id))
+          replace_criteria! if rubric_params.key?(:criteria)
+          @rubric.save!
         end
+        render json: { rubric: rubric_json(@rubric.reload) }
+      rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => error
+        render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
       end
 
       def destroy
@@ -47,11 +50,29 @@ module Api
       end
 
       def rubric_params
-        params.require(:rubric).permit(:curriculum_id, :title, :description, :active, criteria: [ :title, :description, :learning_objective_id ])
+        params.require(:rubric).permit(:curriculum_id, :title, :description, :active, criteria: [ :id, :title, :description, :learning_objective_id ])
       end
 
       def criteria_params
         rubric_params[:criteria] || []
+      end
+
+      def replace_criteria!
+        existing = @rubric.rubric_criteria.index_by { |criterion| criterion.id.to_s }
+        retained_ids = []
+
+        criteria_params.each_with_index do |attributes, position|
+          criterion_id = attributes[:id].presence&.to_s
+          criterion = if criterion_id
+            existing.fetch(criterion_id) { raise ActiveRecord::RecordNotFound, "Rubric criterion not found" }
+          else
+            @rubric.rubric_criteria.build
+          end
+          criterion.update!(attributes.except(:id).merge(position: position))
+          retained_ids << criterion.id if criterion.persisted?
+        end
+
+        @rubric.rubric_criteria.where.not(id: retained_ids).find_each(&:destroy!)
       end
 
       def rubric_json(rubric)
