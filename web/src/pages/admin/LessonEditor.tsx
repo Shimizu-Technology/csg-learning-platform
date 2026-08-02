@@ -164,6 +164,15 @@ export function LessonEditor() {
     setSaveSuccess(false)
 
     try {
+      // Persist alignments before the multi-request lesson save. If an objective is
+      // invalid or stale, fail without committing unrelated lesson/block changes.
+      const objectiveRes = await api.updateObjectiveAlignments(lesson.id, objectiveAlignments)
+      if (objectiveRes.error) {
+        setSaveError(objectiveRes.error)
+        toast.error(objectiveRes.error)
+        return
+      }
+
       const lessonRes = await api.updateLesson(lesson.id, {
         title: title.trim(),
         requires_submission: submissionType !== 'manual_complete',
@@ -233,9 +242,6 @@ export function LessonEditor() {
         if (eRes.error) { setSaveError(eRes.error); toast.error(eRes.error); setSaving(false); return }
       }
 
-      const objectiveRes = await api.updateObjectiveAlignments(lesson.id, objectiveAlignments)
-      if (objectiveRes.error) { setSaveError(objectiveRes.error); toast.error(objectiveRes.error); setSaving(false); return }
-
       setSaveSuccess(true)
       toast.success('Exercise saved successfully')
       setTimeout(() => setSaveSuccess(false), 3000)
@@ -298,24 +304,35 @@ export function LessonEditor() {
     }
     setCreatingObjective(true)
     setSaveError(null)
-    const response = await api.createLearningObjective({
-      curriculum_id: lesson.curriculum_id,
-      code: objectiveDraft.code,
-      title: objectiveDraft.title,
-      description: objectiveDraft.description || undefined,
-      success_criteria: objectiveDraft.success_criteria,
-      position: objectiveCatalog.length,
-    })
-    setCreatingObjective(false)
-    if (response.error || !response.data) {
-      setSaveError(response.error || 'Could not create the objective.')
-      return
+    try {
+      const response = await api.createLearningObjective({
+        curriculum_id: lesson.curriculum_id,
+        code: objectiveDraft.code,
+        title: objectiveDraft.title,
+        description: objectiveDraft.description || undefined,
+        success_criteria: objectiveDraft.success_criteria,
+        position: objectiveCatalog.length,
+      })
+      if (response.error || !response.data) {
+        setSaveError(response.error || 'Could not create the objective.')
+        return
+      }
+      const objective = response.data.learning_objective
+      setObjectiveCatalog((current) => [...current, objective])
+      const nextAlignments = [...objectiveAlignments, { learning_objective_id: objective.id, content_block_id: null }]
+      const alignmentResponse = await api.updateObjectiveAlignments(lesson.id, nextAlignments)
+      if (alignmentResponse.error) {
+        const message = `Objective created, but it could not be added to this lesson: ${alignmentResponse.error}`
+        setSaveError(message)
+        toast.error(message)
+        return
+      }
+      setObjectiveAlignments(nextAlignments)
+      setObjectiveDraft({ code: '', title: '', description: '', success_criteria: '' })
+      toast.success('Objective created and added to this lesson')
+    } finally {
+      setCreatingObjective(false)
     }
-    const objective = response.data.learning_objective
-    setObjectiveCatalog((current) => [...current, objective])
-    setObjectiveAlignments((current) => [...current, { learning_objective_id: objective.id, content_block_id: null }])
-    setObjectiveDraft({ code: '', title: '', description: '', success_criteria: '' })
-    toast.success('Objective created and added to this lesson')
   }
 
   const previewObjectives: LessonObjective[] = objectiveAlignments.flatMap((alignment, index) => {
