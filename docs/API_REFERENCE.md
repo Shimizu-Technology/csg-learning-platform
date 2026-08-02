@@ -289,6 +289,19 @@ Archived users are hidden from default user lists, team management, active cohor
 }
 ```
 
+### Learning objectives, rubrics, and retrieval checks
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` / `POST` | `/api/v1/learning_objectives?curriculum_id=:id` | Admin | List or create ordered curriculum objectives and success criteria |
+| `PATCH` / `DELETE` | `/api/v1/learning_objectives/:id` | Admin | Update or remove an unused objective |
+| `PATCH` | `/api/v1/lessons/:lesson_id/objective_alignments` | Admin | Atomically replace the lesson's ordered objective alignments |
+| `GET` / `POST` | `/api/v1/rubrics?curriculum_id=:id` | Admin | List or create reusable curriculum rubrics and ordered criteria |
+| `PATCH` / `DELETE` | `/api/v1/rubrics/:id` | Admin | Update or remove a rubric while preserving submitted evidence |
+| `POST` | `/api/v1/knowledge_checks/:knowledge_check_id/attempts` | Student | Record one answer and return immediate result/explanation evidence |
+
+The atomic lesson editor accepts a `retrieval_check` object for its checkpoint. A check has 2–6 options, one server-held correct option, an explanation, and an optional objective from the same curriculum. Students do not receive the answer or explanation before an attempt. Correct attempts complete the checkpoint; the generic progress endpoint cannot bypass this evidence. Attempted checks are immutable, and enrollment restart snapshots and removes the student's attempts for that curriculum.
+
 ---
 
 ## Communication
@@ -297,11 +310,21 @@ Archived users are hidden from default user lists, team management, active cohor
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `POST` | `/api/v1/transcriptions` | Any signed-in user | Create a temporary, reviewable message draft from M4A voice input |
+| `POST` | `/api/v1/transcriptions` | Any signed-in user | Create a temporary, reviewable text draft from M4A voice input |
 
-The multipart request includes `audio`, `surface=message`, and `cleanup=conservative`. M4A input is limited to 3 MB and 90 seconds; content type, file signature, and movie duration are verified. The response contains `raw_text`, `suggested_text`, verified `duration_seconds`, and `warnings`.
+The multipart request includes `audio`, `surface` (`message`, `thread`, `help_request`, or `grading_feedback`), and `cleanup=conservative`. M4A input is limited to 3 MB and 90 seconds; content type, file signature, and movie duration are verified. The response contains `raw_text`, `suggested_text`, verified `duration_seconds`, and `warnings`.
 
-The endpoint is rate-limited per user, fails closed until the production feature flag is enabled, never sends a message, creates no transcript record, and does not retain uploaded audio.
+The endpoint is rate-limited per user, fails closed until the production feature flag is enabled, never sends or saves the draft, creates no transcript record, and does not retain uploaded audio. The destination's normal authorization and explicit Send/Resolve/Grade action remain authoritative.
+
+### Feedback snippets
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` / `POST` | `/api/v1/feedback_snippets` | Staff | List active shared snippets or create one |
+| `PATCH` / `DELETE` | `/api/v1/feedback_snippets/:id` | Owner or admin | Edit or deactivate a snippet |
+| `POST` | `/api/v1/feedback_snippets/:id/use` | Staff | Record use of an active snippet |
+
+Snippet text is always inserted into an editable feedback draft; it never grades, sends, or saves feedback automatically.
 
 ### Announcements
 

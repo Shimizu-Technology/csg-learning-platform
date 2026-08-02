@@ -36,12 +36,12 @@ Operational gates:
 3. Reconcile build 9 events against Rails source records and complete the first 28-day baseline review. This is observation, not unfinished feature code.
 4. Run the physical-device Phase 0 and offline-interruption smoke matrices on the release candidate.
 
-## Deliberate later-phase boundaries
+## Boundaries after Phase 2 implementation
 
-- Voice reuse in threads, contextual help, and grading feedback follows measured native message quality in Phase 2.
-- Objectives, rubrics, retrieval checks, and richer feedback workflows are Phase 2.
+- Voice reuse in threads, contextual help, and grading feedback is now implemented in Phase 2 behind the existing release gate.
+- Objectives, rubrics, retrieval checks, and richer feedback workflows are now implemented in Phase 2.
 - Durable intervention cases, recovery plans, follow-up ownership, and outcomes are Phase 3.
 - Managed offline media downloads wait for retention, quota, device-loss, logout deletion, and signed-URL policy.
 - Automatic background write queues wait for an idempotency contract; explicit retry currently prevents duplicate or falsely successful work.
 
-New product work should now begin with Phase 2 unless one of the operational gates exposes a Phase 0/1 defect.
+New product work should now begin with Phase 3 unless an operational gate exposes a Phase 0–2 defect. See `docs/PHASE_2_COMPLETION.md`.
