@@ -35,6 +35,10 @@ describe('MessageCodeBlock', () => {
     expect(screen.getByText('Drag')).toBeTruthy();
     expect(screen.getByLabelText('Code continues horizontally. Drag to read more.')).toBeTruthy();
     expect(screen.getByLabelText('Code block, scroll horizontally for more')).toBeTruthy();
+    expect(screen.getByTestId('message-code-scroller').props.accessibilityActions).toEqual([
+      { name: 'decrement', label: 'Scroll code left' },
+      { name: 'increment', label: 'Scroll code right' },
+    ]);
     expect(screen.getByTestId('message-code-scroller').props.showsHorizontalScrollIndicator).toBe(true);
     expect(StyleSheet.flatten(screen.getByTestId('message-code-scroller').props.contentContainerStyle).minWidth).toBeGreaterThanOrEqual(520);
 
@@ -56,6 +60,7 @@ describe('MessageCodeBlock', () => {
     expect(screen.queryByText('Drag')).toBeNull();
     expect(screen.queryByLabelText('Scroll code right')).toBeNull();
     expect(screen.getByLabelText('Code block')).toBeTruthy();
+    expect(screen.getByTestId('message-code-scroller').props.accessibilityActions).toBeUndefined();
     expect(screen.getByTestId('message-code-scroller').props.showsHorizontalScrollIndicator).toBe(false);
   });
 

@@ -40,12 +40,15 @@ function estimatedCodeWidth(code: string) {
 export function MessageCodeBlock({ code, language = '' }: Props) {
   const [viewportWidth, setViewportWidth] = useState(0);
   const [codeWidth, setCodeWidth] = useState(0);
+  const [horizontalOffset, setHorizontalOffset] = useState(0);
   const [copied, setCopied] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const trackedScroll = useRef(false);
   const estimatedWidth = useMemo(() => estimatedCodeWidth(code), [code]);
   const intrinsicContentWidth = Math.ceil(Math.max(codeWidth, estimatedWidth)) + CODE_HORIZONTAL_PADDING;
   const overflowing = viewportWidth > 0 && intrinsicContentWidth > viewportWidth + OVERFLOW_TOLERANCE;
+  const maxOffset = Math.max(0, intrinsicContentWidth - viewportWidth);
 
   useEffect(() => () => {
     if (resetTimer.current) clearTimeout(resetTimer.current);
@@ -66,6 +69,12 @@ export function MessageCodeBlock({ code, language = '' }: Props) {
   const measureCode = (event: NativeSyntheticEvent<TextLayoutEventData>) => {
     const widestLine = Math.max(0, ...event.nativeEvent.lines.map((line) => line.width));
     setCodeWidth((current) => Math.abs(current - widestLine) > OVERFLOW_TOLERANCE ? widestLine : current);
+  };
+
+  const moveAccessibly = (direction: -1 | 1) => {
+    const page = Math.max(80, viewportWidth * 0.72);
+    const x = Math.min(maxOffset, Math.max(0, horizontalOffset + direction * page));
+    scrollRef.current?.scrollTo({ animated: true, x, y: 0 });
   };
 
   return (
@@ -94,6 +103,12 @@ export function MessageCodeBlock({ code, language = '' }: Props) {
       </View>
       <View onLayout={measureViewport} style={styles.viewport} testID="message-code-viewport">
         <ScrollView
+          ref={scrollRef}
+          accessibilityActions={overflowing ? [
+            { name: 'decrement', label: 'Scroll code left' },
+            { name: 'increment', label: 'Scroll code right' },
+          ] : undefined}
+          accessibilityHint={overflowing ? 'Drag horizontally, or use the scroll left and scroll right accessibility actions.' : undefined}
           accessibilityLabel={overflowing ? 'Code block, scroll horizontally for more' : 'Code block'}
           alwaysBounceHorizontal={false}
           bounces={overflowing}
@@ -106,8 +121,13 @@ export function MessageCodeBlock({ code, language = '' }: Props) {
           horizontal
           keyboardShouldPersistTaps="handled"
           nestedScrollEnabled
+          onAccessibilityAction={(event) => {
+            if (event.nativeEvent.actionName === 'decrement') moveAccessibly(-1);
+            if (event.nativeEvent.actionName === 'increment') moveAccessibly(1);
+          }}
           onScroll={(event) => {
             const offset = event.nativeEvent.contentOffset.x;
+            setHorizontalOffset(offset);
             if (!trackedScroll.current && offset > OVERFLOW_TOLERANCE) {
               trackedScroll.current = true;
               const overflow = Math.max(0, intrinsicContentWidth - viewportWidth);
