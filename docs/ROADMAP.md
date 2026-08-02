@@ -1,6 +1,6 @@
 # CSG Learning Platform — Roadmap
 
-**Last updated:** 2026-08-01
+**Last updated:** 2026-08-02
 **Status:** Active execution roadmap  
 **Companion docs:** `docs/PRODUCT_VISION.md`, `docs/PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md`, `docs/DEPLOYMENT.md`, `docs/API_REFERENCE.md`
 
