@@ -4,7 +4,7 @@ import { File } from 'expo-file-system';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppState, Linking } from 'react-native';
 
-import { captureProductEvent, durationBucket, latencyBucket } from '@/lib/analytics';
+import { captureProductEvent, durationBucket, latencyBucket, type VoiceSurface } from '@/lib/analytics';
 import type { CsgApi } from '@/lib/api';
 import { insertVoiceDraft, restoreRawVoiceDraft, voiceEditDistanceBucket, type VoiceDraftReview } from '@/lib/voice-draft';
 
@@ -22,6 +22,7 @@ export type VoiceDraftState = 'idle' | 'recording' | 'transcribing' | 'review' |
 interface UseVoiceDraftOptions {
   api: CsgApi;
   demo: boolean;
+  surface: VoiceSurface;
   draft: string;
   selection: { start: number; end: number };
   disabled?: boolean;
@@ -29,7 +30,7 @@ interface UseVoiceDraftOptions {
   onSelectionChange: (selection: { start: number; end: number }) => void;
 }
 
-export function useVoiceDraft({ api, demo, draft, selection, disabled, onDraftChange, onSelectionChange }: UseVoiceDraftOptions) {
+export function useVoiceDraft({ api, demo, surface, draft, selection, disabled, onDraftChange, onSelectionChange }: UseVoiceDraftOptions) {
   const recorder = useAudioRecorder(RECORDING_OPTIONS);
   const recorderState = useAudioRecorderState(recorder, 200);
   const [state, setState] = useState<VoiceDraftState>('idle');
@@ -74,12 +75,12 @@ export function useVoiceDraft({ api, demo, draft, selection, disabled, onDraftCh
     abortRef.current = controller;
     const startedAt = Date.now();
     try {
-      const result = await api.transcribeVoice(uri, controller.signal);
+      const result = await api.transcribeVoice(uri, surface, controller.signal);
       if (!mountedRef.current || controller.signal.aborted) return;
       const rawText = result.raw_text.trim();
       const suggestedText = result.suggested_text.trim() || rawText;
       if (!rawText) {
-        captureProductEvent('voice_draft_transcribed', { surface: 'message', latency_bucket: latencyBucket(Date.now() - startedAt), outcome: 'empty' });
+        captureProductEvent('voice_draft_transcribed', { surface, latency_bucket: latencyBucket(Date.now() - startedAt), outcome: 'empty' });
         setError('No speech was detected. Try again a little closer to the microphone.');
         setState('error');
         return;
@@ -91,21 +92,21 @@ export function useVoiceDraft({ api, demo, draft, selection, disabled, onDraftCh
       setReview(nextReview);
       setState('review');
       setNotice(result.warnings.includes('cleanup_unavailable') ? 'The faithful transcript was used because cleanup was unavailable. Review it before sending.' : result.warnings.length ? 'Voice draft added with possible ambiguities. Review technical terms before sending.' : 'Voice draft added. Review and edit it before sending.');
-      captureProductEvent('voice_draft_transcribed', { surface: 'message', latency_bucket: latencyBucket(Date.now() - startedAt), outcome: 'success' });
-      captureProductEvent('voice_draft_inserted', { surface: 'message', raw_or_cleaned: suggestedText === rawText ? 'raw' : 'cleaned' });
+      captureProductEvent('voice_draft_transcribed', { surface, latency_bucket: latencyBucket(Date.now() - startedAt), outcome: 'success' });
+      captureProductEvent('voice_draft_inserted', { surface, raw_or_cleaned: suggestedText === rawText ? 'raw' : 'cleaned' });
       deleteRecording(uri);
       setRecordingUri(null);
     } catch (requestError) {
       if (!mountedRef.current || controller.signal.aborted) return;
       const message = (requestError as Error).message;
       const outcome = /timed out/i.test(message) ? 'timeout' : /voice service|transcription|provider|configured|enabled/i.test(message) ? 'provider_error' : 'network_error';
-      captureProductEvent('voice_draft_transcribed', { surface: 'message', latency_bucket: latencyBucket(Date.now() - startedAt), outcome });
+      captureProductEvent('voice_draft_transcribed', { surface, latency_bucket: latencyBucket(Date.now() - startedAt), outcome });
       setError(message);
       setState('error');
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
     }
-  }, [api, deleteRecording, onDraftChange, onSelectionChange]);
+  }, [api, deleteRecording, onDraftChange, onSelectionChange, surface]);
 
   const stop = useCallback(async () => {
     if (stoppingRef.current || stateRef.current !== 'recording') return;
@@ -117,12 +118,12 @@ export function useVoiceDraft({ api, demo, draft, selection, disabled, onDraftCh
       await resetAudioMode();
       if (!uri || durationSeconds < 0.4) {
         deleteRecording(uri);
-        setError('That recording was too short. Hold the microphone button state long enough to speak your message.');
+        setError('That recording was too short. Hold the microphone button long enough to speak your draft.');
         setState('error');
         return;
       }
       setRecordingUri(uri);
-      captureProductEvent('voice_draft_recorded', { surface: 'message', duration_bucket: durationBucket(durationSeconds) });
+      captureProductEvent('voice_draft_recorded', { surface, duration_bucket: durationBucket(durationSeconds) });
       await transcribe(uri);
     } catch (recordingError) {
       setError((recordingError as Error).message || 'The recording could not be finished. Try again.');
@@ -131,7 +132,7 @@ export function useVoiceDraft({ api, demo, draft, selection, disabled, onDraftCh
     } finally {
       stoppingRef.current = false;
     }
-  }, [deleteRecording, recorder, recorderState.durationMillis, recorderState.isRecording, recorderState.url, resetAudioMode, transcribe]);
+  }, [deleteRecording, recorder, recorderState.durationMillis, recorderState.isRecording, recorderState.url, resetAudioMode, surface, transcribe]);
 
   useEffect(() => {
     if (state !== 'recording' || recorderState.isRecording || recorderState.durationMillis < 89_500) return;
@@ -143,7 +144,7 @@ export function useVoiceDraft({ api, demo, draft, selection, disabled, onDraftCh
     try {
       const currentPermission = await AudioModule.getRecordingPermissionsAsync();
       const permissionState = currentPermission.granted ? 'granted' : currentPermission.status === 'denied' ? 'denied' : 'unknown';
-      captureProductEvent('voice_draft_started', { surface: 'message', permission_state: permissionState });
+      captureProductEvent('voice_draft_started', { surface, permission_state: permissionState });
       let permission = currentPermission;
       if (!permission.granted) permission = await AudioModule.requestRecordingPermissionsAsync();
       if (!permission.granted) {
@@ -169,7 +170,7 @@ export function useVoiceDraft({ api, demo, draft, selection, disabled, onDraftCh
       setError((recordingError as Error).message || 'The microphone could not start. Try again.');
       setState('error');
     }
-  }, [deleteRecording, recorder, resetAudioMode]);
+  }, [deleteRecording, recorder, resetAudioMode, surface]);
 
   const start = useCallback(async () => {
     if (disabled || stateRef.current === 'recording' || stateRef.current === 'transcribing') return;
@@ -180,8 +181,8 @@ export function useVoiceDraft({ api, demo, draft, selection, disabled, onDraftCh
     const explained = await AsyncStorage.getItem(PERMISSION_EXPLAINED_KEY);
     if (explained) return startRecording();
     Alert.alert(
-      'Dictate a message draft?',
-      'CSG Connect records only after you continue. CSG and its transcription provider temporarily process the audio; CSG deletes its app and server copies after processing. Nothing is sent to the conversation until you review the text and press Send.',
+      'Dictate a draft?',
+      "CSG Connect records only after you continue. CSG and its transcription provider temporarily process the audio; CSG deletes its app and server copies after processing. Nothing is sent or saved until you review the text and use the screen's Send or Save action.",
       [
         { text: 'Not now', style: 'cancel' },
         { text: 'Continue', onPress: () => void AsyncStorage.setItem(PERMISSION_EXPLAINED_KEY, 'true').catch(() => undefined).then(startRecording) },
@@ -196,12 +197,13 @@ export function useVoiceDraft({ api, demo, draft, selection, disabled, onDraftCh
     const uri = recorder.uri || recorderState.url || recordingUriRef.current;
     deleteRecording(uri);
     setRecordingUri(null);
+    setReview(null);
     setError(null);
     setNotice(null);
     setState('idle');
     await resetAudioMode();
-    if (discardedStage) captureProductEvent('voice_draft_discarded', { surface: 'message', stage: discardedStage });
-  }, [deleteRecording, recorder, recorderState.isRecording, recorderState.url, resetAudioMode]);
+    if (discardedStage) captureProductEvent('voice_draft_discarded', { surface, stage: discardedStage });
+  }, [deleteRecording, recorder, recorderState.isRecording, recorderState.url, resetAudioMode, surface]);
 
   const retry = useCallback(() => {
     if (recordingUriRef.current) void transcribe(recordingUriRef.current);
@@ -218,8 +220,8 @@ export function useVoiceDraft({ api, demo, draft, selection, disabled, onDraftCh
     onDraftChange(restored.value);
     onSelectionChange(restored.selection);
     setNotice('Original transcript restored. Review it before sending.');
-    captureProductEvent('voice_draft_restored', { surface: 'message' });
-  }, [onDraftChange, onSelectionChange, review]);
+    captureProductEvent('voice_draft_restored', { surface });
+  }, [onDraftChange, onSelectionChange, review, surface]);
 
   const dismissReview = useCallback(() => {
     setNotice(null);
@@ -227,11 +229,11 @@ export function useVoiceDraft({ api, demo, draft, selection, disabled, onDraftCh
   }, []);
 
   const markSent = useCallback((sentDraft: string) => {
-    if (review) captureProductEvent('voice_draft_sent', { surface: 'message', edit_distance_bucket: voiceEditDistanceBucket(review, sentDraft) });
+    if (review) captureProductEvent('voice_draft_sent', { surface, edit_distance_bucket: voiceEditDistanceBucket(review, sentDraft) });
     setReview(null);
     setNotice(null);
     setState('idle');
-  }, [review]);
+  }, [review, surface]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {

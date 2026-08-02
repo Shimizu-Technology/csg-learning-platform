@@ -13,23 +13,25 @@ class TranscriptionsTest < ActionDispatch::IntegrationTest
       { raw_text: "hello there", suggested_text: "Hello there.", duration_seconds: duration_seconds, warnings: [] }
     end
 
-    with_voice_enabled do
-      with_upload(m4a_bytes(duration_seconds: 3)) do |upload|
-        with_singleton_method(VoiceTranscriptionRateLimiter, :allow?, ->(*) { true }) do
-          with_singleton_method(VoiceTranscriptionService, :new, ->(*) { service }) do
-            as_user(@student) do
-              post "/api/v1/transcriptions", params: { audio: upload, surface: "message", cleanup: "conservative" }, headers: auth_headers
+    Api::V1::TranscriptionsController::SURFACES.each do |surface|
+      with_voice_enabled do
+        with_upload(m4a_bytes(duration_seconds: 3)) do |upload|
+          with_singleton_method(VoiceTranscriptionRateLimiter, :allow?, ->(*) { true }) do
+            with_singleton_method(VoiceTranscriptionService, :new, ->(*) { service }) do
+              as_user(@student) do
+                post "/api/v1/transcriptions", params: { audio: upload, surface: surface, cleanup: "conservative" }, headers: auth_headers
+              end
             end
           end
         end
       end
-    end
 
-    assert_response :success
-    payload = JSON.parse(response.body)
-    assert_equal "hello there", payload.fetch("raw_text")
-    assert_equal "Hello there.", payload.fetch("suggested_text")
-    assert_equal 3.0, payload.fetch("duration_seconds")
+      assert_response :success
+      payload = JSON.parse(response.body)
+      assert_equal "hello there", payload.fetch("raw_text")
+      assert_equal "Hello there.", payload.fetch("suggested_text")
+      assert_equal 3.0, payload.fetch("duration_seconds")
+    end
   end
 
   test "rejects disabled, invalid, and rate-limited requests without calling a provider" do
@@ -40,7 +42,7 @@ class TranscriptionsTest < ActionDispatch::IntegrationTest
 
     with_voice_enabled do
       as_user(@student) do
-        post "/api/v1/transcriptions", params: { surface: "thread" }, headers: auth_headers
+        post "/api/v1/transcriptions", params: { surface: "announcement" }, headers: auth_headers
       end
       assert_response :unprocessable_entity
 

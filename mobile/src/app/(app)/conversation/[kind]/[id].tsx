@@ -71,6 +71,7 @@ export default function ConversationScreen() {
   const voiceDraft = useVoiceDraft({
     api,
     demo: auth.demo,
+    surface: 'message',
     draft,
     selection,
     disabled: sending || Boolean(editingMessage),
