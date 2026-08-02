@@ -574,6 +574,15 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
+  getFeedbackSnippets: () =>
+    fetchApi<{ feedback_snippets: import('../types/api').FeedbackSnippet[] }>('/api/v1/feedback_snippets'),
+  createFeedbackSnippet: (body: string) =>
+    fetchApi<{ feedback_snippet: import('../types/api').FeedbackSnippet }>('/api/v1/feedback_snippets', {
+      method: 'POST',
+      body: JSON.stringify({ feedback_snippet: { body } }),
+    }),
+  useFeedbackSnippet: (id: number) =>
+    fetchApi<{ feedback_snippet: import('../types/api').FeedbackSnippet }>(`/api/v1/feedback_snippets/${id}/use`, { method: 'POST' }),
   getSubmissionGithubIssue: (id: number) =>
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fetchApi<any>(`/api/v1/submissions/${id}/github_issue`),

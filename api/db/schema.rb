@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_02_020000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_02_030000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -208,6 +208,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_020000) do
     t.index ["cohort_id"], name: "index_enrollments_on_cohort_id"
     t.index ["user_id", "cohort_id"], name: "index_enrollments_on_user_id_and_cohort_id", unique: true
     t.index ["user_id"], name: "index_enrollments_on_user_id"
+  end
+
+  create_table "feedback_snippets", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.text "body", null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.integer "usage_count", default: 0, null: false
+    t.index ["active", "usage_count"], name: "index_feedback_snippets_on_active_and_usage_count"
+    t.index ["created_by_id"], name: "index_feedback_snippets_on_created_by_id"
+    t.check_constraint "usage_count >= 0", name: "feedback_snippets_usage_count_nonnegative"
   end
 
   create_table "help_requests", force: :cascade do |t|
@@ -756,6 +769,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_020000) do
   add_foreign_key "enrollment_restarts", "users", column: "student_id"
   add_foreign_key "enrollments", "cohorts"
   add_foreign_key "enrollments", "users"
+  add_foreign_key "feedback_snippets", "users", column: "created_by_id"
   add_foreign_key "help_requests", "cohorts"
   add_foreign_key "help_requests", "users", column: "owner_id"
   add_foreign_key "help_requests", "users", column: "student_id"
