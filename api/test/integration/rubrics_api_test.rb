@@ -54,6 +54,27 @@ class RubricsApiTest < ActionDispatch::IntegrationTest
     assert_response :no_content
   end
 
+  test "curriculum deletion reports a restricted dependent record without a server error" do
+    curriculum = @curriculum
+    original_find = Curriculum.method(:find)
+    original_destroy = curriculum.method(:destroy)
+    Curriculum.define_singleton_method(:find) { |_id| curriculum }
+    curriculum.define_singleton_method(:destroy) do
+      errors.add(:base, "Attached assessment evidence must be preserved")
+      raise ActiveRecord::RecordNotDestroyed.new("Restricted", self)
+    end
+
+    as_user(@admin) do
+      delete "/api/v1/curricula/#{curriculum.id}", headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_includes JSON.parse(response.body).fetch("errors"), "Attached assessment evidence must be preserved"
+  ensure
+    Curriculum.define_singleton_method(:find, original_find) if original_find
+    curriculum&.define_singleton_method(:destroy, original_destroy) if original_destroy
+  end
+
   private
 
   def auth_headers = { "Authorization" => "Bearer test_token" }
