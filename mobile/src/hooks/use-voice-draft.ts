@@ -118,7 +118,7 @@ export function useVoiceDraft({ api, demo, surface, draft, selection, disabled, 
       await resetAudioMode();
       if (!uri || durationSeconds < 0.4) {
         deleteRecording(uri);
-        setError('That recording was too short. Hold the microphone button state long enough to speak your message.');
+        setError('That recording was too short. Hold the microphone button long enough to speak your draft.');
         setState('error');
         return;
       }
@@ -182,7 +182,7 @@ export function useVoiceDraft({ api, demo, surface, draft, selection, disabled, 
     if (explained) return startRecording();
     Alert.alert(
       'Dictate a draft?',
-      'CSG Connect records only after you continue. CSG and its transcription provider temporarily process the audio; CSG deletes its app and server copies after processing. Nothing is sent to the conversation until you review the text and press Send.',
+      "CSG Connect records only after you continue. CSG and its transcription provider temporarily process the audio; CSG deletes its app and server copies after processing. Nothing is sent or saved until you review the text and use the screen's Send or Save action.",
       [
         { text: 'Not now', style: 'cancel' },
         { text: 'Continue', onPress: () => void AsyncStorage.setItem(PERMISSION_EXPLAINED_KEY, 'true').catch(() => undefined).then(startRecording) },
