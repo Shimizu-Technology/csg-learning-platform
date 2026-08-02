@@ -11,6 +11,7 @@ class Submission < ApplicationRecord
   belongs_to :content_block
   belongs_to :user
   belongs_to :grader, class_name: "User", foreign_key: :graded_by_id, optional: true
+  has_many :submission_criterion_results, dependent: :destroy
 
   validates :content_block_id, presence: true
   validates :user_id, presence: true

@@ -357,6 +357,58 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  test "rubric grading stores criterion evidence and returns it to the student" do
+    rubric = Rubric.create!(curriculum: @curriculum, title: "Project quality", rubric_criteria_attributes: [
+      { title: "Correctness", description: "The solution works.", position: 0 },
+      { title: "Clarity", description: "The approach is understandable.", position: 1 }
+    ])
+    correctness, clarity = rubric.rubric_criteria.ordered.to_a
+    @block.update!(rubric: rubric)
+
+    as_user(@admin) do
+      patch "/api/v1/submissions/#{@submission.id}/grade",
+        params: {
+          grade: "B",
+          feedback: "Strong work overall.",
+          criterion_results: [
+            { rubric_criterion_id: correctness.id, rating: "meets", feedback: "Required cases pass." },
+            { rubric_criterion_id: clarity.id, rating: "developing", feedback: "Name the intermediate values." }
+          ]
+        },
+        headers: auth_headers, as: :json
+    end
+
+    assert_response :success
+    criteria = JSON.parse(response.body).dig("submission", "rubric", "criteria").index_by { |criterion| criterion["id"] }
+    assert_equal "meets", criteria.fetch(correctness.id).fetch("rating")
+    assert_equal "Name the intermediate values.", criteria.fetch(clarity.id).fetch("feedback")
+
+    as_user(@student) do
+      get "/api/v1/submissions/#{@submission.id}", headers: auth_headers
+    end
+    assert_response :success
+    assert_equal "developing", JSON.parse(response.body).dig("submission", "rubric", "criteria", 1, "rating")
+  end
+
+  test "incomplete rubric results do not partially grade a submission" do
+    rubric = Rubric.create!(curriculum: @curriculum, title: "Project quality", rubric_criteria_attributes: [
+      { title: "Correctness", description: "The solution works.", position: 0 },
+      { title: "Clarity", description: "The approach is understandable.", position: 1 }
+    ])
+    criterion = rubric.rubric_criteria.ordered.first
+    @block.update!(rubric: rubric)
+
+    as_user(@admin) do
+      patch "/api/v1/submissions/#{@submission.id}/grade",
+        params: { grade: "A", criterion_results: [ { rubric_criterion_id: criterion.id, rating: "meets" } ] },
+        headers: auth_headers, as: :json
+    end
+
+    assert_response :unprocessable_entity
+    assert_nil @submission.reload.grade
+    assert_empty @submission.submission_criterion_results
+  end
+
   private
 
   def auth_headers

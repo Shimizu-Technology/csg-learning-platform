@@ -47,6 +47,8 @@ module Api
         else
           render json: { errors: @curriculum.errors.full_messages }, status: :unprocessable_entity
         end
+      rescue ActiveRecord::RecordNotDestroyed => error
+        render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
       end
 
       private

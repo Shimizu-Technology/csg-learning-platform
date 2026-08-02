@@ -568,8 +568,27 @@ export interface LessonContentBlock {
   submission_config?: Record<string, unknown>;
   metadata: Record<string, unknown>;
   objective_ids?: number[];
+  rubric?: Rubric | null;
   progress?: { status: string; completed_at: string | null; video_last_position?: number; video_total_watched?: number };
   submissions?: SubmissionBrief[];
+}
+
+export type RubricRating = 'exceeds' | 'meets' | 'developing' | 'redo';
+
+export interface RubricCriterion {
+  id: number;
+  title: string;
+  description: string;
+  objective_code?: string | null;
+  rating?: RubricRating | null;
+  feedback?: string | null;
+}
+
+export interface Rubric {
+  id: number;
+  title: string;
+  description: string | null;
+  criteria: RubricCriterion[];
 }
 
 export interface LessonObjective {
@@ -637,6 +656,7 @@ export interface Submission {
   solution?: string | null;
   exercise_body?: string | null;
   exercise_video_url?: string | null;
+  rubric?: Rubric | null;
 }
 
 export interface SubmissionInput {

@@ -157,7 +157,7 @@ export class CsgApi {
   updateSubmission = (id: number, input: Omit<SubmissionInput, 'content_block_id'>) => this.request<{ submission: Submission }>(`/api/v1/submissions/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
   submissions = (params: { user_id?: number; ungraded?: boolean; module_id?: number } = {}, signal?: AbortSignal) => this.request<{ submissions: Submission[] }>(`/api/v1/submissions${queryString(params)}`, { signal });
   submission = (id: number, signal?: AbortSignal) => this.request<{ submission: Submission }>(`/api/v1/submissions/${id}`, { signal });
-  gradeSubmission = (id: number, grade: 'A' | 'B' | 'C' | 'R', feedback: string) => this.request<{ submission: Submission }>(`/api/v1/submissions/${id}/grade`, { method: 'PATCH', body: JSON.stringify({ grade, feedback }) });
+  gradeSubmission = (id: number, grade: 'A' | 'B' | 'C' | 'R', feedback: string, criterionResults?: { rubric_criterion_id: number; rating: import('./types').RubricRating; feedback?: string }[]) => this.request<{ submission: Submission }>(`/api/v1/submissions/${id}/grade`, { method: 'PATCH', body: JSON.stringify({ grade, feedback, criterion_results: criterionResults }) });
   studentProgress = (studentId: number, signal?: AbortSignal) => this.request<StudentProgressDetail>(`/api/v1/progress/student/${studentId}`, { signal });
   restartEnrollment = (enrollmentId: number, confirmation: string, reason?: string) => this.request<{
     message: string;

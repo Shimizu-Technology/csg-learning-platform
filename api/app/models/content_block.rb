@@ -9,6 +9,7 @@ class ContentBlock < ApplicationRecord
   }, prefix: true
 
   belongs_to :lesson
+  belongs_to :rubric, optional: true
   belongs_to :s3_video_uploaded_by, class_name: "User", optional: true
   has_many :progresses, dependent: :destroy
   has_many :submissions, dependent: :destroy
@@ -17,6 +18,8 @@ class ContentBlock < ApplicationRecord
 
   validates :block_type, presence: true
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+  validate :rubric_matches_curriculum
+  validate :rubric_change_preserves_recorded_results
 
   scope :ordered, -> { order(:position) }
 
@@ -52,6 +55,19 @@ class ContentBlock < ApplicationRecord
   end
 
   private
+
+  def rubric_matches_curriculum
+    return if rubric.nil? || rubric.curriculum_id == lesson&.curriculum_module&.curriculum_id
+
+    errors.add(:rubric, "must belong to the lesson curriculum")
+  end
+
+  def rubric_change_preserves_recorded_results
+    return unless will_save_change_to_rubric_id?
+    return unless submissions.joins(:submission_criterion_results).exists?
+
+    errors.add(:rubric, "cannot be changed after criterion feedback has been recorded")
+  end
 
   def legacy_submission_type(requires_github: false)
     return "manual_complete" unless exercise_like?
