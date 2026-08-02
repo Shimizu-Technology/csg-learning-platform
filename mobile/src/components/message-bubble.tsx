@@ -23,10 +23,8 @@ export function MessageBubble({ message, showAuthor, mentionUsers, onLongPress, 
   const deleted = Boolean(message.deleted_at);
   const images = message.attachments.filter((attachment) => attachment.image && attachment.url);
   return (
-    <Pressable
+    <View
       accessible={false}
-      delayLongPress={260}
-      onLongPress={() => onLongPress?.(message)}
       style={[styles.messageRow, message.mine && styles.mineRow]}
       testID={`message-row-${message.id}`}
     >
@@ -59,7 +57,7 @@ export function MessageBubble({ message, showAuthor, mentionUsers, onLongPress, 
           {onLongPress && <Pressable accessibilityRole="button" accessibilityLabel={`Actions for message from ${message.author.full_name}`} accessibilityHint="Opens reply, reaction, and message management actions" onPress={() => onLongPress(message)} style={({ pressed }) => [styles.messageActions, pressed && styles.messageActionsPressed]}><MoreHorizontal color={palette.muted} size={17} /></Pressable>}
         </View>
       </View>
-    </Pressable>
+    </View>
   );
 }
 

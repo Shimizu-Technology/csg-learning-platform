@@ -1,5 +1,5 @@
 import * as Clipboard from 'expo-clipboard';
-import { Check, ChevronLeft, ChevronRight, Copy } from 'lucide-react-native';
+import { Check, Copy, MoveHorizontal } from 'lucide-react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Platform,
@@ -40,17 +40,12 @@ function estimatedCodeWidth(code: string) {
 export function MessageCodeBlock({ code, language = '' }: Props) {
   const [viewportWidth, setViewportWidth] = useState(0);
   const [codeWidth, setCodeWidth] = useState(0);
-  const [horizontalOffset, setHorizontalOffset] = useState(0);
   const [copied, setCopied] = useState(false);
-  const scrollRef = useRef<ScrollView>(null);
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const trackedScroll = useRef(false);
   const estimatedWidth = useMemo(() => estimatedCodeWidth(code), [code]);
   const intrinsicContentWidth = Math.ceil(Math.max(codeWidth, estimatedWidth)) + CODE_HORIZONTAL_PADDING;
   const overflowing = viewportWidth > 0 && intrinsicContentWidth > viewportWidth + OVERFLOW_TOLERANCE;
-  const maxOffset = Math.max(0, intrinsicContentWidth - viewportWidth);
-  const canScrollLeft = horizontalOffset > OVERFLOW_TOLERANCE;
-  const canScrollRight = maxOffset - horizontalOffset > OVERFLOW_TOLERANCE;
 
   useEffect(() => () => {
     if (resetTimer.current) clearTimeout(resetTimer.current);
@@ -73,32 +68,15 @@ export function MessageCodeBlock({ code, language = '' }: Props) {
     setCodeWidth((current) => Math.abs(current - widestLine) > OVERFLOW_TOLERANCE ? widestLine : current);
   };
 
-  const pageCode = (direction: -1 | 1) => {
-    const page = Math.max(80, viewportWidth * 0.72);
-    const x = Math.min(maxOffset, Math.max(0, horizontalOffset + direction * page));
-    scrollRef.current?.scrollTo({ animated: true, x, y: 0 });
-  };
-
   return (
     <View style={styles.block} testID="message-code-block">
       <View style={styles.header}>
         <Text maxFontSizeMultiplier={fontScaleLimits.utility} numberOfLines={1} style={styles.language}>{language || 'Code'}</Text>
         <View style={styles.headerActions}>
           {overflowing && (
-            <View style={styles.overflowActions}>
-              <View accessible accessibilityLabel="Code continues horizontally" style={styles.overflowLabel}>
-                <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.overflowText}>Scroll</Text>
-              </View>
-              {canScrollLeft && (
-                <Pressable accessibilityLabel="Scroll code left" accessibilityRole="button" onPress={() => pageCode(-1)} style={({ pressed }) => [styles.pageButton, pressed && styles.pressed]}>
-                  <ChevronLeft color={palette.muted} size={15} />
-                </Pressable>
-              )}
-              {canScrollRight && (
-                <Pressable accessibilityLabel="Scroll code right" accessibilityRole="button" onPress={() => pageCode(1)} style={({ pressed }) => [styles.pageButton, pressed && styles.pressed]}>
-                  <ChevronRight color={palette.muted} size={15} />
-                </Pressable>
-              )}
+            <View accessible accessibilityLabel="Code continues horizontally. Drag to read more." style={styles.overflowLabel}>
+              <MoveHorizontal color={palette.muted} size={15} />
+              <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.overflowText}>Drag</Text>
             </View>
           )}
           <Pressable
@@ -116,7 +94,6 @@ export function MessageCodeBlock({ code, language = '' }: Props) {
       </View>
       <View onLayout={measureViewport} style={styles.viewport} testID="message-code-viewport">
         <ScrollView
-          ref={scrollRef}
           accessibilityLabel={overflowing ? 'Code block, scroll horizontally for more' : 'Code block'}
           alwaysBounceHorizontal={false}
           bounces={overflowing}
@@ -128,9 +105,9 @@ export function MessageCodeBlock({ code, language = '' }: Props) {
           directionalLockEnabled
           horizontal
           keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
           onScroll={(event) => {
             const offset = event.nativeEvent.contentOffset.x;
-            setHorizontalOffset(offset);
             if (!trackedScroll.current && offset > OVERFLOW_TOLERANCE) {
               trackedScroll.current = true;
               const overflow = Math.max(0, intrinsicContentWidth - viewportWidth);
@@ -178,10 +155,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  overflowActions: { flexDirection: 'row', alignItems: 'center' },
-  overflowLabel: { minHeight: 32, flexDirection: 'row', alignItems: 'center', paddingLeft: 7 },
+  overflowLabel: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 7 },
   overflowText: { ...typography.label, color: palette.muted, fontFamily: fonts.semibold },
-  pageButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
   copyButton: {
     minWidth: 68,
     minHeight: 44,

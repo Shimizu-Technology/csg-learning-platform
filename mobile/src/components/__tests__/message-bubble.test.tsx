@@ -8,8 +8,6 @@ jest.mock('lucide-react-native', () => {
   const Icon = () => null;
   return {
     Check: Icon,
-    ChevronLeft: Icon,
-    ChevronRight: Icon,
     Copy: Icon,
     FileText: Icon,
     Heart: Icon,
@@ -17,6 +15,7 @@ jest.mock('lucide-react-native', () => {
     Lightbulb: Icon,
     MessageSquare: Icon,
     MoreHorizontal: Icon,
+    MoveHorizontal: Icon,
     Pin: Icon,
     RefreshCw: Icon,
     ThumbsUp: Icon,
