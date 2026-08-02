@@ -25,6 +25,18 @@ This directory is the durable source record for the App Store presentation of th
 
 Build 4 finished successfully, was processed by App Store Connect, is attached to the 1.0 App Store draft, and is available to the internal group. EAS production archives 5–8 and their submissions also finished successfully. Build 9 was generated from merged `main` on 2026-08-02 and submitted without an EAS error with `CSG Internal` requested as its internal group. Apple processing and tester installability must still be verified in an authenticated App Store Connect or TestFlight session.
 
+Verified EAS production history:
+
+| Build | EAS build ID | EAS submission ID | EAS submission state |
+| --- | --- | --- | --- |
+| `5` | `9424b028-d108-43b4-a3e1-4f683819cac5` | `1b501c6e-7ad2-42c3-853e-1cbb7f377f94` | Finished |
+| `6` | `db32728f-d7b0-4a0d-ae6f-4083f5f96d62` | `b57fad17-4ea8-4305-9097-aca29f32636c` | Finished |
+| `7` | `9f4c2108-f9b9-47ac-8b11-5999aa786245` | `890d5a09-a462-4d5a-9759-2dae22c92454` | Finished |
+| `8` | `deb0452d-949a-46b2-bc4e-fccd7cc6924b` | `4cf6cbe7-74c5-437b-b01e-7d137d5dfa1f` | Finished |
+| `9` | `098bdef7-9320-41ef-92b7-255cd6f61912` | `2aaf6efa-1b6d-4c74-8b48-da29401f8d58` | Finished |
+
+These are EAS states only. They do not replace App Store Connect verification of Apple processing, internal-group availability, or installability.
+
 Build 9 is the Phase 0–1 TestFlight candidate. It includes the reviewed voice-draft client, Phase 0 readability work, weekly plan, contextual help, privacy-safe analytics, and offline continuity. Its production EAS environment points to the CSG API with demo mode disabled and includes the `csg-learning-platform` PostHog project configuration. Do not enable the voice production endpoint or submit this binary for public App Review until the temporary transcription-provider processing is accurately disclosed, the production OpenAI data controls are approved, and the voice-specific physical-device checks below pass.
 
 The requested release action is upload to App Store Connect for internal TestFlight testing only. Public App Review remains a separate, intentionally deferred action.
