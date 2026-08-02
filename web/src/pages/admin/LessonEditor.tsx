@@ -99,8 +99,9 @@ export function LessonEditor() {
   // upload's s3_key for the same content block (handles the case where the user navigates
   // away and back while an upload is still in progress and hasn't yet PATCHed the block).
   const resolveS3Key = useCallback((blockId: number, fetchedKey: string | null): string | null => {
+    const live = uploadsRef.current.find(u => u.contentBlockId === blockId && u.deferPersistence && u.s3Key && u.status !== 'error')
+    if (live?.s3Key) return live.s3Key
     if (fetchedKey) return fetchedKey
-    const live = uploadsRef.current.find(u => u.contentBlockId === blockId && u.s3Key && u.status !== 'error')
     return live?.s3Key || null
   }, [])
 
@@ -161,9 +162,13 @@ export function LessonEditor() {
 
   const handleSave = async () => {
     if (!lesson) return
-    const activeVideoUpload = pendingVideoUploadId
-      ? uploadsRef.current.find((upload) => upload.id === pendingVideoUploadId)
-      : null
+    const lessonEditorPath = `/admin/lessons/${lesson.id}/edit`
+    const activeVideoUpload = uploadsRef.current.find((upload) => (
+      upload.status !== 'error' && (
+        upload.id === pendingVideoUploadId ||
+        (upload.deferPersistence && (upload.contentBlockId === videoBlockId || upload.linkTo === lessonEditorPath))
+      )
+    ))
     if (activeVideoUpload && activeVideoUpload.status !== 'waiting' && activeVideoUpload.status !== 'done') {
       const message = 'Wait for the video upload to finish before saving this lesson.'
       setSaveError(message)
@@ -234,8 +239,8 @@ export function LessonEditor() {
           ))
         }
       }
-      if (pendingVideoUploadId) {
-        completeDeferredUpload(pendingVideoUploadId)
+      if (activeVideoUpload) {
+        completeDeferredUpload(activeVideoUpload.id)
         setPendingVideoUploadId(null)
       }
       setSaveSuccess(true)
