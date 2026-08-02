@@ -14,6 +14,7 @@ export interface ProductEventMap {
   submission_created: { cohort_id?: number; content_block_id: number; submission_type: string; attempt: number };
   feedback_viewed: { cohort_id?: number; submission_id: number; grade_state: 'passed' | 'redo'; age_bucket: AgeBucket };
   redo_submitted: { cohort_id?: number; submission_id: number; attempt: number; age_bucket: AgeBucket };
+  knowledge_check_attempted: { knowledge_check_id: number; content_block_id: number; correct: boolean; attempt: number };
   help_requested: { cohort_id: number; context_type: 'lesson' | 'exercise' | 'recording'; context_id: number; category: string; urgency: 'normal' | 'urgent' };
   help_request_resolved: { cohort_id: number; help_request_id: number; category: string; resolution_bucket: AgeBucket };
   intervention_opened: { cohort_id: number; intervention_id: number; trigger_type: string; severity: 'normal' | 'urgent' };
@@ -41,6 +42,7 @@ const PROPERTY_KEYS: { [Event in ProductEventName]: readonly (keyof ProductEvent
   submission_created: ['cohort_id', 'content_block_id', 'submission_type', 'attempt'],
   feedback_viewed: ['cohort_id', 'submission_id', 'grade_state', 'age_bucket'],
   redo_submitted: ['cohort_id', 'submission_id', 'attempt', 'age_bucket'],
+  knowledge_check_attempted: ['knowledge_check_id', 'content_block_id', 'correct', 'attempt'],
   help_requested: ['cohort_id', 'context_type', 'context_id', 'category', 'urgency'],
   help_request_resolved: ['cohort_id', 'help_request_id', 'category', 'resolution_bucket'],
   intervention_opened: ['cohort_id', 'intervention_id', 'trigger_type', 'severity'],

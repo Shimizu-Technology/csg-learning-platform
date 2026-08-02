@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Save, Trash2, Eye, Pencil, Plus, Target, X, ClipboardCheck } from 'lucide-react'
+import { ArrowLeft, Save, Trash2, Eye, Pencil, Plus, Target, X, ClipboardCheck, ListChecks } from 'lucide-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { RichTextEditor } from '../../components/shared/RichTextEditor'
@@ -36,6 +36,7 @@ interface ContentBlock {
   s3_video_uploaded_at?: string | null
   s3_video_uploaded_by?: string | null
   rubric?: Rubric | null
+  knowledge_check?: import('../../types/api').KnowledgeCheck | null
 }
 
 interface Lesson {
@@ -68,6 +69,15 @@ export function LessonEditor() {
   const [selectedRubricId, setSelectedRubricId] = useState<number | null>(null)
   const [creatingRubric, setCreatingRubric] = useState(false)
   const [rubricDraft, setRubricDraft] = useState({ title: '', description: '', criteria: [{ title: '', description: '' }, { title: '', description: '' }] })
+  const [checkEnabled, setCheckEnabled] = useState(false)
+  const [checkBlockId, setCheckBlockId] = useState<number | null>(null)
+  const [checkTitle, setCheckTitle] = useState('Quick check')
+  const [checkPrompt, setCheckPrompt] = useState('')
+  const [checkOptions, setCheckOptions] = useState(['', ''])
+  const [checkCorrectOption, setCheckCorrectOption] = useState(0)
+  const [checkExplanation, setCheckExplanation] = useState('')
+  const [checkObjectiveId, setCheckObjectiveId] = useState<number | null>(null)
+  const [checkAttemptCount, setCheckAttemptCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchParams] = useSearchParams()
@@ -148,6 +158,18 @@ export function LessonEditor() {
             codeRunnerLanguageFromEditor(detectLanguage(exerciseBlock.filename)) || 'ruby'
           ))
         }
+        const checkBlock = l.content_blocks.find(b => b.knowledge_check)
+        if (checkBlock?.knowledge_check) {
+          setCheckEnabled(true)
+          setCheckBlockId(checkBlock.id)
+          setCheckTitle(checkBlock.title || 'Quick check')
+          setCheckPrompt(checkBlock.knowledge_check.prompt)
+          setCheckOptions(checkBlock.knowledge_check.options)
+          setCheckCorrectOption(checkBlock.knowledge_check.correct_option ?? 0)
+          setCheckExplanation(checkBlock.knowledge_check.explanation || checkBlock.knowledge_check.latest_attempt?.explanation || '')
+          setCheckObjectiveId(checkBlock.knowledge_check.learning_objective_id || null)
+          setCheckAttemptCount(checkBlock.knowledge_check.attempt_count)
+        }
       }
       setLoading(false)
     })
@@ -171,6 +193,13 @@ export function LessonEditor() {
 
   const handleSave = async () => {
     if (!lesson) return
+    const cleanCheckOptions = checkOptions.map((option) => option.trim())
+    if (checkEnabled && (!checkPrompt.trim() || cleanCheckOptions.length < 2 || cleanCheckOptions.some((option) => !option) || !checkExplanation.trim() || checkCorrectOption >= cleanCheckOptions.length)) {
+      const message = 'Add a question, at least two choices, a valid correct answer, and an explanation for the retrieval check.'
+      setSaveError(message)
+      toast.error(message)
+      return
+    }
     const lessonEditorPath = `/admin/lessons/${lesson.id}/edit`
     const activeVideoUpload = uploadsRef.current.find((upload) => (
       upload.status !== 'error' && (
@@ -220,6 +249,16 @@ export function LessonEditor() {
         requires_submission: submissionType !== 'manual_complete',
         video,
         exercise,
+        ...(checkEnabled || checkBlockId ? { retrieval_check: {
+          enabled: checkEnabled,
+          ...(checkBlockId ? { content_block_id: checkBlockId } : {}),
+          title: checkTitle.trim() || 'Quick check',
+          prompt: checkPrompt.trim(),
+          options: cleanCheckOptions,
+          correct_option: checkCorrectOption,
+          explanation: checkExplanation.trim(),
+          learning_objective_id: checkObjectiveId,
+        } } : {}),
         alignments: objectiveAlignments,
       })
       if (response.error || !response.data) {
@@ -248,6 +287,22 @@ export function LessonEditor() {
             refreshedExercise.submission_config,
             codeRunnerLanguageFromEditor(detectLanguage(refreshedExercise.filename)) || 'ruby'
           ))
+        }
+        const refreshedCheckBlock = data.lesson.content_blocks.find(b => b.knowledge_check)
+        if (refreshedCheckBlock?.knowledge_check) {
+          setCheckEnabled(true)
+          setCheckBlockId(refreshedCheckBlock.id)
+          setCheckTitle(refreshedCheckBlock.title || 'Quick check')
+          setCheckPrompt(refreshedCheckBlock.knowledge_check.prompt)
+          setCheckOptions(refreshedCheckBlock.knowledge_check.options)
+          setCheckCorrectOption(refreshedCheckBlock.knowledge_check.correct_option ?? 0)
+          setCheckExplanation(refreshedCheckBlock.knowledge_check.explanation || '')
+          setCheckObjectiveId(refreshedCheckBlock.knowledge_check.learning_objective_id || null)
+          setCheckAttemptCount(refreshedCheckBlock.knowledge_check.attempt_count)
+        } else {
+          setCheckEnabled(false)
+          setCheckBlockId(null)
+          setCheckAttemptCount(0)
         }
       }
       if (activeVideoUpload) {
@@ -403,8 +458,32 @@ export function LessonEditor() {
         metadata: {},
       })
     }
+    if (checkEnabled && checkPrompt.trim()) {
+      blocks.push({
+        id: -3,
+        block_type: 'checkpoint',
+        position: blocks.length,
+        title: checkTitle.trim() || 'Quick check',
+        body: null,
+        video_url: null,
+        filename: null,
+        solution: null,
+        metadata: {},
+        knowledge_check: {
+          id: -3,
+          prompt: checkPrompt.trim(),
+          options: checkOptions.map((option) => option.trim()),
+          correct_option: checkCorrectOption,
+          explanation: checkExplanation.trim(),
+          learning_objective_id: checkObjectiveId,
+          objective_code: objectiveCatalog.find((objective) => objective.id === checkObjectiveId)?.code || null,
+          attempt_count: 0,
+          latest_attempt: null,
+        },
+      })
+    }
     return blocks
-  }, [title, videoUrl, instructions, filename, s3VideoKey, videoBlockId, submissionType, runnerConfig])
+  }, [title, videoUrl, instructions, filename, s3VideoKey, videoBlockId, submissionType, runnerConfig, checkEnabled, checkPrompt, checkTitle, checkOptions, checkCorrectOption, checkExplanation, checkObjectiveId, objectiveCatalog])
 
   if (loading) return <LoadingSpinner message="Loading exercise..." />
   if (error) {
@@ -706,6 +785,34 @@ export function LessonEditor() {
               </div>
               <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => setRubricDraft((current) => ({ ...current, criteria: [...current.criteria, { title: '', description: '' }] }))} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700"><Plus className="h-4 w-4" />Add criterion</button><button type="button" disabled={creatingRubric} onClick={() => void handleCreateRubric()} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-bold text-white disabled:opacity-50"><ClipboardCheck className="h-4 w-4" />{creatingRubric ? 'Creating…' : 'Create and select rubric'}</button></div>
             </div>
+          </section>
+
+          <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_14px_40px_rgba(15,23,42,0.04)]">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-start gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-700"><ListChecks className="h-5 w-5" /></span>
+                <div>
+                  <p className="app-eyebrow">Retrieval practice</p>
+                  <h2 className="mt-1 text-lg font-extrabold tracking-tight text-slate-950">Quick recall check</h2>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">Use one low-stakes question to help students retrieve a foundational idea. They receive an explanation immediately and can retry.</p>
+                </div>
+              </div>
+              <label className="inline-flex min-h-11 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-700"><input type="checkbox" checked={checkEnabled} disabled={checkAttemptCount > 0} onChange={(event) => setCheckEnabled(event.target.checked)} className="h-4 w-4 accent-primary-600" />Include check</label>
+            </div>
+            {checkAttemptCount > 0 && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">{checkAttemptCount} student {checkAttemptCount === 1 ? 'attempt is' : 'attempts are'} recorded. The question is locked to preserve that evidence; create a new check if the standard changes.</div>}
+            {checkEnabled && <div className="mt-5 space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Check title<input value={checkTitle} disabled={checkAttemptCount > 0} onChange={(event) => setCheckTitle(event.target.value)} placeholder="Quick check" className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal normal-case tracking-normal disabled:bg-slate-100" /></label>
+                <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Aligned objective<select value={checkObjectiveId || ''} disabled={checkAttemptCount > 0} onChange={(event) => setCheckObjectiveId(event.target.value ? Number(event.target.value) : null)} className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold normal-case tracking-normal disabled:bg-slate-100"><option value="">No specific objective</option>{objectiveCatalog.filter((objective) => objective.active).map((objective) => <option key={objective.id} value={objective.id}>{objective.code} · {objective.title}</option>)}</select></label>
+              </div>
+              <label className="block text-xs font-bold uppercase tracking-wide text-slate-600">Question<textarea value={checkPrompt} disabled={checkAttemptCount > 0} onChange={(event) => setCheckPrompt(event.target.value)} rows={3} placeholder="Which command prints the current working directory?" className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal normal-case tracking-normal disabled:bg-slate-100" /></label>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Choices and correct answer</p>
+                <div className="mt-2 space-y-2">{checkOptions.map((option, index) => <div key={index} className="grid grid-cols-[44px_1fr_44px] gap-2"><label className="flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-slate-50" title="Correct answer"><input type="radio" name="correct-check-option" checked={checkCorrectOption === index} disabled={checkAttemptCount > 0} onChange={() => setCheckCorrectOption(index)} className="h-4 w-4 accent-primary-600" /></label><input aria-label={`Choice ${index + 1}`} value={option} disabled={checkAttemptCount > 0} onChange={(event) => setCheckOptions((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder={`Choice ${index + 1}`} className="min-h-11 rounded-xl border border-slate-200 px-3 text-sm disabled:bg-slate-100" /><button type="button" aria-label={`Remove choice ${index + 1}`} disabled={checkAttemptCount > 0 || checkOptions.length <= 2} onClick={() => { setCheckOptions((current) => current.filter((_, itemIndex) => itemIndex !== index)); setCheckCorrectOption((current) => current === index ? 0 : current > index ? current - 1 : current) }} className="flex h-11 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-red-600 disabled:opacity-30"><X className="h-4 w-4" /></button></div>)}</div>
+                <button type="button" disabled={checkAttemptCount > 0 || checkOptions.length >= 6} onClick={() => setCheckOptions((current) => [...current, ''])} className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700 disabled:opacity-40"><Plus className="h-4 w-4" />Add choice</button>
+              </div>
+              <label className="block text-xs font-bold uppercase tracking-wide text-slate-600">Explanation shown after every attempt<textarea value={checkExplanation} disabled={checkAttemptCount > 0} onChange={(event) => setCheckExplanation(event.target.value)} rows={3} placeholder="pwd means print working directory, so it shows the folder you are currently in." className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal normal-case tracking-normal disabled:bg-slate-100" /></label>
+            </div>}
           </section>
 
           {/* Instructions — WYSIWYG editor */}

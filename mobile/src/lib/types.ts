@@ -569,6 +569,7 @@ export interface LessonContentBlock {
   metadata: Record<string, unknown>;
   objective_ids?: number[];
   rubric?: Rubric | null;
+  knowledge_check?: KnowledgeCheck | null;
   progress?: { status: string; completed_at: string | null; video_last_position?: number; video_total_watched?: number };
   submissions?: SubmissionBrief[];
 }
@@ -598,6 +599,27 @@ export interface FeedbackSnippet {
   usage_count: number;
   created_by: string;
   can_manage: boolean;
+}
+
+export interface KnowledgeCheckAttempt {
+  id: number;
+  selected_option: number;
+  correct: boolean;
+  correct_option: number;
+  explanation: string;
+  created_at: string;
+}
+
+export interface KnowledgeCheck {
+  id: number;
+  prompt: string;
+  options: string[];
+  objective_code?: string | null;
+  learning_objective_id?: number | null;
+  attempt_count: number;
+  latest_attempt: KnowledgeCheckAttempt | null;
+  correct_option?: number;
+  explanation?: string;
 }
 
 export interface LessonObjective {

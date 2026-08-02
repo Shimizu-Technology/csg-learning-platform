@@ -22,6 +22,9 @@ class EnrollmentRestartService
 
       progresses = student.progresses.where(content_block_id: block_ids)
       submissions = student.submissions.where(content_block_id: block_ids)
+      knowledge_check_attempts = student.knowledge_check_attempts
+        .joins(:knowledge_check)
+        .where(knowledge_checks: { content_block_id: block_ids })
       watch_progresses = student.watch_progresses.where(recording_id: recording_ids)
       lesson_assignments = enrollment.lesson_assignments
       submission_notifications = Notification.where(notifiable_type: "Submission", notifiable_id: submissions.select(:id))
@@ -30,6 +33,7 @@ class EnrollmentRestartService
         enrollment: enrollment.attributes,
         progresses: progresses.map(&:attributes),
         submissions: submissions.map(&:attributes),
+        knowledge_check_attempts: knowledge_check_attempts.map(&:attributes),
         watch_progresses: watch_progresses.map(&:attributes),
         lesson_assignments: lesson_assignments.map(&:attributes),
         module_assignments: enrollment.module_assignments.map(&:attributes),
@@ -39,6 +43,7 @@ class EnrollmentRestartService
       counts = {
         progresses: progresses.length,
         submissions: submissions.length,
+        knowledge_check_attempts: knowledge_check_attempts.length,
         watch_progresses: watch_progresses.length,
         lesson_assignments: lesson_assignments.length,
         submission_notifications: submission_notifications.length
@@ -56,6 +61,7 @@ class EnrollmentRestartService
 
       submission_notifications.delete_all
       submissions.delete_all
+      knowledge_check_attempts.delete_all
       progresses.delete_all
       watch_progresses.delete_all
       lesson_assignments.delete_all

@@ -8,6 +8,11 @@ module Api
         content_block = ContentBlock.find(params[:content_block_id])
         authorize_content_block_write!(content_block)
         return if performed?
+        if params[:status].to_s == "completed" && content_block.knowledge_check.present? &&
+            !content_block.knowledge_check.attempts.where(user: current_user, correct: true).exists?
+          render json: { error: "Answer the retrieval check correctly to complete this checkpoint." }, status: :unprocessable_entity
+          return
+        end
         if params[:status].to_s == "completed" && content_block.student_work_block?
           authorize_submission_window_open!(content_block)
           return if performed?

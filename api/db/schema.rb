@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_02_030000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_02_040000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -248,6 +248,33 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_030000) do
     t.index ["student_id", "cohort_id", "context_type", "context_source", "context_id"], name: "index_help_requests_one_active_context", unique: true, where: "(status = ANY (ARRAY[0, 1]))"
     t.index ["student_id", "status", "created_at"], name: "index_help_requests_student_state"
     t.index ["student_id"], name: "index_help_requests_on_student_id"
+  end
+
+  create_table "knowledge_check_attempts", force: :cascade do |t|
+    t.boolean "correct", null: false
+    t.datetime "created_at", null: false
+    t.bigint "knowledge_check_id", null: false
+    t.integer "selected_option", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["knowledge_check_id"], name: "index_knowledge_check_attempts_on_knowledge_check_id"
+    t.index ["user_id", "knowledge_check_id", "created_at"], name: "idx_knowledge_check_attempts_user_check_time"
+    t.index ["user_id"], name: "index_knowledge_check_attempts_on_user_id"
+    t.check_constraint "selected_option >= 0", name: "knowledge_check_attempts_selected_option_nonnegative"
+  end
+
+  create_table "knowledge_checks", force: :cascade do |t|
+    t.bigint "content_block_id", null: false
+    t.integer "correct_option", null: false
+    t.datetime "created_at", null: false
+    t.text "explanation", null: false
+    t.bigint "learning_objective_id"
+    t.jsonb "options", default: [], null: false
+    t.text "prompt", null: false
+    t.datetime "updated_at", null: false
+    t.index ["content_block_id"], name: "index_knowledge_checks_on_content_block_id", unique: true
+    t.index ["learning_objective_id"], name: "index_knowledge_checks_on_learning_objective_id"
+    t.check_constraint "correct_option >= 0", name: "knowledge_checks_correct_option_nonnegative"
   end
 
   create_table "learning_objectives", force: :cascade do |t|
@@ -773,6 +800,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_030000) do
   add_foreign_key "help_requests", "cohorts"
   add_foreign_key "help_requests", "users", column: "owner_id"
   add_foreign_key "help_requests", "users", column: "student_id"
+  add_foreign_key "knowledge_check_attempts", "knowledge_checks"
+  add_foreign_key "knowledge_check_attempts", "users"
+  add_foreign_key "knowledge_checks", "content_blocks"
+  add_foreign_key "knowledge_checks", "learning_objectives"
   add_foreign_key "learning_objectives", "curricula", column: "curriculum_id"
   add_foreign_key "lesson_assignments", "enrollments"
   add_foreign_key "lesson_assignments", "lessons"

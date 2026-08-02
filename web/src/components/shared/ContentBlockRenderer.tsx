@@ -25,6 +25,7 @@ interface ContentBlock {
   submission_config?: Record<string, any>
   solution?: string | null
   metadata: Record<string, any>
+  knowledge_check?: import('../../types/api').KnowledgeCheck | null
   s3_video_key?: string | null
   progress?: { status: string; completed_at: string | null; video_last_position?: number; video_total_watched?: number }
   submissions?: Array<{
@@ -91,6 +92,11 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
   const [submissionError, setSubmissionError] = useState<string | null>(null)
   const [submissionSuccess, setSubmissionSuccess] = useState<string | null>(null)
   const [hasEditedSubmissionDraft, setHasEditedSubmissionDraft] = useState(false)
+  const [knowledgeCheckDraft, setKnowledgeCheckDraft] = useState<{ blockId: number; value: NonNullable<ContentBlock['knowledge_check']> } | null>(null)
+  const knowledgeCheck = knowledgeCheckDraft?.blockId === block.id ? knowledgeCheckDraft.value : block.knowledge_check || null
+  const [selectedCheckOption, setSelectedCheckOption] = useState<number | null>(null)
+  const [checkingAnswer, setCheckingAnswer] = useState(false)
+  const [checkError, setCheckError] = useState<string | null>(null)
   const vimeoContainerRef = useRef<HTMLDivElement>(null)
   const ytIframeRef = useRef<HTMLIFrameElement>(null)
   const isCompletedRef = useRef(isCompleted)
@@ -120,7 +126,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
   const usesTextSubmission = isExerciseType && submissionType === 'text_submission'
   const usesRepoArtifactSubmission = isExerciseType && (submissionType === 'repo_url_submission' || submissionType === 'repo_and_live_url_submission')
   const requiresLiveUrl = submissionType === 'repo_and_live_url_submission'
-  const workLocked = submissionsLocked && (isExerciseType || block.block_type === 'checkpoint')
+  const workLocked = submissionsLocked && (isExerciseType || (block.block_type === 'checkpoint' && !knowledgeCheck))
   const lockCopy = submissionWeekNumber ? `Week ${submissionWeekNumber} submissions are closed` : 'Submissions are closed'
   const hasUngradedSubmission = submissions.length > 0 && !hasRedoRequest && !hasPassingGrade
 
@@ -374,6 +380,48 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
     setIsSubmitting(false)
   }
 
+  const handleKnowledgeCheck = async () => {
+    if (!knowledgeCheck || selectedCheckOption === null) return
+    setCheckingAnswer(true)
+    setCheckError(null)
+    if (knowledgeCheck.id < 0 && knowledgeCheck.correct_option !== undefined) {
+      const correct = selectedCheckOption === knowledgeCheck.correct_option
+      setKnowledgeCheckDraft({ blockId: block.id, value: {
+        ...knowledgeCheck,
+        attempt_count: knowledgeCheck.attempt_count + 1,
+        latest_attempt: {
+          id: -1,
+          selected_option: selectedCheckOption,
+          correct,
+          correct_option: knowledgeCheck.correct_option,
+          explanation: knowledgeCheck.explanation || '',
+          created_at: new Date().toISOString(),
+        },
+      } })
+      setCheckingAnswer(false)
+      return
+    }
+
+    const response = await api.attemptKnowledgeCheck(knowledgeCheck.id, selectedCheckOption)
+    if (response.error || !response.data) {
+      setCheckError(response.error || 'Could not check this answer.')
+    } else {
+      setKnowledgeCheckDraft({ blockId: block.id, value: response.data.knowledge_check })
+      const result = response.data.knowledge_check.latest_attempt
+      if (result) captureProductEvent('knowledge_check_attempted', {
+        knowledge_check_id: response.data.knowledge_check.id,
+        content_block_id: block.id,
+        correct: result.correct,
+        attempt: response.data.knowledge_check.attempt_count,
+      })
+      if (response.data.progress?.status === 'completed') {
+        setIsCompleted(true)
+        onProgressUpdate?.()
+      }
+    }
+    setCheckingAnswer(false)
+  }
+
   const submissionArtifacts = (sub: typeof latestSubmission) => {
     if (!sub) return null
 
@@ -476,6 +524,10 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
             ) : (
               <Circle className="h-5 w-5 text-slate-200" />
             )
+          ) : knowledgeCheck ? (
+            isCompleted || knowledgeCheck.latest_attempt?.correct
+              ? <CheckCircle2 className="h-5 w-5 text-success-500" />
+              : <Circle className="h-5 w-5 text-slate-300" />
           ) : (
             <button
               onClick={handleToggleComplete}
@@ -562,6 +614,28 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
           <div className={block.block_type === 'video' ? 'mt-4' : ''}>
             <MarkdownRenderer content={block.body} />
           </div>
+        )}
+
+        {knowledgeCheck && (
+          <section className="rounded-2xl border border-primary-100 bg-primary-50/40 p-4" aria-label="Quick retrieval check">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-700">Quick recall</p>
+              {knowledgeCheck.objective_code && <span className="rounded-full bg-white px-2 py-1 font-mono text-[11px] font-bold text-slate-600">{knowledgeCheck.objective_code}</span>}
+            </div>
+            <p className="mt-2 text-base font-extrabold leading-6 text-slate-950">{knowledgeCheck.prompt}</p>
+            <div className="mt-4 grid gap-2">
+              {knowledgeCheck.options.map((option, index) => {
+                const result = knowledgeCheck.latest_attempt
+                const isCorrectAnswer = result && index === result.correct_option
+                const wasIncorrectChoice = result && !result.correct && index === result.selected_option
+                return <button key={`${index}:${option}`} type="button" disabled={Boolean(isStaff || result?.correct)} onClick={() => { setSelectedCheckOption(index); setCheckError(null) }} className={`min-h-11 rounded-xl border px-4 py-2.5 text-left text-sm font-semibold transition ${isCorrectAnswer ? 'border-success-300 bg-success-50 text-success-800' : wasIncorrectChoice ? 'border-orange-300 bg-orange-50 text-orange-800' : selectedCheckOption === index ? 'border-primary-400 bg-white text-primary-800 ring-2 ring-primary-100' : 'border-slate-200 bg-white text-slate-700 hover:border-primary-300'} disabled:cursor-default`}>{option}</button>
+              })}
+            </div>
+            {isStaff && knowledgeCheck.correct_option !== undefined ? <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-600"><p className="font-bold text-slate-900">Answer: {knowledgeCheck.options[knowledgeCheck.correct_option]}</p><p className="mt-1 leading-6">{knowledgeCheck.explanation}</p></div> : knowledgeCheck.latest_attempt ? <div aria-live="polite" className={`mt-4 rounded-xl border p-3 ${knowledgeCheck.latest_attempt.correct ? 'border-success-200 bg-success-50' : 'border-orange-200 bg-orange-50'}`}><p className={`text-sm font-bold ${knowledgeCheck.latest_attempt.correct ? 'text-success-800' : 'text-orange-800'}`}>{knowledgeCheck.latest_attempt.correct ? 'Correct — this check is complete.' : 'Not yet — review the explanation and try again.'}</p><p className="mt-1 text-sm leading-6 text-slate-700">{knowledgeCheck.latest_attempt.explanation}</p></div> : null}
+            {!isStaff && !knowledgeCheck.latest_attempt?.correct && <button type="button" disabled={selectedCheckOption === null || checkingAnswer} onClick={() => void handleKnowledgeCheck()} className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-primary-600 px-4 text-sm font-bold text-white disabled:opacity-40">{checkingAnswer ? 'Checking…' : knowledgeCheck.latest_attempt ? 'Try this answer' : 'Check answer'}</button>}
+            {checkError && <p className="mt-2 text-sm font-semibold text-red-700" role="alert">{checkError}</p>}
+            {knowledgeCheck.attempt_count > 0 && <p className="mt-2 text-xs text-slate-500">{knowledgeCheck.attempt_count} {knowledgeCheck.attempt_count === 1 ? 'attempt' : 'attempts'} recorded</p>}
+          </section>
         )}
 
         {block.filename && (

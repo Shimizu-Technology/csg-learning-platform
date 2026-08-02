@@ -20,20 +20,35 @@ module Api
         # Include user progress if student
         progress_map = {}
         submission_map = {}
+        knowledge_check_attempt_map = {}
 
         if current_user.student?
+          block_ids = @lesson.content_blocks.pluck(:id)
           progress_map = current_user.progresses
-            .where(content_block_id: @lesson.content_blocks.pluck(:id))
+            .where(content_block_id: block_ids)
             .index_by(&:content_block_id)
 
           submission_map = current_user.submissions
-            .where(content_block_id: @lesson.content_blocks.pluck(:id))
+            .where(content_block_id: block_ids)
             .order(created_at: :desc)
             .group_by(&:content_block_id)
+
+          check_ids = KnowledgeCheck.where(content_block_id: block_ids).pluck(:id)
+          knowledge_check_attempt_map = current_user.knowledge_check_attempts
+            .where(knowledge_check_id: check_ids)
+            .order(created_at: :desc)
+            .group_by(&:knowledge_check_id)
+            .transform_values { |attempts| { attempt: attempts.first, count: attempts.length } }
         end
 
         render json: {
-          lesson: lesson_json(@lesson, include_content: true, progress_map: progress_map, submission_map: submission_map)
+          lesson: lesson_json(
+            @lesson,
+            include_content: true,
+            progress_map: progress_map,
+            submission_map: submission_map,
+            knowledge_check_attempt_map: knowledge_check_attempt_map
+          )
         }
       end
 
@@ -129,6 +144,7 @@ module Api
           @lesson.update!(editor_lesson_params)
           old_s3_key, new_s3_key = update_editor_video!
           update_editor_exercise!
+          update_editor_retrieval_check!
           replace_editor_objective_alignments!
         end
 
@@ -144,14 +160,16 @@ module Api
 
         @lesson.reload
         render json: { lesson: lesson_json(@lesson, include_content: true) }
-      rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound, KeyError => error
+      rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed, ActiveRecord::RecordNotFound, KeyError => error
         render json: { errors: [ error.message ] }, status: :unprocessable_entity
       end
 
       # DELETE /api/v1/lessons/:id
       def destroy
-        @lesson.destroy
+        @lesson.destroy!
         head :no_content
+      rescue ActiveRecord::RecordNotDestroyed => error
+        render json: { errors: error.record.errors.full_messages.presence || [ "Student evidence prevents deletion" ] }, status: :unprocessable_entity
       end
 
       private
@@ -161,7 +179,7 @@ module Api
       end
 
       def set_lesson
-        @lesson = Lesson.find(params[:id])
+        @lesson = Lesson.includes(content_blocks: { knowledge_check: [ :learning_objective, :attempts ] }).find(params[:id])
       end
 
       def lesson_params
@@ -174,6 +192,7 @@ module Api
           :requires_submission,
           video: [ :id, :title, :video_url, :s3_video_key ],
           exercise: [ :id, :title, :body, :solution, :filename, :submission_type, :rubric_id, { submission_config: {} } ],
+          retrieval_check: [ :enabled, :content_block_id, :title, :prompt, :correct_option, :explanation, :learning_objective_id, { options: [] } ],
           alignments: [ :learning_objective_id, :content_block_id ]
         )
       end
@@ -239,6 +258,37 @@ module Api
         block.update!(payload.except(:id))
       end
 
+      def update_editor_retrieval_check!
+        payload = editor_params[:retrieval_check]
+        return if payload.blank?
+
+        block = if payload[:content_block_id].present?
+          @lesson.content_blocks.where(block_type: :checkpoint).find(payload[:content_block_id])
+        else
+          @lesson.content_blocks.find_by(block_type: :checkpoint)
+        end
+
+        unless ActiveModel::Type::Boolean.new.cast(payload[:enabled])
+          block&.destroy!
+          return
+        end
+
+        block ||= @lesson.content_blocks.create!(
+          block_type: :checkpoint,
+          position: next_editor_block_position,
+          title: payload[:title].presence || "Quick check"
+        )
+        block.update!(title: payload[:title].presence || "Quick check")
+        check = block.knowledge_check || block.build_knowledge_check
+        check.update!(
+          prompt: payload[:prompt],
+          options: Array(payload[:options]).map(&:strip),
+          correct_option: payload[:correct_option],
+          explanation: payload[:explanation],
+          learning_objective_id: payload[:learning_objective_id].presence
+        )
+      end
+
       def replace_editor_objective_alignments!
         requested = editor_params[:alignments] || []
         if requested.length > ObjectiveAlignmentsController::MAX_ALIGNMENTS
@@ -290,7 +340,7 @@ module Api
         render_forbidden("Lesson is not unlocked yet")
       end
 
-      def lesson_json(lesson, include_content: false, progress_map: {}, submission_map: {})
+      def lesson_json(lesson, include_content: false, progress_map: {}, submission_map: {}, knowledge_check_attempt_map: {})
         requires_github = false
         json = {
           id: lesson.id,
@@ -345,7 +395,8 @@ module Api
               completion_required: completion_block_ids.include?(cb.id),
               objective_ids: lesson.objective_alignments.select { |alignment| alignment.content_block_id == cb.id }
                 .map(&:learning_objective_id),
-              rubric: rubric_json(cb.rubric, submission_map[cb.id]&.first)
+              rubric: rubric_json(cb.rubric, submission_map[cb.id]&.first),
+              knowledge_check: knowledge_check_json(cb.knowledge_check, knowledge_check_attempt_map)
             }
 
             if current_user.staff?
@@ -471,6 +522,34 @@ module Api
             }
           end
         }
+      end
+
+      def knowledge_check_json(check, attempt_map)
+        return nil unless check
+
+        attempt_info = attempt_map[check.id] || {}
+        attempt = attempt_info[:attempt]
+        json = {
+          id: check.id,
+          prompt: check.prompt,
+          options: check.options,
+          objective_code: check.learning_objective&.code,
+          attempt_count: current_user.staff? ? check.attempts.size : attempt_info[:count].to_i,
+          latest_attempt: attempt ? {
+            id: attempt.id,
+            selected_option: attempt.selected_option,
+            correct: attempt.correct,
+            correct_option: check.correct_option,
+            explanation: check.explanation,
+            created_at: attempt.created_at
+          } : nil
+        }
+        if current_user.staff?
+          json[:correct_option] = check.correct_option
+          json[:explanation] = check.explanation
+          json[:learning_objective_id] = check.learning_objective_id
+        end
+        json
       end
 
       def normalized_submission_type_for_create

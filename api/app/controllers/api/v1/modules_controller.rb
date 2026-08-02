@@ -43,8 +43,10 @@ module Api
 
       # DELETE /api/v1/modules/:id
       def destroy
-        @module.destroy
+        @module.destroy!
         head :no_content
+      rescue ActiveRecord::RecordNotDestroyed => error
+        render json: { errors: error.record.errors.full_messages.presence || [ "Student evidence prevents deletion" ] }, status: :unprocessable_entity
       end
 
       private

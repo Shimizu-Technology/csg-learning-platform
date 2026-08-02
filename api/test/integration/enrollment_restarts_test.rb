@@ -50,6 +50,10 @@ class EnrollmentRestartsTest < ActionDispatch::IntegrationTest
   end
 
   test "admin can restart one enrollment with a recoverable audit snapshot" do
+    check_block = @lesson.content_blocks.create!(block_type: :checkpoint, title: "Recall", body: "Check", position: 2)
+    check = KnowledgeCheck.create!(content_block: check_block, prompt: "What is two plus two?", options: [ "3", "4" ], correct_option: 1, explanation: "Four is correct.")
+    attempt = KnowledgeCheckAttempt.create!(knowledge_check: check, user: @student, selected_option: 1, correct: true)
+
     as_user(@admin) do
       post "/api/v1/enrollments/#{@enrollment.id}/restart",
         params: { confirmation: @student.email, reason: "Restarting with the next live class" },
@@ -73,8 +77,11 @@ class EnrollmentRestartsTest < ActionDispatch::IntegrationTest
     assert_equal @admin, restart.performed_by
     assert_equal "Restarting with the next live class", restart.reason
     assert_equal 1, restart.records_removed.fetch("submissions")
+    assert_equal 1, restart.records_removed.fetch("knowledge_check_attempts")
     assert_equal "Original work", restart.snapshot.fetch("submissions").sole.fetch("text")
+    assert_equal attempt.id, restart.snapshot.fetch("knowledge_check_attempts").sole.fetch("id")
     assert_equal "Submission ready", restart.snapshot.fetch("submission_notifications").sole.fetch("title")
+    assert_not KnowledgeCheckAttempt.exists?(attempt.id)
   end
 
   test "restart requires an admin and exact student email confirmation" do
