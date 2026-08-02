@@ -15,6 +15,7 @@ class ContentBlock < ApplicationRecord
   has_many :submissions, dependent: :destroy
   has_many :objective_alignments, dependent: :destroy
   has_many :learning_objectives, through: :objective_alignments
+  has_one :knowledge_check, dependent: :destroy
 
   validates :block_type, presence: true
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }

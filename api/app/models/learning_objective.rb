@@ -1,6 +1,7 @@
 class LearningObjective < ApplicationRecord
   belongs_to :curriculum
   has_many :objective_alignments, dependent: :restrict_with_error
+  has_many :knowledge_checks, dependent: :restrict_with_error
 
   before_validation :normalize_code
 

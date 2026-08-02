@@ -32,6 +32,7 @@ class User < ApplicationRecord
   has_many :help_requests, foreign_key: :student_id, dependent: :destroy
   has_many :owned_help_requests, class_name: "HelpRequest", foreign_key: :owner_id, dependent: :nullify
   has_many :feedback_snippets, foreign_key: :created_by_id, inverse_of: :created_by, dependent: :destroy
+  has_many :knowledge_check_attempts, dependent: :destroy
 
   validates :clerk_id, presence: true, uniqueness: true
   validates :email, presence: true, uniqueness: { case_sensitive: false }
@@ -71,7 +72,8 @@ class User < ApplicationRecord
       message_attachments.none? &&
       direct_conversation_members.none? &&
       help_requests.none? &&
-      feedback_snippets.none?
+      feedback_snippets.none? &&
+      knowledge_check_attempts.none?
   end
 
   def full_name

@@ -583,6 +583,11 @@ export const api = {
     }),
   useFeedbackSnippet: (id: number) =>
     fetchApi<{ feedback_snippet: import('../types/api').FeedbackSnippet }>(`/api/v1/feedback_snippets/${id}/use`, { method: 'POST' }),
+  attemptKnowledgeCheck: (id: number, selectedOption: number) =>
+    fetchApi<{ knowledge_check: import('../types/api').KnowledgeCheck; progress: { status: string; completed_at: string | null } | null }>(`/api/v1/knowledge_checks/${id}/attempts`, {
+      method: 'POST',
+      body: JSON.stringify({ selected_option: selectedOption }),
+    }),
   getSubmissionGithubIssue: (id: number) =>
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fetchApi<any>(`/api/v1/submissions/${id}/github_issue`),
@@ -753,6 +758,7 @@ export const api = {
     requires_submission: boolean;
     video?: { id?: number; title: string; video_url: string | null; s3_video_key?: string | null };
     exercise?: { id?: number; title: string; body: string | null; solution: string | null; filename: string | null; submission_type: string; submission_config: Record<string, unknown>; rubric_id: number | null };
+    retrieval_check?: { enabled: boolean; content_block_id?: number; title: string; prompt: string; options: string[]; correct_option: number; explanation: string; learning_objective_id: number | null };
     alignments: { learning_objective_id: number; content_block_id?: number | null }[];
   }) =>
     fetchApi<LessonResponse>(`/api/v1/lessons/${id}/editor`, {

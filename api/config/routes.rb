@@ -96,6 +96,9 @@ Rails.application.routes.draw do
           post :use
         end
       end
+      resources :knowledge_checks, only: [] do
+        resources :attempts, only: :create, controller: "knowledge_check_attempts"
+      end
 
       # Modules (shallow) with nested lessons
       resources :modules, only: [ :show, :update, :destroy ] do

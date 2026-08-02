@@ -162,6 +162,7 @@ export class CsgApi {
   feedbackSnippets = (signal?: AbortSignal) => this.request<{ feedback_snippets: FeedbackSnippet[] }>('/api/v1/feedback_snippets', { signal });
   createFeedbackSnippet = (body: string) => this.request<{ feedback_snippet: FeedbackSnippet }>('/api/v1/feedback_snippets', { method: 'POST', body: JSON.stringify({ feedback_snippet: { body } }) });
   useFeedbackSnippet = (id: number) => this.request<{ feedback_snippet: FeedbackSnippet }>(`/api/v1/feedback_snippets/${id}/use`, { method: 'POST' });
+  attemptKnowledgeCheck = (id: number, selectedOption: number) => this.request<{ knowledge_check: import('./types').KnowledgeCheck; progress: { status: string; completed_at: string | null } | null }>(`/api/v1/knowledge_checks/${id}/attempts`, { method: 'POST', body: JSON.stringify({ selected_option: selectedOption }) });
   studentProgress = (studentId: number, signal?: AbortSignal) => this.request<StudentProgressDetail>(`/api/v1/progress/student/${studentId}`, { signal });
   restartEnrollment = (enrollmentId: number, confirmation: string, reason?: string) => this.request<{
     message: string;

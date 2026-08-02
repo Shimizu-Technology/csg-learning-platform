@@ -280,6 +280,114 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert_equal "content_videos/replacement.mp4", @video_block.reload.s3_video_key
   end
 
+  test "admin authors an objective-aligned retrieval check and students receive immediate evidence" do
+    objective = LearningObjective.create!(
+      curriculum: @curriculum,
+      code: "TERM.3",
+      title: "Identify the current folder",
+      success_criteria: "I can choose the command that prints my current folder."
+    )
+
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor",
+            params: {
+              editor: {
+                title: @lesson.title,
+                retrieval_check: {
+                  enabled: true,
+                  title: "Recall the command",
+                  prompt: "Which command prints the current folder?",
+                  options: [ "cd", "pwd", "mkdir" ],
+                  correct_option: 1,
+                  explanation: "pwd means print working directory.",
+                  learning_objective_id: objective.id
+                },
+                alignments: []
+              }
+            },
+            headers: auth_headers
+    end
+    assert_response :success
+    check = @lesson.reload.content_blocks.find_by!(block_type: :checkpoint).knowledge_check
+
+    as_user(@student) do
+      get "/api/v1/lessons/#{@lesson.id}", headers: auth_headers
+    end
+    assert_response :success
+    student_check = JSON.parse(response.body).dig("lesson", "content_blocks").find { |block| block["knowledge_check"] }.fetch("knowledge_check")
+    assert_equal [ "cd", "pwd", "mkdir" ], student_check.fetch("options")
+    assert_nil student_check.fetch("latest_attempt")
+    refute student_check.key?("correct_option")
+    refute student_check.key?("explanation")
+
+    as_user(@student) do
+      post "/api/v1/knowledge_checks/#{check.id}/attempts", params: { selected_option: 0 }, headers: auth_headers
+    end
+    assert_response :created
+    first_result = JSON.parse(response.body)
+    assert_equal false, first_result.dig("knowledge_check", "latest_attempt", "correct")
+    assert_equal 1, first_result.dig("knowledge_check", "latest_attempt", "correct_option")
+    assert_equal "pwd means print working directory.", first_result.dig("knowledge_check", "latest_attempt", "explanation")
+    assert_nil first_result.fetch("progress")
+
+    as_user(@student) do
+      post "/api/v1/knowledge_checks/#{check.id}/attempts", params: { selected_option: 1 }, headers: auth_headers
+    end
+    assert_response :created
+    second_result = JSON.parse(response.body)
+    assert_equal true, second_result.dig("knowledge_check", "latest_attempt", "correct")
+    assert_equal 2, second_result.dig("knowledge_check", "attempt_count")
+    assert_equal "completed", second_result.dig("progress", "status")
+    assert @student.progresses.find_by!(content_block: check.content_block).completed?
+  end
+
+  test "retrieval check rejects an objective from another curriculum atomically" do
+    other_curriculum = Curriculum.create!(name: "Other")
+    objective = LearningObjective.create!(
+      curriculum: other_curriculum,
+      code: "OTHER.CHECK",
+      title: "Other objective",
+      success_criteria: "I can answer an unrelated question."
+    )
+
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor",
+            params: {
+              editor: {
+                title: "Should roll back",
+                retrieval_check: {
+                  enabled: true,
+                  prompt: "Question?",
+                  options: [ "One", "Two" ],
+                  correct_option: 0,
+                  explanation: "One is correct.",
+                  learning_objective_id: objective.id
+                },
+                alignments: []
+              }
+            },
+            headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "Lesson 1", @lesson.reload.title
+    assert_nil @lesson.content_blocks.find_by(block_type: :checkpoint)
+  end
+
+  test "lesson deletion cannot report success while retrieval evidence exists" do
+    block = @lesson.content_blocks.create!(block_type: :checkpoint, position: 2)
+    check = KnowledgeCheck.create!(content_block: block, prompt: "Which one?", options: [ "One", "Two" ], correct_option: 0, explanation: "One is correct.")
+    check.attempts.create!(user: @student, selected_option: 0, correct: true)
+
+    as_user(@admin) do
+      delete "/api/v1/lessons/#{@lesson.id}", headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert Lesson.exists?(@lesson.id)
+    assert KnowledgeCheckAttempt.exists?(knowledge_check: check, user: @student)
+  end
+
   test "student video stream response includes explicit signed URL expiry" do
     expires_in = with_s3_stream_url("https://signed.example/lesson.mp4") do
       as_user(@student) do
