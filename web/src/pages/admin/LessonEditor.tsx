@@ -82,6 +82,7 @@ export function LessonEditor() {
   const [s3VideoUploadedAt, setS3VideoUploadedAt] = useState<string | null>(null)
   const [s3VideoUploadedBy, setS3VideoUploadedBy] = useState<string | null>(null)
   const [videoBlockId, setVideoBlockId] = useState<number | null>(null)
+  const [pendingVideoUploadId, setPendingVideoUploadId] = useState<string | null>(null)
 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -90,7 +91,7 @@ export function LessonEditor() {
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   // Upload context — used to prefer in-flight upload's s3_key over a stale (null) fetch result.
-  const { uploads } = useUpload()
+  const { uploads, completeDeferredUpload } = useUpload()
   const uploadsRef = useRef(uploads)
   uploadsRef.current = uploads
 
@@ -155,10 +156,20 @@ export function LessonEditor() {
     setS3VideoKey(null)
     setS3VideoUploadedAt(null)
     setS3VideoUploadedBy(null)
+    setPendingVideoUploadId(null)
   }, [])
 
   const handleSave = async () => {
     if (!lesson) return
+    const activeVideoUpload = pendingVideoUploadId
+      ? uploadsRef.current.find((upload) => upload.id === pendingVideoUploadId)
+      : null
+    if (activeVideoUpload && activeVideoUpload.status !== 'waiting' && activeVideoUpload.status !== 'done') {
+      const message = 'Wait for the video upload to finish before saving this lesson.'
+      setSaveError(message)
+      toast.error(message)
+      return
+    }
     setSaving(true)
     setSaveError(null)
     setSaveSuccess(false)
@@ -171,7 +182,7 @@ export function LessonEditor() {
         submissionType === 'text_submission' ? runnerConfig : { ...runnerConfig, enabled: false }
       )
       const inFlightVideo = videoBlock && uploadsRef.current.some(
-        upload => upload.contentBlockId === videoBlock.id && upload.status !== 'done' && upload.status !== 'error'
+        upload => upload.contentBlockId === videoBlock.id && ['presigning', 'uploading', 'saving'].includes(upload.status)
       )
       const video = videoBlock || videoUrl.trim() || s3VideoKey ? {
         ...(videoBlock ? { id: videoBlock.id } : {}),
@@ -222,6 +233,10 @@ export function LessonEditor() {
             codeRunnerLanguageFromEditor(detectLanguage(refreshedExercise.filename)) || 'ruby'
           ))
         }
+      }
+      if (pendingVideoUploadId) {
+        completeDeferredUpload(pendingVideoUploadId)
+        setPendingVideoUploadId(null)
       }
       setSaveSuccess(true)
       toast.success('Exercise saved successfully')
@@ -485,6 +500,8 @@ export function LessonEditor() {
                   s3VideoUploadedBy={s3VideoUploadedBy}
                   onS3VideoUploaded={handleS3VideoUploaded}
                   onS3VideoRemoved={handleS3VideoRemoved}
+                  onUploadStarted={setPendingVideoUploadId}
+                  deferPersistence
                 />
               </div>
               <div className="space-y-3">
