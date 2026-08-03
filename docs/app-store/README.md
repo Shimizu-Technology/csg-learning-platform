@@ -1,6 +1,6 @@
 # CSG Connect App Store Release Record
 
-Last updated: 2026-08-02 (Pacific/Guam)
+Last updated: 2026-08-03 (Pacific/Guam)
 
 This directory is the durable source record for the App Store presentation of the completed mobile-parity program. It records what was uploaded, how the images were produced, and what remains before public App Review.
 
@@ -9,13 +9,13 @@ This directory is the durable source record for the App Store presentation of th
 | Item | State |
 | --- | --- |
 | Marketing version | `1.0.0` |
-| Latest internal TestFlight build | `1.0.0 (10)` |
-| Phase 2 EAS build ID | `2f310674-05f7-4eca-b97d-ff7590e58eeb` |
-| Phase 2 source commit | `690a84d` (`main`) |
-| Phase 2 EAS submission ID | `69a8a286-8c5a-4ba1-9f0a-45fcc30788e1` |
-| Phase 2 EAS build state | Finished successfully |
-| Phase 2 EAS submission state | Binary uploaded and processed; EAS marked the submission errored when Fastlane attempted a redundant internal-group assignment |
-| Apple processing / installability | Processed and available to the invited internal tester in TestFlight |
+| Latest submitted internal TestFlight build | `1.0.0 (11)` |
+| Stabilization EAS build ID | `b4365b22-a4b9-4dbf-a74e-c16ded4f0f7e` |
+| Stabilization source commit | `26677b9` (`main`) |
+| Stabilization EAS submission ID | `25e0ae4d-028f-4965-9b80-a075fb9e9739` |
+| Stabilization EAS build state | Finished successfully |
+| Stabilization EAS submission state | Finished successfully; binary uploaded to App Store Connect |
+| Apple processing / installability | Apple processing pending at the time of this record; TestFlight installation remains the next acceptance step |
 | Phase 0–1 release candidate | `1.0.0 (9)` |
 | App Store version | `1.0`, Prepare for Submission |
 | Internal group | `CSG Internal` |
@@ -25,6 +25,8 @@ This directory is the durable source record for the App Store presentation of th
 Build 4 finished successfully, was processed by App Store Connect, is attached to the 1.0 App Store draft, and is available to the internal group. EAS production archives 5–8 and their submissions also finished successfully. Build 9 was generated from merged `main` on 2026-08-02 and submitted without an EAS error with `CSG Internal` requested as its internal group. At 11:59 AM Pacific/Guam, Apple sent the invited tester the TestFlight availability notice for `CSG Connect 1.0.0 (9)`, confirming processing and tester availability.
 
 Build 10 was archived from merged `main` at source commit `690a84d`. EAS uploaded the binary and Fastlane reported that Apple finished processing `1.0.0 (10)`. Fastlane then attempted to add `CSG Internal` manually and Apple rejected that operation because the build could not be added to that internal group, causing EAS to label the overall submission `ERRORED`. This did not invalidate the uploaded build or tester distribution: at 3:52 PM Pacific/Guam on 2026-08-02, Apple emailed the invited tester that `CSG Connect 1.0.0 (10)` was available to test. Treat that Apple notice as the authoritative release outcome and the EAS error as a post-upload group-assignment automation quirk.
+
+Build 11 is the post-TestFlight stabilization candidate from merged PR #91. It serializes native recorder shutdown across navigation/background/cancel paths, shares one app-lifetime recorder, preserves failed audio for an explicit retry, extends reviewed drafts to a five-minute safety limit, improves the recording/transcription UI, and adds privacy-safe JavaScript/native crash reporting. The production API now uses a dedicated CSG provider project and server-only service-account key for the internal acceptance run. The EAS submit profile no longer requests a manual TestFlight group assignment; submission `25e0ae4d-028f-4965-9b80-a075fb9e9739` uploaded build 11 successfully without build 10's post-upload automation error.
 
 Verified EAS production history:
 
@@ -36,8 +38,9 @@ Verified EAS production history:
 | `8` | `deb0452d-949a-46b2-bc4e-fccd7cc6924b` | `4cf6cbe7-74c5-437b-b01e-7d137d5dfa1f` | Finished |
 | `9` | `098bdef7-9320-41ef-92b7-255cd6f61912` | `2aaf6efa-1b6d-4c74-8b48-da29401f8d58` | Finished |
 | `10` | `2f310674-05f7-4eca-b97d-ff7590e58eeb` | `69a8a286-8c5a-4ba1-9f0a-45fcc30788e1` | Errored after successful upload and processing while assigning the internal group; Apple confirmed tester availability |
+| `11` | `b4365b22-a4b9-4dbf-a74e-c16ded4f0f7e` | `25e0ae4d-028f-4965-9b80-a075fb9e9739` | Finished; uploaded successfully and awaiting Apple processing confirmation |
 
-These are EAS states only. Builds 9 and 10 have separate Apple TestFlight notices confirming processing and tester availability; physical installation and the acceptance matrix below remain device work.
+These are EAS states only. Builds 9 and 10 have separate Apple TestFlight notices confirming processing and tester availability. Build 11 has a successful EAS submission but still needs Apple processing/TestFlight availability confirmation and the physical acceptance matrix below.
 
 Build 9 is the Phase 0–1 TestFlight candidate. It includes the reviewed voice-draft client, Phase 0 readability work, weekly plan, contextual help, privacy-safe analytics, and offline continuity. Its production EAS environment points to the CSG API with demo mode disabled and includes the `csg-learning-platform` PostHog project configuration. Do not enable the voice production endpoint or submit this binary for public App Review until the temporary transcription-provider processing is accurately disclosed, the production OpenAI data controls are approved, and the voice-specific physical-device checks below pass.
 
