@@ -36,15 +36,17 @@ iOS `1.0.0 (10)` was archived from merged `main` at commit `690a84d` as EAS buil
 
 After physical testing exposed voice failure and an intermittent native crash, PR #91 completed a focused stabilization pass with a clean Greptile review and all CI checks green. iOS `1.0.0 (11)` was archived from merged `main` commit `26677b9` as EAS build `b4365b22-a4b9-4dbf-a74e-c16ded4f0f7e`; submission `25e0ae4d-028f-4965-9b80-a075fb9e9739` uploaded successfully to App Store Connect without the redundant group-assignment error. Apple processing and physical installation remain operational acceptance, not code-completion claims.
 
+Build 11 physical testing then exposed a revoked production provider credential and a compact-screen collision in the preserved-recording error state. PR #93 rotated and verified the server-only service credential in production, added sanitized provider diagnostics, and separated recovery copy/actions with a full-width retry hierarchy. Greptile reviewed all five changed files with zero comments and the full CI matrix passed. iOS `1.0.0 (12)` was archived from merged `main` commit `857c6a8` as EAS build `ab7ff733-b074-48dd-a6bc-af1df24d2565`; submission `e49f93e6-08c1-4aa5-a8d6-eb13d3f487cd` uploaded successfully to App Store Connect and is awaiting Apple processing.
+
 Current automated evidence:
 
-- Rails: 369 tests / 1,228 assertions; RuboCop 269 files; Brakeman zero warnings; bundler-audit clean.
+- Rails: 370 tests / 1,238 assertions; RuboCop 269 files; Brakeman zero warnings; bundler-audit clean.
 - Web: strict TypeScript, ESLint, 10 suites / 29 tests, and production build pass.
-- Mobile: strict TypeScript, Expo lint, 29 suites / 106 tests, Expo Doctor 20/20, dependency policy, local iOS export, and CI iOS/Android exports pass.
+- Mobile: strict TypeScript, Expo lint, 29 suites / 107 tests, Expo Doctor 20/20, dependency policy, local iOS export, and CI iOS/Android exports pass.
 
 ## Remaining operational gates
 
-1. Confirm Apple processing, install build 11 from TestFlight, and run the Phase 0–2 physical-device matrix with special attention to repeated message navigation, backgrounding, cancellation, retry, and a five-minute voice draft.
+1. Confirm Apple processing, install build 12 from TestFlight, and run the Phase 0–2 physical-device matrix with special attention to repeated message navigation, backgrounding, cancellation, retry, the corrected recovery layout, and a five-minute voice draft.
 2. Author and review at least one real objective → task → rubric/check → feedback chain in the live curriculum.
 3. Update the public privacy disclosure and App Store privacy answers, approve provider data controls, and validate Guam-network accuracy/audio-session behavior before public App Review. Internal TestFlight voice activation is evidence gathering, not approval for public release.
 4. Complete the already-planned 28-day analytics baseline and reconcile events against Rails source records.
