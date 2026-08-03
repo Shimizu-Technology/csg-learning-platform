@@ -127,11 +127,37 @@ class OpenaiVoiceProvider
     end
     return response if response.is_a?(Net::HTTPSuccess)
 
+    log_provider_failure(path, response)
     raise ProviderError, "The voice service is temporarily unavailable."
   rescue Net::OpenTimeout, Net::ReadTimeout, Net::WriteTimeout, Errno::ETIMEDOUT
     raise ProviderError, "The voice service timed out. Try again."
   rescue SocketError, EOFError, IOError, SystemCallError, OpenSSL::SSL::SSLError,
     Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError
     raise ProviderError, "The voice service is temporarily unavailable. Try again."
+  end
+
+  def log_provider_failure(path, response)
+    payload = JSON.parse(response.body)
+    error = payload["error"].is_a?(Hash) ? payload["error"] : {}
+    Rails.logger.warn(JSON.generate(
+      event: "voice_provider_request_failed",
+      path: path,
+      status: response.code.to_i,
+      error_type: diagnostic_token(error["type"]),
+      error_code: diagnostic_token(error["code"])
+    ))
+  rescue JSON::ParserError, TypeError
+    Rails.logger.warn(JSON.generate(
+      event: "voice_provider_request_failed",
+      path: path,
+      status: response.code.to_i,
+      error_type: nil,
+      error_code: nil
+    ))
+  end
+
+  def diagnostic_token(value)
+    token = value.to_s
+    token.match?(/\A[a-zA-Z0-9_.-]{1,80}\z/) ? token : nil
   end
 end
