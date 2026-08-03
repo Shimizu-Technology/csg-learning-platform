@@ -80,11 +80,11 @@ The original diagnosis and acceptance criteria remain in `PRODUCT_STRATEGY_AND_L
 
 The native channel and direct-message composers now support reviewed voice-to-text drafts:
 
-- tap a microphone, record a short message, stop, and transcribe;
+- tap a microphone, speak naturally for up to five minutes, stop, and transcribe;
 - apply only meaning-preserving punctuation, paragraphs, and clearly spoken lists;
 - insert the result into the editable composer and require an explicit **Send**;
 - keep typed text safe through cancellation, permission denial, interruptions, and errors;
 - retain no raw audio after processing and capture no transcript/message content in analytics;
 - ship direct messages and channels first, then reuse the shared flow in threads, contextual help, and concise grading feedback.
 
-The implementation uses `expo-audio` for foreground-only, cache-backed M4A recording and an authenticated Rails endpoint for server-side transcription and conservative cleanup. It requires a new native binary. The production endpoint remains disabled until the privacy disclosure, provider data controls, representative Guam-network checks, and physical-device acceptance in `VOICE_TO_TEXT_PLAN.md` are complete.
+The implementation uses one app-lifetime `expo-audio` recorder for foreground-only, cache-backed M4A recording and an authenticated Rails endpoint for server-side transcription and conservative cleanup. Recorder shutdown is serialized across navigation/background/cancel paths, failed audio is retained only for an explicit in-session retry, and native crash capture records content-free diagnostic state. It requires a new native binary. Internal TestFlight activation and public release gates are tracked separately in `VOICE_TO_TEXT_PLAN.md`.

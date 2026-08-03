@@ -10,7 +10,7 @@ class OpenaiVoiceProviderTest < ActiveSupport::TestCase
 
     request = provider.requests.first
     assert_equal "/v1/audio/transcriptions", request.fetch(:path)
-    assert_includes request.fetch(:body), "gpt-4o-transcribe"
+    assert_includes request.fetch(:body), "gpt-transcribe"
     assert_includes request.fetch(:body), "Code School of Guam"
     assert_includes request.fetch(:headers).fetch("Content-Type"), "multipart/form-data"
   end

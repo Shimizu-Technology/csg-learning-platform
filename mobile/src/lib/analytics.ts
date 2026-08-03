@@ -3,7 +3,7 @@ import PostHog from 'posthog-react-native';
 
 type Role = 'student' | 'instructor' | 'admin';
 export type VoiceSurface = 'message' | 'thread' | 'help_request' | 'grading_feedback';
-type DurationBucket = 'under_15s' | '15_to_30s' | '31_to_60s' | '61_to_90s';
+type DurationBucket = 'under_15s' | '15_to_30s' | '31_to_60s' | '61_to_120s' | 'over_120s';
 type LatencyBucket = 'under_2s' | '2_to_5s' | '6_to_10s' | 'over_10s';
 type AgeBucket = 'same_day' | 'one_day' | 'two_to_three_days' | 'four_to_seven_days' | 'over_one_week';
 
@@ -75,6 +75,14 @@ export const analyticsClient = isAnalyticsEnabled ? new PostHog(POSTHOG_KEY!, {
   host: POSTHOG_HOST,
   captureAppLifecycleEvents: false,
   enableSessionReplay: false,
+  errorTracking: {
+    autocapture: {
+      uncaughtExceptions: true,
+      unhandledRejections: true,
+      nativeCrashes: true,
+    },
+    exceptionSteps: { enabled: true, maxBytes: 8_192 },
+  },
 }) : null;
 
 export function safeProductEvent<Event extends ProductEventName>(event: Event, properties: ProductEventMap[Event]): SafeEvent | null {
@@ -130,7 +138,8 @@ export function durationBucket(durationSeconds: number): DurationBucket {
   if (durationSeconds < 15) return 'under_15s';
   if (durationSeconds <= 30) return '15_to_30s';
   if (durationSeconds <= 60) return '31_to_60s';
-  return '61_to_90s';
+  if (durationSeconds <= 120) return '61_to_120s';
+  return 'over_120s';
 }
 
 export function latencyBucket(durationMilliseconds: number): LatencyBucket {

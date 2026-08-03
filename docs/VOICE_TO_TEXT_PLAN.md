@@ -1,7 +1,7 @@
 # Voice-to-Text Messaging Plan
 
-**Status:** Phase 1 message flow and Phase 2 learning/instructor reuse complete behind release gates
-**Last updated:** 2026-08-01
+**Status:** Phase 1 message flow and Phase 2 learning/instructor reuse complete; TestFlight stabilization in progress
+**Last updated:** 2026-08-03
 **Owner:** Product and engineering
 
 ## 1. Decision
@@ -78,7 +78,7 @@ Keep the raw transcript in memory until the draft is sent, discarded, or the com
 ### Version 1
 
 - native direct-message and channel composers;
-- short recordings, initially capped at 90 seconds;
+- recordings capped at five minutes as a safety boundary, with the limit shown only when 30 seconds remain;
 - authenticated server transcription;
 - conservative cleanup into an editable draft;
 - permission-denied, offline, cancellation, interruption, timeout, and retry states;
@@ -171,7 +171,7 @@ A dedicated database model is not required for the first version. The transcript
 
 The Phase 1 implementation uses OpenAI server-side through a replaceable Rails adapter:
 
-- `gpt-4o-transcribe` for the faithful transcript and a small approved CSG vocabulary hint;
+- `gpt-transcribe` for the faithful transcript and a small approved CSG vocabulary hint;
 - `gpt-5.6-luna` with reasoning set to `none`, strict structured output, and `store: false` for conservative cleanup;
 - a raw-transcript fallback when cleanup is unavailable, while transcription failures remain explicit errors;
 - M4A input only for the first native release, with signature and MP4 movie-duration verification on the server.
@@ -206,7 +206,7 @@ Do not build realtime streaming first. A short recorded request followed by tran
 - Permission is requested in context and denial never blocks typed messaging.
 - Audio is not left in app documents, server storage, request logs, analytics, or crash reports.
 - Two rapid taps, navigation during transcription, and duplicate responses cannot insert the same text twice.
-- The 90-second limit is enforced on both client and server.
+- The five-minute safety limit is enforced on both client and server.
 
 ### Quality
 
@@ -309,3 +309,24 @@ This ordering keeps the immediate message-rendering defect ahead of a new compos
 - [OpenAI API data controls](https://platform.openai.com/docs/models/default-usage-policies-by-endpoint)
 
 Re-check provider capabilities, pricing, retention, and platform permission requirements during Voice A because they can change.
+
+## 12. TestFlight build 10 incident and stabilization decision
+
+Physical testing on 2026-08-03 exposed two independent issues:
+
+1. The failed voice request was reproducible in the production API log. `POST /api/v1/transcriptions` returned `503` in 311 ms because `VOICE_TRANSCRIPTION_ENABLED` was not enabled. The Render service also had no server-side OpenAI key, so toggling the flag alone could not have made the feature operational.
+2. The iOS crash dialog did not have a captured stack trace. Code review identified a native lifecycle hazard: every composer owned an Expo recorder, while route cleanup could start `stop()`, delete its file, reset the audio session, and allow the native shared object to release concurrently. Navigation, backgrounding, or rapid controls could therefore overlap recorder shutdown.
+
+The stabilization release makes the following decisions:
+
+- one app-lifetime recorder is shared across composers and claimed by only one active voice draft;
+- recorder shutdown is serialized before the audio session is reset, ownership is released, or a temporary file is deleted;
+- permission startup, cancellation, app backgrounding, route teardown, and transcription aborts are idempotent;
+- failed transcription audio remains available for explicit **Retry transcription**, **Record again**, or **Dismiss** during the current composer session;
+- the UI uses a live activity waveform, elapsed time, larger circular controls, a clearer processing state, and a five-minute safety cap instead of displaying a persistent 1:30 countdown;
+- mobile/API timeouts and upload validation now accommodate five-minute speech drafts;
+- PostHog captures uncaught JavaScript failures, unhandled rejections, native crashes, and content-free voice lifecycle breadcrumbs. It still captures no audio, transcript, draft, message, filename, or console content;
+- API failures return stable content-free codes for disabled, unconfigured, and provider failures;
+- the EAS submit profile no longer attempts the redundant manual TestFlight group assignment that caused build 10 to be reported as errored after Apple had accepted it.
+
+Production voice activation still requires a dedicated server-only provider key and explicit feature flag. Public App Review remains gated on accurate privacy disclosures, App Store privacy answers, provider data-control review, and the physical-device matrix. Internal TestFlight activation is intended to gather that acceptance evidence and must not be represented as public-release approval.
