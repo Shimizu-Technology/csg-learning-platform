@@ -312,7 +312,7 @@ The atomic lesson editor accepts a `retrieval_check` object for its checkpoint. 
 |--------|------|------|-------------|
 | `POST` | `/api/v1/transcriptions` | Any signed-in user | Create a temporary, reviewable text draft from M4A voice input |
 
-The multipart request includes `audio`, `surface` (`message`, `thread`, `help_request`, or `grading_feedback`), and `cleanup=conservative`. M4A input is limited to 3 MB and 90 seconds; content type, file signature, and movie duration are verified. The response contains `raw_text`, `suggested_text`, verified `duration_seconds`, and `warnings`.
+The multipart request includes `audio`, `surface` (`message`, `thread`, `help_request`, or `grading_feedback`), and `cleanup=conservative`. M4A input is limited to 6 MB and five minutes; content type, file signature, and movie duration are verified. The response contains `raw_text`, `suggested_text`, verified `duration_seconds`, and `warnings`. Disabled, unconfigured, and provider-failure responses include the stable codes `voice_disabled`, `voice_not_configured`, and `voice_provider_error` respectively.
 
 The endpoint is rate-limited per user, fails closed until the production feature flag is enabled, never sends or saves the draft, creates no transcript record, and does not retain uploaded audio. The destination's normal authorization and explicit Send/Resolve/Grade action remain authoritative.
 

@@ -10,7 +10,7 @@ class OpenaiVoiceProvider
   def initialize(
     api_key: ENV["OPENAI_API_KEY"],
     base_url: ENV.fetch("OPENAI_API_BASE_URL", "https://api.openai.com"),
-    transcription_model: ENV.fetch("OPENAI_TRANSCRIPTION_MODEL", "gpt-4o-transcribe"),
+    transcription_model: ENV.fetch("OPENAI_TRANSCRIPTION_MODEL", "gpt-transcribe"),
     cleanup_model: ENV.fetch("OPENAI_CLEANUP_MODEL", "gpt-5.6-luna")
   )
     @api_key = api_key
@@ -115,7 +115,14 @@ class OpenaiVoiceProvider
     headers.each { |key, value| request[key] = value }
     request.body = body
 
-    response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", open_timeout: 8, read_timeout: 40) do |http|
+    response = Net::HTTP.start(
+      uri.host,
+      uri.port,
+      use_ssl: uri.scheme == "https",
+      open_timeout: 10,
+      read_timeout: 120,
+      write_timeout: 60
+    ) do |http|
       http.request(request)
     end
     return response if response.is_a?(Net::HTTPSuccess)

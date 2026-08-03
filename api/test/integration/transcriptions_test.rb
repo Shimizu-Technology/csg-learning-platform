@@ -39,6 +39,7 @@ class TranscriptionsTest < ActionDispatch::IntegrationTest
       post "/api/v1/transcriptions", params: { surface: "message" }, headers: auth_headers
     end
     assert_response :service_unavailable
+    assert_equal "voice_disabled", JSON.parse(response.body).fetch("code")
 
     with_voice_enabled do
       as_user(@student) do

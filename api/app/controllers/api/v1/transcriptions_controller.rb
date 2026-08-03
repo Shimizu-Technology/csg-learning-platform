@@ -7,7 +7,7 @@ module Api
 
       def create
         unless ENV["VOICE_TRANSCRIPTION_ENABLED"] == "true"
-          render json: { error: "Voice transcription is not enabled yet." }, status: :service_unavailable
+          render json: { error: "Voice transcription is not enabled yet.", code: "voice_disabled" }, status: :service_unavailable
           return
         end
         unless SURFACES.include?(params[:surface])
@@ -37,9 +37,9 @@ module Api
       rescue VoiceAudioInspection::InvalidAudio => error
         render json: { error: error.message }, status: :unprocessable_entity
       rescue VoiceTranscriptionService::NotConfigured
-        render json: { error: "Voice transcription is not configured." }, status: :service_unavailable
+        render json: { error: "Voice transcription is not configured.", code: "voice_not_configured" }, status: :service_unavailable
       rescue OpenaiVoiceProvider::ProviderError => error
-        render json: { error: error.message }, status: :bad_gateway
+        render json: { error: error.message, code: "voice_provider_error" }, status: :bad_gateway
       end
     end
   end

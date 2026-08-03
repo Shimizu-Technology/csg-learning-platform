@@ -110,7 +110,8 @@ export class CsgApi {
 
   async transcribeVoice(uri: string, surface: VoiceSurface = 'message', signal?: AbortSignal, attempt = 0): Promise<{ raw_text: string; suggested_text: string; duration_seconds: number; warnings: string[] }> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 45_000);
+    // Five-minute recordings need more processing time than the old 90-second drafts.
+    const timeout = setTimeout(() => controller.abort(), 150_000);
     const cancel = () => controller.abort();
     signal?.addEventListener('abort', cancel, { once: true });
     if (signal?.aborted) cancel();

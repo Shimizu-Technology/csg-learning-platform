@@ -21,7 +21,8 @@ describe('privacy-safe product analytics', () => {
 
   it('uses bounded buckets and normalized categories', () => {
     expect(durationBucket(14)).toBe('under_15s');
-    expect(durationBucket(90)).toBe('61_to_90s');
+    expect(durationBucket(90)).toBe('61_to_120s');
+    expect(durationBucket(121)).toBe('over_120s');
     expect(latencyBucket(2_500)).toBe('2_to_5s');
     expect(analyticsLanguage('C++')).toBe('c');
     expect(analyticsAgeBucket('2026-08-01T00:00:00Z', Date.parse('2026-08-10T00:00:00Z'))).toBe('over_one_week');

@@ -75,11 +75,11 @@ AWS_S3_BUCKET=csg-learning-platform
 VOICE_TRANSCRIPTION_ENABLED=true
 OPENAI_API_KEY=<server-only OpenAI project key>
 OPENAI_PROJECT_ID=<optional dedicated OpenAI project ID>
-OPENAI_TRANSCRIPTION_MODEL=gpt-4o-transcribe
+OPENAI_TRANSCRIPTION_MODEL=gpt-transcribe
 OPENAI_CLEANUP_MODEL=gpt-5.6-luna
 ```
 
-Set `VOICE_TRANSCRIPTION_ENABLED=true` only after the privacy disclosure and production OpenAI data-control review are complete; the endpoint fails closed otherwise. Never expose `OPENAI_API_KEY` through a `VITE_` or `EXPO_PUBLIC_` variable. `OPENAI_API_BASE_URL` is an optional server-side override and defaults to `https://api.openai.com`.
+Set `VOICE_TRANSCRIPTION_ENABLED=true` only for an approved environment after the applicable privacy disclosure and production OpenAI data-control review are complete; the endpoint fails closed otherwise. A limited internal TestFlight acceptance run may be activated separately to collect physical-device evidence, but it is not approval for public App Review. Never expose `OPENAI_API_KEY` through a `VITE_` or `EXPO_PUBLIC_` variable. `OPENAI_API_BASE_URL` is an optional server-side override and defaults to `https://api.openai.com`.
 
 ### Message email delivery diagnostics
 

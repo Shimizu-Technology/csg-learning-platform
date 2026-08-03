@@ -123,7 +123,7 @@ The invited tester must update to Phase 2 candidate build 10 in TestFlight and c
 - send and receive a message, test keyboard following, load older history, and use scroll to latest;
 - exercise attachments, mentions, reactions, edits, deletion, pins, threads, and failed-send recovery;
 - on a physical iPhone and Android device, open a direct message and a channel, read the pre-permission voice explanation, grant microphone access, record, stop, transcribe, review, edit, restore the original transcript, and explicitly send;
-- deny microphone access and confirm typing/device keyboard dictation remain available; verify Cancel, Retry, interruption, screen lock, backgrounding, a 90-second recording, and a poor network never lose existing typed text or auto-send;
+- deny microphone access and confirm typing/device keyboard dictation remain available; verify Cancel, Retry transcription, Record again, interruption, screen lock, backgrounding, a five-minute recording, and a poor network never lose existing typed text or auto-send;
 - verify technical terms, commands, code, URLs, names, numbers, dates, and grades with representative CSG speech over a Guam mobile network; record latency and any meaning-changing cleanup before enablement;
 - after successful transcription, cancellation, failure dismissal, sign-out, and app termination, confirm no playable voice-draft file remains in app-visible cache or conversation history;
 - interrupt recording and transcription with existing class-recording playback, calls, route changes, and app background/foreground transitions; confirm playback and the audio session recover predictably;

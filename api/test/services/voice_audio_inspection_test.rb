@@ -8,6 +8,10 @@ class VoiceAudioInspectionTest < ActiveSupport::TestCase
       assert_equal 12.3, result.fetch(:duration_seconds)
       assert_equal "audio/mp4", result.fetch(:content_type)
     end
+
+    with_upload(m4a_bytes(duration_seconds: 300)) do |upload|
+      assert_equal 300.0, VoiceAudioInspection.call(upload).fetch(:duration_seconds)
+    end
   end
 
   test "rejects forged and overlong recordings" do
@@ -16,9 +20,9 @@ class VoiceAudioInspectionTest < ActiveSupport::TestCase
       assert_equal "The recording is not a valid M4A file.", error.message
     end
 
-    with_upload(m4a_bytes(duration_seconds: 91)) do |upload|
+    with_upload(m4a_bytes(duration_seconds: 301)) do |upload|
       error = assert_raises(VoiceAudioInspection::InvalidAudio) { VoiceAudioInspection.call(upload) }
-      assert_equal "Recordings must be 90 seconds or shorter.", error.message
+      assert_equal "Recordings must be 5 minutes or shorter.", error.message
     end
   end
 

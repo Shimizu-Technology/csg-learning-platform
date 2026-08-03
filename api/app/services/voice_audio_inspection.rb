@@ -1,8 +1,8 @@
 class VoiceAudioInspection
   class InvalidAudio < StandardError; end
 
-  MAX_BYTES = 3.megabytes
-  MAX_DURATION_SECONDS = 90.0
+  MAX_BYTES = 6.megabytes
+  MAX_DURATION_SECONDS = 300.0
   ALLOWED_CONTENT_TYPES = %w[audio/mp4 audio/m4a audio/x-m4a].freeze
   CONTAINER_BOXES = %w[moov trak mdia minf stbl].freeze
 
@@ -27,7 +27,7 @@ class VoiceAudioInspection
 
     duration = movie_duration(bytes)
     raise InvalidAudio, "The recording duration could not be verified." unless duration&.positive?
-    raise InvalidAudio, "Recordings must be 90 seconds or shorter." if duration > MAX_DURATION_SECONDS + 0.5
+    raise InvalidAudio, "Recordings must be 5 minutes or shorter." if duration > MAX_DURATION_SECONDS + 0.5
 
     { duration_seconds: duration.round(1), content_type: "audio/mp4" }
   end
