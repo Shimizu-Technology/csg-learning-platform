@@ -1,12 +1,12 @@
 # Strategic Phase 2 Completion
 
-Status date: 2026-08-02
+Status date: 2026-08-03
 
 ## Decision
 
 Phase 2 is complete in product code. The platform now supports a visible learning chain from intended outcome to student task, formative or rubric evidence, and actionable feedback on both web and native surfaces.
 
-This decision does not claim that every production lesson has been pedagogically configured. Instructors still need to choose meaningful objectives, criteria, and retrieval prompts for live curriculum. Voice transcription also remains fail-closed until the privacy/provider and physical-device release gates pass.
+This decision does not claim that every production lesson has been pedagogically configured. Instructors still need to choose meaningful objectives, criteria, and retrieval prompts for live curriculum. Voice transcription is enabled only for the internal TestFlight acceptance run; that does not satisfy the separate privacy/provider and physical-device gates for public App Review.
 
 ## Delivered outcomes
 
@@ -34,17 +34,19 @@ The product path is complete end to end. Operational acceptance should author at
 
 iOS `1.0.0 (10)` was archived from merged `main` at commit `690a84d` as EAS build `2f310674-05f7-4eca-b97d-ff7590e58eeb`. Submission `69a8a286-8c5a-4ba1-9f0a-45fcc30788e1` uploaded successfully and Apple finished processing the binary. EAS then marked the submission errored because Fastlane's manual `CSG Internal` group assignment was rejected, but Apple emailed the invited tester at 3:52 PM Pacific/Guam on 2026-08-02 that build 10 was available to test. The successful Apple tester notice is the authoritative release outcome; the full release record is in `docs/app-store/README.md`.
 
+After physical testing exposed voice failure and an intermittent native crash, PR #91 completed a focused stabilization pass with a clean Greptile review and all CI checks green. iOS `1.0.0 (11)` was archived from merged `main` commit `26677b9` as EAS build `b4365b22-a4b9-4dbf-a74e-c16ded4f0f7e`; submission `25e0ae4d-028f-4965-9b80-a075fb9e9739` uploaded successfully to App Store Connect without the redundant group-assignment error. Apple processing and physical installation remain operational acceptance, not code-completion claims.
+
 Current automated evidence:
 
-- Rails: 369 tests / 1,227 assertions; RuboCop 269 files; Brakeman zero warnings; bundler-audit clean.
+- Rails: 369 tests / 1,228 assertions; RuboCop 269 files; Brakeman zero warnings; bundler-audit clean.
 - Web: strict TypeScript, ESLint, 10 suites / 29 tests, and production build pass.
-- Mobile: strict TypeScript, Expo lint, 28 suites / 103 tests, Expo Doctor 20/20, and CI iOS/Android exports pass.
+- Mobile: strict TypeScript, Expo lint, 29 suites / 106 tests, Expo Doctor 20/20, dependency policy, local iOS export, and CI iOS/Android exports pass.
 
 ## Remaining operational gates
 
-1. Install build 10 from TestFlight and run the Phase 0–2 physical-device matrix.
+1. Confirm Apple processing, install build 11 from TestFlight, and run the Phase 0–2 physical-device matrix with special attention to repeated message navigation, backgrounding, cancellation, retry, and a five-minute voice draft.
 2. Author and review at least one real objective → task → rubric/check → feedback chain in the live curriculum.
-3. Update the public privacy disclosure and App Store privacy answers, approve provider data controls, and validate Guam-network accuracy/audio-session behavior before enabling `VOICE_TRANSCRIPTION_ENABLED`.
+3. Update the public privacy disclosure and App Store privacy answers, approve provider data controls, and validate Guam-network accuracy/audio-session behavior before public App Review. Internal TestFlight voice activation is evidence gathering, not approval for public release.
 4. Complete the already-planned 28-day analytics baseline and reconcile events against Rails source records.
 5. Keep public App Review separate until the internal TestFlight acceptance pass is recorded.
 

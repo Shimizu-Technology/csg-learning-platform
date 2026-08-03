@@ -47,7 +47,7 @@ The platform is **production-ready for its core use case** — managing cohorts,
 The platform has completed far more of the native and communications roadmap than the historical phase numbering below reflects. The current execution order is now governed by `docs/PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md`:
 
 1. **Completed:** native code-block horizontal navigation, semantic type, contrast, and Dynamic Type quality.
-2. **Implemented behind a release gate:** reviewed native voice-to-text message drafts: record, transcribe, lightly format, edit, then explicitly send. Privacy, provider, Guam-network, and physical-device acceptance remain before enablement.
+2. **Enabled for internal acceptance:** reviewed native voice-to-text drafts now use a stabilized shared recorder, five-minute safety limit, explicit retry, and native crash reporting. Privacy disclosure, provider-data-control, Guam-network, and physical-device acceptance remain before public App Review.
 3. **Foundation complete:** privacy-safe web/native learning-event instrumentation. Four teaching weeks of baseline data remain necessarily time-gated after production release.
 4. **This Week implemented:** one API projection now powers web/native required work, deadlines, redos, live schedule, unlocks, optional stretch work, and recording catch-up.
 5. **Contextual support implemented:** students can ask for durable help from lessons, exercises, and recordings on web/native; staff can acknowledge, respond, and resolve from one web/native queue that also shows explainable redo, ungraded, and inactivity signals. Full intervention cases remain Phase 3.
@@ -63,6 +63,8 @@ Voice-to-text is detailed in `docs/VOICE_TO_TEXT_PLAN.md`. Native message drafts
 Analytics implementation is governed by `docs/ANALYTICS_EVENT_CONTRACT.md`. The typed privacy contract and initial web/native capture points are complete; the four-week outcome baseline remains time-gated from the first production release.
 
 Release update (2026-08-02): production EAS analytics configuration is complete, and Phase 2 iOS build `1.0.0 (10)` is available to the invited internal TestFlight tester. EAS build `2f310674-05f7-4eca-b97d-ff7590e58eeb` completed from merged `main`; Apple accepted and processed the binary. EAS submission `69a8a286-8c5a-4ba1-9f0a-45fcc30788e1` was marked errored only when Fastlane's post-upload internal-group assignment was rejected, while Apple's tester notice independently confirms availability. Installation and physical-device acceptance remain operational gates; public App Review remains intentionally separate.
+
+Stabilization update (2026-08-03): PR #91 fixed the TestFlight voice configuration failure, serialized recorder teardown, extended the safety limit to five minutes, improved retry/UI states, and added native crash reporting. Greptile and CI passed cleanly. Build `1.0.0 (11)` (`b4365b22-a4b9-4dbf-a74e-c16ded4f0f7e`) was archived from merged commit `26677b9` and submission `25e0ae4d-028f-4965-9b80-a075fb9e9739` uploaded successfully. Apple processing and physical acceptance remain pending.
 
 Strategic Phase 0–1 code completion, evidence, operational gates, and later-phase boundaries are summarized in `docs/PHASE_0_1_COMPLETION.md`.
 

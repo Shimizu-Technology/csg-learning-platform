@@ -120,8 +120,10 @@ recreating cleared state.
 - Readiness now checks the database and has deterministic `200`/`503` JSON.
 - Readiness failure logs include the failed dependency and exception class, but
   never return internal exception text to clients.
-- web render failures are captured through the existing PostHog client and
-  recover with a branded reload screen.
+- web and native render failures recover through branded error boundaries;
+  production native builds also capture uncaught JavaScript failures,
+  unhandled rejections, native crashes, and content-free voice-state breadcrumbs
+  through the existing PostHog project.
 - delivery logs retain useful correlation fields (`user_id`, `message_id`,
   `notification_id`, provider delivery ID) without direct recipient PII.
 - Rails request IDs are already included in production log tags.
@@ -133,9 +135,9 @@ recreating cleared state.
    - `GET /health` for application/database readiness.
 2. Alert only after two or three consecutive failures to avoid Guam-to-Singapore
    network blips creating false incidents.
-3. Add centralized exception monitoring for Rails and mobile. PostHog currently
-   covers web render exceptions only; mobile has no remote crash reporter and
-   Rails has no error-reporting subscriber.
+3. Add centralized exception monitoring for Rails. PostHog now covers web and
+   native render exceptions plus native crashes, but Rails still has no
+   centralized exception tracker or error-reporting subscriber.
 4. Define alert ownership and a notification path. A useful initial policy:
    - readiness failure for 2 minutes: urgent;
    - API 5xx rate above 2% for 5 minutes: urgent;
