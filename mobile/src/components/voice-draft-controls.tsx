@@ -1,4 +1,4 @@
-import { AudioLines, Mic, RotateCcw, Square, X } from 'lucide-react-native';
+import { AudioLines, CircleAlert, Mic, RotateCcw, Square, X } from 'lucide-react-native';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { fontScaleLimits, fonts, palette } from '@/constants/csg-theme';
@@ -34,7 +34,7 @@ interface VoiceDraftPanelProps {
 
 export function VoiceDraftPanel({ state, durationMillis, maxDurationSeconds = 300, metering, error, notice, hasReview, hasRecording, onStop, onCancel, onRetry, onRecordAgain, onRestore, onDismiss }: VoiceDraftPanelProps) {
   if (state === 'idle') return null;
-  if (state === 'preparing') return <View accessibilityLiveRegion="polite" style={styles.panel}><ActivityIndicator color={palette.rubySoft} /><View style={styles.grow}><Text style={styles.title}>Getting the microphone ready…</Text><Text style={styles.copy}>Your typed draft stays exactly where it is.</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Cancel voice draft" onPress={onCancel} style={styles.iconButton}><X color={palette.muted} size={19} /></Pressable></View>;
+  if (state === 'preparing') return <View accessibilityLiveRegion="polite" style={styles.panel}><ActivityIndicator color={palette.rubySoft} /><View style={styles.rowGrow}><Text style={styles.title}>Getting the microphone ready…</Text><Text style={styles.copy}>Your typed draft stays exactly where it is.</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Cancel voice draft" onPress={onCancel} style={styles.iconButton}><X color={palette.muted} size={19} /></Pressable></View>;
   if (state === 'recording') {
     const seconds = Math.min(maxDurationSeconds, Math.floor(durationMillis / 1_000));
     const level = Math.max(0.08, Math.min(1, ((metering ?? -60) + 60) / 60));
@@ -55,9 +55,25 @@ export function VoiceDraftPanel({ state, durationMillis, maxDurationSeconds = 30
       <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.recordingHint}>Speak naturally. Tap stop when your draft is finished.</Text>
     </View>;
   }
-  if (state === 'transcribing') return <View accessibilityLiveRegion="polite" style={styles.panel}><View style={styles.processingIcon}><AudioLines color={palette.rubySoft} size={20} /></View><View style={styles.grow}><Text style={styles.title}>Turning speech into a draft…</Text><Text style={styles.copy}>Longer recordings can take a moment. Your typed draft is safe.</Text></View><ActivityIndicator color={palette.rubySoft} /><Pressable accessibilityRole="button" accessibilityLabel="Cancel transcription" onPress={onCancel} style={styles.iconButton}><X color={palette.muted} size={19} /></Pressable></View>;
-  if (state === 'error') return <View accessibilityLiveRegion="polite" style={styles.reviewPanel}><View style={styles.grow}><Text style={styles.title}>Voice draft needs attention</Text><Text style={styles.copy}>{error}</Text>{hasRecording && <Text style={styles.savedCopy}>Your recording is still available for another transcription attempt.</Text>}</View><View style={styles.reviewActions}>{hasRecording && <Pressable accessibilityRole="button" accessibilityLabel="Retry transcription" onPress={onRetry} style={styles.primaryAction}><RotateCcw color={palette.text} size={16} /><Text style={styles.primaryActionText}>Retry transcription</Text></Pressable>}{onRecordAgain && <Pressable accessibilityRole="button" accessibilityLabel="Discard this recording and record again" onPress={onRecordAgain} style={styles.reviewAction}><Mic color={palette.rubySoft} size={16} /><Text style={styles.reviewActionText}>Record again</Text></Pressable>}<Pressable accessibilityRole="button" accessibilityLabel="Dismiss voice draft error" onPress={onCancel} style={styles.reviewAction}><X color={palette.muted} size={16} /><Text style={styles.reviewActionText}>Dismiss</Text></Pressable></View></View>;
-  if (state === 'review' && hasReview) return <View accessibilityLiveRegion="polite" style={styles.reviewPanel}><View style={styles.grow}><Text style={styles.title}>Review your voice draft</Text><Text style={styles.copy}>{notice}</Text></View><View style={styles.reviewActions}><Pressable accessibilityRole="button" accessibilityLabel="Restore original transcript" onPress={onRestore} style={styles.reviewAction}><RotateCcw color={palette.rubySoft} size={16} /><Text style={styles.reviewActionText}>Restore original</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Dismiss voice draft review controls" onPress={onDismiss} style={styles.reviewAction}><X color={palette.muted} size={16} /><Text style={styles.reviewActionText}>Done</Text></Pressable></View></View>;
+  if (state === 'transcribing') return <View accessibilityLiveRegion="polite" style={styles.panel}><View style={styles.processingIcon}><AudioLines color={palette.rubySoft} size={20} /></View><View style={styles.rowGrow}><Text style={styles.title}>Turning speech into a draft…</Text><Text style={styles.copy}>Longer recordings can take a moment. Your typed draft is safe.</Text></View><ActivityIndicator color={palette.rubySoft} /><Pressable accessibilityRole="button" accessibilityLabel="Cancel transcription" onPress={onCancel} style={styles.iconButton}><X color={palette.muted} size={19} /></Pressable></View>;
+  if (state === 'error') return <View accessibilityLiveRegion="polite" testID="voice-error-panel" style={styles.errorPanel}>
+    <View style={styles.errorHeading}>
+      <View style={styles.errorIcon}><CircleAlert color={palette.rubySoft} size={19} /></View>
+      <View style={styles.errorCopy}>
+        <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.title}>Voice draft needs attention</Text>
+        <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.copy}>{error}</Text>
+        {hasRecording && <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.savedCopy}>Your recording is saved for this retry.</Text>}
+      </View>
+    </View>
+    <View testID="voice-error-actions" style={styles.errorActions}>
+      {hasRecording && <Pressable accessibilityRole="button" accessibilityLabel="Retry transcription" onPress={onRetry} style={styles.primaryAction}><RotateCcw color={palette.text} size={17} /><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.primaryActionText}>Retry transcription</Text></Pressable>}
+      <View style={styles.errorSecondaryActions}>
+        {onRecordAgain && <Pressable accessibilityRole="button" accessibilityLabel="Discard this recording and record again" onPress={onRecordAgain} style={styles.secondaryErrorAction}><Mic color={palette.rubySoft} size={17} /><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.secondaryErrorActionText}>Record again</Text></Pressable>}
+        <Pressable accessibilityRole="button" accessibilityLabel="Dismiss voice draft error" onPress={onCancel} style={styles.secondaryErrorAction}><X color={palette.muted} size={17} /><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.secondaryErrorActionText}>Dismiss</Text></Pressable>
+      </View>
+    </View>
+  </View>;
+  if (state === 'review' && hasReview) return <View accessibilityLiveRegion="polite" style={styles.reviewPanel}><View style={styles.reviewCopy}><Text style={styles.title}>Review your voice draft</Text><Text style={styles.copy}>{notice}</Text></View><View style={styles.reviewActions}><Pressable accessibilityRole="button" accessibilityLabel="Restore original transcript" onPress={onRestore} style={styles.reviewAction}><RotateCcw color={palette.rubySoft} size={16} /><Text style={styles.reviewActionText}>Restore original</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Dismiss voice draft review controls" onPress={onDismiss} style={styles.reviewAction}><X color={palette.muted} size={16} /><Text style={styles.reviewActionText}>Done</Text></Pressable></View></View>;
   return null;
 }
 
@@ -72,6 +88,10 @@ const styles = StyleSheet.create({
   recordingStatus: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 9 },
   recordingActions: { flexDirection: 'row', gap: 9 },
   reviewPanel: { gap: 11, paddingHorizontal: 16, paddingVertical: 13, borderTopWidth: 1, borderTopColor: palette.line, backgroundColor: palette.panel },
+  errorPanel: { gap: 14, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16, borderTopWidth: 1, borderTopColor: palette.line, backgroundColor: palette.panel },
+  errorHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
+  errorIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#2A151B' },
+  errorCopy: { flex: 1, minWidth: 0, paddingTop: 1 },
   liveDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: palette.rubySoft, shadowColor: palette.rubySoft, shadowOpacity: 0.45, shadowRadius: 5 },
   title: { color: palette.text, fontFamily: fonts.semibold, fontSize: 14 },
   copy: { marginTop: 3, color: palette.muted, fontFamily: fonts.regular, fontSize: 12, lineHeight: 17 },
@@ -80,7 +100,8 @@ const styles = StyleSheet.create({
   waveform: { minHeight: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 2, overflow: 'hidden' },
   waveBar: { width: 3, minHeight: 4, borderRadius: 2, backgroundColor: palette.rubySoft },
   recordingHint: { color: palette.subtle, fontFamily: fonts.medium, fontSize: 11 },
-  grow: { flex: 1 },
+  rowGrow: { flex: 1, minWidth: 0 },
+  reviewCopy: { minWidth: 0 },
   processingIcon: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.panelRaised },
   cancelCircle: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.line, backgroundColor: palette.ink },
   stopCircle: { width: 50, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.ruby },
@@ -88,8 +109,12 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.4 },
   pressed: { opacity: 0.72 },
   reviewActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  errorActions: { gap: 8 },
+  errorSecondaryActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   reviewAction: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: palette.line },
   reviewActionText: { color: palette.text, fontFamily: fonts.medium, fontSize: 12 },
-  primaryAction: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 13, borderRadius: 12, backgroundColor: palette.ruby },
+  primaryAction: { width: '100%', minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 13, backgroundColor: palette.ruby },
   primaryActionText: { color: palette.text, fontFamily: fonts.semibold, fontSize: 12 },
+  secondaryErrorAction: { minWidth: 132, minHeight: 46, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.ink },
+  secondaryErrorActionText: { flexShrink: 1, color: palette.text, fontFamily: fonts.medium, fontSize: 12, textAlign: 'center' },
 });

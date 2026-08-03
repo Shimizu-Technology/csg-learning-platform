@@ -57,6 +57,32 @@ class OpenaiVoiceProviderTest < ActiveSupport::TestCase
     end
   end
 
+  test "logs sanitized provider codes without logging provider messages" do
+    provider = OpenaiVoiceProvider.new(api_key: "test-key")
+    response = Struct.new(:code, :body).new(
+      "401",
+      JSON.generate(error: { type: "invalid_request_error", code: "invalid_api_key", message: "Incorrect API key: sk-secret" })
+    )
+    logged = nil
+
+    with_upload("m4a bytes") do |upload|
+      with_singleton_method(Rails.logger, :warn, ->(message) { logged = message }) do
+        with_singleton_method(Net::HTTP, :start, ->(*) { response }) do
+          error = assert_raises(OpenaiVoiceProvider::ProviderError) { provider.transcribe(upload) }
+          assert_equal "The voice service is temporarily unavailable.", error.message
+        end
+      end
+    end
+
+    diagnostic = JSON.parse(logged)
+    assert_equal "voice_provider_request_failed", diagnostic.fetch("event")
+    assert_equal "/v1/audio/transcriptions", diagnostic.fetch("path")
+    assert_equal 401, diagnostic.fetch("status")
+    assert_equal "invalid_request_error", diagnostic.fetch("error_type")
+    assert_equal "invalid_api_key", diagnostic.fetch("error_code")
+    refute_includes logged, "sk-secret"
+  end
+
   private
 
   def with_upload(bytes)

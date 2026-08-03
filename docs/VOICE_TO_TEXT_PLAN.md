@@ -330,3 +330,17 @@ The stabilization release makes the following decisions:
 - the EAS submit profile no longer attempts the redundant manual TestFlight group assignment that caused build 10 to be reported as errored after Apple had accepted it.
 
 Production voice activation still requires a dedicated server-only provider key and explicit feature flag. Public App Review remains gated on accurate privacy disclosures, App Store privacy answers, provider data-control review, and the physical-device matrix. Internal TestFlight activation is intended to gather that acceptance evidence and must not be represented as public-release approval.
+
+## 13. TestFlight build 11 provider and failure-layout incident
+
+Physical testing on 2026-08-03 found that build 11 could record and preserve a draft but could not finish transcription. The screenshot timestamp was correlated with the production request log: the authenticated multipart request reached `POST /api/v1/transcriptions`, and the API returned `502` after the upstream provider rejected the deployed credential with `401 invalid_api_key`.
+
+The required Render variables and feature flag were present. The root cause was a revoked key still deployed under `OPENAI_API_KEY`, not a missing client key or an iOS recording failure. Updating the masked secret in place did not replace the value used by the running service, so the stale variable was deleted and recreated with a dedicated server-only service-account credential. After deployment, production verification confirmed all three provider boundaries:
+
+- the running service held the intended credential without exposing it in logs;
+- the configured transcription model endpoint returned `200`, and a multipart audio transcription request returned `200`;
+- the conservative cleanup request returned a valid structured draft.
+
+Unused replacement and superseded provider keys were revoked after verification. Future non-success provider responses now emit only a content-free diagnostic event containing the request path, HTTP status, and allowlisted provider error type/code. Provider messages are deliberately excluded because they can contain partial credential material.
+
+The crowded failure panel had a separate UI cause. A generic `flex: 1` style intended for copy inside horizontal status rows was also applied to copy inside the vertical error panel. On a compact iPhone layout, the copy and the wrapped three-button action row competed for height and visually collided. The error state now uses distinct row and column copy styles, keeps the full error text in its own bounded heading area, places the primary retry action on a full-width row, and gives **Record again** and **Dismiss** a separate flexible row with mobile-size touch targets. Failed audio remains available for retry and no draft is sent automatically.
