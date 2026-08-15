@@ -1,12 +1,12 @@
 default: &default
   dispatchers:
-    - polling_interval: 1
+    - polling_interval: <%= Float(ENV.fetch("SOLID_QUEUE_DISPATCHER_POLLING_INTERVAL_SECONDS", "5")) %>
       batch_size: 500
   workers:
     - queues: "*"
       threads: 3
       processes: <%= ENV.fetch("JOB_CONCURRENCY", 1) %>
-      polling_interval: 0.1
+      polling_interval: <%= Float(ENV.fetch("SOLID_QUEUE_WORKER_POLLING_INTERVAL_SECONDS", "2")) %>
 
 development:
   <<: *default

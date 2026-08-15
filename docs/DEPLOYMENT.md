@@ -1,6 +1,6 @@
 # CSG Learning Platform — Deployment Guide
 
-**Last updated:** 2026-04-07
+**Last updated:** 2026-08-15
 
 ## Architecture Overview
 
@@ -40,7 +40,11 @@ job delivery to Solid Queue:
 | Region | Singapore |
 | Runtime | Docker |
 | Root directory | `api` |
-| Start command | `bin/jobs` |
+| Docker command | `./bin/jobs` |
+
+The Docker command is required. If it is blank, Render inherits the image's
+default Rails web-server command and the service will not process background
+jobs.
 
 Production defaults to inline jobs so invite emails, push notifications, and
 mention emails still deliver if the worker has not been provisioned yet. After
@@ -50,11 +54,48 @@ and the worker service:
 ```
 ACTIVE_JOB_QUEUE_ADAPTER=solid_queue
 SOLID_QUEUE_WORKER_PROVISIONED=true
+SOLID_QUEUE_DISPATCHER_POLLING_INTERVAL_SECONDS=5
+SOLID_QUEUE_WORKER_POLLING_INTERVAL_SECONDS=2
 ```
 
 Rails will fail boot if `ACTIVE_JOB_QUEUE_ADAPTER=solid_queue` is enabled
 without either `SOLID_QUEUE_WORKER_PROVISIONED=true` or
 `SOLID_QUEUE_IN_PUMA=true`, so jobs cannot silently enqueue with no worker.
+The polling defaults above keep normal notification latency while avoiding the
+ten database polls per second caused by Solid Queue's upstream worker default.
+
+### Safely activating or recovering the worker
+
+Never start a newly provisioned or repaired worker until the existing queue has
+been inspected. An old queue can contain obsolete push notifications, emails,
+and read-receipt broadcasts that would all be delivered when the worker starts.
+
+1. Choose an exact cutoff immediately before the repaired deployment.
+2. Run the report from a Render shell and save its output:
+
+   ```bash
+   STALE_QUEUE_CUTOFF=2026-08-15T08:00:00Z bin/rails operations:stale_queue_report
+   ```
+
+3. Confirm the class and state counts. The cleanup intentionally refuses to
+   proceed if any matching job is claimed, scheduled, blocked, failed, or in an
+   unknown state.
+4. After an authorized reviewer approves that exact report and cutoff, discard
+   only the stale ready jobs:
+
+   ```bash
+   STALE_QUEUE_CUTOFF=2026-08-15T08:00:00Z \
+   CONFIRM_STALE_QUEUE_PURGE=delete-ready-jobs-before-cutoff \
+   bin/rails operations:purge_stale_queue
+   ```
+
+5. Set the worker's Docker command to `./bin/jobs`, deploy it, and confirm its
+   logs show a Solid Queue worker process.
+6. Request `/ready`; it should report both `database` and `queue` as `ok`.
+7. Trigger one controlled, current notification and verify it is processed once.
+
+The purge is a rollout operation, not part of an application deploy. Do not run
+it against production without explicit approval of the report and cutoff.
 
 ### Environment Variables (Render Dashboard)
 
@@ -149,12 +190,16 @@ orphaned storage indefinitely.
 1. Push to `main` triggers auto-deploy on Render
 2. Docker build runs from `api/Dockerfile`
 3. `bin/docker-entrypoint` runs migrations automatically on startup
-4. Readiness check at `/health` confirms Rails can reach PostgreSQL
+4. Render checks `/health` to confirm the Rails process is serving requests
 
-`/up` remains the process-level liveness endpoint. It can prove that Rails has
-booted, but it intentionally does not prove that the database is reachable.
-Render should use `/health`; monitoring may check both endpoints to distinguish
-an application dependency failure from a dead process.
+`/health` is intentionally database-free because Render requests it every few
+seconds; it must not keep Neon awake. It is also silenced from production request
+logs. `/ready` is the manual dependency diagnostic: it checks PostgreSQL and,
+when Solid Queue is enabled, requires a current worker heartbeat and a ready
+queue no older than `QUEUE_READINESS_MAX_READY_AGE_SECONDS` (default: 300).
+
+Render must use `/health`, never `/ready`, for its automatic health check. Use
+`/ready` only during deployment verification and incident diagnosis.
 
 ### Manual Deploy
 
@@ -266,6 +311,8 @@ Neon provides point-in-time recovery. Check the Neon dashboard for backup settin
 After first deployment or major changes:
 
 - [ ] Verify health check: `curl https://learn-api.codeschoolofguam.com/health`
+- [ ] Verify dependencies once: `curl https://learn-api.codeschoolofguam.com/ready`
+- [ ] If Solid Queue is enabled, confirm the worker command is `./bin/jobs` and `/ready` reports `queue: ok`
 - [ ] Verify frontend loads: `https://learn.codeschoolofguam.com`
 - [ ] Verify Clerk auth works (sign in with test account)
 - [ ] Run seed data if needed: `bin/rails db:seed` via Render Shell

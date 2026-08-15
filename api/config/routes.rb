@@ -2,7 +2,8 @@ Rails.application.routes.draw do
   mount ActionCable.server => "/cable"
 
   get "up" => "rails/health#show", as: :rails_health_check
-  get "health", to: "health#show", as: :readiness_check
+  get "health", to: "health#show", as: :health_check
+  get "ready", to: "readiness#show", as: :readiness_check
 
   namespace :api do
     namespace :v1 do

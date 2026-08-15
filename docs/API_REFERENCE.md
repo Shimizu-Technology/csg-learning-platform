@@ -11,7 +11,8 @@
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `GET` | `/up` | None | Rails health check (200 if app is running) |
-| `GET` | `/health` | None | JSON health check: `{"status":"ok"}` |
+| `GET` | `/health` | None | Database-free process health check used by Render: `{"status":"ok"}` |
+| `GET` | `/ready` | None | Manual PostgreSQL and background-worker readiness diagnostic |
 
 ---
 
