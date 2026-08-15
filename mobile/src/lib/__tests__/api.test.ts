@@ -127,6 +127,17 @@ describe('CsgApi', () => {
     expect(fetchMock.mock.calls[0][0]).toContain('/api/v1/help_requests/12');
   });
 
+  it('loads and updates a stable intervention record', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ intervention: { id: 61 } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ intervention: { id: 61, status: 'contacted' } }), { status: 200 }));
+    const api = new CsgApi(async () => 'session-token');
+    await api.intervention(61);
+    await api.updateIntervention(61, { status: 'contacted' });
+    expect(fetchMock.mock.calls[0][0]).toContain('/api/v1/interventions/61');
+    expect(fetchMock.mock.calls[1][1]).toEqual(expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ intervention: { status: 'contacted' } }) }));
+  });
+
   it('creates a direct conversation in the requested cohort workspace', async () => {
     const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ direct_conversation: { id: 31 } }), { status: 200 }));
 

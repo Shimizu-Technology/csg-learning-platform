@@ -59,6 +59,11 @@ class EnrollmentRestartService
         records_removed: counts
       )
 
+      previous_restart_interventions = enrollment.interventions.active.trigger_type_restart.to_a
+      previous_restart_interventions.each { |record| record.notifications.update_all(read_at: Time.current, updated_at: Time.current) }
+      Intervention.where(id: previous_restart_interventions.map(&:id)).update_all(status: Intervention.statuses.fetch("canceled"), resolved_at: Time.current, updated_at: Time.current)
+      enrollment.recovery_plans.status_active.update_all(status: RecoveryPlan.statuses.fetch("canceled"), completed_at: Time.current, updated_at: Time.current)
+
       submission_notifications.delete_all
       submissions.delete_all
       knowledge_check_attempts.delete_all
@@ -71,6 +76,32 @@ class EnrollmentRestartService
         enrolled_at: Time.current,
         completed_at: nil,
         learning_state_reset_at: Time.current
+      )
+
+      follow_up_at = 1.week.from_now
+      intervention = enrollment.interventions.create!(
+        trigger_type: :restart,
+        severity: :normal,
+        status: :monitoring,
+        evidence_snapshot: InterventionEvidenceBuilder.new(enrollment: enrollment, trigger_type: :restart).call,
+        owner: performed_by,
+        created_by: performed_by,
+        action_summary: reason || "Support the student's return to a sustainable weekly pace.",
+        next_follow_up_at: follow_up_at
+      )
+      RecoveryPlan.create!(
+        enrollment: enrollment,
+        enrollment_restart: restart,
+        intervention: intervention,
+        owner: performed_by,
+        created_by: performed_by,
+        source: :restart,
+        status: :active,
+        target_pace: "Return to the cohort's current weekly pace",
+        required_scope: "Repeat required curriculum checkpoints from the beginning.",
+        optional_scope: "Use optional practice and recordings where they support the required work.",
+        check_in_cadence: "weekly",
+        next_check_in_at: follow_up_at
       )
 
       restart

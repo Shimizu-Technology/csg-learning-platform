@@ -15,6 +15,7 @@ export const learningKeys = {
   helpRequests: (userId: number, cohortId?: number, contextType?: string) => ['learning', userId, 'help-requests', cohortId || 'all', contextType || 'all'] as const,
   helpRequest: (userId: number, requestId: number) => ['learning', userId, 'help-request', requestId] as const,
   supportQueue: (userId: number) => ['learning', userId, 'support-queue'] as const,
+  intervention: (userId: number, interventionId: number) => ['learning', userId, 'intervention', interventionId] as const,
 };
 
 export function submissionBelongsToStudentProgress(

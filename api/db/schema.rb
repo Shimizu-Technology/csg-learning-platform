@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_02_040000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_15_000100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -248,6 +248,43 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_040000) do
     t.index ["student_id", "cohort_id", "context_type", "context_source", "context_id"], name: "index_help_requests_one_active_context", unique: true, where: "(status = ANY (ARRAY[0, 1]))"
     t.index ["student_id", "status", "created_at"], name: "index_help_requests_student_state"
     t.index ["student_id"], name: "index_help_requests_on_student_id"
+  end
+
+  create_table "intervention_notes", force: :cascade do |t|
+    t.bigint "author_id", null: false
+    t.text "body", null: false
+    t.datetime "created_at", null: false
+    t.bigint "intervention_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["author_id"], name: "index_intervention_notes_on_author_id"
+    t.index ["intervention_id", "created_at"], name: "index_intervention_notes_history"
+    t.index ["intervention_id"], name: "index_intervention_notes_on_intervention_id"
+  end
+
+  create_table "interventions", force: :cascade do |t|
+    t.text "action_summary"
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id", null: false
+    t.bigint "enrollment_id", null: false
+    t.jsonb "evidence_snapshot", default: {}, null: false
+    t.datetime "follow_up_notified_at"
+    t.bigint "help_request_id"
+    t.datetime "next_follow_up_at"
+    t.integer "outcome"
+    t.bigint "owner_id", null: false
+    t.text "resolution_summary"
+    t.datetime "resolved_at"
+    t.integer "severity", default: 0, null: false
+    t.integer "status", default: 0, null: false
+    t.integer "trigger_type", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_interventions_on_created_by_id"
+    t.index ["enrollment_id", "created_at"], name: "index_interventions_enrollment_history"
+    t.index ["enrollment_id", "trigger_type"], name: "index_interventions_one_active_trigger", unique: true, where: "(status = ANY (ARRAY[0, 1, 2, 3]))"
+    t.index ["enrollment_id"], name: "index_interventions_on_enrollment_id"
+    t.index ["help_request_id"], name: "index_interventions_on_help_request_id"
+    t.index ["owner_id"], name: "index_interventions_on_owner_id"
+    t.index ["status", "next_follow_up_at"], name: "index_interventions_due_follow_up"
   end
 
   create_table "knowledge_check_attempts", force: :cascade do |t|
@@ -525,6 +562,45 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_040000) do
     t.index ["uploaded_by_id"], name: "index_recordings_on_uploaded_by_id"
   end
 
+  create_table "recovery_plan_check_ins", force: :cascade do |t|
+    t.bigint "author_id", null: false
+    t.text "body", null: false
+    t.datetime "created_at", null: false
+    t.datetime "next_check_in_at"
+    t.bigint "recovery_plan_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["author_id"], name: "index_recovery_plan_check_ins_on_author_id"
+    t.index ["recovery_plan_id", "created_at"], name: "index_recovery_plan_check_ins_history"
+    t.index ["recovery_plan_id"], name: "index_recovery_plan_check_ins_on_recovery_plan_id"
+  end
+
+  create_table "recovery_plans", force: :cascade do |t|
+    t.string "check_in_cadence", default: "weekly", null: false
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id", null: false
+    t.bigint "enrollment_id", null: false
+    t.bigint "enrollment_restart_id"
+    t.bigint "intervention_id"
+    t.datetime "last_check_in_at"
+    t.datetime "next_check_in_at", null: false
+    t.text "optional_scope"
+    t.text "outcome"
+    t.bigint "owner_id", null: false
+    t.text "required_scope", null: false
+    t.integer "source", null: false
+    t.integer "status", default: 0, null: false
+    t.string "target_pace", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_recovery_plans_on_created_by_id"
+    t.index ["enrollment_id"], name: "index_recovery_plans_on_enrollment_id"
+    t.index ["enrollment_id"], name: "index_recovery_plans_one_active", unique: true, where: "(status = 0)"
+    t.index ["enrollment_restart_id"], name: "index_recovery_plans_on_enrollment_restart_id"
+    t.index ["intervention_id"], name: "index_recovery_plans_on_intervention_id"
+    t.index ["owner_id"], name: "index_recovery_plans_on_owner_id"
+    t.index ["status", "next_check_in_at"], name: "index_recovery_plans_due_check_in"
+  end
+
   create_table "rubric_criteria", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.text "description", null: false
@@ -800,6 +876,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_040000) do
   add_foreign_key "help_requests", "cohorts"
   add_foreign_key "help_requests", "users", column: "owner_id"
   add_foreign_key "help_requests", "users", column: "student_id"
+  add_foreign_key "intervention_notes", "interventions"
+  add_foreign_key "intervention_notes", "users", column: "author_id"
+  add_foreign_key "interventions", "enrollments"
+  add_foreign_key "interventions", "help_requests"
+  add_foreign_key "interventions", "users", column: "created_by_id"
+  add_foreign_key "interventions", "users", column: "owner_id"
   add_foreign_key "knowledge_check_attempts", "knowledge_checks"
   add_foreign_key "knowledge_check_attempts", "users"
   add_foreign_key "knowledge_checks", "content_blocks"
@@ -834,6 +916,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_040000) do
   add_foreign_key "push_subscriptions", "users"
   add_foreign_key "recordings", "cohorts"
   add_foreign_key "recordings", "users", column: "uploaded_by_id", on_delete: :nullify
+  add_foreign_key "recovery_plan_check_ins", "recovery_plans"
+  add_foreign_key "recovery_plan_check_ins", "users", column: "author_id"
+  add_foreign_key "recovery_plans", "enrollment_restarts"
+  add_foreign_key "recovery_plans", "enrollments"
+  add_foreign_key "recovery_plans", "interventions"
+  add_foreign_key "recovery_plans", "users", column: "created_by_id"
+  add_foreign_key "recovery_plans", "users", column: "owner_id"
   add_foreign_key "rubric_criteria", "learning_objectives"
   add_foreign_key "rubric_criteria", "rubrics"
   add_foreign_key "rubrics", "curricula", column: "curriculum_id"

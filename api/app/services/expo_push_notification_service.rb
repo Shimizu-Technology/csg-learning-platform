@@ -60,6 +60,18 @@ class ExpoPushNotificationService
     end
   end
 
+  def self.intervention_changed(intervention, notifications)
+    new.deliver_notifications(notifications) do |notification|
+      {
+        title: notification.title,
+        body: notification.body,
+        data: { path: "/staff/intervention/#{intervention.id}" },
+        sound: "default",
+        channelId: "messages"
+      }
+    end
+  end
+
   def self.mobile_help_path(help_request)
     return "/lesson/#{help_request.context_path.delete_prefix('/lessons/')}" if help_request.context_path.start_with?("/lessons/")
 

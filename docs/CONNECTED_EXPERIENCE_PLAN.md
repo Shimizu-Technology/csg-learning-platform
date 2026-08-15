@@ -444,6 +444,8 @@ Delivery status: delivered in PR #99 across web and native with the full local v
 
 Goal: turn explainable attention signals into owned, auditable human workflows.
 
+Delivery status: implemented across API, web, and native with staff-only privacy boundaries, scheduled follow-up notifications, restart-created recovery plans, and full local validation. PR and production rollout details are recorded in `PHASE_4_COMPLETION.md`.
+
 - intervention and staff-only note models;
 - owner, follow-up, action, outcome, and resolution workflows;
 - student-workspace and support-queue integration;

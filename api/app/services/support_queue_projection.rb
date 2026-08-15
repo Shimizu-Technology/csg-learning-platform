@@ -10,6 +10,9 @@ class SupportQueueProjection
     active_requests = HelpRequest.active_queue.includes(:cohort, :student, :owner).queue_order.to_a
     resolved = HelpRequest.status_resolved.includes(:cohort, :student, :owner).order(resolved_at: :desc).limit(RECENT_RESOLVED_LIMIT)
     students = student_candidates(active_requests)
+    active_interventions = Intervention.active.includes(enrollment: [ :user, :cohort ], owner: [], created_by: [], recovery_plan: []).recent_first.to_a
+    due_interventions = active_interventions.count { |intervention| intervention.next_follow_up_at.present? && intervention.next_follow_up_at <= @now }
+    active_recovery_plans = RecoveryPlan.status_active.includes(enrollment: [ :user, :cohort ], owner: [], created_by: []).to_a
 
     {
       generated_at: @now,
@@ -17,11 +20,17 @@ class SupportQueueProjection
         open_help_count: active_requests.count(&:status_open?),
         acknowledged_help_count: active_requests.count(&:status_acknowledged?),
         urgent_help_count: active_requests.count(&:urgency_urgent?),
-        student_count: students.size
+        student_count: students.size,
+        active_intervention_count: active_interventions.size,
+        due_follow_up_count: due_interventions,
+        active_recovery_plan_count: active_recovery_plans.size,
+        due_recovery_check_in_count: active_recovery_plans.count { |plan| plan.next_check_in_at <= @now }
       },
       help_requests: active_requests.map { |request| HelpRequestSerializer.as_json(request, include_student: true) },
       recently_resolved: resolved.map { |request| HelpRequestSerializer.as_json(request, include_student: true) },
-      students: students
+      students: students,
+      interventions: active_interventions.map { |intervention| InterventionSerializer.as_json(intervention) },
+      recovery_plans: active_recovery_plans.map { |plan| RecoveryPlanSerializer.as_json(plan) }
     }
   end
 
@@ -37,6 +46,8 @@ class SupportQueueProjection
     requests_by_student_cohort = active_requests.group_by { |request| [ request.student_id, request.cohort_id ] }
     submissions = latest_submissions(user_ids).group_by(&:user_id)
     progresses = Progress.completed.where(user_id: user_ids).select(:user_id, :content_block_id, :completed_at).to_a.group_by(&:user_id)
+    interventions = Intervention.active.where(enrollment_id: enrollments.map(&:id)).recent_first.group_by(&:enrollment_id)
+    recovery_plans = RecoveryPlan.status_active.where(enrollment_id: enrollments.map(&:id)).index_by(&:enrollment_id)
 
     enrollments.filter_map do |enrollment|
       block_ids = enrollment.module_assignments.flat_map { |assignment| assignment.curriculum_module.lessons.flat_map(&:completion_block_ids) }.uniq
@@ -53,11 +64,14 @@ class SupportQueueProjection
         enrollment.user.last_sign_in_at
       ].compact.max
       inactive = last_activity.nil? || last_activity < @now - INACTIVE_AFTER
-      next if requests.empty? && ungraded.zero? && redos.zero? && !inactive
+      active_intervention = interventions[enrollment.id]&.first
+      recovery_plan = recovery_plans[enrollment.id]
+      next if requests.empty? && ungraded.zero? && redos.zero? && !inactive && active_intervention.nil? && recovery_plan.nil?
 
       completed = user_progresses.size
       total = block_ids.size
       {
+        enrollment_id: enrollment.id,
         user_id: enrollment.user_id,
         cohort_id: enrollment.cohort_id,
         full_name: enrollment.user.full_name,
@@ -72,7 +86,12 @@ class SupportQueueProjection
         redo_count: redos,
         ungraded_count: ungraded,
         inactive: inactive,
-        priority: priority_for(requests: requests, redos: redos, ungraded: ungraded, inactive: inactive)
+        active_intervention_id: active_intervention&.id,
+        intervention_status: active_intervention&.status,
+        follow_up_due: active_intervention&.next_follow_up_at.present? && active_intervention.next_follow_up_at <= @now,
+        recovery_plan_id: recovery_plan&.id,
+        recovery_check_in_due: recovery_plan&.next_check_in_at.present? && recovery_plan.next_check_in_at <= @now,
+        priority: priority_for(requests: requests, redos: redos, ungraded: ungraded, inactive: inactive, intervention: active_intervention, recovery_plan: recovery_plan)
       }
     end.sort_by { |student| [ -student[:priority], student[:full_name] ] }
   end
@@ -82,7 +101,9 @@ class SupportQueueProjection
     Submission.where(id: ids).select(:id, :user_id, :content_block_id, :grade, :created_at).to_a
   end
 
-  def priority_for(requests:, redos:, ungraded:, inactive:)
-    requests.count(&:urgency_urgent?) * 10_000 + requests.size * 1_000 + redos * 100 + ungraded * 10 + (inactive ? 1 : 0)
+  def priority_for(requests:, redos:, ungraded:, inactive:, intervention:, recovery_plan:)
+    follow_up_due = intervention&.next_follow_up_at.present? && intervention.next_follow_up_at <= @now
+    recovery_due = recovery_plan&.next_check_in_at.present? && recovery_plan.next_check_in_at <= @now
+    requests.count(&:urgency_urgent?) * 10_000 + (follow_up_due ? 5_000 : 0) + requests.size * 1_000 + (recovery_due ? 500 : 0) + redos * 100 + ungraded * 10 + (inactive ? 1 : 0)
   end
 end

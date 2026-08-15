@@ -52,7 +52,7 @@ Archived users receive the same status with `code: "account_archived"`. Missing,
 
 ### `POST /api/v1/web_handoffs`
 
-Creates a one-time, 60-second Clerk sign-in link for an allowlisted responsive-web destination. Mobile uses this for browser-shaped tools without placing the device session JWT in a URL. All signed-in users may hand off to numeric lesson and module paths. Staff may also hand off to the allowlisted administration root, student/cohort detail, watch progress, module grading, grading, content, and team destinations. For example:
+Creates a one-time, 60-second Clerk sign-in link for an allowlisted responsive-web destination. Mobile uses this for browser-shaped tools without placing the device session JWT in a URL. All signed-in users may hand off to numeric lesson and module paths. Staff may also hand off to allowlisted student workspaces, submission/help/intervention records, cohort operations, grading, content, and team destinations. For example:
 
 ```json
 { "destination": "/lessons/42" }
@@ -575,6 +575,29 @@ Offset-bearing ISO 8601 values are treated as absolute instants. Values from `da
 
 ---
 
+## Interventions and Recovery Plans
+
+All endpoints in this section are staff-only. Intervention notes and recovery check-ins are never included in student payloads.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/interventions` | List cases; filters: `enrollment_id`, `owner_id`, `status`, or `due=true` |
+| `POST` | `/api/v1/interventions` | Create one owned case for an enrollment and active trigger |
+| `GET` | `/api/v1/interventions/:id` | Show case, private notes, connected enrollment, help request, and recovery-plan ID |
+| `PATCH` | `/api/v1/interventions/:id` | Update state, owner, action, severity, follow-up, outcome, or resolution |
+| `POST` | `/api/v1/interventions/:id/notes` | Append an immutable staff-only note |
+| `GET` | `/api/v1/recovery_plans` | List plans; filters: `enrollment_id`, `status`, or `due=true` |
+| `POST` | `/api/v1/recovery_plans` | Create an extended-absence or manual recovery plan |
+| `GET` | `/api/v1/recovery_plans/:id` | Show plan and private check-in history |
+| `PATCH` | `/api/v1/recovery_plans/:id` | Update pace, scope, cadence, next check-in, status, or outcome |
+| `POST` | `/api/v1/recovery_plans/:id/check_ins` | Append a check-in and schedule the next one |
+
+The server builds `evidence_snapshot`; client-provided evidence is ignored. Snapshots contain only source record IDs, categories, counts, and timestamps. Message bodies, code, submission text, and private feedback are prohibited. Active cases require an owner and follow-up date. Resolved cases require a categorical outcome and resolution summary.
+
+The daily `InterventionFollowUpJob` creates one owner notification per due date. Changing the follow-up date resets that notification claim. Resolving or canceling the case closes its notifications.
+
+---
+
 ## Enrollments
 
 | Method | Path | Auth | Description |
@@ -584,7 +607,7 @@ Offset-bearing ISO 8601 values are treated as absolute instants. Values from `da
 | `GET` | `/api/v1/enrollments/:id` | Staff | Show enrollment details |
 | `PATCH` | `/api/v1/enrollments/:id` | Staff | Update enrollment status |
 | `DELETE` | `/api/v1/enrollments/:id` | Staff | Remove enrollment |
-| `POST` | `/api/v1/enrollments/:id/restart` | Admin | Audit and clear the enrollment's scoped learning state; requires the student's email as `confirmation` |
+| `POST` | `/api/v1/enrollments/:id/restart` | Admin | Audit and clear scoped learning state; requires exact email confirmation and atomically creates an owned intervention, weekly follow-up, and recovery plan |
 
 ---
 

@@ -28,6 +28,13 @@ export function helpRequestPath(helpRequestId: number, returnTo?: string) {
   return `/admin/help-requests/${helpRequestId}${query ? `?${query}` : ''}`
 }
 
+export function interventionPath(interventionId: number, returnTo?: string) {
+  const params = new URLSearchParams()
+  if (returnTo) params.set('return_to', returnTo)
+  const query = params.toString()
+  return `/admin/interventions/${interventionId}${query ? `?${query}` : ''}`
+}
+
 export function directMessagePath(
   conversationId: number,
   source?: { type: 'submission' | 'help_request'; id: number; label: string },

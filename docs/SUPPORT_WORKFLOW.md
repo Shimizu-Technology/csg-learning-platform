@@ -1,14 +1,14 @@
 # Contextual Help and Staff Support Workflow
 
-**Status:** Phase 1 implemented
+**Status:** Phase 4 connected workflow implemented
 
-**Last updated:** 2026-08-01
+**Last updated:** 2026-08-15
 
 ## Purpose
 
 Contextual help gives a student one clear way to say where they are blocked without creating another chat system. A request stays attached to the exact lesson, exercise, or recording, appears in one staff queue, and remains visible to the student through response and resolution.
 
-This is the first support workflow, not the full Phase 3 intervention-case system. It intentionally does not add private case notes, follow-up dates, recovery plans, or outcome tracking yet.
+Contextual requests remain the student-visible support record. Staff can now promote an explainable signal into a separate staff-only intervention with explicit ownership, action, follow-up, private notes, recovery planning, and a required outcome.
 
 ## Student workflow
 
@@ -33,6 +33,10 @@ Open **Student support** on web (`/admin/support`) or native (`/staff/support`).
 
 Use **Acknowledge** when taking ownership. This immediately tells the student who is looking. Use **Respond and resolve** only after adding a useful next step or explanation; resolution without a written response is rejected by the API.
 
+Create an intervention when support extends beyond answering one request or when redo, ungraded-work, inactivity, restart, extended-absence, or human judgment requires follow-through. Every active intervention has an owner and next follow-up. Staff move it through `open`, `contacted`, `waiting_on_student`, or `monitoring`; resolution requires an outcome and concise summary. Private notes stay on the case and never enter student or session payloads.
+
+A restart atomically creates a recovery plan and monitoring intervention. The default weekly check-in is visible in the Student Workspace and intervention history. Staff can record check-ins, adjust pace and required/optional scope on web, and make focused status/follow-up/outcome updates on native.
+
 The queue's student signals are prompts for human judgment, not predictions or disciplinary labels. A student can appear for more than one transparent reason. The numeric priority is only a deterministic sort order and is never shown as a risk score.
 
 ## State contract
@@ -55,11 +59,11 @@ Resolved and canceled requests cannot be reopened. Timestamps and ownership form
 - Notifications identify the student and context for staff, but omit the request message. Student notifications link back to the learning context.
 - Use direct messages for conversation after the initial response when useful; the help request remains the durable status record.
 
-These are operating expectations, not automated service-level guarantees. Phase 3 will add explicit ownership, follow-up dates, notes, recovery plans, and outcomes only after this simpler workflow has real usage data.
+The daily follow-up job notifies the current owner once for each due date. Moving the due date creates a new notification claim; resolving or canceling closes existing case notifications. This is an operational reminder, not an automated student-risk decision.
 
 ## Measurement and privacy
 
-The clients emit `help_requested` only after a successful new server record and `help_request_resolved` only after a successful resolution. Allowed properties are numeric IDs, category, urgency, platform, and a time bucket. Request text and instructor responses are never captured. Reconcile client events against `help_requests` records using Guam teaching-week boundaries per `ANALYTICS_EVENT_CONTRACT.md`.
+The clients emit `help_requested` only after a successful new server record and `help_request_resolved` only after a successful resolution. `intervention_opened` and `intervention_resolved` contain only IDs, trigger/severity/outcome categories, platform, and age bucket. Request text, actions, notes, outcomes summaries, and evidence values are never captured. Reconcile events against authoritative records using Guam teaching-week boundaries per `ANALYTICS_EVENT_CONTRACT.md`.
 
 ## Release checks
 
@@ -71,3 +75,6 @@ The clients emit `help_requested` only after a successful new server record and 
 - Staff push opens the native/web support queue; student push opens the lesson or recordings surface.
 - Help-request and staff-queue payloads contain authored support text and are deliberately excluded from web local-storage and native persisted-query caches. A still-mounted failed composer keeps its draft in memory and never implies that an unsent write succeeded.
 - No authored content appears in notification bodies or PostHog events.
+- Evidence snapshots are server-generated and contain only IDs, categories, counts, and dates.
+- Students cannot list, open, update, or infer intervention notes or recovery-plan check-ins.
+- Restarts create a visible recovery plan and weekly follow-up in the same transaction as the audit snapshot.

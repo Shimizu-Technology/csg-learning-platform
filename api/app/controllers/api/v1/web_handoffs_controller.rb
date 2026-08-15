@@ -1,17 +1,25 @@
 module Api
   module V1
     class WebHandoffsController < ApplicationController
-      ALLOWED_DESTINATIONS = %r{\A(?:/(?:lessons|modules)/\d+|/admin(?:/(?:students(?:/\d+)?|cohorts(?:/\d+(?:/watch-progress|/modules/\d+/grading)?)?|grading|content|team))?)\z}
+      ALLOWED_DESTINATIONS = %r{\A(?:
+        /(?:lessons|modules)/\d+|
+        /admin(?:
+          /(?:students(?:/\d+)?|submissions/\d+|help-requests/\d+|interventions/\d+)|
+          /cohorts(?:/\d+(?:/watch-progress|/modules/\d+/grading|/students/\d+/(?:overview|work|learning|support|communication|access))?)?|
+          /(?:grading|support|content|team)
+        )?
+      )\z}x
 
       before_action :authenticate_user!
 
       def create
         destination = params[:destination].to_s
-        unless ALLOWED_DESTINATIONS.match?(destination)
+        destination_path = destination.partition("?").first
+        unless ALLOWED_DESTINATIONS.match?(destination_path)
           render json: { error: "Unsupported web destination" }, status: :unprocessable_entity
           return
         end
-        if destination.start_with?("/admin") && !current_user.staff?
+        if destination_path.start_with?("/admin") && !current_user.staff?
           render_forbidden("Staff access is required for this destination")
           return
         end

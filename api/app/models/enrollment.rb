@@ -7,6 +7,8 @@ class Enrollment < ApplicationRecord
   belongs_to :cohort
   has_many :module_assignments, dependent: :destroy
   has_many :lesson_assignments, dependent: :destroy
+  has_many :interventions, dependent: :destroy
+  has_many :recovery_plans, dependent: :destroy
 
   validates :user_id, uniqueness: { scope: :cohort_id }
 

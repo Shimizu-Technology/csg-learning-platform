@@ -27,7 +27,8 @@ module Api
             cohort_id: restart.cohort_id,
             records_removed: restart.records_removed,
             created_at: restart.created_at
-          }
+          },
+          recovery_plan: RecoveryPlanSerializer.as_json(restart.recovery_plan)
         }, status: :created
       rescue EnrollmentRestartService::Conflict => e
         render json: { error: e.message }, status: :conflict

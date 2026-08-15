@@ -82,6 +82,12 @@ class EnrollmentRestartsTest < ActionDispatch::IntegrationTest
     assert_equal attempt.id, restart.snapshot.fetch("knowledge_check_attempts").sole.fetch("id")
     assert_equal "Submission ready", restart.snapshot.fetch("submission_notifications").sole.fetch("title")
     assert_not KnowledgeCheckAttempt.exists?(attempt.id)
+    plan = restart.recovery_plan
+    assert_equal "restart", plan.source
+    assert_equal @admin, plan.owner
+    assert_equal restart, plan.enrollment_restart
+    assert_equal plan, restart.enrollment.interventions.trigger_type_restart.sole.recovery_plan
+    assert_in_delta 1.week.from_now.to_i, plan.next_check_in_at.to_i, 3
   end
 
   test "restart requires an admin and exact student email confirmation" do
