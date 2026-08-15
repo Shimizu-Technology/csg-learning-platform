@@ -431,7 +431,7 @@ Delivery status: shipped in PR #98 with a final Greptile 5/5 review and all API,
 
 Goal: make cohort navigation and cross-record discovery predictable.
 
-Delivery status: implemented across web and native and in final validation. Cohorts now open as URL-backed operational workspaces; staff can switch learners without leaving cohort context, preview a specific enrollment's real progress without exposing private communication, search commands/connected records/messages globally, review a privacy-safe composed activity feed, and follow normalized support/submission/message deep links.
+Delivery status: delivered in PR #99 across web and native with the full local verification matrix passing. Cohorts now open as URL-backed operational workspaces; staff can switch learners without leaving cohort context, preview a specific enrollment's real progress without exposing private communication, search commands/connected records/messages globally, review a privacy-safe composed activity feed, and follow normalized support/submission/message deep links.
 
 - tabbed cohort record views;
 - cohort-contained student picker and next/previous navigation;
