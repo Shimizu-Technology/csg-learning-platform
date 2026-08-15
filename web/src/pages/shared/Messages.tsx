@@ -54,6 +54,7 @@ import {
 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { subscribeToUserMessages } from '../../lib/realtime'
+import { isVisiblePage, shouldPollMessages } from '../../lib/backgroundActivity'
 import { disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
 import { formatFileSize, uploadToS3 } from '../../lib/uploadToS3'
 import { editorJsonToMarkdown, normalizeMessageMarkdown, parseMessageBlocks } from '../../lib/messageFormat'
@@ -746,6 +747,7 @@ export function Messages() {
   const targetRequestRef = useRef(0)
   const targetLoadOptionsRef = useRef<TargetLoadOptions>({})
   const loadingTargetRef = useRef(false)
+  const backgroundTargetLoadingRef = useRef(false)
   const shouldStickToBottomRef = useRef(true)
   const pendingScrollRestoreTargetKeyRef = useRef<string | null>(null)
   const scrollPersistFrameRef = useRef<number | null>(null)
@@ -1231,19 +1233,52 @@ export function Messages() {
     const options = targetLoadOptionsRef.current
     targetLoadOptionsRef.current = {}
     loadTarget(selectedTarget, canAutoMarkRead(true), options)
-    const refreshTarget = () => {
-      if (loadingTargetRef.current) return
-      loadTarget(selectedTarget, canAutoMarkRead(), { background: true })
+  }, [selectedTarget?.type, selectedTarget?.id])
+
+  useEffect(() => {
+    if (!selectedTarget) return
+
+    const refreshTarget = async () => {
+      if (
+        !isVisiblePage(document.visibilityState) ||
+        loadingTargetRef.current ||
+        backgroundTargetLoadingRef.current
+      ) return
+
+      backgroundTargetLoadingRef.current = true
+      try {
+        await loadTarget(selectedTarget, canAutoMarkRead(), { background: true })
+      } finally {
+        backgroundTargetLoadingRef.current = false
+      }
     }
-    const interval = window.setInterval(refreshTarget, 30000)
-    const onFocus = refreshTarget
+
+    let interval: number | null = null
+    const syncPolling = () => {
+      const shouldPoll = shouldPollMessages(document.visibilityState, realtimeStatus)
+      if (shouldPoll && interval === null) {
+        interval = window.setInterval(() => void refreshTarget(), 30000)
+      } else if (!shouldPoll && interval !== null) {
+        window.clearInterval(interval)
+        interval = null
+      }
+    }
+    const onFocus = () => void refreshTarget()
+    const onVisibilityChange = () => {
+      syncPolling()
+      if (isVisiblePage(document.visibilityState)) void refreshTarget()
+    }
+
+    syncPolling()
     window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibilityChange)
 
     return () => {
-      window.clearInterval(interval)
+      if (interval !== null) window.clearInterval(interval)
       window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
     }
-  }, [selectedTarget?.type, selectedTarget?.id])
+  }, [selectedTarget?.type, selectedTarget?.id, realtimeStatus])
 
   useEffect(() => {
     if (!user) return

@@ -1,5 +1,6 @@
 {
   "advisories": {
-    "https://github.com/advisories/GHSA-mh99-v99m-4gvg": "Not exploitable in the shipped app: affected brace-expansion copies are used transitively by Expo, Jest, and ESLint build tooling, which never receives attacker-controlled glob patterns. Forcing the patched major into legacy minimatch versions is API-incompatible; remove this exception when the Expo toolchain publishes a compatible graph."
+    "https://github.com/advisories/GHSA-w3rx-r6r6-pgpr": "No patched image-size release exists. The affected package is a transitive dependency of Metro and processes only trusted, checked-in app assets during local or CI bundling; it is not shipped as application runtime code and never handles user uploads. Remove this exception when Expo/Metro publishes a patched dependency graph.",
+    "https://github.com/advisories/GHSA-5p2g-fcmc-qvqq": "No patched image-size release exists. The affected package is a transitive dependency of Metro and processes only trusted, checked-in app assets during local or CI bundling; it is not shipped as application runtime code and never handles user uploads. Remove this exception when Expo/Metro publishes a patched dependency graph."
   }
 }

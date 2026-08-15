@@ -2,10 +2,12 @@ Rails.application.routes.draw do
   mount ActionCable.server => "/cable"
 
   get "up" => "rails/health#show", as: :rails_health_check
-  get "health", to: "health#show", as: :readiness_check
+  get "health", to: "health#show", as: :health_check
 
   namespace :api do
     namespace :v1 do
+      get "ready", to: "/readiness#show", as: :readiness_check
+
       # Auth
       post "sessions", to: "sessions#create"
       post "presence", to: "presence#create"

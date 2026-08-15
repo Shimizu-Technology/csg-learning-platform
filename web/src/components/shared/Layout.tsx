@@ -26,6 +26,7 @@ import { useAuthContext } from '../../contexts/AuthContext'
 import { api } from '../../lib/api'
 import { refreshExistingPushSubscription, pushSupported } from '../../lib/pushNotifications'
 import { subscribeToUserMessages } from '../../lib/realtime'
+import { isVisiblePage } from '../../lib/backgroundActivity'
 import { preloadPrimaryRoutes, preloadRoute } from '../../lib/routePreload'
 import type { ChannelMessageEvent, ChannelSummary, DirectConversationSummary } from '../../types/api'
 
@@ -182,21 +183,21 @@ export function Layout({ children }: LayoutProps) {
       void api.updatePresence()
     }
 
-    updatePresence()
+    if (isVisiblePage(document.visibilityState)) updatePresence()
     const intervalId = globalThis.setInterval(() => {
-      updatePresence()
+      if (isVisiblePage(document.visibilityState)) updatePresence()
     }, 60_000)
 
     const updatePresenceWhenVisible = () => {
-      if (document.visibilityState === 'visible') updatePresence()
+      if (isVisiblePage(document.visibilityState)) updatePresence()
     }
 
-    window.addEventListener('focus', updatePresence)
+    window.addEventListener('focus', updatePresenceWhenVisible)
     document.addEventListener('visibilitychange', updatePresenceWhenVisible)
 
     return () => {
       globalThis.clearInterval(intervalId)
-      window.removeEventListener('focus', updatePresence)
+      window.removeEventListener('focus', updatePresenceWhenVisible)
       document.removeEventListener('visibilitychange', updatePresenceWhenVisible)
     }
   }, [user])

@@ -13,8 +13,9 @@ complete email-provider responses in several delivery paths.
 
 This pass adds the highest-confidence protections that can be verified locally:
 
-- `/health` is now a database-backed readiness check that returns `503` without
-  exposing connection details when PostgreSQL is unavailable.
+- `/health` is a database-free process check so frequent platform probes do not
+  wake Neon; `/api/v1/ready` checks PostgreSQL and background-worker readiness without
+  exposing connection details.
 - legacy invite and notification logs now use internal IDs and delivery IDs
   rather than email addresses, content titles, or full provider responses.
 - the web app has a top-level error boundary that reports render failures to
@@ -130,9 +131,9 @@ recreating cleared state.
 
 #### Remaining external work
 
-1. Add uptime checks for both:
-   - `GET /up` for process liveness;
-   - `GET /health` for application/database readiness.
+1. Monitor `GET /health` continuously for process health. Request
+   `/api/v1/ready` manually during deploys and incidents for application/database/queue
+   readiness; do not poll it continuously because it intentionally checks Neon.
 2. Alert only after two or three consecutive failures to avoid Guam-to-Singapore
    network blips creating false incidents.
 3. Add centralized exception monitoring for Rails. PostHog now covers web and
@@ -211,7 +212,7 @@ recreating cleared state.
 
 #### Implemented or already present
 
-- database-backed readiness plus Rails liveness;
+- database-free process health plus manual database/queue readiness;
 - production boot guard prevents Solid Queue from being enabled without an
   acknowledged worker path;
 - notification fan-out isolates web and Expo delivery failures;
@@ -228,16 +229,15 @@ recreating cleared state.
 
 #### Remaining work
 
-1. Change Render's health-check path from `/up` to `/health` after deploying
-   this change. Keep `/up` available for liveness diagnosis.
+1. Keep Render's automatic health-check path on the database-free `/health`.
 2. Verify Neon's point-in-time recovery settings and perform a quarterly restore
    into a non-production project. Record recovery time and the latest restorable
    timestamp; a backup is not proven until a restore succeeds.
 3. Enable the documented S3 rule that aborts incomplete multipart uploads after
    one day, then verify it in the AWS console.
-4. Decide whether background jobs remain inline at current scale or receive a
-   dedicated Singapore worker. If Solid Queue is enabled, add a worker-heartbeat
-   check and alerts for oldest-job age and failure count.
+4. Keep the dedicated Singapore worker's Docker command set to `./bin/jobs` and
+   alert on `/api/v1/ready` failures, which cover worker heartbeat and oldest ready-job
+   age when Solid Queue is enabled.
 5. Add rate limits to authentication/session exchange, presigning, uploads,
    message sending, search, invitations, and push-token registration. Prefer
    per-account limits with a generous IP fallback so shared classroom/NAT
@@ -251,7 +251,8 @@ recreating cleared state.
 
 ## Recommended order
 
-1. Deploy this code and switch the Render readiness probe to `/health`.
+1. Deploy this code and keep Render's automatic probe on `/health`; use
+   `/api/v1/ready` manually during verification.
 2. Configure uptime monitoring and remote Rails/mobile exception reporting.
 3. Create the isolated Clerk/E2E environment and make the public Playwright
    suite a required PR check.
@@ -269,7 +270,8 @@ Before a production or TestFlight release:
 - Playwright public accessibility checks pass;
 - the Maestro native smoke flow passes on the target iOS runtime;
 - the Maestro native route audit passes every shipped mobile route;
-- `/health` returns `200` against the deployment database;
+- `/health` returns `200` without touching the database and `/api/v1/ready` returns
+  `200` against deployment dependencies;
 - no migration is destructive to the previous deployed application version;
 - provider configuration is present for Clerk, Resend, S3, push, and analytics;
 - rollback owner and previous known-good release are identified.
