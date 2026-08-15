@@ -16,7 +16,7 @@ import type { RubricRating, StudentProgressResponse, Submission } from '../../ty
 interface ValidatedWorkspaceContext {
   cohortId: number
   cohortName: string
-  evidenceScope: StudentProgressResponse['learning_evidence_scope']
+  evidenceScope?: StudentProgressResponse['learning_evidence_scope']
 }
 
 export function SubmissionDetail() {
@@ -148,7 +148,7 @@ export function SubmissionDetail() {
             {validatedContext && <Button variant="secondary" onClick={() => void openMessage()} disabled={openingMessage}><MessageSquareText className="h-4 w-4" />{openingMessage ? 'Opening…' : `Message in ${validatedContext.cohortName}`}</Button>}
           </div>
         </div>
-        {validatedContext?.evidenceScope.shared_across_enrollments && <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-950"><span className="font-extrabold">Curriculum evidence:</span> this submission follows the learner across enrollments using {validatedContext.evidenceScope.curriculum_name}. The selected workspace and message action are scoped to {validatedContext.cohortName}.</div>}
+        {validatedContext?.evidenceScope?.shared_across_enrollments && <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-950"><span className="font-extrabold">Curriculum evidence:</span> this submission follows the learner across enrollments using {validatedContext.evidenceScope.curriculum_name}. The selected workspace and message action are scoped to {validatedContext.cohortName}.</div>}
       </header>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">

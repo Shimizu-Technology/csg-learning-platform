@@ -137,7 +137,8 @@ export function StudentWorkspace() {
   const openHelp = helpRequests.filter((request) => request.status === 'open' || request.status === 'acknowledged')
   const latestSubmission = ungraded[0] || submissions[0]
   const initials = progress.user.full_name.split(/\s+/).map((name) => name[0]).join('').slice(0, 2).toUpperCase()
-  const sharedEvidence = progress.learning_evidence_scope.shared_across_enrollments
+  const evidenceScope = progress.learning_evidence_scope
+  const sharedEvidence = Boolean(evidenceScope?.shared_across_enrollments)
 
   return (
     <div className="app-page-wide space-y-6">
@@ -190,7 +191,7 @@ export function StudentWorkspace() {
         </div>
       </nav>
 
-      {sharedEvidence && <div className="flex gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950"><BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" /><p><span className="font-extrabold">Curriculum evidence:</span> progress and submitted work follow this learner across {progress.learning_evidence_scope.enrollment_count} enrollments using {progress.learning_evidence_scope.curriculum_name}. Support, recordings, access, and messages on this page remain scoped to {cohort.name}.</p></div>}
+      {sharedEvidence && evidenceScope && <div className="flex gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950"><BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" /><p><span className="font-extrabold">Curriculum evidence:</span> progress and submitted work follow this learner across {evidenceScope.enrollment_count} enrollments using {evidenceScope.curriculum_name}. Support, recordings, access, and messages on this page remain scoped to {cohort.name}.</p></div>}
 
       {activeTab === 'overview' && <OverviewTab progress={progress} submissions={submissions} helpRequests={helpRequests} recordings={recordings} lessonVideos={lessonVideos} cohortId={cohortId} studentId={studentId} />}
       {activeTab === 'work' && <WorkTab submissions={submissions} cohortId={cohortId} studentId={studentId} returnTo={location.pathname} />}
