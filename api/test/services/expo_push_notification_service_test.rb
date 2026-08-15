@@ -131,6 +131,31 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
     end
   end
 
+  test "help request pushes open the exact native staff record" do
+    student = User.create!(clerk_id: "expo_help_student", email: "expo-help-student@example.com", role: :student)
+    staff = User.create!(clerk_id: "expo_help_staff", email: "expo-help-staff@example.com", role: :instructor)
+    student.mobile_push_tokens.create!(token: "ExpoPushToken[help-student]", platform: "ios", last_seen_at: Time.current)
+    staff.mobile_push_tokens.create!(token: "ExpoPushToken[help-staff]", platform: "ios", last_seen_at: Time.current)
+    curriculum = Curriculum.create!(name: "Expo help curriculum")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Expo help cohort", start_date: Date.current, status: :active)
+    Enrollment.create!(user: student, cohort: cohort, status: :active)
+    help_request = HelpRequest.create!(student: student, cohort: cohort, context_type: :lesson, context_source: :primary, context_id: 42, context_label: "Connected records", context_path: "/lessons/42", category: :concept, urgency: :normal, message: "Where should I look next?")
+    notifications = [
+      student.notifications.create!(notifiable: help_request, notification_type: :help_request, title: "Response", body: "Open your lesson", path: "/lessons/42"),
+      staff.notifications.create!(notifiable: help_request, notification_type: :help_request, title: "Student asked for help", body: "Connected records", path: "/admin/support")
+    ]
+    response = Net::HTTPOK.new("1.1", "200", "OK")
+    response.instance_variable_set(:@read, true)
+    response.body = { data: [ { status: "ok" }, { status: "ok" } ] }.to_json
+
+    with_http_response(response) do |connection|
+      ExpoPushNotificationService.help_request_changed(help_request, Notification.where(id: notifications.map(&:id)))
+      paths = JSON.parse(connection.request_received.body).map { |payload| payload.dig("data", "path") }
+      assert_includes paths, "/lesson/42"
+      assert_includes paths, "/staff/support/#{help_request.id}"
+    end
+  end
+
   private
 
   def with_http_response(response)

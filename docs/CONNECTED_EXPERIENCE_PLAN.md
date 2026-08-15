@@ -417,7 +417,7 @@ Delivery status: shipped in PR #97 with a Greptile 5/5 review and the full API, 
 
 Goal: make grading, support, and messaging feel like views of the same records.
 
-Delivery status: implemented across API, web, and native clients. The implementation adds stable support records, source-aware messaging, queue-preserving grading navigation, URL-backed operational filters, and simulator walkthrough parity in addition to the items below.
+Delivery status: shipped in PR #98 with a final Greptile 5/5 review and all API, web, and native checks passing. The implementation adds stable support records, source-aware messaging, queue-preserving grading navigation, URL-backed operational filters, and simulator walkthrough parity in addition to the items below.
 
 - reusable web student context drawer;
 - submission record workflow with return/previous/next queue context;
@@ -430,6 +430,8 @@ Delivery status: implemented across API, web, and native clients. The implementa
 ### Phase 3 — Cohort workspace and discovery
 
 Goal: make cohort navigation and cross-record discovery predictable.
+
+Delivery status: implemented across web and native and in final validation. Cohorts now open as URL-backed operational workspaces; staff can switch learners without leaving cohort context, preview a specific enrollment's real progress without exposing private communication, search commands/connected records/messages globally, review a privacy-safe composed activity feed, and follow normalized support/submission/message deep links.
 
 - tabbed cohort record views;
 - cohort-contained student picker and next/previous navigation;

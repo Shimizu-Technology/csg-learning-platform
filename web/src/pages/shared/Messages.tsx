@@ -672,6 +672,7 @@ const MentionHighlightExtension = Extension.create<{ getPatterns: () => MentionP
 export function Messages() {
   const { channelId, dmId } = useParams()
   const [searchParams] = useSearchParams()
+  const routedMessageId = Number(searchParams.get('message_id')) || null
   const { user } = useAuthContext()
   const toast = useToast()
   const isStaff = Boolean(user?.is_staff)
@@ -1204,9 +1205,10 @@ export function Messages() {
   }, [])
 
   useEffect(() => {
+    targetLoadOptionsRef.current = routedMessageId !== null && Number.isInteger(routedMessageId) && routedMessageId > 0 ? { aroundMessageId: routedMessageId, highlightedMessageId: routedMessageId } : {}
     if (channelId) setSelectedTarget({ type: 'channel', id: Number(channelId) })
     if (dmId) setSelectedTarget({ type: 'dm', id: Number(dmId) })
-  }, [channelId, dmId])
+  }, [channelId, dmId, routedMessageId])
 
   useEffect(() => {
     if (typeof window === 'undefined') return

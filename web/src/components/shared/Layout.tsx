@@ -19,6 +19,7 @@ import {
   MessageCircle,
   Home,
   LifeBuoy,
+  Search,
   type LucideIcon,
 } from 'lucide-react'
 import { UserButton } from '@clerk/clerk-react'
@@ -29,6 +30,7 @@ import { subscribeToUserMessages } from '../../lib/realtime'
 import { isVisiblePage } from '../../lib/backgroundActivity'
 import { preloadPrimaryRoutes, preloadRoute } from '../../lib/routePreload'
 import type { ChannelMessageEvent, ChannelSummary, DirectConversationSummary } from '../../types/api'
+import { CommandPalette } from './CommandPalette'
 
 interface LayoutProps {
   children?: React.ReactNode
@@ -43,6 +45,7 @@ interface NavItem {
 
 export function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const menuButtonRef = useRef<HTMLButtonElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const restoreMenuButtonFocusRef = useRef(false)
@@ -59,6 +62,15 @@ export function Layout({ children }: LayoutProps) {
   const directConversationUnreadCountsRef = useRef(new Map<number, number>())
   const isStaff = user?.is_staff
   const isFullAdmin = user?.is_admin
+  const closeCommandPalette = useCallback(() => setCommandPaletteOpen(false), [])
+
+  useEffect(() => {
+    const openSearch = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setCommandPaletteOpen(true) }
+    }
+    window.addEventListener('keydown', openSearch)
+    return () => window.removeEventListener('keydown', openSearch)
+  }, [])
 
   useEffect(() => {
     setSidebarOpen(false)
@@ -321,6 +333,7 @@ export function Layout({ children }: LayoutProps) {
           </span>
           <span className="truncate font-bold tracking-tight text-slate-950">CSG Learning</span>
         </Link>
+        <button type="button" onClick={() => setCommandPaletteOpen(true)} aria-label="Search and go" className="ml-auto inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100"><Search className="h-5 w-5" /></button>
       </header>
 
       {/* Mobile sidebar overlay */}
@@ -344,6 +357,7 @@ export function Layout({ children }: LayoutProps) {
             </button>
           </div>
           <nav className="flex-1 space-y-1 p-4">
+            <button type="button" onClick={() => { closeMobileSidebar(false); setCommandPaletteOpen(true) }} className="mb-2 flex min-h-11 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-600"><Search className="h-5 w-5" />Search and go</button>
             {navItems.map((item) => (
               <Link
                 key={item.to}
@@ -406,6 +420,7 @@ export function Layout({ children }: LayoutProps) {
           </Link>
         </div>
         <nav className={`flex-1 ${collapsed ? 'p-2' : 'p-4'} space-y-1`}>
+          <button type="button" onClick={() => setCommandPaletteOpen(true)} aria-label="Search and go" className={`group relative mb-2 flex min-h-11 w-full items-center rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:border-primary-300 hover:text-primary-700 ${collapsed ? 'justify-center px-2' : 'gap-3 px-3'}`}><Search className="h-5 w-5" />{!collapsed && <><span>Search</span><kbd className="ml-auto rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-400">⌘K</kbd></>}</button>
           {navItems.map((item) => (
             <Link
               key={item.to}
@@ -533,6 +548,7 @@ export function Layout({ children }: LayoutProps) {
           })}
         </nav>
       )}
+      <CommandPalette open={commandPaletteOpen} isStaff={Boolean(isStaff)} onClose={closeCommandPalette} />
     </div>
   )
 }

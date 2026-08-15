@@ -725,6 +725,7 @@ export interface CohortModule {
 export interface CohortDetail extends CohortSummary {
   students: CohortStudent[];
   modules: CohortModule[];
+  uploaded_recordings_count?: number;
   recordings?: Array<{ title: string; url: string; date?: string; description?: string }>;
   class_resources?: Array<{ title: string; url: string; category?: string; description?: string }>;
   office_hours?: OfficeHour[];

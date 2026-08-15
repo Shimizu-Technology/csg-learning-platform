@@ -168,13 +168,13 @@ export function StudentWorkspace() {
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => void openDirectMessage()} disabled={openingMessage}><MessageSquareText className="h-4 w-4" />{openingMessage ? 'Opening…' : sharedEvidence ? `Message in ${cohort.name}` : 'Message'}</Button>
             {latestSubmission && <LinkButton to={submissionPath(latestSubmission.id, { cohortId, userId: studentId, returnTo: location.pathname })}><FileCheck2 className="h-4 w-4" />{ungraded.length ? 'Grade next' : 'View latest work'}</LinkButton>}
-            <LinkButton to={`/admin/cohorts/${cohortId}/student-view`} secondary><ExternalLink className="h-4 w-4" />Preview cohort</LinkButton>
+            <LinkButton to={`/admin/cohorts/${cohortId}/student-view?student_id=${studentId}`} secondary><ExternalLink className="h-4 w-4" />Preview as student</LinkButton>
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-4 py-2 sm:px-6">
+        <div className="grid items-center gap-2 border-t border-slate-100 bg-slate-50/70 px-4 py-2 sm:grid-cols-[minmax(0,1fr)_minmax(180px,260px)_minmax(0,1fr)] sm:px-6">
           <StudentStepper direction="previous" student={previousStudent} cohortId={cohortId} tab={activeTab} />
-          <p className="text-xs font-bold tabular-nums text-slate-400">{studentIndex >= 0 ? `${studentIndex + 1} of ${cohort.students.length}` : 'Historical enrollment'}</p>
+          <label className="grid gap-1 text-center text-[10px] font-extrabold uppercase tracking-wide text-slate-400"><span>{studentIndex >= 0 ? `Student ${studentIndex + 1} of ${cohort.students.length}` : 'Historical enrollment'}</span><select aria-label={`Switch student in ${cohort.name}`} value={studentId} onChange={(event) => navigate(cohortStudentPath(cohortId, Number(event.target.value), activeTab))} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold normal-case tracking-normal text-slate-800 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100">{cohort.students.map((student) => <option key={student.enrollment_id} value={student.user_id}>{student.full_name || student.email}</option>)}</select></label>
           <StudentStepper direction="next" student={nextStudent} cohortId={cohortId} tab={activeTab} />
         </div>
       </section>
@@ -223,13 +223,21 @@ function OverviewTab({ progress, submissions, helpRequests, recordings, lessonVi
           <div className="mt-5"><ProgressBar value={progress.overall_progress.percentage} size="md" /></div>
           <div className="mt-5 space-y-3">{progress.modules.map((mod) => <div key={mod.id} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px_auto] sm:items-center"><p className="truncate text-sm font-bold text-slate-800">{mod.name}</p><ProgressBar value={mod.progress_percentage} size="sm" /><span className="text-xs font-bold tabular-nums text-slate-500">{mod.completed_blocks}/{mod.total_blocks}</span></div>)}</div>
         </section>
-        <section className="app-surface p-5 sm:p-6">
-          <h2 className="text-lg font-extrabold text-slate-950">Recent activity</h2>
-          {progress.recent_activity.length ? <div className="mt-4 space-y-4">{progress.recent_activity.slice(0, 5).map((activity) => <div key={`${activity.content_block_id}-${activity.completed_at}`} className="flex gap-3"><span className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-700"><CheckCircle2 className="h-4 w-4" /></span><div><p className="text-sm font-bold text-slate-800">{activity.block_title}</p><p className="text-xs text-slate-500">Completed {formatShortDateTime(activity.completed_at)}</p></div></div>)}</div> : <p className="mt-4 text-sm text-slate-500">No completed learning activity yet.</p>}
-        </section>
+        <ComposedTimeline progress={progress} submissions={submissions} helpRequests={helpRequests} cohortId={cohortId} studentId={studentId} />
       </div>
     </div>
   )
+}
+
+function ComposedTimeline({ progress, submissions, helpRequests, cohortId, studentId }: { progress: StudentProgressResponse; submissions: Submission[]; helpRequests: HelpRequest[]; cohortId: number; studentId: number }) {
+  const workspacePath = cohortStudentPath(cohortId, studentId, 'overview')
+  const events = [
+    ...progress.recent_activity.map((activity) => ({ id: `progress-${activity.content_block_id}-${activity.completed_at}`, at: activity.completed_at, title: activity.block_title || 'Learning checkpoint', detail: 'Completed learning checkpoint', path: cohortStudentPath(cohortId, studentId, 'learning'), icon: CheckCircle2, tone: 'green' as const })),
+    ...submissions.map((submission) => ({ id: `submission-${submission.id}`, at: submission.created_at, title: submission.content_block_title, detail: submission.grade === null ? 'Submitted for review' : submission.grade === 'R' ? 'Redo requested' : `Graded ${submission.grade}`, path: submissionPath(submission.id, { cohortId, userId: studentId, returnTo: workspacePath }), icon: FileCheck2, tone: submission.grade === 'R' ? 'red' as const : 'primary' as const })),
+    ...helpRequests.map((request) => ({ id: `help-${request.id}`, at: request.created_at, title: request.context_label, detail: request.status === 'resolved' ? 'Support request resolved' : `Asked for ${request.urgency === 'urgent' ? 'urgent ' : ''}help`, path: helpRequestPath(request.id, workspacePath), icon: LifeBuoy, tone: request.urgency === 'urgent' ? 'red' as const : 'amber' as const })),
+  ].filter((event) => event.at).sort((a, b) => new Date(b.at!).getTime() - new Date(a.at!).getTime()).slice(0, 8)
+  const tones = { green: 'bg-green-50 text-green-700', primary: 'bg-primary-50 text-primary-700', red: 'bg-red-50 text-red-700', amber: 'bg-amber-50 text-amber-800' }
+  return <section className="app-surface p-5 sm:p-6"><h2 className="text-lg font-extrabold text-slate-950">Connected activity</h2><p className="mt-1 text-xs text-slate-500">Learning, submissions, and support in one timeline.</p>{events.length ? <ol className="mt-4 space-y-1">{events.map((event) => <li key={event.id}><Link to={event.path} className="group flex min-h-11 gap-3 rounded-xl px-1 py-2 hover:bg-slate-50"><span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${tones[event.tone]}`}><event.icon className="h-4 w-4" /></span><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-800 group-hover:text-primary-700">{event.title}</p><p className="text-xs text-slate-500">{event.detail} · {formatShortDateTime(event.at)}</p></div></Link></li>)}</ol> : <p className="mt-4 text-sm text-slate-500">No connected activity yet.</p>}</section>
 }
 
 function WorkTab({ submissions, cohortId, studentId, returnTo }: { submissions: Submission[]; cohortId: number; studentId: number; returnTo: string }) {
