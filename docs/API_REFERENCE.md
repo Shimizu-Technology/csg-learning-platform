@@ -12,7 +12,7 @@
 |--------|------|------|-------------|
 | `GET` | `/up` | None | Rails health check (200 if app is running) |
 | `GET` | `/health` | None | Database-free process health check used by Render: `{"status":"ok"}` |
-| `GET` | `/ready` | None | Manual PostgreSQL and background-worker readiness diagnostic |
+| `GET` | `/api/v1/ready` | None | Manual PostgreSQL and background-worker readiness diagnostic |
 
 ---
 

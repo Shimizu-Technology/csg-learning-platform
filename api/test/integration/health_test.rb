@@ -17,7 +17,7 @@ class HealthTest < ActionDispatch::IntegrationTest
   end
 
   test "readiness checks dependencies without exposing internals" do
-    get "/ready"
+    get "/api/v1/ready"
 
     assert_response :success
     assert_equal "no-store", response.headers["Cache-Control"]
@@ -38,7 +38,7 @@ class HealthTest < ActionDispatch::IntegrationTest
 
     original_connection = ActiveRecord::Base.method(:connection)
     ActiveRecord::Base.define_singleton_method(:connection) { unavailable_connection }
-    get "/ready"
+    get "/api/v1/ready"
 
     assert_response :service_unavailable
     assert_equal "no-store", response.headers["Cache-Control"]

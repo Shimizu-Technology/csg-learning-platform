@@ -3,10 +3,11 @@ Rails.application.routes.draw do
 
   get "up" => "rails/health#show", as: :rails_health_check
   get "health", to: "health#show", as: :health_check
-  get "ready", to: "readiness#show", as: :readiness_check
 
   namespace :api do
     namespace :v1 do
+      get "ready", to: "/readiness#show", as: :readiness_check
+
       # Auth
       post "sessions", to: "sessions#create"
       post "presence", to: "presence#create"

@@ -91,7 +91,7 @@ and read-receipt broadcasts that would all be delivered when the worker starts.
 
 5. Set the worker's Docker command to `./bin/jobs`, deploy it, and confirm its
    logs show a Solid Queue worker process.
-6. Request `/ready`; it should report both `database` and `queue` as `ok`.
+6. Request `/api/v1/ready`; it should report both `database` and `queue` as `ok`.
 7. Trigger one controlled, current notification and verify it is processed once.
 
 The purge is a rollout operation, not part of an application deploy. Do not run
@@ -194,12 +194,13 @@ orphaned storage indefinitely.
 
 `/health` is intentionally database-free because Render requests it every few
 seconds; it must not keep Neon awake. It is also silenced from production request
-logs. `/ready` is the manual dependency diagnostic: it checks PostgreSQL and,
+logs. `/api/v1/ready` is the manual dependency diagnostic: it checks PostgreSQL and,
 when Solid Queue is enabled, requires a current worker heartbeat and a ready
 queue no older than `QUEUE_READINESS_MAX_READY_AGE_SECONDS` (default: 300).
 
-Render must use `/health`, never `/ready`, for its automatic health check. Use
-`/ready` only during deployment verification and incident diagnosis.
+Render must use `/health`, never `/api/v1/ready`, for its automatic health
+check. Use `/api/v1/ready` only during deployment verification and incident
+diagnosis.
 
 ### Manual Deploy
 
@@ -311,8 +312,8 @@ Neon provides point-in-time recovery. Check the Neon dashboard for backup settin
 After first deployment or major changes:
 
 - [ ] Verify health check: `curl https://learn-api.codeschoolofguam.com/health`
-- [ ] Verify dependencies once: `curl https://learn-api.codeschoolofguam.com/ready`
-- [ ] If Solid Queue is enabled, confirm the worker command is `./bin/jobs` and `/ready` reports `queue: ok`
+- [ ] Verify dependencies once: `curl https://learn-api.codeschoolofguam.com/api/v1/ready`
+- [ ] If Solid Queue is enabled, confirm the worker command is `./bin/jobs` and `/api/v1/ready` reports `queue: ok`
 - [ ] Verify frontend loads: `https://learn.codeschoolofguam.com`
 - [ ] Verify Clerk auth works (sign in with test account)
 - [ ] Run seed data if needed: `bin/rails db:seed` via Render Shell
