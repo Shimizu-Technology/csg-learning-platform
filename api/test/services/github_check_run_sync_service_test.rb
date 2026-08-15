@@ -65,4 +65,28 @@ class GithubCheckRunSyncServiceTest < ActiveSupport::TestCase
     assert_match "repository URL", result[:error]
     assert_empty @submission.github_check_runs
   end
+
+  test "does not prune current commit rows from a partial GitHub page" do
+    @submission.github_check_runs.create!(external_id: 80, name: "not on first page", head_sha: "abc123", status: "completed", conclusion: "success", fetched_at: 1.hour.ago)
+    service = GithubCheckRunSyncService.new(submission: @submission, token: "secret-token")
+    original_get = service.method(:github_get)
+    service.define_singleton_method(:github_get) do |_url|
+      FakeResponse.new(true, 200, {
+        "total_count" => 101,
+        "check_runs" => [ {
+          "id" => 81,
+          "name" => "first page test",
+          "head_sha" => "abc123",
+          "status" => "completed",
+          "conclusion" => "success"
+        } ]
+      })
+    end
+
+    assert_nil service.call[:error]
+    assert @submission.github_check_runs.exists?(external_id: 80)
+    assert @submission.github_check_runs.exists?(external_id: 81)
+  ensure
+    service.define_singleton_method(:github_get, original_get)
+  end
 end
