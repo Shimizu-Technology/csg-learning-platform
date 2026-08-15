@@ -458,7 +458,7 @@ Delivery status: implemented across API, web, and native with staff-only privacy
 
 Goal: expose trustworthy mastery and curriculum insights only after the source workflows are operating.
 
-Delivery status: implemented across the Rails API, staff web workspaces, web/native submission review, and privacy/authorization test coverage. The evidence projection is deliberately explainable: every cohort signal opens the exact learner and source record, retrieval-only evidence cannot become demonstrated mastery, and no calculated status changes a grade, access rule, or progress record. A relationship graph was not added because the validated navigation paths remain clearer as expandable lists and reciprocal record links. Release details are recorded in `PHASE_5_COMPLETION.md`.
+Delivery status: implemented in PR #101 across the Rails API, staff web workspaces, web/native submission review, and privacy/authorization test coverage. The evidence projection is deliberately explainable: every cohort signal opens the exact learner and source record, retrieval-only evidence cannot become demonstrated mastery, and no calculated status changes a grade, access rule, or progress record. A relationship graph was not added because the validated navigation paths remain clearer as expandable lists and reciprocal record links. Release details are recorded in `PHASE_5_COMPLETION.md`.
 
 - objective evidence/mastery views;
 - GitHub test feedback relationships;

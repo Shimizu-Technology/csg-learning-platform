@@ -2,7 +2,8 @@
 
 - **Completed:** 2026-08-15
 - **Scope:** explainable learning evidence, GitHub check relationships, source-linked cohort patterns, and focused native review parity
-- **Release state:** implementation and local verification complete; PR, CI, Greptile, merge, and iOS release identifiers are recorded after delivery
+- **Pull request:** #101
+- **Release state:** implementation and local verification complete; CI, Greptile, merge, and iOS release identifiers are recorded after delivery
 
 ## Delivered experience
 
@@ -44,4 +45,4 @@ The delivery gate covers:
 - interactive web and native walkthroughs from cohort signal to learner/source record and back;
 - GitHub CI plus a clean Greptile review before merge.
 
-Exact check counts, PR/merge identifiers, and TestFlight build/submission identifiers are appended after those remote gates finish.
+Local verification completed with 407 Rails tests / 1,402 assertions, 305 RuboCop files, 35 web tests, and 29 native suites / 111 tests. Merge and TestFlight build/submission identifiers are appended after those remote gates finish.
