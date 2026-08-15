@@ -1,4 +1,4 @@
-import type { StaffDashboard, StaffVideoProgress, StudentProgressDetail, Submission } from './types';
+import type { HelpRequest, StaffDashboard, StaffVideoProgress, StudentProgressDetail, Submission, SupportQueue } from './types';
 
 const now = Date.now();
 const ago = (days: number) => new Date(now - days * 86_400_000).toISOString();
@@ -41,6 +41,40 @@ export const demoStaffSubmissions: Submission[] = [
   { id: 31, content_block_id: 203, user_id: 18, user_name: 'Maya Santos', submission_type: 'repo_and_live_url_submission', text: null, grade: null, feedback: null, graded_by: null, graded_at: null, github_issue_url: 'https://github.com/example/project/issues/4', github_code_url: null, repo_url: 'https://github.com/example/project', pr_url: 'https://github.com/example/project/pull/12', live_url: 'https://example.com', branch: 'feature/responsive-grid', commit_sha: 'abc1234', notes: 'Ready for accessibility review.', num_submissions: 2, created_at: ago(1), content_block_title: 'Responsive card grid', content_block_type: 'exercise', lesson_title: 'Responsive layouts with Grid', filename: null, language_hint: 'css', exercise_body: 'Build a responsive card grid and deploy it.' },
   { id: 30, content_block_id: 198, user_id: 18, user_name: 'Maya Santos', submission_type: 'text_submission', text: 'I used semantic landmarks and explicit form labels.', grade: 'R', feedback: 'Connect every error message with aria-describedby.', graded_by: 'Leon Shimizu', graded_at: ago(2), github_issue_url: null, github_code_url: null, num_submissions: 1, created_at: ago(3), content_block_title: 'Accessible form audit', content_block_type: 'exercise', lesson_title: 'Accessible forms', filename: null, language_hint: null },
 ];
+
+export const demoHelpRequests: HelpRequest[] = [{
+  id: 41,
+  cohort: { id: 4, name: 'Web Dev Cohort 4' },
+  context_type: 'exercise',
+  context_source: 'primary',
+  context_id: 203,
+  context_label: 'Responsive card grid',
+  context_path: '/learn/lessons/101?block=203',
+  category: 'technical',
+  urgency: 'urgent',
+  status: 'open',
+  message: 'My cards wrap correctly locally, but the deployed layout collapses into one column. Can you help me trace the difference?',
+  staff_response: null,
+  acknowledged_at: null,
+  resolved_at: null,
+  canceled_at: null,
+  created_at: ago(0.08),
+  updated_at: ago(0.08),
+  owner: null,
+  student: { id: 18, full_name: 'Maya Santos', email: 'maya@example.com' },
+}];
+
+export const demoSupportQueue: SupportQueue = {
+  generated_at: new Date(now).toISOString(),
+  summary: { open_help_count: 1, acknowledged_help_count: 0, urgent_help_count: 1, student_count: 3 },
+  help_requests: demoHelpRequests,
+  recently_resolved: [],
+  students: [
+    { user_id: 18, cohort_id: 4, full_name: 'Maya Santos', email: 'maya@example.com', cohort_name: 'Web Dev Cohort 4', progress_percentage: 46, completed_blocks: 19, total_blocks: 41, last_activity_at: ago(1), help_request_count: 1, urgent_help_count: 1, redo_count: 1, ungraded_count: 1, inactive: false, priority: 9 },
+    { user_id: 20, cohort_id: 4, full_name: 'Kai Perez', email: 'kai@example.com', cohort_name: 'Web Dev Cohort 4', progress_percentage: 61, completed_blocks: 25, total_blocks: 41, last_activity_at: ago(0), help_request_count: 0, urgent_help_count: 0, redo_count: 0, ungraded_count: 2, inactive: false, priority: 2 },
+    { user_id: 19, cohort_id: 4, full_name: 'Noah Cruz', email: 'noah@example.com', cohort_name: 'Web Dev Cohort 4', progress_percentage: 28, completed_blocks: 11, total_blocks: 41, last_activity_at: ago(9), help_request_count: 0, urgent_help_count: 0, redo_count: 0, ungraded_count: 0, inactive: true, priority: 1 },
+  ],
+};
 
 export const demoRecordingProgress: StaffVideoProgress[] = [
   { recording_id: 2, recording_title: 'APIs, authentication, and deployment', cohort_id: 4, cohort_name: 'Web Dev Cohort 4', duration_seconds: 5_420, last_position_seconds: 1_580, total_watched_seconds: 1_520, progress_percentage: 28, completed: false, last_watched_at: ago(2) },

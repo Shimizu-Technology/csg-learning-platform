@@ -58,7 +58,7 @@ The platform has completed far more of the native and communications roadmap tha
 
 ### 2026-08-15 Connected experience delivery
 
-The next implementation stream organizes the existing learning, feedback, support, communication, and cohort capabilities around stable connected records. The canonical staff center is a cohort-specific Student Workspace, followed by submission/help records, reusable student context, cohort tabs, search, and the planned durable intervention model. Web and native responsibilities, privacy boundaries, phased scope, and acceptance criteria are defined in `docs/CONNECTED_EXPERIENCE_PLAN.md`.
+The connected-experience implementation stream organizes the existing learning, feedback, support, communication, and cohort capabilities around stable connected records. Phase 1 shipped the cohort-specific Student Workspace and relationship foundations in PR #97. Phase 2 now connects submission/help records, reusable student context, queue-preserving navigation, and source-aware messaging across web and native. Cohort tabs, search, and the durable intervention model follow in later phases. Web and native responsibilities, privacy boundaries, phased scope, and acceptance criteria are defined in `docs/CONNECTED_EXPERIENCE_PLAN.md`.
 
 This sequence supersedes the old assumption that payments, advanced analytics, or a built-in classroom should automatically come next. Those remain valid initiatives, but they should be prioritized against learning impact and current operating pain rather than their historical phase number.
 

@@ -121,6 +121,12 @@ describe('CsgApi', () => {
     expect(fetchMock.mock.calls[3][1]).toEqual(expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ grade: 'A', feedback: 'Clear work' }) }));
   });
 
+  it('loads a stable help request record', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ help_request: { id: 12 } }), { status: 200 }));
+    await new CsgApi(async () => 'session-token').helpRequest(12);
+    expect(fetchMock.mock.calls[0][0]).toContain('/api/v1/help_requests/12');
+  });
+
   it('creates a direct conversation in the requested cohort workspace', async () => {
     const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ direct_conversation: { id: 31 } }), { status: 200 }));
 

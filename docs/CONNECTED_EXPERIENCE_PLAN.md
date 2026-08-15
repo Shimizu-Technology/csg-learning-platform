@@ -401,6 +401,8 @@ Search results display the record type and relationship context. A student resul
 
 Goal: eliminate the highest-frequency context drops using existing models.
 
+Delivery status: shipped in PR #97 with a Greptile 5/5 review and the full API, web, and native validation suites passing.
+
 - add cohort-aware student routes and compatibility behavior;
 - build the Student Workspace shell, header, tabs, related counts, and existing-data views;
 - link submissions from student learning progress;
@@ -414,6 +416,8 @@ Goal: eliminate the highest-frequency context drops using existing models.
 ### Phase 2 — Reusable context and operational records
 
 Goal: make grading, support, and messaging feel like views of the same records.
+
+Delivery status: implemented across API, web, and native clients. The implementation adds stable support records, source-aware messaging, queue-preserving grading navigation, URL-backed operational filters, and simulator walkthrough parity in addition to the items below.
 
 - reusable web student context drawer;
 - submission record workflow with return/previous/next queue context;

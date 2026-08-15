@@ -2,7 +2,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
-import { ArrowDownToLine, ArrowLeft, Bell, BellOff, ChevronDown, Edit3, Hash, MessageSquareReply, Paperclip, Pin, Send, Trash2, Wifi, WifiOff, X, type LucideIcon } from 'lucide-react-native';
+import { ArrowDownToLine, ArrowLeft, Bell, BellOff, BookOpen, ChevronDown, Edit3, Hash, MessageSquareReply, Paperclip, Pin, Send, Trash2, Wifi, WifiOff, X, type LucideIcon } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -33,10 +33,13 @@ type ConversationItem = { message: Message; previous?: Message };
 type PendingConversationDraft = { userId: number; kind: ConversationKind; id: number; body: string };
 
 export default function ConversationScreen() {
-  const params = useLocalSearchParams<{ kind: string; id: string; messageId?: string }>();
+  const params = useLocalSearchParams<{ kind: string; id: string; messageId?: string; source_type?: string; source_id?: string; source_label?: string; source_cohort_id?: string; source_student_id?: string }>();
   const kind: ConversationKind = params.kind === 'dm' ? 'dm' : 'channel';
   const id = Number(params.id);
   const anchorMessageId = Number(params.messageId) || undefined;
+  const sourceId = Number(params.source_id) || undefined;
+  const sourceType = params.source_type === 'submission' || params.source_type === 'help_request' ? params.source_type : undefined;
+  const sourceLabel = params.source_label?.trim();
   const router = useRouter();
   const auth = useCsgAuth();
   const { api, user } = useSession();
@@ -265,6 +268,12 @@ export default function ConversationScreen() {
   const title = summary ? ('name' in summary ? summary.name : summary.title) : 'Conversation';
   const canManage = user?.is_staff;
 
+  const openSourceRecord = () => {
+    if (!sourceType || !sourceId) return;
+    if (sourceType === 'help_request') router.push({ pathname: '/staff/support/[id]', params: { id: String(sourceId) } });
+    else router.push({ pathname: '/staff/submission/[id]', params: { id: String(sourceId), cohort_id: params.source_cohort_id || '', student_id: params.source_student_id || '' } });
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <KeyboardAvoidingView style={styles.safe} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -274,6 +283,7 @@ export default function ConversationScreen() {
           <Pressable accessibilityRole="button" accessibilityLabel="Open pinned messages" onPress={() => setShowPins(true)} style={styles.headerCopy}><Text maxFontSizeMultiplier={fontScaleLimits.title} numberOfLines={1} style={styles.title}>{title}</Text><View style={styles.status}>{status === 'connected' ? <Wifi color={palette.success} size={12} /> : <WifiOff color={palette.warning} size={12} />}<Text maxFontSizeMultiplier={fontScaleLimits.utility} numberOfLines={2} style={styles.statusText}>{status === 'connected' ? (summary?.workspace_name || 'Connected') : status === 'connecting' ? 'Connecting' : 'Reconnecting'}{pinnedMessages.length ? ` · ${pinnedMessages.length} pinned` : ''}</Text></View></Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel={summary?.muted ? 'Unmute conversation' : 'Mute conversation'} onPress={() => void toggleMute()} style={styles.iconButton}>{summary?.muted ? <BellOff color={palette.muted} size={20} /> : <Bell color={palette.muted} size={20} />}</Pressable>
         </View>
+        {sourceType && sourceId && sourceLabel && <Pressable accessibilityRole="button" accessibilityLabel={`Return to ${sourceLabel}`} onPress={openSourceRecord} style={styles.sourceChip}><BookOpen color="#7DA8E8" size={15} /><Text numberOfLines={1} style={styles.sourceText}>From {sourceType === 'submission' ? 'submission' : 'help request'}: {sourceLabel}</Text></Pressable>}
         {loading ? <LoadingState label="Loading messages" /> : error ? <ErrorState message={error} retry={() => void load()} /> : <View style={styles.messagePane}>
           <FlatList ref={listRef} data={conversationItems} inverted keyExtractor={(item) => String(item.message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" maintainVisibleContentPosition={{ minIndexForVisible: 0 }} scrollEventThrottle={16}
             onEndReached={() => void loadOlder()} onEndReachedThreshold={0.2}
@@ -331,7 +341,7 @@ function Action({ icon: Icon, label, onPress, destructive = false }: { icon: Luc
 function DayDivider({ value }: { value: string }) { return <View style={styles.dayDivider}><View style={styles.dayLine} /><Text style={styles.dayText}>{formatConversationDay(value)}</Text><View style={styles.dayLine} /></View>; }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: palette.ink }, header: { minHeight: 68, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.line }, iconButton: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, hash: { width: 38, height: 38, borderRadius: 13, backgroundColor: '#2A151B', alignItems: 'center', justifyContent: 'center' }, headerCopy: { flex: 1, minHeight: 44, justifyContent: 'center' }, title: { color: palette.text, fontFamily: fonts.bold, fontSize: 16 }, status: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }, statusText: { color: palette.subtle, fontFamily: fonts.medium, fontSize: 11 },
+  safe: { flex: 1, backgroundColor: palette.ink }, header: { minHeight: 68, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.line }, iconButton: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, hash: { width: 38, height: 38, borderRadius: 13, backgroundColor: '#2A151B', alignItems: 'center', justifyContent: 'center' }, headerCopy: { flex: 1, minHeight: 44, justifyContent: 'center' }, title: { color: palette.text, fontFamily: fonts.bold, fontSize: 16 }, status: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }, statusText: { color: palette.subtle, fontFamily: fonts.medium, fontSize: 11 }, sourceChip: { minHeight: 42, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#244A77', backgroundColor: '#122238', paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 8 }, sourceText: { flex: 1, color: '#BED6F5', fontFamily: fonts.bold, fontSize: 11 },
   messagePane: { flex: 1, minHeight: 0 }, list: { paddingHorizontal: 14, paddingVertical: 20, paddingBottom: 28, flexGrow: 1 }, empty: { flex: 1, minHeight: 420, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 50 }, emptyTitle: { color: palette.text, fontFamily: fonts.bold, fontSize: 18 }, emptyCopy: { color: palette.muted, fontFamily: fonts.regular, fontSize: 13, lineHeight: 20, textAlign: 'center', marginTop: 7 }, loadingOlder: { color: palette.subtle, fontFamily: fonts.medium, fontSize: 11, textAlign: 'center', paddingVertical: 18 },
   dayDivider: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 16 }, dayLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: palette.line }, dayText: { color: palette.subtle, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase' },
   targetMessage: { marginHorizontal: -8, paddingHorizontal: 8, paddingTop: 7, borderRadius: 16, backgroundColor: '#21161A' },

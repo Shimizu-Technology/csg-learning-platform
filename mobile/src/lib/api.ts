@@ -151,6 +151,7 @@ export class CsgApi {
   resources = (signal?: AbortSignal) => this.request<{ resources: LearningResource[] }>('/api/v1/resources', { signal });
   lesson = (id: number, signal?: AbortSignal) => this.request<{ lesson: LessonDetail }>(`/api/v1/lessons/${id}`, { signal });
   helpRequests = (params: { cohort_id?: number; status?: string; context_type?: HelpContextType } = {}, signal?: AbortSignal) => this.request<{ help_requests: HelpRequest[] }>(`/api/v1/help_requests${queryString(params)}`, { signal });
+  helpRequest = (id: number, signal?: AbortSignal) => this.request<{ help_request: HelpRequest }>(`/api/v1/help_requests/${id}`, { signal });
   createHelpRequest = (input: { cohort_id: number; context_type: HelpContextType; context_source?: HelpContextSource; context_id: number; category: HelpCategory; urgency: HelpUrgency; message: string }) => this.request<{ help_request: HelpRequest; created: boolean }>('/api/v1/help_requests', { method: 'POST', body: JSON.stringify({ help_request: input }) });
   updateHelpRequest = (id: number, input: { status: 'acknowledged' | 'resolved' | 'canceled'; staff_response?: string }) => this.request<{ help_request: HelpRequest; status_changed: boolean }>(`/api/v1/help_requests/${id}`, { method: 'PATCH', body: JSON.stringify({ help_request: input }) });
   supportQueue = (signal?: AbortSignal) => this.request<{ support_queue: SupportQueue }>('/api/v1/support_queue', { signal });

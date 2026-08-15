@@ -139,6 +139,7 @@ Clients should link lesson, recording, and meeting actions from the provided typ
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `GET` | `/api/v1/help_requests` | Signed-in user | Students list their own requests; staff list all. Optional `cohort_id`, valid `status`, and valid `context_type` filters apply; staff may also filter by `student_id`. |
+| `GET` | `/api/v1/help_requests/:id` | Owner student / Staff | Return one stable help-request record with its authorized student, cohort, learning context, ownership, status, and response relationships. Requests outside the caller's scope return `404`. |
 | `POST` | `/api/v1/help_requests` | Student | Create one active request for an authorized lesson, exercise, uploaded recording, or legacy recording. Duplicate active context returns the existing record with `created: false`. |
 | `PATCH` | `/api/v1/help_requests/:id` | Owner student / Staff | Students may cancel active requests. Staff may acknowledge or resolve; resolution requires a nonblank `staff_response`. |
 | `GET` | `/api/v1/support_queue` | Staff | Return active requests, recent resolutions, summary counts, and explainable redo/ungraded/inactivity student signals. |
