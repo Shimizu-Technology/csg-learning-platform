@@ -45,11 +45,12 @@ export function CommandPalette({ open, isStaff, onClose }: CommandPaletteProps) 
     window.addEventListener('keydown', handleKey)
     if (isStaff) {
       setLoading(true)
-      void Promise.all([api.getCohorts(), api.getDashboard()]).then(([cohortResult, dashboardResult]) => {
+      void Promise.all([api.getCohorts(), api.getUsers({ role: 'student', include_enrollments: 'true' })]).then(([cohortResult, userResult]) => {
         if (!active) return
         const cohorts: PaletteItem[] = (cohortResult.data?.cohorts || []).map((cohort) => ({ id: `cohort-${cohort.id}`, label: cohort.name, detail: `${cohort.curriculum_name} · cohort`, path: `/admin/cohorts/${cohort.id}`, icon: Layers3, keywords: cohort.status }))
-        const dashboard = dashboardResult.data?.dashboard as { cohort?: { id: number; name: string }; students?: Array<{ user_id: number; full_name: string; email: string }> } | undefined
-        const students: PaletteItem[] = (dashboard?.students || []).map((student) => ({ id: `student-${student.user_id}`, label: student.full_name, detail: `${student.email} · ${dashboard?.cohort?.name || 'student'}`, path: dashboard?.cohort ? cohortStudentPath(dashboard.cohort.id, student.user_id) : `/admin/students/${student.user_id}`, icon: Users, keywords: student.email }))
+        const students: PaletteItem[] = (userResult.data?.users || []).flatMap((student) => student.enrollments?.length
+          ? student.enrollments.map((enrollment) => ({ id: `student-${student.id}-cohort-${enrollment.cohort_id}`, label: student.full_name, detail: `${student.email} · ${enrollment.cohort_name}`, path: cohortStudentPath(enrollment.cohort_id, student.id), icon: Users, keywords: `${student.email} ${enrollment.status}` }))
+          : [ { id: `student-${student.id}`, label: student.full_name, detail: `${student.email} · no cohort enrollment`, path: `/admin/students/${student.id}`, icon: Users, keywords: student.email } ])
         setRecords([...cohorts, ...students])
         setLoading(false)
       }).catch(() => {

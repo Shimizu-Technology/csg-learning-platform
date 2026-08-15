@@ -177,8 +177,8 @@ Students receive resources/links for their active cohort. Staff receive resource
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/api/v1/users` | Admin | List all users |
-| `GET` | `/api/v1/users/:id` | Admin | Show user details |
+| `GET` | `/api/v1/users` | Staff | List users; supports `role`, admin-only `include_archived`, and `include_enrollments` |
+| `GET` | `/api/v1/users/:id` | Staff | Show user details |
 | `POST` | `/api/v1/users` | Admin | Create user (sends Clerk invite) |
 | `PATCH` | `/api/v1/users/:id` | Admin | Update user |
 | `DELETE` | `/api/v1/users/:id` | Admin | Archive user; hard-delete only unused pending invites |

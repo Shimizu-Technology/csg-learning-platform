@@ -25,6 +25,7 @@ export interface UserListItem extends User {
   archived_at: string | null;
   invite_pending: boolean;
   created_at: string;
+  enrollments?: UserEnrollment[];
 }
 
 export interface UserSummary {
