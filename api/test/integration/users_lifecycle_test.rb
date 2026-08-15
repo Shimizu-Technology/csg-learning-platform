@@ -47,6 +47,32 @@ class UsersLifecycleTest < ActionDispatch::IntegrationTest
     assert_nil User.find_by(id: invite.id)
   end
 
+  test "staff can request cohort-scoped enrollments for student discovery" do
+    student = User.create!(
+      clerk_id: "clerk_discovery_student",
+      email: "discovery-student@example.com",
+      first_name: "Discovery",
+      last_name: "Student",
+      role: :student
+    )
+    enrollment = Enrollment.create!(user: student, cohort: @cohort, status: :active)
+
+    as_user(@instructor) do
+      get "/api/v1/users", params: { role: "student", include_enrollments: true }, headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body).fetch("users").find { |item| item.fetch("id") == student.id }
+    assert_equal [ {
+      "id" => enrollment.id,
+      "cohort_id" => @cohort.id,
+      "cohort_name" => @cohort.name,
+      "status" => "active",
+      "enrolled_at" => enrollment.enrolled_at&.iso8601(3),
+      "completed_at" => nil
+    } ], payload.fetch("enrollments")
+  end
+
   test "admin archives pending invite with enrollment instead of hard deleting it" do
     invite = User.create!(
       clerk_id: "pending_#{SecureRandom.uuid}",

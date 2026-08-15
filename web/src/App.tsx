@@ -12,6 +12,7 @@ import {
   AdminDashboard,
   Announcements,
   CohortDetail,
+  CohortWorkspace,
   CohortManagement,
   CohortModuleGrading,
   CohortStudentView,
@@ -131,7 +132,8 @@ function AppRoutes() {
             <Route path="/admin/students/:id" element={<SuspendedRoute><StudentDetail /></SuspendedRoute>} />
             <Route path="/admin/cohorts/:cohortId/students/:id/:tab?" element={<SuspendedRoute><StudentWorkspace /></SuspendedRoute>} />
             <Route path="/admin/cohorts" element={<SuspendedRoute><CohortManagement /></SuspendedRoute>} />
-            <Route path="/admin/cohorts/:id" element={<SuspendedRoute><CohortDetail /></SuspendedRoute>} />
+            <Route path="/admin/cohorts/:id" element={<SuspendedRoute><CohortWorkspace /></SuspendedRoute>} />
+            <Route path="/admin/cohorts/:id/settings" element={<SuspendedRoute><CohortDetail /></SuspendedRoute>} />
             <Route path="/admin/cohorts/:id/watch-progress" element={<SuspendedRoute><CohortWatchProgress /></SuspendedRoute>} />
             <Route path="/admin/grading" element={<SuspendedRoute><Grading /></SuspendedRoute>} />
             <Route path="/admin/submissions/:id" element={<SuspendedRoute><SubmissionDetail /></SuspendedRoute>} />

@@ -25,6 +25,7 @@ export interface UserListItem extends User {
   archived_at: string | null;
   invite_pending: boolean;
   created_at: string;
+  enrollments?: UserEnrollment[];
 }
 
 export interface UserSummary {
@@ -725,6 +726,7 @@ export interface CohortModule {
 export interface CohortDetail extends CohortSummary {
   students: CohortStudent[];
   modules: CohortModule[];
+  uploaded_recordings_count?: number;
   recordings?: Array<{ title: string; url: string; date?: string; description?: string }>;
   class_resources?: Array<{ title: string; url: string; category?: string; description?: string }>;
   office_hours?: OfficeHour[];

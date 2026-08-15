@@ -672,6 +672,7 @@ const MentionHighlightExtension = Extension.create<{ getPatterns: () => MentionP
 export function Messages() {
   const { channelId, dmId } = useParams()
   const [searchParams] = useSearchParams()
+  const routedMessageId = Number(searchParams.get('message_id')) || null
   const { user } = useAuthContext()
   const toast = useToast()
   const isStaff = Boolean(user?.is_staff)
@@ -753,6 +754,7 @@ export function Messages() {
   const tempMessageIdRef = useRef(0)
   const targetRequestRef = useRef(0)
   const targetLoadOptionsRef = useRef<TargetLoadOptions>({})
+  const routeTargetInitializedRef = useRef(false)
   const loadingTargetRef = useRef(false)
   const backgroundTargetLoadingRef = useRef(false)
   const shouldStickToBottomRef = useRef(true)
@@ -1204,9 +1206,21 @@ export function Messages() {
   }, [])
 
   useEffect(() => {
-    if (channelId) setSelectedTarget({ type: 'channel', id: Number(channelId) })
-    if (dmId) setSelectedTarget({ type: 'dm', id: Number(dmId) })
-  }, [channelId, dmId])
+    const options = routedMessageId !== null && Number.isInteger(routedMessageId) && routedMessageId > 0 ? { aroundMessageId: routedMessageId, highlightedMessageId: routedMessageId } : {}
+    const target: Target | null = channelId ? { type: 'channel', id: Number(channelId) } : dmId ? { type: 'dm', id: Number(dmId) } : null
+    if (!target) return
+
+    const current = selectedTargetRef.current
+    const sameTarget = current?.type === target.type && current.id === target.id
+    if (routeTargetInitializedRef.current && sameTarget) {
+      targetLoadOptionsRef.current = {}
+      void loadTarget(target, canAutoMarkRead(true), options)
+    } else {
+      targetLoadOptionsRef.current = options
+      setSelectedTarget(target)
+    }
+    routeTargetInitializedRef.current = true
+  }, [channelId, dmId, routedMessageId])
 
   useEffect(() => {
     if (typeof window === 'undefined') return

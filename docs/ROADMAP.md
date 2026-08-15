@@ -1,6 +1,6 @@
 # CSG Learning Platform — Roadmap
 
-**Last updated:** 2026-08-02
+**Last updated:** 2026-08-15
 **Status:** Active execution roadmap  
 **Companion docs:** `docs/PRODUCT_VISION.md`, `docs/PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md`, `docs/CONNECTED_EXPERIENCE_PLAN.md`, `docs/DEPLOYMENT.md`, `docs/API_REFERENCE.md`
 
@@ -58,7 +58,7 @@ The platform has completed far more of the native and communications roadmap tha
 
 ### 2026-08-15 Connected experience delivery
 
-The connected-experience implementation stream organizes the existing learning, feedback, support, communication, and cohort capabilities around stable connected records. Phase 1 shipped the cohort-specific Student Workspace and relationship foundations in PR #97. Phase 2 now connects submission/help records, reusable student context, queue-preserving navigation, and source-aware messaging across web and native. Cohort tabs, search, and the durable intervention model follow in later phases. Web and native responsibilities, privacy boundaries, phased scope, and acceptance criteria are defined in `docs/CONNECTED_EXPERIENCE_PLAN.md`.
+The connected-experience implementation stream organizes the existing learning, feedback, support, communication, and cohort capabilities around stable connected records. Phase 1 shipped the cohort-specific Student Workspace and relationship foundations in PR #97. Phase 2 shipped submission/help records, reusable student context, queue-preserving navigation, and source-aware messaging in PR #98. Phase 3 is delivered in PR #99: URL-backed cohort workspaces, cohort-contained learner switching, exact read-only enrollment previews, global command/message search, composed student activity, and normalized web/native deep links. The durable intervention model follows in Phase 4. Web and native responsibilities, privacy boundaries, phased scope, and acceptance criteria are defined in `docs/CONNECTED_EXPERIENCE_PLAN.md`.
 
 This sequence supersedes the old assumption that payments, advanced analytics, or a built-in classroom should automatically come next. Those remain valid initiatives, but they should be prioritized against learning impact and current operating pain rather than their historical phase number.
 

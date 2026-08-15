@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type MouseEvent } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
   Bell,
@@ -14,7 +14,7 @@ import {
   WifiOff,
 } from 'lucide-react'
 import { api } from '../../lib/api'
-import type { CohortStudentView as CohortStudentViewData } from '../../types/api'
+import type { CohortStudent, CohortStudentView as CohortStudentViewData, StudentProgressResponse } from '../../types/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { Dashboard } from '../student/Dashboard'
@@ -47,7 +47,11 @@ const sections: PreviewSection[] = ['dashboard', 'materials', 'recordings', 'res
 export function CohortStudentView() {
   const { id } = useParams<{ id: string }>()
   const location = useLocation()
+  const [searchParams] = useSearchParams()
+  const studentId = Number(searchParams.get('student_id')) || null
   const [data, setData] = useState<CohortStudentViewData | null>(null)
+  const [students, setStudents] = useState<CohortStudent[]>([])
+  const [selectedStudent, setSelectedStudent] = useState<CohortStudent | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -55,16 +59,33 @@ export function CohortStudentView() {
     if (!id) return
 
     setLoading(true)
-    api.getCohortStudentView(Number(id)).then((res) => {
-      if (res.data?.student_view) {
-        setData(res.data.student_view)
-        setError(null)
+    Promise.all([
+      api.getCohortStudentView(Number(id)),
+      api.getCohort(Number(id)),
+      studentId ? api.getStudentProgress(studentId, Number(id)) : Promise.resolve(null),
+    ]).then(([viewResult, cohortResult, progressResult]) => {
+      if (viewResult.data?.student_view && cohortResult.data?.cohort) {
+        const cohortStudents = cohortResult.data.cohort.students
+        const student = studentId ? cohortStudents.find((item) => item.user_id === studentId) || null : null
+        setStudents(cohortStudents)
+        setSelectedStudent(student)
+        if (studentId && !student) {
+          setData(null)
+          setError('This student is not enrolled in the selected cohort.')
+        } else if (student && !progressResult?.data) {
+          setData(null)
+          setError(progressResult?.error || 'Unable to load this student’s enrollment progress.')
+        } else {
+          setData(progressResult?.data && student ? mergeStudentProgress(viewResult.data.student_view, progressResult.data) : viewResult.data.student_view)
+          setError(null)
+        }
       } else {
-        setError(res.error || 'Unable to load this cohort student view.')
+        setData(null)
+        setError(viewResult.error || cohortResult.error || 'Unable to load this cohort student view.')
       }
       setLoading(false)
     })
-  }, [id])
+  }, [id, studentId])
 
   const activeSection = useMemo<PreviewSection>(() => {
     const tail = location.pathname.split('/student-view/')[1]?.split('/')[0] || 'dashboard'
@@ -84,7 +105,7 @@ export function CohortStudentView() {
   }
 
   return (
-    <PreviewShell data={data} activeSection={activeSection}>
+    <PreviewShell data={data} activeSection={activeSection} students={students} selectedStudent={selectedStudent}>
       <PreviewContent data={data} activeSection={activeSection} />
     </PreviewShell>
   )
@@ -94,13 +115,23 @@ function PreviewShell({
   data,
   activeSection,
   children,
+  students,
+  selectedStudent,
 }: {
   data: CohortStudentViewData
   activeSection: PreviewSection
   children: React.ReactNode
+  students: CohortStudent[]
+  selectedStudent: CohortStudent | null
 }) {
   const basePath = `/admin/cohorts/${data.cohort.id}/student-view`
   const navigate = useNavigate()
+  const previewName = selectedStudent?.full_name || selectedStudent?.email || 'Student Preview'
+  const previewInitials = selectedStudent
+    ? previewName.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()
+    : 'SP'
+  const studentQuery = selectedStudent ? `?student_id=${selectedStudent.user_id}` : ''
+  const sectionPath = (section: PreviewSection) => `${section === 'dashboard' ? basePath : `${basePath}/${section}`}${studentQuery}`
 
   function keepPreviewNavigationContained(event: MouseEvent<HTMLDivElement>) {
     const link = (event.target as HTMLElement).closest('a')
@@ -115,7 +146,7 @@ function PreviewShell({
       : url.pathname.startsWith('/dashboard') ? 'dashboard'
       : 'materials'
     event.preventDefault()
-    navigate(section === 'dashboard' ? basePath : `${basePath}/${section}`)
+    navigate(sectionPath(section))
   }
 
   return (
@@ -135,7 +166,7 @@ function PreviewShell({
             return (
               <Link
                 key={section}
-                to={section === 'dashboard' ? basePath : `${basePath}/${section}`}
+                to={sectionPath(section)}
                 className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors ${
                   active
                     ? 'bg-primary-50 text-primary-700'
@@ -159,9 +190,9 @@ function PreviewShell({
         </div>
         <div className="border-t border-slate-200 p-4">
           <div className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">SP</div>
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">{previewInitials}</div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-slate-900">Student Preview</p>
+              <p className="truncate text-sm font-medium text-slate-900">{previewName}</p>
               <p className="truncate text-xs text-slate-500">Student</p>
             </div>
           </div>
@@ -184,7 +215,7 @@ function PreviewShell({
             return (
               <Link
                 key={section}
-                to={section === 'dashboard' ? basePath : `${basePath}/${section}`}
+                to={sectionPath(section)}
                 className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold ${
                   active ? 'bg-primary-50 text-primary-700' : 'text-slate-600'
                 }`}
@@ -199,7 +230,7 @@ function PreviewShell({
 
       <main className="min-w-0 lg:ml-64">
         <div className="p-4 lg:p-8 xl:p-10">
-          <PreviewBanner data={data} />
+          <PreviewBanner data={data} students={students} selectedStudent={selectedStudent} />
           <div className="mt-6">{children}</div>
         </div>
       </main>
@@ -207,30 +238,46 @@ function PreviewShell({
   )
 }
 
-function PreviewBanner({ data }: { data: CohortStudentViewData }) {
+function PreviewBanner({ data, students, selectedStudent }: { data: CohortStudentViewData; students: CohortStudent[]; selectedStudent: CohortStudent | null }) {
+  const navigate = useNavigate()
+  const location = useLocation()
   return (
     <div className="overflow-hidden rounded-2xl border border-primary-200 bg-white shadow-sm shadow-slate-200/40">
       <div className="h-1 bg-primary-500" />
       <div className="px-4 py-4 sm:px-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary-700">Read-only cohort template preview</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary-700">{selectedStudent ? 'Read-only enrollment preview' : 'Read-only cohort template preview'}</p>
           <h1 className="mt-1 text-xl font-bold text-slate-900">{data.cohort.name}</h1>
           <p className="text-sm text-slate-600">
-            Shared student template for {data.cohort.curriculum_name} · not a specific student's account · {data.cohort.active_count} active students · generated {formatDate(data.generated_at)}
+            {selectedStudent ? `${selectedStudent.full_name || selectedStudent.email} · actual learning progress and access, with private messages hidden` : `Shared student template for ${data.cohort.curriculum_name} · not a specific student's account`} · generated {formatDate(data.generated_at)}
           </p>
         </div>
-        <Link
-          to={`/admin/cohorts/${data.cohort.id}`}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to cohort
-        </Link>
+        <div className="flex flex-col gap-2 sm:min-w-64"><select aria-label="Preview student enrollment" value={selectedStudent?.user_id || ''} onChange={(event) => { const value = Number(event.target.value); navigate(value ? `${location.pathname}?student_id=${value}` : location.pathname) }} className="min-h-11 rounded-xl border border-primary-200 bg-white px-3 text-sm font-bold text-slate-800"><option value="">Cohort template</option>{students.map((student) => <option key={student.enrollment_id} value={student.user_id}>{student.full_name || student.email}</option>)}</select><Link to={`/admin/cohorts/${data.cohort.id}`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"><ArrowLeft className="h-4 w-4" />Back to cohort</Link></div>
       </div>
       </div>
     </div>
   )
+}
+
+function mergeStudentProgress(view: CohortStudentViewData, progress: StudentProgressResponse): CohortStudentViewData {
+  const progressModules = new Map(progress.modules.map((module) => [module.id, module]))
+  const dashboardModules = (view.dashboard.modules || []).map((module) => {
+    const actual = progressModules.get(module.id)
+    if (!actual) return module
+    const lessons = module.lessons.map((lesson) => {
+      const actualLesson = actual.lessons.find((item) => item.id === lesson.id)
+      return actualLesson ? { ...lesson, available: actualLesson.available, completed: actualLesson.completed, total_blocks: actualLesson.total_blocks, completed_blocks: actualLesson.completed_blocks } : lesson
+    })
+    return { ...module, progress_percentage: actual.progress_percentage, completed_blocks: actual.completed_blocks, total_blocks: actual.total_blocks, lessons }
+  })
+  const modules = view.modules.map((module) => {
+    const actual = progressModules.get(module.id)
+    if (!actual) return module
+    return { ...module, available: actual.lessons.some((lesson) => lesson.available), lessons: module.lessons.map((lesson) => ({ ...lesson, available: actual.lessons.find((item) => item.id === lesson.id)?.available ?? lesson.available })) }
+  })
+  const continueLesson = dashboardModules.flatMap((module) => module.lessons).find((lesson) => lesson.available && !lesson.completed)
+  return { ...view, modules, dashboard: { ...view.dashboard, user: { id: progress.user.id, full_name: progress.user.full_name, role: 'student' }, overall_progress: progress.overall_progress, modules: dashboardModules, continue_lesson: continueLesson ? { id: continueLesson.id, title: continueLesson.title } : null } }
 }
 
 function PreviewContent({ data, activeSection }: { data: CohortStudentViewData; activeSection: PreviewSection }) {

@@ -49,7 +49,7 @@ class ExpoPushNotificationService
 
   def self.help_request_changed(help_request, notifications)
     new.deliver_notifications(notifications) do |notification|
-      path = notification.user.staff? ? "/staff/support" : mobile_help_path(help_request)
+      path = notification.user.staff? ? "/staff/support/#{help_request.id}" : mobile_help_path(help_request)
       {
         title: notification.title,
         body: notification.body,

@@ -9,6 +9,7 @@ module Api
       # GET /api/v1/users
       def index
         include_archived = ActiveModel::Type::Boolean.new.cast(params[:include_archived])
+        include_enrollments = ActiveModel::Type::Boolean.new.cast(params[:include_enrollments])
         if include_archived && !current_user.admin?
           render_forbidden("Admin access required to include archived users")
           return
@@ -20,9 +21,25 @@ module Api
         if params[:role].present?
           users = users.where(role: params[:role])
         end
+        users = users.includes(enrollments: :cohort) if include_enrollments
 
         render json: {
-          users: users.map { |u| user_json(u) }
+          users: users.map { |user|
+            payload = user_json(user)
+            if include_enrollments
+              payload[:enrollments] = user.enrollments.map { |enrollment|
+                {
+                  id: enrollment.id,
+                  cohort_id: enrollment.cohort_id,
+                  cohort_name: enrollment.cohort.name,
+                  status: enrollment.status,
+                  enrolled_at: enrollment.enrolled_at,
+                  completed_at: enrollment.completed_at
+                }
+              }
+            end
+            payload
+          }
         }
       end
 
