@@ -32,6 +32,12 @@ class WebPushNotificationService
     new.help_request_changed(help_request, notifications)
   end
 
+  def self.intervention_changed(intervention, notifications)
+    return false unless configured?
+
+    new.intervention_changed(intervention, notifications)
+  end
+
   def announcement_published(announcement, notifications)
     payload = {
       title: "New CSG announcement",
@@ -78,6 +84,18 @@ class WebPushNotificationService
         tag: "help-request-#{help_request.id}"
       }.to_json
 
+      deliver_to_user(notification.user_id, payload)
+    end
+  end
+
+  def intervention_changed(intervention, notifications)
+    each_notification(notifications) do |notification|
+      payload = {
+        title: notification.title,
+        body: notification.body,
+        path: notification.path,
+        tag: "intervention-#{intervention.id}"
+      }.to_json
       deliver_to_user(notification.user_id, payload)
     end
   end

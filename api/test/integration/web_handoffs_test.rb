@@ -55,6 +55,21 @@ class WebHandoffsTest < ActionDispatch::IntegrationTest
     ClerkWebHandoffService.define_singleton_method(:new, original_new) if defined?(original_new) && original_new
   end
 
+  test "staff handoffs include connected intervention and student workspace records" do
+    staff = User.create!(clerk_id: "clerk_connected_staff", email: "connected-staff@example.com", role: :instructor)
+    service = Object.new
+    service.define_singleton_method(:create) { |user_id:, redirect_url:| { success: true, url: "https://accounts.example.com/connected?user=#{user_id}&destination=#{redirect_url}" } }
+    original_new = ClerkWebHandoffService.method(:new)
+    ClerkWebHandoffService.define_singleton_method(:new) { service }
+
+    [ "/admin/interventions/61", "/admin/help-requests/41", "/admin/submissions/31", "/admin/cohorts/4/students/18/support", "/admin/students/18?legacy=1&cohort_id=4" ].each do |destination|
+      as_user(staff) { post "/api/v1/web_handoffs", params: { destination: destination }, headers: auth_headers, as: :json }
+      assert_response :success, destination
+    end
+  ensure
+    ClerkWebHandoffService.define_singleton_method(:new, original_new) if defined?(original_new) && original_new
+  end
+
   test "students cannot create an administration handoff" do
     as_user do
       post "/api/v1/web_handoffs", params: { destination: "/admin/grading" }, headers: auth_headers, as: :json

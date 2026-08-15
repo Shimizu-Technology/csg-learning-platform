@@ -1,3 +1,7 @@
 # Recurring jobs configuration.
 # Production uses Solid Queue for durable background jobs, but no recurring
-# application jobs are configured at this time.
+# application jobs are configured below.
+production:
+  intervention_follow_ups:
+    class: InterventionFollowUpJob
+    schedule: every day at 8am Pacific/Guam

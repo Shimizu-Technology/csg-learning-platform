@@ -15,6 +15,7 @@ describe('isAllowedNotificationPath', () => {
     expect(isAllowedNotificationPath('/staff/grading')).toBe(true);
     expect(isAllowedNotificationPath('/staff/support')).toBe(true);
     expect(isAllowedNotificationPath('/staff/support/41')).toBe(true);
+    expect(isAllowedNotificationPath('/staff/intervention/61')).toBe(true);
   });
 
   it('rejects unknown, malformed, and non-string paths', () => {
@@ -31,6 +32,7 @@ describe('isAllowedNotificationPath', () => {
     expect(mobileNotificationPath('/announcements/8')).toBe('/updates');
     expect(mobileNotificationPath('/admin/submissions/31')).toBe('/staff/submission/31');
     expect(mobileNotificationPath('/admin/help-requests/41')).toBe('/staff/support/41');
+    expect(mobileNotificationPath('/admin/interventions/61')).toBe('/staff/intervention/61');
     expect(mobileNotificationPath('/lessons/42')).toBe('/lesson/42');
     expect(mobileNotificationPath('/modules/7')).toBe('/module/7');
     expect(mobileNotificationPath('/dashboard')).toBe('/');

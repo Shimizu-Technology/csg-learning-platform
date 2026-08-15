@@ -9,6 +9,7 @@ import {
   ChevronRight,
   CircleHelp,
   Clock3,
+  ClipboardCheck,
   ExternalLink,
   FileCheck2,
   GraduationCap,
@@ -35,6 +36,8 @@ import type {
   StudentProgressResponse,
   StudentRecordingProgress,
   Submission,
+  Intervention,
+  RecoveryPlan,
 } from '../../types/api'
 
 const tabs: Array<{ id: StudentWorkspaceTab; label: string; icon: typeof UserRound }> = [
@@ -55,6 +58,8 @@ interface WorkspaceData {
   helpRequests: HelpRequest[]
   recordings: StudentRecordingProgress[]
   lessonVideos: StudentLessonVideoProgress[]
+  interventions: Intervention[]
+  recoveryPlans: RecoveryPlan[]
 }
 
 export function StudentWorkspace() {
@@ -92,6 +97,10 @@ export function StudentWorkspace() {
       return
     }
     const blockIds = new Set(progressResult.data.modules.flatMap((mod) => mod.lessons.flatMap((lesson) => lesson.blocks.map((block) => block.id))))
+    const [interventionsResult, recoveryPlansResult] = await Promise.all([
+      api.getInterventions({ enrollment_id: progressResult.data.enrollment.id }),
+      api.getRecoveryPlans({ enrollment_id: progressResult.data.enrollment.id }),
+    ])
     setData({
       progress: progressResult.data,
       cohort: cohortResult.data.cohort,
@@ -99,6 +108,8 @@ export function StudentWorkspace() {
       helpRequests: helpResult.data?.help_requests || [],
       recordings: recordingsResult.data?.watch_progresses || [],
       lessonVideos: lessonVideosResult.data?.lesson_videos || [],
+      interventions: interventionsResult.data?.interventions || [],
+      recoveryPlans: recoveryPlansResult.data?.recovery_plans || [],
     })
     setLoading(false)
   }, [cohortId, studentId])
@@ -129,7 +140,7 @@ export function StudentWorkspace() {
     )
   }
 
-  const { progress, cohort, submissions, helpRequests, recordings, lessonVideos } = data
+  const { progress, cohort, submissions, helpRequests, recordings, lessonVideos, interventions, recoveryPlans } = data
   const studentIndex = cohort.students.findIndex((student) => student.user_id === studentId)
   const previousStudent = studentIndex > 0 ? cohort.students[studentIndex - 1] : null
   const nextStudent = studentIndex >= 0 && studentIndex < cohort.students.length - 1 ? cohort.students[studentIndex + 1] : null
@@ -186,6 +197,7 @@ export function StudentWorkspace() {
               <Icon className="h-4 w-4" />{label}
               {id === 'work' && ungraded.length > 0 && <CountBadge count={ungraded.length} />}
               {id === 'support' && openHelp.length > 0 && <CountBadge count={openHelp.length} tone="red" />}
+              {id === 'support' && interventions.some((item) => !['resolved', 'canceled'].includes(item.status)) && <CountBadge count={interventions.filter((item) => !['resolved', 'canceled'].includes(item.status)).length} />}
             </NavLink>
           ))}
         </div>
@@ -196,7 +208,7 @@ export function StudentWorkspace() {
       {activeTab === 'overview' && <OverviewTab progress={progress} submissions={submissions} helpRequests={helpRequests} recordings={recordings} lessonVideos={lessonVideos} cohortId={cohortId} studentId={studentId} />}
       {activeTab === 'work' && <WorkTab submissions={submissions} cohortId={cohortId} studentId={studentId} returnTo={location.pathname} />}
       {activeTab === 'learning' && <LearningTab progress={progress} cohortId={cohortId} studentId={studentId} returnTo={location.pathname} />}
-      {activeTab === 'support' && <SupportTab requests={helpRequests} />}
+      {activeTab === 'support' && <SupportTab requests={helpRequests} interventions={interventions} recoveryPlans={recoveryPlans} cohortId={cohortId} studentId={studentId} />}
       {activeTab === 'communication' && <CommunicationTab studentName={progress.user.full_name} opening={openingMessage} onOpen={() => void openDirectMessage()} />}
       {activeTab === 'access' && <AccessTab progress={progress} />}
     </div>
@@ -249,9 +261,14 @@ function LearningTab({ progress, cohortId, studentId, returnTo }: { progress: St
   return <div className="space-y-4">{progress.modules.map((mod) => <details key={mod.id} className="app-surface overflow-hidden" open={mod.progress_percentage > 0 && mod.progress_percentage < 100}><summary className="min-h-16 cursor-pointer px-5 py-4 sm:px-6"><div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_200px_auto] sm:items-center"><div><h2 className="font-extrabold text-slate-950">{mod.name}</h2><p className="text-xs text-slate-500">{mod.completed_blocks} of {mod.total_blocks} checkpoints</p></div><ProgressBar value={mod.progress_percentage} size="sm" /><span className="text-sm font-extrabold text-slate-700">{mod.progress_percentage}%</span></div></summary><div className="divide-y divide-slate-100 border-t border-slate-100">{mod.lessons.map((lesson) => <div key={lesson.id} className="px-5 py-4 sm:px-6"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-bold text-slate-900">{lesson.title}</p><p className="text-xs text-slate-500">{lesson.completed_blocks}/{lesson.total_blocks} checkpoints · {lesson.available ? 'Available' : 'Locked'}</p></div>{lesson.completed && <span className="inline-flex items-center gap-1 text-xs font-bold text-green-700"><CheckCircle2 className="h-4 w-4" />Complete</span>}</div><div className="mt-3 grid gap-2 sm:grid-cols-2">{lesson.blocks.map((block) => block.submission ? <Link key={block.id} to={submissionPath(block.submission.id, { cohortId, userId: studentId, returnTo })} className="flex min-h-11 items-center justify-between rounded-xl border border-slate-200 px-3 py-2 text-sm hover:border-primary-300 hover:bg-primary-50"><span className="truncate font-semibold text-slate-700">{block.title}</span><SubmissionStatus submission={{ grade: block.submission.grade } as Submission} /></Link> : <div key={block.id} className="flex min-h-11 items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm"><span className="truncate font-semibold text-slate-700">{block.title}</span><span className="text-xs font-bold capitalize text-slate-400">{block.status.replace('_', ' ')}</span></div>)}</div></div>)}</div></details>)}</div>
 }
 
-function SupportTab({ requests }: { requests: HelpRequest[] }) {
-  if (!requests.length) return <EmptyState icon={LifeBuoy} title="No support requests" description="Contextual help requests for this student and cohort will collect here." />
-  return <section className="app-surface overflow-hidden"><div className="divide-y divide-slate-100">{requests.map((request) => <Link to={helpRequestPath(request.id)} key={request.id} className="group grid gap-4 px-5 py-4 transition hover:bg-slate-50 sm:grid-cols-[minmax(0,1fr)_auto] sm:px-6"><div><div className="flex flex-wrap items-center gap-2"><p className="font-extrabold text-slate-950 group-hover:text-primary-700">{request.context_label}</p><span className={`rounded-full px-2 py-0.5 text-[11px] font-bold capitalize ${request.urgency === 'urgent' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'}`}>{request.urgency}</span><span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold capitalize text-amber-800">{request.status}</span></div><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{request.message}</p>{request.staff_response && <div className="mt-3 rounded-xl bg-green-50 p-3 text-sm text-green-900"><span className="font-bold">Staff response:</span> {request.staff_response}</div>}</div><div className="text-xs font-semibold text-slate-400">{formatShortDateTime(request.created_at)}</div></Link>)}</div></section>
+function SupportTab({ requests, interventions, recoveryPlans, cohortId, studentId }: { requests: HelpRequest[]; interventions: Intervention[]; recoveryPlans: RecoveryPlan[]; cohortId: number; studentId: number }) {
+  const returnTo = cohortStudentPath(cohortId, studentId, 'support')
+  if (!requests.length && !interventions.length && !recoveryPlans.length) return <EmptyState icon={LifeBuoy} title="No support history" description="Help requests, owned interventions, and recovery plans for this enrollment will collect here." action={<LinkButton to="/admin/support" secondary><ClipboardCheck className="h-4 w-4" />Open support queue</LinkButton>} />
+  return <div className="space-y-6">
+    <section className="app-surface overflow-hidden"><div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6"><div><h2 className="text-lg font-extrabold text-slate-950">Owned interventions</h2><p className="mt-1 text-sm text-slate-500">Staff-only ownership, actions, follow-ups, notes, and outcomes.</p></div><Link className="app-link text-sm" to="/admin/support">Support queue</Link></div>{interventions.length ? <div className="divide-y divide-slate-100">{interventions.map((item) => <Link to={`/admin/interventions/${item.id}?return_to=${encodeURIComponent(returnTo)}`} key={item.id} className={`group grid gap-3 px-5 py-4 transition hover:bg-slate-50 sm:grid-cols-[minmax(0,1fr)_160px_auto] sm:items-center sm:px-6 ${item.follow_up_due ? 'bg-red-50/60' : ''}`}><div><div className="flex flex-wrap items-center gap-2"><p className="font-extrabold capitalize text-slate-950 group-hover:text-primary-700">{item.trigger_type.replaceAll('_', ' ')}</p><span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold capitalize text-slate-700">{item.status.replaceAll('_', ' ')}</span></div><p className="mt-1 line-clamp-2 text-sm text-slate-600">{item.action_summary || 'No action summary yet.'}</p></div><div><p className={`text-xs font-extrabold ${item.follow_up_due ? 'text-red-700' : 'text-slate-400'}`}>{item.follow_up_due ? 'FOLLOW-UP DUE' : 'NEXT FOLLOW-UP'}</p><p className="mt-1 text-xs font-bold text-slate-600">{formatShortDateTime(item.next_follow_up_at)}</p></div><ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-primary-700" /></Link>)}</div> : <p className="px-6 py-5 text-sm text-slate-500">No interventions have been opened for this enrollment.</p>}</section>
+    {recoveryPlans.map((plan) => <section key={plan.id} className={`rounded-2xl border p-5 sm:p-6 ${plan.check_in_due ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white'}`}><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="app-eyebrow">Recovery plan</p><h2 className="mt-1 text-lg font-extrabold text-slate-950">{plan.target_pace}</h2></div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-extrabold capitalize text-slate-700">{plan.status}</span></div><div className="mt-4 grid gap-4 sm:grid-cols-2"><div><p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Required scope</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">{plan.required_scope}</p></div><div><p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Check-in</p><p className={`mt-1 text-sm font-bold ${plan.check_in_due ? 'text-amber-800' : 'text-slate-700'}`}>{plan.check_in_due ? 'Due now · ' : ''}{formatShortDateTime(plan.next_check_in_at)}</p><p className="mt-1 text-xs text-slate-500">Owned by {plan.owner.full_name}</p></div></div>{plan.intervention_id && <Link to={`/admin/interventions/${plan.intervention_id}?return_to=${encodeURIComponent(returnTo)}`} className="app-link mt-4 inline-flex min-h-11 items-center gap-1 text-sm font-bold">Open plan history <ArrowRight className="h-4 w-4" /></Link>}</section>)}
+    <section className="app-surface overflow-hidden"><div className="border-b border-slate-100 px-5 py-4 sm:px-6"><h2 className="text-lg font-extrabold text-slate-950">Help requests</h2></div>{requests.length ? <div className="divide-y divide-slate-100">{requests.map((request) => <Link to={helpRequestPath(request.id)} key={request.id} className="group grid gap-4 px-5 py-4 transition hover:bg-slate-50 sm:grid-cols-[minmax(0,1fr)_auto] sm:px-6"><div><div className="flex flex-wrap items-center gap-2"><p className="font-extrabold text-slate-950 group-hover:text-primary-700">{request.context_label}</p><span className={`rounded-full px-2 py-0.5 text-[11px] font-bold capitalize ${request.urgency === 'urgent' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'}`}>{request.urgency}</span><span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold capitalize text-amber-800">{request.status}</span></div><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{request.message}</p>{request.staff_response && <div className="mt-3 rounded-xl bg-green-50 p-3 text-sm text-green-900"><span className="font-bold">Staff response:</span> {request.staff_response}</div>}</div><div className="text-xs font-semibold text-slate-400">{formatShortDateTime(request.created_at)}</div></Link>)}</div> : <p className="px-6 py-5 text-sm text-slate-500">No contextual help requests.</p>}</section>
+  </div>
 }
 
 function CommunicationTab({ studentName, opening, onOpen }: { studentName: string; opening: boolean; onOpen: () => void }) {

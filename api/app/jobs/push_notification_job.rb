@@ -21,6 +21,9 @@ class PushNotificationJob < ApplicationJob
     when HelpRequest
       deliver(WebPushNotificationService, :help_request_changed, notifiable, notifications)
       deliver(ExpoPushNotificationService, :help_request_changed, notifiable, notifications)
+    when Intervention
+      deliver(WebPushNotificationService, :intervention_changed, notifiable, notifications)
+      deliver(ExpoPushNotificationService, :intervention_changed, notifiable, notifications)
     end
   end
 

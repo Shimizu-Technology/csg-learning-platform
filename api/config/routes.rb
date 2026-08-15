@@ -36,6 +36,12 @@ Rails.application.routes.draw do
         end
       end
       resources :help_requests, only: [ :index, :show, :create, :update ]
+      resources :interventions, only: [ :index, :show, :create, :update ] do
+        resources :notes, only: :create, controller: "intervention_notes"
+      end
+      resources :recovery_plans, only: [ :index, :show, :create, :update ] do
+        resources :check_ins, only: :create, controller: "recovery_plan_check_ins"
+      end
       get "push_subscriptions/config", to: "push_subscriptions#config"
       patch "push_subscriptions/preferences", to: "push_subscriptions#update_preferences"
       post "push_subscriptions", to: "push_subscriptions#create"

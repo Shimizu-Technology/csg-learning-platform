@@ -67,6 +67,14 @@ import type {
   HelpContextSource,
   HelpContextType,
   HelpUrgency,
+  InterventionsResponse,
+  InterventionResponse,
+  InterventionStatus,
+  InterventionOutcome,
+  InterventionSeverity,
+  InterventionTrigger,
+  RecoveryPlansResponse,
+  RecoveryPlanResponse,
 } from '../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
@@ -550,6 +558,24 @@ export const api = {
       body: JSON.stringify({ help_request: data }),
     }),
   getSupportQueue: () => fetchApi<SupportQueueResponse>('/api/v1/support_queue'),
+  getInterventions: (params: { enrollment_id?: number; owner_id?: number; status?: InterventionStatus; due?: boolean } = {}) =>
+    fetchApi<InterventionsResponse>(`/api/v1/interventions${queryString(params)}`),
+  getIntervention: (id: number) => fetchApi<InterventionResponse>(`/api/v1/interventions/${id}`),
+  createIntervention: (data: { enrollment_id: number; help_request_id?: number; trigger_type: InterventionTrigger; severity?: InterventionSeverity; owner_id?: number; action_summary?: string; next_follow_up_at?: string }) =>
+    fetchApi<InterventionResponse>('/api/v1/interventions', { method: 'POST', body: JSON.stringify({ intervention: data }) }),
+  updateIntervention: (id: number, data: { status?: InterventionStatus; severity?: InterventionSeverity; owner_id?: number; action_summary?: string; next_follow_up_at?: string; outcome?: InterventionOutcome; resolution_summary?: string }) =>
+    fetchApi<InterventionResponse>(`/api/v1/interventions/${id}`, { method: 'PATCH', body: JSON.stringify({ intervention: data }) }),
+  createInterventionNote: (id: number, body: string) =>
+    fetchApi<{ note: import('../types/api').InterventionNote }>(`/api/v1/interventions/${id}/notes`, { method: 'POST', body: JSON.stringify({ note: { body } }) }),
+  getRecoveryPlans: (params: { enrollment_id?: number; status?: string; due?: boolean } = {}) =>
+    fetchApi<RecoveryPlansResponse>(`/api/v1/recovery_plans${queryString(params)}`),
+  getRecoveryPlan: (id: number) => fetchApi<RecoveryPlanResponse>(`/api/v1/recovery_plans/${id}`),
+  createRecoveryPlan: (data: { enrollment_id: number; intervention_id?: number; source: 'extended_absence' | 'manual'; owner_id?: number; target_pace: string; required_scope: string; optional_scope?: string; check_in_cadence?: string; next_check_in_at?: string }) =>
+    fetchApi<RecoveryPlanResponse>('/api/v1/recovery_plans', { method: 'POST', body: JSON.stringify({ recovery_plan: data }) }),
+  updateRecoveryPlan: (id: number, data: { status?: 'active' | 'completed' | 'canceled'; target_pace?: string; required_scope?: string; optional_scope?: string; check_in_cadence?: string; next_check_in_at?: string; outcome?: string }) =>
+    fetchApi<RecoveryPlanResponse>(`/api/v1/recovery_plans/${id}`, { method: 'PATCH', body: JSON.stringify({ recovery_plan: data }) }),
+  createRecoveryPlanCheckIn: (id: number, data: { body: string; next_check_in_at?: string }) =>
+    fetchApi<{ recovery_plan: import('../types/api').RecoveryPlan }>(`/api/v1/recovery_plans/${id}/check_ins`, { method: 'POST', body: JSON.stringify({ check_in: data }) }),
 
   // Progress
   updateProgress: (contentBlockId: number, status: string) =>
@@ -606,6 +632,7 @@ export const api = {
         records_removed: Record<string, number>;
         created_at: string;
       };
+      recovery_plan: import('../types/api').RecoveryPlan;
     }>(`/api/v1/enrollments/${enrollmentId}/restart`, {
       method: 'POST',
       body: JSON.stringify({ confirmation, reason }),

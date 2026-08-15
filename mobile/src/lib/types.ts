@@ -299,6 +299,7 @@ export interface HelpRequest {
 }
 
 export interface SupportQueueStudent {
+  enrollment_id: number;
   user_id: number;
   cohort_id: number;
   full_name: string;
@@ -313,15 +314,79 @@ export interface SupportQueueStudent {
   redo_count: number;
   ungraded_count: number;
   inactive: boolean;
+  active_intervention_id: number | null;
+  intervention_status: InterventionStatus | null;
+  follow_up_due: boolean;
+  recovery_plan_id: number | null;
+  recovery_check_in_due: boolean;
   priority: number;
+}
+
+export type InterventionTrigger = 'manual' | 'help_request' | 'redo' | 'ungraded' | 'inactivity' | 'restart' | 'extended_absence';
+export type InterventionSeverity = 'normal' | 'urgent';
+export type InterventionStatus = 'open' | 'contacted' | 'waiting_on_student' | 'monitoring' | 'resolved' | 'canceled';
+export type InterventionOutcome = 're_engaged' | 'plan_completed' | 'support_resolved' | 'referred' | 'paused' | 'withdrawn' | 'no_change';
+
+export interface InterventionNote {
+  id: number;
+  body: string;
+  author: { id: number; full_name: string };
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Intervention {
+  id: number;
+  trigger_type: InterventionTrigger;
+  severity: InterventionSeverity;
+  status: InterventionStatus;
+  evidence_snapshot: Record<string, unknown>;
+  action_summary: string | null;
+  next_follow_up_at: string | null;
+  follow_up_due: boolean;
+  outcome: InterventionOutcome | null;
+  resolution_summary: string | null;
+  resolved_at: string | null;
+  created_at: string;
+  updated_at: string;
+  enrollment: { id: number; status: string; student: { id: number; full_name: string; email: string }; cohort: { id: number; name: string } };
+  owner: { id: number; full_name: string };
+  created_by: { id: number; full_name: string };
+  help_request_id: number | null;
+  recovery_plan_id: number | null;
+  notes?: InterventionNote[];
+}
+
+export interface RecoveryPlan {
+  id: number;
+  source: 'restart' | 'extended_absence' | 'manual';
+  status: 'active' | 'completed' | 'canceled';
+  target_pace: string;
+  required_scope: string;
+  optional_scope: string | null;
+  check_in_cadence: string;
+  next_check_in_at: string;
+  last_check_in_at: string | null;
+  check_in_due: boolean;
+  outcome: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  enrollment: Intervention['enrollment'];
+  owner: { id: number; full_name: string };
+  created_by: { id: number; full_name: string };
+  enrollment_restart_id: number | null;
+  intervention_id: number | null;
 }
 
 export interface SupportQueue {
   generated_at: string;
-  summary: { open_help_count: number; acknowledged_help_count: number; urgent_help_count: number; student_count: number };
+  summary: { open_help_count: number; acknowledged_help_count: number; urgent_help_count: number; student_count: number; active_intervention_count: number; due_follow_up_count: number; active_recovery_plan_count: number; due_recovery_check_in_count: number };
   help_requests: HelpRequest[];
   recently_resolved: HelpRequest[];
   students: SupportQueueStudent[];
+  interventions: Intervention[];
+  recovery_plans: RecoveryPlan[];
 }
 
 export interface VideoProgressInput {

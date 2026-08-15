@@ -25,6 +25,7 @@ const messagesLoader = () => import('../pages/shared/Messages').then((module) =>
 const adminDashboardLoader = () => import('../pages/admin/AdminDashboard').then((module) => ({ default: module.AdminDashboard }))
 const supportQueueLoader = () => import('../pages/admin/SupportQueue').then((module) => ({ default: module.SupportQueue }))
 const helpRequestDetailLoader = () => import('../pages/admin/HelpRequestDetail').then((module) => ({ default: module.HelpRequestDetail }))
+const interventionDetailLoader = () => import('../pages/admin/InterventionDetail').then((module) => ({ default: module.InterventionDetail }))
 const studentDetailLoader = () => import('../pages/admin/StudentDetail').then((module) => ({ default: module.StudentDetail }))
 const studentWorkspaceLoader = () => import('../pages/admin/StudentWorkspace').then((module) => ({ default: module.StudentWorkspace }))
 const submissionDetailLoader = () => import('../pages/admin/SubmissionDetail').then((module) => ({ default: module.SubmissionDetail }))
@@ -55,6 +56,7 @@ export const Messages = lazyWithPreload(messagesLoader)
 export const AdminDashboard = lazyWithPreload(adminDashboardLoader)
 export const SupportQueue = lazyWithPreload(supportQueueLoader)
 export const HelpRequestDetail = lazyWithPreload(helpRequestDetailLoader)
+export const InterventionDetail = lazyWithPreload(interventionDetailLoader)
 export const StudentDetail = lazyWithPreload(studentDetailLoader)
 export const StudentWorkspace = lazyWithPreload(studentWorkspaceLoader)
 export const SubmissionDetail = lazyWithPreload(submissionDetailLoader)
@@ -82,8 +84,9 @@ const routePreloaders: Record<string, Array<() => Promise<unknown>>> = {
   '/announcements': [announcementsLoader],
   '/messages': [messagesLoader],
   '/admin': [adminDashboardLoader],
-  '/admin/support': [supportQueueLoader, helpRequestDetailLoader],
+  '/admin/support': [supportQueueLoader, helpRequestDetailLoader, interventionDetailLoader],
   '/admin/help-requests': [helpRequestDetailLoader],
+  '/admin/interventions': [interventionDetailLoader],
   '/admin/students': [studentManagementLoader, studentDetailLoader, studentWorkspaceLoader],
   '/admin/cohorts': [cohortManagementLoader, cohortDetailLoader, cohortStudentViewLoader, cohortWatchProgressLoader, studentWorkspaceLoader],
   '/admin/content': [contentManagementLoader, lessonEditorLoader],

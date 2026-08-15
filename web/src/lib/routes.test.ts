@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cohortStudentPath, directMessagePath, helpRequestPath, safeInternalReturnPath, submissionPath } from './routes'
+import { cohortStudentPath, directMessagePath, helpRequestPath, interventionPath, safeInternalReturnPath, submissionPath } from './routes'
 
 describe('connected record routes', () => {
   it('keeps student identity scoped to a cohort enrollment', () => {
@@ -12,6 +12,7 @@ describe('connected record routes', () => {
     expect(submissionPath(44, { returnTo: '/admin/grading?filter=redo', queue: 'redo' }))
       .toBe('/admin/submissions/44?return_to=%2Fadmin%2Fgrading%3Ffilter%3Dredo&queue=redo')
     expect(helpRequestPath(9, '/admin/support?view=active')).toBe('/admin/help-requests/9?return_to=%2Fadmin%2Fsupport%3Fview%3Dactive')
+    expect(interventionPath(61, '/admin/support?view=active')).toBe('/admin/interventions/61?return_to=%2Fadmin%2Fsupport%3Fview%3Dactive')
     expect(directMessagePath(6, { type: 'help_request', id: 9, label: 'Nested routes' }))
       .toBe('/messages/dm/6?source_type=help_request&source_id=9&source_label=Nested+routes')
   })

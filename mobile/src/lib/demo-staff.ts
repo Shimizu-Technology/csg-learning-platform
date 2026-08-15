@@ -1,4 +1,4 @@
-import type { HelpRequest, StaffDashboard, StaffVideoProgress, StudentProgressDetail, Submission, SupportQueue } from './types';
+import type { HelpRequest, Intervention, StaffDashboard, StaffVideoProgress, StudentProgressDetail, Submission, SupportQueue } from './types';
 
 const now = Date.now();
 const ago = (days: number) => new Date(now - days * 86_400_000).toISOString();
@@ -64,16 +64,40 @@ export const demoHelpRequests: HelpRequest[] = [{
   student: { id: 18, full_name: 'Maya Santos', email: 'maya@example.com' },
 }];
 
+export const demoInterventions: Intervention[] = [{
+  id: 61,
+  trigger_type: 'help_request',
+  severity: 'urgent',
+  status: 'open',
+  evidence_snapshot: { help_request_id: 41, category: 'technical', urgency: 'urgent', context_type: 'exercise', context_id: 203 },
+  action_summary: 'Respond to the request and confirm the next learning step.',
+  next_follow_up_at: ago(-0.2),
+  follow_up_due: true,
+  outcome: null,
+  resolution_summary: null,
+  resolved_at: null,
+  created_at: ago(0.08),
+  updated_at: ago(0.08),
+  enrollment: { id: 1, status: 'active', student: { id: 18, full_name: 'Maya Santos', email: 'maya@example.com' }, cohort: { id: 4, name: 'Web Dev Cohort 4' } },
+  owner: { id: 7, full_name: 'Leon Shimizu' },
+  created_by: { id: 7, full_name: 'Leon Shimizu' },
+  help_request_id: 41,
+  recovery_plan_id: null,
+  notes: [],
+}];
+
 export const demoSupportQueue: SupportQueue = {
   generated_at: new Date(now).toISOString(),
-  summary: { open_help_count: 1, acknowledged_help_count: 0, urgent_help_count: 1, student_count: 3 },
+  summary: { open_help_count: 1, acknowledged_help_count: 0, urgent_help_count: 1, student_count: 3, active_intervention_count: 1, due_follow_up_count: 1, active_recovery_plan_count: 0, due_recovery_check_in_count: 0 },
   help_requests: demoHelpRequests,
   recently_resolved: [],
   students: [
-    { user_id: 18, cohort_id: 4, full_name: 'Maya Santos', email: 'maya@example.com', cohort_name: 'Web Dev Cohort 4', progress_percentage: 46, completed_blocks: 19, total_blocks: 41, last_activity_at: ago(1), help_request_count: 1, urgent_help_count: 1, redo_count: 1, ungraded_count: 1, inactive: false, priority: 9 },
-    { user_id: 20, cohort_id: 4, full_name: 'Kai Perez', email: 'kai@example.com', cohort_name: 'Web Dev Cohort 4', progress_percentage: 61, completed_blocks: 25, total_blocks: 41, last_activity_at: ago(0), help_request_count: 0, urgent_help_count: 0, redo_count: 0, ungraded_count: 2, inactive: false, priority: 2 },
-    { user_id: 19, cohort_id: 4, full_name: 'Noah Cruz', email: 'noah@example.com', cohort_name: 'Web Dev Cohort 4', progress_percentage: 28, completed_blocks: 11, total_blocks: 41, last_activity_at: ago(9), help_request_count: 0, urgent_help_count: 0, redo_count: 0, ungraded_count: 0, inactive: true, priority: 1 },
+    { enrollment_id: 1, user_id: 18, cohort_id: 4, full_name: 'Maya Santos', email: 'maya@example.com', cohort_name: 'Web Dev Cohort 4', progress_percentage: 46, completed_blocks: 19, total_blocks: 41, last_activity_at: ago(1), help_request_count: 1, urgent_help_count: 1, redo_count: 1, ungraded_count: 1, inactive: false, active_intervention_id: 61, intervention_status: 'open', follow_up_due: true, recovery_plan_id: null, recovery_check_in_due: false, priority: 9 },
+    { enrollment_id: 2, user_id: 20, cohort_id: 4, full_name: 'Kai Perez', email: 'kai@example.com', cohort_name: 'Web Dev Cohort 4', progress_percentage: 61, completed_blocks: 25, total_blocks: 41, last_activity_at: ago(0), help_request_count: 0, urgent_help_count: 0, redo_count: 0, ungraded_count: 2, inactive: false, active_intervention_id: null, intervention_status: null, follow_up_due: false, recovery_plan_id: null, recovery_check_in_due: false, priority: 2 },
+    { enrollment_id: 3, user_id: 19, cohort_id: 4, full_name: 'Noah Cruz', email: 'noah@example.com', cohort_name: 'Web Dev Cohort 4', progress_percentage: 28, completed_blocks: 11, total_blocks: 41, last_activity_at: ago(9), help_request_count: 0, urgent_help_count: 0, redo_count: 0, ungraded_count: 0, inactive: true, active_intervention_id: null, intervention_status: null, follow_up_due: false, recovery_plan_id: null, recovery_check_in_due: false, priority: 1 },
   ],
+  interventions: demoInterventions,
+  recovery_plans: [],
 };
 
 export const demoRecordingProgress: StaffVideoProgress[] = [

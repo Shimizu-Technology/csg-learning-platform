@@ -9,6 +9,7 @@ class HelpRequest < ApplicationRecord
   belongs_to :cohort
   belongs_to :owner, class_name: "User", optional: true
   has_many :notifications, as: :notifiable, dependent: :destroy
+  has_many :interventions, dependent: :nullify
 
   scope :active_queue, -> { where(status: %i[open acknowledged]) }
   scope :queue_order, -> { order(urgency: :desc, created_at: :asc) }

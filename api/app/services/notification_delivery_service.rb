@@ -27,6 +27,14 @@ class NotificationDeliveryService
     new.help_request_canceled(help_request)
   end
 
+  def self.intervention_assigned(intervention, push: true)
+    new.intervention_assigned(intervention, push: push)
+  end
+
+  def self.intervention_follow_up_due(intervention, push: true)
+    new.intervention_follow_up_due(intervention, push: push)
+  end
+
   def announcement_published(announcement, push: false)
     return [] unless announcement.published?
 
@@ -149,7 +157,47 @@ class NotificationDeliveryService
       .update_all(read_at: Time.current, updated_at: Time.current)
   end
 
+  def intervention_assigned(intervention, push: true)
+    notification = intervention_notification_for(
+      intervention,
+      title: "Student intervention assigned",
+      body: "#{intervention.enrollment.user.full_name} · #{intervention.trigger_type.humanize}",
+      actor: intervention.created_by
+    )
+    PushNotificationJob.perform_later("Intervention", intervention.id, [ notification.id ]) if push
+    [ notification ]
+  end
+
+  def intervention_follow_up_due(intervention, push: true)
+    notification = intervention_notification_for(
+      intervention,
+      title: "Student follow-up due",
+      body: "#{intervention.enrollment.user.full_name} · #{intervention.trigger_type.humanize}",
+      actor: nil
+    )
+    PushNotificationJob.perform_later("Intervention", intervention.id, [ notification.id ]) if push
+    [ notification ]
+  end
+
   private
+
+  def intervention_notification_for(intervention, title:, body:, actor:)
+    notification = Notification.find_or_initialize_by(notifiable: intervention, user: intervention.owner)
+    notification.assign_attributes(
+      actor: actor,
+      notification_type: :intervention,
+      title: title,
+      body: body,
+      path: "/admin/interventions/#{intervention.id}",
+      read_at: nil
+    )
+    notification.save!
+    notification
+  rescue ActiveRecord::RecordNotUnique
+    existing = Notification.find_by!(notifiable: intervention, user: intervention.owner)
+    existing.update!(actor: actor, notification_type: :intervention, title: title, body: body, path: "/admin/interventions/#{intervention.id}", read_at: nil)
+    existing
+  end
 
   def close_staff_help_notifications(help_request)
     help_request.notifications.joins(:user).merge(User.where(role: %i[instructor admin]))

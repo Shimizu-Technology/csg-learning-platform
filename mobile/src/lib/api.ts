@@ -36,6 +36,9 @@ import type {
   HelpRequest,
   HelpUrgency,
   SupportQueue,
+  Intervention,
+  InterventionOutcome,
+  InterventionStatus,
 } from './types';
 import { fetch as expoFetch } from 'expo/fetch';
 import { File } from 'expo-file-system';
@@ -155,6 +158,8 @@ export class CsgApi {
   createHelpRequest = (input: { cohort_id: number; context_type: HelpContextType; context_source?: HelpContextSource; context_id: number; category: HelpCategory; urgency: HelpUrgency; message: string }) => this.request<{ help_request: HelpRequest; created: boolean }>('/api/v1/help_requests', { method: 'POST', body: JSON.stringify({ help_request: input }) });
   updateHelpRequest = (id: number, input: { status: 'acknowledged' | 'resolved' | 'canceled'; staff_response?: string }) => this.request<{ help_request: HelpRequest; status_changed: boolean }>(`/api/v1/help_requests/${id}`, { method: 'PATCH', body: JSON.stringify({ help_request: input }) });
   supportQueue = (signal?: AbortSignal) => this.request<{ support_queue: SupportQueue }>('/api/v1/support_queue', { signal });
+  intervention = (id: number, signal?: AbortSignal) => this.request<{ intervention: Intervention }>(`/api/v1/interventions/${id}`, { signal });
+  updateIntervention = (id: number, input: { status?: InterventionStatus; action_summary?: string; next_follow_up_at?: string; outcome?: InterventionOutcome; resolution_summary?: string }) => this.request<{ intervention: Intervention }>(`/api/v1/interventions/${id}`, { method: 'PATCH', body: JSON.stringify({ intervention: input }) });
   progress = (lessonId: number, signal?: AbortSignal) => this.request<{ progress: ProgressEntry[] }>(`/api/v1/progress?lesson_id=${lessonId}`, { signal });
   updateProgress = (contentBlockId: number, status: string) => this.request<{ progress: ProgressEntry }>('/api/v1/progress', { method: 'PATCH', body: JSON.stringify({ content_block_id: contentBlockId, status }) });
   createSubmission = (input: SubmissionInput) => this.request<{ submission: Submission }>('/api/v1/submissions', { method: 'POST', body: JSON.stringify(input) });
@@ -170,6 +175,7 @@ export class CsgApi {
   restartEnrollment = (enrollmentId: number, confirmation: string, reason?: string) => this.request<{
     message: string;
     restart: { id: number; student_id: number; cohort_id: number; records_removed: Record<string, number>; created_at: string };
+    recovery_plan: import('./types').RecoveryPlan;
   }>(`/api/v1/enrollments/${enrollmentId}/restart`, { method: 'POST', body: JSON.stringify({ confirmation, reason }) });
   studentRecordingProgress = (studentId: number, cohortId?: number, signal?: AbortSignal) => this.request<{ watch_progresses: StaffVideoProgress[] }>(`/api/v1/watch_progress/student/${studentId}${queryString({ cohort_id: cohortId })}`, { signal });
   studentLessonVideoProgress = (studentId: number, cohortId?: number, signal?: AbortSignal) => this.request<{ lesson_videos: StaffVideoProgress[] }>(`/api/v1/watch_progress/student/${studentId}/lesson_videos${queryString({ cohort_id: cohortId })}`, { signal });

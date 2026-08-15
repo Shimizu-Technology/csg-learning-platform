@@ -33,6 +33,12 @@ class User < ApplicationRecord
   has_many :owned_help_requests, class_name: "HelpRequest", foreign_key: :owner_id, dependent: :nullify
   has_many :feedback_snippets, foreign_key: :created_by_id, inverse_of: :created_by, dependent: :destroy
   has_many :knowledge_check_attempts, dependent: :destroy
+  has_many :owned_interventions, class_name: "Intervention", foreign_key: :owner_id, dependent: :restrict_with_exception
+  has_many :created_interventions, class_name: "Intervention", foreign_key: :created_by_id, dependent: :restrict_with_exception
+  has_many :intervention_notes, foreign_key: :author_id, dependent: :restrict_with_exception
+  has_many :owned_recovery_plans, class_name: "RecoveryPlan", foreign_key: :owner_id, dependent: :restrict_with_exception
+  has_many :created_recovery_plans, class_name: "RecoveryPlan", foreign_key: :created_by_id, dependent: :restrict_with_exception
+  has_many :recovery_plan_check_ins, foreign_key: :author_id, dependent: :restrict_with_exception
 
   validates :clerk_id, presence: true, uniqueness: true
   validates :email, presence: true, uniqueness: { case_sensitive: false }

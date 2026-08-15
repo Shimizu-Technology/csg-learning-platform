@@ -7,7 +7,8 @@ class Notification < ApplicationRecord
     redo: 4,
     system: 5,
     submission: 6,
-    help_request: 7
+    help_request: 7,
+    intervention: 8
   }
 
   belongs_to :user

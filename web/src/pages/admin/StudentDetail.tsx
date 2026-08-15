@@ -506,7 +506,7 @@ export function StudentDetail() {
 
     const confirmed = await confirmAction({
       title: `Restart ${data.user.full_name}'s class progress?`,
-      description: `This clears submissions, lesson and recording progress, and student-specific lesson overrides for ${data.cohort.name}. Messages, identity, and work from other curricula stay intact. A recovery snapshot is kept in the audit log.`,
+      description: `This clears submissions, lesson and recording progress, and student-specific lesson overrides for ${data.cohort.name}. Messages, identity, and work from other curricula stay intact. A recovery snapshot, owned intervention, weekly follow-up, and recovery plan are created automatically.`,
       confirmLabel: 'Restart class progress',
       tone: 'danger',
       confirmationText: data.user.email,
@@ -534,7 +534,7 @@ export function StudentDetail() {
       if (refreshed.data) setData(refreshed.data)
       setRecordingProgress([])
       setLessonVideoProgress([])
-      notifySuccess('Class progress restarted. The previous learning records are preserved in the audit snapshot.')
+      notifySuccess('Class progress restarted. An owned recovery plan and weekly follow-up are ready in the student workspace.')
     } catch (restartError) {
       notifyError(restartError instanceof Error ? restartError.message : 'Could not restart class progress')
     } finally {
