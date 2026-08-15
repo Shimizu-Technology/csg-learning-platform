@@ -7,6 +7,7 @@ import { cohortStudentPath, directMessagePath, submissionPath } from '../../lib/
 import type { HelpRequest, StudentProgressResponse, Submission } from '../../types/api'
 import { Button } from '../ui/Button'
 import { LoadingSpinner } from '../shared/LoadingSpinner'
+import { ProgressBar } from '../shared/ProgressBar'
 
 interface StudentContextDrawerProps {
   open: boolean
@@ -98,7 +99,7 @@ export function StudentContextDrawer({ open, cohortId, studentId, onClose, sourc
             <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div className="flex items-start gap-3"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-white"><UserRound className="h-5 w-5" /></span><div className="min-w-0"><p className="truncate font-extrabold text-slate-950">{data.progress.user.full_name}</p><p className="truncate text-xs text-slate-500">{data.progress.user.email}</p><p className="mt-1 text-xs font-bold text-primary-700">{data.progress.cohort.name}</p></div></div>
               <div className="mt-4 flex items-end justify-between"><div><p className="text-3xl font-extrabold tabular-nums text-slate-950">{Math.round(data.progress.overall_progress.percentage)}%</p><p className="text-xs font-semibold text-slate-500">curriculum progress</p></div><p className="text-xs font-bold text-slate-500">{data.progress.overall_progress.completed}/{data.progress.overall_progress.total} steps</p></div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-primary-600" style={{ width: `${Math.min(100, data.progress.overall_progress.percentage)}%` }} /></div>
+              <div className="mt-3"><ProgressBar value={data.progress.overall_progress.percentage} showPercentage={false} /></div>
             </section>
 
             <section className="grid grid-cols-3 gap-2" aria-label="Student signals">

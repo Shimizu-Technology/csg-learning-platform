@@ -3,6 +3,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Filter, Check, RotateCcw, Clock, ChevronRight, Layers3, BookmarkPlus, MessageSquareText, ExternalLink } from 'lucide-react'
 import { api } from '../../lib/api'
 import { submissionPath } from '../../lib/routes'
+import { getLatestSubmissionIds, orderSubmissionQueue, type SubmissionQueueFilter } from '../../lib/submissionQueue'
 import { GradeDisplay } from '../../components/shared/GradeDisplay'
 import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
 import { CodeRunner } from '../../components/shared/CodeRunner'
@@ -13,7 +14,7 @@ import { useToast } from '../../contexts/ToastContext'
 import { appendFeedbackSnippet } from '../../lib/feedbackSnippets'
 import type { FeedbackSnippet, Rubric, RubricRating } from '../../types/api'
 
-type QueueFilter = 'ungraded' | 'redo' | 'all'
+type QueueFilter = SubmissionQueueFilter
 
 interface SubmissionItem {
   id: number
@@ -60,29 +61,8 @@ export function Grading() {
   const [feedbackSnippets, setFeedbackSnippets] = useState<FeedbackSnippet[]>([])
   const [savingSnippet, setSavingSnippet] = useState(false)
 
-  const latestSubmissionIds = useMemo(() => {
-    const latest = new Map<string, number>()
-    submissions.forEach((sub) => {
-      const key = `${sub.user_id}:${sub.content_block_id}`
-      if (!latest.has(key)) latest.set(key, sub.id)
-    })
-    return new Set(latest.values())
-  }, [submissions])
-
-  const queue = useMemo(() => {
-    const filtered = submissions.filter((sub) => {
-      if (queueFilter === 'ungraded') return sub.grade === null
-      if (queueFilter === 'redo') return sub.grade === 'R'
-      return true
-    })
-
-    return filtered.sort((a, b) => {
-      const aLatest = latestSubmissionIds.has(a.id)
-      const bLatest = latestSubmissionIds.has(b.id)
-      if (aLatest !== bLatest) return aLatest ? -1 : 1
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    })
-  }, [submissions, queueFilter, latestSubmissionIds])
+  const latestSubmissionIds = useMemo(() => getLatestSubmissionIds(submissions), [submissions])
+  const queue = useMemo(() => orderSubmissionQueue(submissions, queueFilter), [submissions, queueFilter])
 
   const counts = useMemo(() => ({
     ungraded: submissions.filter((s) => s.grade === null).length,

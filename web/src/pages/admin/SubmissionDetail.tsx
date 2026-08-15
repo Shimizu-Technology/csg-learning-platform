@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, BookOpen, CheckCircle2, ChevronLeft, ChevronRight, ExternalLink, FileCheck2, GitBranch, MessageSquareText, RefreshCw, RotateCcw, UserRound } from 'lucide-react'
 import { api } from '../../lib/api'
 import { cohortPath, cohortStudentPath, directMessagePath, safeInternalReturnPath, submissionPath } from '../../lib/routes'
+import { orderSubmissionQueue, type SubmissionQueueFilter } from '../../lib/submissionQueue'
 import { formatShortDateTime } from '../../lib/format'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { Button } from '../../components/ui/Button'
@@ -20,7 +21,7 @@ interface ValidatedWorkspaceContext {
   evidenceScope?: StudentProgressResponse['learning_evidence_scope']
 }
 
-type SubmissionQueue = 'ungraded' | 'redo' | 'all'
+type SubmissionQueue = SubmissionQueueFilter
 
 export function SubmissionDetail() {
   const { id } = useParams<{ id: string }>()
@@ -59,8 +60,7 @@ export function SubmissionDetail() {
     const next = result.data.submission
     if (queueMode) {
       const queueResult = await api.getSubmissions()
-      const queue = (queueResult.data?.submissions || []).filter((item) => queueMode === 'ungraded' ? item.grade === null : queueMode === 'redo' ? item.grade === 'R' : true)
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      const queue = orderSubmissionQueue(queueResult.data?.submissions || [], queueMode)
       const index = queue.findIndex((item) => item.id === next.id)
       setQueueContext(index >= 0 ? { previousId: queue[index - 1]?.id || null, nextId: queue[index + 1]?.id || null, position: index + 1, total: queue.length } : null)
     } else setQueueContext(null)

@@ -8,6 +8,7 @@ import { formatShortDateTime } from '../../lib/format'
 import { useToast } from '../../contexts/ToastContext'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
+import { ProgressBar } from '../../components/shared/ProgressBar'
 import { Modal } from '../../components/shared/Modal'
 import { Button } from '../../components/ui/Button'
 import { PageHeader } from '../../components/ui/PageHeader'
@@ -203,7 +204,7 @@ function StudentSignalRow({ student, onSelect }: { student: SupportQueueStudent;
     <button type="button" onClick={onSelect} className="group grid w-full gap-3 px-5 py-4 text-left transition hover:bg-slate-50 sm:grid-cols-[minmax(180px,0.8fr)_minmax(240px,1fr)_160px_auto] sm:items-center sm:px-6">
       <div className="min-w-0"><p className="truncate text-sm font-extrabold text-slate-950">{student.full_name}</p><p className="truncate text-xs text-slate-500">{student.cohort_name}</p></div>
       <div className="flex flex-wrap gap-1.5">{signals.map((signal) => <span key={signal} className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${signal.includes('urgent') ? 'bg-red-100 text-red-700' : 'bg-amber-50 text-amber-800'}`}>{signal}</span>)}</div>
-      <div><div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-primary-500" style={{ width: `${Math.min(100, student.progress_percentage)}%` }} /></div><p className="mt-1 text-xs font-semibold text-slate-500">{student.progress_percentage}% complete</p></div>
+      <div><ProgressBar value={student.progress_percentage} size="sm" showPercentage={false} /><p className="mt-1 text-xs font-semibold text-slate-500">{student.progress_percentage}% complete</p></div>
       <ArrowRight className="h-4 w-4 text-slate-300 transition group-hover:translate-x-1 group-hover:text-primary-600" />
     </button>
   )
