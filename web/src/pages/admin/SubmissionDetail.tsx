@@ -39,6 +39,7 @@ export function SubmissionDetail() {
   const [criterionResults, setCriterionResults] = useState<Record<number, { rating: RubricRating | null; feedback: string }>>({})
   const [grading, setGrading] = useState(false)
   const [openingMessage, setOpeningMessage] = useState(false)
+  const [refreshingChecks, setRefreshingChecks] = useState(false)
   const [validatedContext, setValidatedContext] = useState<ValidatedWorkspaceContext | null>(null)
   const [queueContext, setQueueContext] = useState<{ previousId: number | null; nextId: number | null; position: number; total: number } | null>(null)
   const [showStudentContext, setShowStudentContext] = useState(false)
@@ -122,6 +123,20 @@ export function SubmissionDetail() {
     else toast.error(result.error || 'Could not open a direct message.')
   }
 
+  async function refreshGithubChecks() {
+    if (!submission) return
+    setRefreshingChecks(true)
+    const result = await api.refreshSubmissionGithubChecks(submission.id)
+    setRefreshingChecks(false)
+    if (!result.data) {
+      toast.error(result.error || 'Could not refresh GitHub checks.')
+      return
+    }
+    const githubChecks = result.data.github_checks
+    setSubmission((current) => current ? { ...current, github_checks: githubChecks } : current)
+    toast.success('GitHub checks refreshed.')
+  }
+
   if (loading) return <LoadingSpinner message="Loading submission record…" />
   if (!submission || error) return <div className="app-page"><EmptyState icon={FileCheck2} title="Could not open this submission" description={error || 'The submission was not found.'} action={<Button onClick={() => void load()}><RefreshCw className="h-4 w-4" />Try again</Button>} /></div>
 
@@ -178,6 +193,20 @@ export function SubmissionDetail() {
 
           {artifactLinks.length > 0 && <section className="app-surface p-5 sm:p-6"><h2 className="text-lg font-extrabold text-slate-950">Related artifacts</h2><div className="mt-4 grid gap-2 sm:grid-cols-2">{artifactLinks.map(([label, url]) => <a key={label} href={sanitizeUrl(url)} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center justify-between rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 hover:border-primary-300 hover:text-primary-700"><span className="inline-flex items-center gap-2"><GitBranch className="h-4 w-4" />{label}</span><ExternalLink className="h-4 w-4" /></a>)}</div></section>}
 
+          {(submission.repo_url || submission.pr_url || submission.github_code_url) && <section className="app-surface p-5 sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="app-eyebrow">Automated evidence</p>
+                <h2 className="mt-1 text-lg font-extrabold text-slate-950">GitHub checks</h2>
+                <p className="mt-1 text-sm leading-6 text-slate-500">Persisted check status for the exact commit attached to this submission. Check output and logs are never copied into the learning platform.</p>
+              </div>
+              <Button variant="secondary" onClick={() => void refreshGithubChecks()} disabled={refreshingChecks || !submission.commit_sha}>
+                <RefreshCw className={`h-4 w-4 ${refreshingChecks ? 'animate-spin' : ''}`} />{refreshingChecks ? 'Refreshing…' : 'Refresh checks'}
+              </Button>
+            </div>
+            {!submission.commit_sha ? <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"><span className="font-extrabold">Commit needed.</span> Sync or save a commit SHA on this submission before refreshing its checks.</div> : <GithubChecksPanel checks={submission.github_checks} />}
+          </section>}
+
           {submission.solution && <details className="app-surface p-5 sm:p-6"><summary className="min-h-11 cursor-pointer font-extrabold text-slate-900">Reference solution</summary><div className="mt-4"><CodeEditor value={submission.solution} language={language} readOnly minHeight={220} /></div></details>}
         </main>
 
@@ -198,6 +227,27 @@ export function SubmissionDetail() {
       {validatedContext && <StudentContextDrawer open={showStudentContext} cohortId={validatedContext.cohortId} studentId={submission.user_id} source={{ type: 'submission', id: submission.id, label: submission.content_block_title }} onClose={() => setShowStudentContext(false)} />}
     </div>
   )
+}
+
+function GithubChecksPanel({ checks }: { checks: Submission['github_checks'] }) {
+  if (!checks) return <p className="mt-4 text-sm text-slate-500">Checks have not been fetched for this commit yet.</p>
+  const counts = [
+    ['Passed', checks.summary.passed, 'text-green-800 bg-green-50 border-green-200'],
+    ['Failed', checks.summary.failed, 'text-red-800 bg-red-50 border-red-200'],
+    ['Pending', checks.summary.pending, 'text-amber-800 bg-amber-50 border-amber-200'],
+    ['Other', checks.summary.neutral, 'text-slate-700 bg-slate-50 border-slate-200'],
+  ] as const
+  return <div className="mt-4 space-y-4">
+    <div className="flex flex-wrap items-center gap-2">
+      {counts.map(([label, count, classes]) => <span key={label} className={`rounded-full border px-3 py-1 text-xs font-extrabold ${classes}`}>{count} {label.toLowerCase()}</span>)}
+      <span className="text-xs text-slate-500">Commit <span className="font-mono font-bold text-slate-700">{checks.head_sha?.slice(0, 8)}</span>{checks.fetched_at ? ` · refreshed ${formatShortDateTime(checks.fetched_at)}` : ''}</span>
+    </div>
+    {checks.runs.length ? <div className="divide-y divide-slate-100 rounded-xl border border-slate-200">{checks.runs.map((run) => {
+      const detailsUrl = run.details_url ? sanitizeUrl(run.details_url) : null
+      const content = <><span className="min-w-0"><span className="block truncate text-sm font-extrabold text-slate-800">{run.name}</span><span className="block truncate text-xs text-slate-500">{run.workflow_name || run.app_slug || 'GitHub'} · {run.status.replaceAll('_', ' ')}</span></span><span className={`rounded-full px-2.5 py-1 text-xs font-extrabold ${run.conclusion === 'success' ? 'bg-green-50 text-green-800' : ['failure', 'timed_out', 'startup_failure', 'action_required'].includes(run.conclusion || '') ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-800'}`}>{run.conclusion?.replaceAll('_', ' ') || 'pending'}</span>{detailsUrl && <ExternalLink className="h-4 w-4 text-slate-400" />}</>
+      return detailsUrl ? <a key={run.id} href={detailsUrl} target="_blank" rel="noopener noreferrer" className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 px-3 py-2 hover:bg-slate-50">{content}</a> : <div key={run.id} className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2">{content}</div>
+    })}</div> : <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">GitHub returned no check runs for this commit.</p>}
+  </div>
 }
 
 function QueueLink({ label, submissionId, returnTo, queue, icon }: { label: string; submissionId: number | null; returnTo: string; queue: SubmissionQueue; icon: 'previous' | 'next' }) {

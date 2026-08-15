@@ -47,6 +47,7 @@ class GithubSyncServiceTest < ActiveSupport::TestCase
     assert_not_nil submission
     assert_equal "prework_github_sync", submission.submission_type
     assert_equal "puts 'hello'", submission.text
+    assert_equal "abc123", submission.commit_sha
 
     progress = Progress.find_by(user: @student, content_block: @block)
     assert_not_nil progress
@@ -85,6 +86,7 @@ class GithubSyncServiceTest < ActiveSupport::TestCase
     submission.reload
     assert_equal "prework_github_sync", submission.submission_type
     assert_equal "puts 'fixed'", submission.text
+    assert_equal "def456", submission.commit_sha
     assert_equal 2, submission.num_submissions
     assert_nil submission.grade
     assert_nil submission.feedback

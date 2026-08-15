@@ -757,6 +757,29 @@ export interface Submission {
   exercise_body?: string | null;
   exercise_video_url?: string | null;
   rubric?: Rubric | null;
+  github_checks?: GithubChecks;
+}
+
+export interface GithubCheckRun {
+  id: number;
+  external_id: number;
+  name: string;
+  workflow_name: string | null;
+  app_slug: string | null;
+  head_sha: string;
+  status: string;
+  conclusion: string | null;
+  details_url: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  fetched_at: string;
+}
+
+export interface GithubChecks {
+  head_sha: string | null;
+  fetched_at: string | null;
+  summary: { total: number; passed: number; failed: number; pending: number; neutral: number };
+  runs: GithubCheckRun[];
 }
 
 export interface SubmissionInput {

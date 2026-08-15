@@ -665,6 +665,8 @@ The staff student response keeps operational fields scoped to the selected enrol
 | `PATCH` | `/api/v1/submissions/:id` | Staff | Update submission |
 | `PATCH` | `/api/v1/submissions/:id/grade` | Staff | Grade a submission |
 | `GET` | `/api/v1/submissions/:id/github_issue` | Staff | Get linked GitHub issue |
+| `GET` | `/api/v1/submissions/:id/github_checks` | Staff or submission owner | Read persisted check-run metadata for the submission's current commit |
+| `POST` | `/api/v1/submissions/:id/github_checks` | Staff | Refresh current-commit check metadata from GitHub |
 
 **Grade body:**
 ```json
@@ -677,6 +679,18 @@ The staff student response keeps operational fields scoped to the selected enrol
 Grade values: `A` (0), `B` (1), `C` (2), `R` (3 — redo required)
 
 Creating a submission enqueues background creation of an in-app `submission` notification for non-archived instructors and admins, whose access is currently platform-wide. Grading enqueues the corresponding student notification. Jobs carry the originating event timestamp so stale or duplicate execution neither re-enqueues push nor resets an already-read notification; a later regrade remains a distinct event. Expo delivery deep-links staff to `/staff/submission/:id` and students to `/lesson/:lesson_id`; Web Push opens the equivalent web destination. Web and Expo fanout are isolated from one another. The existing message/email preference is not reused as a global opt-out for announcements or learning alerts.
+
+GitHub check refresh requires `GITHUB_ORGANIZATION_ADMIN_TOKEN` and a saved GitHub repository URL plus commit SHA. The platform persists check names, lifecycle state, conclusion, app/workflow labels, timestamps, and HTTPS detail links. It intentionally does not persist check output, annotations, or log bodies. Old-commit records remain available for audit but are excluded from the current submission projection.
+
+---
+
+## Learning Insights
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/api/v1/cohorts/:cohort_id/learning_insights` | Staff | Explainable objective evidence and curriculum revision/retry patterns for a cohort |
+
+An optional `user_id` filters the projection to one learner and must identify an enrollment in the selected cohort. Evidence comes only from rubric criterion results, graded objective-aligned submissions, and the latest attempt for objective-linked knowledge checks. Completion, watch time, messages, student work/code, and private feedback are excluded. Every returned signal includes the IDs needed to open its learner, content, or exact submission source. The response also states its evidence rule and the guarantee that it never changes grades, access, or progress automatically.
 
 ---
 

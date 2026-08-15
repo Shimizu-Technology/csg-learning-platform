@@ -255,7 +255,7 @@ The learning core, communications hub, native companion, and recording workflows
 - low-stakes retrieval practice and criterion-level feedback;
 - captions, searchable transcripts, and chapters for recordings;
 - restart/recovery plans for interrupted students;
-- privacy-safe learning analytics and, later, explainable mastery views.
+- privacy-safe learning analytics and explainable objective-evidence views that always retain source-record drill-down (implemented in Connected Experience Phase 5).
 
 The detailed decisions, market research, measurement plan, mobile/web boundary, and phased execution plan live in `docs/PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md`. The voice composer is specified in `docs/VOICE_TO_TEXT_PLAN.md`.
 
