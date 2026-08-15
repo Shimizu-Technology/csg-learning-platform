@@ -1,6 +1,6 @@
 # CSG Connect App Store Release Record
 
-Last updated: 2026-08-03 (Pacific/Guam)
+Last updated: 2026-08-15 (Pacific/Guam)
 
 This directory is the durable source record for the App Store presentation of the completed mobile-parity program. It records what was uploaded, how the images were produced, and what remains before public App Review.
 
@@ -9,13 +9,13 @@ This directory is the durable source record for the App Store presentation of th
 | Item | State |
 | --- | --- |
 | Marketing version | `1.0.0` |
-| Latest submitted internal TestFlight build | `1.0.0 (12)` |
-| Stabilization EAS build ID | `ab7ff733-b074-48dd-a6bc-af1df24d2565` |
-| Stabilization source commit | `857c6a8` (`main`) |
-| Stabilization EAS submission ID | `e49f93e6-08c1-4aa5-a8d6-eb13d3f487cd` |
-| Stabilization EAS build state | Finished successfully |
-| Stabilization EAS submission state | Finished successfully; binary uploaded to App Store Connect |
-| Apple processing / installability | Apple processing pending at the time of this record; TestFlight installation remains the next acceptance step |
+| Latest submitted internal TestFlight build | `1.0.0 (13)` |
+| Connected-experience EAS build ID | `03fd9ec4-22a6-4933-80e8-ed0e440d8f2a` |
+| Connected-experience source commit | `388ef91` (`main`) |
+| Connected-experience EAS submission ID | `dd49f5ae-1851-4ed2-ac27-7933e1dfff82` |
+| Connected-experience EAS build state | Finished successfully |
+| Connected-experience EAS submission state | Finished successfully; binary uploaded to App Store Connect |
+| Apple processing / installability | `VALID` and `IN_BETA_TESTING`; physical TestFlight installation remains the next acceptance step |
 | Phase 0–1 release candidate | `1.0.0 (9)` |
 | App Store version | `1.0`, Prepare for Submission |
 | Internal group | `CSG Internal` |
@@ -30,6 +30,8 @@ Build 11 is the post-TestFlight stabilization candidate from merged PR #91. It s
 
 Build 12 is the corrective candidate from merged PR #93 after build 11 physical testing exposed two independent failures. The production request reached Rails but the provider rejected a revoked credential; Render now uses a verified dedicated service-account key, and production model, multipart transcription, and structured-cleanup checks all pass. The mobile recovery panel now keeps error copy separate from actions, places retry on its own full-width row, and gives record-again/dismiss controls a separate flexible row. Provider failures emit only sanitized status/type/code diagnostics. Submission `e49f93e6-08c1-4aa5-a8d6-eb13d3f487cd` uploaded build 12 successfully, and Apple processing is pending.
 
+Build 13 is the connected-experience candidate from merged PRs #97–#101. It adds cohort-scoped student workspaces, reciprocal submission/help/message navigation, cohort workspaces and discovery, durable interventions and recovery plans, and focused native GitHub-check evidence. EAS archived the exact merged `main` commit `388ef91` with production demo mode disabled. The first signing preflight stopped before upload because the prior distribution certificate and provisioning profile had expired; both were replaced through the existing Apple account, with the new certificate/profile expiring on 2027-08-16. Remote versioning was restored to 12 after that no-build attempt so the successful archive retained the intended build number 13. Submission `dd49f5ae-1851-4ed2-ac27-7933e1dfff82` uploaded the binary successfully; App Store Connect reports it `VALID` and `IN_BETA_TESTING`.
+
 Verified EAS production history:
 
 | Build | EAS build ID | EAS submission ID | EAS submission state |
@@ -42,8 +44,9 @@ Verified EAS production history:
 | `10` | `2f310674-05f7-4eca-b97d-ff7590e58eeb` | `69a8a286-8c5a-4ba1-9f0a-45fcc30788e1` | Errored after successful upload and processing while assigning the internal group; Apple confirmed tester availability |
 | `11` | `b4365b22-a4b9-4dbf-a74e-c16ded4f0f7e` | `25e0ae4d-028f-4965-9b80-a075fb9e9739` | Finished; uploaded successfully and awaiting Apple processing confirmation |
 | `12` | `ab7ff733-b074-48dd-a6bc-af1df24d2565` | `e49f93e6-08c1-4aa5-a8d6-eb13d3f487cd` | Finished; uploaded successfully and awaiting Apple processing confirmation |
+| `13` | `03fd9ec4-22a6-4933-80e8-ed0e440d8f2a` | `dd49f5ae-1851-4ed2-ac27-7933e1dfff82` | Finished; `VALID` and `IN_BETA_TESTING` in App Store Connect |
 
-These are EAS states only. Builds 9 and 10 have separate Apple TestFlight notices confirming processing and tester availability. Build 12 has a successful EAS submission but still needs Apple processing/TestFlight availability confirmation and the physical acceptance matrix below.
+These are EAS states plus an App Store Connect status check. Builds 9, 10, and 13 are `VALID` and `IN_BETA_TESTING`; builds 11 and 12 remain awaiting Apple processing confirmation. Build 13 still needs the physical acceptance matrix below; public App Review remains separate.
 
 Build 9 is the Phase 0–1 TestFlight candidate. It includes the reviewed voice-draft client, Phase 0 readability work, weekly plan, contextual help, privacy-safe analytics, and offline continuity. Its production EAS environment points to the CSG API with demo mode disabled and includes the `csg-learning-platform` PostHog project configuration. Do not enable the voice production endpoint or submit this binary for public App Review until the temporary transcription-provider processing is accurately disclosed, the production OpenAI data controls are approved, and the voice-specific physical-device checks below pass.
 
@@ -121,7 +124,7 @@ Phase 2 candidate preflight recorded on 2026-08-02:
 
 ## Physical TestFlight acceptance
 
-The invited tester must update to corrective candidate build 12 in TestFlight and complete this final acceptance pass with real authorized accounts:
+The invited tester must update to connected-experience candidate build 13 in TestFlight and complete this final acceptance pass with real authorized accounts:
 
 - sign in with Google and confirm unauthorized accounts receive the explicit no-access state;
 - verify student, instructor, and admin role scoping where test accounts are available;

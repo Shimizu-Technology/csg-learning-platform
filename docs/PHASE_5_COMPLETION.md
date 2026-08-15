@@ -3,7 +3,8 @@
 - **Completed:** 2026-08-15
 - **Scope:** explainable learning evidence, GitHub check relationships, source-linked cohort patterns, and focused native review parity
 - **Pull request:** #101
-- **Release state:** implementation and local verification complete; CI, Greptile, merge, and iOS release identifiers are recorded after delivery
+- **Merge commit:** `388ef91f3ac9b245cbf40676cf3664b2eaffdca0`
+- **Release state:** merged after clean CI and Greptile review; iOS build 13 is `VALID` and `IN_BETA_TESTING` in App Store Connect
 
 ## Delivered experience
 
@@ -45,4 +46,6 @@ The delivery gate covers:
 - interactive web and native walkthroughs from cohort signal to learner/source record and back;
 - GitHub CI plus a clean Greptile review before merge.
 
-Local verification completed with 407 Rails tests / 1,402 assertions, 305 RuboCop files, 35 web tests, and 29 native suites / 111 tests. Merge and TestFlight build/submission identifiers are appended after those remote gates finish.
+Local verification completed with 407 Rails tests / 1,402 assertions, 305 RuboCop files, 35 web tests, and 29 native suites / 111 tests. The final Greptile pass reviewed 30 files with zero new comments, every required CI check passed, and PR #101 merged as `388ef91`.
+
+The connected-experience TestFlight candidate is `1.0.0 (13)`: EAS build `03fd9ec4-22a6-4933-80e8-ed0e440d8f2a`, submission `dd49f5ae-1851-4ed2-ac27-7933e1dfff82`, sourced from that exact merge commit. EAS finished both the archive and upload successfully, and App Store Connect reports the build `VALID` and `IN_BETA_TESTING`. Physical-device acceptance remains an operational gate rather than a code-completion claim.
