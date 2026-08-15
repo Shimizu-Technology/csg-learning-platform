@@ -25,6 +25,10 @@ class StudentProgressContextTest < ActionDispatch::IntegrationTest
     payload = JSON.parse(response.body)
     assert_equal @past_cohort.id, payload.dig("cohort", "id")
     assert_equal "completed", payload.dig("enrollment", "status")
+    assert_equal "curriculum", payload.dig("learning_evidence_scope", "kind")
+    assert_equal @curriculum.id, payload.dig("learning_evidence_scope", "curriculum_id")
+    assert_equal 2, payload.dig("learning_evidence_scope", "enrollment_count")
+    assert payload.dig("learning_evidence_scope", "shared_across_enrollments")
   end
 
   test "staff progress rejects a cohort the student never joined" do

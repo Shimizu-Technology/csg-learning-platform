@@ -188,7 +188,7 @@ Connected does not mean universally visible.
 | --- | --- | --- |
 | Student enrollment workspace | `cohort_id + user_id` | cohort operations plus curriculum-scoped progress, submissions, and objectives; cohort-scoped recordings, help, interventions, DM, and access |
 | Cohort | `cohort_id` | enrollments, curriculum, workspace, channels, announcements, schedule, recordings, resources |
-| Submission | `submission_id` | student enrollment, content block, lesson, module, rubric, grader, GitHub artifacts |
+| Submission | `submission_id` | student and curriculum content, selected enrollment-workspace context, lesson, module, rubric, grader, GitHub artifacts |
 | Help request | `help_request_id` | student enrollment, source context, owner, response, conversation |
 | Intervention | `intervention_id` | student enrollment, trigger/evidence, owner, notes, follow-up, outcome |
 | Lesson/content | `lesson_id` / `content_block_id` | module, curriculum, assignments, progress, submissions, help |

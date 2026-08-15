@@ -97,13 +97,19 @@ module Api
 
         cohort = enrollment.cohort
         curriculum = cohort.curriculum
+        same_curriculum_enrollment_count = user.enrollments.joins(:cohort)
+          .where(cohorts: { curriculum_id: curriculum.id })
+          .count
         # The enrollment preload already loaded curriculum -> modules -> lessons -> content_blocks.
         # Keep everything in memory here so we don't undo that eager loading with fresh queries.
         modules = curriculum.modules.sort_by(&:position)
         module_assignments_by_module_id = enrollment.module_assignments.index_by(&:module_id)
         lesson_assignments_by_lesson_id = enrollment.lesson_assignments.index_by(&:lesson_id)
 
-        # Index all progresses and submissions for this user
+        # Learning evidence intentionally belongs to the user + curriculum content,
+        # not an enrollment. This lets evidence follow a learner who changes cohorts
+        # without falsely attributing historical work to one enrollment. Cohort-scoped
+        # operations (access, support, recordings, and DMs) still use +enrollment+.
         all_block_ids = modules.flat_map { |m| m.lessons.flat_map(&:completion_block_ids) }
         progress_by_block = user.progresses.where(content_block_id: all_block_ids).index_by(&:content_block_id)
         submissions_by_block = user.submissions.where(content_block_id: all_block_ids)
@@ -227,6 +233,13 @@ module Api
             name: cohort.name,
             start_date: cohort.start_date,
             status: cohort.status
+          },
+          learning_evidence_scope: {
+            kind: "curriculum",
+            curriculum_id: curriculum.id,
+            curriculum_name: curriculum.name,
+            enrollment_count: same_curriculum_enrollment_count,
+            shared_across_enrollments: same_curriculum_enrollment_count > 1
           },
           overall_progress: {
             completed: completed_blocks,

@@ -11,7 +11,13 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
 import { GradeDisplay } from '../../components/shared/GradeDisplay'
 import { useToast } from '../../contexts/ToastContext'
-import type { RubricRating, Submission } from '../../types/api'
+import type { RubricRating, StudentProgressResponse, Submission } from '../../types/api'
+
+interface ValidatedWorkspaceContext {
+  cohortId: number
+  cohortName: string
+  evidenceScope: StudentProgressResponse['learning_evidence_scope']
+}
 
 export function SubmissionDetail() {
   const { id } = useParams<{ id: string }>()
@@ -28,7 +34,7 @@ export function SubmissionDetail() {
   const [criterionResults, setCriterionResults] = useState<Record<number, { rating: RubricRating | null; feedback: string }>>({})
   const [grading, setGrading] = useState(false)
   const [openingMessage, setOpeningMessage] = useState(false)
-  const [validatedCohortId, setValidatedCohortId] = useState<number | null>(null)
+  const [validatedContext, setValidatedContext] = useState<ValidatedWorkspaceContext | null>(null)
 
   const load = useCallback(async () => {
     if (!Number.isInteger(submissionId)) {
@@ -45,14 +51,20 @@ export function SubmissionDetail() {
       return
     }
     const next = result.data.submission
-    let nextCohortId: number | null = null
+    let nextContext: ValidatedWorkspaceContext | null = null
     if (requestedCohortId && (!requestedStudentId || requestedStudentId === next.user_id)) {
       const progressResult = await api.getStudentProgress(next.user_id, requestedCohortId)
       const cohortBlockIds = new Set(progressResult.data?.modules.flatMap((mod) => mod.lessons.flatMap((lesson) => lesson.blocks.map((block) => block.id))) || [])
-      if (cohortBlockIds.has(next.content_block_id)) nextCohortId = requestedCohortId
+      if (progressResult.data && cohortBlockIds.has(next.content_block_id)) {
+        nextContext = {
+          cohortId: requestedCohortId,
+          cohortName: progressResult.data.cohort.name,
+          evidenceScope: progressResult.data.learning_evidence_scope,
+        }
+      }
     }
     setSubmission(next)
-    setValidatedCohortId(nextCohortId)
+    setValidatedContext(nextContext)
     setFeedback(next.feedback || '')
     setCriterionResults(Object.fromEntries((next.rubric?.criteria || []).map((criterion) => [criterion.id, { rating: criterion.rating || null, feedback: criterion.feedback || '' }])))
     setLoading(false)
@@ -88,9 +100,9 @@ export function SubmissionDetail() {
   }
 
   async function openMessage() {
-    if (!submission || !validatedCohortId) return
+    if (!submission || !validatedContext) return
     setOpeningMessage(true)
-    const result = await api.createDirectConversation({ cohort_id: validatedCohortId, user_ids: [submission.user_id] })
+    const result = await api.createDirectConversation({ cohort_id: validatedContext.cohortId, user_ids: [submission.user_id] })
     setOpeningMessage(false)
     if (result.data) navigate(`/messages/dm/${result.data.direct_conversation.id}`)
     else toast.error(result.error || 'Could not open a direct message.')
@@ -99,8 +111,8 @@ export function SubmissionDetail() {
   if (loading) return <LoadingSpinner message="Loading submission record…" />
   if (!submission || error) return <div className="app-page"><EmptyState icon={FileCheck2} title="Could not open this submission" description={error || 'The submission was not found.'} action={<Button onClick={() => void load()}><RefreshCw className="h-4 w-4" />Try again</Button>} /></div>
 
-  const studentPath = validatedCohortId ? cohortStudentPath(validatedCohortId, submission.user_id, 'work') : `/admin/students/${submission.user_id}`
-  const returnFallback = validatedCohortId ? studentPath : '/admin/grading'
+  const studentPath = validatedContext ? cohortStudentPath(validatedContext.cohortId, submission.user_id, 'work') : `/admin/students/${submission.user_id}`
+  const returnFallback = validatedContext ? studentPath : '/admin/grading'
   const returnTo = safeInternalReturnPath(searchParams.get('return_to'), returnFallback)
   const artifactLinks = [
     ['Repository', submission.repo_url],
@@ -114,7 +126,7 @@ export function SubmissionDetail() {
     <div className="app-page-wide space-y-6">
       <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-sm font-semibold text-slate-500">
         <Link to={returnTo} className="app-link inline-flex min-h-11 items-center gap-1 px-1"><ArrowLeft className="h-4 w-4" />Back</Link>
-        {validatedCohortId && <><span className="text-slate-300">/</span><Link className="app-link px-1" to={cohortPath(validatedCohortId)}>Cohort</Link></>}
+        {validatedContext && <><span className="text-slate-300">/</span><Link className="app-link px-1" to={cohortPath(validatedContext.cohortId)}>Workspace: {validatedContext.cohortName}</Link></>}
         <span className="text-slate-300">/</span><Link className="app-link px-1" to={studentPath}>{submission.user_name}</Link>
         <span className="text-slate-300">/</span><span className="px-1 text-slate-700">Submission #{submission.id}</span>
       </nav>
@@ -133,9 +145,10 @@ export function SubmissionDetail() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {submission.grade ? <GradeDisplay grade={submission.grade} size="md" /> : <span className="rounded-full bg-amber-50 px-3 py-1.5 text-sm font-bold text-amber-800">Ungraded</span>}
-            {validatedCohortId && <Button variant="secondary" onClick={() => void openMessage()} disabled={openingMessage}><MessageSquareText className="h-4 w-4" />{openingMessage ? 'Opening…' : 'Message student'}</Button>}
+            {validatedContext && <Button variant="secondary" onClick={() => void openMessage()} disabled={openingMessage}><MessageSquareText className="h-4 w-4" />{openingMessage ? 'Opening…' : `Message in ${validatedContext.cohortName}`}</Button>}
           </div>
         </div>
+        {validatedContext?.evidenceScope.shared_across_enrollments && <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-950"><span className="font-extrabold">Curriculum evidence:</span> this submission follows the learner across enrollments using {validatedContext.evidenceScope.curriculum_name}. The selected workspace and message action are scoped to {validatedContext.cohortName}.</div>}
       </header>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">

@@ -138,7 +138,7 @@ Clients should link lesson, recording, and meeting actions from the provided typ
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/api/v1/help_requests` | Signed-in user | Students list their own requests; staff list all. Optional `cohort_id`, valid `status`, and valid `context_type` filters apply. |
+| `GET` | `/api/v1/help_requests` | Signed-in user | Students list their own requests; staff list all. Optional `cohort_id`, valid `status`, and valid `context_type` filters apply; staff may also filter by `student_id`. |
 | `POST` | `/api/v1/help_requests` | Student | Create one active request for an authorized lesson, exercise, uploaded recording, or legacy recording. Duplicate active context returns the existing record with `created: false`. |
 | `PATCH` | `/api/v1/help_requests/:id` | Owner student / Staff | Students may cancel active requests. Staff may acknowledge or resolve; resolution requires a nonblank `staff_response`. |
 | `GET` | `/api/v1/support_queue` | Staff | Return active requests, recent resolutions, summary counts, and explainable redo/ungraded/inactivity student signals. |
@@ -161,6 +161,8 @@ Returns one normalized `items` list. Students receive recordings across their ac
 | `PATCH` | `/api/v1/watch_progress` | Staff or active cohort member | Saves monotonic watch time and resume position; completes at 90% |
 | `GET` | `/api/v1/content_blocks/:id/video_stream` | Authorized lesson viewer | Returns a two-hour lesson-video `stream_url`, `expires_at`, and current progress |
 | `PATCH` | `/api/v1/content_blocks/:id/video_progress` | Authorized lesson viewer | Saves authoritative lesson-video progress |
+| `GET` | `/api/v1/watch_progress/student/:user_id` | Staff | Returns recording progress for the student's active enrollments, or the exact enrolled cohort when `cohort_id` is provided |
+| `GET` | `/api/v1/watch_progress/student/:user_id/lesson_videos` | Staff | Returns curriculum lesson-video progress for active enrollments, or the exact enrolled cohort when `cohort_id` is provided |
 
 Signed URLs are temporary secrets. Clients should renew before `expires_at`, avoid logging or persisting them, and retain playback position across source replacement.
 
@@ -615,7 +617,9 @@ Offset-bearing ISO 8601 values are treated as absolute instants. Values from `da
 |--------|------|------|-------------|
 | `GET` | `/api/v1/progress` | Authenticated | Current user's progress records |
 | `PATCH` | `/api/v1/progress` | Authenticated | Mark a content block as completed |
-| `GET` | `/api/v1/progress/student/:user_id` | Staff | View specific student's progress |
+| `GET` | `/api/v1/progress/student/:user_id` | Staff | View a student's active enrollment progress, or an exact current/historical enrollment with `cohort_id` |
+
+The staff student response keeps operational fields scoped to the selected enrollment and includes `learning_evidence_scope`. Progress and submissions are intentionally keyed to the learner and curriculum content, so the scope reports the curriculum and whether evidence is shared across multiple same-curriculum enrollments.
 
 **Update body:**
 ```json
@@ -632,7 +636,7 @@ Offset-bearing ISO 8601 values are treated as absolute instants. Values from `da
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `GET` | `/api/v1/submissions` | Staff | List submissions (filterable) |
-| `GET` | `/api/v1/submissions/:id` | Authenticated | Show submission |
+| `GET` | `/api/v1/submissions/:id` | Authenticated | Show submission, including `lesson_id`, `module_id`, and `module_name` relationship fields |
 | `POST` | `/api/v1/submissions` | Authenticated | Create submission |
 | `PATCH` | `/api/v1/submissions/:id` | Staff | Update submission |
 | `PATCH` | `/api/v1/submissions/:id/grade` | Staff | Grade a submission |

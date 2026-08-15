@@ -1258,6 +1258,13 @@ export interface StudentProgressResponse {
     last_seen_at: string | null;
   };
   cohort: { id: number; name: string; start_date: string; status: string };
+  learning_evidence_scope: {
+    kind: 'curriculum';
+    curriculum_id: number;
+    curriculum_name: string;
+    enrollment_count: number;
+    shared_across_enrollments: boolean;
+  };
   overall_progress: { completed: number; total: number; percentage: number };
   modules: StudentProgressModule[];
   recent_activity: {

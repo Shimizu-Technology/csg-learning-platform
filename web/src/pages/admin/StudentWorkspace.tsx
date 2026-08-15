@@ -137,6 +137,7 @@ export function StudentWorkspace() {
   const openHelp = helpRequests.filter((request) => request.status === 'open' || request.status === 'acknowledged')
   const latestSubmission = ungraded[0] || submissions[0]
   const initials = progress.user.full_name.split(/\s+/).map((name) => name[0]).join('').slice(0, 2).toUpperCase()
+  const sharedEvidence = progress.learning_evidence_scope.shared_across_enrollments
 
   return (
     <div className="app-page-wide space-y-6">
@@ -164,7 +165,7 @@ export function StudentWorkspace() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => void openDirectMessage()} disabled={openingMessage}><MessageSquareText className="h-4 w-4" />{openingMessage ? 'Opening…' : 'Message'}</Button>
+            <Button onClick={() => void openDirectMessage()} disabled={openingMessage}><MessageSquareText className="h-4 w-4" />{openingMessage ? 'Opening…' : sharedEvidence ? `Message in ${cohort.name}` : 'Message'}</Button>
             {latestSubmission && <LinkButton to={submissionPath(latestSubmission.id, { cohortId, userId: studentId, returnTo: location.pathname })}><FileCheck2 className="h-4 w-4" />{ungraded.length ? 'Grade next' : 'View latest work'}</LinkButton>}
             <LinkButton to={`/admin/cohorts/${cohortId}/student-view`} secondary><ExternalLink className="h-4 w-4" />Preview cohort</LinkButton>
           </div>
@@ -188,6 +189,8 @@ export function StudentWorkspace() {
           ))}
         </div>
       </nav>
+
+      {sharedEvidence && <div className="flex gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950"><BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" /><p><span className="font-extrabold">Curriculum evidence:</span> progress and submitted work follow this learner across {progress.learning_evidence_scope.enrollment_count} enrollments using {progress.learning_evidence_scope.curriculum_name}. Support, recordings, access, and messages on this page remain scoped to {cohort.name}.</p></div>}
 
       {activeTab === 'overview' && <OverviewTab progress={progress} submissions={submissions} helpRequests={helpRequests} recordings={recordings} lessonVideos={lessonVideos} cohortId={cohortId} studentId={studentId} />}
       {activeTab === 'work' && <WorkTab submissions={submissions} cohortId={cohortId} studentId={studentId} returnTo={location.pathname} />}
@@ -230,7 +233,7 @@ function OverviewTab({ progress, submissions, helpRequests, recordings, lessonVi
 
 function WorkTab({ submissions, cohortId, studentId, returnTo }: { submissions: Submission[]; cohortId: number; studentId: number; returnTo: string }) {
   if (!submissions.length) return <EmptyState icon={FileCheck2} title="No submitted work yet" description="Submissions for this curriculum will appear here as connected records." />
-  return <section className="app-surface overflow-hidden"><div className="border-b border-slate-100 px-5 py-4 sm:px-6"><h2 className="text-lg font-extrabold text-slate-950">All submitted work</h2><p className="mt-1 text-sm text-slate-500">Open any submission without losing this student and cohort context.</p></div><div className="divide-y divide-slate-100">{submissions.map((submission) => <Link key={submission.id} to={submissionPath(submission.id, { cohortId, userId: studentId, returnTo })} className="group grid gap-3 px-5 py-4 transition hover:bg-slate-50 sm:grid-cols-[minmax(0,1fr)_180px_auto] sm:items-center sm:px-6"><div><p className="font-extrabold text-slate-900">{submission.content_block_title}</p><p className="text-sm text-slate-500">{submission.module_name} · {submission.lesson_title}</p></div><div><SubmissionStatus submission={submission} /><p className="mt-1 text-xs text-slate-400">{formatShortDateTime(submission.created_at)}</p></div><ChevronRight className="h-4 w-4 text-slate-300 transition group-hover:translate-x-1 group-hover:text-primary-600" /></Link>)}</div></section>
+  return <section className="app-surface overflow-hidden"><div className="border-b border-slate-100 px-5 py-4 sm:px-6"><h2 className="text-lg font-extrabold text-slate-950">All submitted work</h2><p className="mt-1 text-sm text-slate-500">Open any curriculum submission while retaining this selected workspace context.</p></div><div className="divide-y divide-slate-100">{submissions.map((submission) => <Link key={submission.id} to={submissionPath(submission.id, { cohortId, userId: studentId, returnTo })} className="group grid gap-3 px-5 py-4 transition hover:bg-slate-50 sm:grid-cols-[minmax(0,1fr)_180px_auto] sm:items-center sm:px-6"><div><p className="font-extrabold text-slate-900">{submission.content_block_title}</p><p className="text-sm text-slate-500">{submission.module_name} · {submission.lesson_title}</p></div><div><SubmissionStatus submission={submission} /><p className="mt-1 text-xs text-slate-400">{formatShortDateTime(submission.created_at)}</p></div><ChevronRight className="h-4 w-4 text-slate-300 transition group-hover:translate-x-1 group-hover:text-primary-600" /></Link>)}</div></section>
 }
 
 function LearningTab({ progress, cohortId, studentId, returnTo }: { progress: StudentProgressResponse; cohortId: number; studentId: number; returnTo: string }) {
