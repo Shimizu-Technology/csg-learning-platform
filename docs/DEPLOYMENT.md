@@ -31,8 +31,26 @@
 | Root directory | `api` |
 | Health check path | `/health` |
 
-Create a second Render service for background jobs before switching production
-job delivery to Solid Queue:
+Production uses inline job execution by default. This is the preferred mode for
+the current low-volume internal deployment because it preserves invite, email,
+push, and notification behavior without paying for a worker or keeping Neon
+awake through queue polling.
+
+Configure the web service with:
+
+```
+ACTIVE_JOB_QUEUE_ADAPTER=inline
+SOLID_QUEUE_WORKER_PROVISIONED=false
+SOLID_QUEUE_IN_PUMA=false
+```
+
+Keep the Render background worker suspended in this mode. `/api/v1/ready`
+should return `200` with `queue: not_required`. Inline delivery adds provider
+latency to the originating request, so exercise invitations, messages,
+submissions, and push delivery after changing modes.
+
+Only create or resume a second Render service when production volume justifies
+persistent asynchronous jobs. Before switching to Solid Queue, configure it as:
 
 | Setting | Value |
 |---------|-------|
@@ -44,7 +62,8 @@ job delivery to Solid Queue:
 
 The Docker command is required. If it is blank, Render inherits the image's
 default Rails web-server command and the service will not process background
-jobs.
+jobs. Do not use `SOLID_QUEUE_WORKER_PROVISIONED=true` to describe a worker
+until its logs show `./bin/jobs` running.
 
 Production defaults to inline jobs so invite emails, push notifications, and
 mention emails still deliver if the worker has not been provisioned yet. After
@@ -61,6 +80,9 @@ SOLID_QUEUE_WORKER_POLLING_INTERVAL_SECONDS=2
 Rails will fail boot if `ACTIVE_JOB_QUEUE_ADAPTER=solid_queue` is enabled
 without either `SOLID_QUEUE_WORKER_PROVISIONED=true` or
 `SOLID_QUEUE_IN_PUMA=true`, so jobs cannot silently enqueue with no worker.
+It also fails boot if both execution paths are enabled, or if inline mode still
+declares Solid Queue infrastructure. Each deployment must have exactly one
+job-execution path.
 The polling defaults above keep normal notification latency while avoiding the
 ten database polls per second caused by Solid Queue's upstream worker default.
 
@@ -96,6 +118,26 @@ and read-receipt broadcasts that would all be delivered when the worker starts.
 
 The purge is a rollout operation, not part of an application deploy. Do not run
 it against production without explicit approval of the report and cutoff.
+
+### Returning a low-volume deployment to inline jobs
+
+Use this sequence when a paid worker is not actually processing jobs or the
+queue is unnecessary for current traffic:
+
+1. Leave the worker stopped so old queued work cannot execute.
+2. On the web service, save these three environment changes together:
+   `ACTIVE_JOB_QUEUE_ADAPTER=inline`,
+   `SOLID_QUEUE_WORKER_PROVISIONED=false`, and
+   `SOLID_QUEUE_IN_PUMA=false`.
+3. Deploy the web service and confirm its boot log contains
+   `[JobRuntime] adapter=inline execution_path=inline`.
+4. Confirm `/health` and `/api/v1/ready` both return `200`; readiness should
+   report `queue: not_required`.
+5. Exercise one current invitation or notification and confirm it completes
+   exactly once, then verify the Render worker remains suspended.
+6. Preserve the old Solid Queue rows. They are inert in inline mode and must
+   still go through the report-and-approval process above before any future
+   worker activation.
 
 ### Environment Variables (Render Dashboard)
 

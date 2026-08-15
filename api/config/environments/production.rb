@@ -1,4 +1,5 @@
 require "active_support/core_ext/integer/time"
+require Rails.root.join("lib/job_runtime_configuration").to_s
 
 Rails.application.configure do
   # Settings specified here will take precedence over those in config/application.rb.
@@ -44,16 +45,16 @@ Rails.application.configure do
   # Replace the default in-process memory cache store with a durable alternative.
   config.cache_store = :memory_store
 
-  # Keep notification, invite, and push work out of request latency only after a
-  # worker is provisioned. Defaulting to inline is slower, but it prevents
-  # silently queued emails and notifications from sitting undelivered.
-  active_job_queue_adapter = ENV.fetch("ACTIVE_JOB_QUEUE_ADAPTER", "inline")
-  if active_job_queue_adapter == "solid_queue" &&
-      ENV["SOLID_QUEUE_WORKER_PROVISIONED"] != "true" &&
-      ENV["SOLID_QUEUE_IN_PUMA"] != "true"
-    raise "ACTIVE_JOB_QUEUE_ADAPTER=solid_queue requires SOLID_QUEUE_WORKER_PROVISIONED=true or SOLID_QUEUE_IN_PUMA=true"
+  # Inline execution is the cost-optimized default for this low-volume internal
+  # platform. Persistent queues are opt-in and must declare exactly one real
+  # execution path so jobs cannot silently accumulate or run twice.
+  job_runtime = JobRuntimeConfiguration.new
+  config.active_job.queue_adapter = job_runtime.adapter
+  config.after_initialize do
+    Rails.logger.info(
+      "[JobRuntime] adapter=#{job_runtime.adapter_name} execution_path=#{job_runtime.execution_path}"
+    )
   end
-  config.active_job.queue_adapter = active_job_queue_adapter.to_sym
 
   config.action_cable.allowed_request_origins = ENV.fetch("ALLOWED_ORIGINS", ENV.fetch("FRONTEND_URL", "")).split(",").map(&:strip).reject(&:blank?)
 
