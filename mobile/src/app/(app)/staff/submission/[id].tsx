@@ -9,11 +9,11 @@ import { ErrorState, LoadingState } from '@/components/screen-states';
 import { VoiceDraftButton, VoiceDraftPanel } from '@/components/voice-draft-controls';
 import { fonts, palette } from '@/constants/csg-theme';
 import { useVoiceDraft } from '@/hooks/use-voice-draft';
-import { demoStaffSubmissions } from '@/lib/demo-staff';
+import { demoStaffSubmissions, demoStudentProgress } from '@/lib/demo-staff';
 import { demoDms } from '@/lib/demo-data';
 import { openAuthenticatedWebPage, openExternalPage } from '@/lib/external-links';
 import { appendFeedbackSnippet } from '@/lib/feedback-snippets';
-import { learningKeys, safeExternalUrl } from '@/lib/learning';
+import { learningKeys, safeExternalUrl, submissionBelongsToStudentProgress } from '@/lib/learning';
 import type { FeedbackSnippet, RubricRating, Submission } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
@@ -22,9 +22,10 @@ import { useEffect, useRef, useState } from 'react';
 type Grade = 'A' | 'B' | 'C' | 'R';
 
 export default function StaffSubmissionScreen() {
-  const { id, cohort_id: cohortIdParam } = useLocalSearchParams<{ id: string; cohort_id?: string; student_id?: string }>();
+  const { id, cohort_id: cohortIdParam, student_id: studentIdParam } = useLocalSearchParams<{ id: string; cohort_id?: string; student_id?: string }>();
   const submissionId = Number(id);
   const requestedCohortId = Number(cohortIdParam) || undefined;
+  const requestedStudentId = Number(studentIdParam) || undefined;
   const router = useRouter();
   const auth = useCsgAuth();
   const { api, user } = useSession();
@@ -37,6 +38,18 @@ export default function StaffSubmissionScreen() {
     enabled: Boolean(user?.is_staff && Number.isInteger(submissionId) && submissionId > 0),
   });
   const submission = query.data?.submission;
+  const contextQuery = useQuery({
+    queryKey: learningKeys.submissionContext(user?.id || 0, submissionId, requestedCohortId || 0),
+    queryFn: ({ signal }) => auth.demo ? Promise.resolve(demoStudentProgress) : api.studentProgress(submission!.user_id, requestedCohortId, signal),
+    enabled: Boolean(user?.is_staff && submission && requestedCohortId && (!requestedStudentId || requestedStudentId === submission.user_id)),
+    retry: false,
+  });
+  const validatedProgress = submission && contextQuery.data && requestedCohortId
+    && contextQuery.data.cohort.id === requestedCohortId
+    && submissionBelongsToStudentProgress(submission, contextQuery.data)
+    ? contextQuery.data
+    : undefined;
+  const validatedCohortId = validatedProgress?.cohort.id;
   const snippetsQuery = useQuery({
     queryKey: learningKeys.feedbackSnippets(user?.id || 0),
     queryFn: ({ signal }) => auth.demo ? Promise.resolve({ feedback_snippets: [] as FeedbackSnippet[] }) : api.feedbackSnippets(signal),
@@ -74,7 +87,7 @@ export default function StaffSubmissionScreen() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: learningKeys.dashboard(user?.id || 0) }),
         queryClient.invalidateQueries({ queryKey: learningKeys.submissions(user?.id || 0) }),
-        submission ? queryClient.invalidateQueries({ queryKey: learningKeys.studentDetail(user?.id || 0, submission.user_id, requestedCohortId) }) : Promise.resolve(),
+        submission && validatedCohortId ? queryClient.invalidateQueries({ queryKey: learningKeys.studentDetail(user?.id || 0, submission.user_id, validatedCohortId) }) : Promise.resolve(),
       ]);
     },
     onError: (error) => Alert.alert('Could not save grade', (error as Error).message),
@@ -101,11 +114,11 @@ export default function StaffSubmissionScreen() {
   };
 
   async function openDirectMessage() {
-    if (!submission || !requestedCohortId) return;
+    if (!submission || !validatedCohortId) return;
     try {
       const conversation = auth.demo
-        ? demoDms.find((item) => item.cohort_id === requestedCohortId && item.users.some((member) => member.id === submission.user_id))
-        : (await api.createCohortDm(requestedCohortId, [submission.user_id])).direct_conversation;
+        ? demoDms.find((item) => item.cohort_id === validatedCohortId && item.users.some((member) => member.id === submission.user_id))
+        : (await api.createCohortDm(validatedCohortId, [submission.user_id])).direct_conversation;
       if (!conversation) throw new Error('No cohort conversation is available for this student.');
       router.push({ pathname: '/conversation/[kind]/[id]', params: { kind: 'dm', id: String(conversation.id) } });
     } catch (error) {
@@ -123,7 +136,7 @@ export default function StaffSubmissionScreen() {
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flexRoot}>
       <ScrollView ref={scrollRef} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
         <View><Text style={styles.eyebrow}>{submission.lesson_title}</Text><Text style={styles.title}>{submission.content_block_title}</Text><Text style={styles.meta}>Attempt {submission.num_submissions} · submitted {formatDate(submission.created_at)}</Text></View>
-        {requestedCohortId && <View style={styles.relationshipRow}><Pressable accessibilityRole="button" accessibilityLabel={`Open ${submission.user_name}'s student health`} onPress={() => router.push({ pathname: '/staff/student/[id]', params: { id: String(submission.user_id), cohort_id: String(requestedCohortId) } })} style={styles.relationshipButton}><FileText color={palette.rubySoft} size={17} /><Text style={styles.relationshipText}>Student health</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Message ${submission.user_name}`} onPress={() => void openDirectMessage()} style={styles.relationshipButton}><MessageSquareText color={palette.rubySoft} size={17} /><Text style={styles.relationshipText}>Message</Text></Pressable></View>}
+        {validatedProgress && <View style={styles.relationshipRow}><Pressable accessibilityRole="button" accessibilityLabel={`Open ${submission.user_name}'s student health`} onPress={() => router.push({ pathname: '/staff/student/[id]', params: { id: String(submission.user_id), cohort_id: String(validatedProgress.cohort.id) } })} style={styles.relationshipButton}><FileText color={palette.rubySoft} size={17} /><Text style={styles.relationshipText}>Student health</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Message ${submission.user_name} in ${validatedProgress.cohort.name}`} onPress={() => void openDirectMessage()} style={styles.relationshipButton}><MessageSquareText color={palette.rubySoft} size={17} /><Text style={styles.relationshipText}>Message in {validatedProgress.cohort.name}</Text></Pressable></View>}
         {submission.exercise_body && <LearningCard><View style={styles.cardHeading}><FileText color={palette.rubySoft} size={18} /><Text style={styles.cardHeadingText}>Assignment</Text></View><Text style={styles.body}>{submission.exercise_body}</Text></LearningCard>}
         {submission.text && <LearningCard><View style={styles.cardHeading}><Code2 color={palette.rubySoft} size={18} /><Text style={styles.cardHeadingText}>Student response</Text></View><Text selectable style={styles.response}>{submission.text}</Text></LearningCard>}
         {!!links.length && <View style={styles.linkGrid}>{links.map((link) => <Pressable key={link.label} accessibilityRole="link" onPress={() => void openExternalPage(link.url).catch((error) => Alert.alert('Could not open link', (error as Error).message))} style={styles.linkCard}><link.Icon color={palette.rubySoft} size={18} /><View style={styles.linkCopy}><Text style={styles.linkTitle}>{link.label}</Text><Text numberOfLines={1} style={styles.linkValue}>{link.detail}</Text></View><ExternalLink color={palette.quiet} size={15} /></Pressable>)}</View>}
@@ -133,7 +146,7 @@ export default function StaffSubmissionScreen() {
         <View style={styles.feedbackSection}><Text style={styles.feedbackLabel}>FEEDBACK</Text>{Boolean(snippetsQuery.data?.feedback_snippets.length) && <View style={styles.snippetPanel}><View style={styles.snippetHeading}><MessageSquareText color={palette.rubySoft} size={16} /><Text style={styles.snippetHeadingText}>REUSABLE SNIPPETS</Text></View><View style={styles.snippetList}>{snippetsQuery.data!.feedback_snippets.map((snippet) => <Pressable key={snippet.id} accessibilityRole="button" accessibilityHint="Inserts editable text into the feedback draft" onPress={() => applySnippet(snippet)} style={styles.snippetButton}><Text style={styles.snippetButtonText}>{snippet.title}</Text></Pressable>)}</View><Text style={styles.feedbackHint}>Tap to insert, then personalize the draft for this student.</Text></View>}<TextInput accessibilityLabel="Feedback for student" value={feedback} selection={feedbackSelection} onSelectionChange={(event) => setFeedbackSelection(event.nativeEvent.selection)} onChangeText={(value) => setFeedbackDraft({ submissionId, value })} onFocus={() => { feedbackFocusedRef.current = true; requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true })); }} onBlur={() => { feedbackFocusedRef.current = false; }} placeholder="Give one clear next step or reinforce what worked…" placeholderTextColor={palette.quiet} multiline textAlignVertical="top" style={styles.feedbackInput} /><View style={styles.voiceRow}><VoiceDraftButton state={voiceDraft.state} disabled={mutation.isPending} onPress={() => void voiceDraft.start()} /><Text style={styles.voiceHint}>Dictate a draft, then review and personalize it before saving.</Text></View><VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} /><Text style={styles.feedbackHint}>Redo requests require feedback. Passing grades may include concise feedback.</Text><Pressable accessibilityRole="button" disabled={!feedback.trim() || snippetMutation.isPending} onPress={() => snippetMutation.mutate(feedback.trim())} style={({ pressed }) => [styles.saveSnippet, pressed && styles.pressed, (!feedback.trim() || snippetMutation.isPending) && styles.disabled]}><BookmarkPlus color={palette.rubySoft} size={16} /><Text style={styles.saveSnippetText}>{snippetMutation.isPending ? 'Saving snippet…' : 'Save draft as reusable snippet'}</Text></Pressable></View>
         <View style={styles.gradeSection}><Text style={styles.feedbackLabel}>GRADE</Text><View style={styles.gradeRow}>{(['A', 'B', 'C'] as Grade[]).map((grade) => <Pressable key={grade} accessibilityRole="button" accessibilityLabel={`Grade ${grade}`} disabled={mutation.isPending} onPress={() => submitGrade(grade)} style={[styles.gradeButton, submission.grade === grade && styles.gradeButtonActive]}><Check color={submission.grade === grade ? palette.text : palette.success} size={16} /><Text style={styles.gradeButtonText}>{grade}</Text></Pressable>)}</View><Pressable accessibilityRole="button" disabled={mutation.isPending} onPress={() => submitGrade('R')} style={[styles.redoButton, submission.grade === 'R' && styles.redoButtonActive]}><RotateCcw color={palette.warning} size={18} /><Text style={styles.redoButtonText}>{mutation.isPending ? 'Saving review…' : 'Request redo with feedback'}</Text></Pressable></View>
         {mutation.isSuccess && <View style={styles.saved}><CheckCircle2 color={palette.success} size={18} /><Text style={styles.savedText}>Review saved and student notification queued.</Text></View>}
-        <Pressable accessibilityRole="button" onPress={() => void openAuthenticatedWebPage(api, requestedCohortId ? `/admin/submissions/${submission.id}?cohort_id=${requestedCohortId}&student_id=${submission.user_id}` : `/admin/submissions/${submission.id}`).catch((error) => Alert.alert('Could not open full grading', (error as Error).message))} style={styles.handoff}><ExternalLink color={palette.rubySoft} size={17} /><View style={styles.linkCopy}><Text style={styles.handoffTitle}>Open full submission record</Text><Text style={styles.handoffCopy}>Continue on the web with student, cohort, and grading context intact.</Text></View></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => void openAuthenticatedWebPage(api, validatedCohortId ? `/admin/submissions/${submission.id}?cohort_id=${validatedCohortId}&student_id=${submission.user_id}` : `/admin/submissions/${submission.id}`).catch((error) => Alert.alert('Could not open full grading', (error as Error).message))} style={styles.handoff}><ExternalLink color={palette.rubySoft} size={17} /><View style={styles.linkCopy}><Text style={styles.handoffTitle}>Open full submission record</Text><Text style={styles.handoffCopy}>{validatedCohortId ? 'Continue on the web with student, cohort, and grading context intact.' : 'Continue on the web in the submission record.'}</Text></View></Pressable>
         <View style={{ height: 20 }} />
       </ScrollView>
     </KeyboardAvoidingView>

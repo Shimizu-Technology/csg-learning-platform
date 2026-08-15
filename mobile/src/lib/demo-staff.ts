@@ -29,8 +29,8 @@ export const demoStudentProgress: StudentProgressDetail = {
   modules: [{
     id: 10, name: 'Frontend Foundations', module_type: 'course', position: 1, total_blocks: 21, completed_blocks: 14, progress_percentage: 67,
     lessons: [
-      { id: 100, title: 'HTML and semantic structure', lesson_type: 'lesson', available: true, total_blocks: 4, completed_blocks: 4, completed: true, blocks: [] },
-      { id: 101, title: 'Responsive layouts with Grid', lesson_type: 'lesson', available: true, total_blocks: 5, completed_blocks: 3, completed: false, blocks: [] },
+      { id: 100, title: 'HTML and semantic structure', lesson_type: 'lesson', available: true, total_blocks: 4, completed_blocks: 4, completed: true, blocks: [{ id: 198, title: 'Accessible form audit', block_type: 'exercise', status: 'completed', completed_at: ago(3), submission: { id: 30, grade: 'R', feedback: 'Connect every error message with aria-describedby.', submitted_at: ago(3), graded_at: ago(2) } }] },
+      { id: 101, title: 'Responsive layouts with Grid', lesson_type: 'lesson', available: true, total_blocks: 5, completed_blocks: 3, completed: false, blocks: [{ id: 203, title: 'Responsive card grid', block_type: 'exercise', status: 'completed', completed_at: ago(1), submission: { id: 31, grade: null, feedback: null, submitted_at: ago(1), graded_at: null } }] },
     ],
   }, {
     id: 11, name: 'JavaScript Applications', module_type: 'course', position: 2, total_blocks: 20, completed_blocks: 5, progress_percentage: 25, lessons: [],
