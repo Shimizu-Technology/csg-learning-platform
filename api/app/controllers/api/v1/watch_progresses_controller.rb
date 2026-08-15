@@ -77,6 +77,10 @@ module Api
         else
           user.enrollments.where(status: :active).pluck(:cohort_id)
         end
+        if params[:cohort_id].present? && cohort_ids.empty?
+          render json: { error: "Student is not enrolled in this cohort" }, status: :not_found
+          return
+        end
         progresses = progresses.where(recordings: { cohort_id: cohort_ids })
         all_recordings = Recording.where(cohort_id: cohort_ids).includes(:cohort).order(:cohort_id, :position)
         progress_by_recording = progresses.index_by(&:recording_id)
@@ -112,6 +116,10 @@ module Api
           user.enrollments.where(cohort_id: params[:cohort_id]).includes(:cohort)
         else
           user.enrollments.where(status: :active).includes(:cohort)
+        end.to_a
+        if params[:cohort_id].present? && enrollments.empty?
+          render json: { error: "Student is not enrolled in this cohort" }, status: :not_found
+          return
         end
         curriculum_ids = enrollments.map { |e| e.cohort.curriculum_id }.uniq
         video_blocks_by_curriculum = ContentBlock

@@ -319,6 +319,22 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     assert_equal [ current_recording.id ], rows.map { |row| row.fetch("recording_id") }
   end
 
+  test "student watch endpoints reject a cohort outside the student's enrollments" do
+    unrelated = Cohort.create!(curriculum: @curriculum, name: "Unrelated cohort", start_date: Date.current, status: :active)
+
+    as_user(@admin) do
+      get "/api/v1/watch_progress/student/#{@student.id}", params: { cohort_id: unrelated.id }, headers: auth_headers
+    end
+    assert_response :not_found
+    assert_equal "Student is not enrolled in this cohort", JSON.parse(response.body).fetch("error")
+
+    as_user(@admin) do
+      get "/api/v1/watch_progress/student/#{@student.id}/lesson_videos", params: { cohort_id: unrelated.id }, headers: auth_headers
+    end
+    assert_response :not_found
+    assert_equal "Student is not enrolled in this cohort", JSON.parse(response.body).fetch("error")
+  end
+
   private
 
   def create_recording!(title: "Class 1", s3_key: "recordings/cohort_#{@cohort.id}/class-1.mp4", position: 0, duration_seconds: 120)
