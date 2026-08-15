@@ -70,6 +70,8 @@ Release update (2026-08-02): production EAS analytics configuration is complete,
 
 Stabilization update (2026-08-03): PR #91 fixed the TestFlight voice configuration failure, serialized recorder teardown, extended the safety limit to five minutes, improved retry/UI states, and added native crash reporting. Greptile and CI passed cleanly. Build `1.0.0 (11)` (`b4365b22-a4b9-4dbf-a74e-c16ded4f0f7e`) was archived from merged commit `26677b9` and submission `25e0ae4d-028f-4965-9b80-a075fb9e9739` uploaded successfully. Apple processing and physical acceptance remain pending.
 
+Connected-experience release update (2026-08-15): PRs #97–#101 are merged with clean CI and final Greptile reviews. EAS archived `1.0.0 (13)` as build `03fd9ec4-22a6-4933-80e8-ed0e440d8f2a` from exact merged-main commit `388ef91`; submission `dd49f5ae-1851-4ed2-ac27-7933e1dfff82` uploaded successfully. App Store Connect reports the build `VALID` and `IN_BETA_TESTING`. Physical TestFlight acceptance remains an operational gate; public App Review remains intentionally separate.
+
 Strategic Phase 0–1 code completion, evidence, operational gates, and later-phase boundaries are summarized in `docs/PHASE_0_1_COMPLETION.md`.
 
 Strategic Phase 2 code completion, learning-evidence flow, release gates, and Phase 3 handoff are summarized in `docs/PHASE_2_COMPLETION.md`.
