@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Filter, Check, RotateCcw, Clock, ChevronRight, Layers3, BookmarkPlus, MessageSquareText, ExternalLink } from 'lucide-react'
 import { api } from '../../lib/api'
 import { submissionPath } from '../../lib/routes'
@@ -46,10 +46,12 @@ interface CohortSummary {
 
 export function Grading() {
   const toast = useToast()
+  const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [submissions, setSubmissions] = useState<SubmissionItem[]>([])
   const [cohorts, setCohorts] = useState<CohortSummary[]>([])
   const [loading, setLoading] = useState(true)
-  const [queueFilter, setQueueFilter] = useState<QueueFilter>('ungraded')
+  const queueFilter = (['ungraded', 'redo', 'all'] as const).includes(searchParams.get('filter') as QueueFilter) ? searchParams.get('filter') as QueueFilter : 'ungraded'
   const [selectedSubmission, setSelectedSubmission] = useState<SubmissionItem | null>(null)
   const [feedback, setFeedback] = useState('')
   const [criterionResults, setCriterionResults] = useState<Record<number, { rating: RubricRating | null; feedback: string }>>({})
@@ -128,6 +130,9 @@ export function Grading() {
   }
 
   const selectSubmission = async (submission: SubmissionItem) => {
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.set('submission', String(submission.id))
+    setSearchParams(nextParams, { replace: true })
     setLoadingDetail(true)
     const res = await api.getSubmission(submission.id)
     const fullSubmission = res.data?.submission || submission
@@ -135,6 +140,24 @@ export function Grading() {
     setFeedback(fullSubmission.feedback || '')
     setCriterionResults(Object.fromEntries((fullSubmission.rubric?.criteria || []).map((criterion) => [criterion.id, { rating: criterion.rating || null, feedback: criterion.feedback || '' }])))
     setLoadingDetail(false)
+  }
+
+  useEffect(() => {
+    const selectedId = Number(searchParams.get('submission'))
+    if (!selectedId || selectedSubmission?.id === selectedId || loading || loadingDetail) return
+    const match = submissions.find((submission) => submission.id === selectedId)
+    if (match) void selectSubmission(match)
+    // selectSubmission deliberately follows URL restoration rather than function identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, loadingDetail, searchParams, selectedSubmission?.id, submissions])
+
+  const chooseFilter = (value: QueueFilter) => {
+    const nextParams = new URLSearchParams(searchParams)
+    if (value === 'ungraded') nextParams.delete('filter')
+    else nextParams.set('filter', value)
+    nextParams.delete('submission')
+    setSelectedSubmission(null)
+    setSearchParams(nextParams)
   }
 
   const handleGrade = async (grade: string) => {
@@ -155,6 +178,9 @@ export function Grading() {
     })
     if (!res.error) {
       setSelectedSubmission(null)
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.delete('submission')
+      setSearchParams(nextParams, { replace: true })
       setFeedback('')
       loadSubmissions()
       toast.success(`Submission graded ${grade}`)
@@ -218,7 +244,7 @@ export function Grading() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <button
-          onClick={() => setQueueFilter('ungraded')}
+          onClick={() => chooseFilter('ungraded')}
           className={`rounded-xl border p-4 text-left transition-all ${queueFilter === 'ungraded' ? 'border-primary-300 bg-primary-50' : 'border-slate-200 bg-white hover:border-primary-200'}`}
         >
           <div className="flex items-center gap-2 text-slate-500 text-sm font-medium">
@@ -228,7 +254,7 @@ export function Grading() {
           <p className="mt-2 text-2xl font-bold text-slate-900">{counts.ungraded}</p>
         </button>
         <button
-          onClick={() => setQueueFilter('redo')}
+          onClick={() => chooseFilter('redo')}
           className={`rounded-xl border p-4 text-left transition-all ${queueFilter === 'redo' ? 'border-orange-300 bg-orange-50' : 'border-slate-200 bg-white hover:border-orange-200'}`}
         >
           <div className="flex items-center gap-2 text-slate-500 text-sm font-medium">
@@ -238,7 +264,7 @@ export function Grading() {
           <p className="mt-2 text-2xl font-bold text-slate-900">{counts.redo}</p>
         </button>
         <button
-          onClick={() => setQueueFilter('all')}
+          onClick={() => chooseFilter('all')}
           className={`rounded-xl border p-4 text-left transition-all ${queueFilter === 'all' ? 'border-slate-400 bg-slate-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
         >
           <div className="flex items-center gap-2 text-slate-500 text-sm font-medium">
@@ -297,7 +323,7 @@ export function Grading() {
                   </div>
                   </button>
                   <Link
-                    to={submissionPath(sub.id, { userId: sub.user_id, returnTo: '/admin/grading' })}
+                    to={submissionPath(sub.id, { userId: sub.user_id, returnTo: `${location.pathname}${location.search}`, queue: queueFilter })}
                     aria-label={`Open ${sub.user_name}'s submission record`}
                     title="Open submission record"
                     className="inline-flex min-h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-primary-300 hover:text-primary-700"

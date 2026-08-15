@@ -538,6 +538,7 @@ export const api = {
 
   getHelpRequests: (params: { cohort_id?: number; student_id?: number; status?: string; context_type?: HelpContextType } = {}) =>
     fetchApi<HelpRequestsResponse>(`/api/v1/help_requests${queryString(params)}`),
+  getHelpRequest: (id: number) => fetchApi<HelpRequestResponse>(`/api/v1/help_requests/${id}`),
   createHelpRequest: (data: { cohort_id: number; context_type: HelpContextType; context_source?: HelpContextSource; context_id: number; category: HelpCategory; urgency: HelpUrgency; message: string }) =>
     fetchApi<HelpRequestResponse>('/api/v1/help_requests', {
       method: 'POST',

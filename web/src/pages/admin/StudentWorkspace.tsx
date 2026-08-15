@@ -21,7 +21,7 @@ import {
   Video,
 } from 'lucide-react'
 import { api } from '../../lib/api'
-import { cohortPath, cohortStudentPath, submissionPath, type StudentWorkspaceTab } from '../../lib/routes'
+import { cohortPath, cohortStudentPath, helpRequestPath, submissionPath, type StudentWorkspaceTab } from '../../lib/routes'
 import { formatShortDateTime } from '../../lib/format'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../contexts/ToastContext'
@@ -243,7 +243,7 @@ function LearningTab({ progress, cohortId, studentId, returnTo }: { progress: St
 
 function SupportTab({ requests }: { requests: HelpRequest[] }) {
   if (!requests.length) return <EmptyState icon={LifeBuoy} title="No support requests" description="Contextual help requests for this student and cohort will collect here." />
-  return <section className="app-surface overflow-hidden"><div className="divide-y divide-slate-100">{requests.map((request) => <div key={request.id} className="grid gap-4 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:px-6"><div><div className="flex flex-wrap items-center gap-2"><p className="font-extrabold text-slate-950">{request.context_label}</p><span className={`rounded-full px-2 py-0.5 text-[11px] font-bold capitalize ${request.urgency === 'urgent' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'}`}>{request.urgency}</span><span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold capitalize text-amber-800">{request.status}</span></div><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{request.message}</p>{request.staff_response && <div className="mt-3 rounded-xl bg-green-50 p-3 text-sm text-green-900"><span className="font-bold">Staff response:</span> {request.staff_response}</div>}</div><div className="text-xs font-semibold text-slate-400">{formatShortDateTime(request.created_at)}</div></div>)}</div></section>
+  return <section className="app-surface overflow-hidden"><div className="divide-y divide-slate-100">{requests.map((request) => <Link to={helpRequestPath(request.id)} key={request.id} className="group grid gap-4 px-5 py-4 transition hover:bg-slate-50 sm:grid-cols-[minmax(0,1fr)_auto] sm:px-6"><div><div className="flex flex-wrap items-center gap-2"><p className="font-extrabold text-slate-950 group-hover:text-primary-700">{request.context_label}</p><span className={`rounded-full px-2 py-0.5 text-[11px] font-bold capitalize ${request.urgency === 'urgent' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'}`}>{request.urgency}</span><span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold capitalize text-amber-800">{request.status}</span></div><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{request.message}</p>{request.staff_response && <div className="mt-3 rounded-xl bg-green-50 p-3 text-sm text-green-900"><span className="font-bold">Staff response:</span> {request.staff_response}</div>}</div><div className="text-xs font-semibold text-slate-400">{formatShortDateTime(request.created_at)}</div></Link>)}</div></section>
 }
 
 function CommunicationTab({ studentName, opening, onOpen }: { studentName: string; opening: boolean; onOpen: () => void }) {

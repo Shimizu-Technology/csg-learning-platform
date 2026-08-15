@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { AlertTriangle, ArrowRight, CheckCircle2, CircleHelp, Clock3, LifeBuoy, RefreshCw, ShieldAlert, UserRoundCheck } from 'lucide-react'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
+import { AlertTriangle, ArrowRight, CheckCircle2, CircleHelp, Clock3, LifeBuoy, RefreshCw, ShieldAlert, UserRound, UserRoundCheck } from 'lucide-react'
 import { api } from '../../lib/api'
-import { cohortStudentPath } from '../../lib/routes'
+import { helpRequestPath } from '../../lib/routes'
 import { analyticsAgeBucket, captureProductEvent } from '../../lib/analytics'
 import { formatShortDateTime } from '../../lib/format'
 import { useToast } from '../../contexts/ToastContext'
@@ -11,16 +11,20 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Modal } from '../../components/shared/Modal'
 import { Button } from '../../components/ui/Button'
 import { PageHeader } from '../../components/ui/PageHeader'
+import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
 import type { HelpRequest, SupportQueue as SupportQueueData, SupportQueueStudent } from '../../types/api'
 
 export function SupportQueue() {
   const toast = useToast()
+  const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [queue, setQueue] = useState<SupportQueueData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [savingId, setSavingId] = useState<number | null>(null)
   const [resolving, setResolving] = useState<HelpRequest | null>(null)
   const [response, setResponse] = useState('')
+  const [selectedStudent, setSelectedStudent] = useState<{ id: number; cohortId: number } | null>(null)
 
   const loadQueue = useCallback(async () => {
     setError(null)
@@ -70,6 +74,18 @@ export function SupportQueue() {
   if (error && !queue) return <EmptyState icon={LifeBuoy} title="Could not load student support" description={error} action={<Button onClick={() => { setLoading(true); void loadQueue() }}><RefreshCw className="h-4 w-4" />Try again</Button>} />
   if (!queue) return null
 
+  const view = searchParams.get('view') === 'resolved' ? 'resolved' : 'active'
+  const urgentOnly = searchParams.get('urgency') === 'urgent'
+  const filteredRequests = (view === 'active' ? queue.help_requests : queue.recently_resolved)
+    .filter((request) => !urgentOnly || request.urgency === 'urgent')
+  const returnTo = `${location.pathname}${location.search}`
+  const setFilter = (key: 'view' | 'urgency', value: string) => {
+    const next = new URLSearchParams(searchParams)
+    if ((key === 'view' && value === 'active') || (key === 'urgency' && value === 'all')) next.delete(key)
+    else next.set(key, value)
+    setSearchParams(next)
+  }
+
   return (
     <div className="app-page-wide">
       <PageHeader
@@ -87,16 +103,16 @@ export function SupportQueue() {
       </section>
 
       <section aria-labelledby="requests-heading" className="space-y-3">
-        <div>
-          <p className="app-eyebrow">Direct requests</p>
-          <h2 id="requests-heading" className="mt-1 text-xl font-extrabold tracking-tight text-slate-950">Students who asked for help</h2>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div><p className="app-eyebrow">Direct requests</p><h2 id="requests-heading" className="mt-1 text-xl font-extrabold tracking-tight text-slate-950">{view === 'active' ? 'Students who asked for help' : 'Recently resolved requests'}</h2></div>
+          <div className="flex flex-wrap items-center gap-2" aria-label="Support filters"><div className="flex rounded-xl bg-slate-100 p-1">{(['active', 'resolved'] as const).map((value) => <button key={value} type="button" onClick={() => setFilter('view', value)} className={`min-h-11 rounded-lg px-3 text-xs font-extrabold capitalize ${view === value ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500'}`}>{value}</button>)}</div><button type="button" onClick={() => setFilter('urgency', urgentOnly ? 'all' : 'urgent')} className={`inline-flex min-h-11 items-center gap-1.5 rounded-xl border px-3 text-xs font-extrabold ${urgentOnly ? 'border-red-300 bg-red-50 text-red-700' : 'border-slate-200 bg-white text-slate-600'}`}><ShieldAlert className="h-4 w-4" />Urgent only</button></div>
         </div>
-        {queue.help_requests.length === 0 ? (
+        {filteredRequests.length === 0 ? (
           <div className="app-surface flex items-center gap-4 p-5">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-green-100 text-green-700"><CheckCircle2 className="h-5 w-5" /></span>
-            <div><p className="text-sm font-extrabold text-slate-950">No active help requests.</p><p className="mt-0.5 text-xs text-slate-500">New student requests will appear here immediately.</p></div>
+            <div><p className="text-sm font-extrabold text-slate-950">No matching help requests.</p><p className="mt-0.5 text-xs text-slate-500">Adjust the URL-backed filters or check again later.</p></div>
           </div>
-        ) : queue.help_requests.map((request) => (
+        ) : filteredRequests.map((request) => (
           <article key={request.id} className={`overflow-hidden rounded-[1.5rem] border bg-white shadow-sm ${request.urgency === 'urgent' ? 'border-red-200' : 'border-slate-200'}`}>
             <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start lg:p-6">
               <div className="min-w-0">
@@ -112,12 +128,14 @@ export function SupportQueue() {
                   <span className="inline-flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5" />Asked {formatShortDateTime(request.created_at)}</span>
                   {request.owner && <span>Owned by {request.owner.full_name}</span>}
                   <Link className="app-link inline-flex items-center gap-1" to={request.context_path}>Open context <ArrowRight className="h-3.5 w-3.5" /></Link>
-                  {request.student && <Link className="app-link inline-flex items-center gap-1" to={cohortStudentPath(request.cohort.id, request.student.id, 'support')}>Student workspace <ArrowRight className="h-3.5 w-3.5" /></Link>}
+                  <Link className="app-link inline-flex items-center gap-1" to={helpRequestPath(request.id, returnTo)}>Open record <ArrowRight className="h-3.5 w-3.5" /></Link>
+                  {request.student && <button type="button" className="app-link inline-flex items-center gap-1" onClick={() => setSelectedStudent({ id: request.student!.id, cohortId: request.cohort.id })}>Student context <UserRound className="h-3.5 w-3.5" /></button>}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 lg:w-40 lg:flex-col">
                 {request.status === 'open' && <Button variant="secondary" fullWidth onClick={() => void acknowledge(request)} disabled={savingId === request.id}><UserRoundCheck className="h-4 w-4" />Acknowledge</Button>}
-                <Button fullWidth onClick={() => { setResolving(request); setResponse('') }} disabled={savingId === request.id}><CheckCircle2 className="h-4 w-4" />Respond & resolve</Button>
+                {(request.status === 'open' || request.status === 'acknowledged') && <Button fullWidth onClick={() => { setResolving(request); setResponse('') }} disabled={savingId === request.id}><CheckCircle2 className="h-4 w-4" />Respond & resolve</Button>}
+                <Link to={helpRequestPath(request.id, returnTo)} className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl border border-slate-300 px-3 text-sm font-bold text-slate-700 hover:bg-slate-50">Open record <ArrowRight className="h-4 w-4" /></Link>
               </div>
             </div>
           </article>
@@ -132,21 +150,21 @@ export function SupportQueue() {
         </div>
         {queue.students.length === 0 ? <p className="px-6 py-8 text-center text-sm text-slate-500">No current learning signals need attention.</p> : (
           <div className="divide-y divide-slate-100">
-            {queue.students.map((student) => <StudentSignalRow key={`${student.cohort_id}-${student.user_id}`} student={student} />)}
+            {queue.students.map((student) => <StudentSignalRow key={`${student.cohort_id}-${student.user_id}`} student={student} onSelect={() => setSelectedStudent({ id: student.user_id, cohortId: student.cohort_id })} />)}
           </div>
         )}
       </section>
 
-      {queue.recently_resolved.length > 0 && (
+      {view === 'active' && queue.recently_resolved.length > 0 && (
         <details className="app-surface overflow-hidden">
           <summary className="min-h-11 cursor-pointer px-5 py-4 text-sm font-extrabold text-slate-900 sm:px-6">Recently resolved · {queue.recently_resolved.length}</summary>
           <div className="divide-y divide-slate-100 border-t border-slate-200">
             {queue.recently_resolved.map((request) => (
-              <div key={request.id} className="grid gap-2 px-5 py-4 text-sm sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_auto] sm:px-6">
+              <Link to={helpRequestPath(request.id, returnTo)} key={request.id} className="grid gap-2 px-5 py-4 text-sm transition hover:bg-slate-50 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_auto] sm:px-6">
                 <div><p className="font-extrabold text-slate-950">{request.student?.full_name}</p><p className="text-xs text-slate-500">{request.context_label}</p></div>
                 <p className="whitespace-pre-wrap leading-6 text-slate-700">{request.staff_response}</p>
                 <span className="text-xs font-semibold text-slate-400">{formatShortDateTime(request.resolved_at)}</span>
-              </div>
+              </Link>
             ))}
           </div>
         </details>
@@ -163,6 +181,7 @@ export function SupportQueue() {
           <Button type="submit" fullWidth disabled={!response.trim() || savingId === resolving?.id}><CheckCircle2 className="h-4 w-4" />{savingId === resolving?.id ? 'Sending…' : 'Send response and resolve'}</Button>
         </form>
       </Modal>
+      {selectedStudent && <StudentContextDrawer open cohortId={selectedStudent.cohortId} studentId={selectedStudent.id} onClose={() => setSelectedStudent(null)} />}
     </div>
   )
 }
@@ -172,7 +191,7 @@ function SummaryCard({ label, value, icon: Icon, tone }: { label: string; value:
   return <div className="app-surface p-4 sm:p-5"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${tones[tone]}`}><Icon className="h-5 w-5" /></span><p className="mt-4 text-3xl font-extrabold tabular-nums text-slate-950">{value}</p><p className="mt-1 text-xs font-bold text-slate-500">{label}</p></div>
 }
 
-function StudentSignalRow({ student }: { student: SupportQueueStudent }) {
+function StudentSignalRow({ student, onSelect }: { student: SupportQueueStudent; onSelect: () => void }) {
   const signals = [
     student.urgent_help_count > 0 && `${student.urgent_help_count} urgent`,
     student.help_request_count > 0 && `${student.help_request_count} help request${student.help_request_count === 1 ? '' : 's'}`,
@@ -181,11 +200,11 @@ function StudentSignalRow({ student }: { student: SupportQueueStudent }) {
     student.inactive && 'No activity in 7+ days',
   ].filter(Boolean) as string[]
   return (
-    <Link to={cohortStudentPath(student.cohort_id, student.user_id, 'support')} className="group grid gap-3 px-5 py-4 transition hover:bg-slate-50 sm:grid-cols-[minmax(180px,0.8fr)_minmax(240px,1fr)_160px_auto] sm:items-center sm:px-6">
+    <button type="button" onClick={onSelect} className="group grid w-full gap-3 px-5 py-4 text-left transition hover:bg-slate-50 sm:grid-cols-[minmax(180px,0.8fr)_minmax(240px,1fr)_160px_auto] sm:items-center sm:px-6">
       <div className="min-w-0"><p className="truncate text-sm font-extrabold text-slate-950">{student.full_name}</p><p className="truncate text-xs text-slate-500">{student.cohort_name}</p></div>
       <div className="flex flex-wrap gap-1.5">{signals.map((signal) => <span key={signal} className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${signal.includes('urgent') ? 'bg-red-100 text-red-700' : 'bg-amber-50 text-amber-800'}`}>{signal}</span>)}</div>
       <div><div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-primary-500" style={{ width: `${Math.min(100, student.progress_percentage)}%` }} /></div><p className="mt-1 text-xs font-semibold text-slate-500">{student.progress_percentage}% complete</p></div>
       <ArrowRight className="h-4 w-4 text-slate-300 transition group-hover:translate-x-1 group-hover:text-primary-600" />
-    </Link>
+    </button>
   )
 }

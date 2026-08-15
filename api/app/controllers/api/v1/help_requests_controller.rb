@@ -2,7 +2,7 @@ module Api
   module V1
     class HelpRequestsController < ApplicationController
       before_action :authenticate_user!
-      before_action :set_help_request, only: :update
+      before_action :set_help_request, only: [ :show, :update ]
 
       def index
         scope = current_user.staff? ? HelpRequest.all : current_user.help_requests
@@ -54,6 +54,12 @@ module Api
         else
           render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
         end
+      end
+
+      def show
+        render json: {
+          help_request: HelpRequestSerializer.as_json(@help_request, include_student: current_user.staff?)
+        }
       end
 
       def update

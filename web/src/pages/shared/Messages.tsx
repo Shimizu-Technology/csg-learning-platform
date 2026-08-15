@@ -1,6 +1,6 @@
 import { useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -12,6 +12,7 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import {
   Bell,
   BellOff,
+  BookOpen,
   Bold,
   Braces,
   Check,
@@ -48,6 +49,7 @@ import {
   Trash2,
   Underline as UnderlineIcon,
   UserPlus,
+  UserRound,
   Users,
   X,
   type LucideIcon,
@@ -62,6 +64,8 @@ import { useAuthContext } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { MessagesLoadingShell } from '../../components/shared/MessagesLoadingShell'
 import { Modal } from '../../components/shared/Modal'
+import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
+import { helpRequestPath, submissionPath } from '../../lib/routes'
 import type {
   ChannelMessage,
   ChannelMessageEvent,
@@ -667,6 +671,7 @@ const MentionHighlightExtension = Extension.create<{ getPatterns: () => MentionP
 
 export function Messages() {
   const { channelId, dmId } = useParams()
+  const [searchParams] = useSearchParams()
   const { user } = useAuthContext()
   const toast = useToast()
   const isStaff = Boolean(user?.is_staff)
@@ -690,6 +695,8 @@ export function Messages() {
   const [showWorkspaceForm, setShowWorkspaceForm] = useState(false)
   const [showWorkspaceSwitcher, setShowWorkspaceSwitcher] = useState(false)
   const [showWorkspaceMembers, setShowWorkspaceMembers] = useState(false)
+  const [showStudentContext, setShowStudentContext] = useState(false)
+  const [sourceContextHidden, setSourceContextHidden] = useState(false)
   const [pushEnabled, setPushEnabled] = useState(false)
   const [pushMessage, setPushMessage] = useState('')
   const [hasUnreadBelow, setHasUnreadBelow] = useState(false)
@@ -779,6 +786,23 @@ export function Messages() {
     () => selectedTarget?.type === 'dm' ? directConversations.find((conversation) => conversation.id === selectedTarget.id) || null : null,
     [directConversations, selectedTarget],
   )
+
+  const selectedDmStudent = useMemo(() => {
+    if (!isStaff || !selectedDm?.cohort_id) return null
+    const students = selectedDm.users.filter((member) => member.id !== user?.id && !member.is_staff)
+    return students.length === 1 ? students[0] : null
+  }, [isStaff, selectedDm, user?.id])
+  const sourceRecord = useMemo(() => {
+    if (sourceContextHidden) return null
+    const type = searchParams.get('source_type')
+    const id = Number(searchParams.get('source_id'))
+    const label = searchParams.get('source_label')?.trim()
+    if ((type !== 'submission' && type !== 'help_request') || !Number.isInteger(id) || id <= 0 || !label) return null
+    return { type, id, label } as const
+  }, [searchParams, sourceContextHidden])
+  const sourceRecordPath = sourceRecord?.type === 'submission' ? submissionPath(sourceRecord.id) : sourceRecord?.type === 'help_request' ? helpRequestPath(sourceRecord.id) : null
+
+  useEffect(() => { setSourceContextHidden(false) }, [searchParams])
 
   const selected = selectedChannel || selectedDm
   const selectedLabel = selectedChannel ? `#${selectedChannel.name}` : selectedDm?.title || 'Messages'
@@ -1599,6 +1623,7 @@ export function Messages() {
     if (currentElement && currentTarget) saveConversationScroll(user?.id, currentTarget, currentElement)
 
     window.history.replaceState(null, '', target.type === 'channel' ? `/messages/${target.id}` : `/messages/dm/${target.id}`)
+    setSourceContextHidden(true)
     targetLoadOptionsRef.current = options
     setTargetLoading(true)
     shouldStickToBottomRef.current = !options.aroundMessageId
@@ -2698,6 +2723,15 @@ export function Messages() {
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5 sm:justify-end sm:gap-2">
+                    {selectedDmStudent && (
+                      <ConversationHeaderAction
+                        onClick={() => setShowStudentContext(true)}
+                        icon={<UserRound className="h-4 w-4" />}
+                        shortLabel="Student"
+                        fullLabel="Student context"
+                        ariaLabel={`Open ${selectedDmStudent.full_name}'s student context`}
+                      />
+                    )}
                     {selectedTarget && (
                       <ConversationHeaderAction
                         onClick={toggleMute}
@@ -2720,6 +2754,7 @@ export function Messages() {
                   </div>
                 </div>
                 {selectedTarget.type === 'channel' && selectedChannel?.description && <p className="mt-2 text-sm text-slate-500">{selectedChannel.description}</p>}
+                {sourceRecord && sourceRecordPath && <div className="mt-2.5"><Link to={sourceRecordPath} className="inline-flex min-h-9 max-w-full items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 text-xs font-bold text-blue-800 hover:bg-blue-100"><BookOpen className="h-3.5 w-3.5 shrink-0" /><span className="truncate">From {sourceRecord.type === 'submission' ? 'submission' : 'help request'}: {sourceRecord.label}</span></Link></div>}
                 {showConversationHeaderPushMessage && (
                   <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
                     {pushMessage}
@@ -3532,6 +3567,8 @@ export function Messages() {
           </div>
         </form>
       </Modal>
+
+      {selectedDmStudent && selectedDm?.cohort_id && <StudentContextDrawer open={showStudentContext} cohortId={selectedDm.cohort_id} studentId={selectedDmStudent.id} source={sourceRecord || undefined} onClose={() => setShowStudentContext(false)} />}
 
       {lightboxAttachment?.url && (
         <div

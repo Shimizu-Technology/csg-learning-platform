@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, BookOpen, CheckCircle2, ExternalLink, FileCheck2, GitBranch, MessageSquareText, RefreshCw, RotateCcw, UserRound } from 'lucide-react'
+import { ArrowLeft, BookOpen, CheckCircle2, ChevronLeft, ChevronRight, ExternalLink, FileCheck2, GitBranch, MessageSquareText, RefreshCw, RotateCcw, UserRound } from 'lucide-react'
 import { api } from '../../lib/api'
-import { cohortPath, cohortStudentPath, safeInternalReturnPath } from '../../lib/routes'
+import { cohortPath, cohortStudentPath, directMessagePath, safeInternalReturnPath, submissionPath } from '../../lib/routes'
 import { formatShortDateTime } from '../../lib/format'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { Button } from '../../components/ui/Button'
@@ -11,6 +11,7 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
 import { GradeDisplay } from '../../components/shared/GradeDisplay'
 import { useToast } from '../../contexts/ToastContext'
+import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
 import type { RubricRating, StudentProgressResponse, Submission } from '../../types/api'
 
 interface ValidatedWorkspaceContext {
@@ -19,12 +20,15 @@ interface ValidatedWorkspaceContext {
   evidenceScope?: StudentProgressResponse['learning_evidence_scope']
 }
 
+type SubmissionQueue = 'ungraded' | 'redo' | 'all'
+
 export function SubmissionDetail() {
   const { id } = useParams<{ id: string }>()
   const submissionId = Number(id)
   const [searchParams] = useSearchParams()
   const requestedCohortId = Number(searchParams.get('cohort_id')) || null
   const requestedStudentId = Number(searchParams.get('student_id')) || null
+  const queueMode = (['ungraded', 'redo', 'all'] as const).includes(searchParams.get('queue') as SubmissionQueue) ? searchParams.get('queue') as SubmissionQueue : null
   const navigate = useNavigate()
   const toast = useToast()
   const [submission, setSubmission] = useState<Submission | null>(null)
@@ -35,6 +39,8 @@ export function SubmissionDetail() {
   const [grading, setGrading] = useState(false)
   const [openingMessage, setOpeningMessage] = useState(false)
   const [validatedContext, setValidatedContext] = useState<ValidatedWorkspaceContext | null>(null)
+  const [queueContext, setQueueContext] = useState<{ previousId: number | null; nextId: number | null; position: number; total: number } | null>(null)
+  const [showStudentContext, setShowStudentContext] = useState(false)
 
   const load = useCallback(async () => {
     if (!Number.isInteger(submissionId)) {
@@ -51,6 +57,13 @@ export function SubmissionDetail() {
       return
     }
     const next = result.data.submission
+    if (queueMode) {
+      const queueResult = await api.getSubmissions()
+      const queue = (queueResult.data?.submissions || []).filter((item) => queueMode === 'ungraded' ? item.grade === null : queueMode === 'redo' ? item.grade === 'R' : true)
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      const index = queue.findIndex((item) => item.id === next.id)
+      setQueueContext(index >= 0 ? { previousId: queue[index - 1]?.id || null, nextId: queue[index + 1]?.id || null, position: index + 1, total: queue.length } : null)
+    } else setQueueContext(null)
     let nextContext: ValidatedWorkspaceContext | null = null
     if (requestedCohortId && (!requestedStudentId || requestedStudentId === next.user_id)) {
       const progressResult = await api.getStudentProgress(next.user_id, requestedCohortId)
@@ -68,7 +81,7 @@ export function SubmissionDetail() {
     setFeedback(next.feedback || '')
     setCriterionResults(Object.fromEntries((next.rubric?.criteria || []).map((criterion) => [criterion.id, { rating: criterion.rating || null, feedback: criterion.feedback || '' }])))
     setLoading(false)
-  }, [requestedCohortId, requestedStudentId, submissionId])
+  }, [queueMode, requestedCohortId, requestedStudentId, submissionId])
 
   useEffect(() => { void load() }, [load])
 
@@ -97,6 +110,7 @@ export function SubmissionDetail() {
     }
     setSubmission(result.data.submission)
     toast.success(`Submission graded ${gradeValue}.`)
+    if (queueMode === 'ungraded' && queueContext?.nextId) navigate(submissionPath(queueContext.nextId, { returnTo: searchParams.get('return_to') || '/admin/grading?filter=ungraded', queue: queueMode }))
   }
 
   async function openMessage() {
@@ -104,7 +118,7 @@ export function SubmissionDetail() {
     setOpeningMessage(true)
     const result = await api.createDirectConversation({ cohort_id: validatedContext.cohortId, user_ids: [submission.user_id] })
     setOpeningMessage(false)
-    if (result.data) navigate(`/messages/dm/${result.data.direct_conversation.id}`)
+    if (result.data) navigate(directMessagePath(result.data.direct_conversation.id, { type: 'submission', id: submission.id, label: submission.content_block_title }))
     else toast.error(result.error || 'Could not open a direct message.')
   }
 
@@ -131,13 +145,15 @@ export function SubmissionDetail() {
         <span className="text-slate-300">/</span><span className="px-1 text-slate-700">Submission #{submission.id}</span>
       </nav>
 
+      {queueContext && <div className="app-surface flex flex-wrap items-center justify-between gap-3 px-4 py-3"><p className="text-xs font-extrabold uppercase tracking-wide text-slate-500">{queueMode} queue · {queueContext.position} of {queueContext.total}</p><div className="flex gap-2"><QueueLink label="Previous" submissionId={queueContext.previousId} returnTo={returnTo} queue={queueMode!} icon="previous" /><QueueLink label="Next" submissionId={queueContext.nextId} returnTo={returnTo} queue={queueMode!} icon="next" /></div></div>}
+
       <header className="app-surface p-5 sm:p-6">
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
           <div>
             <p className="app-eyebrow">Submission record</p>
             <h1 className="app-title mt-2">{submission.content_block_title}</h1>
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-500">
-              <Link className="app-link inline-flex items-center gap-1 font-bold" to={studentPath}><UserRound className="h-4 w-4" />{submission.user_name}</Link>
+              {validatedContext ? <button type="button" onClick={() => setShowStudentContext(true)} className="app-link inline-flex min-h-11 items-center gap-1 font-bold"><UserRound className="h-4 w-4" />{submission.user_name}</button> : <Link className="app-link inline-flex items-center gap-1 font-bold" to={studentPath}><UserRound className="h-4 w-4" />{submission.user_name}</Link>}
               <span className="inline-flex items-center gap-1"><BookOpen className="h-4 w-4" />{submission.module_name} · {submission.lesson_title}</span>
               <span>Attempt {submission.num_submissions}</span>
               <span>{formatShortDateTime(submission.created_at)}</span>
@@ -145,6 +161,7 @@ export function SubmissionDetail() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {submission.grade ? <GradeDisplay grade={submission.grade} size="md" /> : <span className="rounded-full bg-amber-50 px-3 py-1.5 text-sm font-bold text-amber-800">Ungraded</span>}
+            {validatedContext && <Button variant="secondary" onClick={() => setShowStudentContext(true)}><UserRound className="h-4 w-4" />Student context</Button>}
             {validatedContext && <Button variant="secondary" onClick={() => void openMessage()} disabled={openingMessage}><MessageSquareText className="h-4 w-4" />{openingMessage ? 'Opening…' : `Message in ${validatedContext.cohortName}`}</Button>}
           </div>
         </div>
@@ -178,6 +195,13 @@ export function SubmissionDetail() {
           </div>
         </aside>
       </div>
+      {validatedContext && <StudentContextDrawer open={showStudentContext} cohortId={validatedContext.cohortId} studentId={submission.user_id} source={{ type: 'submission', id: submission.id, label: submission.content_block_title }} onClose={() => setShowStudentContext(false)} />}
     </div>
   )
+}
+
+function QueueLink({ label, submissionId, returnTo, queue, icon }: { label: string; submissionId: number | null; returnTo: string; queue: SubmissionQueue; icon: 'previous' | 'next' }) {
+  const Icon = icon === 'previous' ? ChevronLeft : ChevronRight
+  if (!submissionId) return <span className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-300">{icon === 'previous' && <Icon className="h-4 w-4" />}{label}{icon === 'next' && <Icon className="h-4 w-4" />}</span>
+  return <Link to={submissionPath(submissionId, { returnTo, queue })} className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-slate-300 px-3 text-sm font-bold text-slate-700 hover:border-primary-300 hover:text-primary-700">{icon === 'previous' && <Icon className="h-4 w-4" />}{label}{icon === 'next' && <Icon className="h-4 w-4" />}</Link>
 }

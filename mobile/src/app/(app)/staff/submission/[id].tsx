@@ -120,7 +120,7 @@ export default function StaffSubmissionScreen() {
         ? demoDms.find((item) => item.cohort_id === validatedCohortId && item.users.some((member) => member.id === submission.user_id))
         : (await api.createCohortDm(validatedCohortId, [submission.user_id])).direct_conversation;
       if (!conversation) throw new Error('No cohort conversation is available for this student.');
-      router.push({ pathname: '/conversation/[kind]/[id]', params: { kind: 'dm', id: String(conversation.id) } });
+      router.push({ pathname: '/conversation/[kind]/[id]', params: { kind: 'dm', id: String(conversation.id), source_type: 'submission', source_id: String(submission.id), source_label: submission.content_block_title, source_cohort_id: String(validatedCohortId), source_student_id: String(submission.user_id) } });
     } catch (error) {
       Alert.alert('Could not open direct message', (error as Error).message);
     }

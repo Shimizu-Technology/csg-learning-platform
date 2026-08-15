@@ -160,6 +160,25 @@ class HelpRequestsTest < ActionDispatch::IntegrationTest
     assert_equal [ request.id ], JSON.parse(response.body).fetch("help_requests").map { |item| item.fetch("id") }
   end
 
+  test "staff and the owning student can open a stable help request record" do
+    request = create_help_request
+
+    as_user(@staff) { get "/api/v1/help_requests/#{request.id}", headers: auth_headers }
+    assert_response :success
+    staff_payload = JSON.parse(response.body).fetch("help_request")
+    assert_equal request.id, staff_payload.fetch("id")
+    assert_equal @student.id, staff_payload.dig("student", "id")
+
+    as_user(@student) { get "/api/v1/help_requests/#{request.id}", headers: auth_headers }
+    assert_response :success
+    student_payload = JSON.parse(response.body).fetch("help_request")
+    assert_equal request.id, student_payload.fetch("id")
+    refute student_payload.key?("student")
+
+    as_user(@other_student) { get "/api/v1/help_requests/#{request.id}", headers: auth_headers }
+    assert_response :not_found
+  end
+
   test "authorization rejects other students and inaccessible contexts" do
     request = create_help_request
 
