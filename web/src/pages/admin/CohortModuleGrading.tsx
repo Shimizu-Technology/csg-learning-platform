@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, RefreshCw, Filter, RotateCcw, Clock, Check, ChevronRight, Github, User, Globe, GitBranch, Keyboard } from 'lucide-react'
+import { Link, useLocation, useParams, useNavigate } from 'react-router-dom'
+import { ArrowLeft, RefreshCw, Filter, RotateCcw, Clock, Check, ChevronRight, Github, User, Globe, GitBranch, Keyboard, ExternalLink } from 'lucide-react'
 import { api } from '../../lib/api'
+import { cohortStudentPath, submissionPath } from '../../lib/routes'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { GradeDisplay } from '../../components/shared/GradeDisplay'
 import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
@@ -171,6 +172,7 @@ function renderSubmissionArtifacts(submission: SubmissionItem) {
 
 export function CohortModuleGrading() {
   const { cohortId, moduleId } = useParams<{ cohortId: string; moduleId: string }>()
+  const location = useLocation()
   const navigate = useNavigate()
   const toast = useToast()
   const confirmAction = useConfirm()
@@ -1234,11 +1236,12 @@ export function CohortModuleGrading() {
                 <>
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h3 className="text-lg font-semibold text-slate-900">{selectedSubmission.user_name}</h3>
+                      <Link to={cohortStudentPath(Number(cohortId), selectedSubmission.user_id, 'work')} className="app-link text-lg font-semibold">{selectedSubmission.user_name}</Link>
                       <p className="text-sm text-slate-500">{selectedSubmission.lesson_title}</p>
                       <p className="text-xs text-slate-400">
                         {selectedSubmission.content_block_title} · Submission #{selectedSubmission.num_submissions}
                       </p>
+                      <Link to={submissionPath(selectedSubmission.id, { cohortId: Number(cohortId), userId: selectedSubmission.user_id, returnTo: location.pathname })} className="app-link mt-2 inline-flex min-h-11 items-center gap-1 text-xs font-bold"><ExternalLink className="h-3.5 w-3.5" />Open submission record</Link>
                     </div>
                     {selectedSubmission.grade ? <GradeDisplay grade={selectedSubmission.grade} size="md" /> : (
                       <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full">Ungraded</span>

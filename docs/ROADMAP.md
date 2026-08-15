@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-08-02
 **Status:** Active execution roadmap  
-**Companion docs:** `docs/PRODUCT_VISION.md`, `docs/PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md`, `docs/DEPLOYMENT.md`, `docs/API_REFERENCE.md`
+**Companion docs:** `docs/PRODUCT_VISION.md`, `docs/PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md`, `docs/CONNECTED_EXPERIENCE_PLAN.md`, `docs/DEPLOYMENT.md`, `docs/API_REFERENCE.md`
 
 ---
 
@@ -55,6 +55,10 @@ The platform has completed far more of the native and communications roadmap tha
 7. **Phase 2 complete in code:** learning objectives/success criteria, reusable rubrics, criterion feedback, editable shared feedback snippets, selected formative retrieval checks, and reviewed voice-draft reuse in thread/help/grading workflows.
 8. Recording captions/transcripts/chapters and restart/recovery plans.
 9. Explainable mastery views, GitHub test feedback, and curriculum-effectiveness analytics.
+
+### 2026-08-15 Connected experience delivery
+
+The next implementation stream organizes the existing learning, feedback, support, communication, and cohort capabilities around stable connected records. The canonical staff center is a cohort-specific Student Workspace, followed by submission/help records, reusable student context, cohort tabs, search, and the planned durable intervention model. Web and native responsibilities, privacy boundaries, phased scope, and acceptance criteria are defined in `docs/CONNECTED_EXPERIENCE_PLAN.md`.
 
 This sequence supersedes the old assumption that payments, advanced analytics, or a built-in classroom should automatically come next. Those remain valid initiatives, but they should be prioritized against learning impact and current operating pain rather than their historical phase number.
 

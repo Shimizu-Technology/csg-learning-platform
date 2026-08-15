@@ -295,6 +295,30 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     assert_equal 37.5, body.fetch("students").sole.fetch("videos").sole.fetch("progress_percentage")
   end
 
+  test "student watch endpoints can be scoped to one enrollment cohort" do
+    other_cohort = Cohort.create!(curriculum: @curriculum, name: "Earlier cohort", start_date: 1.year.ago, status: :completed)
+    Enrollment.create!(user: @student, cohort: other_cohort, status: :completed)
+    current_recording = create_recording!(title: "Current replay")
+    Recording.create!(
+      cohort: other_cohort,
+      uploaded_by: @admin,
+      title: "Earlier replay",
+      s3_key: "recordings/cohort_#{other_cohort.id}/earlier.mp4",
+      content_type: "video/mp4",
+      file_size: 1234,
+      duration_seconds: 120,
+      position: 0
+    )
+
+    as_user(@admin) do
+      get "/api/v1/watch_progress/student/#{@student.id}", params: { cohort_id: @cohort.id }, headers: auth_headers
+    end
+
+    assert_response :success
+    rows = JSON.parse(response.body).fetch("watch_progresses")
+    assert_equal [ current_recording.id ], rows.map { |row| row.fetch("recording_id") }
+  end
+
   private
 
   def create_recording!(title: "Class 1", s3_key: "recordings/cohort_#{@cohort.id}/class-1.mp4", position: 0, duration_seconds: 120)

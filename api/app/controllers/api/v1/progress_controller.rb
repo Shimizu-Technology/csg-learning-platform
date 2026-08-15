@@ -75,17 +75,23 @@ module Api
         return if performed?
 
         user = User.find(params[:user_id])
-        enrollment = user.enrollments.active.includes(
+        enrollments = user.enrollments.includes(
           :module_assignments,
           :lesson_assignments,
           cohort: [
             :cohort_module_schedules,
             { curriculum: { modules: { lessons: :content_blocks } } }
           ]
-        ).first
+        )
+        enrollment = if params[:cohort_id].present?
+          enrollments.find_by(cohort_id: params[:cohort_id])
+        else
+          enrollments.active.first
+        end
 
         unless enrollment
-          render json: { error: "Student is not enrolled in an active cohort" }, status: :not_found
+          message = params[:cohort_id].present? ? "Student is not enrolled in this cohort" : "Student is not enrolled in an active cohort"
+          render json: { error: message }, status: :not_found
           return
         end
 

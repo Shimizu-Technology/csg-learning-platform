@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
   User,
@@ -24,6 +24,7 @@ import {
   RotateCcw,
 } from 'lucide-react'
 import { api } from '../../lib/api'
+import { cohortStudentPath } from '../../lib/routes'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { ProgressRing } from '../../components/shared/ProgressRing'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -143,6 +144,17 @@ interface ProgressData {
     block_title: string
     block_type: string
     completed_at: string
+  }>
+}
+
+interface EnrollmentRouteChoice {
+  user: { full_name: string; email: string }
+  enrollments: Array<{
+    id: number
+    cohort_id: number
+    cohort_name: string
+    status: string
+    enrolled_at: string | null
   }>
 }
 
@@ -447,6 +459,8 @@ function LessonRow({
 export function StudentDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const legacyCohortId = Number(searchParams.get('cohort_id')) || undefined
   const toast = useToast()
   const confirmAction = useConfirm()
   const { user: currentUser } = useAuthContext()
@@ -468,6 +482,8 @@ export function StudentDetail() {
   const [restartingEnrollment, setRestartingEnrollment] = useState(false)
   const [recordingProgress, setRecordingProgress] = useState<RecordingProgress[]>([])
   const [lessonVideoProgress, setLessonVideoProgress] = useState<LessonVideoProgress[]>([])
+  const [enrollmentRouteChoice, setEnrollmentRouteChoice] = useState<EnrollmentRouteChoice | null>(null)
+  const legacyMode = searchParams.get('legacy') === '1'
 
   const notifySuccess = (message: string) => {
     setAssignmentMessage(message)
@@ -510,7 +526,7 @@ export function StudentDetail() {
         return
       }
 
-      const refreshed = await api.getStudentProgress(data.user.id)
+      const refreshed = await api.getStudentProgress(data.user.id, data.cohort.id)
       if (refreshed.error) {
         notifyError(`Progress restarted, but the refreshed student view could not load: ${refreshed.error}`)
         return
@@ -527,19 +543,51 @@ export function StudentDetail() {
   }
 
   useEffect(() => {
-    if (!id) return
-    api.getStudentWatchProgress(Number(id)).then((res) => {
+    if (!id || (!legacyMode && !legacyCohortId)) return
+    api.getStudentWatchProgress(Number(id), legacyCohortId).then((res) => {
       if (res.data?.watch_progresses) setRecordingProgress(res.data.watch_progresses)
     })
-    api.getStudentLessonVideoProgress(Number(id)).then((res) => {
+    api.getStudentLessonVideoProgress(Number(id), legacyCohortId).then((res) => {
       if (res.data?.lesson_videos) setLessonVideoProgress(res.data.lesson_videos)
     })
-  }, [id])
+  }, [id, legacyCohortId, legacyMode])
 
   useEffect(() => {
     if (!id) return
-    api.getStudentProgress(Number(id)).then((res) => {
+
+    if (!legacyMode && !legacyCohortId) {
+      api.getUser(Number(id)).then((res) => {
+        if (!res.data) {
+          setError(res.error || 'Failed to load student enrollments')
+          setLoading(false)
+          return
+        }
+
+        const enrollments = [...res.data.enrollments].sort((left, right) => {
+          if (left.status === 'active' && right.status !== 'active') return -1
+          if (right.status === 'active' && left.status !== 'active') return 1
+          return (right.enrolled_at || '').localeCompare(left.enrolled_at || '')
+        })
+        if (enrollments.length === 1) {
+          navigate(cohortStudentPath(enrollments[0].cohort_id, Number(id)), { replace: true })
+          return
+        }
+        if (enrollments.length > 1) {
+          setEnrollmentRouteChoice({ user: res.data.user, enrollments })
+        } else {
+          setError('This student does not have an enrollment workspace yet.')
+        }
+        setLoading(false)
+      })
+      return
+    }
+
+    api.getStudentProgress(Number(id), legacyCohortId).then((res) => {
       if (res.data) {
+        if (!legacyMode) {
+          navigate(cohortStudentPath(res.data.cohort.id, res.data.user.id), { replace: true })
+          return
+        }
         setData(res.data)
         if (res.data.enrollment?.module_assignments) {
           const nextForms: Record<number, { unlocked: boolean; unlock_date_override: string }> = {}
@@ -576,7 +624,7 @@ export function StudentDetail() {
       }
       setLoading(false)
     })
-  }, [id])
+  }, [id, legacyCohortId, legacyMode, navigate])
 
   useEffect(() => {
     if (!id) return
@@ -684,7 +732,7 @@ export function StudentDetail() {
 
     notifySuccess(`Saved override for ${assignment.module_name}`)
     if (id) {
-      const refreshed = await api.getStudentProgress(Number(id))
+      const refreshed = await api.getStudentProgress(Number(id), data?.cohort.id || legacyCohortId)
       if (refreshed.data) {
         setData(refreshed.data)
         const nextForms: Record<number, { unlocked: boolean; unlock_date_override: string }> = {}
@@ -736,7 +784,7 @@ export function StudentDetail() {
 
     notifySuccess(`Saved lesson override for ${lesson.title}`)
     if (id) {
-      const refreshed = await api.getStudentProgress(Number(id))
+      const refreshed = await api.getStudentProgress(Number(id), data?.cohort.id || legacyCohortId)
       if (refreshed.data) {
         setData(refreshed.data)
         const nextForms: Record<number, { unlocked: boolean; unlock_date_override: string }> = {}
@@ -764,6 +812,30 @@ export function StudentDetail() {
   }
 
   if (loading) return <LoadingSpinner message="Loading student progress..." />
+  if (enrollmentRouteChoice) return (
+    <div className="app-page max-w-3xl space-y-6">
+      <Link to="/admin/students" className="app-link inline-flex min-h-11 items-center gap-1 px-1 text-sm font-bold"><ArrowLeft className="h-4 w-4" />Students</Link>
+      <section className="app-surface overflow-hidden">
+        <div className="border-b border-slate-100 p-6">
+          <p className="app-eyebrow">Choose an enrollment</p>
+          <h1 className="app-title mt-2">{enrollmentRouteChoice.user.full_name}</h1>
+          <p className="mt-2 text-sm text-slate-500">{enrollmentRouteChoice.user.email}</p>
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-600">This student belongs to more than one cohort. Choose the enrollment you want so progress, support, messages, and access controls stay in the right context.</p>
+        </div>
+        <div className="divide-y divide-slate-100">
+          {enrollmentRouteChoice.enrollments.map((choice) => (
+            <Link key={choice.id} to={cohortStudentPath(choice.cohort_id, Number(id))} className="group flex min-h-20 items-center justify-between gap-4 px-6 py-4 transition hover:bg-slate-50">
+              <div>
+                <p className="font-extrabold text-slate-950">{choice.cohort_name}</p>
+                <p className="mt-1 text-xs text-slate-500">{choice.enrolled_at ? `Enrolled ${new Date(choice.enrolled_at).toLocaleDateString()}` : 'Enrollment date unavailable'}</p>
+              </div>
+              <span className="inline-flex items-center gap-2 text-sm font-bold capitalize text-slate-500 group-hover:text-primary-700"><span className={`rounded-full px-2.5 py-1 text-xs ${choice.status === 'active' ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-600'}`}>{choice.status}</span><ChevronRight className="h-4 w-4" /></span>
+            </Link>
+          ))}
+        </div>
+      </section>
+    </div>
+  )
   if (error) return (
     <div className="text-center py-12 text-red-500">
       <AlertCircle className="h-8 w-8 mx-auto mb-3 opacity-50" />
@@ -788,7 +860,7 @@ export function StudentDetail() {
     }
 
     if (id) {
-      const refreshed = await api.getStudentProgress(Number(id))
+      const refreshed = await api.getStudentProgress(Number(id), data?.cohort.id || legacyCohortId)
       if (refreshed.data) {
         setData(refreshed.data)
         const nextForms: Record<number, { unlocked: boolean; unlock_date_override: string }> = {}
@@ -829,7 +901,7 @@ export function StudentDetail() {
     }
 
     if (id) {
-      const refreshed = await api.getStudentProgress(Number(id))
+      const refreshed = await api.getStudentProgress(Number(id), data?.cohort.id || legacyCohortId)
       if (refreshed.data) {
         setData(refreshed.data)
         const nextForms: Record<number, { unlocked: boolean; unlock_date_override: string }> = {}
@@ -979,7 +1051,7 @@ export function StudentDetail() {
                 notifySuccess('Student updated')
                 setEditingUser(false)
                 if (id) {
-                  const refreshed = await api.getStudentProgress(Number(id))
+                  const refreshed = await api.getStudentProgress(Number(id), data?.cohort.id || legacyCohortId)
                   if (refreshed.data) setData(refreshed.data)
                 }
               }

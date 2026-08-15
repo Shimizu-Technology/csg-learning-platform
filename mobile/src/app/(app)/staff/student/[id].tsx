@@ -8,6 +8,7 @@ import { LearningCard, ProgressBar, SectionHeading } from '@/components/learning
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { fonts, palette } from '@/constants/csg-theme';
 import { demoLessonVideoProgress, demoRecordingProgress, demoStaffSubmissions, demoStudentProgress } from '@/lib/demo-staff';
+import { demoDms } from '@/lib/demo-data';
 import { openAuthenticatedWebPage } from '@/lib/external-links';
 import { learningKeys } from '@/lib/learning';
 import type { StaffVideoProgress } from '@/lib/types';
@@ -15,28 +16,30 @@ import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 
 export default function StaffStudentScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, cohort_id: cohortIdParam } = useLocalSearchParams<{ id: string; cohort_id?: string }>();
   const studentId = Number(id);
+  const requestedCohortId = Number(cohortIdParam) || undefined;
   const router = useRouter();
   const auth = useCsgAuth();
   const { api, user } = useSession();
   const query = useQuery({
-    queryKey: learningKeys.studentDetail(user?.id || 0, studentId),
+    queryKey: learningKeys.studentDetail(user?.id || 0, studentId, requestedCohortId),
     queryFn: async ({ signal }) => {
       if (auth.demo) return { progress: demoStudentProgress, submissions: demoStaffSubmissions, recordings: demoRecordingProgress, lessonVideos: demoLessonVideoProgress, unavailable: [] };
-      const progress = await api.studentProgress(studentId, signal);
+      const progress = await api.studentProgress(studentId, requestedCohortId, signal);
       const [submissionResult, recordingResult, lessonVideoResult] = await Promise.allSettled([
         api.submissions({ user_id: studentId }, signal),
-        api.studentRecordingProgress(studentId, signal),
-        api.studentLessonVideoProgress(studentId, signal),
+        api.studentRecordingProgress(studentId, requestedCohortId, signal),
+        api.studentLessonVideoProgress(studentId, requestedCohortId, signal),
       ]);
       const unavailable: string[] = [];
       if (submissionResult.status === 'rejected') unavailable.push('submissions');
       if (recordingResult.status === 'rejected') unavailable.push('recording activity');
       if (lessonVideoResult.status === 'rejected') unavailable.push('lesson-video activity');
+      const blockIds = new Set(progress.modules.flatMap((mod) => mod.lessons.flatMap((lesson) => lesson.blocks.map((block) => block.id))));
       return {
         progress,
-        submissions: submissionResult.status === 'fulfilled' ? submissionResult.value.submissions : [],
+        submissions: submissionResult.status === 'fulfilled' ? submissionResult.value.submissions.filter((submission) => blockIds.has(submission.content_block_id)) : [],
         recordings: recordingResult.status === 'fulfilled' ? recordingResult.value.watch_progresses : [],
         lessonVideos: lessonVideoResult.status === 'fulfilled' ? lessonVideoResult.value.lesson_videos : [],
         unavailable,
@@ -44,6 +47,20 @@ export default function StaffStudentScreen() {
     },
     enabled: Boolean(user?.is_staff && Number.isInteger(studentId) && studentId > 0),
   });
+
+  async function openDirectMessage() {
+    const cohortId = query.data?.progress.cohort.id;
+    if (!cohortId) return;
+    try {
+      const conversation = auth.demo
+        ? demoDms.find((item) => item.cohort_id === cohortId && item.users.some((member) => member.id === studentId))
+        : (await api.createCohortDm(cohortId, [studentId])).direct_conversation;
+      if (!conversation) throw new Error('No cohort conversation is available for this student.');
+      router.push({ pathname: '/conversation/[kind]/[id]', params: { kind: 'dm', id: String(conversation.id) } });
+    } catch (error) {
+      Alert.alert('Could not open direct message', (error as Error).message);
+    }
+  }
 
   if (!user?.is_staff || !Number.isInteger(studentId) || studentId <= 0) return <SafeAreaView style={styles.safe}><ErrorState message="This student view is not available." retry={() => router.replace('/')} /></SafeAreaView>;
   if (query.isPending && !query.data) return <SafeAreaView style={styles.safe}><LoadingState label="Loading student health" /></SafeAreaView>;
@@ -53,24 +70,24 @@ export default function StaffStudentScreen() {
   const redo = data.submissions.filter((item) => item.grade === 'R');
   const videoProgress = [...data.recordings, ...data.lessonVideos];
   return <SafeAreaView edges={['top']} style={styles.safe}>
-    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={palette.text} size={22} /></Pressable><View style={styles.headerCopy}><Text style={styles.kicker}>STUDENT HEALTH</Text><Text numberOfLines={1} style={styles.headerTitle}>{data.progress.user.full_name}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Open full student profile" onPress={() => void openAuthenticatedWebPage(api, `/admin/students/${studentId}`).catch((error) => Alert.alert('Could not open student profile', (error as Error).message))} style={styles.back}><ExternalLink color={palette.muted} size={20} /></Pressable></View>
+    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={palette.text} size={22} /></Pressable><View style={styles.headerCopy}><Text style={styles.kicker}>STUDENT HEALTH</Text><Text numberOfLines={1} style={styles.headerTitle}>{data.progress.user.full_name}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Open full student workspace" onPress={() => void openAuthenticatedWebPage(api, `/admin/cohorts/${data.progress.cohort.id}/students/${studentId}/overview`).catch((error) => Alert.alert('Could not open student workspace', (error as Error).message))} style={styles.back}><ExternalLink color={palette.muted} size={20} /></Pressable></View>
     <ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={palette.rubySoft} />} contentContainerStyle={styles.content}>
       {query.isError && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved student data. Pull to reconnect.</Text></View>}
       {!!data.unavailable?.length && <View style={styles.offline}><Text style={styles.offlineText}>Some details are temporarily unavailable: {data.unavailable.join(', ')}. Pull to try again.</Text></View>}
       <View style={styles.identity}><View style={styles.avatar}><Text allowFontScaling={false} style={styles.initials}>{initials(data.progress.user.full_name)}</Text></View><View style={styles.flex}><Text style={styles.name}>{data.progress.user.full_name}</Text><Text style={styles.email}>{data.progress.user.email}</Text><View style={styles.identityMeta}>{data.progress.user.github_username && <View style={styles.metaChip}><GitBranch color={palette.muted} size={12} /><Text style={styles.metaChipText}>{data.progress.user.github_username}</Text></View>}<View style={styles.metaChip}><UserRound color={palette.success} size={12} /><Text style={[styles.metaChipText, { color: palette.success }]}>{data.progress.cohort.name}</Text></View></View></View></View>
       <LearningCard><View style={styles.progressTop}><View><Text style={styles.progressKicker}>OVERALL PROGRESS</Text><Text style={styles.progressNumber}>{Math.round(data.progress.overall_progress.percentage)}%</Text></View><View style={styles.stepCount}><Text style={styles.stepCountValue}>{data.progress.overall_progress.completed}/{data.progress.overall_progress.total}</Text><Text style={styles.stepCountLabel}>steps complete</Text></View></View><ProgressBar value={data.progress.overall_progress.percentage} label={`${data.progress.user.full_name} progress`} /><Text style={styles.lastSeen}>Last seen {formatRelative(data.progress.user.last_seen_at || data.progress.user.last_sign_in_at)}</Text></LearningCard>
       <View style={styles.signalGrid}><SignalCard icon={ClipboardCheck} value={ungraded.length} label="awaiting review" tone="ruby" /><SignalCard icon={RotateCcw} value={redo.length} label="redo requested" tone="warning" /><SignalCard icon={Film} value={videoProgress.filter((item) => item.completed).length} label="videos complete" tone="success" /></View>
-      <View style={styles.quickRow}><Pressable accessibilityRole="button" onPress={() => router.push('/messages')} style={styles.quick}><MessageSquare color={palette.rubySoft} size={18} /><Text style={styles.quickText}>Message</Text></Pressable><Pressable accessibilityRole="button" onPress={() => void openAuthenticatedWebPage(api, `/admin/students/${studentId}`).catch((error) => Alert.alert('Could not open student profile', (error as Error).message))} style={styles.quick}><ExternalLink color={palette.rubySoft} size={18} /><Text style={styles.quickText}>Full profile</Text></Pressable></View>
+      <View style={styles.quickRow}><Pressable accessibilityRole="button" accessibilityLabel={`Message ${data.progress.user.full_name}`} onPress={() => void openDirectMessage()} style={styles.quick}><MessageSquare color={palette.rubySoft} size={18} /><Text style={styles.quickText}>Message</Text></Pressable><Pressable accessibilityRole="button" onPress={() => void openAuthenticatedWebPage(api, `/admin/cohorts/${data.progress.cohort.id}/students/${studentId}/overview`).catch((error) => Alert.alert('Could not open student workspace', (error as Error).message))} style={styles.quick}><ExternalLink color={palette.rubySoft} size={18} /><Text style={styles.quickText}>Full workspace</Text></Pressable></View>
 
-      {!!ungraded.length && <View style={styles.section}><SectionHeading eyebrow="Respond now" title="Ready for review" /><View style={styles.stack}>{ungraded.map((submission) => <LearningCard key={submission.id} onPress={() => router.push(`/staff/submission/${submission.id}`)} label={`Review ${submission.content_block_title}`}><View style={styles.row}><View style={styles.reviewIcon}><ClipboardCheck color={palette.rubySoft} size={18} /></View><View style={styles.flex}><Text style={styles.cardTitle}>{submission.lesson_title}</Text><Text style={styles.cardMeta}>{submission.content_block_title} · attempt {submission.num_submissions}</Text></View><ArrowRight color={palette.quiet} size={18} /></View></LearningCard>)}</View></View>}
+      {!!ungraded.length && <View style={styles.section}><SectionHeading eyebrow="Respond now" title="Ready for review" /><View style={styles.stack}>{ungraded.map((submission) => <LearningCard key={submission.id} onPress={() => router.push({ pathname: '/staff/submission/[id]', params: { id: String(submission.id), cohort_id: String(data.progress.cohort.id), student_id: String(studentId) } })} label={`Review ${submission.content_block_title}`}><View style={styles.row}><View style={styles.reviewIcon}><ClipboardCheck color={palette.rubySoft} size={18} /></View><View style={styles.flex}><Text style={styles.cardTitle}>{submission.lesson_title}</Text><Text style={styles.cardMeta}>{submission.content_block_title} · attempt {submission.num_submissions}</Text></View><ArrowRight color={palette.quiet} size={18} /></View></LearningCard>)}</View></View>}
 
       <View style={styles.section}><SectionHeading eyebrow="Curriculum" title="Learning progress" /><View style={styles.stack}>{data.progress.modules.map((mod) => <LearningCard key={mod.id}><View style={styles.moduleTop}><View style={styles.moduleIcon}><BookOpen color={palette.rubySoft} size={18} /></View><View style={styles.flex}><Text style={styles.cardTitle}>{mod.name}</Text><Text style={styles.cardMeta}>{mod.completed_blocks} of {mod.total_blocks} steps · {mod.lessons.filter((lesson) => lesson.completed).length}/{mod.lessons.length} lessons</Text></View><Text style={styles.modulePercent}>{Math.round(mod.progress_percentage)}%</Text></View><View style={styles.moduleBar}><ProgressBar value={mod.progress_percentage} label={`${mod.name} progress`} /></View>{mod.lessons.slice(0, 4).map((lesson) => <View key={lesson.id} style={styles.lessonRow}>{lesson.completed ? <CheckCircle2 color={palette.success} size={15} /> : <Activity color={lesson.available ? palette.warning : palette.quiet} size={15} />}<Text numberOfLines={1} style={styles.lessonTitle}>{lesson.title}</Text><Text style={styles.lessonCount}>{lesson.completed_blocks}/{lesson.total_blocks}</Text></View>)}</LearningCard>)}</View></View>
 
       {!!videoProgress.length && <View style={styles.section}><SectionHeading eyebrow="Engagement" title="Video progress" /><View style={styles.stack}>{videoProgress.slice(0, 8).map((item) => <VideoRow key={`${item.recording_id ? 'recording' : 'lesson'}:${item.recording_id || item.content_block_id}`} item={item} />)}</View></View>}
 
       {!!data.progress.recent_activity.length && <View style={styles.section}><SectionHeading eyebrow="Recent signals" title="Activity" /><LearningCard>{data.progress.recent_activity.map((item, index) => <View key={`${item.content_block_id}:${item.completed_at}`} style={[styles.activityRow, index > 0 && styles.divider]}><CheckCircle2 color={palette.success} size={16} /><View style={styles.flex}><Text style={styles.activityTitle}>{item.block_title || item.block_type}</Text><Text style={styles.cardMeta}>Completed {formatRelative(item.completed_at)}</Text></View></View>)}</LearningCard></View>}
-      {user.is_admin && <Pressable accessibilityRole="button" accessibilityLabel={`Open safe restart controls for ${data.progress.user.full_name}`} onPress={() => void openAuthenticatedWebPage(api, `/admin/students/${studentId}`).catch((error) => Alert.alert('Could not open restart controls', (error as Error).message))} style={styles.restart}><RotateCcw color={palette.rubySoft} size={18} /><View style={styles.flex}><Text style={styles.restartTitle}>Restart class progress</Text><Text style={styles.restartCopy}>Opens the audited email-confirmation workflow</Text></View><ExternalLink color={palette.quiet} size={17} /></Pressable>}
-      <Pressable accessibilityRole="button" onPress={() => void openAuthenticatedWebPage(api, `/admin/students/${studentId}`).catch((error) => Alert.alert('Could not open student profile', (error as Error).message))} style={styles.handoff}><AlertTriangle color={palette.warning} size={18} /><View style={styles.flex}><Text style={styles.handoffTitle}>Need advanced controls?</Text><Text style={styles.handoffCopy}>Open access overrides, enrollment controls, and detailed matrices securely on the web.</Text></View><ExternalLink color={palette.quiet} size={17} /></Pressable>
+      {user.is_admin && <Pressable accessibilityRole="button" accessibilityLabel={`Open safe restart controls for ${data.progress.user.full_name}`} onPress={() => void openAuthenticatedWebPage(api, `/admin/students/${studentId}?legacy=1&cohort_id=${data.progress.cohort.id}`).catch((error) => Alert.alert('Could not open restart controls', (error as Error).message))} style={styles.restart}><RotateCcw color={palette.rubySoft} size={18} /><View style={styles.flex}><Text style={styles.restartTitle}>Restart class progress</Text><Text style={styles.restartCopy}>Opens the audited email-confirmation workflow</Text></View><ExternalLink color={palette.quiet} size={17} /></Pressable>}
+      <Pressable accessibilityRole="button" onPress={() => void openAuthenticatedWebPage(api, `/admin/cohorts/${data.progress.cohort.id}/students/${studentId}/access`).catch((error) => Alert.alert('Could not open student access', (error as Error).message))} style={styles.handoff}><AlertTriangle color={palette.warning} size={18} /><View style={styles.flex}><Text style={styles.handoffTitle}>Need advanced controls?</Text><Text style={styles.handoffCopy}>Open access, overrides, and administration controls for this enrollment securely on the web.</Text></View><ExternalLink color={palette.quiet} size={17} /></Pressable>
     </ScrollView>
   </SafeAreaView>;
 }

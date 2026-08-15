@@ -135,6 +135,31 @@ class HelpRequestsTest < ActionDispatch::IntegrationTest
     assert_equal resolved_at, request.reload.resolved_at
   end
 
+  test "staff can filter requests to one student within a cohort" do
+    request = create_help_request
+    other_enrollment = Enrollment.create!(user: @other_student, cohort: @cohort, status: :active)
+    other_enrollment.module_assignments.create!(curriculum_module: @mod, unlocked: true)
+    HelpRequest.create!(
+      student: @other_student,
+      cohort: @cohort,
+      context_type: :lesson,
+      context_source: :primary,
+      context_id: @lesson.id,
+      context_label: @lesson.title,
+      context_path: "/lessons/#{@lesson.id}",
+      category: :concept,
+      urgency: :normal,
+      message: "I also need help."
+    )
+
+    as_user(@staff) do
+      get "/api/v1/help_requests", params: { cohort_id: @cohort.id, student_id: @student.id }, headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal [ request.id ], JSON.parse(response.body).fetch("help_requests").map { |item| item.fetch("id") }
+  end
+
   test "authorization rejects other students and inaccessible contexts" do
     request = create_help_request
 

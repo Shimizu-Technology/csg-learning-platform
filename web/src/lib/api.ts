@@ -536,7 +536,7 @@ export const api = {
   getLesson: (id: number) =>
     fetchApi<LessonResponse>(`/api/v1/lessons/${id}`),
 
-  getHelpRequests: (params: { cohort_id?: number; status?: string; context_type?: HelpContextType } = {}) =>
+  getHelpRequests: (params: { cohort_id?: number; student_id?: number; status?: string; context_type?: HelpContextType } = {}) =>
     fetchApi<HelpRequestsResponse>(`/api/v1/help_requests${queryString(params)}`),
   createHelpRequest: (data: { cohort_id: number; context_type: HelpContextType; context_source?: HelpContextSource; context_id: number; category: HelpCategory; urgency: HelpUrgency; message: string }) =>
     fetchApi<HelpRequestResponse>('/api/v1/help_requests', {
@@ -593,8 +593,8 @@ export const api = {
     fetchApi<any>(`/api/v1/submissions/${id}/github_issue`),
 
   // Student progress (admin)
-  getStudentProgress: (userId: number) =>
-    fetchApi<StudentProgressResponse>(`/api/v1/progress/student/${userId}`),
+  getStudentProgress: (userId: number, cohortId?: number) =>
+    fetchApi<StudentProgressResponse>(`/api/v1/progress/student/${userId}${queryString({ cohort_id: cohortId })}`),
   restartEnrollment: (enrollmentId: number, confirmation: string, reason?: string) =>
     fetchApi<{
       message: string;
@@ -901,8 +901,8 @@ export const api = {
     fetchApi<CohortWatchProgressResponse>(`/api/v1/cohorts/${cohortId}/watch_progress`),
   getCohortLessonVideoProgress: (cohortId: number) =>
     fetchApi<CohortLessonVideoProgressResponse>(`/api/v1/cohorts/${cohortId}/lesson_video_progress`),
-  getStudentWatchProgress: (userId: number) =>
-    fetchApi<StudentWatchProgressResponse>(`/api/v1/watch_progress/student/${userId}`),
-  getStudentLessonVideoProgress: (userId: number) =>
-    fetchApi<StudentLessonVideoProgressResponse>(`/api/v1/watch_progress/student/${userId}/lesson_videos`),
+  getStudentWatchProgress: (userId: number, cohortId?: number) =>
+    fetchApi<StudentWatchProgressResponse>(`/api/v1/watch_progress/student/${userId}${queryString({ cohort_id: cohortId })}`),
+  getStudentLessonVideoProgress: (userId: number, cohortId?: number) =>
+    fetchApi<StudentLessonVideoProgressResponse>(`/api/v1/watch_progress/student/${userId}/lesson_videos${queryString({ cohort_id: cohortId })}`),
 };

@@ -936,7 +936,10 @@ export interface Submission {
   updated_at?: string;
   content_block_title: string;
   content_block_type: string;
+  lesson_id: number;
   lesson_title: string;
+  module_id: number;
+  module_name: string;
   filename: string | null;
   submission_config?: Record<string, unknown>;
   language_hint: string | null;

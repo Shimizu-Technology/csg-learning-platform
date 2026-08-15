@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Users, Search, ArrowLeft, AlertTriangle, Activity, Circle, ChevronRight, ChevronDown } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api } from '../../lib/api'
+import { cohortStudentPath } from '../../lib/routes'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
@@ -316,7 +317,7 @@ export function StudentManagement() {
                             >
                               <td className="px-6 py-3">
                                 <div className="flex items-center gap-2">
-                                  <Link to={`/admin/students/${student.user_id}`} className="rounded-md text-sm font-bold text-slate-950 underline-offset-4 hover:text-primary-700 hover:underline">{student.full_name}</Link>
+                                  <Link to={cohortStudentPath(group.cohort.id, student.user_id)} className="rounded-md text-sm font-bold text-slate-950 underline-offset-4 hover:text-primary-700 hover:underline">{student.full_name}</Link>
                                 </div>
                                 <p className="text-xs text-slate-500">{student.email}</p>
                                 <div className="mt-1 flex flex-wrap items-center gap-2">
