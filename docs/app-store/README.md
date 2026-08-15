@@ -46,7 +46,7 @@ Verified EAS production history:
 | `12` | `ab7ff733-b074-48dd-a6bc-af1df24d2565` | `e49f93e6-08c1-4aa5-a8d6-eb13d3f487cd` | Finished; uploaded successfully and awaiting Apple processing confirmation |
 | `13` | `03fd9ec4-22a6-4933-80e8-ed0e440d8f2a` | `dd49f5ae-1851-4ed2-ac27-7933e1dfff82` | Finished; `VALID` and `IN_BETA_TESTING` in App Store Connect |
 
-These are EAS states plus an App Store Connect status check. Builds 9–13 are `VALID` and `IN_BETA_TESTING`. Build 13 still needs the physical acceptance matrix below; public App Review remains separate.
+These are EAS states plus an App Store Connect status check. Builds 9, 10, and 13 are `VALID` and `IN_BETA_TESTING`; builds 11 and 12 remain awaiting Apple processing confirmation. Build 13 still needs the physical acceptance matrix below; public App Review remains separate.
 
 Build 9 is the Phase 0–1 TestFlight candidate. It includes the reviewed voice-draft client, Phase 0 readability work, weekly plan, contextual help, privacy-safe analytics, and offline continuity. Its production EAS environment points to the CSG API with demo mode disabled and includes the `csg-learning-platform` PostHog project configuration. Do not enable the voice production endpoint or submit this binary for public App Review until the temporary transcription-provider processing is accurately disclosed, the production OpenAI data controls are approved, and the voice-specific physical-device checks below pass.
 
