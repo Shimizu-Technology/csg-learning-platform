@@ -50,6 +50,9 @@ Clerk authentication is required in local development too. The current app does 
 | `CLERK_JWKS_URL` | No | Auto from issuer | Explicit JWKS endpoint override |
 | `CLERK_AUDIENCE` | No | — | JWT audience verification |
 | `DATABASE_URL` | Prod only | — | Neon PostgreSQL connection string |
+| `ACTIVE_JOB_QUEUE_ADAPTER` | No | `inline` | Production job execution mode: `inline` for the low-volume workerless deployment, or `solid_queue` with exactly one configured worker path |
+| `SOLID_QUEUE_WORKER_PROVISIONED` | No | `false` | Set to `true` only when a dedicated worker is running `./bin/jobs` |
+| `SOLID_QUEUE_IN_PUMA` | No | `false` | Set to `true` only for an intentional single-process Solid Queue deployment; never combine with a dedicated worker |
 | `RESEND_API_KEY` | No | — | Transactional email (invites, mentions, and direct-message notifications) |
 | `MAILER_FROM_EMAIL` | No | `noreply@codeschoolofguam.com` | Verified sender address for transactional emails |
 | `GITHUB_ORGANIZATION_ADMIN_TOKEN` | No | — | GitHub API token for repo sync and org invites |

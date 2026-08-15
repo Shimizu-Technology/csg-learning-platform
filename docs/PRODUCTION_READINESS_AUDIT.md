@@ -213,8 +213,8 @@ recreating cleared state.
 #### Implemented or already present
 
 - database-free process health plus manual database/queue readiness;
-- production boot guard prevents Solid Queue from being enabled without an
-  acknowledged worker path;
+- production job-runtime validation keeps the low-volume deployment inline by
+  default and requires exactly one execution path when Solid Queue is enabled;
 - notification fan-out isolates web and Expo delivery failures;
 - push registration, deep-link allowlisting, upload cleanup, and message
   idempotency have dedicated tests;
@@ -235,9 +235,10 @@ recreating cleared state.
    timestamp; a backup is not proven until a restore succeeds.
 3. Enable the documented S3 rule that aborts incomplete multipart uploads after
    one day, then verify it in the AWS console.
-4. Keep the dedicated Singapore worker's Docker command set to `./bin/jobs` and
-   alert on `/api/v1/ready` failures, which cover worker heartbeat and oldest ready-job
-   age when Solid Queue is enabled.
+4. Keep the current low-volume deployment inline with its Render worker
+   suspended. If traffic later justifies Solid Queue, audit the stale backlog,
+   set the dedicated Singapore worker's Docker command to `./bin/jobs`, and
+   alert on `/api/v1/ready` failures covering worker heartbeat and backlog age.
 5. Add rate limits to authentication/session exchange, presigning, uploads,
    message sending, search, invitations, and push-token registration. Prefer
    per-account limits with a generous IP fallback so shared classroom/NAT
