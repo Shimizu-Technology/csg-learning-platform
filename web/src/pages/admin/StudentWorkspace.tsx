@@ -105,6 +105,12 @@ export function StudentWorkspace() {
 
   useEffect(() => { void load() }, [load])
 
+  useEffect(() => {
+    if (params.tab && !tabIds.has(params.tab as StudentWorkspaceTab) && Number.isInteger(cohortId) && Number.isInteger(studentId)) {
+      navigate(cohortStudentPath(cohortId, studentId), { replace: true })
+    }
+  }, [cohortId, navigate, params.tab, studentId])
+
   async function openDirectMessage() {
     if (!data) return
     setOpeningMessage(true)
@@ -166,7 +172,7 @@ export function StudentWorkspace() {
 
         <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-4 py-2 sm:px-6">
           <StudentStepper direction="previous" student={previousStudent} cohortId={cohortId} tab={activeTab} />
-          <p className="text-xs font-bold tabular-nums text-slate-400">{studentIndex + 1} of {cohort.students.length}</p>
+          <p className="text-xs font-bold tabular-nums text-slate-400">{studentIndex >= 0 ? `${studentIndex + 1} of ${cohort.students.length}` : 'Historical enrollment'}</p>
           <StudentStepper direction="next" student={nextStudent} cohortId={cohortId} tab={activeTab} />
         </div>
       </section>
