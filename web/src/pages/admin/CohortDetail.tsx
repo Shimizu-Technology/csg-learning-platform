@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Save, Lock, Unlock, UserPlus, Mail, CheckCircle, PlayCircle, Link2, Plus, Trash2, CalendarDays, ExternalLink, Github, Eye, Keyboard, Clock } from 'lucide-react'
 import { api } from '../../lib/api'
+import { cohortStudentPath } from '../../lib/routes'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Modal } from '../../components/shared/Modal'
 import { RecordingUploadManager } from '../../components/admin/RecordingUploadManager'
@@ -1507,7 +1508,7 @@ export function CohortDetail() {
                 className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
               >
                 <Link
-                  to={`/admin/students/${student.user_id}`}
+                  to={cohortStudentPath(cohort.id, student.user_id)}
                   className="min-w-0 flex-1 hover:opacity-80 transition-opacity"
                 >
                   <p className="text-sm font-medium text-slate-900 truncate">

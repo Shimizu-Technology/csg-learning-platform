@@ -100,6 +100,18 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     assert_not_nil progress.completed_at
   end
 
+  test "submission records expose stable lesson and module relationships" do
+    as_user(@admin) do
+      get "/api/v1/submissions/#{@submission.id}", headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body).fetch("submission")
+    assert_equal @lesson.id, payload.fetch("lesson_id")
+    assert_equal @mod.id, payload.fetch("module_id")
+    assert_equal @mod.name, payload.fetch("module_name")
+  end
+
   test "student can submit repo and live url artifacts" do
     as_user(@student) do
       post "/api/v1/submissions",

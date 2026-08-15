@@ -257,7 +257,10 @@ module Api
           updated_at: submission.updated_at,
           content_block_title: submission.content_block.title,
           content_block_type: submission.content_block.block_type,
+          lesson_id: submission.content_block.lesson_id,
           lesson_title: submission.content_block.lesson.title,
+          module_id: submission.content_block.lesson.module_id,
+          module_name: submission.content_block.lesson.curriculum_module.name,
           filename: submission.content_block.filename,
           submission_config: submission.content_block.submission_config || {},
           language_hint: submission.content_block.metadata.is_a?(Hash) ? submission.content_block.metadata["language"] : nil

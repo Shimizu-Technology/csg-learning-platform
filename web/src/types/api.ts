@@ -936,7 +936,10 @@ export interface Submission {
   updated_at?: string;
   content_block_title: string;
   content_block_type: string;
+  lesson_id: number;
   lesson_title: string;
+  module_id: number;
+  module_name: string;
   filename: string | null;
   submission_config?: Record<string, unknown>;
   language_hint: string | null;
@@ -1255,6 +1258,13 @@ export interface StudentProgressResponse {
     last_seen_at: string | null;
   };
   cohort: { id: number; name: string; start_date: string; status: string };
+  learning_evidence_scope?: {
+    kind: 'curriculum';
+    curriculum_id: number;
+    curriculum_name: string;
+    enrollment_count: number;
+    shared_across_enrollments: boolean;
+  };
   overall_progress: { completed: number; total: number; percentage: number };
   modules: StudentProgressModule[];
   recent_activity: {

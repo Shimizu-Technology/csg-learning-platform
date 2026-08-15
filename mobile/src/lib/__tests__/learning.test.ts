@@ -1,4 +1,4 @@
-import { buildSubmissionInput, canSubmitWork, isNewSubmissionAttempt, lessonCompletion, safeExternalUrl, staffAttentionRank, submissionState, submissionTypeFor } from '../learning';
+import { buildSubmissionInput, canSubmitWork, isNewSubmissionAttempt, lessonCompletion, safeExternalUrl, staffAttentionRank, submissionBelongsToStudentProgress, submissionState, submissionTypeFor } from '../learning';
 import type { LessonContentBlock, StaffStudentSummary, Submission } from '../types';
 
 const block = (id: number, status: string): LessonContentBlock => ({ id, block_type: 'checkpoint', position: id, title: null, body: null, video_url: null, filename: null, metadata: {}, progress: { status, completed_at: null } });
@@ -47,6 +47,17 @@ describe('learning helpers', () => {
       commit_sha: undefined,
       notes: 'Ready',
     });
+  });
+
+  it('only accepts submission relationship context for the same learner and curriculum content', () => {
+    const progress = {
+      user: { id: 18 },
+      modules: [{ lessons: [{ blocks: [{ id: 42 }] }] }],
+    } as Parameters<typeof submissionBelongsToStudentProgress>[1];
+
+    expect(submissionBelongsToStudentProgress({ user_id: 18, content_block_id: 42 }, progress)).toBe(true);
+    expect(submissionBelongsToStudentProgress({ user_id: 19, content_block_id: 42 }, progress)).toBe(false);
+    expect(submissionBelongsToStudentProgress({ user_id: 18, content_block_id: 99 }, progress)).toBe(false);
   });
 
   it('prioritizes redos, reviews, and inactivity in the staff attention queue', () => {

@@ -25,6 +25,8 @@ const messagesLoader = () => import('../pages/shared/Messages').then((module) =>
 const adminDashboardLoader = () => import('../pages/admin/AdminDashboard').then((module) => ({ default: module.AdminDashboard }))
 const supportQueueLoader = () => import('../pages/admin/SupportQueue').then((module) => ({ default: module.SupportQueue }))
 const studentDetailLoader = () => import('../pages/admin/StudentDetail').then((module) => ({ default: module.StudentDetail }))
+const studentWorkspaceLoader = () => import('../pages/admin/StudentWorkspace').then((module) => ({ default: module.StudentWorkspace }))
+const submissionDetailLoader = () => import('../pages/admin/SubmissionDetail').then((module) => ({ default: module.SubmissionDetail }))
 const studentManagementLoader = () => import('../pages/admin/StudentManagement').then((module) => ({ default: module.StudentManagement }))
 const cohortManagementLoader = () => import('../pages/admin/CohortManagement').then((module) => ({ default: module.CohortManagement }))
 const cohortDetailLoader = () => import('../pages/admin/CohortDetail').then((module) => ({ default: module.CohortDetail }))
@@ -51,6 +53,8 @@ export const Messages = lazyWithPreload(messagesLoader)
 export const AdminDashboard = lazyWithPreload(adminDashboardLoader)
 export const SupportQueue = lazyWithPreload(supportQueueLoader)
 export const StudentDetail = lazyWithPreload(studentDetailLoader)
+export const StudentWorkspace = lazyWithPreload(studentWorkspaceLoader)
+export const SubmissionDetail = lazyWithPreload(submissionDetailLoader)
 export const StudentManagement = lazyWithPreload(studentManagementLoader)
 export const CohortManagement = lazyWithPreload(cohortManagementLoader)
 export const CohortDetail = lazyWithPreload(cohortDetailLoader)
@@ -75,10 +79,11 @@ const routePreloaders: Record<string, Array<() => Promise<unknown>>> = {
   '/messages': [messagesLoader],
   '/admin': [adminDashboardLoader],
   '/admin/support': [supportQueueLoader],
-  '/admin/students': [studentManagementLoader, studentDetailLoader],
-  '/admin/cohorts': [cohortManagementLoader, cohortDetailLoader, cohortStudentViewLoader, cohortWatchProgressLoader],
+  '/admin/students': [studentManagementLoader, studentDetailLoader, studentWorkspaceLoader],
+  '/admin/cohorts': [cohortManagementLoader, cohortDetailLoader, cohortStudentViewLoader, cohortWatchProgressLoader, studentWorkspaceLoader],
   '/admin/content': [contentManagementLoader, lessonEditorLoader],
-  '/admin/grading': [gradingLoader, cohortModuleGradingLoader],
+  '/admin/grading': [gradingLoader, cohortModuleGradingLoader, submissionDetailLoader],
+  '/admin/submissions': [submissionDetailLoader],
   '/admin/team': [teamManagementLoader],
   '/sign-in': [signInLoader],
   '/sign-up': [signUpLoader],

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Activity, AlertTriangle, ArrowRight, ClipboardCheck, FileText, Layers3, LifeBuoy, Users } from 'lucide-react'
 import { api } from '../../lib/api'
+import { cohortStudentPath } from '../../lib/routes'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { PageHeader } from '../../components/ui/PageHeader'
@@ -167,7 +168,7 @@ export function AdminDashboard() {
           </div>
           <div className="divide-y divide-slate-100">
             {studentsNeedingAttention.map((student) => (
-              <Link key={student.user_id} to={`/admin/students/${student.user_id}`} className="group grid gap-3 px-5 py-4 transition hover:bg-slate-50 sm:grid-cols-[minmax(220px,1fr)_minmax(180px,0.7fr)_auto] sm:items-center sm:px-6">
+              <Link key={student.user_id} to={data.cohort ? cohortStudentPath(data.cohort.id, student.user_id) : `/admin/students/${student.user_id}`} className="group grid gap-3 px-5 py-4 transition hover:bg-slate-50 sm:grid-cols-[minmax(220px,1fr)_minmax(180px,0.7fr)_auto] sm:items-center sm:px-6">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-extrabold text-slate-950">{student.full_name}</p>
                   <p className="truncate text-xs text-slate-500">{student.email}</p>

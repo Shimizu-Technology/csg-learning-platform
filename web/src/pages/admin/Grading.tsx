@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Filter, Check, RotateCcw, Clock, ChevronRight, Layers3, BookmarkPlus, MessageSquareText } from 'lucide-react'
+import { ArrowLeft, Filter, Check, RotateCcw, Clock, ChevronRight, Layers3, BookmarkPlus, MessageSquareText, ExternalLink } from 'lucide-react'
 import { api } from '../../lib/api'
+import { submissionPath } from '../../lib/routes'
 import { GradeDisplay } from '../../components/shared/GradeDisplay'
 import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
 import { CodeRunner } from '../../components/shared/CodeRunner'
@@ -260,17 +261,17 @@ export function Grading() {
             queue.map((sub) => {
               const isLatest = latestSubmissionIds.has(sub.id)
               return (
-                <button
-                  key={sub.id}
-                  onClick={() => selectSubmission(sub)}
-                  className={`w-full text-left rounded-2xl border p-4 transition-all ${
+                <div key={sub.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-stretch gap-2">
+                  <button
+                    onClick={() => selectSubmission(sub)}
+                    className={`w-full text-left rounded-2xl border p-4 transition-all ${
                     selectedSubmission?.id === sub.id
                       ? 'border-primary-300 bg-primary-50'
                       : sub.grade === 'R'
                       ? 'border-orange-200 bg-orange-50 hover:border-orange-300'
                       : 'border-slate-200 bg-white hover:border-primary-200'
                   }`}
-                >
+                  >
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
@@ -294,7 +295,16 @@ export function Grading() {
                       <ChevronRight className="h-4 w-4 text-slate-300" />
                     </div>
                   </div>
-                </button>
+                  </button>
+                  <Link
+                    to={submissionPath(sub.id, { userId: sub.user_id, returnTo: '/admin/grading' })}
+                    aria-label={`Open ${sub.user_name}'s submission record`}
+                    title="Open submission record"
+                    className="inline-flex min-h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-primary-300 hover:text-primary-700"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </Link>
+                </div>
               )
             })
           )}

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link, useLocation, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useState, type MouseEvent } from 'react'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
   Bell,
@@ -100,9 +100,26 @@ function PreviewShell({
   children: React.ReactNode
 }) {
   const basePath = `/admin/cohorts/${data.cohort.id}/student-view`
+  const navigate = useNavigate()
+
+  function keepPreviewNavigationContained(event: MouseEvent<HTMLDivElement>) {
+    const link = (event.target as HTMLElement).closest('a')
+    if (!link || link.target === '_blank' || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+    const url = new URL(link.href, window.location.origin)
+    if (url.origin !== window.location.origin || url.pathname.startsWith(basePath) || url.pathname.startsWith('/admin/')) return
+    const section = url.pathname.startsWith('/recordings') ? 'recordings'
+      : url.pathname.startsWith('/resources') ? 'resources'
+      : url.pathname.startsWith('/announcements') ? 'announcements'
+      : url.pathname.startsWith('/messages') ? 'messages'
+      : url.pathname.startsWith('/profile') ? 'profile'
+      : url.pathname.startsWith('/dashboard') ? 'dashboard'
+      : 'materials'
+    event.preventDefault()
+    navigate(section === 'dashboard' ? basePath : `${basePath}/${section}`)
+  }
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#ffffff_46%)]">
+    <div onClickCapture={keepPreviewNavigationContained} className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#ffffff_46%)]">
       <aside className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col lg:border-r lg:border-slate-200 lg:bg-white">
         <div className="flex h-14 items-center border-b border-slate-200 px-6">
           <div className="flex min-w-0 items-center gap-2 text-slate-900">
@@ -197,10 +214,10 @@ function PreviewBanner({ data }: { data: CohortStudentViewData }) {
       <div className="px-4 py-4 sm:px-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary-700">Read-only cohort student view</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary-700">Read-only cohort template preview</p>
           <h1 className="mt-1 text-xl font-bold text-slate-900">{data.cohort.name}</h1>
           <p className="text-sm text-slate-600">
-            Generic student experience for {data.cohort.curriculum_name} · {data.cohort.active_count} active students · generated {formatDate(data.generated_at)}
+            Shared student template for {data.cohort.curriculum_name} · not a specific student's account · {data.cohort.active_count} active students · generated {formatDate(data.generated_at)}
           </p>
         </div>
         <Link

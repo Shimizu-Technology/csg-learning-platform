@@ -70,11 +70,19 @@ module Api
         user = User.find(params[:user_id])
         progresses = user.watch_progresses.includes(recording: :cohort)
 
-        # All recordings the student is enrolled to see (active enrollments only),
-        # so the UI can surface "not started" rows alongside touched ones rather
-        # than just showing what they've already played.
-        active_cohorts = user.enrollments.where(status: :active).map(&:cohort_id)
-        all_recordings = Recording.where(cohort_id: active_cohorts).includes(:cohort).order(:cohort_id, :position)
+        # Without an explicit cohort, preserve the active-enrollment behavior.
+        # A cohort-scoped staff workspace may also inspect historical enrollments.
+        cohort_ids = if params[:cohort_id].present?
+          user.enrollments.where(cohort_id: params[:cohort_id]).pluck(:cohort_id)
+        else
+          user.enrollments.where(status: :active).pluck(:cohort_id)
+        end
+        if params[:cohort_id].present? && cohort_ids.empty?
+          render json: { error: "Student is not enrolled in this cohort" }, status: :not_found
+          return
+        end
+        progresses = progresses.where(recordings: { cohort_id: cohort_ids })
+        all_recordings = Recording.where(cohort_id: cohort_ids).includes(:cohort).order(:cohort_id, :position)
         progress_by_recording = progresses.index_by(&:recording_id)
 
         render json: {
@@ -104,8 +112,16 @@ module Api
         return if performed?
 
         user = User.find(params[:user_id])
-        active_enrollments = user.enrollments.where(status: :active).includes(:cohort)
-        curriculum_ids = active_enrollments.map { |e| e.cohort.curriculum_id }.uniq
+        enrollments = if params[:cohort_id].present?
+          user.enrollments.where(cohort_id: params[:cohort_id]).includes(:cohort)
+        else
+          user.enrollments.where(status: :active).includes(:cohort)
+        end.to_a
+        if params[:cohort_id].present? && enrollments.empty?
+          render json: { error: "Student is not enrolled in this cohort" }, status: :not_found
+          return
+        end
+        curriculum_ids = enrollments.map { |e| e.cohort.curriculum_id }.uniq
         video_blocks_by_curriculum = ContentBlock
           .joins(lesson: :curriculum_module)
           .includes(lesson: :curriculum_module)
@@ -118,7 +134,7 @@ module Api
         # curriculum should still see two cohort-scoped rows), but fetch only the
         # actual S3-backed video blocks instead of eager-loading the full
         # curriculum tree into Ruby first.
-        rows = active_enrollments.flat_map { |enrollment|
+        rows = enrollments.flat_map { |enrollment|
           cohort = enrollment.cohort
           video_blocks_by_curriculum.fetch(cohort.curriculum_id, []).map { |cb|
             [ cb, cb.lesson.curriculum_module, cb.lesson, cohort ]

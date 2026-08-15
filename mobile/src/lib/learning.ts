@@ -1,4 +1,4 @@
-import type { LessonContentBlock, StaffDashboard, StaffStudentSummary, StudentDashboard, SubmissionBrief, SubmissionInput } from './types';
+import type { LessonContentBlock, StaffDashboard, StaffStudentSummary, StudentDashboard, StudentProgressDetail, Submission, SubmissionBrief, SubmissionInput } from './types';
 
 export const learningKeys = {
   dashboard: (userId: number) => ['learning', userId, 'dashboard'] as const,
@@ -7,13 +7,22 @@ export const learningKeys = {
   resources: (userId: number) => ['learning', userId, 'resources'] as const,
   recordings: (userId: number) => ['learning', userId, 'recordings'] as const,
   profile: (userId: number) => ['learning', userId, 'profile'] as const,
-  studentDetail: (userId: number, studentId: number) => ['learning', userId, 'staff-student', studentId] as const,
+  studentDetail: (userId: number, studentId: number, cohortId?: number) => ['learning', userId, 'staff-student', cohortId || 'active', studentId] as const,
   submission: (userId: number, submissionId: number) => ['learning', userId, 'staff-submission', submissionId] as const,
+  submissionContext: (userId: number, submissionId: number, cohortId: number) => ['learning', userId, 'validated-submission-context', submissionId, cohortId] as const,
   submissions: (userId: number, studentId?: number) => ['learning', userId, 'staff-submissions', studentId || 'all'] as const,
   feedbackSnippets: (userId: number) => ['learning', userId, 'feedback-snippets'] as const,
   helpRequests: (userId: number, cohortId?: number, contextType?: string) => ['learning', userId, 'help-requests', cohortId || 'all', contextType || 'all'] as const,
   supportQueue: (userId: number) => ['learning', userId, 'support-queue'] as const,
 };
+
+export function submissionBelongsToStudentProgress(
+  submission: Pick<Submission, 'user_id' | 'content_block_id'>,
+  progress: StudentProgressDetail,
+) {
+  return submission.user_id === progress.user.id
+    && progress.modules.some((mod) => mod.lessons.some((lesson) => lesson.blocks.some((block) => block.id === submission.content_block_id)));
+}
 
 export function isStudentDashboard(value: StudentDashboard | object): value is StudentDashboard {
   return 'enrolled' in value;

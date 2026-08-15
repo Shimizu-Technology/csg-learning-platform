@@ -95,7 +95,7 @@ export default function StaffSupportScreen() {
       </View>
 
       <View style={styles.section}><Text style={styles.sectionKicker}>EXPLAINABLE SIGNALS</Text><Text style={styles.sectionTitle}>Other students to check on</Text><Text style={styles.sectionCopy}>Prompts for instructor judgment—not automated risk scores.</Text>
-        <View style={styles.stack}>{queue.students.map((student) => <StudentSignal key={`${student.cohort_id}:${student.user_id}`} student={student} onPress={() => router.push(`/staff/student/${student.user_id}`)} />)}</View>
+        <View style={styles.stack}>{queue.students.map((student) => <StudentSignal key={`${student.cohort_id}:${student.user_id}`} student={student} onPress={() => router.push({ pathname: '/staff/student/[id]', params: { id: String(student.user_id), cohort_id: String(student.cohort_id) } })} />)}</View>
       </View>
     </ScrollView>
 

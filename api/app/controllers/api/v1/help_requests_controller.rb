@@ -7,6 +7,7 @@ module Api
       def index
         scope = current_user.staff? ? HelpRequest.all : current_user.help_requests
         scope = scope.where(cohort_id: params[:cohort_id]) if params[:cohort_id].present?
+        scope = scope.where(student_id: params[:student_id]) if current_user.staff? && params[:student_id].present?
         scope = scope.where(status: params[:status]) if HelpRequest.statuses.key?(params[:status])
         scope = scope.where(context_type: params[:context_type]) if HelpRequest.context_types.key?(params[:context_type])
         requests = scope.includes(:cohort, :student, :owner).recent_first.limit(100)

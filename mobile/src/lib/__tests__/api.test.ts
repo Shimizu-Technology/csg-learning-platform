@@ -110,15 +110,26 @@ describe('CsgApi', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ submission: { id: 9, grade: 'A' } }), { status: 200 }));
     const api = new CsgApi(async () => 'session-token');
 
-    await api.studentProgress(18);
+    await api.studentProgress(18, 4);
     await api.submissions({ user_id: 18, ungraded: true });
     await api.submission(9);
     await api.gradeSubmission(9, 'A', 'Clear work');
 
-    expect(fetchMock.mock.calls[0][0]).toContain('/api/v1/progress/student/18');
+    expect(fetchMock.mock.calls[0][0]).toContain('/api/v1/progress/student/18?cohort_id=4');
     expect(fetchMock.mock.calls[1][0]).toContain('user_id=18&ungraded=true');
     expect(fetchMock.mock.calls[2][0]).toContain('/api/v1/submissions/9');
     expect(fetchMock.mock.calls[3][1]).toEqual(expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ grade: 'A', feedback: 'Clear work' }) }));
+  });
+
+  it('creates a direct conversation in the requested cohort workspace', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ direct_conversation: { id: 31 } }), { status: 200 }));
+
+    await new CsgApi(async () => 'session-token').createCohortDm(4, [18]);
+
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/v1/direct_conversations'), expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ cohort_id: 4, user_ids: [18] }),
+    }));
   });
 
   it('uploads a voice draft with authorization and the review-only contract', async () => {
