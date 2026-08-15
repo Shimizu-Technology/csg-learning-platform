@@ -23,8 +23,9 @@ class GithubCheckRunSyncServiceTest < ActiveSupport::TestCase
     @submission.github_check_runs.create!(external_id: 79, name: "old commit test", head_sha: "old123", status: "completed", conclusion: "failure", fetched_at: 1.day.ago)
     service = GithubCheckRunSyncService.new(submission: @submission, token: "secret-token", now: Time.zone.parse("2026-08-15 10:00"))
     original_get = service.method(:github_get)
-    service.define_singleton_method(:github_get) do |url|
+    service.define_singleton_method(:github_get) do |url, page:|
       raise "wrong endpoint" unless url.end_with?("/repos/checks-student/course-project/commits/abc123/check-runs")
+      raise "wrong page" unless page == 1
 
       FakeResponse.new(true, 200, {
         "total_count" => 1,
@@ -66,16 +67,18 @@ class GithubCheckRunSyncServiceTest < ActiveSupport::TestCase
     assert_empty @submission.github_check_runs
   end
 
-  test "does not prune current commit rows from a partial GitHub page" do
+  test "loads every GitHub page before pruning superseded current commit rows" do
     @submission.github_check_runs.create!(external_id: 80, name: "not on first page", head_sha: "abc123", status: "completed", conclusion: "success", fetched_at: 1.hour.ago)
     service = GithubCheckRunSyncService.new(submission: @submission, token: "secret-token")
     original_get = service.method(:github_get)
-    service.define_singleton_method(:github_get) do |_url|
+    requested_pages = []
+    service.define_singleton_method(:github_get) do |_url, page:|
+      requested_pages << page
       FakeResponse.new(true, 200, {
-        "total_count" => 101,
+        "total_count" => 2,
         "check_runs" => [ {
-          "id" => 81,
-          "name" => "first page test",
+          "id" => 80 + page,
+          "name" => "page #{page} test",
           "head_sha" => "abc123",
           "status" => "completed",
           "conclusion" => "success"
@@ -84,8 +87,10 @@ class GithubCheckRunSyncServiceTest < ActiveSupport::TestCase
     end
 
     assert_nil service.call[:error]
-    assert @submission.github_check_runs.exists?(external_id: 80)
+    assert_equal [ 1, 2 ], requested_pages
+    assert_not @submission.github_check_runs.exists?(external_id: 80)
     assert @submission.github_check_runs.exists?(external_id: 81)
+    assert @submission.github_check_runs.exists?(external_id: 82)
   ensure
     service.define_singleton_method(:github_get, original_get)
   end

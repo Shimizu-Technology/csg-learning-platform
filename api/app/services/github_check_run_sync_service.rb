@@ -12,13 +12,13 @@ class GithubCheckRunSyncService
     return failure("A GitHub repository URL is required before checks can be refreshed") unless owner && repository
     return failure("A commit SHA is required before checks can be refreshed") if submission.commit_sha.blank?
 
-    response = github_get("#{GITHUB_API_BASE}/repos/#{owner}/#{repository}/commits/#{submission.commit_sha}/check-runs")
-    return failure("GitHub checks could not be loaded (HTTP #{response.code})") unless response.success?
+    result = fetch_runs("#{GITHUB_API_BASE}/repos/#{owner}/#{repository}/commits/#{submission.commit_sha}/check-runs")
+    return failure(result[:error]) if result[:error]
 
-    runs = Array(response.parsed_response["check_runs"])
+    runs = result[:runs]
     imported = GithubCheckRun.transaction do
       current = runs.map { |attributes| upsert_run(attributes) }
-      prune_obsolete_current_commit_runs(runs) if complete_response?(response, runs)
+      prune_obsolete_current_commit_runs(runs)
       current
     end
     { check_runs: imported.sort_by { |run| [ run.completed_at || Time.zone.at(0), run.id ] }.reverse, error: nil }
@@ -61,9 +61,22 @@ class GithubCheckRunSyncService
     run
   end
 
-  def complete_response?(response, runs)
-    total_count = response.parsed_response["total_count"]
-    total_count.nil? || total_count.to_i <= runs.size
+  def fetch_runs(url)
+    runs = []
+    page = 1
+    loop do
+      response = github_get(url, page: page)
+      return { runs: [], error: "GitHub checks could not be loaded (HTTP #{response.code})" } unless response.success?
+
+      page_runs = Array(response.parsed_response["check_runs"])
+      runs.concat(page_runs)
+      total_count = response.parsed_response["total_count"]&.to_i || runs.size
+      return { runs: [], error: "GitHub returned an incomplete check list" } if page_runs.empty? && runs.size < total_count
+      break if runs.size >= total_count
+
+      page += 1
+    end
+    { runs: runs, error: nil }
   end
 
   def prune_obsolete_current_commit_runs(runs)
@@ -81,8 +94,8 @@ class GithubCheckRunSyncService
     }
   end
 
-  def github_get(url)
-    HTTParty.get(url, headers: headers, query: { filter: "latest", per_page: 100 }, timeout: 15)
+  def github_get(url, page:)
+    HTTParty.get(url, headers: headers, query: { filter: "latest", per_page: 100, page: page }, timeout: 15)
   end
 
   def failure(message)
