@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_15_000100) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_15_000200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -221,6 +221,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_15_000100) do
     t.index ["active", "usage_count"], name: "index_feedback_snippets_on_active_and_usage_count"
     t.index ["created_by_id"], name: "index_feedback_snippets_on_created_by_id"
     t.check_constraint "usage_count >= 0", name: "feedback_snippets_usage_count_nonnegative"
+  end
+
+  create_table "github_check_runs", force: :cascade do |t|
+    t.string "app_slug"
+    t.datetime "completed_at"
+    t.string "conclusion"
+    t.datetime "created_at", null: false
+    t.string "details_url"
+    t.bigint "external_id", null: false
+    t.datetime "fetched_at", null: false
+    t.string "head_sha", null: false
+    t.string "name", null: false
+    t.datetime "started_at"
+    t.string "status", null: false
+    t.bigint "submission_id", null: false
+    t.datetime "updated_at", null: false
+    t.string "workflow_name"
+    t.index ["submission_id", "external_id"], name: "index_github_check_runs_on_submission_id_and_external_id", unique: true
+    t.index ["submission_id", "head_sha"], name: "index_github_check_runs_on_submission_id_and_head_sha"
+    t.index ["submission_id"], name: "index_github_check_runs_on_submission_id"
   end
 
   create_table "help_requests", force: :cascade do |t|
@@ -873,6 +893,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_15_000100) do
   add_foreign_key "enrollments", "cohorts"
   add_foreign_key "enrollments", "users"
   add_foreign_key "feedback_snippets", "users", column: "created_by_id"
+  add_foreign_key "github_check_runs", "submissions"
   add_foreign_key "help_requests", "cohorts"
   add_foreign_key "help_requests", "users", column: "owner_id"
   add_foreign_key "help_requests", "users", column: "student_id"

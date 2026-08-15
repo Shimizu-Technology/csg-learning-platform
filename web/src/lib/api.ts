@@ -75,6 +75,8 @@ import type {
   InterventionTrigger,
   RecoveryPlansResponse,
   RecoveryPlanResponse,
+  LearningInsightsResponse,
+  GithubChecksResponse,
 } from '../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
@@ -591,6 +593,10 @@ export const api = {
   },
   getSubmission: (id: number) =>
     fetchApi<SubmissionResponse>(`/api/v1/submissions/${id}`),
+  getSubmissionGithubChecks: (id: number) =>
+    fetchApi<GithubChecksResponse>(`/api/v1/submissions/${id}/github_checks`),
+  refreshSubmissionGithubChecks: (id: number) =>
+    fetchApi<GithubChecksResponse>(`/api/v1/submissions/${id}/github_checks`, { method: 'POST' }),
   createSubmission: (data: { content_block_id: number; text?: string; github_issue_url?: string; github_code_url?: string; repo_url?: string; pr_url?: string; live_url?: string; branch?: string; commit_sha?: string; notes?: string }) =>
     fetchApi<SubmissionResponse>('/api/v1/submissions', {
       method: 'POST',
@@ -622,6 +628,8 @@ export const api = {
   // Student progress (admin)
   getStudentProgress: (userId: number, cohortId?: number) =>
     fetchApi<StudentProgressResponse>(`/api/v1/progress/student/${userId}${queryString({ cohort_id: cohortId })}`),
+  getLearningInsights: (cohortId: number, userId?: number) =>
+    fetchApi<LearningInsightsResponse>(`/api/v1/cohorts/${cohortId}/learning_insights${queryString({ user_id: userId })}`),
   restartEnrollment: (enrollmentId: number, confirmation: string, reason?: string) =>
     fetchApi<{
       message: string;

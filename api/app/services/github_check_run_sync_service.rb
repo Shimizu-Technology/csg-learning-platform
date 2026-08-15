@@ -1,0 +1,77 @@
+class GithubCheckRunSyncService
+  GITHUB_API_BASE = "https://api.github.com".freeze
+
+  def initialize(submission:, token:, now: Time.current)
+    @submission = submission
+    @token = token
+    @now = now
+  end
+
+  def call
+    owner, repository = repository_coordinates
+    return failure("A GitHub repository URL is required before checks can be refreshed") unless owner && repository
+    return failure("A commit SHA is required before checks can be refreshed") if submission.commit_sha.blank?
+
+    response = github_get("#{GITHUB_API_BASE}/repos/#{owner}/#{repository}/commits/#{submission.commit_sha}/check-runs")
+    return failure("GitHub checks could not be loaded (HTTP #{response.code})") unless response.success?
+
+    runs = Array(response.parsed_response["check_runs"])
+    imported = GithubCheckRun.transaction do
+      runs.map { |attributes| upsert_run(attributes) }
+    end
+    { check_runs: imported.sort_by { |run| [ run.completed_at || Time.zone.at(0), run.id ] }.reverse, error: nil }
+  rescue URI::InvalidURIError
+    failure("The submission repository URL is invalid")
+  rescue StandardError => error
+    Rails.logger.warn("GitHub check import failed for submission #{submission.id}: #{error.class.name}")
+    failure("GitHub checks are temporarily unavailable")
+  end
+
+  private
+
+  attr_reader :submission, :token, :now
+
+  def repository_coordinates
+    [ submission.repo_url, submission.pr_url, submission.github_code_url ].compact_blank.each do |value|
+      uri = URI.parse(value)
+      next unless uri.scheme == "https" && uri.host == "github.com"
+
+      owner, repository = uri.path.split("/").reject(&:blank?).first(2)
+      return [ owner, repository&.delete_suffix(".git") ] if owner.present? && repository.present?
+    end
+    nil
+  end
+
+  def upsert_run(attributes)
+    run = submission.github_check_runs.find_or_initialize_by(external_id: attributes.fetch("id"))
+    run.update!(
+      name: attributes.fetch("name"),
+      workflow_name: attributes.dig("check_suite", "app", "name"),
+      app_slug: attributes.dig("app", "slug"),
+      head_sha: attributes.fetch("head_sha"),
+      status: attributes.fetch("status"),
+      conclusion: attributes["conclusion"],
+      details_url: attributes["details_url"],
+      started_at: attributes["started_at"],
+      completed_at: attributes["completed_at"],
+      fetched_at: now
+    )
+    run
+  end
+
+  def headers
+    {
+      "Authorization" => "Bearer #{token}",
+      "Accept" => "application/vnd.github+json",
+      "X-GitHub-Api-Version" => "2022-11-28"
+    }
+  end
+
+  def github_get(url)
+    HTTParty.get(url, headers: headers, query: { filter: "latest", per_page: 100 }, timeout: 15)
+  end
+
+  def failure(message)
+    { check_runs: [], error: message }
+  end
+end

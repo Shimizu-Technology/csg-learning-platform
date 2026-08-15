@@ -36,7 +36,7 @@ module Api
 
       # GET /api/v1/submissions/:id
       def show
-        render json: { submission: submission_json(@submission, include_solution: current_user.staff?) }
+        render json: { submission: submission_json(@submission, include_solution: current_user.staff?, include_github_checks: true) }
       end
 
       # POST /api/v1/submissions
@@ -80,7 +80,7 @@ module Api
             progress.update!(status: :completed)
             SubmissionNotificationJob.perform_later("created", submission.id, submission.created_at.iso8601(6))
 
-            render json: { submission: submission_json(submission) }, status: :created
+            render json: { submission: submission_json(submission, include_github_checks: true) }, status: :created
           else
             render json: { errors: submission.errors.full_messages }, status: :unprocessable_entity
           end
@@ -104,7 +104,7 @@ module Api
 
         with_learning_write_guard(@learning_write_enrollment) do
           if @submission.update(submission_update_params)
-            render json: { submission: submission_json(@submission) }
+            render json: { submission: submission_json(@submission, include_github_checks: true) }
           else
             render json: { errors: @submission.errors.full_messages }, status: :unprocessable_entity
           end
@@ -171,7 +171,7 @@ module Api
           @submission.reload
         end
 
-        render json: { submission: submission_json(@submission) }
+        render json: { submission: submission_json(@submission, include_github_checks: true) }
       rescue ActiveRecord::RecordInvalid => error
         render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
       end
@@ -231,7 +231,7 @@ module Api
                       :commit_sha, :notes)
       end
 
-      def submission_json(submission, include_solution: false)
+      def submission_json(submission, include_solution: false, include_github_checks: false)
         submission_type = submission.submission_type.presence || submission.content_block.effective_submission_type
         json = {
           id: submission.id,
@@ -267,6 +267,7 @@ module Api
         }
 
         json[:rubric] = rubric_json(submission)
+        json[:github_checks] = GithubCheckRunSerializer.collection_json(submission) if include_github_checks
 
         if include_solution
           json[:solution] = submission.content_block.solution

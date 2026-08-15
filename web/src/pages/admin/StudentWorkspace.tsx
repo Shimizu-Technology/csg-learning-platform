@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { Link, NavLink, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, NavLink, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
   ArrowRight,
@@ -7,17 +7,20 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  CircleDashed,
   CircleHelp,
   Clock3,
   ClipboardCheck,
   ExternalLink,
   FileCheck2,
+  GitBranch,
   GraduationCap,
   KeyRound,
   LifeBuoy,
   MessageSquareText,
   RefreshCw,
   RotateCcw,
+  Target,
   UserRound,
   Video,
 } from 'lucide-react'
@@ -38,6 +41,8 @@ import type {
   Submission,
   Intervention,
   RecoveryPlan,
+  LearningInsights,
+  LearningEvidenceStatus,
 } from '../../types/api'
 
 const tabs: Array<{ id: StudentWorkspaceTab; label: string; icon: typeof UserRound }> = [
@@ -258,8 +263,41 @@ function WorkTab({ submissions, cohortId, studentId, returnTo }: { submissions: 
 }
 
 function LearningTab({ progress, cohortId, studentId, returnTo }: { progress: StudentProgressResponse; cohortId: number; studentId: number; returnTo: string }) {
-  return <div className="space-y-4">{progress.modules.map((mod) => <details key={mod.id} className="app-surface overflow-hidden" open={mod.progress_percentage > 0 && mod.progress_percentage < 100}><summary className="min-h-16 cursor-pointer px-5 py-4 sm:px-6"><div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_200px_auto] sm:items-center"><div><h2 className="font-extrabold text-slate-950">{mod.name}</h2><p className="text-xs text-slate-500">{mod.completed_blocks} of {mod.total_blocks} checkpoints</p></div><ProgressBar value={mod.progress_percentage} size="sm" /><span className="text-sm font-extrabold text-slate-700">{mod.progress_percentage}%</span></div></summary><div className="divide-y divide-slate-100 border-t border-slate-100">{mod.lessons.map((lesson) => <div key={lesson.id} className="px-5 py-4 sm:px-6"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-bold text-slate-900">{lesson.title}</p><p className="text-xs text-slate-500">{lesson.completed_blocks}/{lesson.total_blocks} checkpoints · {lesson.available ? 'Available' : 'Locked'}</p></div>{lesson.completed && <span className="inline-flex items-center gap-1 text-xs font-bold text-green-700"><CheckCircle2 className="h-4 w-4" />Complete</span>}</div><div className="mt-3 grid gap-2 sm:grid-cols-2">{lesson.blocks.map((block) => block.submission ? <Link key={block.id} to={submissionPath(block.submission.id, { cohortId, userId: studentId, returnTo })} className="flex min-h-11 items-center justify-between rounded-xl border border-slate-200 px-3 py-2 text-sm hover:border-primary-300 hover:bg-primary-50"><span className="truncate font-semibold text-slate-700">{block.title}</span><SubmissionStatus submission={{ grade: block.submission.grade } as Submission} /></Link> : <div key={block.id} className="flex min-h-11 items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm"><span className="truncate font-semibold text-slate-700">{block.title}</span><span className="text-xs font-bold capitalize text-slate-400">{block.status.replace('_', ' ')}</span></div>)}</div></div>)}</div></details>)}</div>
+  return <div className="space-y-6">
+    <StudentObjectiveEvidence cohortId={cohortId} studentId={studentId} returnTo={returnTo} />
+    <div className="space-y-4">{progress.modules.map((mod) => <details key={mod.id} className="app-surface overflow-hidden" open={mod.progress_percentage > 0 && mod.progress_percentage < 100}><summary className="min-h-16 cursor-pointer px-5 py-4 sm:px-6"><div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_200px_auto] sm:items-center"><div><h2 className="font-extrabold text-slate-950">{mod.name}</h2><p className="text-xs text-slate-500">{mod.completed_blocks} of {mod.total_blocks} checkpoints</p></div><ProgressBar value={mod.progress_percentage} size="sm" /><span className="text-sm font-extrabold text-slate-700">{mod.progress_percentage}%</span></div></summary><div className="divide-y divide-slate-100 border-t border-slate-100">{mod.lessons.map((lesson) => <div key={lesson.id} className="px-5 py-4 sm:px-6"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-bold text-slate-900">{lesson.title}</p><p className="text-xs text-slate-500">{lesson.completed_blocks}/{lesson.total_blocks} checkpoints · {lesson.available ? 'Available' : 'Locked'}</p></div>{lesson.completed && <span className="inline-flex items-center gap-1 text-xs font-bold text-green-700"><CheckCircle2 className="h-4 w-4" />Complete</span>}</div><div className="mt-3 grid gap-2 sm:grid-cols-2">{lesson.blocks.map((block) => block.submission ? <Link key={block.id} to={submissionPath(block.submission.id, { cohortId, userId: studentId, returnTo })} className="flex min-h-11 items-center justify-between rounded-xl border border-slate-200 px-3 py-2 text-sm hover:border-primary-300 hover:bg-primary-50"><span className="truncate font-semibold text-slate-700">{block.title}</span><SubmissionStatus submission={{ grade: block.submission.grade } as Submission} /></Link> : <div key={block.id} className="flex min-h-11 items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm"><span className="truncate font-semibold text-slate-700">{block.title}</span><span className="text-xs font-bold capitalize text-slate-400">{block.status.replace('_', ' ')}</span></div>)}</div></div>)}</div></details>)}</div>
+  </div>
 }
+
+function StudentObjectiveEvidence({ cohortId, studentId, returnTo }: { cohortId: number; studentId: number; returnTo: string }) {
+  const [searchParams] = useSearchParams()
+  const selectedObjectiveId = Number(searchParams.get('objective')) || null
+  const evidenceReturnTo = selectedObjectiveId ? `${returnTo}?objective=${selectedObjectiveId}` : returnTo
+  const [insights, setInsights] = useState<LearningInsights | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    const result = await api.getLearningInsights(cohortId, studentId)
+    if (result.data) setInsights(result.data.learning_insights)
+    else setError(result.error || 'Could not load objective evidence.')
+    setLoading(false)
+  }, [cohortId, studentId])
+
+  useEffect(() => { void load() }, [load])
+  if (loading) return <section className="app-surface p-5"><p className="text-sm font-bold text-slate-500">Loading objective evidence…</p></section>
+  if (!insights) return <section className="app-surface p-5"><div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-slate-600">{error || 'Objective evidence is unavailable.'}</p><Button variant="secondary" onClick={() => void load()}><RefreshCw className="h-4 w-4" />Try again</Button></div></section>
+
+  return <section className="app-surface overflow-hidden"><div className="border-b border-slate-100 px-5 py-4 sm:px-6"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="app-eyebrow">Objective evidence</p><h2 className="mt-1 text-lg font-extrabold text-slate-950">Explainable learning status</h2><p className="mt-1 text-sm text-slate-500">Rubrics and graded work can demonstrate an objective; retrieval-only evidence remains developing. Completion and watch time are excluded.</p></div><Link to={`/admin/cohorts/${cohortId}?tab=insights`} className="app-link inline-flex min-h-11 items-center gap-1 text-sm font-bold">Cohort evidence <ArrowRight className="h-4 w-4" /></Link></div></div><div className="divide-y divide-slate-100">{insights.objectives.map((objective) => {
+    const student = objective.students[0]
+    return <details key={objective.id} open={selectedObjectiveId === objective.id || student.status === 'needs_revision'} className="group scroll-mt-24"><summary className="cursor-pointer list-none px-5 py-4 sm:px-6"><div className="flex flex-wrap items-center justify-between gap-3"><div><div className="flex items-center gap-2"><span className="rounded-lg bg-slate-100 px-2 py-1 font-mono text-xs font-extrabold text-slate-700">{objective.code}</span><h3 className="font-extrabold text-slate-950">{objective.title}</h3></div><p className="mt-1 text-sm text-slate-500">{objective.success_criteria}</p></div><EvidenceStatus status={student.status} /></div></summary><div className="border-t border-slate-100 bg-slate-50/60 px-5 py-4 sm:px-6">{student.evidence.length ? <div className="grid gap-2">{student.evidence.map((evidence) => evidence.submission_id ? <Link key={evidence.id} to={submissionPath(evidence.submission_id, { cohortId, userId: studentId, returnTo: evidenceReturnTo })} className="grid min-h-14 gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 hover:border-primary-300 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"><StudentEvidenceIcon kind={evidence.kind} /><div><p className="text-sm font-bold text-slate-800">{evidence.label}</p><p className="text-xs capitalize text-slate-500">{evidence.kind.replaceAll('_', ' ')} · {evidence.value} · {formatShortDateTime(evidence.occurred_at)}</p></div><div className="flex items-center gap-2">{evidence.github_checks?.failed ? <span className="text-xs font-extrabold text-red-700">{evidence.github_checks.failed} failed check{evidence.github_checks.failed === 1 ? '' : 's'}</span> : null}<ArrowRight className="h-4 w-4 text-slate-400" /></div></Link> : <div key={evidence.id} className="grid min-h-14 gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center"><StudentEvidenceIcon kind={evidence.kind} /><div><p className="text-sm font-bold text-slate-800">{evidence.label}</p><p className="text-xs capitalize text-slate-500">{evidence.value} · {evidence.attempt_count} attempt{evidence.attempt_count === 1 ? '' : 's'} · {formatShortDateTime(evidence.occurred_at)}</p></div></div>)}</div> : <p className="text-sm text-slate-500">No rubric, graded submission, or retrieval evidence has been recorded for this objective.</p>}</div></details>
+  })}</div></section>
+}
+
+function EvidenceStatus({ status }: { status: LearningEvidenceStatus }) { const labels = { demonstrated: 'Demonstrated', developing: 'Developing', needs_revision: 'Needs revision', not_evidenced: 'Not evidenced' }; const styles = { demonstrated: 'bg-green-50 text-green-700', developing: 'bg-amber-50 text-amber-800', needs_revision: 'bg-red-50 text-red-700', not_evidenced: 'bg-slate-100 text-slate-500' }; return <span className={`rounded-full px-2.5 py-1 text-xs font-extrabold ${styles[status]}`}>{labels[status]}</span> }
+function StudentEvidenceIcon({ kind }: { kind: string }) { const Icon = kind === 'knowledge_check' ? CircleDashed : kind === 'rubric_criterion' ? Target : GitBranch; return <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-50 text-primary-700"><Icon className="h-4 w-4" /></span> }
 
 function SupportTab({ requests, interventions, recoveryPlans, cohortId, studentId }: { requests: HelpRequest[]; interventions: Intervention[]; recoveryPlans: RecoveryPlan[]; cohortId: number; studentId: number }) {
   const returnTo = cohortStudentPath(cohortId, studentId, 'support')

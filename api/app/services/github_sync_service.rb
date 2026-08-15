@@ -80,6 +80,7 @@ class GithubSyncService
               submission_type: :prework_github_sync,
               text: file_text,
               github_code_url: github_code_url,
+              commit_sha: commit_hash,
               num_submissions: existing.num_submissions + 1
             }
 
@@ -95,6 +96,8 @@ class GithubSyncService
             progress = Progress.find_or_initialize_by(user: user, content_block_id: block.id)
             progress.update!(status: :completed)
             synced_count += 1
+          elsif existing.commit_sha != commit_hash || existing.github_code_url != github_code_url
+            existing.update!(commit_sha: commit_hash, github_code_url: github_code_url)
           end
         else
           Submission.create!(
@@ -103,6 +106,7 @@ class GithubSyncService
             submission_type: :prework_github_sync,
             text: file_text,
             github_code_url: github_code_url,
+            commit_sha: commit_hash,
             num_submissions: 1
           )
           progress = Progress.find_or_initialize_by(user: user, content_block_id: block.id)

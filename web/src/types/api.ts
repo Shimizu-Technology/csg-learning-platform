@@ -1028,6 +1028,29 @@ export interface Submission {
   exercise_body?: string;
   exercise_video_url?: string;
   rubric?: Rubric | null;
+  github_checks?: GithubChecks;
+}
+
+export interface GithubCheckRun {
+  id: number;
+  external_id: number;
+  name: string;
+  workflow_name: string | null;
+  app_slug: string | null;
+  head_sha: string;
+  status: string;
+  conclusion: string | null;
+  details_url: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  fetched_at: string;
+}
+
+export interface GithubChecks {
+  head_sha: string | null;
+  fetched_at: string | null;
+  summary: { total: number; passed: number; failed: number; pending: number; neutral: number };
+  runs: GithubCheckRun[];
 }
 
 export interface ProgressEntry {
@@ -1355,6 +1378,98 @@ export interface StudentProgressResponse {
     completed_at: string;
   }[];
 }
+
+export type LearningEvidenceStatus = 'demonstrated' | 'developing' | 'needs_revision' | 'not_evidenced';
+
+export interface LearningEvidenceItem {
+  id: string;
+  kind: 'rubric_criterion' | 'aligned_submission' | 'knowledge_check';
+  state: string;
+  label: string;
+  value: string;
+  occurred_at: string;
+  submission_id?: number;
+  knowledge_check_id?: number;
+  attempt_id?: number;
+  attempt_count?: number;
+  content_block_id: number;
+  lesson_id: number;
+  module_id: number;
+  current_submission: boolean;
+  github_checks: Pick<GithubChecks['summary'], 'total' | 'passed' | 'failed' | 'pending'> | null;
+}
+
+export interface LearningInsightStudent {
+  enrollment_id: number;
+  user: { id: number; full_name: string; email: string };
+  status: LearningEvidenceStatus;
+  evidence_count: number;
+  last_evidence_at: string | null;
+  evidence: LearningEvidenceItem[];
+}
+
+export interface LearningInsightObjective {
+  id: number;
+  code: string;
+  title: string;
+  description: string | null;
+  success_criteria: string;
+  demonstrated_count: number;
+  learner_count: number;
+  demonstrated_percentage: number;
+  status_counts: Record<LearningEvidenceStatus, number>;
+  students: LearningInsightStudent[];
+}
+
+export interface LearningRevisionPattern {
+  content_block: { id: number; title: string };
+  lesson: { id: number; title: string };
+  module: { id: number; name: string };
+  objective_ids: number[];
+  learners_with_work: number;
+  affected_learner_count: number;
+  open_redo_count: number;
+  redo_percentage: number;
+  repeat_attempt_count: number;
+  failed_check_count: number;
+  records: Array<{
+    submission_id: number;
+    user: { id: number; full_name: string };
+    grade: string | null;
+    attempt_count: number;
+    github_checks: Pick<GithubChecks['summary'], 'total' | 'passed' | 'failed' | 'pending'>;
+    updated_at: string;
+  }>;
+}
+
+export interface LearningInsights {
+  generated_at: string;
+  evidence_scope: { kind: 'curriculum'; curriculum_id: number; curriculum_name: string; completion_and_watch_time_excluded: boolean };
+  cohort: { id: number; name: string };
+  summary: {
+    objective_count: number;
+    learner_count: number;
+    demonstrated_count: number;
+    developing_count: number;
+    needs_revision_count: number;
+    not_evidenced_count: number;
+    open_redo_count: number;
+    revision_pattern_count: number;
+  };
+  rule: {
+    version: string;
+    demonstrated: string;
+    needs_revision: string;
+    developing: string;
+    not_evidenced: string;
+    automation_boundary: string;
+  };
+  objectives: LearningInsightObjective[];
+  revision_patterns: LearningRevisionPattern[];
+}
+
+export interface LearningInsightsResponse { learning_insights: LearningInsights }
+export interface GithubChecksResponse { github_checks: GithubChecks }
 
 // ─── API Response wrappers ───────────────────────────────────────────────────
 

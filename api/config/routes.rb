@@ -146,6 +146,7 @@ Rails.application.routes.draw do
       # Cohorts with nested enrollments
       resources :cohorts, only: [ :index, :show, :create, :update, :destroy ] do
         resources :enrollments, only: [ :index, :create ]
+        resource :learning_insights, only: :show, controller: "cohort_learning_insights"
         member do
           get :student_view
           patch :module_access
@@ -191,6 +192,7 @@ Rails.application.routes.draw do
 
       # Submissions
       resources :submissions, only: [ :index, :show, :create, :update ] do
+        resource :github_checks, only: [ :show, :create ], controller: "submission_github_checks"
         member do
           patch :grade
           get :github_issue
