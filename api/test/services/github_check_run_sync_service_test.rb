@@ -19,12 +19,15 @@ class GithubCheckRunSyncServiceTest < ActiveSupport::TestCase
   end
 
   test "imports privacy-safe check metadata for the submission commit" do
+    @submission.github_check_runs.create!(external_id: 80, name: "superseded test", head_sha: "abc123", status: "completed", conclusion: "failure", fetched_at: 1.hour.ago)
+    @submission.github_check_runs.create!(external_id: 79, name: "old commit test", head_sha: "old123", status: "completed", conclusion: "failure", fetched_at: 1.day.ago)
     service = GithubCheckRunSyncService.new(submission: @submission, token: "secret-token", now: Time.zone.parse("2026-08-15 10:00"))
     original_get = service.method(:github_get)
     service.define_singleton_method(:github_get) do |url|
       raise "wrong endpoint" unless url.end_with?("/repos/checks-student/course-project/commits/abc123/check-runs")
 
       FakeResponse.new(true, 200, {
+        "total_count" => 1,
         "check_runs" => [ {
           "id" => 81,
           "name" => "test",
@@ -44,11 +47,13 @@ class GithubCheckRunSyncServiceTest < ActiveSupport::TestCase
     result = service.call
 
     assert_nil result[:error]
-    run = @submission.github_check_runs.sole
+    run = @submission.github_check_runs.find_by!(external_id: 81)
     assert_equal "test", run.name
     assert_equal "success", run.conclusion
     assert_equal "github-actions", run.app_slug
     refute_includes run.attributes.to_json, "private logs"
+    assert_not @submission.github_check_runs.exists?(external_id: 80)
+    assert @submission.github_check_runs.exists?(external_id: 79), "prior-commit history should remain available for audit"
   ensure
     service.define_singleton_method(:github_get, original_get)
   end

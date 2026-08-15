@@ -17,7 +17,9 @@ class GithubCheckRunSyncService
 
     runs = Array(response.parsed_response["check_runs"])
     imported = GithubCheckRun.transaction do
-      runs.map { |attributes| upsert_run(attributes) }
+      current = runs.map { |attributes| upsert_run(attributes) }
+      prune_obsolete_current_commit_runs(runs) if complete_response?(response, runs)
+      current
     end
     { check_runs: imported.sort_by { |run| [ run.completed_at || Time.zone.at(0), run.id ] }.reverse, error: nil }
   rescue URI::InvalidURIError
@@ -57,6 +59,18 @@ class GithubCheckRunSyncService
       fetched_at: now
     )
     run
+  end
+
+  def complete_response?(response, runs)
+    total_count = response.parsed_response["total_count"]
+    total_count.nil? || total_count.to_i <= runs.size
+  end
+
+  def prune_obsolete_current_commit_runs(runs)
+    external_ids = runs.map { |attributes| attributes.fetch("id") }
+    scope = submission.github_check_runs.where(head_sha: submission.commit_sha)
+    scope = scope.where.not(external_id: external_ids) if external_ids.any?
+    scope.delete_all
   end
 
   def headers
