@@ -96,11 +96,11 @@ class CurriculumModule < ApplicationRecord
     return unless will_save_change_to_schedule_days?
     return if id.blank? || SCHEDULE_PATTERNS[schedule_days].blank?
 
-    invalid_count = Lesson.where(module_id: id, archived_at: nil).count do |lesson|
+    invalid_count = Lesson.where(module_id: id).count do |lesson|
       !valid_release_day?(lesson.release_day)
     end
     return if invalid_count.zero?
 
-    errors.add(:schedule_days, "would exclude #{invalid_count} active #{'lesson'.pluralize(invalid_count)}")
+    errors.add(:schedule_days, "would exclude #{invalid_count} restorable #{'lesson'.pluralize(invalid_count)}")
   end
 end

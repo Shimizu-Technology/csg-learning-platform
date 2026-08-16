@@ -210,8 +210,20 @@ class LessonTest < ActiveSupport::TestCase
     saturday = Lesson.create!(curriculum_module: @mod, title: "Saturday", position: 2, release_day: 5)
 
     refute @mod.update(schedule_days: "weekdays")
-    assert_includes @mod.errors[:schedule_days], "would exclude 1 active lesson"
+    assert_includes @mod.errors[:schedule_days], "would exclude 1 restorable lesson"
     assert_equal "weekdays_sat", @mod.reload.schedule_days
     assert Lesson.exists?(saturday.id)
+  end
+
+  test "module schedule changes cannot strand archived lessons" do
+    @mod.update!(schedule_days: "weekdays_sat")
+    saturday = Lesson.create!(curriculum_module: @mod, title: "Archived Saturday", position: 2, release_day: 5)
+    saturday.archive!
+
+    refute @mod.update(schedule_days: "weekdays")
+    assert_includes @mod.errors[:schedule_days], "would exclude 1 restorable lesson"
+    assert_equal "weekdays_sat", @mod.reload.schedule_days
+    saturday.restore!
+    assert_includes @mod.lessons.reload, saturday
   end
 end
