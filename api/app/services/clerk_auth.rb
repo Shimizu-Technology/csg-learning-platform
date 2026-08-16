@@ -1,111 +1,102 @@
+require "digest"
+
 class ClerkAuth
-  JWKS_CACHE_KEY = "clerk_jwks"
   JWKS_CACHE_TTL = 1.hour
+  MAX_TOKEN_BYTES = 16.kilobytes
 
   class << self
     def verify(token)
-      return nil if token.blank?
+      return nil if token.blank? || token.bytesize > MAX_TOKEN_BYTES
 
       # Test environment: allow special test tokens
       if Rails.env.test? && token.start_with?("test_token_")
         return handle_test_token(token)
       end
 
-      jwks = fetch_jwks
+      unverified_payload = JWT.decode(token, nil, false).first
+      environment = ClerkEnvironment.for_issuer(unverified_payload["iss"])
+      unless environment
+        Rails.logger.warn("[ClerkAuth] rejected_unrecognized_issuer")
+        return nil
+      end
+
+      jwks = fetch_jwks(environment)
       return nil if jwks.nil?
 
       decode_options = {
         algorithms: [ "RS256" ],
-        jwks: jwks
+        jwks: jwks,
+        verify_iss: true,
+        iss: environment.issuer
       }
-
-      issuer = expected_issuer
-      if issuer.present?
-        decode_options[:verify_iss] = true
-        decode_options[:iss] = issuer
-      elsif Rails.env.production?
-        Rails.logger.error("CLERK_ISSUER is required in production for JWT issuer verification")
-        return nil
-      end
-
-      audience = expected_audience
-      if audience.present?
+      if environment.audience.present?
         decode_options[:verify_aud] = true
-        decode_options[:aud] = audience
+        decode_options[:aud] = environment.audience
       end
 
-      decoded = JWT.decode(token, nil, true, decode_options)
+      decoded = JWT.decode(token, nil, true, decode_options).first
+      return nil unless authorized_party_allowed?(decoded, environment)
 
-      decoded.first
-    rescue JWT::DecodeError => e
-      Rails.logger.warn("JWT decode error: #{e.message}")
-      nil
+      decoded["_clerk_issuer"] = environment.issuer
+      decoded["_clerk_environment"] = environment.name
+      decoded
     rescue JWT::ExpiredSignature
-      Rails.logger.debug("JWT token expired")
+      Rails.logger.debug("[ClerkAuth] token_expired")
+      nil
+    rescue JWT::DecodeError => error
+      Rails.logger.warn("[ClerkAuth] decode_error error_class=#{error.class.name}")
       nil
     end
 
     private
 
-    def fetch_jwks
-      cached = Rails.cache.read(JWKS_CACHE_KEY)
+    def fetch_jwks(environment)
+      cache_key = "clerk_jwks:#{Digest::SHA256.hexdigest(environment.issuer)[0, 16]}"
+      cached = Rails.cache.read(cache_key)
       return cached if cached.present?
 
-      jwks_uri = jwks_url
-      return nil unless jwks_uri
-
-      response = HTTParty.get(jwks_uri, timeout: 5)
+      response = HTTParty.get(environment.jwks_url, timeout: 5)
 
       if response.success?
         jwks = response.parsed_response
-        Rails.cache.write(JWKS_CACHE_KEY, jwks, expires_in: JWKS_CACHE_TTL)
+        Rails.cache.write(cache_key, jwks, expires_in: JWKS_CACHE_TTL)
         jwks
       else
-        Rails.logger.error("Failed to fetch Clerk JWKS: #{response.code}")
+        Rails.logger.error("[ClerkAuth] jwks_fetch_failed status_code=#{response.code}")
         nil
       end
-    rescue HTTParty::Error, Timeout::Error => e
-      Rails.logger.error("Error fetching Clerk JWKS: #{e.message}")
+    rescue HTTParty::Error, Net::OpenTimeout, Net::ReadTimeout, Timeout::Error, SocketError, Errno::ECONNREFUSED, OpenSSL::SSL::SSLError => error
+      Rails.logger.error("[ClerkAuth] jwks_unavailable error_class=#{error.class.name}")
       nil
     end
 
-    def jwks_url
-      jwks = ENV.fetch("CLERK_JWKS_URL", nil)
-      return jwks if jwks.present?
+    def authorized_party_allowed?(payload, environment)
+      authorized_party = payload["azp"].presence
+      allowed = environment.authorized_parties
+      # Clerk's manual verification guidance says to validate azp when present
+      # and skip this check when the claim is absent. Native session tokens may
+      # not have a browser Origin, while browser tokens must match the allowlist.
+      return true if authorized_party.blank? || allowed.blank?
+      return true if allowed.include?(authorized_party)
 
-      issuer = ENV.fetch("CLERK_ISSUER", nil)
-      if issuer.present?
-        "#{issuer}/.well-known/jwks.json"
-      else
-        Rails.logger.warn("Neither CLERK_JWKS_URL nor CLERK_ISSUER configured")
-        nil
-      end
-    end
-
-    def expected_issuer
-      ENV.fetch("CLERK_ISSUER", nil)
-    end
-
-    def expected_audience
-      raw = ENV.fetch("CLERK_AUDIENCE", nil)
-      return nil if raw.blank?
-
-      audiences = raw.split(",").map(&:strip).reject(&:empty?)
-      audiences.length == 1 ? audiences.first : audiences
+      Rails.logger.warn("[ClerkAuth] rejected_authorized_party environment=#{environment.name}")
+      false
     end
 
     def handle_test_token(token)
-      user_id = token.gsub("test_token_", "")
+      user_id = token.delete_prefix("test_token_")
       user = User.find_by(id: user_id)
+      return nil unless user
 
-      if user
-        {
-          "sub" => user.clerk_id || "test_clerk_#{user.id}",
-          "email" => user.email,
-          "first_name" => user.first_name,
-          "last_name" => user.last_name
-        }
-      end
+      environment = ClerkEnvironment.primary
+      {
+        "sub" => user.clerk_id || "test_clerk_#{user.id}",
+        "email" => user.email,
+        "first_name" => user.first_name,
+        "last_name" => user.last_name,
+        "_clerk_issuer" => environment&.issuer || "https://test.clerk.invalid",
+        "_clerk_environment" => environment&.name || "test"
+      }
     end
   end
 end

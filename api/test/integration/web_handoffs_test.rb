@@ -7,8 +7,9 @@ class WebHandoffsTest < ActionDispatch::IntegrationTest
 
   test "authenticated users can create an allowlisted handoff" do
     service = Object.new
-    service.define_singleton_method(:create) do |user_id:, redirect_url:|
-      raise unless user_id == "clerk_handoff" && redirect_url.end_with?("/lessons/42")
+    expected_user = @user
+    service.define_singleton_method(:create) do |user:, redirect_url:|
+      raise unless user == expected_user && redirect_url.end_with?("/lessons/42")
       { success: true, url: "https://accounts.example.com/one-time" }
     end
 
@@ -37,8 +38,8 @@ class WebHandoffsTest < ActionDispatch::IntegrationTest
     staff = User.create!(clerk_id: "clerk_handoff_staff", email: "handoff-staff@example.com", role: :instructor)
     destination = nil
     service = Object.new
-    service.define_singleton_method(:create) do |user_id:, redirect_url:|
-      destination = [ user_id, redirect_url ]
+    service.define_singleton_method(:create) do |user:, redirect_url:|
+      destination = [ user, redirect_url ]
       { success: true, url: "https://accounts.example.com/staff-handoff" }
     end
     original_new = ClerkWebHandoffService.method(:new)
@@ -50,7 +51,7 @@ class WebHandoffsTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_equal "https://accounts.example.com/staff-handoff", JSON.parse(response.body).fetch("url")
-    assert_equal [ staff.clerk_id, "#{FrontendUrlResolver.resolve.delete_suffix('/')}/admin/students/42" ], destination
+    assert_equal [ staff, "#{FrontendUrlResolver.resolve.delete_suffix('/')}/admin/students/42" ], destination
   ensure
     ClerkWebHandoffService.define_singleton_method(:new, original_new) if defined?(original_new) && original_new
   end
@@ -58,7 +59,7 @@ class WebHandoffsTest < ActionDispatch::IntegrationTest
   test "staff handoffs include connected intervention and student workspace records" do
     staff = User.create!(clerk_id: "clerk_connected_staff", email: "connected-staff@example.com", role: :instructor)
     service = Object.new
-    service.define_singleton_method(:create) { |user_id:, redirect_url:| { success: true, url: "https://accounts.example.com/connected?user=#{user_id}&destination=#{redirect_url}" } }
+    service.define_singleton_method(:create) { |user:, redirect_url:| { success: true, url: "https://accounts.example.com/connected?user=#{user.id}&destination=#{redirect_url}" } }
     original_new = ClerkWebHandoffService.method(:new)
     ClerkWebHandoffService.define_singleton_method(:new) { service }
 

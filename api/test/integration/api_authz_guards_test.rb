@@ -266,6 +266,7 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
   test "production ignores open signup escape hatch" do
     payload = {
       "sub" => "clerk_env_signup",
+      "iss" => "https://production.clerk.test",
       "email" => "env-signup@example.com",
       "first_name" => "Env",
       "last_name" => "Signup"
@@ -281,7 +282,7 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
     post "/api/v1/sessions", headers: auth_headers
 
     assert_response :forbidden
-    assert_equal "account_not_authorized", JSON.parse(response.body).fetch("code")
+    assert_equal "identity_unverified", JSON.parse(response.body).fetch("code")
     refute User.exists?(email: "env-signup@example.com")
   ensure
     ENV["ALLOW_OPEN_SIGNUPS"] = original_open_signups

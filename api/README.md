@@ -49,6 +49,10 @@ Clerk authentication is required in local development too. The current app does 
 | `CLERK_SECRET_KEY` | No | — | Clerk backend key for enriching user data |
 | `CLERK_JWKS_URL` | No | Auto from issuer | Explicit JWKS endpoint override |
 | `CLERK_AUDIENCE` | No | — | JWT audience verification |
+| `CLERK_AUTHORIZED_PARTIES` | Prod recommended | — | Comma-separated allowlist for Clerk's `azp` token claim |
+| `CLERK_DEVELOPMENT_ISSUER` / `CLERK_DEVELOPMENT_SECRET_KEY` | Cutover only | — | Explicit legacy instance accepted during the mobile transition |
+| `CLERK_PRODUCTION_ISSUER` / `CLERK_PRODUCTION_SECRET_KEY` | Cutover only | — | Explicit production instance used alongside the legacy instance |
+| `CLERK_PRIMARY_ENVIRONMENT` | Cutover only | development/legacy | Instance used for invitations and secure web handoffs; switch to production with Netlify |
 | `DATABASE_URL` | Prod only | — | Neon PostgreSQL connection string |
 | `ACTIVE_JOB_QUEUE_ADAPTER` | No | `inline` | Production job execution mode: `inline` for the low-volume workerless deployment, or `solid_queue` with exactly one configured worker path |
 | `SOLID_QUEUE_WORKER_PROVISIONED` | No | `false` | Set to `true` only when a dedicated worker is running `./bin/jobs` |
@@ -63,6 +67,20 @@ Clerk authentication is required in local development too. The current app does 
 | `WEB_PUSH_PUBLIC_KEY` | No | — | VAPID public key for browser push subscriptions |
 | `WEB_PUSH_PRIVATE_KEY` | No | — | VAPID private key for push delivery |
 | `WEB_PUSH_SUBJECT` | No | — | Contact URI for Web Push (for example `mailto:team@codeschoolofguam.com`) |
+
+During the Clerk production cutover, a user can have one identity per Clerk
+issuer in `clerk_identities`. The legacy `users.clerk_id` remains intact for
+rollback compatibility; it is no longer overwritten when an established user
+first authenticates through the production instance. Unknown production
+subjects are linked only after the matching Clerk Backend API confirms a
+verified primary email. Run both transition tasks without `APPLY=1` first:
+
+```bash
+bin/rails clerk:backfill_identities
+bin/rails clerk:provision_production_users
+```
+
+The tasks are idempotent, default to dry-run, and have no delete behavior.
 
 For direct browser uploads to S3, `AWS_REGION` must match the bucket’s real region exactly, and the bucket’s CORS rules must allow both local development (`http://localhost:5173`) and production (`https://learn.codeschoolofguam.com`) origins. In production, this setting refers to the S3 bucket region, not the Render app region, so it is valid for uploads to use `ap-southeast-2` even while the API runs in Singapore. If presign succeeds but the browser upload fails before the recording create request reaches Rails, that is usually an S3 CORS or bucket-region mismatch issue rather than an API error.
 

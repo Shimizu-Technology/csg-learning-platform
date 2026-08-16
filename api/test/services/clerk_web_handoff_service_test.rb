@@ -57,6 +57,36 @@ class ClerkWebHandoffServiceTest < ActiveSupport::TestCase
     end
   end
 
+  test "uses the primary environment identity for a user" do
+    user = User.create!(clerk_id: "dev_handoff", email: "prod-handoff@example.com", role: :student)
+    environment = ClerkEnvironment.new(name: "production", issuer: "https://prod.clerk.test", secret_key: "sk_live_test")
+    user.clerk_identities.create!(issuer: environment.issuer, clerk_user_id: "prod_handoff")
+    posted_user_id = nil
+    response = Object.new
+    response.define_singleton_method(:success?) { true }
+    response.define_singleton_method(:parsed_response) { { "url" => "https://accounts.example.com/sign-in?ticket=secret" } }
+
+    original_post = HTTParty.method(:post)
+    HTTParty.define_singleton_method(:post) do |_url, **options|
+      posted_user_id = JSON.parse(options.fetch(:body)).fetch("user_id")
+      response
+    end
+
+    result = ClerkWebHandoffService.new(environment: environment).create(user: user, redirect_url: "https://learn.codeschoolofguam.com/lessons/42")
+    assert result[:success]
+    assert_equal "prod_handoff", posted_user_id
+  ensure
+    HTTParty.define_singleton_method(:post, original_post) if defined?(original_post) && original_post
+  end
+
+  test "fails safely when the user has not been provisioned in the primary environment" do
+    user = User.create!(clerk_id: "dev_only", email: "dev-only@example.com", role: :student)
+    environment = ClerkEnvironment.new(name: "production", issuer: "https://prod.clerk.test", secret_key: "sk_live_test")
+
+    result = ClerkWebHandoffService.new(environment: environment).create(user: user, redirect_url: "https://learn.codeschoolofguam.com/lessons/42")
+    assert_equal({ success: false, error: ClerkWebHandoffService::GENERIC_ERROR }, result)
+  end
+
   private
 
   def with_http_response(response)

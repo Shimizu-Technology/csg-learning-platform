@@ -150,8 +150,18 @@ RAILS_ENV=production
 RAILS_MASTER_KEY=<production Rails master key from your password manager>
 DATABASE_URL=<Neon connection string>
 FRONTEND_URL=https://learn.codeschoolofguam.com
-CLERK_ISSUER=https://<your-clerk-app>.clerk.accounts.dev
-CLERK_SECRET_KEY=sk_live_...
+# Local/single-instance compatibility variables. During the production
+# transition use the explicit development and production variables below.
+CLERK_ISSUER=https://<your-development-instance>.clerk.accounts.dev
+CLERK_SECRET_KEY=sk_test_...
+CLERK_DEVELOPMENT_ISSUER=https://<your-development-instance>.clerk.accounts.dev
+CLERK_DEVELOPMENT_SECRET_KEY=sk_test_...
+CLERK_DEVELOPMENT_AUTHORIZED_PARTIES=https://learn.codeschoolofguam.com
+CLERK_PRODUCTION_ISSUER=https://<production-frontend-api-domain>
+CLERK_PRODUCTION_SECRET_KEY=sk_live_...
+CLERK_PRODUCTION_AUTHORIZED_PARTIES=https://learn.codeschoolofguam.com
+# Keep development primary until the Netlify publishable-key cutover.
+CLERK_PRIMARY_ENVIRONMENT=development
 MAILER_FROM_EMAIL=noreply@codeschoolofguam.com
 RESEND_API_KEY=re_...
 GITHUB_ORGANIZATION_ADMIN_TOKEN=ghp_...
@@ -326,6 +336,48 @@ VITE_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
 
 Production EAS builds should set the matching `EXPO_PUBLIC_POSTHOG_KEY` and `EXPO_PUBLIC_POSTHOG_HOST` values for the `csg-learning-platform` project. Native development and demo builds intentionally remain analytics-free.
 
+### Clerk production cutover
+
+Do not replace the development Clerk keys atomically. Existing mobile builds
+continue minting development-instance tokens until students install the new
+build, while the production website mints production-instance tokens.
+
+1. Deploy the additive `clerk_identities` migration and dual-issuer backend.
+2. Run `bin/rails clerk:backfill_identities` and inspect the dry-run. Apply only
+   after the counts match the established Clerk roster:
+   `APPLY=1 bin/rails clerk:backfill_identities`.
+3. Create the Clerk production instance by cloning development settings. Before
+   exposing it, set access mode to Restricted, configure the production domain,
+   add custom Google OAuth credentials, and register native applications.
+4. Configure both explicit issuer/secret pairs on Render, with
+   `CLERK_PRIMARY_ENVIRONMENT=development`. Keep the current single-instance
+   variables during the rollback window.
+5. Run `bin/rails clerk:provision_production_users` and verify that only active,
+   non-pending, non-archived Rails users are listed. Apply with
+   `APPLY=1 bin/rails clerk:provision_production_users`. This creates verified
+   email-only production user shells and identity aliases; it never deletes a
+   Clerk or Rails user.
+6. Test a Netlify deploy preview and an internal physical-device build using
+   the production publishable key. Confirm admin, instructor, student, archived,
+   unauthorized, push, and mobile-to-web handoff behavior.
+7. Release the production-key mobile build before changing Netlify production.
+   Keep both issuers accepted until legacy mobile traffic reaches zero. Before
+   the web cutover, rerun the production provisioner in dry-run and apply mode
+   so users invited during the rollout window are included; stop if any result
+   is `conflict` or `failed`.
+8. In the same controlled cutover window, switch Render's
+   `CLERK_PRIMARY_ENVIRONMENT` to `production`, switch Netlify production to
+   `pk_live_...`, redeploy both, and verify handoffs before announcing success.
+   Monitor API 401/403 rates and `[ClerkAuth] legacy_development_session` log
+   entries.
+9. Retire the development issuer only after an announced mobile upgrade cutoff.
+   Keep identity rows through the rollback and audit window.
+
+Rollback is additive: restore Netlify's development publishable key and set
+`CLERK_PRIMARY_ENVIRONMENT=development` while the backend continues accepting
+both issuers. Do not delete production users, development users, or identity
+aliases during rollback.
+
 ### SPA Routing
 
 `web/public/_redirects` is the single source of truth for routing. It redirects
@@ -468,9 +520,15 @@ Check these in order:
 
 ### Clerk auth not working
 
-1. Verify `CLERK_ISSUER` matches your Clerk app
-2. Check that the JWT contains the expected claims
-3. Verify Clerk webhook or session settings haven't changed
+1. Verify the token `iss` exactly matches either `CLERK_DEVELOPMENT_ISSUER` or
+   `CLERK_PRODUCTION_ISSUER` during the transition.
+2. Verify the corresponding secret and JWKS/domain configuration belong to the
+   same Clerk instance.
+3. Verify the token `azp` is present in that environment's authorized-party
+   allowlist.
+4. Check for an `identity_conflict` response before changing any user record.
+5. Verify Google OAuth, native redirect allowlists, and session settings have
+   not changed.
 
 ### Database connection issues
 

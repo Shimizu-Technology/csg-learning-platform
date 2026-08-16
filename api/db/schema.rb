@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_16_000100) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_16_210000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -71,6 +71,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_000100) do
     t.index ["workspace_id", "name"], name: "index_channels_on_workspace_id_and_name", unique: true
     t.index ["workspace_id", "status", "position"], name: "index_channels_on_workspace_id_and_status_and_position"
     t.index ["workspace_id"], name: "index_channels_on_workspace_id"
+  end
+
+  create_table "clerk_identities", force: :cascade do |t|
+    t.string "clerk_user_id", null: false
+    t.datetime "created_at", null: false
+    t.string "issuer", null: false
+    t.datetime "last_seen_at"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["issuer", "clerk_user_id"], name: "index_clerk_identities_on_issuer_and_clerk_user_id", unique: true
+    t.index ["user_id", "issuer"], name: "index_clerk_identities_on_user_id_and_issuer", unique: true
+    t.index ["user_id"], name: "index_clerk_identities_on_user_id"
   end
 
   create_table "cohort_module_schedules", force: :cascade do |t|
@@ -874,6 +886,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_000100) do
   add_foreign_key "channel_read_states", "users"
   add_foreign_key "channels", "cohorts"
   add_foreign_key "channels", "workspaces"
+  add_foreign_key "clerk_identities", "users"
   add_foreign_key "cohort_module_schedules", "cohorts"
   add_foreign_key "cohort_module_schedules", "modules"
   add_foreign_key "cohort_module_submission_windows", "cohorts"

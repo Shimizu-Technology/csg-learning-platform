@@ -1,8 +1,8 @@
 class ClerkInvitationService
   BASE_URL = "https://api.clerk.com/v1"
 
-  def initialize
-    @secret_key = ENV["CLERK_SECRET_KEY"]
+  def initialize(environment: ClerkEnvironment.primary, secret_key: nil)
+    @secret_key = secret_key.presence || environment&.secret_key
   end
 
   def configured?
