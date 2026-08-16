@@ -1,6 +1,6 @@
 # CSG Learning Platform — Deployment Guide
 
-**Last updated:** 2026-08-15
+**Last updated:** 2026-08-16
 
 ## Architecture Overview
 
@@ -26,7 +26,7 @@
 |---------|-------|
 | Service type | Web Service |
 | Region | Singapore (closest to Guam) |
-| Runtime | Docker |
+| Runtime | Ruby |
 | Branch | `main` |
 | Root directory | `api` |
 | Health check path | `/health` |
@@ -48,6 +48,10 @@ Keep the Render background worker suspended in this mode. `/api/v1/ready`
 should return `200` with `queue: not_required`. Inline delivery adds provider
 latency to the originating request, so exercise invitations, messages,
 submissions, and push delivery after changing modes.
+
+The suspended worker is a recovery path, not an active execution path. Keep its
+automatic deploys disabled and retain `./bin/jobs` as its Docker command so an
+accidental resume cannot inherit the Dockerfile's Rails web-server command.
 
 Only create or resume a second Render service when production volume justifies
 persistent asynchronous jobs. Before switching to Solid Queue, configure it as:
@@ -230,9 +234,10 @@ orphaned storage indefinitely.
 ### Deploy Process
 
 1. Push to `main` triggers auto-deploy on Render
-2. Docker build runs from `api/Dockerfile`
-3. `bin/docker-entrypoint` runs migrations automatically on startup
-4. Render checks `/health` to confirm the Rails process is serving requests
+2. Render's Ruby runtime installs the bundle from `api`
+3. The build command runs `bundle exec rails db:prepare`
+4. Render starts Puma with `bundle exec puma -C config/puma.rb`
+5. Render checks `/health` to confirm the Rails process is serving requests
 
 `/health` is intentionally database-free because Render requests it every few
 seconds; it must not keep Neon awake. It is also silenced from production request
@@ -243,6 +248,22 @@ queue no older than `QUEUE_READINESS_MAX_READY_AGE_SECONDS` (default: 300).
 Render must use `/health`, never `/api/v1/ready`, for its automatic health
 check. Use `/api/v1/ready` only during deployment verification and incident
 diagnosis.
+
+The `Production Health` GitHub Actions workflow also checks both endpoints every
+hour. It requires `status: ok`, `database: ok`, and `queue: not_required`.
+That exact queue assertion detects an accidental return to Solid Queue before a
+worker has been intentionally activated. The workflow can also be run manually:
+
+```bash
+gh workflow run production-health.yml
+```
+
+Run the same monitor locally with:
+
+```bash
+node --test scripts/production-health-check.test.mjs
+node scripts/production-health-check.mjs
+```
 
 ### Manual Deploy
 
