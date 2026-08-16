@@ -13,7 +13,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "audit:dependencies": "node ../.github/scripts/npm-audit.mjs npm-audit-exceptions.json",
-    "test:netlify": "bash scripts/netlify-ignore-build.test.sh",
+    "test:netlify": "bash scripts/netlify-ignore-build.test.sh && node scripts/netlify-routing.test.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
