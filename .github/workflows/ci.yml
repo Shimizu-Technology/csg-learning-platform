@@ -10,6 +10,25 @@ defaults:
     working-directory: ./api
 
 jobs:
+  production_health_monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    defaults:
+      run:
+        working-directory: .
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+
+      - name: Test production health monitor
+        run: node --test scripts/production-health-check.test.mjs
+
   scan_ruby:
     runs-on: ubuntu-latest
 
