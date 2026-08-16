@@ -10,8 +10,8 @@ This directory is the source of truth for the first Google Play release of CSG C
 | --- | --- |
 | Application ID | `com.codeschoolofguam.connect` |
 | Marketing version | `1.0.0` |
-| Local Android version code | `2`; EAS production builds auto-increment remotely |
-| Target SDK | API 36, confirmed in the prior production AAB and required for new submissions beginning 2026-08-31 |
+| Android version code | Local fallback `2`; latest EAS production artifact `3` (remote auto-increment) |
+| Target SDK | API 36, confirmed in the current production AAB and required for new submissions beginning 2026-08-31 |
 | Minimum SDK | API 24 |
 | Developer account | Existing account owned by `shimizutechnology@gmail.com`; currently Personal |
 | Public developer name | Play Console currently shows `Shimizu Technology`; confirm the public listing has propagated before launch |
@@ -20,9 +20,10 @@ This directory is the source of truth for the first Google Play release of CSG C
 | Play app record | Not created yet |
 | Android push | Dedicated Firebase project and Android app are registered; the client config is wired into Expo and a least-privilege FCM V1 service-account key is assigned in EAS. Physical-device delivery remains unverified |
 | Android toolchain | API 36 SDK, Play Store emulator, debug install/sign-in smoke test, and release-manifest inspection completed locally |
+| Production artifact | EAS version-code 3 AAB built from the reviewed commit and inspected locally; not uploaded to Play |
 | Internal release | Not uploaded yet |
 
-The existing EAS version-code 2 AAB is an audit artifact only and must not be uploaded to Play. Inspection of its compiled manifest confirmed API 36/24 targeting, but it predates this hardening and still contains `SYSTEM_ALERT_WINDOW`, legacy external-storage permissions, and `allowBackup=true`. Generate and inspect a fresh AAB from the reviewed release commit.
+The older EAS version-code 2 AAB is an audit artifact only and must not be uploaded to Play. It predates release hardening and contains `SYSTEM_ALERT_WINDOW`, legacy external-storage permissions, and `allowBackup=true`. The replacement version-code 3 AAB validates successfully, targets API 36 with minimum API 24, disables backup, excludes blocked legacy/media/overlay permissions and development-client components, includes Firebase Messaging, embeds the production API/Clerk configuration with demo mode disabled, and passes 16 KB ZIP and arm64 ELF alignment checks.
 
 Do not create a second Play developer account. Convert the existing account so the current account history and existing app remain together.
 
@@ -39,7 +40,7 @@ Do not create a second Play developer account. Convert the existing account so t
 4. Wait at least 72 hours after the account-type transition before submitting a new app. Google recommends this to avoid redundant app rejections while account data propagates.
 5. Completed 2026-08-17: created the dedicated Firebase project, registered `com.codeschoolofguam.connect`, committed only the public Android client config, and assigned a dedicated FCM V1 key in EAS. The private service-account JSON remains outside Git with owner-only local permissions.
 6. Partially completed 2026-08-17: installed the Android SDK packages, created and booted a Play Store API 36 emulator, built and installed the debug app, reached the Clerk Google OAuth handoff, and verified the generated release manifest. Physical-device-only rows in [TEST_MATRIX.md](./TEST_MATRIX.md) remain open.
-7. Generate a fresh production AAB from the reviewed commit. Confirm package, version code, target/min SDK, permissions, signing certificate, 16 KB page compatibility, and that no development client is present.
+7. Completed 2026-08-17: generated the signed EAS production AAB at version code 3 from the 5/5-reviewed commit and confirmed package, version, target/min SDK, permissions, signature integrity, production runtime configuration, 16 KB compatibility, Firebase Messaging, and absence of the development client.
 8. Create the Play app record under Shimizu Technology and complete the store listing, App content, Data safety, content rating, target audience, app access, ads, and account-deletion declarations.
 9. Upload the AAB to Internal testing as a draft. Add only authorized internal testers and complete physical-device testing. An emulator is necessary but cannot validate push delivery, OEM behavior, real microphone routing, or Play-installed signing.
 10. Move to Closed testing when the internal matrix is clean. If Google still applies the new-personal-account gate, maintain at least 12 opted-in testers continuously for 14 days before applying for production access.
