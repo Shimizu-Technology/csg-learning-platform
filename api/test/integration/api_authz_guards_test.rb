@@ -281,7 +281,7 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
     post "/api/v1/sessions", headers: auth_headers
 
     assert_response :forbidden
-    assert_equal "account_not_authorized", JSON.parse(response.body).fetch("code")
+    assert_equal "identity_unverified", JSON.parse(response.body).fetch("code")
     refute User.exists?(email: "env-signup@example.com")
   ensure
     ENV["ALLOW_OPEN_SIGNUPS"] = original_open_signups

@@ -23,6 +23,9 @@ class CohortModuleSubmissionWindowsTest < ActionDispatch::IntegrationTest
       email: "window_student@example.com",
       role: :student
     )
+    issuer = ClerkEnvironment.primary&.issuer || "https://test.clerk.invalid"
+    @instructor.clerk_identities.create!(issuer: issuer, clerk_user_id: @instructor.clerk_id)
+    @student.clerk_identities.create!(issuer: issuer, clerk_user_id: @student.clerk_id)
   end
 
   test "staff can save and clear a valid weekly close time" do

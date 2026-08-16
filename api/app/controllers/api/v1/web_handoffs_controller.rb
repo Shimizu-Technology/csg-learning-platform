@@ -25,7 +25,7 @@ module Api
         end
 
         redirect_url = "#{FrontendUrlResolver.resolve.delete_suffix('/')}#{destination}"
-        result = ClerkWebHandoffService.new.create(user_id: current_user.clerk_id, redirect_url: redirect_url)
+        result = ClerkWebHandoffService.new.create(user: current_user, redirect_url: redirect_url)
         if result[:success]
           render json: { url: result[:url] }
         else
