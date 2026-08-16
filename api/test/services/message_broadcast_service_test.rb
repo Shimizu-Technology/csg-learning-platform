@@ -40,7 +40,9 @@ class MessageBroadcastServiceTest < ActiveSupport::TestCase
     recipient = User.create!(clerk_id: "blocked_broadcast_recipient", email: "blocked-recipient@example.com", first_name: "Blocked", last_name: "Recipient", role: :student)
     Enrollment.create!(user: author, cohort: cohort, status: :active)
     Enrollment.create!(user: recipient, cohort: cohort, status: :active)
-    UserBlock.create!(blocker: recipient, blocked_user: author)
+    # The author initiated the block. The blocked recipient must not receive
+    # the author's content through the shared-channel realtime stream.
+    UserBlock.create!(blocker: author, blocked_user: recipient)
     message = Message.create!(channel: channel, author: author, body: "Must not leak")
 
     user_broadcasts = []

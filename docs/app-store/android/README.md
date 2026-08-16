@@ -20,6 +20,8 @@ This directory is the source of truth for the first Google Play release of CSG C
 | Android push | App code is ready; Firebase project/Android registration and EAS FCM V1 credential remain |
 | Internal release | Not uploaded yet |
 
+The existing EAS version-code 2 AAB is an audit artifact only and must not be uploaded to Play. Inspection of its compiled manifest confirmed API 36/24 targeting, but it predates this hardening and still contains `SYSTEM_ALERT_WINDOW`, legacy external-storage permissions, and `allowBackup=true`. Generate and inspect a fresh AAB from the reviewed release commit.
+
 Do not create a second Play developer account. Convert the existing account so the current account history and existing app remain together.
 
 ## Release sequence

@@ -1,7 +1,7 @@
 class MessageJson
   class << self
     def render(message, current_user: nil, stream_url: false, read_receipts: nil)
-      blocked = current_user.present? && message.author_id != current_user.id && current_user.blocks?(message.author)
+      blocked = current_user.present? && message.author_id != current_user.id && current_user.blocked_relationship_with?(message.author)
       {
         id: message.id,
         channel_id: message.channel_id,
@@ -29,7 +29,7 @@ class MessageJson
     def latest(message, current_user: nil)
       return nil unless message
 
-      blocked = current_user.present? && message.author_id != current_user.id && current_user.blocks?(message.author)
+      blocked = current_user.present? && message.author_id != current_user.id && current_user.blocked_relationship_with?(message.author)
 
       {
         id: message.id,

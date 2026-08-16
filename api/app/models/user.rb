@@ -109,10 +109,18 @@ class User < ApplicationRecord
     user.present? && blocks_received.exists?(blocker_id: user.id)
   end
 
+  def blocked_relationship_with?(user)
+    user.present? && blocked_relationship_user_ids.include?(user.id)
+  end
+
   private
 
   def blocked_user_id_set
     @blocked_user_id_set ||= user_blocks.pluck(:blocked_user_id)
+  end
+
+  def blocked_relationship_user_ids
+    @blocked_relationship_user_ids ||= blocked_user_id_set | blocks_received.pluck(:blocker_id)
   end
 
   def archive_or_detach_direct_conversations!
