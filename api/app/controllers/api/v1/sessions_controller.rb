@@ -43,7 +43,8 @@ module Api
           avatar_url: user.avatar_url,
           last_seen_at: user.last_seen_at,
           is_admin: user.admin?,
-          is_staff: user.staff?
+          is_staff: user.staff?,
+          community_policy: CommunityPolicy.as_json(user)
         }
       end
     end

@@ -39,6 +39,7 @@ module Api
         end
 
         users = workspace.available_users_for(current_user)
+          .where.not(id: blocked_relationship_user_ids)
 
         render json: { users: users.map { |user| user_json(user) } }
       end
@@ -84,6 +85,10 @@ module Api
         end
 
         users = direct_users_for(workspace, conversation_params[:user_ids])
+        if UserBlock.between(current_user.id, users.map(&:id) - [ current_user.id ]).exists?
+          render json: { error: "This direct conversation is unavailable because one of its members is blocked" }, status: :forbidden
+          return
+        end
         conversation = DirectConversation.find_or_create_for!(workspace: workspace, users: users)
 
         render json: {
@@ -182,7 +187,7 @@ module Api
           muted: muted_ids ? muted_ids.include?(conversation.id) : MessagePreference.exists?(user: current_user, target: conversation, muted: true),
           unread_count: unread_count,
           last_read_at: member&.last_read_at,
-          latest_message: MessageJson.latest(latest_message),
+          latest_message: MessageJson.latest(latest_message, current_user: current_user),
           users: conversation.users.map { |user| user_json(user) },
           created_at: conversation.created_at,
           updated_at: conversation.updated_at
@@ -237,6 +242,12 @@ module Api
           cohort = Cohort.find(conversation_params[:cohort_id])
           Workspace.find_or_create_for_cohort!(cohort)
         end
+      end
+
+      def blocked_relationship_user_ids
+        outgoing = current_user.user_blocks.pluck(:blocked_user_id)
+        incoming = current_user.blocks_received.pluck(:blocker_id)
+        outgoing | incoming
       end
     end
   end

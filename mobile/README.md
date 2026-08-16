@@ -113,8 +113,10 @@ This runs strict TypeScript, Expo ESLint, and Jest. The Rails suite includes the
 
 ## Release path
 
-1. Create the Expo project and place its ID in app/EAS configuration.
-2. Configure Clerk Native API and the exact bundle/package identifiers.
-3. Configure Apple APNs and Android FCM credentials through EAS.
+1. Confirm the existing Expo project ID and exact iOS/Android identifiers.
+2. Configure Clerk Native API and production social-login redirects.
+3. Configure Apple APNs and Android Firebase/FCM V1 credentials through EAS.
 4. Build internal development clients and test push on physical iOS and Android devices.
 5. Run `eas build --platform all --profile production`, then submit through the store review flows.
+
+The Android-specific account conversion, policy, listing, reviewer-access, data-safety, testing, and staged-release runbook lives in [`docs/app-store/android/README.md`](../docs/app-store/android/README.md). Do not upload a bundle until every release gate there is reconciled against the final build.

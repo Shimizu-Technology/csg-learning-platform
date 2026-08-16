@@ -13,6 +13,10 @@ class ChannelsTest < ActionDispatch::IntegrationTest
     @other_student = User.create!(clerk_id: "clerk_other", email: "other@example.com", first_name: "Student", last_name: "Two", role: :student)
     @admin = User.create!(clerk_id: "clerk_admin", email: "admin@example.com", first_name: "Admin", last_name: "User", role: :admin)
 
+    [ @student, @other_student, @admin ].each do |user|
+      user.update!(community_terms_version: CommunityPolicy::VERSION, community_terms_accepted_at: Time.current)
+    end
+
     Enrollment.create!(user: @student, cohort: @cohort, status: :active)
     Enrollment.create!(user: @other_student, cohort: @other_cohort, status: :active)
   end

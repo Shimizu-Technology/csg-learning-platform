@@ -27,6 +27,12 @@ class User < ApplicationRecord
   has_many :message_attachments, foreign_key: :uploaded_by_id, dependent: :restrict_with_exception
   has_many :message_reactions, dependent: :destroy
   has_many :message_preferences, dependent: :destroy
+  has_many :user_blocks, foreign_key: :blocker_id, dependent: :destroy, inverse_of: :blocker
+  has_many :blocked_users, through: :user_blocks, source: :blocked_user
+  has_many :blocks_received, class_name: "UserBlock", foreign_key: :blocked_user_id, dependent: :destroy, inverse_of: :blocked_user
+  has_many :content_reports, foreign_key: :reporter_id, dependent: :restrict_with_exception, inverse_of: :reporter
+  has_many :reports_received, class_name: "ContentReport", foreign_key: :reported_user_id, dependent: :restrict_with_exception, inverse_of: :reported_user
+  has_many :data_deletion_requests, dependent: :restrict_with_exception
   has_many :created_office_hours, class_name: "OfficeHour", foreign_key: :created_by_id, dependent: :nullify
   has_many :created_submission_windows, class_name: "CohortModuleSubmissionWindow", foreign_key: :created_by_id, dependent: :nullify
   has_many :updated_submission_windows, class_name: "CohortModuleSubmissionWindow", foreign_key: :updated_by_id, dependent: :nullify
@@ -91,7 +97,23 @@ class User < ApplicationRecord
     admin? || instructor?
   end
 
+  def community_terms_accepted?
+    CommunityPolicy.accepted?(self)
+  end
+
+  def blocks?(user)
+    user.present? && blocked_user_id_set.include?(user.id)
+  end
+
+  def blocked_by?(user)
+    user.present? && blocks_received.exists?(blocker_id: user.id)
+  end
+
   private
+
+  def blocked_user_id_set
+    @blocked_user_id_set ||= user_blocks.pluck(:blocked_user_id)
+  end
 
   def archive_or_detach_direct_conversations!
     direct_conversations.includes(:users, :workspace).find_each do |conversation|

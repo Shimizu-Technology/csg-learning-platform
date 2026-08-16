@@ -48,7 +48,12 @@ class DirectConversation < ApplicationRecord
   end
 
   def can_post?(user)
-    active? && visible_to?(user)
+    active? && visible_to?(user) && !blocked_for?(user)
+  end
+
+  def blocked_for?(user)
+    other_user_ids = users.where.not(id: user.id).pluck(:id)
+    UserBlock.between(user.id, other_user_ids).exists?
   end
 
   def recipients

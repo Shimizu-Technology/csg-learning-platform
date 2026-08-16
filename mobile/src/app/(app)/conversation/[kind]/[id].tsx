@@ -2,7 +2,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
-import { ArrowDownToLine, ArrowLeft, Bell, BellOff, BookOpen, ChevronDown, Edit3, Hash, MessageSquareReply, Paperclip, Pin, Send, Trash2, Wifi, WifiOff, X, type LucideIcon } from 'lucide-react-native';
+import { ArrowDownToLine, ArrowLeft, Bell, BellOff, BookOpen, ChevronDown, Edit3, Flag, Hash, MessageSquareReply, Paperclip, Pin, Send, Trash2, UserX, Wifi, WifiOff, X, type LucideIcon } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -235,6 +235,43 @@ export default function ConversationScreen() {
   };
 
   const deleteMessage = (message: Message) => Alert.alert('Remove this message?', 'The message will no longer appear in the conversation.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: async () => { try { await api.deleteMessage(message.id); setMessages((current) => current.filter((item) => item.id !== message.id)); } catch (requestError) { Alert.alert('Could not remove message', (requestError as Error).message); } } }]);
+  const reportMessage = (message: Message) => Alert.alert(
+    'Report this message?',
+    'A Code School staff member will review the message and its context. The author is not notified who submitted the report.',
+    [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Report', style: 'destructive', onPress: async () => {
+        try { if (!auth.demo) await api.reportContent({ message_id: message.id, reason: 'inappropriate_content' }); Alert.alert('Report received', 'Thank you. Code School staff will review it.'); }
+        catch (requestError) { Alert.alert('Could not send report', (requestError as Error).message); }
+      } },
+    ],
+  );
+  const reportUser = (message: Message) => Alert.alert(
+    `Report ${message.author.full_name}?`,
+    'A Code School staff member will review this account and the surrounding context.',
+    [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Report', style: 'destructive', onPress: async () => {
+        try { if (!auth.demo) await api.reportContent({ reported_user_id: message.author.id, reason: 'safety_concern' }); Alert.alert('Report received', 'Thank you. Code School staff will review it.'); }
+        catch (requestError) { Alert.alert('Could not send report', (requestError as Error).message); }
+      } },
+    ],
+  );
+  const blockUser = (message: Message) => Alert.alert(
+    `Block ${message.author.full_name}?`,
+    'Their messages will be hidden for you, and neither of you can start or continue a direct conversation. You can unblock them from your profile.',
+    [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Block', style: 'destructive', onPress: async () => {
+        try {
+          if (!auth.demo) await api.blockUser(message.author.id);
+          setMessages((current) => current.map((item) => item.author.id === message.author.id ? { ...item, blocked: true, body: '', attachments: [], reactions: [] } : item));
+          if (kind === 'dm') router.back();
+          Alert.alert('User blocked', `You can unblock ${message.author.full_name} from your profile.`);
+        } catch (requestError) { Alert.alert('Could not block user', (requestError as Error).message); }
+      } },
+    ],
+  );
   const togglePin = async (message: Message) => { try { const result = await api.pinMessage(message.id, Boolean(message.pinned_at)); setMessages((current) => current.map((item) => item.id === message.id ? result.message : item)); setPinnedMessages((current) => result.message.pinned_at ? [result.message, ...current.filter((item) => item.id !== message.id)] : current.filter((item) => item.id !== message.id)); setSelectedMessage(null); } catch (requestError) { Alert.alert('Could not update pin', (requestError as Error).message); } };
   const toggleReaction = async (message: Message, value: string) => {
     if (auth.demo) {
@@ -314,10 +351,13 @@ export default function ConversationScreen() {
       </KeyboardAvoidingView>
 
       <Modal visible={Boolean(selectedMessage)} transparent animationType="fade" onRequestClose={() => setSelectedMessage(null)}><View style={styles.modalRoot}><Pressable accessibilityRole="button" accessibilityLabel="Close message actions" style={StyleSheet.absoluteFill} onPress={() => setSelectedMessage(null)} /><View style={styles.actionSheet}><View style={styles.sheetHandle} /><Text style={styles.sheetTitle}>Message actions</Text>{selectedMessage && <>
-        {!selectedMessage.deleted_at && <View style={styles.reactionPicker}>{REACTION_OPTIONS.map(({ value, label, Icon }) => <Pressable key={value} accessibilityRole="button" accessibilityLabel={label} onPress={() => { void toggleReaction(selectedMessage, value); setSelectedMessage(null); }} style={styles.reactionButton}><Icon color={palette.text} size={20} /><Text style={styles.reactionLabel}>{label}</Text></Pressable>)}</View>}
-        <Action icon={MessageSquareReply} label="Reply in thread" onPress={() => { openThread(selectedMessage); setSelectedMessage(null); }} />
+        {!selectedMessage.deleted_at && !selectedMessage.blocked && <View style={styles.reactionPicker}>{REACTION_OPTIONS.map(({ value, label, Icon }) => <Pressable key={value} accessibilityRole="button" accessibilityLabel={label} onPress={() => { void toggleReaction(selectedMessage, value); setSelectedMessage(null); }} style={styles.reactionButton}><Icon color={palette.text} size={20} /><Text style={styles.reactionLabel}>{label}</Text></Pressable>)}</View>}
+        {!selectedMessage.blocked && <Action icon={MessageSquareReply} label="Reply in thread" onPress={() => { openThread(selectedMessage); setSelectedMessage(null); }} />}
         {!!selectedMessage.body && <Action icon={ArrowDownToLine} label="Copy message" onPress={() => { void Clipboard.setStringAsync(selectedMessage.body); setSelectedMessage(null); }} />}
         {canManage && <Action icon={Pin} label={selectedMessage.pinned_at ? 'Unpin message' : 'Pin message'} onPress={() => void togglePin(selectedMessage)} />}
+        {!selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Flag} label="Report message" destructive onPress={() => { reportMessage(selectedMessage); setSelectedMessage(null); }} />}
+        {!selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Flag} label={`Report ${selectedMessage.author.full_name}`} destructive onPress={() => { reportUser(selectedMessage); setSelectedMessage(null); }} />}
+        {!selectedMessage.mine && selectedMessage.id > 0 && !selectedMessage.blocked && <Action icon={UserX} label={`Block ${selectedMessage.author.full_name}`} destructive onPress={() => { blockUser(selectedMessage); setSelectedMessage(null); }} />}
         {selectedMessage.mine && !selectedMessage.deleted_at && selectedMessage.id > 0 && <Action icon={Edit3} label="Edit message" onPress={() => { setEditingMessage(selectedMessage); setDraft(selectedMessage.body); setSelectedMessage(null); }} />}
         {selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Trash2} label="Remove message" destructive onPress={() => { deleteMessage(selectedMessage); setSelectedMessage(null); }} />}
       </>}</View></View></Modal>

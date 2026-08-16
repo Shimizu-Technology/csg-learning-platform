@@ -1,13 +1,14 @@
 class MessageJson
   class << self
     def render(message, current_user: nil, stream_url: false, read_receipts: nil)
+      blocked = current_user.present? && message.author_id != current_user.id && current_user.blocks?(message.author)
       {
         id: message.id,
         channel_id: message.channel_id,
         direct_conversation_id: message.direct_conversation_id,
         parent_message_id: message.parent_message_id,
-        body: message.body.to_s,
-        mention_user_ids: Array(message.mention_user_ids),
+        body: blocked ? "" : message.body.to_s,
+        mention_user_ids: blocked ? [] : Array(message.mention_user_ids),
         edited_at: message.edited_at,
         deleted_at: message.deleted_at,
         pinned_at: message.pinned_at,
@@ -15,21 +16,24 @@ class MessageJson
         created_at: message.created_at,
         updated_at: message.updated_at,
         mine: current_user && message.author_id == current_user.id,
+        blocked: blocked,
         author: user_json(message.author),
-        attachments: message.message_attachments.map { |attachment| attachment_json(attachment, stream_url: stream_url) },
-        reactions: reaction_json(message, current_user),
+        attachments: blocked ? [] : message.message_attachments.map { |attachment| attachment_json(attachment, stream_url: stream_url) },
+        reactions: blocked ? [] : reaction_json(message, current_user),
         reply_count: reply_count(message)
       }.tap do |json|
         json[:read_receipts] = read_receipts if read_receipts
       end
     end
 
-    def latest(message)
+    def latest(message, current_user: nil)
       return nil unless message
+
+      blocked = current_user.present? && message.author_id != current_user.id && current_user.blocks?(message.author)
 
       {
         id: message.id,
-        body: message.body.presence || attachment_preview(message),
+        body: blocked ? "Message hidden" : (message.body.presence || attachment_preview(message)),
         created_at: message.created_at,
         author_name: message.author.full_name
       }

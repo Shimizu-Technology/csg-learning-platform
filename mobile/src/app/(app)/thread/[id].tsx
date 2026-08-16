@@ -157,12 +157,31 @@ export default function ThreadScreen() {
     catch (requestError) { Alert.alert('Could not update reaction', (requestError as Error).message); }
   };
 
+  const reportMessage = async (message: Message) => {
+    try { if (!auth.demo) await api.reportContent({ message_id: message.id, reason: 'inappropriate_content' }); Alert.alert('Report received', 'Thank you. Code School staff will review it.'); }
+    catch (requestError) { Alert.alert('Could not send report', (requestError as Error).message); }
+  };
+
+  const blockUser = async (message: Message) => {
+    try { if (!auth.demo) await api.blockUser(message.author.id); Alert.alert('User blocked', `You can unblock ${message.author.full_name} from your profile.`); router.back(); }
+    catch (requestError) { Alert.alert('Could not block user', (requestError as Error).message); }
+  };
+
+  const openSafetyActions = (message: Message) => {
+    if (message.mine || message.id <= 0) return;
+    Alert.alert(`Actions for ${message.author.full_name}`, 'Report inappropriate content or block this person.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Report message', onPress: () => void reportMessage(message) },
+      { text: 'Block user', style: 'destructive', onPress: () => void blockUser(message) },
+    ]);
+  };
+
   return <SafeAreaView edges={['top', 'bottom']} style={styles.safe}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.safe}>
     <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={palette.text} size={22} /></Pressable><View><Text style={styles.title}>Thread</Text><Text style={styles.subtitle}>{replies.length} {replies.length === 1 ? 'reply' : 'replies'}</Text></View></View>
     {loading ? <LoadingState label="Loading thread" /> : error || !root ? <ErrorState message={error || 'This thread is no longer available.'} retry={() => void load()} /> : <>
-      <View style={styles.root}><MessageBubble message={root} showAuthor mentionUsers={users} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} /></View>
+      <View style={styles.root}><MessageBubble message={root} showAuthor mentionUsers={users} onLongPress={openSafetyActions} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} /></View>
       <View style={styles.divider}><Text style={styles.dividerText}>REPLIES</Text><View style={styles.line} /></View>
-      <FlatList ref={listRef} data={visible} keyExtractor={(message) => String(message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list} renderItem={({ item, index }) => <MessageBubble message={item} showAuthor={!visible[index - 1] || visible[index - 1].author.id !== item.author.id} mentionUsers={users} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} />} ListEmptyComponent={<Text style={styles.empty}>Start a focused conversation about this message.</Text>} />
+      <FlatList ref={listRef} data={visible} keyExtractor={(message) => String(message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list} renderItem={({ item, index }) => <MessageBubble message={item} showAuthor={!visible[index - 1] || visible[index - 1].author.id !== item.author.id} mentionUsers={users} onLongPress={openSafetyActions} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} />} ListEmptyComponent={<Text style={styles.empty}>Start a focused conversation about this message.</Text>} />
     </>}
     <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />
     <View style={styles.composer}><VoiceDraftButton state={voiceDraft.state} disabled={sending} onPress={() => void voiceDraft.start()} /><TextInput accessibilityLabel="Reply to thread" value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={setDraft} placeholder="Reply to thread" placeholderTextColor={palette.quiet} multiline maxLength={10_000} style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel="Send reply" disabled={!draft.trim() || sending} onPress={() => void send()} style={[styles.send, (!draft.trim() || sending) && styles.disabled]}><Send color={palette.text} size={19} /></Pressable></View>

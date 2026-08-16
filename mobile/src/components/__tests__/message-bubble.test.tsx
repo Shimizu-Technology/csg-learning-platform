@@ -86,6 +86,16 @@ describe('MessageBubble', () => {
     expect(onOpenImage).toHaveBeenCalledWith(message.attachments[0], message.attachments);
   });
 
+  it('does not render blocked message content, attachments, or reactions', () => {
+    const blocked = { ...message, blocked: true, body: '', attachments: [], reactions: [] };
+    const screen = render(<MessageBubble message={blocked} showAuthor mentionUsers={[]} />);
+
+    expect(screen.getByText('Message hidden — you blocked this user')).toBeTruthy();
+    expect(screen.queryByText('Here is the screenshot.')).toBeNull();
+    expect(screen.queryByLabelText('Preview layout.png')).toBeNull();
+    expect(screen.queryByLabelText('Thumbs up, 2')).toBeNull();
+  });
+
   it('renders fenced code, lists, quotes, and inline formatting without showing markdown markers', () => {
     const formatted = {
       ...message,

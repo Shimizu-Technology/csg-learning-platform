@@ -39,6 +39,9 @@ import type {
   Intervention,
   InterventionOutcome,
   InterventionStatus,
+  CommunityPolicy,
+  ContentReport,
+  DataDeletionRequest,
 } from './types';
 import { fetch as expoFetch } from 'expo/fetch';
 import { File } from 'expo-file-system';
@@ -146,6 +149,13 @@ export class CsgApi {
   }
 
   session = () => this.request<{ user: SessionUser }>('/api/v1/sessions', { method: 'POST' });
+  communityPolicy = () => this.request<{ community_policy: CommunityPolicy }>('/api/v1/community_policy');
+  acceptCommunityPolicy = (version: string) => this.request<{ community_policy: CommunityPolicy }>('/api/v1/community_policy/accept', { method: 'POST', body: JSON.stringify({ version, accepted: true }) });
+  reportContent = (input: { message_id?: number; reported_user_id?: number; reason: ContentReport['reason']; details?: string }) => this.request<{ content_report: ContentReport }>('/api/v1/content_reports', { method: 'POST', body: JSON.stringify({ content_report: input }) });
+  blockUser = (blockedUserId: number) => this.request<{ blocked_user: { id: number; full_name: string; blocked_at: string } }>('/api/v1/user_blocks', { method: 'POST', body: JSON.stringify({ blocked_user_id: blockedUserId }) });
+  blockedUsers = () => this.request<{ blocked_users: import('./types').BlockedUser[] }>('/api/v1/user_blocks');
+  unblockUser = (blockedUserId: number) => this.request<void>(`/api/v1/user_blocks/${blockedUserId}`, { method: 'DELETE' });
+  requestDataDeletion = () => this.request<{ data_deletion_request: DataDeletionRequest }>('/api/v1/data_deletion_requests', { method: 'POST' });
   dashboard = (signal?: AbortSignal) => this.request<{ dashboard: StudentDashboard | StaffDashboard }>('/api/v1/dashboard', { signal });
   weeklyPlan = (signal?: AbortSignal) => this.request<{ weekly_plan: WeeklyPlan }>('/api/v1/weekly_plan', { signal });
   profile = (signal?: AbortSignal) => this.request<ProfilePayload>('/api/v1/profile', { signal });

@@ -5,6 +5,7 @@ module Api
       before_action :set_channel, only: [ :create ]
       before_action :set_direct_conversation, only: [ :create_direct ]
       before_action :set_message, only: [ :thread, :update, :destroy, :pin, :unpin, :react, :unreact ]
+      before_action :require_community_terms!, only: [ :create, :create_direct, :update, :react ]
 
       # GET /api/v1/messages/:id/thread
       def thread

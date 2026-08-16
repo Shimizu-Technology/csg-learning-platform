@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500" role="img" aria-labelledby="title description">
+  <title id="title">CSG Connect Google Play feature graphic</title>
+  <desc id="description">A dark editorial graphic with the CSG Connect mark, learning cards, and the words Learn, connect, keep moving.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B0D12" />
+      <stop offset="1" stop-color="#202630" />
+    </linearGradient>
+    <linearGradient id="ruby" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F0445B" />
+      <stop offset="1" stop-color="#B4142A" />
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#000000" flood-opacity="0.28" />
+    </filter>
+  </defs>
+
+  <rect width="1024" height="500" fill="url(#background)" />
+  <circle cx="906" cy="56" r="184" fill="#F0445B" opacity="0.08" />
+  <circle cx="844" cy="458" r="214" fill="#AAB799" opacity="0.08" />
+
+  <g transform="translate(68 62)">
+    <g transform="translate(0 2) scale(.22)">
+      <path d="M354 116H204c-80 0-124 50-124 140s44 140 124 140h88l72 58v-58h-10" fill="none" stroke="#F0445B" stroke-width="58" stroke-linecap="round" stroke-linejoin="round" />
+      <circle cx="374" cy="198" r="27" fill="#AAB799" />
+      <circle cx="374" cy="314" r="27" fill="#AAB799" />
+    </g>
+    <text x="112" y="54" fill="#FFFFFF" font-family="sans-serif" font-size="28" font-weight="800" letter-spacing="-.5">CSG Connect</text>
+
+    <text x="0" y="184" fill="#FFFFFF" font-family="sans-serif" font-size="58" font-weight="800" letter-spacing="-2.5">Learn. Connect.</text>
+    <text x="0" y="250" fill="#FFFFFF" font-family="sans-serif" font-size="58" font-weight="800" letter-spacing="-2.5">Keep moving.</text>
+    <text x="2" y="304" fill="#CBD5E1" font-family="sans-serif" font-size="21" font-weight="500">The learning hub for Code School of Guam.</text>
+
+    <g transform="translate(2 350)">
+      <rect width="112" height="40" rx="20" fill="#F0445B" opacity="0.14" />
+      <text x="56" y="26" text-anchor="middle" fill="#FF8796" font-family="sans-serif" font-size="14" font-weight="800">LESSONS</text>
+      <rect x="124" width="128" height="40" rx="20" fill="#AAB799" opacity="0.16" />
+      <text x="188" y="26" text-anchor="middle" fill="#CBD5C0" font-family="sans-serif" font-size="14" font-weight="800">MESSAGES</text>
+      <rect x="264" width="128" height="40" rx="20" fill="#FFFFFF" opacity="0.08" />
+      <text x="328" y="26" text-anchor="middle" fill="#E2E8F0" font-family="sans-serif" font-size="14" font-weight="800">PROGRESS</text>
+    </g>
+  </g>
+
+  <g transform="translate(654 70) rotate(3 143 176)" filter="url(#shadow)">
+    <rect width="286" height="352" rx="32" fill="#F8FAFC" />
+    <rect width="286" height="82" rx="32" fill="url(#ruby)" />
+    <rect y="50" width="286" height="32" fill="url(#ruby)" />
+    <circle cx="35" cy="40" r="12" fill="#FFFFFF" opacity="0.96" />
+    <rect x="57" y="31" width="94" height="10" rx="5" fill="#FFFFFF" opacity="0.92" />
+    <rect x="57" y="48" width="62" height="7" rx="3.5" fill="#FFFFFF" opacity="0.58" />
+
+    <text x="28" y="122" fill="#0F172A" font-family="sans-serif" font-size="14" font-weight="800">TODAY</text>
+    <rect x="28" y="142" width="230" height="76" rx="18" fill="#FFFFFF" stroke="#E2E8F0" />
+    <rect x="46" y="160" width="36" height="36" rx="10" fill="#FDE8EB" />
+    <path d="M56 178l7 7 12-15" fill="none" stroke="#C51D34" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+    <rect x="96" y="160" width="112" height="10" rx="5" fill="#1E293B" />
+    <rect x="96" y="181" width="79" height="7" rx="3.5" fill="#94A3B8" />
+
+    <rect x="28" y="232" width="230" height="92" rx="18" fill="#17191F" />
+    <circle cx="53" cy="258" r="10" fill="#AAB799" />
+    <rect x="73" y="252" width="106" height="9" rx="4.5" fill="#F8FAFC" />
+    <rect x="45" y="280" width="186" height="7" rx="3.5" fill="#64748B" />
+    <rect x="45" y="296" width="142" height="7" rx="3.5" fill="#64748B" />
+  </g>
+</svg>

@@ -36,10 +36,12 @@ import {
   SubmissionDetail,
   StudentManagement,
   SupportQueue,
+  Moderation,
   InterventionDetail,
   HelpRequestDetail,
   TeamManagement,
 } from './lib/routePreload'
+import { AccountDeletionPage, PrivacyPolicyPage, TermsPage } from './pages/Legal'
 
 function RouteLoadingFallback() {
   const location = useLocation()
@@ -59,6 +61,9 @@ const routeTitles: Array<[RegExp, string]> = [
   [/^\/$/, 'CSG Learning Hub'],
   [/^\/sign-in/, 'Sign in'],
   [/^\/sign-up/, 'Create account'],
+  [/^\/privacy/, 'Privacy Policy'],
+  [/^\/terms/, 'Terms & Community Guidelines'],
+  [/^\/account-deletion/, 'Account deletion'],
   [/^\/dashboard/, 'Today'],
   [/^\/materials/, 'Learn'],
   [/^\/modules\//, 'Module'],
@@ -80,6 +85,7 @@ const routeTitles: Array<[RegExp, string]> = [
   [/^\/admin\/interventions\//, 'Intervention record'],
   [/^\/admin\/help-requests\//, 'Help request'],
   [/^\/admin\/support/, 'Student support'],
+  [/^\/admin\/moderation/, 'Safety queue'],
   [/^\/admin\/content/, 'Content'],
   [/^\/admin\/team/, 'Team'],
   [/^\/admin/, 'Staff home'],
@@ -105,6 +111,9 @@ function AppRoutes() {
         <Route path="/" element={<SuspendedRoute><HomePage /></SuspendedRoute>} />
         <Route path="/sign-in" element={<SuspendedRoute><SignInPage /></SuspendedRoute>} />
         <Route path="/sign-up" element={<SuspendedRoute><SignUpPage /></SuspendedRoute>} />
+        <Route path="/privacy" element={<PrivacyPolicyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/account-deletion" element={<AccountDeletionPage />} />
 
         <Route element={<ProtectedRoute requiredRole="staff" />}>
           <Route path="/admin/cohorts/:id/student-view/*" element={<SuspendedRoute><CohortStudentView /></SuspendedRoute>} />
@@ -140,6 +149,7 @@ function AppRoutes() {
             <Route path="/admin/grading" element={<SuspendedRoute><Grading /></SuspendedRoute>} />
             <Route path="/admin/submissions/:id" element={<SuspendedRoute><SubmissionDetail /></SuspendedRoute>} />
             <Route path="/admin/support" element={<SuspendedRoute><SupportQueue /></SuspendedRoute>} />
+            <Route path="/admin/moderation" element={<SuspendedRoute><Moderation /></SuspendedRoute>} />
             <Route path="/admin/help-requests/:id" element={<SuspendedRoute><HelpRequestDetail /></SuspendedRoute>} />
             <Route path="/admin/interventions/:id" element={<SuspendedRoute><InterventionDetail /></SuspendedRoute>} />
             <Route path="/admin/cohorts/:cohortId/modules/:moduleId/grading" element={<SuspendedRoute><CohortModuleGrading /></SuspendedRoute>} />

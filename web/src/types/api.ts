@@ -13,6 +13,16 @@ export interface User {
   archived_at?: string | null;
   is_admin: boolean;
   is_staff: boolean;
+  community_policy?: CommunityPolicy;
+}
+
+export interface CommunityPolicy {
+  version: string;
+  accepted: boolean;
+  accepted_at: string | null;
+  privacy_url: string;
+  terms_url: string;
+  deletion_url: string;
 }
 
 export interface UserWithMeta extends User {
@@ -550,6 +560,36 @@ export interface MessageReaction {
   }[];
 }
 
+export interface ContentReport {
+  id: number;
+  reason: 'harassment' | 'spam' | 'inappropriate_content' | 'safety_concern' | 'other';
+  details: string | null;
+  status: 'pending' | 'reviewing' | 'actioned' | 'dismissed';
+  created_at: string;
+  resolved_at: string | null;
+  reporter: { id: number; full_name: string; email: string; role: string };
+  reported_user: { id: number; full_name: string; email: string; role: string };
+  message: { id: number; body: string; channel_id: number | null; direct_conversation_id: number | null; created_at: string } | null;
+  reviewed_by: { id: number; full_name: string; email: string; role: string } | null;
+}
+
+export interface DataDeletionRequest {
+  id: number;
+  status: 'pending' | 'processing' | 'completed' | 'declined';
+  retention_note: string | null;
+  created_at: string;
+  resolved_at: string | null;
+  user: { id: number; full_name: string; email: string };
+  resolved_by: { id: number; full_name: string } | null;
+}
+
+export interface BlockedUser {
+  id: number;
+  full_name: string;
+  avatar_url: string | null;
+  blocked_at: string;
+}
+
 export interface ChannelMessage {
   id: number;
   channel_id: number | null;
@@ -564,6 +604,7 @@ export interface ChannelMessage {
   created_at: string;
   updated_at: string;
   mine: boolean;
+  blocked?: boolean;
   attachments: MessageAttachment[];
   reactions: MessageReaction[];
   read_receipts?: {

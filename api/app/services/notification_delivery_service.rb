@@ -59,6 +59,7 @@ class NotificationDeliveryService
 
     notifications = recipients.filter_map do |user|
       next if user.id == message.author_id
+      next if UserBlock.between(message.author_id, user.id).exists?
       next if muted_user_ids.key?(user.id) && !mentioned_user_ids.include?(user.id) && !channel_mention
 
       message_notification_for(
