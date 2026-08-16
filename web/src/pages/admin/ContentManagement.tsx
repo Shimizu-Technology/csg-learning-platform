@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
+  Archive,
   ArrowLeft,
   ChevronDown,
   ChevronRight,
@@ -9,6 +10,7 @@ import {
   Pencil,
   Plus,
   CalendarPlus,
+  RotateCcw,
 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -27,6 +29,7 @@ interface Lesson {
   requires_submission?: boolean
   submission_type?: string
   content_blocks_count: number
+  archived_at: string | null
 }
 
 interface Module {
@@ -86,6 +89,7 @@ export function ContentManagement() {
   const [exerciseSaving, setExerciseSaving] = useState(false)
   const [moduleSaving, setModuleSaving] = useState(false)
   const [scheduleSavingId, setScheduleSavingId] = useState<number | null>(null)
+  const [restoringLessonId, setRestoringLessonId] = useState<number | null>(null)
   const [exerciseCreateError, setExerciseCreateError] = useState('')
   const [moduleCreateError, setModuleCreateError] = useState('')
   const [extraWeeks, setExtraWeeks] = useState<Record<number, number>>({})
@@ -173,6 +177,18 @@ export function ContentManagement() {
     toast.success(`Updated ${mod.name} schedule`)
   }
 
+  const restoreLesson = async (lesson: Lesson) => {
+    setRestoringLessonId(lesson.id)
+    const res = await api.restoreLesson(lesson.id)
+    if (res.error) {
+      toast.error(res.error)
+    } else {
+      await loadCurricula()
+      toast.success(`Restored "${lesson.title}"`)
+    }
+    setRestoringLessonId(null)
+  }
+
   if (loading) return <LoadingSpinner message="Loading content..." />
 
   return (
@@ -226,6 +242,8 @@ export function ContentManagement() {
                 onAddExercise={(week, dayIndex) => openExerciseForDay(mod, week, dayIndex)}
                 onChangeSchedule={(scheduleDays) => updateModuleSchedule(mod, scheduleDays)}
                 scheduleSaving={scheduleSavingId === mod.id}
+                restoringLessonId={restoringLessonId}
+                onRestoreLesson={restoreLesson}
                 navigate={navigate}
               />
             ))}
@@ -317,6 +335,8 @@ function ModuleSection({
   onAddExercise,
   onChangeSchedule,
   scheduleSaving,
+  restoringLessonId,
+  onRestoreLesson,
   navigate,
 }: {
   mod: Module
@@ -329,24 +349,28 @@ function ModuleSection({
   onAddExercise: (week: number, dayIndex: number) => void
   onChangeSchedule: (scheduleDays: string) => void
   scheduleSaving: boolean
+  restoringLessonId: number | null
+  onRestoreLesson: (lesson: Lesson) => void
   navigate: (path: string) => void
 }) {
-  const lessonsByDay = useMemo(() => groupLessonsByDay(mod.lessons || []), [mod.lessons])
+  const activeLessons = useMemo(() => (mod.lessons || []).filter((lesson) => !lesson.archived_at), [mod.lessons])
+  const archivedLessons = useMemo(() => (mod.lessons || []).filter((lesson) => lesson.archived_at), [mod.lessons])
+  const lessonsByDay = useMemo(() => groupLessonsByDay(activeLessons), [activeLessons])
   const scheduleIndices = SCHEDULE_DAY_INDICES[mod.schedule_days] || SCHEDULE_DAY_INDICES.weekdays
 
   const weekNumbers = useMemo(() => {
     const weeks = new Set<number>()
-    for (const l of (mod.lessons || [])) {
+    for (const l of activeLessons) {
       weeks.add(Math.floor(l.release_day / 7) + 1)
     }
     if (maxExtraWeek > 0) weeks.add(maxExtraWeek)
     if (weeks.size === 0) return []
     return Array.from(weeks).sort((a, b) => a - b)
-  }, [mod.lessons, maxExtraWeek])
+  }, [activeLessons, maxExtraWeek])
 
   const scheduleLabel = SCHEDULE_PATTERN_OPTIONS.find((option) => option.value === mod.schedule_days)?.label || 'MTWTF / Mon–Fri'
 
-  const exerciseCount = (mod.lessons || []).length
+  const exerciseCount = activeLessons.length
 
   const daysInActiveWeek = useMemo(() => {
     return scheduleIndices.map(dayIdx => {
@@ -374,6 +398,7 @@ function ModuleSection({
             <p className="text-sm font-medium text-slate-900">{mod.name}</p>
             <p className="text-xs text-slate-500 capitalize">
               {mod.module_type.replace('_', ' ')} · {exerciseCount} exercise{exerciseCount !== 1 ? 's' : ''} · {weekNumbers.length} week{weekNumbers.length !== 1 ? 's' : ''} · {scheduleLabel}
+              {archivedLessons.length > 0 ? ` · ${archivedLessons.length} archived` : ''}
             </p>
           </div>
         </button>
@@ -403,7 +428,7 @@ function ModuleSection({
             type="button"
             onClick={() => {
               const si = scheduleIndices
-              const lastDay = mod.lessons?.length > 0 ? Math.max(...mod.lessons.map(l => l.release_day)) : -1
+              const lastDay = activeLessons.length > 0 ? Math.max(...activeLessons.map(l => l.release_day)) : -1
               const lastWeek = Math.floor(lastDay / 7) + 1
               const lastDayIdx = lastDay % 7
               const pos = si.indexOf(lastDayIdx)
@@ -544,6 +569,39 @@ function ModuleSection({
                 ))}
               </div>
             </>
+          )}
+
+          {archivedLessons.length > 0 && (
+                <details className="mt-5 overflow-hidden rounded-2xl border border-amber-200 bg-amber-50/60">
+                  <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-extrabold text-amber-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-inset">
+                    <Archive className="h-4 w-4" />
+                    Archived exercises
+                    <span className="rounded-full bg-amber-200 px-2 py-0.5 text-xs text-amber-900">{archivedLessons.length}</span>
+                  </summary>
+                  <div className="divide-y divide-amber-200 border-t border-amber-200 bg-white">
+                    {archivedLessons.map((lesson) => {
+                      const week = Math.floor(lesson.release_day / 7) + 1
+                      const day = lesson.release_day % 7
+                      return (
+                        <div key={lesson.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-bold text-slate-900">{lesson.title}</p>
+                            <p className="mt-0.5 text-xs text-slate-500">Week {week} · {ALL_DAY_NAMES[day]}</p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <button type="button" onClick={() => navigate(`/admin/lessons/${lesson.id}/edit`)} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-100">
+                              <Pencil className="h-4 w-4" />Review
+                            </button>
+                            <button type="button" onClick={() => onRestoreLesson(lesson)} disabled={restoringLessonId === lesson.id} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-amber-900 px-3 text-sm font-bold text-white transition-colors hover:bg-amber-950 disabled:opacity-50">
+                              <RotateCcw className="h-4 w-4" />
+                              {restoringLessonId === lesson.id ? 'Restoring...' : 'Restore'}
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </details>
           )}
         </div>
       )}

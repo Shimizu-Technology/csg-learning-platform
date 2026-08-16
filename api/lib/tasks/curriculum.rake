@@ -122,6 +122,10 @@ namespace :curriculum do
   task import_csv: :environment do
     require "csv"
 
+    unless ENV["ALLOW_LEGACY_VIMEO_IMPORT"] == "true"
+      raise "Legacy CSV import is disabled because it contains retired Vimeo sources. Set ALLOW_LEGACY_VIMEO_IMPORT=true only for an intentional archive recovery."
+    end
+
     csv_path = ENV.fetch("CSV_PATH", Rails.root.join("..", "scripts", "exercises.csv"))
 
     unless File.exist?(csv_path)

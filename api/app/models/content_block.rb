@@ -19,6 +19,8 @@ class ContentBlock < ApplicationRecord
 
   validates :block_type, presence: true
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+  before_validation :normalize_video_url
+  validate :video_url_is_http
   validate :rubric_matches_curriculum
   validate :rubric_change_preserves_recorded_results
 
@@ -56,6 +58,26 @@ class ContentBlock < ApplicationRecord
   end
 
   private
+
+  def normalize_video_url
+    return if video_url.blank?
+
+    normalized = video_url.strip
+    protocol_start = normalized.index(/https?:\/\//i)
+    normalized = normalized[protocol_start..] if protocol_start&.positive?
+    self.video_url = normalized
+  end
+
+  def video_url_is_http
+    return if video_url.blank?
+
+    uri = URI.parse(video_url)
+    return if %w[http https].include?(uri.scheme&.downcase) && uri.host.present?
+
+    errors.add(:video_url, "must be a valid http or https URL")
+  rescue URI::InvalidURIError
+    errors.add(:video_url, "must be a valid http or https URL")
+  end
 
   def rubric_matches_curriculum
     return if rubric.nil? || rubric.curriculum_id == lesson&.curriculum_module&.curriculum_id

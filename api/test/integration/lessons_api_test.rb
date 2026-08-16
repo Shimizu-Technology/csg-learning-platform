@@ -414,6 +414,33 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert KnowledgeCheckAttempt.exists?(knowledge_check: check, user: @student)
   end
 
+  test "admin archives and restores a lesson without deleting content or student evidence" do
+    Progress.create!(user: @student, content_block: @video_block, status: :in_progress)
+
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/archive", headers: auth_headers
+    end
+
+    assert_response :success
+    assert JSON.parse(response.body).dig("lesson", "archived_at").present?
+    assert Lesson.exists?(@lesson.id)
+    assert ContentBlock.exists?(@video_block.id)
+    assert Progress.exists?(user: @student, content_block: @video_block)
+
+    as_user(@student) do
+      get "/api/v1/lessons/#{@lesson.id}", headers: auth_headers
+    end
+    assert_response :forbidden
+
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/restore", headers: auth_headers
+    end
+
+    assert_response :success
+    assert_nil JSON.parse(response.body).dig("lesson", "archived_at")
+    refute @lesson.reload.archived?
+  end
+
   test "student video stream response includes explicit signed URL expiry" do
     expires_in = with_s3_stream_url("https://signed.example/lesson.mp4") do
       as_user(@student) do

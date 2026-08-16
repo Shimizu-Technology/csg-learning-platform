@@ -72,7 +72,8 @@ module Api
         }
 
         if include_modules
-          json[:modules] = curriculum.modules.includes(lessons: :content_blocks).map { |m|
+          json[:modules] = curriculum.modules.includes(all_lessons: :content_blocks).map { |m|
+            lessons = m.all_lessons
             {
               id: m.id,
               curriculum_id: m.curriculum_id,
@@ -85,8 +86,9 @@ module Api
               schedule_days: m.schedule_days,
               scheduled_day_names: m.scheduled_day_names,
               week_count: m.week_count,
-              lessons_count: m.lessons.size,
-              lessons: m.lessons.map { |l|
+              lessons_count: lessons.count { |lesson| !lesson.archived? },
+              archived_lessons_count: lessons.count(&:archived?),
+              lessons: lessons.map { |l|
                 exercise_block = l.content_blocks.find(&:exercise_like?)
                 {
                   id: l.id,
@@ -95,6 +97,7 @@ module Api
                   position: l.position,
                   release_day: l.release_day,
                   required: l.required,
+                  archived_at: l.archived_at,
                   requires_submission: exercise_block ? exercise_block.review_required? : l.requires_submission,
                   submission_type: exercise_block&.effective_submission_type || "manual_complete",
                   content_blocks_count: l.content_blocks.size

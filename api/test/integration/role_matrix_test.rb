@@ -39,6 +39,27 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
     assert_equal "student", data["user"]["role"]
   end
 
+  test "student dashboard orders lessons chronologically and excludes archived lessons" do
+    enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+    ModuleAssignment.create!(enrollment: enrollment, curriculum_module: @mod, unlocked: true)
+    later = Lesson.create!(curriculum_module: @mod, title: "Week 2", position: 0, release_day: 7)
+    early = Lesson.create!(curriculum_module: @mod, title: "Week 1", position: 5, release_day: 0)
+    archived = Lesson.create!(curriculum_module: @mod, title: "Retired", position: 1, release_day: 0)
+    [ later, early, archived ].each do |lesson|
+      ContentBlock.create!(lesson: lesson, block_type: :text, position: 0, title: lesson.title)
+    end
+    archived.archive!
+
+    as_user(@student) do
+      get "/api/v1/dashboard", headers: auth_headers
+    end
+
+    assert_response :success
+    dashboard = JSON.parse(response.body).fetch("dashboard")
+    assert_equal [ "Week 1", "Week 2" ], dashboard.dig("modules", 0, "lessons").map { |lesson| lesson.fetch("title") }
+    assert_equal "Week 1", dashboard.dig("continue_lesson", "title")
+  end
+
   test "student dashboard only shows pinned or unread announcements" do
     enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
     ModuleAssignment.create!(enrollment: enrollment, curriculum_module: @mod, unlocked: true)

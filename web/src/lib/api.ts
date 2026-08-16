@@ -801,6 +801,10 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ editor: data }),
     }),
+  archiveLesson: (id: number) =>
+    fetchApi<LessonResponse>(`/api/v1/lessons/${id}/archive`, { method: 'PATCH' }),
+  restoreLesson: (id: number) =>
+    fetchApi<LessonResponse>(`/api/v1/lessons/${id}/restore`, { method: 'PATCH' }),
   deleteLesson: (id: number) =>
     fetchApi<void>(`/api/v1/lessons/${id}`, { method: 'DELETE' }),
   getLearningObjectives: (curriculumId: number) =>

@@ -12,15 +12,15 @@ instructor.assign_attributes(clerk_id: instructor.clerk_id.presence || "pending_
 instructor.save!
 puts "  Instructor: #{instructor.full_name} (#{instructor.email})"
 
-# Import prework curriculum from JSON (exported from prework-grader production).
-# Falls back to legacy CSV if JSON file doesn't exist yet.
+# Import prework curriculum from the canonical JSON export. The legacy CSV is
+# intentionally never used as an automatic fallback because it contains retired
+# Vimeo sources that must not be republished to students.
 json_path = Rails.root.join("..", "scripts", "prework_exercises.json")
 if File.exist?(json_path)
   puts "  Importing prework from JSON..."
   Rake::Task["curriculum:import_prework"].invoke
 else
-  puts "  JSON not found at #{json_path}, falling back to CSV import..."
-  Rake::Task["curriculum:import_csv"].invoke
+  raise "Canonical prework JSON not found at #{json_path}; refusing to seed from legacy Vimeo CSV"
 end
 
 # Create Cohort 3

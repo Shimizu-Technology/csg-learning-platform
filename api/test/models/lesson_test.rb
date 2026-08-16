@@ -178,4 +178,52 @@ class LessonTest < ActiveSupport::TestCase
     refute lesson.valid?
     assert_includes lesson.errors[:release_day], "can't be blank"
   end
+
+  test "archiving preserves the lesson while removing it from active module lessons" do
+    @lesson.archive!
+
+    assert Lesson.exists?(@lesson.id)
+    assert @lesson.reload.archived?
+    refute_includes @mod.lessons.reload, @lesson
+    assert_includes @mod.all_lessons.reload, @lesson
+    refute @lesson.available?(@cohort, @module_assignment)
+  end
+
+  test "restoring returns an archived lesson to the active curriculum" do
+    @lesson.archive!
+    @lesson.restore!
+
+    refute @lesson.reload.archived?
+    assert_includes @mod.lessons.reload, @lesson
+  end
+
+  test "module lessons are ordered by release day then position" do
+    later = Lesson.create!(curriculum_module: @mod, title: "Later", position: 0, release_day: 7)
+    second = Lesson.create!(curriculum_module: @mod, title: "Second", position: 2, release_day: 0)
+    first = Lesson.create!(curriculum_module: @mod, title: "First", position: 1, release_day: 0)
+
+    assert_equal [ @lesson.id, first.id, second.id, later.id ], @mod.lessons.reload.pluck(:id)
+  end
+
+  test "module schedule changes cannot hide active lessons" do
+    @mod.update!(schedule_days: "weekdays_sat")
+    saturday = Lesson.create!(curriculum_module: @mod, title: "Saturday", position: 2, release_day: 5)
+
+    refute @mod.update(schedule_days: "weekdays")
+    assert_includes @mod.errors[:schedule_days], "would exclude 1 restorable lesson"
+    assert_equal "weekdays_sat", @mod.reload.schedule_days
+    assert Lesson.exists?(saturday.id)
+  end
+
+  test "module schedule changes cannot strand archived lessons" do
+    @mod.update!(schedule_days: "weekdays_sat")
+    saturday = Lesson.create!(curriculum_module: @mod, title: "Archived Saturday", position: 2, release_day: 5)
+    saturday.archive!
+
+    refute @mod.update(schedule_days: "weekdays")
+    assert_includes @mod.errors[:schedule_days], "would exclude 1 restorable lesson"
+    assert_equal "weekdays_sat", @mod.reload.schedule_days
+    saturday.restore!
+    assert_includes @mod.lessons.reload, saturday
+  end
 end

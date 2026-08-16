@@ -2,14 +2,18 @@ module Api
   module V1
     class LessonsController < ApplicationController
       before_action :authenticate_user!
-      before_action :require_admin!, only: [ :create, :create_exercise, :update, :update_editor, :destroy ]
+      before_action :require_admin!, only: [ :create, :create_exercise, :update, :update_editor, :archive, :restore, :destroy ]
       before_action :set_module, only: [ :index, :create, :create_exercise ]
-      before_action :set_lesson, only: [ :show, :update, :update_editor, :destroy ]
+      before_action :set_lesson, only: [ :show, :update, :update_editor, :archive, :restore, :destroy ]
       before_action :authorize_lesson_read!, only: [ :show ]
 
       # GET /api/v1/modules/:module_id/lessons
       def index
-        lessons = @module.lessons.includes(:curriculum_module, :content_blocks)
+        lessons = if current_user.staff?
+          @module.all_lessons.includes(:curriculum_module, :content_blocks)
+        else
+          @module.lessons.includes(:curriculum_module, :content_blocks)
+        end
         render json: {
           lessons: lessons.map { |l| lesson_json(l) }
         }
@@ -131,6 +135,22 @@ module Api
         else
           render json: { errors: @lesson.errors.full_messages }, status: :unprocessable_entity
         end
+      end
+
+      # PATCH /api/v1/lessons/:id/archive
+      def archive
+        @lesson.archive!
+        render json: { lesson: lesson_json(@lesson, include_content: true) }
+      rescue ActiveRecord::RecordInvalid => error
+        render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
+      end
+
+      # PATCH /api/v1/lessons/:id/restore
+      def restore
+        @lesson.restore!
+        render json: { lesson: lesson_json(@lesson, include_content: true) }
+      rescue ActiveRecord::RecordInvalid => error
+        render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
       end
 
       # PATCH /api/v1/lessons/:id/editor
@@ -315,6 +335,11 @@ module Api
       def authorize_lesson_read!
         return if current_user.staff?
 
+        if @lesson.archived?
+          render_forbidden("Cannot access this lesson")
+          return
+        end
+
         enrollment = current_user.enrollments
           .active
           .joins(:cohort)
@@ -351,6 +376,7 @@ module Api
           position: lesson.position,
           release_day: lesson.release_day,
           required: lesson.required,
+          archived_at: lesson.archived_at,
           content_blocks_count: lesson.content_blocks.size
         }
 
