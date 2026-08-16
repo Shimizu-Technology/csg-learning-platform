@@ -15,9 +15,11 @@ This directory is the source of truth for the first Google Play release of CSG C
 | Minimum SDK | API 24 |
 | Developer account | Existing account owned by `shimizutechnology@gmail.com`; currently Personal |
 | Public developer name | Play Console currently shows `Shimizu Technology`; confirm the public listing has propagated before launch |
-| Organization conversion | Blocked on Search Console verification of `https://shimizu-technology.com/`, then D-U-N-S-backed organization profile and verification |
+| Website verification | `shimizu-technology.com` is verified in Search Console and Play Console shows the website as verified |
+| Organization conversion | Ready to begin only after the owner supplies the exact D-U-N-S-backed legal organization profile and confirms the public contact details |
 | Play app record | Not created yet |
-| Android push | App code is ready; Firebase project/Android registration and EAS FCM V1 credential remain |
+| Android push | Dedicated Firebase project and Android app are registered; the client config is wired into Expo and a least-privilege FCM V1 service-account key is assigned in EAS. Physical-device delivery remains unverified |
+| Android toolchain | API 36 SDK, Play Store emulator, debug install/sign-in smoke test, and release-manifest inspection completed locally |
 | Internal release | Not uploaded yet |
 
 The existing EAS version-code 2 AAB is an audit artifact only and must not be uploaded to Play. Inspection of its compiled manifest confirmed API 36/24 targeting, but it predates this hardening and still contains `SYSTEM_ALERT_WINDOW`, legacy external-storage permissions, and `allowBackup=true`. Generate and inspect a fresh AAB from the reviewed release commit.
@@ -26,8 +28,8 @@ Do not create a second Play developer account. Convert the existing account so t
 
 ## Release sequence
 
-1. Verify `shimizu-technology.com` in Google Search Console using the same Google account as Play Console.
-2. Complete the pending website association in Play Console.
+1. Completed 2026-08-17: verified `shimizu-technology.com` in Google Search Console using the same Google account as Play Console.
+2. Completed 2026-08-17: Play Console accepted the website association and now shows the website as verified.
 3. Change the developer account from Personal to Organization:
    - create or select an organization Google payments profile;
    - provide the exact Shimizu Technology D-U-N-S record;
@@ -35,8 +37,8 @@ Do not create a second Play developer account. Convert the existing account so t
    - complete email/phone OTPs and any requested organization-document review;
    - link the verified payments profile to Play Console.
 4. Wait at least 72 hours after the account-type transition before submitting a new app. Google recommends this to avoid redundant app rejections while account data propagates.
-5. Create a dedicated Firebase project for CSG Connect, register `com.codeschoolofguam.connect`, and configure Android FCM V1 credentials in EAS. Keep service-account JSON out of Git.
-6. Install the Android SDK packages, create an API 36 emulator, generate a local development build, and complete [TEST_MATRIX.md](./TEST_MATRIX.md).
+5. Completed 2026-08-17: created the dedicated Firebase project, registered `com.codeschoolofguam.connect`, committed only the public Android client config, and assigned a dedicated FCM V1 key in EAS. The private service-account JSON remains outside Git with owner-only local permissions.
+6. Partially completed 2026-08-17: installed the Android SDK packages, created and booted a Play Store API 36 emulator, built and installed the debug app, reached the Clerk Google OAuth handoff, and verified the generated release manifest. Physical-device-only rows in [TEST_MATRIX.md](./TEST_MATRIX.md) remain open.
 7. Generate a fresh production AAB from the reviewed commit. Confirm package, version code, target/min SDK, permissions, signing certificate, 16 KB page compatibility, and that no development client is present.
 8. Create the Play app record under Shimizu Technology and complete the store listing, App content, Data safety, content rating, target audience, app access, ads, and account-deletion declarations.
 9. Upload the AAB to Internal testing as a draft. Add only authorized internal testers and complete physical-device testing. An emulator is necessary but cannot validate push delivery, OEM behavior, real microphone routing, or Play-installed signing.
@@ -56,7 +58,7 @@ Do not create a second Play developer account. Convert the existing account so t
 
 ## Account conversion blockers
 
-The account-type control is disabled until Play verifies the organization website. Search Console currently has no property for the domain, so domain ownership must be established first. Organization conversion then requires information that should not be guessed:
+The organization website prerequisite is complete. Organization conversion now requires owner-supplied information that must not be guessed:
 
 - exact legal organization name and address matching Dun & Bradstreet;
 - D-U-N-S number;

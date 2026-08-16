@@ -29,6 +29,7 @@
       "predictiveBackGestureEnabled": false,
       "allowBackup": false,
       "package": "com.codeschoolofguam.connect",
+      "googleServicesFile": "./google-services.json",
       "versionCode": 2,
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",

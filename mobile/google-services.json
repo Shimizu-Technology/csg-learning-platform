@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "659544015705",
+    "project_id": "csg-connect-9076e",
+    "storage_bucket": "csg-connect-9076e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:659544015705:android:15ecbdfe26b7c1a13fc248",
+        "android_client_info": {
+          "package_name": "com.codeschoolofguam.connect"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBKIA3hzQP1HjLG__fq_hqQkctK4XOc-XM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
