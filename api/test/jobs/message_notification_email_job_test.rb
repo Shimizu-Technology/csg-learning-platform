@@ -76,4 +76,24 @@ class MessageNotificationEmailJobTest < ActiveJob::TestCase
   ensure
     NotificationEmailService.define_singleton_method(:send_message_notification, original_send) if original_send
   end
+
+  test "recipient blocking before the queued job runs suppresses message email" do
+    curriculum = Curriculum.create!(name: "Blocked Messaging")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Blocked Email Cohort", start_date: Date.current, status: :active)
+    author = User.create!(clerk_id: "blocked_email_author", email: "blocked-email-author@example.com", role: :student)
+    recipient = User.create!(clerk_id: "blocked_email_recipient", email: "blocked-email-recipient@example.com", role: :student)
+    conversation = DirectConversation.find_or_create_for!(workspace: cohort.workspace, users: [ author, recipient ])
+    message = Message.create!(direct_conversation: conversation, author: author, body: "Must not email")
+    notification = recipient.notifications.create!(actor: author, notifiable: message, notification_type: :direct_message, title: "Message", body: message.body, path: "/messages")
+    UserBlock.create!(blocker: recipient, blocked_user: author)
+    deliveries = 0
+    original_send = NotificationEmailService.method(:send_message_notification)
+    NotificationEmailService.define_singleton_method(:send_message_notification) { |**| deliveries += 1 }
+
+    MessageNotificationEmailJob.perform_now(message.id, [ notification.id ])
+
+    assert_equal 0, deliveries
+  ensure
+    NotificationEmailService.define_singleton_method(:send_message_notification, original_send) if defined?(original_send) && original_send
+  end
 end

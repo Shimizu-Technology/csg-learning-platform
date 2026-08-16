@@ -80,6 +80,34 @@ class CommunitySafetyTest < ActionDispatch::IntegrationTest
     assert_not UserBlock.exists?(blocker: @student, blocked_user: @classmate)
   end
 
+  test "blocking hides previously stored message notifications" do
+    message = Message.create!(channel: @channel, author: @classmate, body: "Stored notification secret")
+    notification = @student.notifications.create!(
+      actor: @classmate,
+      notifiable: message,
+      notification_type: :message,
+      title: "Classmate sent a message",
+      body: message.body,
+      path: "/messages/#{@channel.id}"
+    )
+
+    as_user(@student) do
+      post "/api/v1/user_blocks", params: { blocked_user_id: @classmate.id }, headers: auth_headers, as: :json
+      get "/api/v1/notifications", headers: auth_headers
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_empty payload.fetch("notifications")
+    assert_equal 0, payload.fetch("unread_count")
+    assert Notification.exists?(notification.id), "blocking must preserve the notification record"
+
+    as_user(@student) do
+      patch "/api/v1/notifications/#{notification.id}/read", headers: auth_headers
+    end
+    assert_response :not_found
+  end
+
   test "student cannot block and enumerate a user outside a visible workspace" do
     as_user(@student) do
       post "/api/v1/user_blocks", params: { blocked_user_id: @outsider.id }, headers: auth_headers, as: :json

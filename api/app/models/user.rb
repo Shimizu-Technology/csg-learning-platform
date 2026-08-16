@@ -101,27 +101,15 @@ class User < ApplicationRecord
     CommunityPolicy.accepted?(self)
   end
 
-  def blocks?(user)
-    user.present? && blocked_user_id_set.include?(user.id)
-  end
-
-  def blocked_by?(user)
-    user.present? && blocks_received.exists?(blocker_id: user.id)
-  end
-
   def blocked_relationship_with?(user)
     user.present? && blocked_relationship_user_ids.include?(user.id)
   end
 
-  private
-
-  def blocked_user_id_set
-    @blocked_user_id_set ||= user_blocks.pluck(:blocked_user_id)
-  end
-
   def blocked_relationship_user_ids
-    @blocked_relationship_user_ids ||= blocked_user_id_set | blocks_received.pluck(:blocker_id)
+    @blocked_relationship_user_ids ||= user_blocks.pluck(:blocked_user_id) | blocks_received.pluck(:blocker_id)
   end
+
+  private
 
   def archive_or_detach_direct_conversations!
     direct_conversations.includes(:users, :workspace).find_each do |conversation|

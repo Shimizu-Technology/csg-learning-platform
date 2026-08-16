@@ -41,6 +41,29 @@ class PushNotificationJobTest < ActiveJob::TestCase
     ExpoPushNotificationService.define_singleton_method(:message_created, original_expo_delivery) if defined?(original_expo_delivery) && original_expo_delivery
   end
 
+  test "message push skips a recipient who blocks before the queued job runs" do
+    author = User.create!(clerk_id: "push_block_author", email: "push-block-author@example.com", role: :student)
+    recipient = User.create!(clerk_id: "push_block_recipient", email: "push-block-recipient@example.com", role: :student)
+    curriculum = Curriculum.create!(name: "Push block curriculum")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Push block cohort", start_date: Date.current, status: :active)
+    message = Message.create!(channel: cohort.channels.find_by!(name: "Class Chat"), author: author, body: "Must not push")
+    notification = recipient.notifications.create!(actor: author, notifiable: message, notification_type: :message, title: "Message", body: message.body, path: "/messages")
+    UserBlock.create!(blocker: recipient, blocked_user: author)
+    deliveries = []
+    original_web_delivery = WebPushNotificationService.method(:message_created)
+    original_expo_delivery = ExpoPushNotificationService.method(:message_created)
+    WebPushNotificationService.define_singleton_method(:message_created) { |_message, notifications| deliveries << notifications.pluck(:id) }
+    ExpoPushNotificationService.define_singleton_method(:message_created) { |_message, notifications| deliveries << notifications.pluck(:id) }
+
+    PushNotificationJob.perform_now("Message", message.id, [ notification.id ])
+
+    assert_equal [ [], [] ], deliveries
+    assert Notification.exists?(notification.id)
+  ensure
+    WebPushNotificationService.define_singleton_method(:message_created, original_web_delivery) if defined?(original_web_delivery) && original_web_delivery
+    ExpoPushNotificationService.define_singleton_method(:message_created, original_expo_delivery) if defined?(original_expo_delivery) && original_expo_delivery
+  end
+
   test "submission events fan out to isolated web and Expo delivery" do
     student = User.create!(clerk_id: "push_job_submission_student", email: "push-job-submission-student@example.com", role: :student)
     staff = User.create!(clerk_id: "push_job_submission_staff", email: "push-job-submission-staff@example.com", role: :instructor)

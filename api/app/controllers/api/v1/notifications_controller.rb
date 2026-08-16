@@ -38,15 +38,19 @@ module Api
       private
 
       def set_notification
-        @notification = current_user.notifications.find(params[:id])
+        @notification = visible_notifications.find(params[:id])
       end
 
       def scoped_notifications
-        notifications = current_user.notifications
+        notifications = visible_notifications
         return notifications unless params[:notification_type].present?
         return notifications unless Notification.notification_types.key?(params[:notification_type])
 
         notifications.where(notification_type: params[:notification_type])
+      end
+
+      def visible_notifications
+        current_user.notifications.visible_to(current_user)
       end
 
       def apply_index_filters(scope)
