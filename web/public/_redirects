@@ -1,3 +1,6 @@
+# Canonical production hostname. Exact-host matching leaves deploy previews alone.
+https://csg-learn.netlify.app/* https://learn.codeschoolofguam.com/:splat 301!
+
 # SEO files - serve directly
 /robots.txt    /robots.txt    200
 /sitemap.xml   /sitemap.xml   200

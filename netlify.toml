@@ -1,0 +1,23 @@
+[build]
+  base = "web"
+  command = "npm run build"
+  publish = "dist"
+  ignore = "bash scripts/netlify-ignore-build.sh"
+
+[build.environment]
+  NODE_VERSION = "20.19.5"
+  NPM_VERSION = "11.6.2"
+
+[[headers]]
+  for = "/*"
+
+  [headers.values]
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Content-Type-Options = "nosniff"
+
+[[headers]]
+  for = "/assets/*"
+
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

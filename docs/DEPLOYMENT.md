@@ -277,10 +277,22 @@ bin/rails console
 
 | Setting | Value |
 |---------|-------|
+| Configuration file | `/netlify.toml` (repository root) |
 | Build command | `npm run build` |
-| Publish directory | `web/dist` |
+| Publish directory | `dist` (relative to the `web` base) |
 | Base directory | `web` |
-| Node version | 20.19+ or 22.12+ (set in Netlify environment) |
+| Node version | `20.19.5` (pinned in `netlify.toml`) |
+| npm version | `11.6.2` (pinned in `netlify.toml`) |
+
+The checked-in configuration is authoritative. Keep the Netlify dashboard build
+settings aligned as an emergency reference, but make build, publish, runtime,
+header, and caching changes in the root `netlify.toml` so deploy behavior is
+reviewed and reproducible.
+
+The ignore command runs `web/scripts/netlify-ignore-build.sh`. Git deploys run
+when the frontend, root Netlify configuration, or root Node version pins change;
+API-, mobile-, and documentation-only commits skip the frontend build. Missing
+or invalid Netlify commit metadata fails open and runs the build.
 
 ### Environment Variables (Netlify Dashboard)
 
@@ -295,14 +307,26 @@ Production EAS builds should set the matching `EXPO_PUBLIC_POSTHOG_KEY` and `EXP
 
 ### SPA Routing
 
-The `netlify.toml` includes a catch-all redirect for SPA routing:
+`web/public/_redirects` is the single source of truth for routing. It redirects
+the exact production Netlify hostname to the custom domain, serves SEO and PWA
+files directly, and then applies the SPA fallback:
 
-```toml
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+```text
+https://csg-learn.netlify.app/* https://learn.codeschoolofguam.com/:splat 301!
+/robots.txt    /robots.txt    200
+/sitemap.xml   /sitemap.xml   200
+/manifest.json /manifest.json 200
+/sw.js         /sw.js         200
+/*             /index.html    200
 ```
+
+The exact-host canonical redirect does not match deploy-preview or branch
+subdomains. Keep specific file rules above the catch-all.
+
+The root `netlify.toml` also applies conservative browser security headers and
+one-year immutable browser caching to fingerprinted `/assets/*` files. HTML and
+`sw.js` retain Netlify's revalidation behavior so releases and service-worker
+updates are not pinned in browsers.
 
 ### Custom Domain
 
@@ -311,9 +335,25 @@ DNS for `learn.codeschoolofguam.com` should point to Netlify (CNAME or Netlify D
 ### Deploy Process
 
 1. Push to `main` triggers auto-deploy
-2. Netlify runs `npm run build` from the `web/` directory
-3. TypeScript compilation (`tsc --noEmit`) runs as part of the build
-4. Static files from `dist/` are deployed to CDN
+2. Netlify loads `/netlify.toml` and evaluates the ignore command
+3. Relevant changes run `npm run build` from the `web/` directory
+4. TypeScript project compilation (`tsc -b`) runs before the Vite build
+5. Static files from `web/dist/` are deployed to the CDN
+
+Validate a configuration change before merging:
+
+```bash
+cd web
+npm run check
+npm run test:e2e
+cd ..
+netlify build --dry --offline --context deploy-preview
+netlify build --offline --context deploy-preview
+```
+
+In the deploy log, confirm the config path is `/opt/build/repo/netlify.toml`,
+the current directory is `/opt/build/repo/web`, and the build uses Node
+`20.19.5` with npm `11.6.2`.
 
 ---
 
