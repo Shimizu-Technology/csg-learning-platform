@@ -73,6 +73,9 @@ class ClerkAuth
     def authorized_party_allowed?(payload, environment)
       authorized_party = payload["azp"].presence
       allowed = environment.authorized_parties
+      # Clerk's manual verification guidance says to validate azp when present
+      # and skip this check when the claim is absent. Native session tokens may
+      # not have a browser Origin, while browser tokens must match the allowlist.
       return true if authorized_party.blank? || allowed.blank?
       return true if allowed.include?(authorized_party)
 

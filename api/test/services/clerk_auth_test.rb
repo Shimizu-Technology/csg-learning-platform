@@ -38,6 +38,17 @@ class ClerkAuthTest < ActiveSupport::TestCase
     end
   end
 
+  test "accepts a native token without azp while still configuring browser parties" do
+    with_clerk_env do
+      token = token_for(issuer: "https://prod.clerk.test")
+      response = Struct.new(:parsed_response) { def success? = true }.new({ "keys" => [ @jwk ] })
+
+      with_http_get(response) do
+        assert_equal "prod_subject", ClerkAuth.verify(token)["sub"]
+      end
+    end
+  end
+
   private
 
   def token_for(issuer:, authorized_party: nil)

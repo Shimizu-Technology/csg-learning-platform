@@ -127,6 +127,32 @@ class ClerkIdentityTransitionTest < ActionDispatch::IntegrationTest
     assert_empty @user.clerk_identities
   end
 
+  test "a concurrent local signup recovers the winning user and identity" do
+    winner = User.create!(
+      clerk_id: "local_race_subject",
+      email: "local-race@example.com",
+      first_name: "Local",
+      role: :student
+    )
+    profile = verified_profile(winner).merge(external_id: nil)
+    controller = Api::V1::SessionsController.new
+    original_create = User.method(:create)
+    User.define_singleton_method(:create) { |**_attributes| raise ActiveRecord::RecordNotUnique }
+
+    resolved = controller.send(
+      :create_local_user,
+      issuer: @development_issuer,
+      clerk_id: winner.clerk_id,
+      profile: profile
+    )
+
+    assert_equal winner, resolved
+    assert_equal winner.clerk_id,
+      winner.clerk_identities.find_by!(issuer: @development_issuer).clerk_user_id
+  ensure
+    User.define_singleton_method(:create, original_create) if defined?(original_create) && original_create
+  end
+
   private
 
   def payload(issuer:, subject:)

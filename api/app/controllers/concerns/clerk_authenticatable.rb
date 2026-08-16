@@ -236,6 +236,22 @@ module ClerkAuthenticatable
       authenticated_user = user
     end
     authenticated_user
+  rescue ActiveRecord::RecordNotUnique
+    recover_concurrent_local_user(issuer: issuer, clerk_id: clerk_id, profile: profile)
+  end
+
+  def recover_concurrent_local_user(issuer:, clerk_id:, profile:)
+    user = User.find_by("LOWER(email) = ?", profile[:email].downcase)
+    unless user
+      @authentication_denial_reason = "identity_conflict"
+      return nil
+    end
+
+    return nil unless authorized_user(user)
+    return nil unless attach_clerk_identity(user, issuer: issuer, clerk_id: clerk_id)
+
+    update_user_from_profile(user, profile)
+    user
   end
 
   def enroll_local_student(user)
