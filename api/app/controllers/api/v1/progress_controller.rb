@@ -140,7 +140,7 @@ module Api
             total_blocks: mod_total,
             completed_blocks: mod_completed,
             progress_percentage: mod_pct,
-            lessons: mod.lessons.sort_by(&:position).map do |lesson|
+            lessons: mod.lessons.map do |lesson|
               lesson_block_ids = lesson.completion_block_ids
               lesson_completed = lesson_block_ids.count { |id| progress_by_block[id]&.completed? }
               lesson_total = lesson_block_ids.size

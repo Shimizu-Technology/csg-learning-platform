@@ -163,6 +163,7 @@ export interface LessonSummary {
   requires_submission: boolean;
   submission_type?: string;
   content_blocks_count: number;
+  archived_at: string | null;
 }
 
 export interface LessonDetail {
@@ -178,6 +179,7 @@ export interface LessonDetail {
   requires_submission: boolean;
   submission_type?: string;
   content_blocks_count: number;
+  archived_at: string | null;
   objectives: LessonObjective[];
   submission_window?: SubmissionWindowStatus;
   content_blocks: ContentBlockSummary[];
@@ -331,6 +333,7 @@ export interface ModuleSummary {
   scheduled_day_names: string[];
   week_count: number;
   lessons_count: number;
+  archived_lessons_count?: number;
 }
 
 export interface ModuleDetail extends ModuleSummary {
@@ -368,6 +371,7 @@ export interface CurriculumDetail extends CurriculumSummary {
     scheduled_day_names: string[];
     week_count: number;
     lessons_count: number;
+    archived_lessons_count?: number;
     lessons: LessonSummary[];
   }[];
 }

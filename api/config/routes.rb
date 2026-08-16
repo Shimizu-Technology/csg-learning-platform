@@ -118,6 +118,8 @@ Rails.application.routes.draw do
       resources :lessons, only: [ :show, :update, :destroy ] do
         member do
           patch :editor, to: "lessons#update_editor"
+          patch :archive
+          patch :restore
         end
         resources :content_blocks, only: [ :index, :create ]
         resource :objective_alignments, only: :update

@@ -12,7 +12,21 @@ class Lesson < ApplicationRecord
   validates :release_day, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validate :release_day_matches_module_schedule
 
-  scope :ordered, -> { order(:position) }
+  scope :active, -> { where(archived_at: nil) }
+  scope :archived, -> { where.not(archived_at: nil) }
+  scope :ordered, -> { order(:release_day, :position, :id) }
+
+  def archived?
+    archived_at.present?
+  end
+
+  def archive!
+    update!(archived_at: Time.current)
+  end
+
+  def restore!
+    update!(archived_at: nil)
+  end
 
   def primary_assignment_block
     content_blocks.find(&:exercise_like?)
@@ -44,6 +58,7 @@ class Lesson < ApplicationRecord
   end
 
   def available?(cohort, module_assignment = nil, lesson_assignment = nil, on: LearningCalendar.today)
+    return false if archived?
     return on >= lesson_assignment.unlock_date_override if lesson_assignment&.unlock_date_override.present?
     return lesson_assignment.unlocked? if lesson_assignment.present?
 
@@ -58,6 +73,7 @@ class Lesson < ApplicationRecord
   private
 
   def release_day_matches_module_schedule
+    return if archived?
     return if curriculum_module.blank?
     return if release_day.nil?
     return if curriculum_module.valid_release_day?(release_day)

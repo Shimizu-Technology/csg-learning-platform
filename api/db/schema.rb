@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_15_000200) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_16_000100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -362,6 +362,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_15_000200) do
   end
 
   create_table "lessons", force: :cascade do |t|
+    t.datetime "archived_at"
     t.datetime "created_at", null: false
     t.integer "lesson_type", default: 0, null: false
     t.bigint "module_id", null: false
@@ -371,6 +372,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_15_000200) do
     t.boolean "requires_submission", default: false, null: false
     t.string "title", null: false
     t.datetime "updated_at", null: false
+    t.index ["module_id", "archived_at", "release_day", "position"], name: "idx_lessons_module_archive_release_position"
     t.index ["module_id", "position"], name: "index_lessons_on_module_id_and_position"
     t.index ["module_id", "release_day"], name: "index_lessons_on_module_id_and_release_day"
     t.index ["module_id"], name: "index_lessons_on_module_id"

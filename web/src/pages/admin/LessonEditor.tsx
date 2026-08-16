@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
-import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Save, Trash2, Eye, Pencil, Plus, Target, X, ClipboardCheck, ListChecks } from 'lucide-react'
+import { useParams, Link, useSearchParams } from 'react-router-dom'
+import { Archive, ArrowLeft, Save, Eye, Pencil, Plus, RotateCcw, Target, X, ClipboardCheck, ListChecks } from 'lucide-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { RichTextEditor } from '../../components/shared/RichTextEditor'
@@ -48,6 +48,7 @@ interface Lesson {
   release_day: number
   requires_submission?: boolean
   submission_type?: string
+  archived_at: string | null
   content_blocks: ContentBlock[]
   objectives: LessonObjective[]
 }
@@ -58,7 +59,6 @@ const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Satu
 
 export function LessonEditor() {
   const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
   const toast = useToast()
   const [lesson, setLesson] = useState<Lesson | null>(null)
   const [objectiveCatalog, setObjectiveCatalog] = useState<LearningObjective[]>([])
@@ -102,8 +102,8 @@ export function LessonEditor() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [archiveSaving, setArchiveSaving] = useState(false)
+  const [confirmArchive, setConfirmArchive] = useState(false)
 
   // Upload context — used to prefer in-flight upload's s3_key over a stale (null) fetch result.
   const { uploads, completeDeferredUpload } = useUpload()
@@ -321,18 +321,34 @@ export function LessonEditor() {
     }
   }
 
-  const handleDelete = async () => {
+  const handleArchive = async () => {
     if (!lesson) return
-    setDeleting(true)
-    const res = await api.deleteLesson(lesson.id)
+    setArchiveSaving(true)
+    const res = await api.archiveLesson(lesson.id)
     if (res.error) {
       setSaveError(res.error)
       toast.error(res.error)
-      setDeleting(false)
+      setArchiveSaving(false)
     } else {
-      toast.success('Exercise deleted')
-      navigate('/admin/content')
+      setLesson(res.data!.lesson as Lesson)
+      setConfirmArchive(false)
+      setArchiveSaving(false)
+      toast.success('Exercise archived. Its content and student history are preserved.')
     }
+  }
+
+  const handleRestore = async () => {
+    if (!lesson) return
+    setArchiveSaving(true)
+    const res = await api.restoreLesson(lesson.id)
+    if (res.error) {
+      setSaveError(res.error)
+      toast.error(res.error)
+    } else {
+      setLesson(res.data!.lesson as Lesson)
+      toast.success('Exercise restored to the student curriculum')
+    }
+    setArchiveSaving(false)
   }
 
   const handleSubmissionTypeChange = (nextType: string) => {
@@ -557,6 +573,22 @@ export function LessonEditor() {
           </div>
         </div>
       </div>
+
+      {lesson.archived_at && (
+        <div className="flex flex-col gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <Archive className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+            <div>
+              <p className="font-extrabold text-amber-950">Archived exercise</p>
+              <p className="mt-1 text-sm leading-6 text-amber-800">Students cannot see or continue into this exercise. Its content, progress, and submissions remain preserved.</p>
+            </div>
+          </div>
+          <button type="button" onClick={handleRestore} disabled={archiveSaving} className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-amber-900 px-4 text-sm font-bold text-white transition-colors hover:bg-amber-950 disabled:opacity-50">
+            <RotateCcw className="h-4 w-4" />
+            {archiveSaving ? 'Restoring...' : 'Restore exercise'}
+          </button>
+        </div>
+      )}
 
       {saveError && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{saveError}</div>
@@ -845,33 +877,33 @@ export function LessonEditor() {
           {/* Bottom actions */}
           <div className="flex items-center justify-between">
             <div>
-              {confirmDelete ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-slate-600">Delete this exercise?</span>
+              {!lesson.archived_at && (confirmArchive ? (
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-2">
+                  <span className="px-1 text-sm font-semibold text-amber-900">Archive this exercise?</span>
                   <button
-                    onClick={handleDelete}
-                    disabled={deleting}
-                    className="rounded-lg bg-red-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-600 disabled:opacity-50 transition-colors"
+                    onClick={handleArchive}
+                    disabled={archiveSaving}
+                    className="min-h-11 rounded-xl bg-amber-800 px-4 text-sm font-bold text-white transition-colors hover:bg-amber-900 disabled:opacity-50"
                   >
-                    {deleting ? 'Deleting...' : 'Yes, delete'}
+                    {archiveSaving ? 'Archiving...' : 'Archive safely'}
                   </button>
                   <button
-                    onClick={() => setConfirmDelete(false)}
-                    disabled={deleting}
-                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                    onClick={() => setConfirmArchive(false)}
+                    disabled={archiveSaving}
+                    className="min-h-11 rounded-xl border border-amber-200 bg-white px-4 text-sm font-bold text-amber-900 transition-colors hover:bg-amber-100"
                   >
                     Cancel
                   </button>
                 </div>
               ) : (
                 <button
-                  onClick={() => setConfirmDelete(true)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-100 transition-colors"
+                  onClick={() => setConfirmArchive(true)}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 text-sm font-bold text-amber-800 transition-colors hover:bg-amber-100"
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Delete Exercise
+                  <Archive className="h-4 w-4" />
+                  Archive exercise
                 </button>
-              )}
+              ))}
             </div>
             <button
               onClick={handleSave}

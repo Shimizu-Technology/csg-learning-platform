@@ -95,6 +95,7 @@ module Api
       end
 
       def module_json(mod, include_lessons: false, include_solutions: false)
+        lessons = current_user.staff? ? mod.all_lessons : mod.lessons
         json = {
           id: mod.id,
           curriculum_id: mod.curriculum_id,
@@ -107,11 +108,13 @@ module Api
           schedule_days: mod.schedule_days,
           scheduled_day_names: mod.scheduled_day_names,
           week_count: mod.week_count,
-          lessons_count: mod.lessons.size
+          lessons_count: lessons.count { |lesson| !lesson.archived? }
         }
 
+        json[:archived_lessons_count] = lessons.count(&:archived?) if current_user.staff?
+
         if include_lessons
-          json[:lessons] = mod.lessons.includes(:content_blocks).map { |l|
+          json[:lessons] = lessons.includes(:content_blocks).map { |l|
             exercise_block = l.content_blocks.find(&:exercise_like?)
             {
               id: l.id,
@@ -120,6 +123,7 @@ module Api
               position: l.position,
               release_day: l.release_day,
               required: l.required,
+              archived_at: l.archived_at,
               requires_submission: exercise_block ? exercise_block.review_required? : l.requires_submission,
               submission_type: exercise_block&.effective_submission_type || "manual_complete",
               content_blocks: l.content_blocks.map { |cb|

@@ -14,13 +14,24 @@ class CurriculumModule < ApplicationRecord
   enum :module_type, { prework: 0, live_class: 1, capstone: 2, advanced: 3, workshop: 4, recording: 5 }
 
   belongs_to :curriculum
-  has_many :lessons, -> { order(:position) }, foreign_key: :module_id, dependent: :destroy
+  has_many :all_lessons,
+    -> { order(:release_day, :position, :id) },
+    class_name: "Lesson",
+    foreign_key: :module_id,
+    inverse_of: :curriculum_module,
+    dependent: :destroy
+  has_many :lessons,
+    -> { where(archived_at: nil).order(:release_day, :position, :id) },
+    class_name: "Lesson",
+    foreign_key: :module_id,
+    inverse_of: :curriculum_module
   has_many :module_assignments, foreign_key: :module_id, dependent: :destroy
   has_many :cohort_module_schedules, foreign_key: :module_id, dependent: :destroy
 
   validates :name, presence: true
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :schedule_days, inclusion: { in: SCHEDULE_PATTERNS.keys }
+  validate :schedule_change_preserves_lesson_release_days
 
   scope :ordered, -> { order(:position) }
 
@@ -77,5 +88,19 @@ class CurriculumModule < ApplicationRecord
 
   def legacy_start_date_for(cohort)
     cohort.start_date + day_offset + first_scheduled_day_index
+  end
+
+  private
+
+  def schedule_change_preserves_lesson_release_days
+    return unless will_save_change_to_schedule_days?
+    return if id.blank? || SCHEDULE_PATTERNS[schedule_days].blank?
+
+    invalid_count = Lesson.where(module_id: id, archived_at: nil).count do |lesson|
+      !valid_release_day?(lesson.release_day)
+    end
+    return if invalid_count.zero?
+
+    errors.add(:schedule_days, "would exclude #{invalid_count} active #{'lesson'.pluralize(invalid_count)}")
   end
 end

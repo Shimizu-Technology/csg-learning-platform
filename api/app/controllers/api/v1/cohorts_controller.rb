@@ -385,7 +385,7 @@ module Api
         start_date = cohort_student_view_module_start_date(cohort, mod, schedule, assignments, assigned)
         module_available = assigned && cohort_student_view_module_available?(cohort, assignments, start_date)
         requires_github = module_github_config["requires_github"] || false
-        lesson_data = mod.lessons.sort_by(&:position).map do |lesson|
+        lesson_data = mod.lessons.map do |lesson|
           cohort_student_view_lesson_json(cohort, mod, lesson, start_date, module_available, requires_github)
         end
 
