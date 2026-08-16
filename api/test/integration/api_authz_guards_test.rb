@@ -266,6 +266,7 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
   test "production ignores open signup escape hatch" do
     payload = {
       "sub" => "clerk_env_signup",
+      "iss" => "https://production.clerk.test",
       "email" => "env-signup@example.com",
       "first_name" => "Env",
       "last_name" => "Signup"
