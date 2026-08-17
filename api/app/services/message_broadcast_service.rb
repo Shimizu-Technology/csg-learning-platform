@@ -15,19 +15,9 @@ class MessageBroadcastService
     private
 
     def broadcast(event, message)
-      payload = {
-        event: event,
-        channel_id: message.channel_id,
-        direct_conversation_id: message.direct_conversation_id,
-        message: MessageJson.render(message, stream_url: true)
-      }
-
-      if message.channel
-        safe_broadcast { ChannelMessagesChannel.broadcast_to(message.channel, payload) }
-      else
-        safe_broadcast { DirectMessagesChannel.broadcast_to(message.direct_conversation, payload) }
-      end
-
+      # Per-user delivery is intentional: block state changes the serialized
+      # message and must never leak blocked text or attachment URLs through a
+      # shared conversation broadcast.
       broadcast_to_recipients(event, message)
     end
 
@@ -72,7 +62,7 @@ class MessageBroadcastService
         muted: muted?(user, channel),
         unread_count: channel_unread_count(channel, user, read_state),
         last_read_at: read_state&.last_read_at,
-        latest_message: MessageJson.latest(channel.messages.visible.includes(:author, :message_attachments).order(created_at: :desc, id: :desc).first),
+        latest_message: MessageJson.latest(channel.messages.visible.includes(:author, :message_attachments).order(created_at: :desc, id: :desc).first, current_user: user),
         created_at: channel.created_at,
         updated_at: channel.updated_at
       }
@@ -93,7 +83,7 @@ class MessageBroadcastService
         muted: muted?(user, conversation),
         unread_count: direct_unread_count(conversation, user, member),
         last_read_at: member&.last_read_at,
-        latest_message: MessageJson.latest(conversation.messages.visible.includes(:author, :message_attachments).order(created_at: :desc, id: :desc).first),
+        latest_message: MessageJson.latest(conversation.messages.visible.includes(:author, :message_attachments).order(created_at: :desc, id: :desc).first, current_user: user),
         users: conversation.users.map { |member_user| user_json(member_user) },
         created_at: conversation.created_at,
         updated_at: conversation.updated_at

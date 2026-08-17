@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_16_210000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_17_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -158,6 +158,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_210000) do
     t.index ["submission_type"], name: "index_content_blocks_on_submission_type"
   end
 
+  create_table "content_reports", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "details"
+    t.bigint "message_id"
+    t.integer "reason", default: 0, null: false
+    t.bigint "reported_user_id", null: false
+    t.bigint "reporter_id", null: false
+    t.datetime "resolved_at"
+    t.bigint "reviewed_by_id"
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["message_id"], name: "index_content_reports_on_message_id"
+    t.index ["reported_user_id"], name: "index_content_reports_on_reported_user_id"
+    t.index ["reporter_id", "message_id"], name: "index_unique_message_reports", unique: true, where: "(message_id IS NOT NULL)"
+    t.index ["reporter_id", "reported_user_id"], name: "index_one_open_user_report", unique: true, where: "((message_id IS NULL) AND (status = ANY (ARRAY[0, 1])))"
+    t.index ["reporter_id"], name: "index_content_reports_on_reporter_id"
+    t.index ["reviewed_by_id"], name: "index_content_reports_on_reviewed_by_id"
+    t.index ["status", "created_at"], name: "index_content_reports_on_status_and_created_at"
+  end
+
   create_table "curricula", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.text "description"
@@ -165,6 +185,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_210000) do
     t.integer "status", default: 0, null: false
     t.integer "total_weeks"
     t.datetime "updated_at", null: false
+  end
+
+  create_table "data_deletion_requests", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "resolved_at"
+    t.bigint "resolved_by_id"
+    t.text "retention_note"
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["resolved_by_id"], name: "index_data_deletion_requests_on_resolved_by_id"
+    t.index ["user_id"], name: "index_data_deletion_requests_on_user_id"
+    t.index ["user_id"], name: "index_one_open_deletion_request_per_user", unique: true, where: "(status = ANY (ARRAY[0, 1]))"
   end
 
   create_table "direct_conversation_members", force: :cascade do |t|
@@ -358,7 +391,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_210000) do
     t.datetime "updated_at", null: false
     t.index ["curriculum_id", "code"], name: "index_learning_objectives_on_curriculum_id_and_code", unique: true
     t.index ["curriculum_id"], name: "index_learning_objectives_on_curriculum_id"
-    t.check_constraint "position >= 0", name: "learning_objectives_position_nonnegative"
+    t.check_constraint "\"position\" >= 0", name: "learning_objectives_position_nonnegative"
   end
 
   create_table "lesson_assignments", force: :cascade do |t|
@@ -524,7 +557,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_210000) do
     t.index ["learning_objective_id"], name: "index_objective_alignments_on_learning_objective_id"
     t.index ["lesson_id", "learning_objective_id"], name: "idx_objective_alignments_unique_lesson", unique: true, where: "(content_block_id IS NULL)"
     t.index ["lesson_id"], name: "index_objective_alignments_on_lesson_id"
-    t.check_constraint "position >= 0", name: "objective_alignments_position_nonnegative"
+    t.check_constraint "\"position\" >= 0", name: "objective_alignments_position_nonnegative"
   end
 
   create_table "office_hours", force: :cascade do |t|
@@ -645,7 +678,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_210000) do
     t.datetime "updated_at", null: false
     t.index ["learning_objective_id"], name: "index_rubric_criteria_on_learning_objective_id"
     t.index ["rubric_id"], name: "index_rubric_criteria_on_rubric_id"
-    t.check_constraint "position >= 0", name: "rubric_criteria_position_nonnegative"
+    t.check_constraint "\"position\" >= 0", name: "rubric_criteria_position_nonnegative"
   end
 
   create_table "rubrics", force: :cascade do |t|
@@ -818,10 +851,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_210000) do
     t.index ["user_id"], name: "index_submissions_on_user_id"
   end
 
+  create_table "user_blocks", force: :cascade do |t|
+    t.bigint "blocked_user_id", null: false
+    t.bigint "blocker_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["blocked_user_id"], name: "index_user_blocks_on_blocked_user_id"
+    t.index ["blocker_id", "blocked_user_id"], name: "index_user_blocks_on_blocker_id_and_blocked_user_id", unique: true
+    t.index ["blocker_id"], name: "index_user_blocks_on_blocker_id"
+    t.check_constraint "blocker_id <> blocked_user_id", name: "user_blocks_distinct_users"
+  end
+
   create_table "users", force: :cascade do |t|
     t.datetime "archived_at"
     t.string "avatar_url"
     t.string "clerk_id", null: false
+    t.datetime "community_terms_accepted_at"
+    t.string "community_terms_version"
     t.datetime "created_at", null: false
     t.string "email", null: false
     t.string "first_name"
@@ -897,6 +943,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_210000) do
   add_foreign_key "content_blocks", "lessons"
   add_foreign_key "content_blocks", "rubrics"
   add_foreign_key "content_blocks", "users", column: "s3_video_uploaded_by_id"
+  add_foreign_key "content_reports", "messages"
+  add_foreign_key "content_reports", "users", column: "reported_user_id"
+  add_foreign_key "content_reports", "users", column: "reporter_id"
+  add_foreign_key "content_reports", "users", column: "reviewed_by_id"
+  add_foreign_key "data_deletion_requests", "users"
+  add_foreign_key "data_deletion_requests", "users", column: "resolved_by_id"
   add_foreign_key "direct_conversation_members", "direct_conversations"
   add_foreign_key "direct_conversation_members", "users"
   add_foreign_key "direct_conversations", "cohorts"
@@ -973,6 +1025,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_210000) do
   add_foreign_key "submissions", "content_blocks"
   add_foreign_key "submissions", "users"
   add_foreign_key "submissions", "users", column: "graded_by_id"
+  add_foreign_key "user_blocks", "users", column: "blocked_user_id"
+  add_foreign_key "user_blocks", "users", column: "blocker_id"
   add_foreign_key "watch_progresses", "recordings"
   add_foreign_key "watch_progresses", "users"
   add_foreign_key "workspace_memberships", "users"

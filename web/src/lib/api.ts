@@ -528,6 +528,32 @@ export const api = {
     }),
   searchMessages: (q: string, limit = 30) =>
     fetchApi<MessageSearchResponse>(`/api/v1/messages/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+  acceptCommunityPolicy: (version: string) =>
+    fetchApi<{ community_policy: import('../types/api').CommunityPolicy }>('/api/v1/community_policy/accept', {
+      method: 'POST', body: JSON.stringify({ version, accepted: true }),
+    }),
+  reportContent: (data: { message_id?: number; reported_user_id?: number; reason: string; details?: string }) =>
+    fetchApi<{ content_report: import('../types/api').ContentReport }>('/api/v1/content_reports', {
+      method: 'POST', body: JSON.stringify({ content_report: data }),
+    }),
+  getContentReports: (status?: string) =>
+    fetchApi<{ content_reports: import('../types/api').ContentReport[] }>(`/api/v1/content_reports${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+  updateContentReport: (id: number, status: 'reviewing' | 'actioned' | 'dismissed') =>
+    fetchApi<{ content_report: import('../types/api').ContentReport }>(`/api/v1/content_reports/${id}`, {
+      method: 'PATCH', body: JSON.stringify({ content_report: { status } }),
+    }),
+  blockUser: (blockedUserId: number) =>
+    fetchApi<{ blocked_user: { id: number; full_name: string; blocked_at: string } }>('/api/v1/user_blocks', {
+      method: 'POST', body: JSON.stringify({ blocked_user_id: blockedUserId }),
+    }),
+  getBlockedUsers: () => fetchApi<{ blocked_users: import('../types/api').BlockedUser[] }>('/api/v1/user_blocks'),
+  unblockUser: (blockedUserId: number) => fetchApi<void>(`/api/v1/user_blocks/${blockedUserId}`, { method: 'DELETE' }),
+  requestDataDeletion: () => fetchApi<{ data_deletion_request: import('../types/api').DataDeletionRequest }>('/api/v1/data_deletion_requests', { method: 'POST' }),
+  getDataDeletionRequests: () => fetchApi<{ data_deletion_requests: import('../types/api').DataDeletionRequest[] }>('/api/v1/data_deletion_requests'),
+  updateDataDeletionRequest: (id: number, data: { status: 'processing' | 'completed' | 'declined'; retention_note?: string }) =>
+    fetchApi<{ data_deletion_request: import('../types/api').DataDeletionRequest }>(`/api/v1/data_deletion_requests/${id}`, {
+      method: 'PATCH', body: JSON.stringify({ data_deletion_request: data }),
+    }),
 
   // Profile
   getProfile: () =>

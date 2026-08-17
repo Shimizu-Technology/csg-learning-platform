@@ -15,6 +15,16 @@ export interface SessionUser extends UserSummary {
   first_name: string;
   last_name: string;
   github_username: string | null;
+  community_policy?: CommunityPolicy;
+}
+
+export interface CommunityPolicy {
+  version: string;
+  accepted: boolean;
+  accepted_at: string | null;
+  privacy_url: string;
+  terms_url: string;
+  deletion_url: string;
 }
 
 export interface ProfilePayload {
@@ -117,6 +127,7 @@ export interface Message {
   created_at: string;
   updated_at: string;
   mine: boolean;
+  blocked?: boolean;
   reactions: MessageReaction[];
   attachments: { id: number; filename: string; content_type: string; byte_size: number; image: boolean; url?: string }[];
   read_receipts?: { count: number; users: Pick<UserSummary, 'id' | 'full_name' | 'avatar_url'>[] };
@@ -125,6 +136,26 @@ export interface Message {
   client_uploads?: UploadAttachmentInput[];
   reply_count?: number;
   author: Pick<UserSummary, 'id' | 'full_name' | 'email' | 'role' | 'avatar_url'>;
+}
+
+export interface ContentReport {
+  id: number;
+  reason: 'harassment' | 'spam' | 'inappropriate_content' | 'safety_concern' | 'other';
+  status: 'pending' | 'reviewing' | 'actioned' | 'dismissed';
+  created_at: string;
+}
+
+export interface DataDeletionRequest {
+  id: number;
+  status: 'pending' | 'processing' | 'completed' | 'declined';
+  created_at: string;
+}
+
+export interface BlockedUser {
+  id: number;
+  full_name: string;
+  avatar_url: string | null;
+  blocked_at: string;
 }
 
 export interface MessageWindowMeta {

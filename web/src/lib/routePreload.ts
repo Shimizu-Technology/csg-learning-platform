@@ -24,6 +24,7 @@ const announcementsLoader = () => import('../pages/shared/Announcements').then((
 const messagesLoader = () => import('../pages/shared/Messages').then((module) => ({ default: module.Messages }))
 const adminDashboardLoader = () => import('../pages/admin/AdminDashboard').then((module) => ({ default: module.AdminDashboard }))
 const supportQueueLoader = () => import('../pages/admin/SupportQueue').then((module) => ({ default: module.SupportQueue }))
+const moderationLoader = () => import('../pages/admin/Moderation').then((module) => ({ default: module.Moderation }))
 const helpRequestDetailLoader = () => import('../pages/admin/HelpRequestDetail').then((module) => ({ default: module.HelpRequestDetail }))
 const interventionDetailLoader = () => import('../pages/admin/InterventionDetail').then((module) => ({ default: module.InterventionDetail }))
 const studentDetailLoader = () => import('../pages/admin/StudentDetail').then((module) => ({ default: module.StudentDetail }))
@@ -55,6 +56,7 @@ export const Announcements = lazyWithPreload(announcementsLoader)
 export const Messages = lazyWithPreload(messagesLoader)
 export const AdminDashboard = lazyWithPreload(adminDashboardLoader)
 export const SupportQueue = lazyWithPreload(supportQueueLoader)
+export const Moderation = lazyWithPreload(moderationLoader)
 export const HelpRequestDetail = lazyWithPreload(helpRequestDetailLoader)
 export const InterventionDetail = lazyWithPreload(interventionDetailLoader)
 export const StudentDetail = lazyWithPreload(studentDetailLoader)
@@ -85,6 +87,7 @@ const routePreloaders: Record<string, Array<() => Promise<unknown>>> = {
   '/messages': [messagesLoader],
   '/admin': [adminDashboardLoader],
   '/admin/support': [supportQueueLoader, helpRequestDetailLoader, interventionDetailLoader],
+  '/admin/moderation': [moderationLoader],
   '/admin/help-requests': [helpRequestDetailLoader],
   '/admin/interventions': [interventionDetailLoader],
   '/admin/students': [studentManagementLoader, studentDetailLoader, studentWorkspaceLoader],

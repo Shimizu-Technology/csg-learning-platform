@@ -5,10 +5,11 @@ import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 import { fonts, palette } from '@/constants/csg-theme';
 import { ErrorState, LoadingState } from '@/components/screen-states';
+import { CommunityStandardsGate } from '@/components/community-standards-gate';
 
 export default function AppLayout() {
   const { loaded, signedIn } = useCsgAuth();
-  const { user, loading, error, accessDenied, refresh, signOut } = useSession();
+  const { api, user, loading, error, accessDenied, refresh, signOut } = useSession();
   const router = useRouter();
   if (!loaded) return null;
   if (!signedIn) return <Redirect href="/(auth)/sign-in" />;
@@ -21,6 +22,9 @@ export default function AppLayout() {
         <Pressable accessibilityRole="button" onPress={() => void signOut()} style={styles.signOut}><Text style={styles.signOutText}>Use a different account</Text></Pressable>
       </View>
     );
+  }
+  if (user.community_policy && !user.community_policy.accepted) {
+    return <CommunityStandardsGate policy={user.community_policy} onAccept={async () => { await api.acceptCommunityPolicy(user.community_policy!.version); await refresh(); }} />;
   }
   const closeButton = () => <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => router.back()} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}><X color={palette.muted} size={22} /></Pressable>;
   return (

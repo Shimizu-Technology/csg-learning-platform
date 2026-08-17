@@ -13,6 +13,10 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     @admin = User.create!(clerk_id: "clerk_admin_dm", email: "admin-dm@example.com", first_name: "Admin", last_name: "User", role: :admin)
     @outsider = User.create!(clerk_id: "clerk_outsider_dm", email: "outsider-dm@example.com", first_name: "Out", last_name: "Sider", role: :student)
 
+    [ @student, @classmate, @admin, @outsider ].each do |user|
+      user.update!(community_terms_version: CommunityPolicy::VERSION, community_terms_accepted_at: Time.current)
+    end
+
     Enrollment.create!(user: @student, cohort: @cohort, status: :active)
     Enrollment.create!(user: @classmate, cohort: @cohort, status: :active)
   end

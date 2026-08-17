@@ -19,6 +19,9 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
+# Private Google Cloud service-account downloads (google-services.json is public client config)
+csg-connect-*.json
+
 # Metro
 .metro-health-check*
 

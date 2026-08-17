@@ -13,6 +13,8 @@ class PushNotificationJob < ApplicationJob
       deliver(WebPushNotificationService, :announcement_published, notifiable, notifications)
       deliver(ExpoPushNotificationService, :announcement_published, notifiable, notifications)
     when Message
+      blocked_user_ids = UserBlock.related_user_ids(notifiable.author_id, notifications.pluck(:user_id))
+      notifications = notifications.where.not(user_id: blocked_user_ids)
       deliver(WebPushNotificationService, :message_created, notifiable, notifications)
       deliver(ExpoPushNotificationService, :message_created, notifiable, notifications)
     when Submission

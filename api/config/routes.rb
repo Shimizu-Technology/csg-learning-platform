@@ -16,6 +16,12 @@ Rails.application.routes.draw do
       # Profile (current user)
       get "profile", to: "profile#show"
       patch "profile", to: "profile#update"
+      resource :community_policy, only: :show do
+        post :accept
+      end
+      resources :user_blocks, only: [ :index, :create, :destroy ], param: :blocked_user_id
+      resources :content_reports, only: [ :index, :create, :update ]
+      resources :data_deletion_requests, only: [ :index, :create, :update ]
 
       # Dashboard / student hubs
       get "dashboard", to: "dashboard#show"

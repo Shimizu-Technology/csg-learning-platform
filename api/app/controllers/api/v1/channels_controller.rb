@@ -152,7 +152,7 @@ module Api
           muted: muted_ids ? muted_ids.include?(channel.id) : muted?(channel),
           unread_count: unread_count,
           last_read_at: read_state&.last_read_at,
-          latest_message: MessageJson.latest(latest_message),
+          latest_message: MessageJson.latest(latest_message, current_user: current_user),
           created_at: channel.created_at,
           updated_at: channel.updated_at
         }

@@ -21,6 +21,10 @@ class Notification < ApplicationRecord
 
   scope :recent, -> { order(created_at: :desc) }
   scope :unread, -> { where(read_at: nil) }
+  scope :visible_to, ->(user) {
+    blocked_actor_ids = user.blocked_relationship_user_ids
+    blocked_actor_ids.empty? ? all : where.not(notification_type: %i[message direct_message], actor_id: blocked_actor_ids)
+  }
 
   def read?
     read_at.present?

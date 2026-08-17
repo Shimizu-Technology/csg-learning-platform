@@ -93,6 +93,25 @@ class NotificationDeliveryServiceTest < ActiveSupport::TestCase
     NotificationEmailService.define_singleton_method(:send_message_mention, original_send) if original_send
   end
 
+  test "mention email skips a user who blocks before the queued job runs" do
+    curriculum = Curriculum.create!(name: "Blocked mentions")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Blocked mention cohort", start_date: Date.current, status: :active)
+    channel = cohort.channels.find_by!(name: "Class Chat")
+    author = User.create!(clerk_id: "blocked_mention_author", email: "blocked-mention-author@example.com", role: :student)
+    recipient = User.create!(clerk_id: "blocked_mention_recipient", email: "blocked-mention-recipient@example.com", role: :student)
+    message = Message.create!(channel: channel, author: author, body: "Must not email", mention_user_ids: [ recipient.id ])
+    UserBlock.create!(blocker: author, blocked_user: recipient)
+    deliveries = []
+    original_send = NotificationEmailService.method(:send_message_mention)
+    NotificationEmailService.define_singleton_method(:send_message_mention) { |**arguments| deliveries << arguments }
+
+    MessageMentionEmailJob.perform_now(message.id, [ recipient.id ])
+
+    assert_empty deliveries
+  ensure
+    NotificationEmailService.define_singleton_method(:send_message_mention, original_send) if defined?(original_send) && original_send
+  end
+
   test "direct message mentions stay on the generic DM email path" do
     curriculum = Curriculum.create!(name: "Bootcamp 2026")
     cohort = Cohort.create!(curriculum: curriculum, name: "Cohort 3", start_date: Date.current, status: :active)

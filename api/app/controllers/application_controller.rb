@@ -19,6 +19,16 @@ class ApplicationController < ActionController::API
     @learning_request_started_at = Time.current
   end
 
+  def require_community_terms!
+    return if CommunityPolicy.accepted?(current_user)
+
+    render json: {
+      error: "Accept the current Community Guidelines and Terms before sharing content",
+      code: "community_terms_required",
+      community_policy: CommunityPolicy.as_json(current_user)
+    }, status: :forbidden
+  end
+
   def with_learning_write_guard(enrollment, &)
     return yield unless enrollment
 

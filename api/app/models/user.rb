@@ -27,6 +27,12 @@ class User < ApplicationRecord
   has_many :message_attachments, foreign_key: :uploaded_by_id, dependent: :restrict_with_exception
   has_many :message_reactions, dependent: :destroy
   has_many :message_preferences, dependent: :destroy
+  has_many :user_blocks, foreign_key: :blocker_id, dependent: :destroy, inverse_of: :blocker
+  has_many :blocked_users, through: :user_blocks, source: :blocked_user
+  has_many :blocks_received, class_name: "UserBlock", foreign_key: :blocked_user_id, dependent: :destroy, inverse_of: :blocked_user
+  has_many :content_reports, foreign_key: :reporter_id, dependent: :restrict_with_exception, inverse_of: :reporter
+  has_many :reports_received, class_name: "ContentReport", foreign_key: :reported_user_id, dependent: :restrict_with_exception, inverse_of: :reported_user
+  has_many :data_deletion_requests, dependent: :restrict_with_exception
   has_many :created_office_hours, class_name: "OfficeHour", foreign_key: :created_by_id, dependent: :nullify
   has_many :created_submission_windows, class_name: "CohortModuleSubmissionWindow", foreign_key: :created_by_id, dependent: :nullify
   has_many :updated_submission_windows, class_name: "CohortModuleSubmissionWindow", foreign_key: :updated_by_id, dependent: :nullify
@@ -89,6 +95,18 @@ class User < ApplicationRecord
 
   def staff?
     admin? || instructor?
+  end
+
+  def community_terms_accepted?
+    CommunityPolicy.accepted?(self)
+  end
+
+  def blocked_relationship_with?(user)
+    user.present? && blocked_relationship_user_ids.include?(user.id)
+  end
+
+  def blocked_relationship_user_ids
+    @blocked_relationship_user_ids ||= user_blocks.pluck(:blocked_user_id) | blocks_received.pluck(:blocker_id)
   end
 
   private

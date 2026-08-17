@@ -21,7 +21,8 @@ type Props = {
 
 export function MessageBubble({ message, showAuthor, mentionUsers, onLongPress, onOpenReaction, onOpenImage, onThread, onRetry }: Props) {
   const deleted = Boolean(message.deleted_at);
-  const images = message.attachments.filter((attachment) => attachment.image && attachment.url);
+  const blocked = Boolean(message.blocked);
+  const images = blocked ? [] : message.attachments.filter((attachment) => attachment.image && attachment.url);
   return (
     <View
       accessible={false}
@@ -34,17 +35,19 @@ export function MessageBubble({ message, showAuthor, mentionUsers, onLongPress, 
         {showAuthor && !message.mine && <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.author}>{message.author.full_name}</Text>}
         <View style={[styles.bubble, message.mine && styles.mineBubble, message.client_status === 'failed' && styles.failedBubble]}>
           {message.pinned_at && <View style={styles.pinLabel}><Pin color={message.mine ? '#FFE4E8' : palette.rubySoft} size={11} /><Text style={[styles.pinText, message.mine && styles.mineMeta]}>Pinned</Text></View>}
-          {!!message.body && (deleted
+          {blocked
+            ? <Text style={[styles.body, styles.deleted]}>Message hidden — you blocked this user</Text>
+            : !!message.body && (deleted
             ? <Text style={[styles.body, styles.deleted]}>Message removed</Text>
             : <FormattedMessage body={message.body} mentionUsers={mentionUsers} mine={message.mine} />)}
-          {!deleted && message.attachments.map((attachment) => (
+          {!blocked && !deleted && message.attachments.map((attachment) => (
             <Pressable key={attachment.id} accessibilityRole={attachment.image ? 'button' : 'link'} accessibilityLabel={`${attachment.image ? 'Preview' : 'Open'} ${attachment.filename}`} onPress={() => attachment.image ? onOpenImage?.(attachment, images) : attachment.url && void Linking.openURL(attachment.url)} style={styles.attachment}>
               {attachment.image && attachment.url ? <Image source={{ uri: attachment.url }} resizeMode="cover" style={styles.attachmentImage} /> : <View style={styles.fileIcon}><FileText color={palette.rubySoft} size={19} /></View>}
               <View style={styles.attachmentCopy}><Text numberOfLines={1} style={styles.attachmentName}>{attachment.filename}</Text><Text style={styles.attachmentSize}>{formatFileSize(attachment.byte_size)}</Text></View>
             </Pressable>
           ))}
         </View>
-        {!!message.reactions.length && <View style={[styles.reactions, message.mine && styles.mineReactions]}>{message.reactions.map((reaction) => {
+        {!blocked && !!message.reactions.length && <View style={[styles.reactions, message.mine && styles.mineReactions]}>{message.reactions.map((reaction) => {
           const option = reactionOption(reaction.emoji);
           const Icon = option?.Icon;
           return <Pressable key={reaction.emoji} accessibilityRole="button" accessibilityHint="Shows everyone who reacted and lets you manage your reaction" accessibilityLabel={`${option?.label || 'Reaction'}, ${reaction.count}`} onPress={() => onOpenReaction?.(message, reaction.emoji)} style={[styles.reaction, reaction.reacted && styles.reacted]}>{Icon ? <Icon color={reaction.reacted ? palette.rubySoft : palette.muted} size={13} /> : <Text style={styles.fallbackReaction}>{reaction.emoji}</Text>}<Text style={[styles.reactionCount, reaction.reacted && styles.reactedCount]}>{reaction.count}</Text></Pressable>;

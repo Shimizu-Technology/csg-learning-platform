@@ -5,6 +5,7 @@ import { useAuthContext } from '../../contexts/AuthContext'
 import { LoadingSpinner } from '../shared/LoadingSpinner'
 import { MessagesLoadingShell } from '../shared/MessagesLoadingShell'
 import { EmptyState } from '../shared/EmptyState'
+import { CommunityStandardsGate } from './CommunityStandardsGate'
 
 interface ProtectedRouteProps {
   requiredRole?: 'admin' | 'instructor' | 'staff'
@@ -60,6 +61,10 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
         }
       />
     )
+  }
+
+  if (user.community_policy && !user.community_policy.accepted) {
+    return <CommunityStandardsGate version={user.community_policy.version} onAccepted={syncSession} />
   }
 
   if (requiredRole && user) {

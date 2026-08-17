@@ -25,6 +25,7 @@ import {
   Download,
   Edit3,
   File,
+  Flag,
   Hash,
   Heart,
   Italic,
@@ -50,6 +51,7 @@ import {
   Underline as UnderlineIcon,
   UserPlus,
   UserRound,
+  UserX,
   Users,
   X,
   type LucideIcon,
@@ -2216,6 +2218,29 @@ export function Messages() {
     }
   }
 
+  const reportMessage = async (message: ChannelMessage) => {
+    const res = await api.reportContent({ message_id: message.id, reason: 'inappropriate_content' })
+    if (!res.data) return toast.error(res.error || 'Could not submit the report.')
+    toast.success('Report received. Code School staff will review it.')
+  }
+
+  const reportUser = async (message: ChannelMessage) => {
+    const res = await api.reportContent({ reported_user_id: message.author.id, reason: 'safety_concern' })
+    if (!res.data) return toast.error(res.error || 'Could not submit the user report.')
+    toast.success('User report received. Code School staff will review it.')
+  }
+
+  const blockMessageAuthor = async (message: ChannelMessage) => {
+    const res = await api.blockUser(message.author.id)
+    if (!res.data) return toast.error(res.error || 'Could not block this user.')
+    const hideAuthor = (item: LocalMessage): LocalMessage => item.author.id === message.author.id
+      ? { ...item, blocked: true, body: '', attachments: [], reactions: [] }
+      : item
+    setMessages((prev) => prev.map(hideAuthor))
+    setPinnedMessages((prev) => prev.map(hideAuthor))
+    toast.success(`${message.author.full_name} was blocked. You can unblock them from your profile.`)
+  }
+
   useEffect(() => () => {
     if (programmaticScrollTimerRef.current) {
       window.clearTimeout(programmaticScrollTimerRef.current)
@@ -3475,6 +3500,43 @@ export function Messages() {
               </button>
             </>
           )}
+          {mobileActionsMessage && !mobileActionsMessage.mine && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  void reportMessage(mobileActionsMessage)
+                  setMobileActionsMessageId(null)
+                }}
+                className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-red-200 px-4 py-3 text-left text-sm font-medium text-red-700 hover:bg-red-50"
+              >
+                <Flag className="h-4 w-4" />
+                Report message
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void reportUser(mobileActionsMessage)
+                  setMobileActionsMessageId(null)
+                }}
+                className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-red-200 px-4 py-3 text-left text-sm font-medium text-red-700 hover:bg-red-50"
+              >
+                <Flag className="h-4 w-4" />
+                Report {mobileActionsMessage.author.full_name}
+              </button>
+              {!mobileActionsMessage.blocked && <button
+                type="button"
+                onClick={() => {
+                  void blockMessageAuthor(mobileActionsMessage)
+                  setMobileActionsMessageId(null)
+                }}
+                className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-red-200 px-4 py-3 text-left text-sm font-medium text-red-700 hover:bg-red-50"
+              >
+                <UserX className="h-4 w-4" />
+                Block {mobileActionsMessage.author.full_name}
+              </button>}
+            </>
+          )}
         </div>
       </Modal>
 
@@ -3956,7 +4018,9 @@ function MessageRow({
             {message.pinned_at && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700"><Pin className="h-3 w-3" /> Pinned</span>}
           </div>
         )}
-        {editing ? (
+        {message.blocked ? (
+          <p className="text-sm italic text-slate-500">Message hidden — you blocked this user</p>
+        ) : editing ? (
           <MessageEditSurface
             value={editBody}
             onChange={setEditBody}
@@ -3966,7 +4030,7 @@ function MessageRow({
         ) : (
           <FormattedMessage body={message.body} mentionPatterns={mentionPatterns} />
         )}
-        {message.attachments.length > 0 && (
+        {!message.blocked && message.attachments.length > 0 && (
           <div className="mt-3 grid max-w-full min-w-0 gap-2 sm:grid-cols-2">
             {message.attachments.map((attachment) => (
               attachment.image && attachment.url ? (
@@ -4005,7 +4069,7 @@ function MessageRow({
             <span className="truncate">Seen by {readReceiptLabel(message.read_receipts)}</span>
           </div>
         )}
-        {(message.reactions.length > 0 || (!inThreadView && replyCount > 0)) && (
+        {!message.blocked && (message.reactions.length > 0 || (!inThreadView && replyCount > 0)) && (
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           {message.reactions.map((reaction) => {
             const reactionDisplay = REACTIONS_BY_VALUE.get(reaction.emoji) || { label: 'Reaction', Icon: SmilePlus }
@@ -4049,7 +4113,7 @@ function MessageRow({
         </button>
       </div>
       <div className="absolute right-2 top-1 z-10 hidden items-center gap-0.5 rounded-xl border border-slate-200 bg-white px-1.5 py-1 shadow-lg opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 sm:flex">
-        {REACTIONS.map(({ value, label, Icon }) => (
+        {!message.blocked && REACTIONS.map(({ value, label, Icon }) => (
           <button
             key={value}
             type="button"
@@ -4061,9 +4125,9 @@ function MessageRow({
             <Icon className="h-4 w-4" />
           </button>
         ))}
-        <button type="button" onClick={onReply} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={inThreadView ? 'Reply in thread' : 'Reply'}>
+        {!message.blocked && <button type="button" onClick={onReply} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={inThreadView ? 'Reply in thread' : 'Reply'}>
           <MessageCircle className="h-4 w-4" />
-        </button>
+        </button>}
         {canPin && (
           <button type="button" onClick={onPin} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Pin message">
             <Pin className="h-4 w-4" />

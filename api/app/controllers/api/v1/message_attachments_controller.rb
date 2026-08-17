@@ -6,6 +6,7 @@ module Api
       ALLOWED_FILE_TYPES = %w[application/pdf text/plain application/zip application/x-zip-compressed].freeze
 
       before_action :authenticate_user!
+      before_action :require_community_terms!
 
       # POST /api/v1/message_attachments/presign
       def presign
