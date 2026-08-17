@@ -40,13 +40,13 @@ CSG Connect is operated by Shimizu Technology for Code School of Guam.
 | Ads | No | Confirm final AAB has no advertising SDK |
 | Pricing | Free | Confirm no paid download or in-app purchase |
 | Countries | Guam / United States initially | Confirm enrollment and support scope |
-| Target audience | 13 and older, only if this matches actual enrollment policy | Owner must confirm minimum student age |
+| Target audience | Select the `13–15` bracket; also select `16–17` and/or `18+` only when those ages match current or intended enrollment | Owner confirmed the youngest current student is 15; confirm the full intended enrollment range before saving |
 | News app | No | Confirm |
 | Government app | No | Confirm |
 | Financial features | No | Confirm |
 | Health features | No | Confirm |
 
-Do not select an age range until Code School of Guam confirms the youngest authorized student. If children under 13 can use the service, stop and complete a separate Families and child-safety compliance review before submission.
+The youngest current student is 15, so Play's `13–15` bracket is required. That fact does not by itself establish the oldest learner age or the future enrollment policy; confirm whether `16–17` and `18+` also apply before saving the declaration. If children under 13 may use the service in the future, stop and complete a separate Families and child-safety compliance review before changing the audience.
 
 ## Contact and URLs
 

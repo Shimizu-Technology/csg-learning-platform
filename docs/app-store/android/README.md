@@ -17,6 +17,7 @@ This directory is the source of truth for the first Google Play release of CSG C
 | Public developer name | Play Console currently shows `Shimizu Technology`; confirm the public listing has propagated before launch |
 | Website verification | `shimizu-technology.com` is verified in Search Console and Play Console shows the website as verified |
 | Organization conversion | Ready to begin only after the owner supplies the exact D-U-N-S-backed legal organization profile and confirms the public contact details |
+| Target audience | Youngest current student confirmed as 15; Play's `13–15` bracket is required, with older brackets pending confirmation of the full intended enrollment range |
 | Play app record | Not created yet |
 | Android push | Dedicated Firebase project and Android app are registered; the client config is wired into Expo and a least-privilege FCM V1 service-account key is assigned in EAS. Physical-device delivery remains unverified |
 | Android toolchain | API 36 SDK, Play Store emulator, debug install/sign-in smoke test, and release-manifest inspection completed locally |
@@ -60,6 +61,8 @@ Do not create a second Play developer account. Convert the existing account so t
 ## Account conversion blockers
 
 The organization website prerequisite is complete. Organization conversion now requires owner-supplied information that must not be guessed:
+
+Play Console currently offers two existing Shimizu Technology payments profiles for the conversion, but both explicitly require a D-U-N-S number. No profile has been selected or changed.
 
 - exact legal organization name and address matching Dun & Bradstreet;
 - D-U-N-S number;
