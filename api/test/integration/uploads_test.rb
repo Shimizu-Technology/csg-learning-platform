@@ -101,7 +101,7 @@ class UploadsTest < ActionDispatch::IntegrationTest
         post "/api/v1/uploads/multipart/part_url",
           params: {
             s3_key: "content_videos/block_#{@content_block.id}/video.mp4",
-            upload_id: "multipart-upload-id",
+            upload_id: "multipart-complete-id",
             part_number: 1
           },
           headers: auth_headers,
@@ -156,7 +156,7 @@ class UploadsTest < ActionDispatch::IntegrationTest
         delete "/api/v1/uploads/multipart/abort",
           params: {
             s3_key: "content_videos/block_#{@content_block.id}/video.mp4",
-            upload_id: "multipart-upload-id"
+            upload_id: "multipart-abort-id"
           },
           headers: auth_headers,
           as: :json

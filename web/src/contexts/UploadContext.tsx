@@ -54,6 +54,24 @@ interface UploadAttachmentPatch {
   persistedS3Key?: string | null
 }
 
+export function prepareUploadAttachment(
+  currentTarget: UploadStartOpts,
+  currentUpload: ActiveUpload | undefined,
+  patch: UploadAttachmentPatch,
+) {
+  const { persistedS3Key, ...attachmentPatch } = patch
+  const statePatch: UploadStartOpts = attachmentPatch.contentBlockId
+    ? { ...attachmentPatch, deferPersistence: false }
+    : attachmentPatch
+
+  return {
+    persistedS3Key,
+    statePatch,
+    target: { ...currentTarget, ...statePatch },
+    nextUpload: currentUpload ? { ...currentUpload, ...statePatch } : null,
+  }
+}
+
 interface UploadContextValue {
   uploads: ActiveUpload[]
   startVideoUpload: (file: File, opts?: UploadStartOpts) => UploadStartResult
@@ -290,12 +308,14 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
   }, [removeUpload])
 
   const attachUpload = useCallback((id: string, patch: UploadAttachmentPatch) => {
-    const { persistedS3Key, ...statePatch } = patch
     const currentTarget = uploadTargetsRef.current.get(id) || {}
-    uploadTargetsRef.current.set(id, { ...currentTarget, ...statePatch })
-
     const current = uploadsRef.current.find((upload) => upload.id === id)
-    const next = current ? { ...current, ...statePatch } : null
+    const { persistedS3Key, statePatch, target, nextUpload: next } = prepareUploadAttachment(
+      currentTarget,
+      current,
+      patch,
+    )
+    uploadTargetsRef.current.set(id, target)
     updateUpload(id, statePatch)
 
     // Exercise creation may have persisted the completed upload already. In
