@@ -7,11 +7,12 @@ class S3ObjectCleanup
 
   class << self
     def delete_if_unreferenced(key)
-      return true if key.blank? || !S3Service.configured?
+      return true if key.blank?
       unless managed_key?(key)
         Rails.logger.warn("[S3ObjectCleanup] Rejected unmanaged object key: #{key}")
         return false
       end
+      return true unless S3Service.configured?
 
       with_key_lock(key) do
         referenced?(key) ? false : S3Service.delete_object(key)
@@ -23,12 +24,13 @@ class S3ObjectCleanup
 
     def validate_attachment(record, attribute)
       key = record.public_send(attribute).to_s
-      return if key.blank? || !S3Service.configured?
+      return if key.blank?
 
       unless managed_key?(key)
         record.errors.add(attribute, "is not a managed video object")
         return
       end
+      return unless S3Service.configured?
 
       with_key_lock(key) do
         record.errors.add(attribute, "was not found in storage") unless S3Service.object_exists?(key)

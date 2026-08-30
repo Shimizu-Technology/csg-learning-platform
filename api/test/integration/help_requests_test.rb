@@ -14,7 +14,7 @@ class HelpRequestsTest < ActionDispatch::IntegrationTest
     @cohort = Cohort.create!(curriculum: @curriculum, name: "Help cohort", start_date: Date.current, status: :active, settings: { "recordings" => [ { "title" => "Legacy replay", "url" => "https://example.com/replay" } ] })
     @enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
     @enrollment.module_assignments.create!(curriculum_module: @mod, unlocked: true)
-    @recording = @cohort.recordings.create!(title: "Uploaded replay", s3_key: "help/replay.mp4", content_type: "video/mp4", file_size: 1.megabyte, position: 0, status: :published)
+    @recording = @cohort.recordings.create!(title: "Uploaded replay", s3_key: "recordings/cohort_#{@cohort.id}/20260831010000_abcdef12_replay.mp4", content_type: "video/mp4", file_size: 1.megabyte, position: 0, status: :published)
   end
 
   test "student creates one contextual request and staff are notified without message content" do

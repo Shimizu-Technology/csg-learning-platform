@@ -28,6 +28,7 @@ describe('video upload UI states', () => {
     )
 
     expect(markup).toContain('Use H.264 video for reliable playback.')
+    expect(markup).toContain('role="status"')
     expect(markup).toContain('text-amber-700')
   })
 

@@ -21,7 +21,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
       block_type: :video,
       position: 1,
       title: "Intro",
-      s3_video_key: "content_blocks/cohort_#{@cohort.id}/intro.mp4"
+      s3_video_key: "content_videos/11111111-1111-4111-8111-111111111111/intro.mp4"
     )
 
     @student = User.create!(
@@ -106,7 +106,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     as_user(@admin) do
       patch "/api/v1/content_blocks/#{@video_block.id}",
             params: {
-              s3_video_key: "content_videos/block_#{@video_block.id}/class.mp4",
+              s3_video_key: "content_videos/block_#{@video_block.id}/20260831010000_class.mp4",
               s3_video_content_type: "video/mp4",
               s3_video_size: 123
             },
@@ -115,7 +115,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     body = JSON.parse(response.body).fetch("content_block")
-    assert_equal "content_videos/block_#{@video_block.id}/class.mp4", body.fetch("s3_video_key")
+    assert_equal "content_videos/block_#{@video_block.id}/20260831010000_class.mp4", body.fetch("s3_video_key")
     assert_equal @admin.full_name, body.fetch("s3_video_uploaded_by")
     assert body.fetch("s3_video_uploaded_at").present?
   end
@@ -206,7 +206,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     as_user(@instructor) do
       patch "/api/v1/content_blocks/#{video_block_id}",
             params: {
-              s3_video_key: "content_videos/block_#{video_block_id}/async.mp4",
+              s3_video_key: "content_videos/block_#{video_block_id}/20260831010200_async.mp4",
               s3_video_content_type: "video/mp4",
               s3_video_size: 456
             },
@@ -215,7 +215,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
-    assert_equal "content_videos/block_#{video_block_id}/async.mp4", ContentBlock.find(video_block_id).s3_video_key
+    assert_equal "content_videos/block_#{video_block_id}/20260831010200_async.mp4", ContentBlock.find(video_block_id).s3_video_key
 
     as_user(@instructor) do
       patch "/api/v1/lessons/#{created_lesson_id}/archive", headers: auth_headers

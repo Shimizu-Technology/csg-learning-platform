@@ -5,5 +5,5 @@ interface VideoUploadWarningProps {
 export function VideoUploadWarning({ message }: VideoUploadWarningProps) {
   if (!message) return null
 
-  return <p className="text-xs text-amber-700">{message}</p>
+  return <p role="status" className="text-xs text-amber-700">{message}</p>
 }

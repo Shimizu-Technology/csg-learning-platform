@@ -87,6 +87,32 @@ class S3ObjectCleanupTest < ActiveSupport::TestCase
     assert_empty deleted_keys
   end
 
+  test "rejects an unmanaged key when storage is unconfigured" do
+    original_configured = S3Service.method(:configured?)
+    S3Service.define_singleton_method(:configured?) { false }
+
+    result = S3ObjectCleanup.delete_if_unreferenced("message_attachments/private.png")
+
+    assert_equal false, result
+  ensure
+    S3Service.define_singleton_method(:configured?, original_configured)
+  end
+
+  test "rejects an unmanaged attachment when storage is unconfigured" do
+    original_configured = S3Service.method(:configured?)
+    S3Service.define_singleton_method(:configured?) { false }
+    block = @lesson.content_blocks.new(
+      block_type: :video,
+      position: 0,
+      s3_video_key: "message_attachments/private.png"
+    )
+
+    refute block.valid?
+    assert_includes block.errors[:s3_video_key], "is not a managed video object"
+  ensure
+    S3Service.define_singleton_method(:configured?, original_configured)
+  end
+
   test "validates a new attachment under the same per-key lock used by cleanup" do
     key = "content_videos/#{SecureRandom.uuid}/attached.mp4"
     block = @lesson.content_blocks.new(block_type: :video, position: 0, s3_video_key: key)

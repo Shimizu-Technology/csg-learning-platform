@@ -39,7 +39,7 @@ class WeeklyPlanProjectionTest < ActiveSupport::TestCase
     )
     @recording = @cohort.recordings.create!(
       title: "Monday replay",
-      s3_key: "recordings/cohort_weekly/monday.mp4",
+      s3_key: "recordings/cohort_#{@cohort.id}/20300708090000_abcdef12_monday.mp4",
       content_type: "video/mp4",
       file_size: 1.megabyte,
       position: 1,
