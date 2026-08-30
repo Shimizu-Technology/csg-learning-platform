@@ -70,4 +70,19 @@ describe('uploadToS3', () => {
       .rejects.toThrow('status 403')
     expect(FakeXMLHttpRequest.sends).toBe(1)
   })
+
+  it('does not send a request when cancellation happened before upload started', async () => {
+    vi.stubGlobal('XMLHttpRequest', FakeXMLHttpRequest)
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(uploadToS3(
+      'https://storage.example/upload',
+      {},
+      new File(['video'], 'class.mp4'),
+      undefined,
+      controller.signal,
+    )).rejects.toThrow('Upload cancelled')
+    expect(FakeXMLHttpRequest.sends).toBe(0)
+  })
 })

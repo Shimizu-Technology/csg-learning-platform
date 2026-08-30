@@ -45,7 +45,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
         post "/api/v1/cohorts/#{@cohort.id}/recordings",
           params: {
             title: "Class 1",
-            s3_key: "recordings/cohort_#{@cohort.id}/class-1.mp4",
+            s3_key: "recordings/cohort_#{@cohort.id}/20260831010000_abcdef12_class-1.mp4",
             content_type: "video/mp4",
             file_size: 1234
           },
@@ -105,7 +105,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
         post "/api/v1/cohorts/#{@cohort.id}/recordings",
           params: {
             title: "Ready for students",
-            s3_key: "recordings/cohort_#{@cohort.id}/ready.mp4",
+            s3_key: "recordings/cohort_#{@cohort.id}/20260831010100_abcdef12_ready.mp4",
             content_type: "video/mp4",
             file_size: 1234,
             publish_immediately: true
@@ -482,13 +482,16 @@ class RecordingsTest < ActionDispatch::IntegrationTest
   def with_s3_metadata(metadata)
     original_configured = S3Service.method(:configured?)
     original_metadata = S3Service.method(:object_metadata)
+    original_exists = S3Service.method(:object_exists?)
 
     S3Service.define_singleton_method(:configured?) { true }
     S3Service.define_singleton_method(:object_metadata) { |_key| metadata }
+    S3Service.define_singleton_method(:object_exists?) { |_key| metadata.present? }
     yield
   ensure
     S3Service.define_singleton_method(:configured?, original_configured)
     S3Service.define_singleton_method(:object_metadata, original_metadata)
+    S3Service.define_singleton_method(:object_exists?, original_exists)
   end
 
   def with_s3_stream_url(url)

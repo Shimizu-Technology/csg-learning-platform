@@ -23,6 +23,7 @@ class ContentBlock < ApplicationRecord
   validate :video_url_is_http
   validate :rubric_matches_curriculum
   validate :rubric_change_preserves_recorded_results
+  validate :stored_video_object_is_attachable, if: :will_save_change_to_s3_video_key?
 
   scope :ordered, -> { order(:position) }
 
@@ -63,6 +64,10 @@ class ContentBlock < ApplicationRecord
 
   def delete_stored_video
     S3ObjectCleanup.delete_if_unreferenced(s3_video_key)
+  end
+
+  def stored_video_object_is_attachable
+    S3ObjectCleanup.validate_attachment(self, :s3_video_key)
   end
 
   def normalize_video_url

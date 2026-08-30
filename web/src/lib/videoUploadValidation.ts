@@ -12,13 +12,17 @@ function extensionFor(fileName: string) {
 }
 
 export function isSupportedVideoFile(file: File) {
-  return file.type.startsWith('video/') || extensionFor(file.name) in VIDEO_CONTENT_TYPES_BY_EXTENSION
+  const extension = extensionFor(file.name)
+  return file.type.startsWith('video/') || Object.prototype.hasOwnProperty.call(VIDEO_CONTENT_TYPES_BY_EXTENSION, extension)
 }
 
 export function resolvedVideoContentType(file: File) {
   if (file.type.startsWith('video/')) return file.type
 
-  return VIDEO_CONTENT_TYPES_BY_EXTENSION[extensionFor(file.name)] || 'video/mp4'
+  const extension = extensionFor(file.name)
+  return Object.prototype.hasOwnProperty.call(VIDEO_CONTENT_TYPES_BY_EXTENSION, extension)
+    ? VIDEO_CONTENT_TYPES_BY_EXTENSION[extension]
+    : 'video/mp4'
 }
 
 export function videoCompatibilityWarning(file: File) {

@@ -64,6 +64,10 @@ function uploadPresignedPost(
   onProgress?: (progress: UploadProgress) => void,
   abortSignal?: AbortSignal
 ): Promise<void> {
+  if (abortSignal?.aborted) {
+    return Promise.reject(new DirectUploadError('Upload cancelled', false))
+  }
+
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     const formData = new FormData()

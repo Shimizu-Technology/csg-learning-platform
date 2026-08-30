@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react'
 import { Upload, Film, X, Link2, Loader2, ArrowRightLeft, CircleOff, CheckCircle2 } from 'lucide-react'
 import { useUpload } from '../../contexts/UploadContext'
 import { isSupportedVideoFile, videoCompatibilityWarning, VIDEO_FILE_ACCEPT } from '../../lib/videoUploadValidation'
+import { VideoUploadWarning } from './VideoUploadWarning'
 
 interface VideoUploadFieldProps {
   contentBlockId?: number | null
@@ -396,7 +397,7 @@ export function VideoUploadField({
       )}
 
       {error && <p className="text-xs text-red-600">{error}</p>}
-      {warning && <p className="text-xs text-amber-700">{warning}</p>}
+      <VideoUploadWarning message={warning} />
     </div>
   )
 }

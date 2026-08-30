@@ -19,7 +19,7 @@ module Api
 
         # Constrain to our managed namespaces so a forged payload can't be
         # used to delete arbitrary objects from the bucket.
-        unless ALLOWED_PREFIXES.any? { |p| key.start_with?(p) }
+        unless S3ObjectCleanup.managed_key?(key)
           render json: { error: "Invalid s3_key" }, status: :bad_request
           return
         end
@@ -32,7 +32,7 @@ module Api
           return
         end
 
-        S3Service.delete_object(key) if S3Service.configured?
+        S3ObjectCleanup.delete_if_unreferenced(key)
         head :no_content
       end
 

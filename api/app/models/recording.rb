@@ -10,6 +10,7 @@ class Recording < ApplicationRecord
   validates :content_type, presence: true
   validates :file_size, presence: true, numericality: { greater_than: 0 }
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+  validate :stored_video_object_is_attachable, if: :will_save_change_to_s3_key?
 
   scope :ordered, -> { order(:position) }
   scope :student_visible, -> { published }
@@ -42,5 +43,9 @@ class Recording < ApplicationRecord
 
   def delete_stored_video
     S3ObjectCleanup.delete_if_unreferenced(s3_key)
+  end
+
+  def stored_video_object_is_attachable
+    S3ObjectCleanup.validate_attachment(self, :s3_key)
   end
 end

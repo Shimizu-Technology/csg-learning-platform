@@ -25,7 +25,7 @@ class S3ObjectCleanupTest < ActiveSupport::TestCase
       cohort_type: :bootcamp,
       status: :active
     )
-    key = "recordings/cohort_#{cohort.id}/cleanup.mp4"
+    key = "recordings/cohort_#{cohort.id}/20260831010000_abcdef12_cleanup.mp4"
     recording = cohort.recordings.create!(
       title: "Cleanup recording",
       s3_key: key,
@@ -41,7 +41,7 @@ class S3ObjectCleanupTest < ActiveSupport::TestCase
   end
 
   test "cascade deletion removes a lesson video object" do
-    key = "content_videos/block_cleanup/lesson.mp4"
+    key = "content_videos/#{SecureRandom.uuid}/lesson.mp4"
     @lesson.content_blocks.create!(
       block_type: :video,
       position: 0,
@@ -57,7 +57,7 @@ class S3ObjectCleanupTest < ActiveSupport::TestCase
   end
 
   test "does not delete an object that is still referenced" do
-    key = "content_videos/shared/video.mp4"
+    key = "content_videos/#{SecureRandom.uuid}/shared.mp4"
     first = @lesson.content_blocks.create!(block_type: :video, position: 0, s3_video_key: key)
     @lesson.content_blocks.create!(block_type: :video, position: 1, s3_video_key: key)
     deleted_keys = []
@@ -68,12 +68,45 @@ class S3ObjectCleanupTest < ActiveSupport::TestCase
   end
 
   test "storage failure does not roll back the database deletion" do
-    key = "content_videos/failing/video.mp4"
+    key = "content_videos/#{SecureRandom.uuid}/failing.mp4"
     block = @lesson.content_blocks.create!(block_type: :video, position: 0, s3_video_key: key)
 
     with_s3_delete(->(_key) { raise IOError, "storage unavailable" }) { assert block.destroy! }
 
     refute ContentBlock.exists?(block.id)
+  end
+
+  test "rejects deletion outside the managed video namespaces" do
+    deleted_keys = []
+
+    result = with_s3_cleanup_stubs(deleted_keys) do
+      S3ObjectCleanup.delete_if_unreferenced("message_attachments/private.png")
+    end
+
+    assert_equal false, result
+    assert_empty deleted_keys
+  end
+
+  test "validates a new attachment under the same per-key lock used by cleanup" do
+    key = "content_videos/#{SecureRandom.uuid}/attached.mp4"
+    block = @lesson.content_blocks.new(block_type: :video, position: 0, s3_video_key: key)
+    locked_keys = []
+    original_lock = S3ObjectCleanup.method(:with_key_lock)
+    original_configured = S3Service.method(:configured?)
+    original_exists = S3Service.method(:object_exists?)
+    S3ObjectCleanup.define_singleton_method(:with_key_lock) do |locked_key, &callback|
+      locked_keys << locked_key
+      callback.call
+    end
+    S3Service.define_singleton_method(:configured?) { true }
+    S3Service.define_singleton_method(:object_exists?) { |_key| true }
+
+    assert block.valid?
+    assert_equal [ key ], locked_keys
+  ensure
+    S3ObjectCleanup.define_singleton_method(:with_key_lock, original_lock)
+    S3Service.define_singleton_method(:configured?, original_configured)
+    S3Service.define_singleton_method(:object_exists?, original_exists)
   end
 
   private

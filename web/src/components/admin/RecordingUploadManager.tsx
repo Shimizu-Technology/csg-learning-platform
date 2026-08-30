@@ -7,6 +7,7 @@ import { useToast } from '../../contexts/ToastContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { VideoPlayer } from '../shared/VideoPlayer'
 import { isSupportedVideoFile, videoCompatibilityWarning, VIDEO_FILE_ACCEPT } from '../../lib/videoUploadValidation'
+import { VideoUploadWarning } from './VideoUploadWarning'
 
 interface S3Recording {
   id: number
@@ -486,7 +487,7 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
                   </div>
 
                   {draft.error && <p className="text-xs text-red-600">{draft.error}</p>}
-                  {draft.warning && <p className="text-xs text-amber-700">{draft.warning}</p>}
+                  <VideoUploadWarning message={draft.warning} />
 
                   <div className="flex justify-end">
                     <button

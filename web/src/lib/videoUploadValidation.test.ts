@@ -24,6 +24,11 @@ describe('video upload validation', () => {
     expect(isSupportedVideoFile(new File(['notes'], 'notes.txt', { type: 'text/plain' }))).toBe(false)
   })
 
+  it('rejects inherited object property names as extensions', () => {
+    expect(isSupportedVideoFile(new File(['video'], 'class.constructor'))).toBe(false)
+    expect(isSupportedVideoFile(new File(['video'], 'class.__proto__'))).toBe(false)
+  })
+
   it('warns for formats with less consistent browser playback', () => {
     const mov = new File(['video'], 'class.mov', { type: 'video/quicktime' })
     const mp4 = new File(['video'], 'class.mp4', { type: 'video/mp4' })
