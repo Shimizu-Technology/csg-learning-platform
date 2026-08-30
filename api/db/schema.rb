@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_17_010000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_30_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -620,10 +620,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_010000) do
     t.integer "position", default: 0, null: false
     t.datetime "recorded_date"
     t.string "s3_key", null: false
+    t.integer "status", default: 0, null: false
     t.string "title", null: false
     t.datetime "updated_at", null: false
     t.bigint "uploaded_by_id"
     t.index ["cohort_id", "position"], name: "index_recordings_on_cohort_id_and_position"
+    t.index ["cohort_id", "status", "position"], name: "index_recordings_on_cohort_id_and_status_and_position"
     t.index ["cohort_id"], name: "index_recordings_on_cohort_id"
     t.index ["s3_key"], name: "index_recordings_on_s3_key", unique: true
     t.index ["uploaded_by_id"], name: "index_recordings_on_uploaded_by_id"

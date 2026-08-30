@@ -22,6 +22,7 @@ interface UploadRecordingOptions {
   title: string;
   description?: string;
   recordedDate?: string;
+  publishImmediately?: boolean;
   onProgress?: (percent: number, label: string) => void;
 }
 
@@ -32,6 +33,7 @@ export async function uploadRecording({
   title,
   description,
   recordedDate,
+  publishImmediately = false,
   onProgress,
 }: UploadRecordingOptions) {
   if (asset.size <= 0) throw new Error('The selected video is empty.');
@@ -46,7 +48,7 @@ export async function uploadRecording({
       ? await uploadMultipart(api, file, asset, cohortId, onProgress)
       : await uploadPresignedPost(api, file, asset, cohortId, onProgress);
     uploadedKey = s3Key;
-    onProgress?.(100, 'Publishing recording…');
+    onProgress?.(100, publishImmediately ? 'Publishing recording…' : 'Saving draft…');
 
     return await api.createRecording(cohortId, {
       title: title.trim(),
@@ -55,6 +57,7 @@ export async function uploadRecording({
       s3_key: s3Key,
       content_type: asset.mimeType,
       file_size: asset.size,
+      publish_immediately: publishImmediately,
     });
   } catch (error) {
     if (uploadedKey) await api.abandonUpload(uploadedKey).catch(() => undefined);

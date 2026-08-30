@@ -1128,6 +1128,7 @@ export interface RecordingItem {
   title: string;
   description: string | null;
   source: 'uploaded' | 'youtube' | 'external';
+  status?: 'draft' | 'published';
   url?: string;
   date?: string | null;
   recorded_date?: string | null;
@@ -1165,6 +1166,7 @@ export interface S3Recording {
   file_size_display: string;
   duration_seconds: number | null;
   duration_display: string | null;
+  status: 'draft' | 'published';
   position: number;
   recorded_date: string | null;
   created_at: string;

@@ -19,6 +19,8 @@ module Api
             return
           end
 
+          recordings = recordings.student_visible
+
           progress_map = current_user.watch_progresses
             .where(recording_id: recordings.map(&:id))
             .index_by(&:recording_id)
@@ -31,8 +33,8 @@ module Api
 
       # GET /api/v1/cohorts/:cohort_id/recordings/:id
       def show
-        unless current_user.staff? || enrolled_in_cohort?
-          render_forbidden("Not enrolled in this cohort")
+        unless recording_available_to_current_user?
+          render_forbidden("Recording is not available")
           return
         end
 
@@ -106,6 +108,7 @@ module Api
             duration_seconds: params[:duration_seconds],
             recorded_date: params[:recorded_date],
             uploaded_by: current_user,
+            status: publish_immediately? ? :published : :draft,
             position: next_position
           )
           recording.save
@@ -124,7 +127,7 @@ module Api
         # cohort list under a lock. Allowing arbitrary per-row `position` here
         # would bypass those guarantees and let a forged PATCH create duplicate
         # slots or partial reorder states.
-        permitted = params.permit(:title, :description, :duration_seconds, :recorded_date)
+        permitted = params.permit(:title, :description, :duration_seconds, :recorded_date, :status)
 
         if @recording.update(permitted)
           render json: { recording: recording_json(@recording, staff: true) }
@@ -145,8 +148,8 @@ module Api
 
       # GET /api/v1/cohorts/:cohort_id/recordings/:id/stream_url
       def stream_url
-        unless current_user.staff? || enrolled_in_cohort?
-          render_forbidden("Not enrolled in this cohort")
+        unless recording_available_to_current_user?
+          render_forbidden("Recording is not available")
           return
         end
 
@@ -223,6 +226,14 @@ module Api
         current_user.enrollments.exists?(cohort: @cohort, status: :active)
       end
 
+      def recording_available_to_current_user?
+        current_user.staff? || (@recording.published? && enrolled_in_cohort?)
+      end
+
+      def publish_immediately?
+        ActiveModel::Type::Boolean.new.cast(params[:publish_immediately])
+      end
+
       def recording_json(recording, staff: false, progress: nil)
         json = {
           id: recording.id,
@@ -234,6 +245,7 @@ module Api
           file_size_display: recording.file_size_display,
           duration_seconds: recording.duration_seconds,
           duration_display: recording.duration_display,
+          status: recording.status,
           position: recording.position,
           recorded_date: recording.recorded_date&.strftime("%Y-%m-%d"),
           created_at: recording.created_at

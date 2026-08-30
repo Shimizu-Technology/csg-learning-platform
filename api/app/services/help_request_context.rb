@@ -63,7 +63,7 @@ class HelpRequestContext
       return Result.new(cohort: enrollment.cohort, context_type: "recording", context_source: "legacy", context_id: @context_id, label: recording["title"].presence || "Class recording", path: "/recordings")
     end
 
-    recording = enrollment.cohort.recordings.find_by(id: @context_id)
+    recording = enrollment.cohort.recordings.student_visible.find_by(id: @context_id)
     raise InvalidContext, "This recording is not available" unless recording
 
     Result.new(cohort: enrollment.cohort, context_type: "recording", context_source: "primary", context_id: recording.id, label: recording.title, path: "/recordings")

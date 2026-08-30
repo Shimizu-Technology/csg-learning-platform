@@ -201,8 +201,9 @@ class WeeklyPlanProjection
   end
 
   def recording_items
-    progress = @user.watch_progresses.where(recording_id: @cohort.recordings.map(&:id)).index_by(&:recording_id)
-    @cohort.recordings.reject { |recording| progress[recording.id]&.completed? }
+    recordings = @cohort.recordings.select(&:published?)
+    progress = @user.watch_progresses.where(recording_id: recordings.map(&:id)).index_by(&:recording_id)
+    recordings.reject { |recording| progress[recording.id]&.completed? }
       .sort_by { |recording| [ recording.recorded_date || recording.created_at.to_date, recording.id ] }
       .reverse
       .first(RECORDING_LIMIT)

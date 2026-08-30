@@ -58,7 +58,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     assert_equal "Class 1", Recording.last.title
   end
 
-  test "instructor can presign and publish a cohort recording" do
+  test "instructor can presign and save a cohort recording as a draft" do
     post_data = Struct.new(:url, :fields).new("https://s3.example/upload", { "key" => "signed-key" })
     original_configured = S3Service.method(:configured?)
     original_post = S3Service.method(:generate_presigned_post)
@@ -92,9 +92,50 @@ class RecordingsTest < ActionDispatch::IntegrationTest
 
     assert_response :created
     assert_equal @instructor, Recording.last.uploaded_by
+    assert Recording.last.draft?
+    assert_equal "draft", JSON.parse(response.body).dig("recording", "status")
   ensure
     S3Service.define_singleton_method(:configured?, original_configured) if original_configured
     S3Service.define_singleton_method(:generate_presigned_post, original_post) if original_post
+  end
+
+  test "staff can publish a recording immediately during creation" do
+    with_s3_metadata(content_type: "video/mp4", content_length: 1234) do
+      as_user(@instructor) do
+        post "/api/v1/cohorts/#{@cohort.id}/recordings",
+          params: {
+            title: "Ready for students",
+            s3_key: "recordings/cohort_#{@cohort.id}/ready.mp4",
+            content_type: "video/mp4",
+            file_size: 1234,
+            publish_immediately: true
+          },
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :created
+    assert_equal "published", JSON.parse(response.body).dig("recording", "status")
+    assert Recording.find_by!(title: "Ready for students").published?
+  end
+
+  test "staff can publish a draft and return it to draft" do
+    recording = create_recording!(status: :draft)
+
+    as_user(@instructor) do
+      patch "/api/v1/cohorts/#{@cohort.id}/recordings/#{recording.id}",
+        params: { status: "published" }, headers: auth_headers, as: :json
+    end
+    assert_response :success
+    assert recording.reload.published?
+
+    as_user(@instructor) do
+      patch "/api/v1/cohorts/#{@cohort.id}/recordings/#{recording.id}",
+        params: { status: "draft" }, headers: auth_headers, as: :json
+    end
+    assert_response :success
+    assert recording.reload.draft?
   end
 
   test "recording create rejects keys outside cohort prefix" do
@@ -151,6 +192,56 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     assert_in_delta S3Service::VIDEO_STREAM_EXPIRY.seconds.from_now.to_i, Time.iso8601(body.fetch("expires_at")).to_i, 2
   end
 
+  test "student cannot list, show, stream, or track a draft recording" do
+    draft = create_recording!(title: "Staff draft", status: :draft)
+
+    as_user(@student) do
+      get "/api/v1/cohorts/#{@cohort.id}/recordings", headers: auth_headers
+    end
+    assert_response :success
+    assert_empty JSON.parse(response.body).fetch("recordings")
+
+    as_user(@student) do
+      get "/api/v1/cohorts/#{@cohort.id}/recordings/#{draft.id}", headers: auth_headers
+    end
+    assert_response :forbidden
+
+    as_user(@student) do
+      get "/api/v1/cohorts/#{@cohort.id}/recordings/#{draft.id}/stream_url", headers: auth_headers
+    end
+    assert_response :forbidden
+
+    as_user(@student) do
+      patch "/api/v1/watch_progress",
+        params: { recording_id: draft.id, last_position_seconds: 10, total_watched_seconds: 10 },
+        headers: auth_headers,
+        as: :json
+    end
+    assert_response :forbidden
+    assert_not WatchProgress.exists?(user: @student, recording: draft)
+  end
+
+  test "staff can inspect and stream a draft recording" do
+    draft = create_recording!(title: "Staff draft", status: :draft)
+
+    as_user(@instructor) do
+      get "/api/v1/cohorts/#{@cohort.id}/recordings/#{draft.id}", headers: auth_headers
+    end
+    assert_response :success
+    detail = JSON.parse(response.body).fetch("recording")
+    assert_equal draft.id, detail.fetch("id")
+    assert_equal "draft", detail.fetch("status")
+
+    expires_in = with_s3_stream_url("https://signed.example/draft.mp4") do
+      as_user(@instructor) do
+        get "/api/v1/cohorts/#{@cohort.id}/recordings/#{draft.id}/stream_url", headers: auth_headers
+      end
+    end
+    assert_response :success
+    assert_equal "https://signed.example/draft.mp4", JSON.parse(response.body).fetch("stream_url")
+    assert_equal S3Service::VIDEO_STREAM_EXPIRY, expires_in
+  end
+
   test "student recordings endpoint returns one normalized recording list" do
     create_recording!(title: "Uploaded Class")
     @cohort.update!(
@@ -172,6 +263,24 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     assert_equal [ "Uploaded Class", "YouTube Class", "External Replay" ], items.map { |item| item.fetch("title") }
     assert_equal [ @cohort.name ], items.map { |item| item.fetch("cohort_name") }.uniq
     assert items.all? { |item| item.fetch("item_key").present? }
+  end
+
+  test "student recordings endpoint excludes drafts while staff can review them" do
+    draft = create_recording!(title: "Unpublished class", status: :draft)
+
+    as_user(@student) do
+      get "/api/v1/recordings", headers: auth_headers
+    end
+    assert_response :success
+    assert_empty JSON.parse(response.body).fetch("s3_recordings")
+
+    as_user(@instructor) do
+      get "/api/v1/recordings", headers: auth_headers
+    end
+    assert_response :success
+    item = JSON.parse(response.body).fetch("s3_recordings").sole
+    assert_equal draft.id, item.fetch("id")
+    assert_equal "draft", item.fetch("status")
   end
 
   test "staff recordings endpoint spans active cohorts without requiring enrollment" do
@@ -337,7 +446,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
 
   private
 
-  def create_recording!(title: "Class 1", s3_key: "recordings/cohort_#{@cohort.id}/class-1.mp4", position: 0, duration_seconds: 120)
+  def create_recording!(title: "Class 1", s3_key: "recordings/cohort_#{@cohort.id}/class-1.mp4", position: 0, duration_seconds: 120, status: :published)
     Recording.create!(
       cohort: @cohort,
       uploaded_by: @admin,
@@ -346,6 +455,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
       content_type: "video/mp4",
       file_size: 1234,
       duration_seconds: duration_seconds,
+      status: status,
       position: position
     )
   end

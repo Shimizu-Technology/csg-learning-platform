@@ -22,7 +22,7 @@ interface ActiveUpload {
   s3Key?: string
   contentBlockId?: number
   deferPersistence?: boolean
-  cohortRecording?: { cohortId: number; title: string; description?: string; recordedDate?: string }
+  cohortRecording?: CohortRecordingUploadTarget
   linkTo?: string
   linkLabel?: string
   abortController: AbortController
@@ -42,9 +42,35 @@ interface UploadStartResult {
 interface UploadStartOpts {
   contentBlockId?: number
   deferPersistence?: boolean
-  cohortRecording?: { cohortId: number; title: string; description?: string; recordedDate?: string }
+  cohortRecording?: CohortRecordingUploadTarget
   linkTo?: string
   linkLabel?: string
+}
+
+export interface CohortRecordingUploadTarget {
+  cohortId: number
+  title: string
+  description?: string
+  recordedDate?: string
+  publishImmediately?: boolean
+}
+
+export function createCohortRecordingForUpload(
+  recordingApi: Pick<typeof api, 'createRecording'>,
+  target: CohortRecordingUploadTarget,
+  s3Key: string,
+  contentType: string,
+  fileSize: number,
+) {
+  return recordingApi.createRecording(target.cohortId, {
+    title: target.title,
+    description: target.description,
+    s3_key: s3Key,
+    content_type: contentType,
+    file_size: fileSize,
+    recorded_date: target.recordedDate,
+    publish_immediately: target.publishImmediately,
+  })
 }
 
 interface UploadAttachmentPatch {
@@ -154,14 +180,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
 
     if (cohortRecording) {
       updateUpload(uploadId, { status: 'saving' })
-      const res = await api.createRecording(cohortRecording.cohortId, {
-        title: cohortRecording.title,
-        description: cohortRecording.description,
-        s3_key: s3Key,
-        content_type: contentType,
-        file_size: fileSize,
-        recorded_date: cohortRecording.recordedDate,
-      })
+      const res = await createCohortRecordingForUpload(api, cohortRecording, s3Key, contentType, fileSize)
       if (res.error) throw new Error(res.error)
       return true
     }

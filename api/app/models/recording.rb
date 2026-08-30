@@ -3,6 +3,8 @@ class Recording < ApplicationRecord
   belongs_to :uploaded_by, class_name: "User", optional: true
   has_many :watch_progresses, dependent: :destroy
 
+  enum :status, { draft: 0, published: 1 }, default: :draft, validate: true
+
   validates :title, presence: true
   validates :s3_key, presence: true, uniqueness: true
   validates :content_type, presence: true
@@ -10,6 +12,7 @@ class Recording < ApplicationRecord
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
 
   scope :ordered, -> { order(:position) }
+  scope :student_visible, -> { published }
 
   def file_size_display
     if file_size >= 1.gigabyte

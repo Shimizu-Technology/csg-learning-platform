@@ -12,8 +12,8 @@ module Api
           enrollment = current_user.enrollments.find_by(cohort: recording.cohort, status: :active)
         end
 
-        unless current_user.staff? || enrollment
-          render_forbidden("Not enrolled in this cohort")
+        unless current_user.staff? || (enrollment && recording.published?)
+          render_forbidden("Recording is not available")
           return
         end
 
