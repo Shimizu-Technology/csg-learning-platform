@@ -2,10 +2,12 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { Upload, Trash2, Film, Calendar, Clock, Plus, X, Pencil, Loader2, Eye, ExternalLink, Link2, Globe2, EyeOff } from 'lucide-react'
 import { api } from '../../lib/api'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
-import { useUpload } from '../../contexts/UploadContext'
+import { MAX_CONCURRENT_VIDEO_UPLOADS, useUpload } from '../../contexts/UploadContext'
 import { useToast } from '../../contexts/ToastContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { VideoPlayer } from '../shared/VideoPlayer'
+import { isSupportedVideoFile, videoCompatibilityWarning, VIDEO_FILE_ACCEPT } from '../../lib/videoUploadValidation'
+import { VideoUploadWarning } from './VideoUploadWarning'
 
 interface S3Recording {
   id: number
@@ -31,6 +33,7 @@ interface RecordingDraft {
   description: string
   recordedDate: string
   error?: string
+  warning?: string
 }
 
 interface ExternalRecording {
@@ -104,7 +107,7 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
     const errors: string[] = []
 
     files.forEach((file) => {
-      if (!file.type.startsWith('video/')) {
+      if (!isSupportedVideoFile(file)) {
         errors.push(`${file.name}: not a video file`)
         return
       }
@@ -119,6 +122,7 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
         title: file.name.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' '),
         description: '',
         recordedDate: '',
+        warning: videoCompatibilityWarning(file) || undefined,
       })
     })
 
@@ -367,7 +371,7 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
       <input
         ref={fileInputRef}
         type="file"
-        accept="video/*"
+        accept={VIDEO_FILE_ACCEPT}
         multiple
         className="hidden"
         onChange={handleFileSelect}
@@ -483,6 +487,7 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
                   </div>
 
                   {draft.error && <p className="text-xs text-red-600">{draft.error}</p>}
+                  <VideoUploadWarning message={draft.warning} />
 
                   <div className="flex justify-end">
                     <button
@@ -534,7 +539,7 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
 
       {activeUploads.length > 0 && (
         <div className="space-y-2 rounded-xl border border-primary-200 bg-primary-50/50 p-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary-700">Uploading now</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary-700">Uploads in progress</p>
           {activeUploads.map((upload) => (
             <div key={upload.id} className="rounded-xl border border-primary-100 bg-white p-3">
               <div className="flex items-start gap-3">
@@ -552,11 +557,13 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
                   <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
                     <div
                       className="h-full rounded-full bg-primary-500 transition-all duration-300"
-                      style={{ width: `${upload.status === 'uploading' ? upload.progress : upload.status === 'presigning' ? 5 : 100}%` }}
+                      style={{ width: `${upload.status === 'uploading' ? upload.progress : upload.status === 'queued' ? 0 : upload.status === 'presigning' ? 5 : 100}%` }}
                     />
                   </div>
                   <p className="mt-1 text-[11px] text-slate-500">
-                    {upload.status === 'presigning'
+                    {upload.status === 'queued'
+                      ? `Queued — up to ${MAX_CONCURRENT_VIDEO_UPLOADS} videos upload at a time.`
+                      : upload.status === 'presigning'
                       ? 'Preparing upload...'
                       : upload.status === 'saving'
                         ? 'Saving recording...'

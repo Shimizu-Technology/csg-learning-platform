@@ -138,9 +138,7 @@ module Api
 
       # DELETE /api/v1/cohorts/:cohort_id/recordings/:id
       def destroy
-        key_to_delete = @recording.s3_key
         @recording.destroy!
-        S3Service.delete_object(key_to_delete) if S3Service.configured?
         head :no_content
       rescue ActiveRecord::RecordNotDestroyed
         render json: { error: "Failed to delete recording" }, status: :unprocessable_entity

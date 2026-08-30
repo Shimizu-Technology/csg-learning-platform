@@ -21,7 +21,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
       block_type: :video,
       position: 1,
       title: "Intro",
-      s3_video_key: "content_blocks/cohort_#{@cohort.id}/intro.mp4"
+      s3_video_key: "content_videos/11111111-1111-4111-8111-111111111111/intro.mp4"
     )
 
     @student = User.create!(
@@ -106,7 +106,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     as_user(@admin) do
       patch "/api/v1/content_blocks/#{@video_block.id}",
             params: {
-              s3_video_key: "content_videos/block_#{@video_block.id}/class.mp4",
+              s3_video_key: "content_videos/block_#{@video_block.id}/20260831010000_class.mp4",
               s3_video_content_type: "video/mp4",
               s3_video_size: 123
             },
@@ -115,9 +115,65 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     body = JSON.parse(response.body).fetch("content_block")
-    assert_equal "content_videos/block_#{@video_block.id}/class.mp4", body.fetch("s3_video_key")
+    assert_equal "content_videos/block_#{@video_block.id}/20260831010000_class.mp4", body.fetch("s3_video_key")
     assert_equal @admin.full_name, body.fetch("s3_video_uploaded_by")
     assert body.fetch("s3_video_uploaded_at").present?
+  end
+
+  test "content block replacement deletes the unreferenced old video" do
+    old_key = "content_videos/block_#{@video_block.id}/20260831010000_old.mp4"
+    new_key = "content_videos/block_#{@video_block.id}/20260831010100_new.mp4"
+    @video_block.update_columns(s3_video_key: old_key)
+    deleted_keys = []
+
+    with_s3_delete_capture(deleted_keys) do
+      as_user(@admin) do
+        patch "/api/v1/content_blocks/#{@video_block.id}",
+              params: { s3_video_key: new_key, s3_video_content_type: "video/mp4", s3_video_size: 123 },
+              headers: auth_headers
+      end
+    end
+
+    assert_response :success
+    assert_equal new_key, @video_block.reload.s3_video_key
+    assert_equal [ old_key ], deleted_keys
+  end
+
+  test "content block removal preserves an old video that is still referenced" do
+    old_key = "content_videos/block_#{@video_block.id}/20260831010200_shared.mp4"
+    @video_block.update_columns(s3_video_key: old_key)
+    @lesson.content_blocks.create!(block_type: :video, position: 2, s3_video_key: old_key)
+    deleted_keys = []
+
+    with_s3_delete_capture(deleted_keys) do
+      as_user(@admin) do
+        patch "/api/v1/content_blocks/#{@video_block.id}",
+              params: { s3_video_key: nil },
+              headers: auth_headers
+      end
+    end
+
+    assert_response :success
+    assert_nil @video_block.reload.s3_video_key
+    assert_empty deleted_keys
+  end
+
+  test "content block removal deletes an unreferenced old video" do
+    old_key = "content_videos/block_#{@video_block.id}/20260831010230_removed.mp4"
+    @video_block.update_columns(s3_video_key: old_key)
+    deleted_keys = []
+
+    with_s3_delete_capture(deleted_keys) do
+      as_user(@admin) do
+        patch "/api/v1/content_blocks/#{@video_block.id}",
+              params: { s3_video_key: nil },
+              headers: auth_headers
+      end
+    end
+
+    assert_response :success
+    assert_nil @video_block.reload.s3_video_key
+    assert_equal [ old_key ], deleted_keys
   end
 
   test "instructor creates an exercise with a reserved upload target and attaches the completed video" do
@@ -150,7 +206,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     as_user(@instructor) do
       patch "/api/v1/content_blocks/#{video_block_id}",
             params: {
-              s3_video_key: "content_videos/block_#{video_block_id}/async.mp4",
+              s3_video_key: "content_videos/block_#{video_block_id}/20260831010200_async.mp4",
               s3_video_content_type: "video/mp4",
               s3_video_size: 456
             },
@@ -159,7 +215,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
-    assert_equal "content_videos/block_#{video_block_id}/async.mp4", ContentBlock.find(video_block_id).s3_video_key
+    assert_equal "content_videos/block_#{video_block_id}/20260831010200_async.mp4", ContentBlock.find(video_block_id).s3_video_key
 
     as_user(@instructor) do
       patch "/api/v1/lessons/#{created_lesson_id}/archive", headers: auth_headers
@@ -355,6 +411,10 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
   end
 
   test "editor save remains successful when post-commit S3 cleanup fails" do
+    @video_block.update_columns(
+      s3_video_key: "content_videos/block_#{@video_block.id}/20260831010245_failing.mp4"
+    )
+    replacement_key = "content_videos/#{SecureRandom.uuid}/replacement.mp4"
     with_failing_s3_delete do
       as_user(@admin) do
         patch "/api/v1/lessons/#{@lesson.id}/editor",
@@ -362,7 +422,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
                 editor: {
                   title: "Saved despite cleanup",
                   requires_submission: false,
-                  video: { id: @video_block.id, title: "Saved video", s3_video_key: "content_videos/replacement.mp4" },
+                  video: { id: @video_block.id, title: "Saved video", s3_video_key: replacement_key },
                   alignments: []
                 }
               },
@@ -372,7 +432,33 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_equal "Saved despite cleanup", @lesson.reload.title
-    assert_equal "content_videos/replacement.mp4", @video_block.reload.s3_video_key
+    assert_equal replacement_key, @video_block.reload.s3_video_key
+  end
+
+  test "editor replacement deletes the unreferenced old video" do
+    old_key = "content_videos/block_#{@video_block.id}/20260831010300_old.mp4"
+    new_key = "content_videos/#{SecureRandom.uuid}/replacement.mp4"
+    @video_block.update_columns(s3_video_key: old_key)
+    deleted_keys = []
+
+    with_s3_delete_capture(deleted_keys) do
+      as_user(@admin) do
+        patch "/api/v1/lessons/#{@lesson.id}/editor",
+              params: {
+                editor: {
+                  title: "Replace editor video",
+                  requires_submission: false,
+                  video: { id: @video_block.id, title: "Replacement", s3_video_key: new_key },
+                  alignments: []
+                }
+              },
+              headers: auth_headers
+      end
+    end
+
+    assert_response :success
+    assert_equal new_key, @video_block.reload.s3_video_key
+    assert_equal [ old_key ], deleted_keys
   end
 
   test "admin authors an objective-aligned retrieval check and students receive immediate evidence" do
@@ -591,11 +677,28 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
   def with_failing_s3_delete
     original_configured = S3Service.method(:configured?)
     original_delete = S3Service.method(:delete_object)
+    original_exists = S3Service.method(:object_exists?)
     S3Service.define_singleton_method(:configured?) { true }
     S3Service.define_singleton_method(:delete_object) { |_key| raise IOError, "network unavailable" }
+    S3Service.define_singleton_method(:object_exists?) { |_key| true }
     yield
   ensure
     S3Service.define_singleton_method(:configured?, original_configured)
     S3Service.define_singleton_method(:delete_object, original_delete)
+    S3Service.define_singleton_method(:object_exists?, original_exists)
+  end
+
+  def with_s3_delete_capture(deleted_keys)
+    original_configured = S3Service.method(:configured?)
+    original_delete = S3Service.method(:delete_object)
+    original_exists = S3Service.method(:object_exists?)
+    S3Service.define_singleton_method(:configured?) { true }
+    S3Service.define_singleton_method(:delete_object) { |key| deleted_keys << key; true }
+    S3Service.define_singleton_method(:object_exists?) { |_key| true }
+    yield
+  ensure
+    S3Service.define_singleton_method(:configured?, original_configured)
+    S3Service.define_singleton_method(:delete_object, original_delete)
+    S3Service.define_singleton_method(:object_exists?, original_exists)
   end
 end

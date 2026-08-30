@@ -20,14 +20,54 @@ export const MULTIPART_UPLOAD_THRESHOLD = 100 * 1024 * 1024
 const MULTIPART_PART_SIZE = 16 * 1024 * 1024
 const MULTIPART_CONCURRENCY = 3
 const MULTIPART_MAX_ATTEMPTS = 4
+export const DIRECT_UPLOAD_MAX_ATTEMPTS = 4
 
-export function uploadToS3(
+class DirectUploadError extends Error {
+  readonly retryable: boolean
+
+  constructor(message: string, retryable: boolean) {
+    super(message)
+    this.retryable = retryable
+  }
+}
+
+export async function uploadToS3(
   url: string,
   fields: Record<string, string>,
   file: File,
   onProgress?: (progress: UploadProgress) => void,
   abortSignal?: AbortSignal
 ): Promise<void> {
+  let lastError: unknown
+
+  for (let attempt = 1; attempt <= DIRECT_UPLOAD_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      await uploadPresignedPost(url, fields, file, onProgress, abortSignal)
+      return
+    } catch (error) {
+      if (abortSignal?.aborted || (error instanceof DirectUploadError && !error.retryable)) throw error
+      lastError = error
+      if (attempt < DIRECT_UPLOAD_MAX_ATTEMPTS) {
+        await wait(750 * attempt * attempt, abortSignal)
+      }
+    }
+  }
+
+  const detail = lastError instanceof Error ? lastError.message : 'Upload failed'
+  throw new Error(`Upload failed after ${DIRECT_UPLOAD_MAX_ATTEMPTS} attempts: ${detail}`)
+}
+
+function uploadPresignedPost(
+  url: string,
+  fields: Record<string, string>,
+  file: File,
+  onProgress?: (progress: UploadProgress) => void,
+  abortSignal?: AbortSignal
+): Promise<void> {
+  if (abortSignal?.aborted) {
+    return Promise.reject(new DirectUploadError('Upload cancelled', false))
+  }
+
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     const formData = new FormData()
@@ -44,8 +84,14 @@ export function uploadToS3(
       }
     })
 
+    const handleAbort = () => xhr.abort()
+    const finish = (callback: () => void) => {
+      abortSignal?.removeEventListener('abort', handleAbort)
+      callback()
+    }
+
     xhr.addEventListener('load', () => {
-      if (xhr.status >= 200 && xhr.status < 300) resolve()
+      if (xhr.status >= 200 && xhr.status < 300) finish(resolve)
       else {
         let detail = ''
         try {
@@ -55,7 +101,10 @@ export function uploadToS3(
           const message = xml.querySelector('Message')?.textContent
           if (code || message) detail = ` (${code}: ${message})`
         } catch { /* ignore parse errors */ }
-        reject(new Error(`Upload failed with status ${xhr.status}${detail}`))
+        finish(() => reject(new DirectUploadError(
+          `Upload failed with status ${xhr.status}${detail}`,
+          xhr.status === 408 || xhr.status === 429 || xhr.status >= 500
+        )))
       }
     })
 
@@ -63,12 +112,15 @@ export function uploadToS3(
       console.error(
         'S3 direct upload failed before the file was accepted. Possible causes include a network issue, missing S3 bucket CORS origin, or bucket-region mismatch.'
       )
-      reject(new Error('Upload failed — the file could not be sent to storage. Check your connection and try again.'))
+      finish(() => reject(new DirectUploadError(
+        'Upload failed — the file could not be sent to storage. Check your connection and try again.',
+        true
+      )))
     })
-    xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')))
+    xhr.addEventListener('abort', () => finish(() => reject(new DirectUploadError('Upload cancelled', false))))
 
     if (abortSignal) {
-      abortSignal.addEventListener('abort', () => xhr.abort())
+      abortSignal.addEventListener('abort', handleAbort, { once: true })
     }
 
     xhr.open('POST', url)
@@ -223,11 +275,15 @@ function wait(ms: number, abortSignal?: AbortSignal) {
       return
     }
 
-    const timeout = window.setTimeout(resolve, ms)
-    abortSignal?.addEventListener('abort', () => {
+    const handleAbort = () => {
       window.clearTimeout(timeout)
       reject(new Error('Upload cancelled'))
-    }, { once: true })
+    }
+    const timeout = window.setTimeout(() => {
+      abortSignal?.removeEventListener('abort', handleAbort)
+      resolve()
+    }, ms)
+    abortSignal?.addEventListener('abort', handleAbort, { once: true })
   })
 }
 

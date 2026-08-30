@@ -175,14 +175,8 @@ module Api
           replace_editor_objective_alignments!
         end
 
-        if old_s3_key.present? && old_s3_key != new_s3_key && S3Service.configured?
-          begin
-            S3Service.delete_object(old_s3_key)
-          rescue StandardError => error
-            # The database save has already committed and S3 cleanup cannot be
-            # rolled back. Report the save accurately and leave cleanup retryable.
-            Rails.logger.error("Failed to delete replaced lesson video #{old_s3_key}: #{error.class}")
-          end
+        if old_s3_key.present? && old_s3_key != new_s3_key
+          S3ObjectCleanup.delete_if_unreferenced(old_s3_key)
         end
 
         @lesson.reload

@@ -31,7 +31,7 @@ class EnrollmentRestartsTest < ActionDispatch::IntegrationTest
       cohort: @cohort,
       uploaded_by: @admin,
       title: "Class replay",
-      s3_key: "recordings/restart-test.mp4",
+      s3_key: "recordings/cohort_#{@cohort.id}/20260831010000_abcdef12_restart-test.mp4",
       content_type: "video/mp4",
       file_size: 100,
       position: 0

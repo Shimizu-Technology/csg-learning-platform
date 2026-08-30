@@ -1,5 +1,42 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createCohortRecordingForUpload, prepareUploadAttachment } from '../UploadContext'
+import { createCohortRecordingForUpload, prepareUploadAttachment, UploadConcurrencyQueue } from '../UploadContext'
+
+describe('UploadConcurrencyQueue', () => {
+  it('starts no more than the configured number of uploads', async () => {
+    const queue = new UploadConcurrencyQueue(2)
+    const releaseFirst = await queue.acquire()
+    const releaseSecond = await queue.acquire()
+    let thirdStarted = false
+    const third = queue.acquire().then((release) => {
+      thirdStarted = true
+      return release
+    })
+
+    await Promise.resolve()
+    expect(thirdStarted).toBe(false)
+
+    releaseFirst()
+    const releaseThird = await third
+    expect(thirdStarted).toBe(true)
+
+    releaseSecond()
+    releaseThird()
+  })
+
+  it('removes a cancelled upload while it is queued', async () => {
+    const queue = new UploadConcurrencyQueue(1)
+    const releaseFirst = await queue.acquire()
+    const controller = new AbortController()
+    const queued = queue.acquire(controller.signal)
+
+    controller.abort()
+
+    await expect(queued).rejects.toThrow('Upload cancelled')
+    releaseFirst()
+    const releaseNext = await queue.acquire()
+    releaseNext()
+  })
+})
 
 describe('prepareUploadAttachment', () => {
   it('enables persistence when a waiting deferred upload gets its content block', () => {

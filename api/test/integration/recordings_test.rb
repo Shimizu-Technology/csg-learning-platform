@@ -45,7 +45,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
         post "/api/v1/cohorts/#{@cohort.id}/recordings",
           params: {
             title: "Class 1",
-            s3_key: "recordings/cohort_#{@cohort.id}/class-1.mp4",
+            s3_key: "recordings/cohort_#{@cohort.id}/20260831010000_abcdef12_class-1.mp4",
             content_type: "video/mp4",
             file_size: 1234
           },
@@ -105,7 +105,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
         post "/api/v1/cohorts/#{@cohort.id}/recordings",
           params: {
             title: "Ready for students",
-            s3_key: "recordings/cohort_#{@cohort.id}/ready.mp4",
+            s3_key: "recordings/cohort_#{@cohort.id}/20260831010100_abcdef12_ready.mp4",
             content_type: "video/mp4",
             file_size: 1234,
             publish_immediately: true
@@ -354,7 +354,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
 
   test "cohort watch matrix includes not started recordings" do
     create_recording!(title: "Class 1")
-    create_recording!(title: "Class 2", s3_key: "recordings/cohort_#{@cohort.id}/class-2.mp4", position: 1)
+    create_recording!(title: "Class 2", s3_key: "recordings/cohort_#{@cohort.id}/20260831010100_abcdef12_class-2.mp4", position: 1)
 
     as_user(@admin) do
       get "/api/v1/cohorts/#{@cohort.id}/watch_progress", headers: auth_headers
@@ -374,7 +374,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
       block_type: :video,
       title: "Replay",
       position: 0,
-      s3_video_key: "content_videos/replay.mp4",
+      s3_video_key: "content_videos/22222222-2222-4222-8222-222222222222/replay.mp4",
       s3_video_duration_seconds: 120
     )
     Progress.create!(
@@ -412,7 +412,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
       cohort: other_cohort,
       uploaded_by: @admin,
       title: "Earlier replay",
-      s3_key: "recordings/cohort_#{other_cohort.id}/earlier.mp4",
+      s3_key: "recordings/cohort_#{other_cohort.id}/20250831010000_abcdef12_earlier.mp4",
       content_type: "video/mp4",
       file_size: 1234,
       duration_seconds: 120,
@@ -446,7 +446,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
 
   private
 
-  def create_recording!(title: "Class 1", s3_key: "recordings/cohort_#{@cohort.id}/class-1.mp4", position: 0, duration_seconds: 120, status: :published)
+  def create_recording!(title: "Class 1", s3_key: "recordings/cohort_#{@cohort.id}/20260831010000_abcdef12_class-1.mp4", position: 0, duration_seconds: 120, status: :published)
     Recording.create!(
       cohort: @cohort,
       uploaded_by: @admin,
@@ -482,13 +482,16 @@ class RecordingsTest < ActionDispatch::IntegrationTest
   def with_s3_metadata(metadata)
     original_configured = S3Service.method(:configured?)
     original_metadata = S3Service.method(:object_metadata)
+    original_exists = S3Service.method(:object_exists?)
 
     S3Service.define_singleton_method(:configured?) { true }
     S3Service.define_singleton_method(:object_metadata) { |_key| metadata }
+    S3Service.define_singleton_method(:object_exists?) { |_key| metadata.present? }
     yield
   ensure
     S3Service.define_singleton_method(:configured?, original_configured)
     S3Service.define_singleton_method(:object_metadata, original_metadata)
+    S3Service.define_singleton_method(:object_exists?, original_exists)
   end
 
   def with_s3_stream_url(url)

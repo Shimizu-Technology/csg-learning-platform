@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { Upload, Film, X, Link2, Loader2, ArrowRightLeft, CircleOff, CheckCircle2 } from 'lucide-react'
 import { useUpload } from '../../contexts/UploadContext'
+import { isSupportedVideoFile, videoCompatibilityWarning, VIDEO_FILE_ACCEPT } from '../../lib/videoUploadValidation'
+import { VideoUploadWarning } from './VideoUploadWarning'
 
 interface VideoUploadFieldProps {
   contentBlockId?: number | null
@@ -48,6 +50,7 @@ export function VideoUploadField({
     existingUpload?.fileName || (s3VideoKey ? s3VideoKey.split('/').pop() || null : null)
   )
   const [error, setError] = useState<string | null>(null)
+  const [warning, setWarning] = useState<string | null>(null)
 
   const activeUpload = uploads.find(u => u.id === uploadId) || existingUpload || null
   const isUploading = activeUpload && activeUpload.status !== 'done' && activeUpload.status !== 'error'
@@ -90,7 +93,8 @@ export function VideoUploadField({
   }, [activeUpload?.s3Key, activeUpload?.status, activeUpload?.contentType, activeUpload?.fileSize, s3VideoKey, onS3VideoUploaded, onVideoUrlChange])
 
   const startUpload = useCallback((file: File) => {
-    if (!file.type.startsWith('video/')) {
+    setWarning(null)
+    if (!isSupportedVideoFile(file)) {
       setError('Please select a video file')
       return
     }
@@ -100,6 +104,7 @@ export function VideoUploadField({
     }
 
     setError(null)
+    setWarning(videoCompatibilityWarning(file))
     setUploadedFileName(file.name)
 
     const { uploadId: newId } = startVideoUpload(
@@ -124,6 +129,7 @@ export function VideoUploadField({
     }
     setUploadedFileName(null)
     setUploadId(null)
+    setWarning(null)
     onS3VideoRemoved()
   }
 
@@ -328,7 +334,9 @@ export function VideoUploadField({
                 <Loader2 className="h-4 w-4 text-primary-500 shrink-0 animate-spin" />
                 <span className="text-sm text-slate-700 truncate flex-1">{uploadedFileName}</span>
                 <span className="text-xs text-slate-500 tabular-nums shrink-0">
-                  {activeUpload.status === 'uploading'
+                  {activeUpload.status === 'queued'
+                    ? 'Queued...'
+                    : activeUpload.status === 'uploading'
                     ? `${activeUpload.progress}%`
                     : activeUpload.status === 'presigning'
                       ? 'Preparing...'
@@ -370,7 +378,7 @@ export function VideoUploadField({
               onClick={() => {
                 const input = document.createElement('input')
                 input.type = 'file'
-                input.accept = 'video/*'
+                input.accept = VIDEO_FILE_ACCEPT
                 input.onchange = (e) => {
                   const file = (e.target as HTMLInputElement).files?.[0]
                   if (file) startUpload(file)
@@ -389,6 +397,7 @@ export function VideoUploadField({
       )}
 
       {error && <p className="text-xs text-red-600">{error}</p>}
+      <VideoUploadWarning message={warning} />
     </div>
   )
 }
