@@ -43,8 +43,6 @@ module Api
         content_type = validated_video_content_type(params[:content_type] || "video/mp4")
         return if content_type.nil?
         return unless validate_multipart_file_size!
-        return if admin_only_multipart_target? && !authorize_admin_multipart_target!
-
         key = build_multipart_key
         return if performed?
 
@@ -58,8 +56,6 @@ module Api
       def multipart_part_url
         return render_s3_unavailable unless S3Service.configured?
         return unless validate_multipart_key!
-        return if admin_only_multipart_key? && !authorize_admin_multipart_target!
-
         part_number = params[:part_number].to_i
         unless part_number.between?(1, MAX_MULTIPART_PARTS)
           render json: { error: "part_number must be between 1 and #{MAX_MULTIPART_PARTS}" }, status: :unprocessable_entity
@@ -83,8 +79,6 @@ module Api
       def multipart_complete
         return render_s3_unavailable unless S3Service.configured?
         return unless validate_multipart_key!
-        return if admin_only_multipart_key? && !authorize_admin_multipart_target!
-
         upload_id = params[:upload_id].to_s
         parts = normalize_multipart_parts(params[:parts])
 
@@ -109,8 +103,6 @@ module Api
       def multipart_abort
         return render_s3_unavailable unless S3Service.configured?
         return unless validate_multipart_key!
-        return if admin_only_multipart_key? && !authorize_admin_multipart_target!
-
         upload_id = params[:upload_id].to_s
         if upload_id.blank?
           render json: { error: "upload_id is required" }, status: :bad_request
@@ -185,21 +177,6 @@ module Api
       def render_s3_error(error, action)
         Rails.logger.error("[UploadsController] Failed to #{action}: #{error.class} #{error.message}")
         render json: { error: "Could not #{action}. Please try again." }, status: :bad_gateway
-      end
-
-      def admin_only_multipart_target?
-        params[:cohort_id].blank?
-      end
-
-      def admin_only_multipart_key?
-        params[:s3_key].to_s.start_with?("content_videos/")
-      end
-
-      def authorize_admin_multipart_target!
-        return true if current_user&.admin?
-
-        render_forbidden("Admin access required")
-        false
       end
 
       def normalize_multipart_parts(raw_parts)

@@ -47,12 +47,37 @@ interface UploadStartOpts {
   linkLabel?: string
 }
 
+interface UploadAttachmentPatch {
+  contentBlockId?: number
+  linkTo?: string
+  linkLabel?: string
+  persistedS3Key?: string | null
+}
+
+export function prepareUploadAttachment(
+  currentTarget: UploadStartOpts,
+  currentUpload: ActiveUpload | undefined,
+  patch: UploadAttachmentPatch,
+) {
+  const { persistedS3Key, ...attachmentPatch } = patch
+  const statePatch: UploadStartOpts = attachmentPatch.contentBlockId
+    ? { ...attachmentPatch, deferPersistence: false }
+    : attachmentPatch
+
+  return {
+    persistedS3Key,
+    statePatch,
+    target: { ...currentTarget, ...statePatch },
+    nextUpload: currentUpload ? { ...currentUpload, ...statePatch } : null,
+  }
+}
+
 interface UploadContextValue {
   uploads: ActiveUpload[]
   startVideoUpload: (file: File, opts?: UploadStartOpts) => UploadStartResult
   cancelUpload: (id: string) => void
   completeDeferredUpload: (id: string) => void
-  attachUpload: (id: string, patch: { contentBlockId?: number; linkTo?: string; linkLabel?: string }) => void
+  attachUpload: (id: string, patch: UploadAttachmentPatch) => void
 }
 
 const UploadContext = createContext<UploadContextValue | null>(null)
@@ -66,6 +91,7 @@ export function useUpload() {
 export function UploadProvider({ children }: { children: React.ReactNode }) {
   const [uploads, setUploads] = useState<ActiveUpload[]>([])
   const uploadsRef = useRef(uploads)
+  const uploadTargetsRef = useRef(new Map<string, UploadStartOpts>())
   uploadsRef.current = uploads
 
   const updateUpload = useCallback((id: string, patch: Partial<ActiveUpload>) => {
@@ -73,6 +99,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const removeUpload = useCallback((id: string) => {
+    uploadTargetsRef.current.delete(id)
     setUploads(prev => prev.filter(u => u.id !== id))
   }, [])
 
@@ -107,10 +134,10 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     contentType: string,
     fileSize: number
   ) => {
-    const liveUpload = uploadsRef.current.find((upload) => upload.id === uploadId)
-    const contentBlockId = liveUpload?.contentBlockId ?? fallbackOpts.contentBlockId
-    const deferPersistence = liveUpload?.deferPersistence ?? fallbackOpts.deferPersistence
-    const cohortRecording = liveUpload?.cohortRecording ?? fallbackOpts.cohortRecording
+    const liveTarget = uploadTargetsRef.current.get(uploadId)
+    const contentBlockId = liveTarget?.contentBlockId ?? fallbackOpts.contentBlockId
+    const deferPersistence = liveTarget?.deferPersistence ?? fallbackOpts.deferPersistence
+    const cohortRecording = liveTarget?.cohortRecording ?? fallbackOpts.cohortRecording
 
     if (contentBlockId) {
       if (deferPersistence) return false
@@ -149,6 +176,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     const id = crypto.randomUUID()
     const abortController = new AbortController()
     const contentType = file.type || 'video/mp4'
+    uploadTargetsRef.current.set(id, opts || {})
 
     const upload: ActiveUpload = {
       id, fileName: file.name, fileSize: file.size, contentType,
@@ -279,10 +307,24 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     removeUpload(id)
   }, [removeUpload])
 
-  const attachUpload = useCallback((id: string, patch: { contentBlockId?: number; linkTo?: string; linkLabel?: string }) => {
+  const attachUpload = useCallback((id: string, patch: UploadAttachmentPatch) => {
+    const currentTarget = uploadTargetsRef.current.get(id) || {}
     const current = uploadsRef.current.find((upload) => upload.id === id)
-    const next = current ? { ...current, ...patch } : null
-    updateUpload(id, patch)
+    const { persistedS3Key, statePatch, target, nextUpload: next } = prepareUploadAttachment(
+      currentTarget,
+      current,
+      patch,
+    )
+    uploadTargetsRef.current.set(id, target)
+    updateUpload(id, statePatch)
+
+    // Exercise creation may have persisted the completed upload already. In
+    // that case there is no follow-up PATCH to perform and the upload must
+    // leave the active/waiting set immediately.
+    if (next?.s3Key && persistedS3Key === next.s3Key) {
+      completeUpload(id)
+      return
+    }
 
     if (next?.contentBlockId && next.s3Key && next.status === 'waiting') {
       const attachedS3Key = next.s3Key

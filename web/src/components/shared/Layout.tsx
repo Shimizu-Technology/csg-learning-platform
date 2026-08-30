@@ -241,6 +241,7 @@ export function Layout({ children }: LayoutProps) {
   const instructorNav: NavItem[] = [
     { to: '/admin', icon: LayoutDashboard, label: 'Staff home', exact: true },
     { to: '/admin/cohorts', icon: Layers3, label: 'Cohorts' },
+    { to: '/admin/content', icon: FileText, label: 'Content' },
     { to: '/admin/grading', icon: ClipboardCheck, label: 'Grading' },
     { to: '/admin/support', icon: LifeBuoy, label: 'Student support' },
     { to: '/admin/moderation', icon: ShieldAlert, label: 'Safety queue' },

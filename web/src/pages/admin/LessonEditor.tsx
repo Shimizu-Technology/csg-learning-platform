@@ -11,6 +11,7 @@ import { AdminVideoPreview } from '../../components/admin/AdminVideoPreview'
 import { CodeRunnerSettings } from '../../components/admin/CodeRunnerSettings'
 import { useUpload } from '../../contexts/UploadContext'
 import { useToast } from '../../contexts/ToastContext'
+import { useAuthContext } from '../../contexts/AuthContext'
 import {
   buildSubmissionConfigWithRunner,
   codeRunnerLanguageFromEditor,
@@ -60,6 +61,8 @@ const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Satu
 export function LessonEditor() {
   const { id } = useParams<{ id: string }>()
   const toast = useToast()
+  const { user } = useAuthContext()
+  const canCreateCurriculumResources = Boolean(user?.is_admin)
   const [lesson, setLesson] = useState<Lesson | null>(null)
   const [objectiveCatalog, setObjectiveCatalog] = useState<LearningObjective[]>([])
   const [objectiveAlignments, setObjectiveAlignments] = useState<ObjectiveAlignmentDraft[]>([])
@@ -772,10 +775,10 @@ export function LessonEditor() {
                   </div>
                 )
               })}
-              {!objectiveAlignments.length && <div className="rounded-2xl border border-dashed border-slate-300 px-5 py-7 text-center text-sm text-slate-500">No objectives yet. Create the first one below or reuse one from this curriculum.</div>}
+              {!objectiveAlignments.length && <div className="rounded-2xl border border-dashed border-slate-300 px-5 py-7 text-center text-sm text-slate-500">{canCreateCurriculumResources ? 'No objectives yet. Create the first one below or reuse one from this curriculum.' : 'No objectives are attached yet. An admin can create reusable objectives for this curriculum.'}</div>}
             </div>
 
-            <div className="mt-5 rounded-2xl border border-primary-100 bg-primary-50/40 p-4">
+            {canCreateCurriculumResources && <div className="mt-5 rounded-2xl border border-primary-100 bg-primary-50/40 p-4">
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Objective code<input value={objectiveDraft.code} onChange={(event) => setObjectiveDraft((current) => ({ ...current, code: event.target.value }))} placeholder="TERM.1" className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 font-mono text-sm normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-primary-500" /></label>
                 <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Student-facing title<input value={objectiveDraft.title} onChange={(event) => setObjectiveDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Navigate folders from the terminal" className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-primary-500" /></label>
@@ -783,7 +786,7 @@ export function LessonEditor() {
                 <label className="text-xs font-bold uppercase tracking-wide text-slate-600 sm:col-span-2">Success criteria<textarea value={objectiveDraft.success_criteria} onChange={(event) => setObjectiveDraft((current) => ({ ...current, success_criteria: event.target.value }))} placeholder="I can move into a requested folder, go back one level, and confirm where I am." rows={3} className="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-primary-500" /></label>
               </div>
               <button type="button" disabled={creatingObjective} onClick={() => void handleCreateObjective()} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-bold text-white transition hover:bg-slate-800 disabled:opacity-50"><Plus className="h-4 w-4" />{creatingObjective ? 'Creating…' : 'Create and add objective'}</button>
-            </div>
+            </div>}
           </section>
 
           <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_14px_40px_rgba(15,23,42,0.04)]">
@@ -806,7 +809,7 @@ export function LessonEditor() {
                 {rubricCatalog.find((rubric) => rubric.id === selectedRubricId)!.criteria.map((criterion) => <div key={criterion.id} className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3"><p className="text-sm font-bold text-slate-900">{criterion.title}</p><p className="mt-1 text-xs leading-5 text-slate-600">{criterion.description}</p></div>)}
               </div>
             )}
-            <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            {canCreateCurriculumResources && <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
               <p className="text-sm font-bold text-slate-900">Create a reusable rubric</p>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Rubric title<input value={rubricDraft.title} onChange={(event) => setRubricDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Project quality" className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-primary-500" /></label>
@@ -816,7 +819,7 @@ export function LessonEditor() {
                 {rubricDraft.criteria.map((criterion, index) => <div key={index} className="grid gap-2 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-[0.7fr_1.3fr_auto]"><input aria-label={`Criterion ${index + 1} title`} value={criterion.title} onChange={(event) => setRubricDraft((current) => ({ ...current, criteria: current.criteria.map((item, itemIndex) => itemIndex === index ? { ...item, title: event.target.value } : item) }))} placeholder="Criterion title" className="min-h-11 rounded-xl border border-slate-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" /><input aria-label={`Criterion ${index + 1} description`} value={criterion.description} onChange={(event) => setRubricDraft((current) => ({ ...current, criteria: current.criteria.map((item, itemIndex) => itemIndex === index ? { ...item, description: event.target.value } : item) }))} placeholder="What meeting this criterion looks like" className="min-h-11 rounded-xl border border-slate-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" /><button type="button" aria-label={`Remove criterion ${index + 1}`} disabled={rubricDraft.criteria.length === 1} onClick={() => setRubricDraft((current) => ({ ...current, criteria: current.criteria.filter((_, itemIndex) => itemIndex !== index) }))} className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-red-600 disabled:opacity-30"><X className="h-4 w-4" /></button></div>)}
               </div>
               <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => setRubricDraft((current) => ({ ...current, criteria: [...current.criteria, { title: '', description: '' }] }))} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700"><Plus className="h-4 w-4" />Add criterion</button><button type="button" disabled={creatingRubric} onClick={() => void handleCreateRubric()} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-bold text-white disabled:opacity-50"><ClipboardCheck className="h-4 w-4" />{creatingRubric ? 'Creating…' : 'Create and select rubric'}</button></div>
-            </div>
+            </div>}
           </section>
 
           <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_14px_40px_rgba(15,23,42,0.04)]">
