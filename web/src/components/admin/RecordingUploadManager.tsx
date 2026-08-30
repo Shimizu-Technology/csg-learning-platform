@@ -280,18 +280,24 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
     })) return
 
     setUpdatingStatusId(recording.id)
-    const res = await api.updateRecording(cohortId, recording.id, { status: nextStatus })
-    setUpdatingStatusId(null)
+    try {
+      const res = await api.updateRecording(cohortId, recording.id, { status: nextStatus })
+      if (res.error) {
+        setError(res.error)
+        toast.error(res.error)
+        return
+      }
 
-    if (res.error) {
-      setError(res.error)
-      toast.error(res.error)
-      return
+      toast.success(nextStatus === 'published' ? 'Recording published' : 'Recording returned to draft')
+      void fetchRecordings()
+      onRecordingsChange?.()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not update recording access'
+      setError(message)
+      toast.error(message)
+    } finally {
+      setUpdatingStatusId(null)
     }
-
-    toast.success(nextStatus === 'published' ? 'Recording published' : 'Recording returned to draft')
-    void fetchRecordings()
-    onRecordingsChange?.()
   }
 
   const formatSize = (bytes: number) => {

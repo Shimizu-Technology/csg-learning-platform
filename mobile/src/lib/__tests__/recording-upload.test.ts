@@ -39,29 +39,35 @@ describe('uploadRecording', () => {
 
   it('publishes a normal video with a presigned form upload', async () => {
     const api = apiMock();
+    const onProgress = jest.fn();
     await uploadRecording({
       api: api as never,
       cohortId: 7,
       asset: { uri: 'file:///small.mp4', name: 'small.mp4', size: 4_000_000, mimeType: 'video/mp4' },
       title: 'Class replay',
+      onProgress,
     });
 
     expect(api.presignRecordingUpload).toHaveBeenCalledWith(7, 'small.mp4', 'video/mp4');
     expect(mockFetch).toHaveBeenCalledWith('https://s3.example/post', expect.objectContaining({ method: 'POST' }));
     expect(api.createRecording).toHaveBeenCalledWith(7, expect.objectContaining({ title: 'Class replay', s3_key: 'recordings/small.mp4', publish_immediately: false }));
+    expect(onProgress).toHaveBeenCalledWith(100, 'Saving draft…');
   });
 
   it('passes the explicit publish-immediately choice to recording creation', async () => {
     const api = apiMock();
+    const onProgress = jest.fn();
     await uploadRecording({
       api: api as never,
       cohortId: 7,
       asset: { uri: 'file:///small.mp4', name: 'small.mp4', size: 4_000_000, mimeType: 'video/mp4' },
       title: 'Public replay',
       publishImmediately: true,
+      onProgress,
     });
 
     expect(api.createRecording).toHaveBeenCalledWith(7, expect.objectContaining({ publish_immediately: true }));
+    expect(onProgress).toHaveBeenCalledWith(100, 'Publishing recording…');
   });
 
   it('uploads large videos in retryable 16 MB parts before publishing', async () => {

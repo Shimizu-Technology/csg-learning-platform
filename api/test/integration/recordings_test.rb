@@ -221,6 +221,27 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     assert_not WatchProgress.exists?(user: @student, recording: draft)
   end
 
+  test "staff can inspect and stream a draft recording" do
+    draft = create_recording!(title: "Staff draft", status: :draft)
+
+    as_user(@instructor) do
+      get "/api/v1/cohorts/#{@cohort.id}/recordings/#{draft.id}", headers: auth_headers
+    end
+    assert_response :success
+    detail = JSON.parse(response.body).fetch("recording")
+    assert_equal draft.id, detail.fetch("id")
+    assert_equal "draft", detail.fetch("status")
+
+    expires_in = with_s3_stream_url("https://signed.example/draft.mp4") do
+      as_user(@instructor) do
+        get "/api/v1/cohorts/#{@cohort.id}/recordings/#{draft.id}/stream_url", headers: auth_headers
+      end
+    end
+    assert_response :success
+    assert_equal "https://signed.example/draft.mp4", JSON.parse(response.body).fetch("stream_url")
+    assert_equal S3Service::VIDEO_STREAM_EXPIRY, expires_in
+  end
+
   test "student recordings endpoint returns one normalized recording list" do
     create_recording!(title: "Uploaded Class")
     @cohort.update!(
