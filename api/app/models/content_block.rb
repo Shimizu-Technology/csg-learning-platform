@@ -26,6 +26,8 @@ class ContentBlock < ApplicationRecord
 
   scope :ordered, -> { order(:position) }
 
+  after_destroy_commit :delete_stored_video
+
   REVIEW_REQUIRED_SUBMISSION_TYPES = %w[
     text_submission
     prework_github_sync
@@ -58,6 +60,10 @@ class ContentBlock < ApplicationRecord
   end
 
   private
+
+  def delete_stored_video
+    S3ObjectCleanup.delete_if_unreferenced(s3_video_key)
+  end
 
   def normalize_video_url
     return if video_url.blank?

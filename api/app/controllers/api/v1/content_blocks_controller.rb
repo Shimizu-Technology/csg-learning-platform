@@ -82,21 +82,18 @@ module Api
         end
         return if performed?
 
-        # S3 deletion is intentionally outside the transaction: rolling back a
-        # successful S3 DELETE is not possible, and a failed delete shouldn't
-        # block the DB update. Worst case we leak the old object, which the
-        # uploads#abandon flow can clean up later.
+        # S3 cleanup is intentionally outside the transaction: rolling back a
+        # successful object delete is not possible, and a failed delete should
+        # not block the DB update.
         if old_s3_key.present? && @content_block.s3_video_key != old_s3_key
-          S3Service.delete_object(old_s3_key) if S3Service.configured?
+          S3ObjectCleanup.delete_if_unreferenced(old_s3_key)
         end
         render json: { content_block: block_json(@content_block) }
       end
 
       # DELETE /api/v1/content_blocks/:id
       def destroy
-        key_to_delete = @content_block.s3_video_key
         @content_block.destroy!
-        S3Service.delete_object(key_to_delete) if key_to_delete.present? && S3Service.configured?
         head :no_content
       rescue ActiveRecord::RecordNotDestroyed
         render json: { error: "Failed to delete content block" }, status: :unprocessable_entity

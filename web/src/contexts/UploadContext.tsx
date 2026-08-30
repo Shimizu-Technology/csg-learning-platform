@@ -10,6 +10,7 @@ import {
   type UploadProgress,
 } from '../lib/uploadToS3'
 import { api } from '../lib/api'
+import { resolvedVideoContentType } from '../lib/videoUploadValidation'
 
 interface ActiveUpload {
   id: string
@@ -17,7 +18,7 @@ interface ActiveUpload {
   fileSize: number
   contentType: string
   progress: number
-  status: 'presigning' | 'uploading' | 'waiting' | 'saving' | 'done' | 'error'
+  status: 'queued' | 'presigning' | 'uploading' | 'waiting' | 'saving' | 'done' | 'error'
   error?: string
   s3Key?: string
   contentBlockId?: number
@@ -26,6 +27,76 @@ interface ActiveUpload {
   linkTo?: string
   linkLabel?: string
   abortController: AbortController
+}
+
+export const MAX_CONCURRENT_VIDEO_UPLOADS = 2
+
+interface UploadWaiter {
+  resolve: (release: () => void) => void
+  reject: (error: Error) => void
+  signal?: AbortSignal
+  abortHandler?: () => void
+}
+
+export class UploadConcurrencyQueue {
+  private active = 0
+  private readonly waiters: UploadWaiter[] = []
+  private readonly limit: number
+
+  constructor(limit: number) {
+    if (!Number.isInteger(limit) || limit < 1) throw new Error('Upload concurrency must be at least one')
+    this.limit = limit
+  }
+
+  acquire(signal?: AbortSignal): Promise<() => void> {
+    if (signal?.aborted) return Promise.reject(new Error('Upload cancelled'))
+
+    return new Promise((resolve, reject) => {
+      const waiter: UploadWaiter = { resolve, reject, signal }
+      waiter.abortHandler = () => {
+        const index = this.waiters.indexOf(waiter)
+        if (index >= 0) this.waiters.splice(index, 1)
+        reject(new Error('Upload cancelled'))
+      }
+
+      if (this.active < this.limit) {
+        this.start(waiter)
+      } else {
+        signal?.addEventListener('abort', waiter.abortHandler, { once: true })
+        this.waiters.push(waiter)
+      }
+    })
+  }
+
+  private start(waiter: UploadWaiter) {
+    waiter.signal?.removeEventListener('abort', waiter.abortHandler!)
+    if (waiter.signal?.aborted) {
+      waiter.reject(new Error('Upload cancelled'))
+      this.startNext()
+      return
+    }
+
+    this.active += 1
+    let released = false
+    waiter.resolve(() => {
+      if (released) return
+      released = true
+      this.active -= 1
+      this.startNext()
+    })
+  }
+
+  private startNext() {
+    while (this.active < this.limit) {
+      const next = this.waiters.shift()
+      if (!next) return
+      if (next.signal?.aborted) {
+        next.reject(new Error('Upload cancelled'))
+        continue
+      }
+      this.start(next)
+    }
+  }
 }
 
 interface UploadResult {
@@ -118,6 +189,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
   const [uploads, setUploads] = useState<ActiveUpload[]>([])
   const uploadsRef = useRef(uploads)
   const uploadTargetsRef = useRef(new Map<string, UploadStartOpts>())
+  const uploadQueueRef = useRef(new UploadConcurrencyQueue(MAX_CONCURRENT_VIDEO_UPLOADS))
   uploadsRef.current = uploads
 
   const updateUpload = useCallback((id: string, patch: Partial<ActiveUpload>) => {
@@ -136,6 +208,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const hasActiveUploads = uploads.some((upload) => (
+      upload.status === 'queued' ||
       upload.status === 'presigning' ||
       upload.status === 'uploading' ||
       upload.status === 'saving' ||
@@ -194,12 +267,12 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
   ): UploadStartResult => {
     const id = crypto.randomUUID()
     const abortController = new AbortController()
-    const contentType = file.type || 'video/mp4'
+    const contentType = resolvedVideoContentType(file)
     uploadTargetsRef.current.set(id, opts || {})
 
     const upload: ActiveUpload = {
       id, fileName: file.name, fileSize: file.size, contentType,
-      progress: 0, status: 'presigning', abortController,
+      progress: 0, status: 'queued', abortController,
       contentBlockId: opts?.contentBlockId,
       deferPersistence: opts?.deferPersistence,
       cohortRecording: opts?.cohortRecording,
@@ -212,7 +285,10 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
       // Track whether the S3 PUT actually completed so the catch handler can
       // clean up an orphaned object if the subsequent DB write fails.
       let uploadedS3Key: string | null = null
+      let releaseUploadSlot: (() => void) | null = null
       try {
+        releaseUploadSlot = await uploadQueueRef.current.acquire(abortController.signal)
+        updateUpload(id, { status: 'presigning' })
         let s3Key: string
 
         if (file.size >= MULTIPART_UPLOAD_THRESHOLD) {
@@ -286,6 +362,8 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         // Past this point the object is in the bucket — if any of the DB
         // writes below fail, we need to clean it up.
         uploadedS3Key = s3Key
+        releaseUploadSlot()
+        releaseUploadSlot = null
         const persisted = await persistUploadTarget(id, opts || {}, s3Key, contentType, file.size)
 
         if (persisted) {
@@ -311,6 +389,8 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         const msg = err instanceof Error ? err.message : 'Upload failed'
         updateUpload(id, { status: 'error', error: msg })
         return null
+      } finally {
+        releaseUploadSlot?.()
       }
     })()
 
@@ -381,7 +461,8 @@ function UploadIndicator({ uploads, onCancel, onDismiss }: {
 }) {
   const [collapsed, setCollapsed] = useState(false)
   const navigate = useNavigate()
-  const active = uploads.filter(u => u.status !== 'done')
+  const inProgress = uploads.filter(u => !['done', 'error'].includes(u.status))
+  const hasErrors = uploads.some(u => u.status === 'error')
 
   if (uploads.length === 0) return null
 
@@ -394,9 +475,11 @@ function UploadIndicator({ uploads, onCancel, onDismiss }: {
         <div className="flex items-center gap-2">
           <Upload className="h-4 w-4 text-primary-600" />
           <span className="text-sm font-medium text-slate-700">
-            {active.length > 0
-              ? `Uploading ${active.length} file${active.length > 1 ? 's' : ''}...`
-              : 'Uploads complete'}
+            {inProgress.length > 0
+              ? `Processing ${inProgress.length} file${inProgress.length > 1 ? 's' : ''}...`
+              : hasErrors
+                ? 'Upload needs attention'
+                : 'Uploads complete'}
           </span>
         </div>
         {collapsed ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
@@ -455,6 +538,9 @@ function UploadIndicator({ uploads, onCancel, onDismiss }: {
               {u.status === 'presigning' && (
                 <p className="text-[11px] text-slate-500">Preparing upload...</p>
               )}
+              {u.status === 'queued' && (
+                <p className="text-[11px] text-slate-500">Queued — up to {MAX_CONCURRENT_VIDEO_UPLOADS} videos upload at once.</p>
+              )}
               {u.status === 'saving' && (
                 <p className="text-[11px] text-slate-500">Saving...</p>
               )}
@@ -468,9 +554,12 @@ function UploadIndicator({ uploads, onCancel, onDismiss }: {
                 </div>
               )}
               {u.status === 'error' && (
-                <div className="flex items-center gap-1 text-[11px] text-red-600">
-                  <AlertCircle className="h-3.5 w-3.5" />
-                  {u.error}
+                <div className="space-y-1 text-[11px] text-red-600">
+                  <div className="flex items-center gap-1">
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    {u.error}
+                  </div>
+                  <p className="text-slate-500">To retry, reopen the uploader and select this file again.</p>
                 </div>
               )}
             </div>

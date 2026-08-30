@@ -14,6 +14,8 @@ class Recording < ApplicationRecord
   scope :ordered, -> { order(:position) }
   scope :student_visible, -> { published }
 
+  after_destroy_commit :delete_stored_video
+
   def file_size_display
     if file_size >= 1.gigabyte
       "#{(file_size / 1.gigabyte.to_f).round(1)} GB"
@@ -34,5 +36,11 @@ class Recording < ApplicationRecord
     else
       format("%d:%02d", minutes, secs)
     end
+  end
+
+  private
+
+  def delete_stored_video
+    S3ObjectCleanup.delete_if_unreferenced(s3_key)
   end
 end
