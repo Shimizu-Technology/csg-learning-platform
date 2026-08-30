@@ -82,7 +82,7 @@ class UploadsTest < ActionDispatch::IntegrationTest
     assert_response :bad_request
   end
 
-  test "instructors can sign recording parts but not content video parts" do
+  test "instructors can sign recording and exercise video parts" do
     with_s3_multipart_stubs do
       as_user(@instructor) do
         post "/api/v1/uploads/multipart/part_url",
@@ -108,11 +108,34 @@ class UploadsTest < ActionDispatch::IntegrationTest
           as: :json
       end
 
-      assert_response :forbidden
+      assert_response :success
     end
   end
 
-  test "instructors cannot complete or abort content video multipart uploads" do
+  test "instructors can presign a new exercise video before the content block exists" do
+    post_data = Struct.new(:url, :fields).new("https://s3.example/upload", { "key" => "signed-key" })
+    original_configured = S3Service.method(:configured?)
+    original_post = S3Service.method(:generate_presigned_post)
+    S3Service.define_singleton_method(:configured?) { true }
+    S3Service.define_singleton_method(:generate_presigned_post) { |_key, _content_type| post_data }
+
+    as_user(@instructor) do
+      post "/api/v1/video_presign",
+        params: { filename: "Exercise Demo.mp4", content_type: "video/mp4" },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :success
+    body = JSON.parse(response.body)
+    assert_equal "https://s3.example/upload", body.fetch("upload_url")
+    assert_match %r{\Acontent_videos/[0-9a-f-]+/Exercise_Demo\.mp4\z}, body.fetch("s3_key")
+  ensure
+    S3Service.define_singleton_method(:configured?, original_configured) if original_configured
+    S3Service.define_singleton_method(:generate_presigned_post, original_post) if original_post
+  end
+
+  test "instructors can complete and abort exercise video multipart uploads" do
     with_s3_multipart_stubs do
       as_user(@instructor) do
         post "/api/v1/uploads/multipart/complete",
@@ -127,7 +150,7 @@ class UploadsTest < ActionDispatch::IntegrationTest
           as: :json
       end
 
-      assert_response :forbidden
+      assert_response :no_content
 
       as_user(@instructor) do
         delete "/api/v1/uploads/multipart/abort",
@@ -139,7 +162,7 @@ class UploadsTest < ActionDispatch::IntegrationTest
           as: :json
       end
 
-      assert_response :forbidden
+      assert_response :no_content
     end
   end
 

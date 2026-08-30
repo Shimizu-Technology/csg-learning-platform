@@ -2,7 +2,8 @@ module Api
   module V1
     class LessonsController < ApplicationController
       before_action :authenticate_user!
-      before_action :require_admin!, only: [ :create, :create_exercise, :update, :update_editor, :archive, :restore, :destroy ]
+      before_action :require_staff!, only: [ :create, :create_exercise, :update, :update_editor, :archive, :restore ]
+      before_action :require_admin!, only: [ :destroy ]
       before_action :set_module, only: [ :index, :create, :create_exercise ]
       before_action :set_lesson, only: [ :show, :update, :update_editor, :archive, :restore, :destroy ]
       before_action :authorize_lesson_read!, only: [ :show ]
@@ -93,7 +94,10 @@ module Api
 
           block_pos = 0
 
-          if params[:video_url].present? || params[:s3_video_key].present?
+          # Reserve the video block while a direct-to-S3 upload is still in
+          # flight. The browser can create the exercise before the upload
+          # finishes, then attach the resulting key to this stable row.
+          if params[:video_url].present? || params[:s3_video_key].present? || pending_video_upload?
             block_pos += 1
             @lesson.content_blocks.create!(
               block_type: :video,
@@ -122,7 +126,10 @@ module Api
             )
           end
 
-          render json: { lesson: lesson_json(@lesson) }, status: :created
+          # The upload coordinator needs the reserved video's id immediately;
+          # omitting content_blocks leaves a completed S3 object waiting with
+          # no database target and keeps the unload warning active forever.
+          render json: { lesson: lesson_json(@lesson, include_content: true) }, status: :created
         end
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
@@ -204,6 +211,10 @@ module Api
 
       def lesson_params
         params.permit(:title, :lesson_type, :position, :release_day, :required, :requires_submission)
+      end
+
+      def pending_video_upload?
+        ActiveModel::Type::Boolean.new.cast(params[:video_upload_pending])
       end
 
       def editor_params

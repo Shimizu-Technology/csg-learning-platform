@@ -2,7 +2,8 @@ module Api
   module V1
     class ContentBlocksController < ApplicationController
       before_action :authenticate_user!
-      before_action :require_admin!, except: [ :video_stream, :video_progress ]
+      before_action :require_staff!, except: [ :video_stream, :video_progress ]
+      before_action :require_admin!, only: [ :destroy ]
       before_action :set_lesson, only: [ :index, :create ]
       before_action :set_content_block, only: [ :show, :update, :destroy, :video_presign, :video_stream, :video_progress ]
       before_action :authorize_video_access!, only: [ :video_stream ]
@@ -103,9 +104,6 @@ module Api
 
       # POST /api/v1/video_presign — generic presign (staff only, no content block needed)
       def generic_video_presign
-        require_admin!
-        return if performed?
-
         unless S3Service.configured?
           render json: { error: "S3 not configured" }, status: :service_unavailable
           return

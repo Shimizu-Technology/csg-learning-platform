@@ -38,6 +38,13 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
       last_name: "Editor",
       role: :admin
     )
+    @instructor = User.create!(
+      clerk_id: "clerk_instructor_lessons_api",
+      email: "instructor-lessons@example.com",
+      first_name: "Instructor",
+      last_name: "Editor",
+      role: :instructor
+    )
 
     @enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
     ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @curriculum_module, unlocked: true)
@@ -111,6 +118,94 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert_equal "content_videos/block_#{@video_block.id}/class.mp4", body.fetch("s3_video_key")
     assert_equal @admin.full_name, body.fetch("s3_video_uploaded_by")
     assert body.fetch("s3_video_uploaded_at").present?
+  end
+
+  test "instructor creates an exercise with a reserved upload target and attaches the completed video" do
+    created_lesson_id = nil
+    video_block_id = nil
+
+    as_user(@instructor) do
+      post "/api/v1/modules/#{@curriculum_module.id}/exercises",
+           params: {
+             title: "Async upload exercise",
+             release_day: 1,
+             instructions: "Keep working while the video uploads.",
+             submission_type: "manual_complete",
+             video_upload_pending: true
+           },
+           headers: auth_headers,
+           as: :json
+    end
+
+    assert_response :created
+    lesson = JSON.parse(response.body).fetch("lesson")
+    created_lesson_id = lesson.fetch("id")
+    blocks = lesson.fetch("content_blocks")
+    video = blocks.find { |block| block.fetch("block_type") == "video" }
+    assert video, "expected a reserved video content block"
+    assert_nil video["s3_video_key"]
+    video_block_id = video.fetch("id")
+    assert blocks.any? { |block| block.fetch("block_type") == "exercise" }
+
+    as_user(@instructor) do
+      patch "/api/v1/content_blocks/#{video_block_id}",
+            params: {
+              s3_video_key: "content_videos/block_#{video_block_id}/async.mp4",
+              s3_video_content_type: "video/mp4",
+              s3_video_size: 456
+            },
+            headers: auth_headers,
+            as: :json
+    end
+
+    assert_response :success
+    assert_equal "content_videos/block_#{video_block_id}/async.mp4", ContentBlock.find(video_block_id).s3_video_key
+
+    as_user(@instructor) do
+      patch "/api/v1/lessons/#{created_lesson_id}/archive", headers: auth_headers
+    end
+    assert_response :success
+
+    as_user(@instructor) do
+      patch "/api/v1/lessons/#{created_lesson_id}/restore", headers: auth_headers
+    end
+    assert_response :success
+  end
+
+  test "instructor can read reusable curriculum resources but cannot permanently delete exercise content" do
+    objective = LearningObjective.create!(
+      curriculum: @curriculum,
+      code: "SAFE.1",
+      title: "Attach a safe upload",
+      success_criteria: "I can attach the uploaded recording."
+    )
+    rubric = Rubric.new(curriculum: @curriculum, title: "Upload quality")
+    rubric.rubric_criteria.build(title: "Attached video", description: "The exercise includes the intended video.", position: 0)
+    rubric.save!
+
+    as_user(@instructor) do
+      get "/api/v1/learning_objectives", params: { curriculum_id: @curriculum.id }, headers: auth_headers
+    end
+    assert_response :success
+    assert_equal objective.id, JSON.parse(response.body).dig("learning_objectives", 0, "id")
+
+    as_user(@instructor) do
+      get "/api/v1/rubrics", params: { curriculum_id: @curriculum.id }, headers: auth_headers
+    end
+    assert_response :success
+    assert_equal rubric.id, JSON.parse(response.body).dig("rubrics", 0, "id")
+
+    as_user(@instructor) do
+      delete "/api/v1/content_blocks/#{@video_block.id}", headers: auth_headers
+    end
+    assert_response :forbidden
+    assert ContentBlock.exists?(@video_block.id)
+
+    as_user(@instructor) do
+      delete "/api/v1/lessons/#{@lesson.id}", headers: auth_headers
+    end
+    assert_response :forbidden
+    assert Lesson.exists?(@lesson.id)
   end
 
   test "admin can create and align reusable objectives while students receive active success criteria" do

@@ -19,6 +19,7 @@ import { NewModuleModal } from './NewModuleModal'
 import { ALL_DAY_NAMES, SCHEDULE_DAY_INDICES } from '../../lib/scheduleConstants'
 import { useUpload } from '../../contexts/UploadContext'
 import { useToast } from '../../contexts/ToastContext'
+import { useAuthContext } from '../../contexts/AuthContext'
 
 interface Lesson {
   id: number
@@ -72,6 +73,8 @@ export function ContentManagement() {
   const navigate = useNavigate()
   const { attachUpload } = useUpload()
   const toast = useToast()
+  const { user } = useAuthContext()
+  const canManageModules = Boolean(user?.is_admin)
   const [curricula, setCurricula] = useState<Curriculum[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set())
@@ -215,16 +218,18 @@ export function ContentManagement() {
                   {curriculum.status}
                 </span>
               </div>
-              <button
-                onClick={() => {
-                  setModuleCreateError('')
-                  setNewModuleModal({ curriculumId: curriculum.id, moduleCount: curriculum.modules?.length || 0 })
-                }}
-                className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium text-primary-600 hover:bg-primary-100 transition-colors"
-              >
-                <Plus className="h-4 w-4" />
-                New Module
-              </button>
+              {canManageModules && (
+                <button
+                  onClick={() => {
+                    setModuleCreateError('')
+                    setNewModuleModal({ curriculumId: curriculum.id, moduleCount: curriculum.modules?.length || 0 })
+                  }}
+                  className="flex min-h-11 items-center gap-1 rounded-xl px-3 text-sm font-medium text-primary-600 transition-colors hover:bg-primary-100"
+                >
+                  <Plus className="h-4 w-4" />
+                  New Module
+                </button>
+              )}
             </div>
           </div>
 
@@ -241,6 +246,7 @@ export function ContentManagement() {
                 onAddWeek={() => addWeek(mod)}
                 onAddExercise={(week, dayIndex) => openExerciseForDay(mod, week, dayIndex)}
                 onChangeSchedule={(scheduleDays) => updateModuleSchedule(mod, scheduleDays)}
+                canManageModules={canManageModules}
                 scheduleSaving={scheduleSavingId === mod.id}
                 restoringLessonId={restoringLessonId}
                 onRestoreLesson={restoreLesson}
@@ -268,7 +274,11 @@ export function ContentManagement() {
             setExerciseSaving(true)
             setExerciseCreateError('')
             const { upload_id, ...payload } = data
-            const res = await api.createExercise(exerciseModal.moduleId, payload)
+            const createPayload = {
+              ...payload,
+              video_upload_pending: Boolean(upload_id && !payload.s3_video_key),
+            }
+            const res = await api.createExercise(exerciseModal.moduleId, createPayload)
             if (res.error) {
               setExerciseCreateError(res.error)
               toast.error(res.error)
@@ -282,6 +292,7 @@ export function ContentManagement() {
               const videoBlock = lesson.content_blocks?.find(cb => cb.block_type === 'video')
               attachUpload(upload_id, {
                 contentBlockId: videoBlock?.id,
+                persistedS3Key: videoBlock?.s3_video_key,
                 linkTo: `/admin/lessons/${lesson.id}/edit`,
                 linkLabel: `Exercise: ${lesson.title}`,
               })
@@ -334,6 +345,7 @@ function ModuleSection({
   onAddWeek,
   onAddExercise,
   onChangeSchedule,
+  canManageModules,
   scheduleSaving,
   restoringLessonId,
   onRestoreLesson,
@@ -348,6 +360,7 @@ function ModuleSection({
   onAddWeek: () => void
   onAddExercise: (week: number, dayIndex: number) => void
   onChangeSchedule: (scheduleDays: string) => void
+  canManageModules: boolean
   scheduleSaving: boolean
   restoringLessonId: number | null
   onRestoreLesson: (lesson: Lesson) => void
@@ -403,18 +416,20 @@ function ModuleSection({
           </div>
         </button>
         <div className="flex items-center gap-1 pl-6 sm:pl-0 shrink-0">
-          <select
-            value={mod.schedule_days}
-            disabled={scheduleSaving}
-            onClick={(event) => event.stopPropagation()}
-            onChange={(event) => onChangeSchedule(event.target.value)}
-            className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-60"
-            aria-label={`Schedule pattern for ${mod.name}`}
-          >
-            {SCHEDULE_PATTERN_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
+          {canManageModules && (
+            <select
+              value={mod.schedule_days}
+              disabled={scheduleSaving}
+              onClick={(event) => event.stopPropagation()}
+              onChange={(event) => onChangeSchedule(event.target.value)}
+              className="min-h-11 rounded-xl border border-slate-200 bg-white px-2 text-xs font-medium text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-60"
+              aria-label={`Schedule pattern for ${mod.name}`}
+            >
+              {SCHEDULE_PATTERN_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          )}
           <button
             type="button"
             onClick={onAddWeek}

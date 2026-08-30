@@ -153,13 +153,13 @@ function AppRoutes() {
             <Route path="/admin/help-requests/:id" element={<SuspendedRoute><HelpRequestDetail /></SuspendedRoute>} />
             <Route path="/admin/interventions/:id" element={<SuspendedRoute><InterventionDetail /></SuspendedRoute>} />
             <Route path="/admin/cohorts/:cohortId/modules/:moduleId/grading" element={<SuspendedRoute><CohortModuleGrading /></SuspendedRoute>} />
+            <Route path="/admin/content" element={<SuspendedRoute><ContentManagement /></SuspendedRoute>} />
+            <Route path="/admin/lessons/:id/edit" element={<SuspendedRoute><LessonEditor /></SuspendedRoute>} />
           </Route>
 
           {/* Admin-only routes */}
           <Route element={<ProtectedRoute requiredRole="admin" />}>
-            <Route path="/admin/content" element={<SuspendedRoute><ContentManagement /></SuspendedRoute>} />
             <Route path="/admin/team" element={<SuspendedRoute><TeamManagement /></SuspendedRoute>} />
-            <Route path="/admin/lessons/:id/edit" element={<SuspendedRoute><LessonEditor /></SuspendedRoute>} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

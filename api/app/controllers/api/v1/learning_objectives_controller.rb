@@ -2,7 +2,8 @@ module Api
   module V1
     class LearningObjectivesController < ApplicationController
       before_action :authenticate_user!
-      before_action :require_admin!
+      before_action :require_staff!, only: [ :index ]
+      before_action :require_admin!, except: [ :index ]
       before_action :set_objective, only: [ :update, :destroy ]
 
       def index
