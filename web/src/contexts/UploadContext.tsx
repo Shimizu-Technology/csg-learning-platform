@@ -22,7 +22,7 @@ interface ActiveUpload {
   s3Key?: string
   contentBlockId?: number
   deferPersistence?: boolean
-  cohortRecording?: { cohortId: number; title: string; description?: string; recordedDate?: string }
+  cohortRecording?: CohortRecordingUploadTarget
   linkTo?: string
   linkLabel?: string
   abortController: AbortController
@@ -42,9 +42,17 @@ interface UploadStartResult {
 interface UploadStartOpts {
   contentBlockId?: number
   deferPersistence?: boolean
-  cohortRecording?: { cohortId: number; title: string; description?: string; recordedDate?: string }
+  cohortRecording?: CohortRecordingUploadTarget
   linkTo?: string
   linkLabel?: string
+}
+
+interface CohortRecordingUploadTarget {
+  cohortId: number
+  title: string
+  description?: string
+  recordedDate?: string
+  publishImmediately?: boolean
 }
 
 interface UploadAttachmentPatch {
@@ -161,6 +169,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         content_type: contentType,
         file_size: fileSize,
         recorded_date: cohortRecording.recordedDate,
+        publish_immediately: cohortRecording.publishImmediately,
       })
       if (res.error) throw new Error(res.error)
       return true

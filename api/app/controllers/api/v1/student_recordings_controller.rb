@@ -36,7 +36,9 @@ module Api
           end
         end
 
-        s3_recordings = Recording.where(cohort_id: cohorts.map(&:id)).includes(:cohort).order(:cohort_id, :position)
+        s3_recordings = Recording.where(cohort_id: cohorts.map(&:id))
+        s3_recordings = s3_recordings.student_visible unless current_user.staff?
+        s3_recordings = s3_recordings.includes(:cohort).order(:cohort_id, :position)
         progress_map = if current_user.staff?
           {}
         else
@@ -59,6 +61,7 @@ module Api
             recorded_date: r.recorded_date&.strftime("%Y-%m-%d"),
             created_at: r.created_at,
             source: "uploaded",
+            status: r.status,
             watch_progress: wp ? {
               last_position_seconds: wp.last_position_seconds,
               total_watched_seconds: wp.total_watched_seconds,

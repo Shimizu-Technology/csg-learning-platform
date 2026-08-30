@@ -501,7 +501,7 @@ module Api
       end
 
       def cohort_student_view_recordings(cohort)
-        uploaded = cohort.recordings.order(:position, :recorded_date, :created_at).limit(6).map do |recording|
+        uploaded = cohort.recordings.student_visible.order(:position, :recorded_date, :created_at).limit(6).map do |recording|
           {
             id: recording.id,
             title: recording.title,

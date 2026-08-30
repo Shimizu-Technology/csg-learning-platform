@@ -14,7 +14,7 @@ class HelpRequestsTest < ActionDispatch::IntegrationTest
     @cohort = Cohort.create!(curriculum: @curriculum, name: "Help cohort", start_date: Date.current, status: :active, settings: { "recordings" => [ { "title" => "Legacy replay", "url" => "https://example.com/replay" } ] })
     @enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
     @enrollment.module_assignments.create!(curriculum_module: @mod, unlocked: true)
-    @recording = @cohort.recordings.create!(title: "Uploaded replay", s3_key: "help/replay.mp4", content_type: "video/mp4", file_size: 1.megabyte, position: 0)
+    @recording = @cohort.recordings.create!(title: "Uploaded replay", s3_key: "help/replay.mp4", content_type: "video/mp4", file_size: 1.megabyte, position: 0, status: :published)
   end
 
   test "student creates one contextual request and staff are notified without message content" do
@@ -81,6 +81,26 @@ class HelpRequestsTest < ActionDispatch::IntegrationTest
     end
 
     assert_equal [ "Legacy replay", "Uploaded replay" ], @student.help_requests.order(:context_label).pluck(:context_label)
+  end
+
+  test "student cannot request help on a draft recording" do
+    @recording.update!(status: :draft)
+
+    as_user(@student) do
+      post "/api/v1/help_requests", params: {
+        help_request: {
+          cohort_id: @cohort.id,
+          context_type: "recording",
+          context_source: "primary",
+          context_id: @recording.id,
+          category: "concept",
+          urgency: "normal",
+          message: "Can I watch this yet?"
+        }
+      }, headers: auth_headers
+    end
+
+    assert_response :forbidden
   end
 
   test "staff acknowledges and resolves while the student sees response state" do

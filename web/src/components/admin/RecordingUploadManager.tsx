@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Upload, Trash2, Film, Calendar, Clock, Plus, X, Pencil, Loader2, Eye, ExternalLink, Link2 } from 'lucide-react'
+import { Upload, Trash2, Film, Calendar, Clock, Plus, X, Pencil, Loader2, Eye, ExternalLink, Link2, Globe2, EyeOff } from 'lucide-react'
 import { api } from '../../lib/api'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { useUpload } from '../../contexts/UploadContext'
@@ -17,6 +17,7 @@ interface S3Recording {
   file_size_display: string
   duration_seconds: number | null
   duration_display: string | null
+  status: 'draft' | 'published'
   recorded_date: string | null
   position: number
   uploaded_by?: string | null
@@ -53,10 +54,12 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
   const [loading, setLoading] = useState(true)
   const [showUploadForm, setShowUploadForm] = useState(false)
   const [uploadDrafts, setUploadDrafts] = useState<RecordingDraft[]>([])
+  const [publishImmediately, setPublishImmediately] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
+  const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [editDescription, setEditDescription] = useState('')
   const [editDate, setEditDate] = useState('')
@@ -88,6 +91,7 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
 
   const clearDrafts = useCallback((keepOpen = false) => {
     setUploadDrafts([])
+    setPublishImmediately(false)
     setError(null)
     if (!keepOpen) setStatusMessage(null)
     if (!keepOpen) setShowUploadForm(false)
@@ -155,7 +159,7 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
 
     setError(null)
     if (options?.announce !== false) {
-      const message = `Started ${trimmedTitle}. You can use the app while it uploads, but keep this browser tab open.`
+      const message = `Started ${trimmedTitle}. It will ${publishImmediately ? 'publish when the upload finishes' : 'stay a draft until you publish it'}. Keep this browser tab open.`
       setStatusMessage(message)
       toast.success(message)
     }
@@ -167,6 +171,7 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
         title: trimmedTitle,
         description: draft.description.trim() || undefined,
         recordedDate: draft.recordedDate || undefined,
+        publishImmediately,
       },
       linkTo: `/admin/cohorts/${cohortId}`,
       linkLabel: `Recording: ${trimmedTitle}`,
@@ -180,7 +185,7 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
         onRecordingsChange?.()
       }
     })
-  }, [cohortId, fetchRecordings, onRecordingsChange, startVideoUpload, updateDraft])
+  }, [cohortId, fetchRecordings, onRecordingsChange, publishImmediately, startVideoUpload, updateDraft])
 
   const startAllUploads = () => {
     const invalidDraftIds = uploadDrafts
@@ -208,8 +213,8 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
     const count = startableDrafts.length
     const message =
       count === 1
-        ? `Started ${startableDrafts[0].title.trim()}. You can use the app while it uploads, but keep this browser tab open.`
-        : `Started ${count} uploads. You can use the app while they upload, but keep this browser tab open.`
+        ? `Started ${startableDrafts[0].title.trim()}. It will ${publishImmediately ? 'publish when the upload finishes' : 'stay a draft until you publish it'}. Keep this browser tab open.`
+        : `Started ${count} uploads. They will ${publishImmediately ? 'publish when the uploads finish' : 'stay as drafts until you publish them'}. Keep this browser tab open.`
     setStatusMessage(message)
     toast.success(message)
     startableDrafts.forEach((draft) => launchDraftUpload(draft, { announce: false }))
@@ -263,6 +268,32 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
     }
   }
 
+  const changeStatus = async (recording: S3Recording) => {
+    if (updatingStatusId) return
+
+    const nextStatus = recording.status === 'published' ? 'draft' : 'published'
+    if (nextStatus === 'draft' && !await confirmAction({
+      title: 'Return recording to draft?',
+      description: 'Students will immediately lose access until you publish it again.',
+      confirmLabel: 'Return to draft',
+      tone: 'danger',
+    })) return
+
+    setUpdatingStatusId(recording.id)
+    const res = await api.updateRecording(cohortId, recording.id, { status: nextStatus })
+    setUpdatingStatusId(null)
+
+    if (res.error) {
+      setError(res.error)
+      toast.error(res.error)
+      return
+    }
+
+    toast.success(nextStatus === 'published' ? 'Recording published' : 'Recording returned to draft')
+    void fetchRecordings()
+    onRecordingsChange?.()
+  }
+
   const formatSize = (bytes: number) => {
     if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
     if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
@@ -292,8 +323,10 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
     return res.data?.stream_url || null
   }, [cohortId, previewRecording])
 
+  const publishedRecordings = recordings.filter((recording) => recording.status === 'published')
+  const draftCount = recordings.length - publishedRecordings.length
   const libraryItems = [
-    ...recordings.map((recording) => ({
+    ...publishedRecordings.map((recording) => ({
       key: `uploaded-${recording.id}`,
       title: recording.title,
       description: recording.description,
@@ -338,7 +371,7 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
         <div className="flex items-center gap-2">
           <Film className="h-5 w-5 text-primary-500" />
           <h3 className="text-sm font-semibold text-slate-900">Uploaded Recordings</h3>
-          <span className="text-xs text-slate-400">({recordings.length})</span>
+          <span className="text-xs text-slate-400">({publishedRecordings.length} published{draftCount > 0 ? ` · ${draftCount} draft${draftCount === 1 ? '' : 's'}` : ''})</span>
         </div>
         <button
           onClick={() => {
@@ -378,6 +411,23 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
             </p>
             <p className="text-xs text-slate-400 mt-1">MP4, MOV, WebM — up to 5 GB each</p>
           </div>
+
+          <label className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+            <input
+              type="checkbox"
+              checked={publishImmediately}
+              onChange={(event) => setPublishImmediately(event.target.checked)}
+              className="h-5 w-5 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+            />
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-slate-900">Publish immediately</span>
+              <span className="block text-xs text-slate-500">
+                {publishImmediately
+                  ? 'Students will get access as soon as each upload finishes.'
+                  : 'Recommended: uploads stay private drafts until you review and publish them.'}
+              </span>
+            </span>
+          </label>
 
           {uploadDrafts.length > 0 && (
             <div className="space-y-3">
@@ -434,7 +484,7 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
                       className="inline-flex items-center gap-1.5 rounded-lg bg-primary-500 px-4 py-1.5 text-xs font-medium text-white hover:bg-primary-600 transition-colors"
                     >
                       <Upload className="h-3.5 w-3.5" />
-                      Start upload
+                      {publishImmediately ? 'Upload and publish' : 'Upload as draft'}
                     </button>
                   </div>
                 </div>
@@ -462,7 +512,7 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
                 className="inline-flex items-center gap-1.5 rounded-lg bg-primary-500 px-4 py-1.5 text-xs font-medium text-white hover:bg-primary-600 transition-colors disabled:opacity-50"
               >
                 <Upload className="h-3.5 w-3.5" />
-                Start all uploads
+                {publishImmediately ? 'Upload and publish all' : 'Upload all as drafts'}
               </button>
             </div>
           </div>
@@ -489,6 +539,9 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
                   </p>
                   <p className="mt-0.5 truncate text-xs text-slate-500">
                     {formatSize(upload.fileSize)} · {upload.fileName}
+                  </p>
+                  <p className="mt-1 text-[11px] font-medium text-slate-500">
+                    {upload.cohortRecording?.publishImmediately ? 'Publishes when complete' : 'Saves as draft'}
                   </p>
                   <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
                     <div
@@ -522,7 +575,7 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
           <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold text-slate-900">Student recording library</p>
-              <p className="text-xs text-slate-500">The combined list students see, with source labels for each item.</p>
+              <p className="text-xs text-slate-500">Only published uploads appear here. Drafts remain in the staff list below.</p>
             </div>
             <span className="text-xs font-medium text-slate-500">
               {libraryItems.length} recording{libraryItems.length !== 1 ? 's' : ''}
@@ -651,7 +704,13 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
               ) : (
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-slate-900">{rec.title}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-medium text-slate-900">{rec.title}</p>
+                      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${rec.status === 'published' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                        {rec.status === 'published' ? <Globe2 className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                        {rec.status}
+                      </span>
+                    </div>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-slate-500">
                       {rec.recorded_date && (
                         <span className="inline-flex items-center gap-1">
@@ -674,6 +733,19 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
                     )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => void changeStatus(rec)}
+                      disabled={updatingStatusId === rec.id}
+                      className={`inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${rec.status === 'published' ? 'text-amber-700 hover:bg-amber-50' : 'text-emerald-700 hover:bg-emerald-50'}`}
+                    >
+                      {updatingStatusId === rec.id
+                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        : rec.status === 'published'
+                          ? <EyeOff className="h-3.5 w-3.5" />
+                          : <Globe2 className="h-3.5 w-3.5" />}
+                      {rec.status === 'published' ? 'Return to draft' : 'Publish'}
+                    </button>
                     <button
                       type="button"
                       onClick={() => setPreviewRecording(rec)}

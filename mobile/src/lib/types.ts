@@ -294,6 +294,7 @@ export interface RecordingItem {
   date?: string | null;
   url?: string | null;
   source: 'uploaded' | 'youtube' | 'external';
+  status?: 'draft' | 'published';
   duration_seconds?: number | null;
   duration_display?: string | null;
   file_size_display?: string | null;

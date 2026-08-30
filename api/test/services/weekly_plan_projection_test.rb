@@ -43,6 +43,7 @@ class WeeklyPlanProjectionTest < ActiveSupport::TestCase
       content_type: "video/mp4",
       file_size: 1.megabyte,
       position: 1,
+      status: :published,
       recorded_date: Date.new(2030, 7, 8)
     )
   end
@@ -67,6 +68,14 @@ class WeeklyPlanProjectionTest < ActiveSupport::TestCase
     unenrolled = User.create!(clerk_id: "weekly_unenrolled", email: "weekly-unenrolled@example.com", first_name: "No", last_name: "Cohort", role: :student)
 
     assert_equal({ enrolled: false, timezone: "Pacific/Guam" }, WeeklyPlanProjection.new(unenrolled, now: @now).call)
+  end
+
+  test "does not put draft recordings in student catch-up work" do
+    @recording.update!(status: :draft)
+
+    plan = WeeklyPlanProjection.new(@student, now: @now).call
+
+    assert_empty plan[:recording_catch_up]
   end
 
   private

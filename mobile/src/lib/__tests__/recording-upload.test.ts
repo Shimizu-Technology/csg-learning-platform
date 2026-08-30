@@ -48,7 +48,20 @@ describe('uploadRecording', () => {
 
     expect(api.presignRecordingUpload).toHaveBeenCalledWith(7, 'small.mp4', 'video/mp4');
     expect(mockFetch).toHaveBeenCalledWith('https://s3.example/post', expect.objectContaining({ method: 'POST' }));
-    expect(api.createRecording).toHaveBeenCalledWith(7, expect.objectContaining({ title: 'Class replay', s3_key: 'recordings/small.mp4' }));
+    expect(api.createRecording).toHaveBeenCalledWith(7, expect.objectContaining({ title: 'Class replay', s3_key: 'recordings/small.mp4', publish_immediately: false }));
+  });
+
+  it('passes the explicit publish-immediately choice to recording creation', async () => {
+    const api = apiMock();
+    await uploadRecording({
+      api: api as never,
+      cohortId: 7,
+      asset: { uri: 'file:///small.mp4', name: 'small.mp4', size: 4_000_000, mimeType: 'video/mp4' },
+      title: 'Public replay',
+      publishImmediately: true,
+    });
+
+    expect(api.createRecording).toHaveBeenCalledWith(7, expect.objectContaining({ publish_immediately: true }));
   });
 
   it('uploads large videos in retryable 16 MB parts before publishing', async () => {
