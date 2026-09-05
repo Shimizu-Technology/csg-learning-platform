@@ -21,7 +21,7 @@ import { formatConversationDay, isDifferentConversationDay, isNearConversationBo
 import { clearConversationDraftAfterSend, loadConversationDraft, loadFailedMessages, saveConversationDraft, saveFailedMessages } from '@/lib/conversation-storage';
 import { demoChannels, demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { insertMention, mentionSuggestions, mentionTriggerAt, resolveMentionUserIds } from '@/lib/mentions';
-import { clientMessageIdForSend, messageBodyWithinLimit, messageInsertionWithinLimit } from '@/lib/message-compose';
+import { clientMessageIdForSend, messageBodyWithinLimit, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
 import { messagePreview } from '@/lib/message-format';
 import { markOptimisticFailed, mergeMessageEvent, mergeOlderMessages, mergePinnedMessageEvent, mergeServerAndFailedMessages, reconcileOptimistic, sortMessages, toggleOwnReaction } from '@/lib/message-state';
 import { REACTION_OPTIONS } from '@/lib/reactions';
@@ -81,6 +81,7 @@ export default function ConversationScreen() {
     draft,
     selection,
     disabled: sending || Boolean(editingMessage),
+    maxDraftLength: MESSAGE_BODY_LIMIT,
     onDraftChange: setDraft,
     onSelectionChange: setSelection,
   });

@@ -14,7 +14,7 @@ import { useVoiceDraft } from '@/hooks/use-voice-draft';
 import { subscribeToMessages } from '@/lib/cable';
 import { demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { resolveMentionUserIds } from '@/lib/mentions';
-import { clientMessageIdForSend, type FailedSendIntent, messageBodyWithinLimit } from '@/lib/message-compose';
+import { clientMessageIdForSend, type FailedSendIntent, messageBodyWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
 import { mergeMessageEvent, sortMessages } from '@/lib/message-state';
 import { clearThreadDraftAfterSend, loadStoredThreadDraft, saveThreadDraft } from '@/lib/conversation-storage';
 import type { Message, MessageEvent, UserSummary } from '@/lib/types';
@@ -52,6 +52,7 @@ export default function ThreadScreen() {
     draft,
     selection,
     disabled: sending,
+    maxDraftLength: MESSAGE_BODY_LIMIT,
     onDraftChange: setDraft,
     onSelectionChange: setSelection,
   });

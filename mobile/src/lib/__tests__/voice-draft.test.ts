@@ -1,4 +1,4 @@
-import { insertVoiceDraft, restoreRawVoiceDraft, voiceDraftSegment, voiceEditDistanceBucket, type VoiceDraftReview } from '../voice-draft';
+import { insertVoiceDraft, restoreRawVoiceDraft, voiceDraftSegment, voiceDraftWithinLimit, voiceEditDistanceBucket, type VoiceDraftReview } from '../voice-draft';
 
 describe('voice draft helpers', () => {
   it('inserts at the cursor without replacing typed text', () => {
@@ -24,5 +24,11 @@ describe('voice draft helpers', () => {
     expect(voiceEditDistanceBucket(review, 'One two three four.')).toBe('none');
     expect(voiceEditDistanceBucket(review, 'One two three four please.')).toBe('light');
     expect(voiceEditDistanceBucket(review, 'Different message')).toBe('substantial');
+  });
+
+  it('applies optional voice-draft limits using Unicode code points', () => {
+    expect(voiceDraftWithinLimit('🚀🚀', 2)).toBe(true);
+    expect(voiceDraftWithinLimit('🚀🚀a', 2)).toBe(false);
+    expect(voiceDraftWithinLimit('unbounded')).toBe(true);
   });
 });

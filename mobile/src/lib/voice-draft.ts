@@ -35,6 +35,10 @@ export function restoreRawVoiceDraft(draft: string, review: VoiceDraftReview) {
   return { value, selection: { start: cursor, end: cursor } };
 }
 
+export function voiceDraftWithinLimit(value: string, maximum?: number) {
+  return !maximum || Array.from(value).length <= maximum;
+}
+
 export function voiceEditDistanceBucket(review: VoiceDraftReview, draft: string): 'none' | 'light' | 'substantial' {
   const current = voiceDraftSegment(draft, review);
   if (current === null) return 'substantial';

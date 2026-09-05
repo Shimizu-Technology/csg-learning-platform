@@ -6,7 +6,7 @@ import { Alert, AppState, Linking } from 'react-native';
 
 import { analyticsClient, captureProductEvent, durationBucket, latencyBucket, type VoiceSurface } from '@/lib/analytics';
 import type { CsgApi } from '@/lib/api';
-import { insertVoiceDraft, restoreRawVoiceDraft, voiceEditDistanceBucket, type VoiceDraftReview } from '@/lib/voice-draft';
+import { insertVoiceDraft, restoreRawVoiceDraft, voiceDraftWithinLimit, voiceEditDistanceBucket, type VoiceDraftReview } from '@/lib/voice-draft';
 import { useSharedVoiceRecorder } from '@/providers/voice-recorder-provider';
 
 const PERMISSION_EXPLAINED_KEY = 'csg.voice.permission-explained.v1';
@@ -22,13 +22,14 @@ interface UseVoiceDraftOptions {
   draft: string;
   selection: { start: number; end: number };
   disabled?: boolean;
+  maxDraftLength?: number;
   onDraftChange: (value: string) => void;
   onSelectionChange: (selection: { start: number; end: number }) => void;
 }
 
 type FinalizedRecording = { uri: string | null; durationSeconds: number };
 
-export function useVoiceDraft({ api, demo, surface, draft, selection, disabled, onDraftChange, onSelectionChange }: UseVoiceDraftOptions) {
+export function useVoiceDraft({ api, demo, surface, draft, selection, disabled, maxDraftLength, onDraftChange, onSelectionChange }: UseVoiceDraftOptions) {
   const { recorder, recorderState, claim, owns, release } = useSharedVoiceRecorder();
   const [state, setState] = useState<VoiceDraftState>('idle');
   const [review, setReview] = useState<VoiceDraftReview | null>(null);
@@ -106,6 +107,11 @@ export function useVoiceDraft({ api, demo, surface, draft, selection, disabled, 
         return;
       }
       const inserted = insertVoiceDraft(draftRef.current, selectionRef.current, suggestedText);
+      if (maxDraftLength && !voiceDraftWithinLimit(inserted.value, maxDraftLength)) {
+        setError(`That voice draft would exceed the ${maxDraftLength.toLocaleString()}-character limit. Shorten the current draft or record a shorter addition.`);
+        setState('error');
+        return;
+      }
       const nextReview: VoiceDraftReview = { rawText, suggestedText, prefix: inserted.prefix, suffix: inserted.suffix };
       onDraftChange(inserted.value);
       onSelectionChange(inserted.selection);
@@ -128,7 +134,7 @@ export function useVoiceDraft({ api, demo, surface, draft, selection, disabled, 
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
     }
-  }, [api, deleteRecording, onDraftChange, onSelectionChange, surface]);
+  }, [api, deleteRecording, maxDraftLength, onDraftChange, onSelectionChange, surface]);
 
   const stop = useCallback(async () => {
     if (stateRef.current !== 'recording' || !owns(owner)) return;
@@ -268,11 +274,15 @@ export function useVoiceDraft({ api, demo, surface, draft, selection, disabled, 
       Alert.alert('Could not restore automatically', 'The text around the voice draft changed. Your edits are preserved; record again if you need a fresh transcript.');
       return;
     }
+    if (maxDraftLength && !voiceDraftWithinLimit(restored.value, maxDraftLength)) {
+      Alert.alert('Draft is too long', `The original transcript would exceed the ${maxDraftLength.toLocaleString()}-character limit. Your current edits are preserved.`);
+      return;
+    }
     onDraftChange(restored.value);
     onSelectionChange(restored.selection);
     setNotice('Original transcript restored. Review it before sending.');
     captureProductEvent('voice_draft_restored', { surface });
-  }, [onDraftChange, onSelectionChange, review, surface]);
+  }, [maxDraftLength, onDraftChange, onSelectionChange, review, surface]);
 
   const dismissReview = useCallback(() => {
     setNotice(null);
