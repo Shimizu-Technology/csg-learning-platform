@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ConversationKind, Message } from './types';
+import { activateUserStorage, beginUserStorageCleanup, userStorageCleanupIsCurrent } from './user-storage-lifecycle';
 
 const authoredStorageWrites = new Map<string, Promise<void>>();
 const userStorageGenerations = new Map<number, number>();
@@ -30,6 +31,7 @@ async function readAfterPendingWrites(userId: number, key: string) {
 }
 
 export function activateUserConversationStorage(userId: number) {
+  activateUserStorage(userId);
   if (!userStorageGenerations.has(userId)) {
     userStorageGenerations.set(userId, 0);
   } else if (blockedStorageUsers.delete(userId)) {
@@ -154,7 +156,29 @@ export function saveFailedMessages(userId: number, kind: ConversationKind, id: n
   });
 }
 
-export async function clearUserConversationStorage(userId: number) {
+export async function saveFailedMessagesWithRetry(
+  userId: number,
+  kind: ConversationKind,
+  id: number,
+  messages: Message[],
+  shouldContinue: () => boolean = () => true,
+  waitForRetry: (milliseconds: number) => Promise<void> = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+) {
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await saveFailedMessages(userId, kind, id, messages);
+      return true;
+    } catch {
+      if (attempt === maxAttempts || !shouldContinue()) return false;
+      await waitForRetry(250 * (2 ** (attempt - 1)));
+      if (!shouldContinue()) return false;
+    }
+  }
+  return false;
+}
+
+export async function clearUserConversationStorage(userId: number, sharedCleanup = beginUserStorageCleanup(userId)) {
   const cleanupGeneration = (userStorageGenerations.get(userId) || 0) + 1;
   userStorageGenerations.set(userId, cleanupGeneration);
   blockedStorageUsers.add(userId);
@@ -168,6 +192,6 @@ export async function clearUserConversationStorage(userId: number) {
     .map(([, write]) => write.catch(() => undefined));
   await Promise.all(pendingWrites);
   const keys = (await AsyncStorage.getAllKeys()).filter((key) => prefixes.some((prefix) => key.startsWith(prefix)));
-  if (userStorageGenerations.get(userId) !== cleanupGeneration || !blockedStorageUsers.has(userId)) return;
+  if (userStorageGenerations.get(userId) !== cleanupGeneration || !blockedStorageUsers.has(userId) || !userStorageCleanupIsCurrent(sharedCleanup)) return;
   if (keys.length) await AsyncStorage.multiRemove(keys);
 }

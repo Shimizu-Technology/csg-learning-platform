@@ -815,7 +815,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :unprocessable_entity
-    assert_includes JSON.parse(response.body).fetch("errors"), "Client message is too long (maximum is 100 characters)"
+    assert_includes JSON.parse(response.body).fetch("errors"), "Client message ID is too long (maximum is 100 characters)"
   end
 
   test "message create rejects malformed mention user ids" do

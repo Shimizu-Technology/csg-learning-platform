@@ -145,6 +145,7 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
     message = Message.create!(channel: @cohort.channels.find_by!(name: "Class Chat"), author: @author, body: "Ordered delete")
     first_entered = Queue.new
     release_first = Queue.new
+    second_attempting = Queue.new
     second_entered = Queue.new
     errors = Queue.new
 
@@ -158,6 +159,7 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
     end
     first_entered.pop
     second = Thread.new do
+      second_attempting << true
       MessageDeliveryService.synchronize_delivery(Message.find(message.id)) do
         second_entered << true
       end
@@ -165,6 +167,10 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
       errors << error
     end
 
+    second_attempting.pop
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
+    sleep 0.01 until second.status == "sleep" || Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+    assert_equal "sleep", second.status, "second thread never waited for the delivery lock"
     assert_raises(ThreadError) { second_entered.pop(true) }
     release_first << true
     assert first.join(5), "active broadcast lock did not release"
@@ -199,5 +205,17 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
     release_first << true if defined?(release_first) && first&.alive?
     first&.join(5)
     first&.kill if first&.alive?
+  end
+
+  test "delivery locks are reentrant for nested delivery stages" do
+    message = Message.create!(channel: @cohort.channels.find_by!(name: "Class Chat"), author: @author, body: "Nested lock")
+    entered = []
+
+    MessageDeliveryService.synchronize_delivery(message) do
+      entered << :outer
+      MessageDeliveryService.synchronize_delivery(message, wait_budget: 0) { entered << :inner }
+    end
+
+    assert_equal [ :outer, :inner ], entered
   end
 end

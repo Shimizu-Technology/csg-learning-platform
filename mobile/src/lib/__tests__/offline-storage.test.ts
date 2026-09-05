@@ -12,6 +12,7 @@ import {
   loadThreadDraft,
   saveConversationDraft,
   saveFailedMessages,
+  saveFailedMessagesWithRetry,
   saveThreadDraft,
   saveThreadDraftState,
 } from '../conversation-storage';
@@ -25,6 +26,7 @@ import {
   submissionDraftMatches,
   submissionDraftKey,
 } from '../submission-storage';
+import { beginUserStorageCleanup } from '../user-storage-lifecycle';
 import type { Message } from '../types';
 
 jest.mock('@react-native-async-storage/async-storage', () => jest.requireActual('@react-native-async-storage/async-storage/jest/async-storage-mock'));
@@ -234,6 +236,28 @@ describe('offline authored storage', () => {
     expect(order).toEqual(['set-start', 'set-finish', 'remove']);
   });
 
+  it('retries transient failed-message persistence errors with a bound', async () => {
+    const failed = { id: -1, client_status: 'failed', client_message_id: 'retry-persistence' } as Message;
+    const setItem = jest.spyOn(AsyncStorage, 'setItem');
+    setItem.mockClear();
+    setItem.mockRejectedValueOnce(new Error('Storage unavailable'));
+    const waits: number[] = [];
+
+    const saved = await saveFailedMessagesWithRetry(
+      7,
+      'channel',
+      3,
+      [failed],
+      () => true,
+      async (milliseconds) => { waits.push(milliseconds); },
+    );
+
+    expect(saved).toBe(true);
+    expect(setItem).toHaveBeenCalledTimes(2);
+    expect(waits).toEqual([250]);
+    expect(await loadFailedMessages(7, 'channel', 3)).toEqual([failed]);
+  });
+
   it('does not let malformed-data cleanup delete a newer valid failed message', async () => {
     const key = failedMessagesKey(7, 'channel', 3);
     await AsyncStorage.setItem(key, '{malformed');
@@ -306,6 +330,30 @@ describe('offline authored storage', () => {
     await priorCleanup;
 
     expect(await loadConversationDraft(7, 'channel', 3)).toBe('New session draft');
+  });
+
+  it('does not let stale cleanup remove a submission draft saved after reactivation', async () => {
+    await saveSubmissionDraft(7, 42, 'Old draft', null, null);
+    let releaseKeyRead = () => {};
+    let markKeyReadStarted = () => {};
+    const keyReadGate = new Promise<void>((resolve) => { releaseKeyRead = resolve; });
+    const keyReadStarted = new Promise<void>((resolve) => { markKeyReadStarted = resolve; });
+    const originalGetAllKeys = AsyncStorage.getAllKeys.bind(AsyncStorage);
+    jest.spyOn(AsyncStorage, 'getAllKeys').mockImplementationOnce(async () => {
+      markKeyReadStarted();
+      await keyReadGate;
+      return originalGetAllKeys();
+    });
+
+    const cleanup = beginUserStorageCleanup(7);
+    const staleCleanup = clearUserSubmissionDrafts(7, cleanup);
+    await keyReadStarted;
+    activateUserConversationStorage(7);
+    await saveSubmissionDraft(7, 42, 'Recovered session draft', null, null);
+    releaseKeyRead();
+    await staleCleanup;
+
+    expect((await loadSubmissionDraft(7, 42))?.text).toBe('Recovered session draft');
   });
 
   it('clears only the signed-out user authored drafts and retry copies', async () => {

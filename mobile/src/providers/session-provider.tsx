@@ -8,6 +8,7 @@ import { clearLearningCache } from '@/lib/learning-cache';
 import { activateUserConversationStorage, clearUserConversationStorage } from '@/lib/conversation-storage';
 import { canUseCachedSession, isSessionAccessDenied, parseCachedSessionUser } from '@/lib/session-access';
 import { clearUserSubmissionDrafts } from '@/lib/submission-storage';
+import { beginUserStorageCleanup } from '@/lib/user-storage-lifecycle';
 import type { SessionUser } from '@/lib/types';
 import { useCsgAuth } from './auth-provider';
 
@@ -60,7 +61,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     try {
       const result = await api.session();
       if (!isCurrentRefresh()) return;
-      if (userIdRef.current !== result.user.id) activateUserConversationStorage(result.user.id);
+      activateUserConversationStorage(result.user.id);
       setUser(result.user); setError(null); setAccessDenied(false);
       // The authenticated server session is authoritative. A device-storage
       // failure must not turn a valid sign-in into a session failure.
@@ -76,11 +77,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
         const keys = [PUSH_TOKEN_KEY];
         if (userCacheKey) keys.push(userCacheKey);
         if (cleanupUserId) {
+          const cleanup = beginUserStorageCleanup(cleanupUserId);
           keys.push(`csg.inbox.${cleanupUserId}`, `csg.workspaces.${cleanupUserId}`, `csg.workspace.active.${cleanupUserId}`);
           await Promise.all([
-            clearLearningCache(cleanupUserId),
-            clearUserConversationStorage(cleanupUserId),
-            clearUserSubmissionDrafts(cleanupUserId),
+            clearLearningCache(cleanupUserId, cleanup),
+            clearUserConversationStorage(cleanupUserId, cleanup),
+            clearUserSubmissionDrafts(cleanupUserId, cleanup),
           ].map((operation) => operation.catch(() => undefined)));
         }
         if (!isCurrentRefresh()) return;
@@ -90,7 +92,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
         setAccessDenied(true);
       } else if (canUseCachedSession(requestError)) {
         if (cachedUser) {
-          if (userIdRef.current !== cachedUser.id) activateUserConversationStorage(cachedUser.id);
+          activateUserConversationStorage(cachedUser.id);
           setUser(cachedUser);
         } else {
           if (cached && userCacheKey) await AsyncStorage.removeItem(userCacheKey).catch(() => undefined);
@@ -127,11 +129,14 @@ export function SessionProvider({ children }: PropsWithChildren) {
     const keys = [PUSH_TOKEN_KEY];
     if (userCacheKey) keys.push(userCacheKey);
     if (cleanupUserId) keys.push(`csg.inbox.${cleanupUserId}`, `csg.workspaces.${cleanupUserId}`, `csg.workspace.active.${cleanupUserId}`);
-    if (cleanupUserId) await Promise.all([
-      clearLearningCache(cleanupUserId),
-      clearUserConversationStorage(cleanupUserId),
-      clearUserSubmissionDrafts(cleanupUserId),
-    ].map((operation) => operation.catch(() => undefined)));
+    if (cleanupUserId) {
+      const cleanup = beginUserStorageCleanup(cleanupUserId);
+      await Promise.all([
+        clearLearningCache(cleanupUserId, cleanup),
+        clearUserConversationStorage(cleanupUserId, cleanup),
+        clearUserSubmissionDrafts(cleanupUserId, cleanup),
+      ].map((operation) => operation.catch(() => undefined)));
+    }
     await AsyncStorage.multiRemove(keys);
     await auth.signOut();
     lastUserIdRef.current = null;

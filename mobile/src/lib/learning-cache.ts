@@ -1,5 +1,6 @@
 import type { PersistedClient, Persister } from '@tanstack/react-query-persist-client';
 import * as SQLite from 'expo-sqlite';
+import { beginUserStorageCleanup, userStorageCleanupIsCurrent, userStorageIsActive, type UserStorageCleanup } from './user-storage-lifecycle';
 
 const CACHE_DATABASE = 'csg-connect.db';
 const CACHE_TABLE = 'learning_query_cache';
@@ -32,7 +33,9 @@ export function createLearningPersister(userId: number): Persister {
   const cacheKey = learningCacheKey(userId);
   return {
     persistClient: async (client) => {
+      if (!userStorageIsActive(userId)) return;
       const db = await database();
+      if (!userStorageIsActive(userId)) return;
       await db.runAsync(
         `INSERT OR REPLACE INTO ${CACHE_TABLE} (cache_key, payload, updated_at) VALUES (?, ?, ?)`,
         cacheKey,
@@ -41,6 +44,7 @@ export function createLearningPersister(userId: number): Persister {
       );
     },
     restoreClient: async () => {
+      if (!userStorageIsActive(userId)) return undefined;
       const db = await database();
       const row = await db.getFirstAsync<{ payload: string }>(`SELECT payload FROM ${CACHE_TABLE} WHERE cache_key = ?`, cacheKey);
       if (!row) return undefined;
@@ -58,7 +62,8 @@ export function createLearningPersister(userId: number): Persister {
   };
 }
 
-export async function clearLearningCache(userId: number) {
+export async function clearLearningCache(userId: number, cleanup: UserStorageCleanup = beginUserStorageCleanup(userId)) {
   const db = await database();
+  if (!userStorageCleanupIsCurrent(cleanup)) return;
   await db.runAsync(`DELETE FROM ${CACHE_TABLE} WHERE cache_key = ?`, learningCacheKey(userId));
 }

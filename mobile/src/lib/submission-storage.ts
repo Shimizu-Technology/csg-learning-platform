@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { beginUserStorageCleanup, userStorageCleanupIsCurrent, userStorageIsActive, type UserStorageCleanup } from './user-storage-lifecycle';
 
 export interface SubmissionDraft {
   text: string;
@@ -32,6 +33,7 @@ export async function loadSubmissionDraft(userId: number, contentBlockId: number
 }
 
 export async function saveSubmissionDraft(userId: number, contentBlockId: number, text: string, baseSubmissionId: number | null, baseSubmissionUpdatedAt: string | null) {
+  if (!userStorageIsActive(userId)) return;
   const key = submissionDraftKey(userId, contentBlockId);
   if (!text.trim()) {
     await AsyncStorage.removeItem(key);
@@ -45,8 +47,9 @@ export async function clearSubmissionDraft(userId: number, contentBlockId: numbe
   await AsyncStorage.removeItem(submissionDraftKey(userId, contentBlockId));
 }
 
-export async function clearUserSubmissionDrafts(userId: number) {
+export async function clearUserSubmissionDrafts(userId: number, cleanup: UserStorageCleanup = beginUserStorageCleanup(userId)) {
   const prefix = `csg.submission-draft.${userId}.`;
   const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(prefix));
+  if (!userStorageCleanupIsCurrent(cleanup)) return;
   if (keys.length) await AsyncStorage.multiRemove(keys);
 }

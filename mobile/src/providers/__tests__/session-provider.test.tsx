@@ -215,6 +215,22 @@ it('clears active account data on access denial even when its session cache is m
   expect(await loadConversationDraft(userA.id, 'channel', 3)).toBe('');
 });
 
+it('reactivates authored storage after access returns for the same subject', async () => {
+  mockSession.mockResolvedValueOnce({ user: userA });
+  render(<SessionProvider><SessionObserver /></SessionProvider>);
+  await act(async () => { await observedSession!.refresh(); });
+  mockSession.mockRejectedValueOnce(new ApiError('No access', 403, 'account_not_authorized'));
+  await act(async () => { await observedSession!.refresh(); });
+  expect(observedSession!.accessDenied).toBe(true);
+
+  mockSession.mockResolvedValueOnce({ user: userA });
+  await act(async () => { await observedSession!.refresh(); });
+  await saveConversationDraft(userA.id, 'channel', 3, 'Recovered account draft');
+
+  expect(observedSession!.accessDenied).toBe(false);
+  expect(await loadConversationDraft(userA.id, 'channel', 3)).toBe('Recovered account draft');
+});
+
 it('does not clear another account from a wrong-subject cache during sign-out', async () => {
   await saveConversationDraft(userB.id, 'channel', 3, 'Keep account B draft');
   await AsyncStorage.setItem('csg.session.user.account-a', JSON.stringify(userB));

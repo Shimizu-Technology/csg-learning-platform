@@ -19,7 +19,7 @@ import { useVoiceDraft } from '@/hooks/use-voice-draft';
 import { pendingAttachment, uploadAttachment } from '@/lib/attachments';
 import { subscribeToMessages } from '@/lib/cable';
 import { formatConversationDay, isDifferentConversationDay, isNearConversationBottom } from '@/lib/conversation-scroll';
-import { clearConversationDraftAfterSend, loadConversationDraft, loadFailedMessages, saveConversationDraft, saveFailedMessages } from '@/lib/conversation-storage';
+import { clearConversationDraftAfterSend, loadConversationDraft, loadFailedMessages, saveConversationDraft, saveFailedMessagesWithRetry } from '@/lib/conversation-storage';
 import { demoChannels, demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { insertMention, mentionSuggestions, mentionTriggerAt, resolveMentionUserIds } from '@/lib/mentions';
 import { clientMessageIdForSend, draftAfterSendConfirmation, messageBodyChangeAllowed, messageBodyWithinLimit, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
@@ -181,9 +181,11 @@ export default function ConversationScreen() {
     const serialized = JSON.stringify(failed);
     if (persistedFailedRef.current === serialized) return;
     persistedFailedRef.current = serialized;
-    void saveFailedMessages(userId, kind, id, failed).catch(() => {
-      if (persistedFailedRef.current === serialized) persistedFailedRef.current = null;
+    let active = true;
+    void saveFailedMessagesWithRetry(userId, kind, id, failed, () => active && persistedFailedRef.current === serialized).then((saved) => {
+      if (!saved && persistedFailedRef.current === serialized) persistedFailedRef.current = null;
     });
+    return () => { active = false; };
   }, [auth.demo, conversationIdentity, id, kind, loadedConversationIdentity, loading, messages, userId]);
 
   useEffect(() => auth.demo || loading || error ? undefined : subscribeToMessages(api, kind, id, (payload: MessageEvent) => {
