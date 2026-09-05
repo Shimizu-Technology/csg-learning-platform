@@ -1,4 +1,4 @@
-import { clientMessageIdForSend, createClientMessageId, messageBodyWithinLimit, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '../message-compose';
+import { clientMessageIdForSend, createClientMessageId, messageBodyChangeAllowed, messageBodyLength, messageBodyWithinLimit, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '../message-compose';
 
 describe('message compose contract', () => {
   it('matches the API body limit', () => {
@@ -36,5 +36,13 @@ describe('message compose contract', () => {
     expect(messageInsertionWithinLimit(boundary, boundary.length)).toEqual({ value: boundary, cursor: boundary.length });
     expect(messageBodyWithinLimit(`${boundary}🚀`)).toBe(false);
     expect(messageInsertionWithinLimit(`${boundary}🚀`, boundary.length + 2)).toBeNull();
+    expect(messageBodyLength(boundary)).toBe(MESSAGE_BODY_LIMIT);
+  });
+
+  it('lets a legacy over-limit draft be shortened but not lengthened', () => {
+    const legacyDraft = 'a'.repeat(MESSAGE_BODY_LIMIT + 2);
+
+    expect(messageBodyChangeAllowed(legacyDraft, legacyDraft.slice(0, -1))).toBe(true);
+    expect(messageBodyChangeAllowed(legacyDraft, `${legacyDraft}a`)).toBe(false);
   });
 });

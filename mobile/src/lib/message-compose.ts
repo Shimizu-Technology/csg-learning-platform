@@ -18,7 +18,15 @@ export function clientMessageIdForSend(body: string, failedIntent?: FailedSendIn
 }
 
 export function messageBodyWithinLimit(value: string) {
-  return Array.from(value).length <= MESSAGE_BODY_LIMIT;
+  return messageBodyLength(value) <= MESSAGE_BODY_LIMIT;
+}
+
+export function messageBodyLength(value: string) {
+  return Array.from(value).length;
+}
+
+export function messageBodyChangeAllowed(currentValue: string, nextValue: string) {
+  return messageBodyWithinLimit(nextValue) || messageBodyLength(nextValue) < messageBodyLength(currentValue);
 }
 
 export function messageInsertionWithinLimit(nextValue: string, nextCursor: number) {
