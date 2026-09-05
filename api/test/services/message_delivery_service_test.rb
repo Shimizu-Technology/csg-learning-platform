@@ -84,4 +84,30 @@ class MessageDeliveryServiceTest < ActiveSupport::TestCase
       fresh_claim
     )
   end
+
+  test "cleanup failures preserve the delivery error and still release the lease" do
+    curriculum = Curriculum.create!(name: "Delivery cleanup curriculum")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Delivery cleanup cohort", start_date: Date.current, status: :active)
+    author = User.create!(clerk_id: "delivery_cleanup_author", email: "delivery-cleanup-author@example.com", first_name: "Cleanup", last_name: "Author", role: :admin)
+    message = Message.create!(channel: cohort.channels.find_by!(name: "Class Chat"), author: author, body: "Preserve the failure")
+
+    original_broadcast = MessageBroadcastService.method(:created)
+    MessageBroadcastService.define_singleton_method(:created) do |_message, **_options, &block|
+      block.call(author)
+      raise "original delivery failure"
+    end
+    original_checkpoint = MessageDeliveryService.method(:checkpoint_recipients)
+    MessageDeliveryService.define_singleton_method(:checkpoint_recipients) { |*_args| raise "cleanup checkpoint failure" }
+
+    error = assert_raises(RuntimeError) do
+      MessageDeliveryService.send(:deliver_message_broadcast, message)
+    end
+
+    assert_equal "original delivery failure", error.message
+    assert_nil message.reload.broadcast_delivery_claim
+    assert_nil message.broadcast_delivery_started_at
+  ensure
+    MessageBroadcastService.define_singleton_method(:created, original_broadcast) if defined?(original_broadcast) && original_broadcast
+    MessageDeliveryService.define_singleton_method(:checkpoint_recipients, original_checkpoint) if defined?(original_checkpoint) && original_checkpoint
+  end
 end

@@ -1,5 +1,5 @@
 import { ApiError } from '../api';
-import { canUseCachedSession, isSessionAccessDenied } from '../session-access';
+import { canUseCachedSession, isSessionAccessDenied, parseCachedSessionUser } from '../session-access';
 
 describe('session access errors', () => {
   it('recognizes explicit invite-only and archived account denials', () => {
@@ -15,5 +15,13 @@ describe('session access errors', () => {
   it('allows a saved session only for connectivity and transient server failures', () => {
     expect(canUseCachedSession(new ApiError('Offline'))).toBe(true);
     expect(canUseCachedSession(new ApiError('Unavailable', 503))).toBe(true);
+  });
+
+  it('accepts only cached session objects with a positive integer user id', () => {
+    expect(parseCachedSessionUser('{"id":7,"email":"student@example.com"}')?.id).toBe(7);
+    expect(parseCachedSessionUser('{"id":0}')).toBeNull();
+    expect(parseCachedSessionUser('{"id":"7"}')).toBeNull();
+    expect(parseCachedSessionUser('null')).toBeNull();
+    expect(parseCachedSessionUser('{malformed')).toBeNull();
   });
 });

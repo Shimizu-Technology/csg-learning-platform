@@ -14,6 +14,19 @@ describe('message compose contract', () => {
     expect(first.length).toBeLessThanOrEqual(100);
   });
 
+  it('creates bounded distinct identifiers when randomUUID is unavailable', () => {
+    const originalCrypto = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+    Object.defineProperty(globalThis, 'crypto', { value: undefined, configurable: true });
+    try {
+      const identifiers = new Set(Array.from({ length: 50 }, () => createClientMessageId()));
+      expect(identifiers.size).toBe(50);
+      expect(Array.from(identifiers).every((value) => value.startsWith('message-') && value.length <= 100)).toBe(true);
+    } finally {
+      if (originalCrypto) Object.defineProperty(globalThis, 'crypto', originalCrypto);
+      else Reflect.deleteProperty(globalThis, 'crypto');
+    }
+  });
+
   it('reuses a failed send identifier only while the body is unchanged', () => {
     const failed = { body: 'Retry me', clientMessageId: 'send-1' };
 

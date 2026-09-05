@@ -8,6 +8,7 @@ import { Alert, FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, Press
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/avatar';
+import { ComposerLimitNotice } from '@/components/composer-limit-notice';
 import { ImagePreview } from '@/components/image-preview';
 import { MessageBubble } from '@/components/message-bubble';
 import { ReactionDetailsSheet } from '@/components/reaction-details-sheet';
@@ -21,7 +22,7 @@ import { formatConversationDay, isDifferentConversationDay, isNearConversationBo
 import { clearConversationDraftAfterSend, loadConversationDraft, loadFailedMessages, saveConversationDraft, saveFailedMessages } from '@/lib/conversation-storage';
 import { demoChannels, demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { insertMention, mentionSuggestions, mentionTriggerAt, resolveMentionUserIds } from '@/lib/mentions';
-import { clientMessageIdForSend, messageBodyChangeAllowed, messageBodyLength, messageBodyWithinLimit, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
+import { clientMessageIdForSend, messageBodyChangeAllowed, messageBodyWithinLimit, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
 import { messagePreview } from '@/lib/message-format';
 import { markOptimisticFailed, mergeMessageEvent, mergeOlderMessages, mergePinnedMessageEvent, mergeServerAndFailedMessages, reconcileOptimistic, sortMessages, toggleOwnReaction } from '@/lib/message-state';
 import { REACTION_OPTIONS } from '@/lib/reactions';
@@ -37,6 +38,7 @@ export default function ConversationScreen() {
   const params = useLocalSearchParams<{ kind: string; id: string; messageId?: string; source_type?: string; source_id?: string; source_label?: string; source_cohort_id?: string; source_student_id?: string }>();
   const kind: ConversationKind = params.kind === 'dm' ? 'dm' : 'channel';
   const id = Number(params.id);
+  const conversationIdentity = `${kind}:${id}`;
   const anchorMessageId = Number(params.messageId) || undefined;
   const sourceId = Number(params.source_id) || undefined;
   const sourceType = params.source_type === 'submission' || params.source_type === 'help_request' ? params.source_type : undefined;
@@ -52,6 +54,7 @@ export default function ConversationScreen() {
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingDraftRef = useRef<PendingConversationDraft | null>(null);
   const anchorScrolledRef = useRef(false);
+  const loadRequestRef = useRef(0);
   const [summary, setSummary] = useState<ChannelSummary | DirectConversationSummary | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
@@ -61,6 +64,7 @@ export default function ConversationScreen() {
   const [selection, setSelection] = useState({ start: 0, end: 0 });
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadedConversationIdentity, setLoadedConversationIdentity] = useState<string | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -107,42 +111,61 @@ export default function ConversationScreen() {
     requestAnimationFrame(() => listRef.current?.scrollToOffset({ animated, offset: 0 }));
   }, []);
 
-  const persistFailed = useCallback((next: Message[]) => { if (userId) void saveFailedMessages(userId, kind, id, next).catch(() => undefined); }, [id, kind, userId]);
-
   const load = useCallback(async () => {
+    const requestId = ++loadRequestRef.current;
     setLoading(true);
+    setLoadedConversationIdentity(null);
     anchorScrolledRef.current = false;
     try {
-      if (userId && !auth.demo) setDraft(await loadConversationDraft(userId, kind, id));
+      if (userId && !auth.demo) {
+        const storedDraft = await loadConversationDraft(userId, kind, id);
+        if (requestId !== loadRequestRef.current) return;
+        setDraft(storedDraft);
+      }
       if (auth.demo) {
         setSummary(kind === 'channel' ? demoChannels.find((item) => item.id === id) || null : demoDms.find((item) => item.id === id) || null);
         setMessages(demoMessages[`${kind}:${id}`] || []);
         setMentionUsers([demoUser]);
+        setLoadedConversationIdentity(conversationIdentity);
       } else {
         const result = kind === 'channel'
           ? await api.channel(id, { message_limit: 80, around_message_id: anchorMessageId })
           : await api.directConversation(id, { message_limit: 80, around_message_id: anchorMessageId });
+        if (requestId !== loadRequestRef.current) return;
         const nextSummary = 'channel' in result ? result.channel : result.direct_conversation;
         const workspaceResult = await api.workspace(nextSummary.workspace_id);
         const failed = userId ? await loadFailedMessages(userId, kind, id) : [];
+        if (requestId !== loadRequestRef.current) return;
         const mergedMessages = mergeServerAndFailedMessages(result.messages, failed);
         setSummary(nextSummary);
         setMessages(mergedMessages);
-        persistFailed(mergedMessages);
         setPinnedMessages(result.pinned_messages);
         setMeta(result.meta);
         setMentionUsers(workspaceResult.workspace.members);
+        setLoadedConversationIdentity(conversationIdentity);
         await api.markRead(kind, id);
       }
       nearBottomRef.current = !anchorMessageId;
       pendingScrollRef.current = !anchorMessageId;
       setShowScrollToLatest(Boolean(anchorMessageId));
       setError(null);
-    } catch (requestError) { setError((requestError as Error).message); }
-    finally { setLoading(false); }
-  }, [anchorMessageId, api, auth.demo, id, kind, persistFailed, userId]);
+    } catch (requestError) {
+      if (requestId === loadRequestRef.current) setError((requestError as Error).message);
+    } finally {
+      if (requestId === loadRequestRef.current) setLoading(false);
+    }
+  }, [anchorMessageId, api, auth.demo, conversationIdentity, id, kind, userId]);
 
-  useEffect(() => { const frame = requestAnimationFrame(() => void load()); return () => cancelAnimationFrame(frame); }, [load]);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => void load());
+    return () => { cancelAnimationFrame(frame); loadRequestRef.current += 1; };
+  }, [load]);
+
+  useEffect(() => {
+    if (!userId || auth.demo || loading || loadedConversationIdentity !== conversationIdentity) return;
+    void saveFailedMessages(userId, kind, id, messages).catch(() => undefined);
+  }, [auth.demo, conversationIdentity, id, kind, loadedConversationIdentity, loading, messages, userId]);
+
   useEffect(() => auth.demo || loading || error ? undefined : subscribeToMessages(api, kind, id, (payload: MessageEvent) => {
     if ((kind === 'channel' && payload.channel_id !== id) || (kind === 'dm' && payload.direct_conversation_id !== id)) return;
     if (payload.message.parent_message_id && payload.event === 'created') return;
@@ -151,10 +174,10 @@ export default function ConversationScreen() {
       setShowScrollToLatest(true);
       if (!payload.message.mine) setNewMessagesBelow((current) => current + 1);
     }
-    setMessages((current) => { const next = mergeMessageEvent(current, payload); persistFailed(next); return next; });
+    setMessages((current) => mergeMessageEvent(current, payload));
     setPinnedMessages((current) => mergePinnedMessageEvent(current, payload));
     if (follow) scrollToLatest(false);
-  }, setStatus), [api, auth.demo, error, id, kind, loading, persistFailed, scrollToLatest]);
+  }, setStatus), [api, auth.demo, error, id, kind, loading, scrollToLatest]);
 
   useEffect(() => {
     if (!userId || loading) return;
@@ -185,7 +208,7 @@ export default function ConversationScreen() {
       const result = kind === 'channel'
         ? await api.channel(id, { message_limit: 60, before_message_id: meta.oldest_message_id })
         : await api.directConversation(id, { message_limit: 60, before_message_id: meta.oldest_message_id });
-      setMessages((current) => { const next = mergeOlderMessages(current, result.messages); persistFailed(next); return next; });
+      setMessages((current) => mergeOlderMessages(current, result.messages));
       setMeta((current) => ({ ...result.meta, newest_message_id: current.newest_message_id, has_newer: current.has_newer }));
     } catch (requestError) { Alert.alert('Could not load earlier messages', (requestError as Error).message); }
     finally { setLoadingOlder(false); }
@@ -221,7 +244,7 @@ export default function ConversationScreen() {
         return;
       }
       const { message } = await api.sendMessage(kind, id, { body, client_message_id: clientMessageId, mention_user_ids: resolveMentionUserIds(body, mentionUsers), attachments: uploaded, send_push: true });
-      setMessages((current) => { const next = reconcileOptimistic(current, optimisticId, message); persistFailed(next); return next; });
+      setMessages((current) => reconcileOptimistic(current, optimisticId, message));
       if (!retryMessage) voiceDraft.markSent(body);
       if (userId) {
         if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
@@ -236,7 +259,7 @@ export default function ConversationScreen() {
         return;
       }
       setMessages((current) => {
-        const next = markOptimisticFailed(current, optimistic!, (requestError as Error).message); persistFailed(next); return next;
+        return markOptimisticFailed(current, optimistic!, (requestError as Error).message);
       });
       Alert.alert('Message not sent', (requestError as Error).message, [{ text: 'Keep for retry' }]);
     } finally { setSending(false); }
@@ -364,7 +387,7 @@ export default function ConversationScreen() {
         {!!attachments.length && <ScrollView horizontal keyboardShouldPersistTaps="handled" contentContainerStyle={styles.attachmentTray}>{attachments.map((attachment) => <View key={attachment.local_id} style={styles.pendingAttachment}><Paperclip color={palette.rubySoft} size={14} /><View style={styles.pendingCopy}><Text numberOfLines={1} style={styles.pendingName}>{attachment.filename}</Text><Text style={styles.pendingStatus}>{attachment.status === 'uploading' ? `${Math.round(attachment.progress * 100)}%` : 'Ready to send'}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Remove ${attachment.filename}`} onPress={() => setAttachments((current) => current.filter((item) => item.local_id !== attachment.local_id))} style={styles.removeAttachment}><X color={palette.muted} size={14} /></Pressable></View>)}</ScrollView>}
         <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />
         {editingMessage && <View style={styles.editBanner}><Edit3 color={palette.rubySoft} size={15} /><Text style={styles.editText}>Editing message</Text><Pressable accessibilityRole="button" accessibilityLabel="Cancel editing" onPress={() => { setEditingMessage(null); setEditDraft(''); setEditSelection({ start: 0, end: 0 }); }} style={styles.editClose}><X color={palette.muted} size={16} /></Pressable></View>}
-        {!composerWithinLimit && <Text accessibilityRole="alert" style={styles.composerLimit}>Shorten this draft to {MESSAGE_BODY_LIMIT.toLocaleString()} characters ({messageBodyLength(composerValue).toLocaleString()} now).</Text>}
+        <ComposerLimitNotice value={composerValue} />
         <View style={styles.composer}><Pressable accessibilityRole="button" accessibilityLabel="Add an attachment" disabled={sending || Boolean(editingMessage)} onPress={() => Alert.alert('Add an attachment', undefined, [{ text: 'Photo library', onPress: () => void pickImage() }, { text: 'Choose a file', onPress: () => void pickDocument() }, { text: 'Cancel', style: 'cancel' }])} style={styles.attachButton}><Paperclip color={palette.muted} size={19} /></Pressable><VoiceDraftButton state={voiceDraft.state} disabled={sending || Boolean(editingMessage)} onPress={() => void voiceDraft.start()} /><TextInput accessibilityLabel={editingMessage ? 'Edit message' : 'Message composer'} accessibilityHint={editingMessage ? 'Update the selected message' : `Enter a message for ${title}`} maxFontSizeMultiplier={fontScaleLimits.content} value={composerValue} selection={composerSelection} onSelectionChange={(event) => updateComposerSelection(event.nativeEvent.selection)} onChangeText={(value) => { if (messageBodyChangeAllowed(composerValue, value)) updateComposerValue(value); }} onFocus={() => { keyboardShouldFollowRef.current = nearBottomRef.current; if (nearBottomRef.current) scrollToLatest(false); }} placeholder={editingMessage ? 'Edit message' : `Message ${kind === 'channel' ? '#' : ''}${title}`} placeholderTextColor={palette.quiet} multiline style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel={editingMessage ? 'Save edit' : 'Send message'} disabled={!composerHasContent || !composerWithinLimit || sending} onPress={() => void (editingMessage ? saveEdit() : send())} style={({ pressed }) => [styles.send, (!composerHasContent || !composerWithinLimit || sending) && styles.sendDisabled, pressed && styles.pressed]}><Send color={palette.text} size={19} /></Pressable></View>
       </KeyboardAvoidingView>
 
@@ -408,7 +431,6 @@ const styles = StyleSheet.create({
   everyoneIcon: { width: 30, height: 30, borderRadius: 10, backgroundColor: '#2A151B', alignItems: 'center', justifyContent: 'center' },
   attachmentTray: { paddingHorizontal: 14, paddingVertical: 8, gap: 8, backgroundColor: palette.panel }, pendingAttachment: { width: 190, minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panelRaised, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', gap: 8 }, pendingCopy: { flex: 1 }, pendingName: { color: palette.text, fontFamily: fonts.semibold, fontSize: 11 }, pendingStatus: { color: palette.subtle, fontFamily: fonts.medium, fontSize: 11, marginTop: 2 }, removeAttachment: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center' },
   editBanner: { minHeight: 38, paddingHorizontal: 16, backgroundColor: '#201319', borderTopWidth: 1, borderTopColor: '#4A2029', flexDirection: 'row', alignItems: 'center', gap: 8 }, editText: { flex: 1, color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 11 }, editClose: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
-  composerLimit: { backgroundColor: '#251E13', color: palette.warning, fontFamily: fonts.semibold, fontSize: 11, lineHeight: 16, paddingHorizontal: 16, paddingVertical: 8 },
   composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 7, paddingHorizontal: 12, paddingTop: 9, paddingBottom: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.line, backgroundColor: palette.panel }, attachButton: { width: 44, height: 46, borderRadius: 15, alignItems: 'center', justifyContent: 'center' }, input: { flex: 1, minHeight: 46, maxHeight: 120, borderRadius: 17, backgroundColor: palette.ink, borderWidth: 1, borderColor: palette.line, color: palette.text, fontFamily: fonts.regular, fontSize: 14, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 11 }, send: { width: 46, height: 46, borderRadius: 16, backgroundColor: palette.ruby, alignItems: 'center', justifyContent: 'center' }, sendDisabled: { opacity: 0.38 }, pressed: { transform: [{ scale: 0.96 }] },
   modalRoot: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(2,4,8,0.76)' }, actionSheet: { backgroundColor: palette.panel, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderColor: palette.line, paddingHorizontal: 16, paddingBottom: 30 }, pinsSheet: { maxHeight: '76%', backgroundColor: palette.panel, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderColor: palette.line, paddingHorizontal: 16, paddingBottom: 30 }, sheetHandle: { width: 38, height: 4, borderRadius: 2, backgroundColor: palette.line, alignSelf: 'center', marginTop: 10 }, sheetTitle: { color: palette.text, fontFamily: fonts.bold, fontSize: 20, marginTop: 16, marginBottom: 12 },
   reactionPicker: { flexDirection: 'row', gap: 7, paddingBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.line }, reactionButton: { flex: 1, minHeight: 58, borderRadius: 15, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panelRaised, alignItems: 'center', justifyContent: 'center', gap: 5 }, reactionLabel: { color: palette.muted, fontFamily: fonts.semibold, fontSize: 11 }, action: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 13, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.line, paddingHorizontal: 6 }, actionText: { color: palette.text, fontFamily: fonts.semibold, fontSize: 14 }, actionDanger: { color: palette.rubySoft },

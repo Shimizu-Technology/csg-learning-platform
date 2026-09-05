@@ -27,9 +27,9 @@ class MessageDeliveryService
       raise StaleDeliveryClaim, "notification delivery claim expired" unless completed
 
       true
-    rescue StandardError
-      release_delivery(message, :notifications_delivery_started_at, :notifications_delivery_claim, claim) if claim.is_a?(String)
-      raise
+    rescue StandardError => delivery_error
+      safely_release_delivery(message, :notifications_delivery_started_at, :notifications_delivery_claim, claim) if claim.is_a?(String)
+      raise delivery_error
     end
 
     def deliver_message_broadcast(message)
@@ -78,10 +78,10 @@ class MessageDeliveryService
       raise StaleDeliveryClaim, "message delivery claim expired" unless completed
 
       true
-    rescue StandardError
-      checkpoint_recipients(message, recipients_attribute, started_attribute, claim_attribute, claim, pending_ids) if claim.is_a?(String) && pending_ids&.any?
-      release_delivery(message, started_attribute, claim_attribute, claim) if claim.is_a?(String)
-      raise
+    rescue StandardError => delivery_error
+      safely_checkpoint_recipients(message, recipients_attribute, started_attribute, claim_attribute, claim, pending_ids) if claim.is_a?(String) && pending_ids&.any?
+      safely_release_delivery(message, started_attribute, claim_attribute, claim) if claim.is_a?(String)
+      raise delivery_error
     end
 
     def claim_delivery(message, completed_attribute, started_attribute, claim_attribute)
@@ -134,6 +134,18 @@ class MessageDeliveryService
         )
         true
       end
+    end
+
+    def safely_checkpoint_recipients(message, recipients_attribute, started_attribute, claim_attribute, claim, recipient_ids)
+      checkpoint_recipients(message, recipients_attribute, started_attribute, claim_attribute, claim, recipient_ids)
+    rescue StandardError => error
+      Rails.logger.warn("MessageDeliveryService: delivery checkpoint cleanup failed: #{error.class}: #{error.message}")
+    end
+
+    def safely_release_delivery(message, started_attribute, claim_attribute, claim)
+      release_delivery(message, started_attribute, claim_attribute, claim)
+    rescue StandardError => error
+      Rails.logger.warn("MessageDeliveryService: delivery lease cleanup failed: #{error.class}: #{error.message}")
     end
   end
 end

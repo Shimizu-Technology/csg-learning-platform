@@ -6,7 +6,7 @@ import { demoUser } from '@/lib/demo-data';
 import { PUSH_TOKEN_KEY, registerPushNotifications } from '@/lib/push-notifications';
 import { clearLearningCache } from '@/lib/learning-cache';
 import { activateUserConversationStorage, clearUserConversationStorage } from '@/lib/conversation-storage';
-import { canUseCachedSession, isSessionAccessDenied } from '@/lib/session-access';
+import { canUseCachedSession, isSessionAccessDenied, parseCachedSessionUser } from '@/lib/session-access';
 import { clearUserSubmissionDrafts } from '@/lib/submission-storage';
 import type { SessionUser } from '@/lib/types';
 import { useCsgAuth } from './auth-provider';
@@ -56,7 +56,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
       if (isSessionAccessDenied(requestError)) {
         let cachedUserId: number | null = null;
         if (cached) {
-          try { cachedUserId = (JSON.parse(cached) as SessionUser).id; } catch { cachedUserId = null; }
+          cachedUserId = parseCachedSessionUser(cached)?.id || null;
         }
         cachedUserId ||= userIdRef.current || lastUserIdRef.current;
         const keys = [PUSH_TOKEN_KEY];
@@ -74,7 +74,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
         setAccessDenied(true);
       } else if (cached && canUseCachedSession(requestError)) {
         try {
-          const cachedUser = JSON.parse(cached) as SessionUser;
+          const cachedUser = parseCachedSessionUser(cached);
+          if (!cachedUser) throw new Error('Invalid cached session user');
           if (userIdRef.current !== cachedUser.id) activateUserConversationStorage(cachedUser.id);
           setUser(cachedUser);
         } catch { await AsyncStorage.removeItem(userCacheKey!); setUser(null); }

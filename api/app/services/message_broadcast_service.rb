@@ -1,3 +1,5 @@
+require "set"
+
 class MessageBroadcastService
   class << self
     def created(message, **options, &block)
@@ -23,8 +25,9 @@ class MessageBroadcastService
 
     def broadcast_to_recipients(event, message, skip_user_ids:, raise_on_failure:)
       failures = []
+      skipped_recipients = skip_user_ids.to_set
       message.destination.recipients.find_each do |user|
-        next if skip_user_ids.include?(user.id)
+        next if skipped_recipients.include?(user.id)
 
         begin
           # The event is sent before its durable recipient checkpoint. This is

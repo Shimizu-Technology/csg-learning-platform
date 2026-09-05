@@ -109,7 +109,7 @@ export async function loadFailedMessages(userId: number, kind: ConversationKind,
   } catch {
     await enqueueStorageWrite(userId, key, async () => {
       if (await AsyncStorage.getItem(key) === value) await AsyncStorage.removeItem(key);
-    });
+    }).catch(() => undefined);
     return [];
   }
 }
