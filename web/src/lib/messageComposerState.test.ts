@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   clearComposerState,
+  clearComposerStateFromWindow,
   MESSAGE_BODY_LIMIT,
   composerDestinationKey,
   messageCharacterCount,
@@ -36,6 +37,14 @@ describe('message composer state', () => {
     expect(storage.getItem('csg-message-failures:4:dm:3')).toBeNull()
     expect(storage.getItem('csg-message-draft:5:channel:2:root')).toBe('other user')
     expect(storage.getItem('unrelated')).toBe('keep')
+  })
+
+  it('tolerates a browser that throws while resolving localStorage', () => {
+    const restrictedWindow = Object.defineProperty({}, 'localStorage', {
+      get() { throw new Error('Storage is blocked') },
+    }) as Pick<Window, 'localStorage'>
+
+    expect(() => clearComposerStateFromWindow(4, restrictedWindow)).not.toThrow()
   })
 
   it('counts Unicode characters instead of UTF-16 code units', () => {

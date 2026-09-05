@@ -71,6 +71,17 @@ export function clearComposerState(userId: number, storage?: Storage | null) {
   }
 }
 
+export function clearComposerStateFromWindow(
+  userId: number,
+  browserWindow?: Pick<Window, 'localStorage'> | null,
+) {
+  try {
+    clearComposerState(userId, browserWindow?.localStorage)
+  } catch {
+    // Accessing localStorage itself can throw in restricted browser contexts.
+  }
+}
+
 export function readComposerDraft(key: string, storage?: Storage | null): StoredComposerDraft | null {
   if (!storageAvailable(storage)) return null
 

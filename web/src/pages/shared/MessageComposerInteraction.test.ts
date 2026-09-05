@@ -47,6 +47,7 @@ describe('message composer list formatting', () => {
   it('preserves the cursor through pointer activation of a toolbar list button', () => {
     editor = new Editor({ extensions: [StarterKit], content: '<p>Alpha beta</p>' })
     const selection = { from: 7, to: 7 }
+    editor.commands.setTextSelection(selection)
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -58,7 +59,13 @@ describe('message composer list formatting', () => {
           label: 'Bulleted list',
           children: 'List',
           onPointerDown: (event) => event.preventDefault(),
-          onClick: () => { if (editor) applyComposerList(editor, 'bulletList', selection) },
+          onClick: () => {
+            if (!editor) return
+            applyComposerList(editor, 'bulletList', {
+              from: editor.state.selection.from,
+              to: editor.state.selection.to,
+            })
+          },
         },
       ))
     })
@@ -77,15 +84,17 @@ describe('message composer list formatting', () => {
   })
 
   it.each([
-    ['Digit7', '<p>Alpha</p><ol><li><p></p></li></ol><p></p>'],
-    ['Digit8', '<p>Alpha</p><ul><li><p></p></li></ul><p></p>'],
-  ] as const)('handles the %s composer shortcut using the physical key code', (code, expectedHtml) => {
+    ['Meta', 'Digit7', '<p>Alpha</p><ol><li><p></p></li></ol><p></p>'],
+    ['Meta', 'Digit8', '<p>Alpha</p><ul><li><p></p></li></ul><p></p>'],
+    ['Control', 'Digit7', '<p>Alpha</p><ol><li><p></p></li></ol><p></p>'],
+    ['Control', 'Digit8', '<p>Alpha</p><ul><li><p></p></li></ul><p></p>'],
+  ] as const)('handles the %s+Shift+%s composer shortcut using the physical key code', (modifier, code, expectedHtml) => {
     editor = new Editor({ extensions: [StarterKit], content: '<p>Alpha</p>' })
     const preventDefault = vi.fn()
 
     expect(applyComposerListShortcut(editor, {
-      metaKey: true,
-      ctrlKey: false,
+      metaKey: modifier === 'Meta',
+      ctrlKey: modifier === 'Control',
       shiftKey: true,
       code,
       preventDefault,

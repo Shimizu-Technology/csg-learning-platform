@@ -5,7 +5,7 @@ import posthog from 'posthog-js'
 import { api, clearApiCache, setApiCacheScope, setAuthTokenGetter } from '../lib/api'
 import { isPostHogEnabled } from '../providers/PostHogProvider'
 import { isAccessDeniedResponse } from '../lib/sessionAccess'
-import { clearComposerState } from '../lib/messageComposerState'
+import { clearComposerStateFromWindow } from '../lib/messageComposerState'
 import type { User } from '../types/api'
 
 type UserData = User
@@ -42,6 +42,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
   const clerkUserId = clerkUser?.id
   const cacheScopeRef = useRef<string | null>(null)
   const applicationUserIdRef = useRef<number | null>(null)
+  const sessionRequestGenerationRef = useRef(0)
 
   useEffect(() => {
     setAuthTokenGetter(async (forceRefresh = false) => {
@@ -64,11 +65,13 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
 
   const syncSession = useCallback(async () => {
     if (!isSignedIn) return false
+    const requestGeneration = ++sessionRequestGenerationRef.current
     setSessionError(null)
     setAccessDenied(false)
 
     try {
       const res = await api.createSession()
+      if (requestGeneration !== sessionRequestGenerationRef.current) return false
       if (res.data?.user) {
         applicationUserIdRef.current = res.data.user.id
         setUser(res.data.user)
@@ -100,10 +103,10 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isLoaded) return
     if (!isSignedIn) {
-      if (applicationUserIdRef.current && typeof window !== 'undefined') {
-        clearComposerState(applicationUserIdRef.current, window.localStorage)
-        applicationUserIdRef.current = null
-      }
+      sessionRequestGenerationRef.current += 1
+      const signedOutUserId = applicationUserIdRef.current
+      applicationUserIdRef.current = null
+      if (signedOutUserId && typeof window !== 'undefined') clearComposerStateFromWindow(signedOutUserId, window)
       setUser(null)
       setSessionError(null)
       setAccessDenied(false)
