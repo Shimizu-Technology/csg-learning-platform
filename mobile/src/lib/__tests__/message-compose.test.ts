@@ -1,4 +1,4 @@
-import { clientMessageIdForSend, createClientMessageId, messageBodyChangeAllowed, messageBodyLength, messageBodyWithinLimit, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '../message-compose';
+import { clientMessageIdForSend, createClientMessageId, draftAfterSendConfirmation, messageBodyChangeAllowed, messageBodyLength, messageBodyWithinLimit, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '../message-compose';
 
 describe('message compose contract', () => {
   it('matches the API body limit', () => {
@@ -44,5 +44,15 @@ describe('message compose contract', () => {
 
     expect(messageBodyChangeAllowed(legacyDraft, legacyDraft.slice(0, -1))).toBe(true);
     expect(messageBodyChangeAllowed(legacyDraft, `${legacyDraft}a`)).toBe(false);
+  });
+
+  it('reconciles response loss when realtime confirms the same authored send intent', () => {
+    const intent = { body: 'Possibly delivered', clientMessageId: 'thread-send-1' };
+
+    expect(draftAfterSendConfirmation('Possibly delivered', intent, 'thread-send-1', 7, 7)).toBe('');
+    expect(draftAfterSendConfirmation('', intent, 'thread-send-1', 7, 7)).toBe('');
+    expect(draftAfterSendConfirmation('Replacement draft', intent, 'thread-send-1', 7, 7)).toBe('Replacement draft');
+    expect(draftAfterSendConfirmation('Possibly delivered', intent, 'thread-send-1', 8, 7)).toBeNull();
+    expect(draftAfterSendConfirmation('Possibly delivered', intent, 'another-send', 7, 7)).toBeNull();
   });
 });

@@ -17,6 +17,17 @@ export function clientMessageIdForSend(body: string, failedIntent?: FailedSendIn
   return failedIntent?.body.trim() === body.trim() ? failedIntent.clientMessageId : createClientMessageId();
 }
 
+export function draftAfterSendConfirmation(
+  currentDraft: string,
+  intent: FailedSendIntent | null,
+  confirmedClientMessageId: string | null | undefined,
+  confirmedAuthorId: number,
+  currentUserId: number,
+) {
+  if (!intent || confirmedAuthorId !== currentUserId || confirmedClientMessageId !== intent.clientMessageId) return null;
+  return currentDraft.trim() && currentDraft.trim() !== intent.body ? currentDraft : '';
+}
+
 export function messageBodyWithinLimit(value: string) {
   return messageBodyLength(value) <= MESSAGE_BODY_LIMIT;
 }

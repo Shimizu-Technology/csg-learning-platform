@@ -14,7 +14,7 @@ import { useVoiceDraft } from '@/hooks/use-voice-draft';
 import { subscribeToMessages } from '@/lib/cable';
 import { demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { resolveMentionUserIds } from '@/lib/mentions';
-import { clientMessageIdForSend, type FailedSendIntent, messageBodyChangeAllowed, messageBodyLength, messageBodyWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
+import { clientMessageIdForSend, draftAfterSendConfirmation, type FailedSendIntent, messageBodyChangeAllowed, messageBodyLength, messageBodyWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
 import { mergeMessageEvent, sortMessages } from '@/lib/message-state';
 import { clearThreadDraftAfterSend, loadStoredThreadDraft, saveThreadDraft } from '@/lib/conversation-storage';
 import type { Message, MessageEvent, UserSummary } from '@/lib/types';
@@ -45,6 +45,7 @@ export default function ThreadScreen() {
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingDraftRef = useRef<{ userId: number; rootId: number; body: string; clientMessageId: string | null } | null>(null);
   const failedSendRef = useRef<FailedSendIntent | null>(null);
+  const draftRef = useRef(draft);
   const voiceDraft = useVoiceDraft({
     api,
     demo: auth.demo,
@@ -53,15 +54,35 @@ export default function ThreadScreen() {
     selection,
     disabled: sending,
     maxDraftLength: MESSAGE_BODY_LIMIT,
-    onDraftChange: setDraft,
+    onDraftChange: (value) => { draftRef.current = value; setDraft(value); },
     onSelectionChange: setSelection,
   });
+
+  const acknowledgeSentReply = useCallback((message: Message) => {
+    const intent = failedSendRef.current;
+    if (!userId) return false;
+    const nextDraft = draftAfterSendConfirmation(draftRef.current, intent, message.client_message_id, message.author.id, userId);
+    if (nextDraft === null) return false;
+
+    failedSendRef.current = null;
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    pendingDraftRef.current = null;
+    if (!nextDraft) {
+      draftRef.current = '';
+      setDraft('');
+      void clearThreadDraftAfterSend(userId, rootId);
+    } else {
+      void saveThreadDraft(userId, rootId, nextDraft).catch(() => undefined);
+    }
+    return true;
+  }, [rootId, userId]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       if (userId && !auth.demo) {
         const storedDraft = await loadStoredThreadDraft(userId, rootId);
+        draftRef.current = storedDraft.body;
         setDraft(storedDraft.body);
         failedSendRef.current = storedDraft.clientMessageId
           ? { body: storedDraft.body.trim(), clientMessageId: storedDraft.clientMessageId }
@@ -93,27 +114,32 @@ export default function ThreadScreen() {
       const [result, workspace] = await Promise.all([api.messageThread(rootId), api.workspace(workspaceId)]);
       setRoot(result.root_message);
       setReplies(result.replies);
+      const confirmedReply = result.replies.find((reply) => reply.client_message_id === failedSendRef.current?.clientMessageId);
+      if (confirmedReply) acknowledgeSentReply(confirmedReply);
       setUsers(workspace.workspace.members);
       setError(null);
     } catch (requestError) { setError((requestError as Error).message); }
     finally { setLoading(false); }
-  }, [api, auth.demo, conversationId, kind, rootId, userId, workspaceId]);
+  }, [acknowledgeSentReply, api, auth.demo, conversationId, kind, rootId, userId, workspaceId]);
 
   useEffect(() => { const frame = requestAnimationFrame(() => void load()); return () => cancelAnimationFrame(frame); }, [load]);
   useEffect(() => auth.demo || loading || error ? undefined : subscribeToMessages(api, kind, conversationId, (event: MessageEvent) => {
     if (event.message.id === rootId) setRoot(event.event === 'deleted' ? null : event.message);
-    else if (event.message.parent_message_id === rootId) setReplies((current) => mergeMessageEvent(current, event));
-  }, () => undefined), [api, auth.demo, conversationId, error, kind, loading, rootId]);
+    else if (event.message.parent_message_id === rootId) {
+      setReplies((current) => mergeMessageEvent(current, event));
+      if (event.event === 'created') acknowledgeSentReply(event.message);
+    }
+  }, () => undefined), [acknowledgeSentReply, api, auth.demo, conversationId, error, kind, loading, rootId]);
 
   useEffect(() => {
-    if (!userId || loading) return;
+    if (!userId || loading || sending) return;
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
     const failedIntent = failedSendRef.current?.body === draft.trim() ? failedSendRef.current : null;
     const pending = { userId, rootId, body: draft, clientMessageId: failedIntent?.clientMessageId || null };
     pendingDraftRef.current = pending;
     draftTimerRef.current = setTimeout(() => void saveThreadDraft(pending.userId, pending.rootId, pending.body, pending.clientMessageId).then(() => { if (pendingDraftRef.current === pending) pendingDraftRef.current = null; }).catch(() => undefined), 300);
     return () => { if (draftTimerRef.current) clearTimeout(draftTimerRef.current); };
-  }, [draft, loading, rootId, userId]);
+  }, [draft, loading, rootId, sending, userId]);
 
   useEffect(() => () => {
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
@@ -130,7 +156,14 @@ export default function ThreadScreen() {
     const body = draft.trim();
     if (!body || !messageBodyWithinLimit(body) || sending) return;
     const clientMessageId = clientMessageIdForSend(body, failedSendRef.current);
-    setSending(true); setDraft('');
+    const intent = { body, clientMessageId };
+    setSending(true);
+    failedSendRef.current = intent;
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    pendingDraftRef.current = null;
+    if (userId) void saveThreadDraft(userId, rootId, body, clientMessageId).catch(() => undefined);
+    draftRef.current = '';
+    setDraft('');
     try {
       if (auth.demo) {
         const demoReply: Message = {
@@ -152,18 +185,20 @@ export default function ThreadScreen() {
       }
       const result = await api.sendMessage(kind, conversationId, { body, parent_message_id: rootId, client_message_id: clientMessageId, mention_user_ids: resolveMentionUserIds(body, users), send_push: true });
       setReplies((current) => sortMessages([...current.filter((message) => message.id !== result.message.id), result.message]));
-      failedSendRef.current = null;
+      acknowledgeSentReply(result.message);
       voiceDraft.markSent(body);
       requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
-      if (userId) {
-        if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
-        pendingDraftRef.current = null;
-        await clearThreadDraftAfterSend(userId, rootId);
-      }
     } catch (requestError) {
-      failedSendRef.current = { body, clientMessageId };
-      setDraft(body);
-      if (userId) await saveThreadDraft(userId, rootId, body, clientMessageId).catch(() => undefined);
+      if (failedSendRef.current?.clientMessageId !== clientMessageId) return;
+      const replacementDraft = draftRef.current;
+      if (replacementDraft.trim() && replacementDraft.trim() !== body) {
+        failedSendRef.current = null;
+        if (userId) await saveThreadDraft(userId, rootId, replacementDraft).catch(() => undefined);
+      } else {
+        draftRef.current = body;
+        setDraft(body);
+        if (userId) await saveThreadDraft(userId, rootId, body, clientMessageId).catch(() => undefined);
+      }
       Alert.alert('Reply not sent', (requestError as Error).message);
     }
     finally { setSending(false); }
@@ -203,7 +238,7 @@ export default function ThreadScreen() {
     </>}
     <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />
     {!draftWithinLimit && <Text accessibilityRole="alert" style={styles.composerLimit}>Shorten this draft to {MESSAGE_BODY_LIMIT.toLocaleString()} characters ({messageBodyLength(draft).toLocaleString()} now).</Text>}
-    <View style={styles.composer}><VoiceDraftButton state={voiceDraft.state} disabled={sending} onPress={() => void voiceDraft.start()} /><TextInput accessibilityLabel="Reply to thread" value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={(value) => { if (messageBodyChangeAllowed(draft, value)) setDraft(value); }} placeholder="Reply to thread" placeholderTextColor={palette.quiet} multiline style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel="Send reply" disabled={!draft.trim() || !draftWithinLimit || sending} onPress={() => void send()} style={[styles.send, (!draft.trim() || !draftWithinLimit || sending) && styles.disabled]}><Send color={palette.text} size={19} /></Pressable></View>
+    <View style={styles.composer}><VoiceDraftButton state={voiceDraft.state} disabled={sending} onPress={() => void voiceDraft.start()} /><TextInput accessibilityLabel="Reply to thread" value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={(value) => { if (messageBodyChangeAllowed(draftRef.current, value)) { draftRef.current = value; setDraft(value); } }} placeholder="Reply to thread" placeholderTextColor={palette.quiet} multiline style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel="Send reply" disabled={!draft.trim() || !draftWithinLimit || sending} onPress={() => void send()} style={[styles.send, (!draft.trim() || !draftWithinLimit || sending) && styles.disabled]}><Send color={palette.text} size={19} /></Pressable></View>
     <ReactionDetailsSheet key={reactionDetails ? `${reactionDetails.messageId}-${reactionDetails.emoji}` : 'closed-reactions'} initialEmoji={reactionDetails?.emoji || null} message={reactionDetailsMessage} onClose={() => setReactionDetails(null)} onToggle={async (message, value) => { await toggleReaction(message, value); }} />
     <ImagePreview key={imagePreview?.attachmentId ?? 'closed-preview'} attachments={imagePreview?.attachments || []} initialAttachmentId={imagePreview?.attachmentId || null} onClose={() => setImagePreview(null)} />
   </KeyboardAvoidingView></SafeAreaView>;

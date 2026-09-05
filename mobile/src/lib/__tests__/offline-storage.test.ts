@@ -73,6 +73,46 @@ describe('offline authored storage', () => {
     await expect(clearThreadDraftAfterSend(7, 88, threadCleanup)).resolves.toBeUndefined();
   });
 
+  it.each([
+    {
+      surface: 'conversation',
+      save: (body: string) => saveConversationDraft(7, 'channel', 3, body),
+      clear: () => clearConversationDraftAfterSend(7, 'channel', 3),
+    },
+    {
+      surface: 'thread',
+      save: (body: string) => saveThreadDraft(7, 88, body, 'thread-send-race'),
+      clear: () => clearThreadDraftAfterSend(7, 88),
+    },
+  ])('serializes an in-flight $surface draft save before its post-send clear', async ({ save, clear }) => {
+    const order: string[] = [];
+    let releaseSave = () => {};
+    let markSaveStarted = () => {};
+    const saveGate = new Promise<void>((resolve) => { releaseSave = resolve; });
+    const saveStarted = new Promise<void>((resolve) => { markSaveStarted = resolve; });
+    jest.spyOn(AsyncStorage, 'setItem').mockImplementationOnce(async () => {
+      order.push('set-start');
+      markSaveStarted();
+      await saveGate;
+      order.push('set-finish');
+    });
+    jest.spyOn(AsyncStorage, 'removeItem').mockImplementationOnce(async () => {
+      order.push('remove');
+    });
+
+    const staleSave = save('Still typing');
+    await saveStarted;
+    const acknowledgedClear = clear();
+    await Promise.resolve();
+    expect(order).toEqual(['set-start']);
+
+    releaseSave();
+    await Promise.all([staleSave, acknowledgedClear]);
+
+    expect(order).toEqual(['set-start', 'set-finish', 'remove']);
+    jest.restoreAllMocks();
+  });
+
   it('restores a failed thread send identifier after the screen unmounts', async () => {
     await saveThreadDraft(7, 88, 'Possibly delivered   ', 'thread-send-1');
 

@@ -494,6 +494,17 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_response :conflict
     assert_includes JSON.parse(response.body).fetch("errors"), "Client message ID has already been used for a different message"
 
+    conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @student, @admin ])
+    assert_no_difference("Message.count") do
+      as_user(@student) do
+        post "/api/v1/direct_conversations/#{conversation.id}/messages",
+          params: { body: "Original intent", client_message_id: "message-retry-conflict" },
+          headers: auth_headers,
+          as: :json
+      end
+    end
+    assert_response :conflict
+
     student_message_id = Message.find_by!(author: @student, client_message_id: "message-retry-conflict").id
     as_user(@classmate) do
       post "/api/v1/channels/#{@channel.id}/messages",

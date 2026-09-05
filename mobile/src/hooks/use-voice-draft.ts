@@ -107,7 +107,7 @@ export function useVoiceDraft({ api, demo, surface, draft, selection, disabled, 
         return;
       }
       const inserted = insertVoiceDraft(draftRef.current, selectionRef.current, suggestedText);
-      if (maxDraftLength && !voiceDraftWithinLimit(inserted.value, maxDraftLength)) {
+      if (maxDraftLength !== undefined && !voiceDraftWithinLimit(inserted.value, maxDraftLength)) {
         setError(`That voice draft would exceed the ${maxDraftLength.toLocaleString()}-character limit. Shorten the current draft or record a shorter addition.`);
         setState('error');
         return;
@@ -274,7 +274,7 @@ export function useVoiceDraft({ api, demo, surface, draft, selection, disabled, 
       Alert.alert('Could not restore automatically', 'The text around the voice draft changed. Your edits are preserved; record again if you need a fresh transcript.');
       return;
     }
-    if (maxDraftLength && !voiceDraftWithinLimit(restored.value, maxDraftLength)) {
+    if (maxDraftLength !== undefined && !voiceDraftWithinLimit(restored.value, maxDraftLength)) {
       Alert.alert('Draft is too long', `The original transcript would exceed the ${maxDraftLength.toLocaleString()}-character limit. Your current edits are preserved.`);
       return;
     }

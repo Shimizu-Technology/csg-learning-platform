@@ -29,6 +29,8 @@ describe('voice draft helpers', () => {
   it('applies optional voice-draft limits using Unicode code points', () => {
     expect(voiceDraftWithinLimit('🚀🚀', 2)).toBe(true);
     expect(voiceDraftWithinLimit('🚀🚀a', 2)).toBe(false);
+    expect(voiceDraftWithinLimit('', 0)).toBe(true);
+    expect(voiceDraftWithinLimit('a', 0)).toBe(false);
     expect(voiceDraftWithinLimit('unbounded')).toBe(true);
   });
 });

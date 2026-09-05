@@ -1,7 +1,21 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ConversationKind, Message } from './types';
 
-const failedMessageWrites = new Map<string, Promise<void>>();
+const authoredStorageWrites = new Map<string, Promise<void>>();
+
+function enqueueStorageWrite(key: string, operation: () => Promise<void>) {
+  const previous = authoredStorageWrites.get(key) || Promise.resolve();
+  const write = previous.catch(() => undefined).then(operation);
+  authoredStorageWrites.set(key, write);
+  return write.finally(() => {
+    if (authoredStorageWrites.get(key) === write) authoredStorageWrites.delete(key);
+  });
+}
+
+async function readAfterPendingWrites(key: string) {
+  await authoredStorageWrites.get(key)?.catch(() => undefined);
+  return AsyncStorage.getItem(key);
+}
 
 export function conversationDraftKey(userId: number, kind: ConversationKind, id: number) {
   return `csg.message-draft.${userId}.${kind}.${id}`;
@@ -21,13 +35,12 @@ export interface StoredThreadDraft {
 }
 
 export async function loadConversationDraft(userId: number, kind: ConversationKind, id: number) {
-  return (await AsyncStorage.getItem(conversationDraftKey(userId, kind, id))) || '';
+  return (await readAfterPendingWrites(conversationDraftKey(userId, kind, id))) || '';
 }
 
-export async function saveConversationDraft(userId: number, kind: ConversationKind, id: number, body: string) {
+export function saveConversationDraft(userId: number, kind: ConversationKind, id: number, body: string) {
   const key = conversationDraftKey(userId, kind, id);
-  if (body.trim()) await AsyncStorage.setItem(key, body);
-  else await AsyncStorage.removeItem(key);
+  return enqueueStorageWrite(key, () => body.trim() ? AsyncStorage.setItem(key, body) : AsyncStorage.removeItem(key));
 }
 
 export async function clearConversationDraftAfterSend(
@@ -44,7 +57,7 @@ export async function loadThreadDraft(userId: number, rootMessageId: number) {
 }
 
 export async function loadStoredThreadDraft(userId: number, rootMessageId: number): Promise<StoredThreadDraft> {
-  const value = await AsyncStorage.getItem(threadDraftKey(userId, rootMessageId));
+  const value = await readAfterPendingWrites(threadDraftKey(userId, rootMessageId));
   if (!value) return { body: '', clientMessageId: null };
   try {
     const stored = JSON.parse(value) as { version?: unknown; body?: unknown; clientMessageId?: unknown };
@@ -57,11 +70,13 @@ export async function loadStoredThreadDraft(userId: number, rootMessageId: numbe
   return { body: value, clientMessageId: null };
 }
 
-export async function saveThreadDraft(userId: number, rootMessageId: number, body: string, clientMessageId?: string | null) {
+export function saveThreadDraft(userId: number, rootMessageId: number, body: string, clientMessageId?: string | null) {
   const key = threadDraftKey(userId, rootMessageId);
-  if (body.trim() && clientMessageId) await AsyncStorage.setItem(key, JSON.stringify({ version: 1, body, clientMessageId }));
-  else if (body.trim()) await AsyncStorage.setItem(key, body);
-  else await AsyncStorage.removeItem(key);
+  return enqueueStorageWrite(key, () => {
+    if (body.trim() && clientMessageId) return AsyncStorage.setItem(key, JSON.stringify({ version: 1, body, clientMessageId }));
+    if (body.trim()) return AsyncStorage.setItem(key, body);
+    return AsyncStorage.removeItem(key);
+  });
 }
 
 export async function clearThreadDraftAfterSend(
@@ -74,8 +89,7 @@ export async function clearThreadDraftAfterSend(
 
 export async function loadFailedMessages(userId: number, kind: ConversationKind, id: number) {
   const key = failedMessagesKey(userId, kind, id);
-  await failedMessageWrites.get(key)?.catch(() => undefined);
-  const value = await AsyncStorage.getItem(key);
+  const value = await readAfterPendingWrites(key);
   if (!value) return [];
   try {
     const messages = JSON.parse(value) as Message[];
@@ -89,14 +103,9 @@ export async function loadFailedMessages(userId: number, kind: ConversationKind,
 export function saveFailedMessages(userId: number, kind: ConversationKind, id: number, messages: Message[]) {
   const failed = messages.filter((message) => message.client_status === 'failed');
   const key = failedMessagesKey(userId, kind, id);
-  const previous = failedMessageWrites.get(key) || Promise.resolve();
-  const write = previous.catch(() => undefined).then(async () => {
+  return enqueueStorageWrite(key, async () => {
     if (failed.length) await AsyncStorage.setItem(key, JSON.stringify(failed));
     else await AsyncStorage.removeItem(key);
-  });
-  failedMessageWrites.set(key, write);
-  return write.finally(() => {
-    if (failedMessageWrites.get(key) === write) failedMessageWrites.delete(key);
   });
 }
 
@@ -106,6 +115,10 @@ export async function clearUserConversationStorage(userId: number) {
     `csg.thread-draft.${userId}.`,
     `csg.failed-messages.${userId}.`,
   ];
+  const pendingWrites = Array.from(authoredStorageWrites.entries())
+    .filter(([key]) => prefixes.some((prefix) => key.startsWith(prefix)))
+    .map(([, write]) => write.catch(() => undefined));
+  await Promise.all(pendingWrites);
   const keys = (await AsyncStorage.getAllKeys()).filter((key) => prefixes.some((prefix) => key.startsWith(prefix)));
   if (keys.length) await AsyncStorage.multiRemove(keys);
 }

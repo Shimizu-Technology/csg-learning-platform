@@ -75,4 +75,60 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
     UserMessagesChannel.define_singleton_method(:broadcast_to, original_broadcast) if defined?(original_broadcast) && original_broadcast
     NotificationDeliveryService.define_singleton_method(:message_created, original_notifications) if defined?(original_notifications) && original_notifications
   end
+
+  test "broadcast stages independently serialize concurrent retries after notification delivery" do
+    channel = @cohort.channels.find_by!(name: "Class Chat")
+    root = Message.create!(channel: channel, author: @author, body: "Root")
+    reply = Message.create!(
+      channel: channel,
+      author: @author,
+      parent_message: root,
+      body: "Reply",
+      notifications_delivered_at: Time.current
+    )
+
+    original_broadcast = UserMessagesChannel.method(:broadcast_to)
+    count_lock = Mutex.new
+    broadcasts = Hash.new(0)
+    UserMessagesChannel.define_singleton_method(:broadcast_to) do |user, payload|
+      key = [ payload.fetch(:event), payload.fetch(:message).fetch(:id), user.id ]
+      count_lock.synchronize { broadcasts[key] += 1 }
+      sleep 0.02
+    end
+
+    all_threads = []
+    [ :deliver_message_broadcast, :deliver_thread_broadcast ].each do |stage|
+      ready = Queue.new
+      release = Queue.new
+      errors = Queue.new
+      threads = 2.times.map do
+        Thread.new do
+          ActiveRecord::Base.connection_pool.with_connection do
+            ready << true
+            release.pop
+            MessageDeliveryService.send(stage, Message.find(reply.id))
+          end
+        rescue StandardError => e
+          errors << e
+        end
+      end
+      all_threads.concat(threads)
+      2.times { ready.pop }
+      2.times { release << true }
+      threads.each { |thread| assert thread.join(5), "concurrent #{stage} did not finish" }
+      error = errors.pop(true) unless errors.empty?
+      assert_nil error, error&.message
+    end
+
+    [ @author.id, @recipient.id ].each do |user_id|
+      assert_equal 1, broadcasts[[ "created", reply.id, user_id ]]
+      assert_equal 1, broadcasts[[ "updated", root.id, user_id ]]
+    end
+    reply.reload
+    assert reply.broadcasts_delivered_at?
+    assert reply.thread_broadcasts_delivered_at?
+  ensure
+    all_threads&.each { |thread| thread.kill if thread.alive? }
+    UserMessagesChannel.define_singleton_method(:broadcast_to, original_broadcast) if defined?(original_broadcast) && original_broadcast
+  end
 end
