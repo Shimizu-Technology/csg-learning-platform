@@ -5,6 +5,7 @@ import { Text } from 'react-native';
 
 import { ApiError } from '@/lib/api';
 import { activateUserConversationStorage, loadConversationDraft, saveConversationDraft } from '@/lib/conversation-storage';
+import { serializeCachedSessionUser } from '@/lib/session-access';
 import type { SessionUser } from '@/lib/types';
 import { SessionProvider, useSession } from '../session-provider';
 
@@ -51,6 +52,7 @@ const userA: SessionUser = {
 };
 
 const userB: SessionUser = { ...userA, id: 8, full_name: 'Student B', email: 'b@example.com', clerk_id: 'account-b', last_name: 'B' };
+const bridgedUserA: SessionUser = { ...userA, clerk_id: 'legacy-account-a' };
 
 type ObservedSession = {
   user: SessionUser | null;
@@ -206,6 +208,34 @@ it('keeps a valid server session when writing its cache fails', async () => {
 
   expect(observedSession!.user?.id).toBe(userA.id);
   expect(observedSession!.accessDenied).toBe(false);
+});
+
+it('accepts a server-authorized production identity whose legacy Clerk id is preserved', async () => {
+  mockAuthState.current = { ...mockAuthState.current, subject: 'production-account-a' };
+  mockSession.mockResolvedValueOnce({ user: bridgedUserA });
+  render(<SessionProvider><SessionObserver /></SessionProvider>);
+
+  await act(async () => { await observedSession!.refresh(); });
+
+  expect(observedSession!.user).toEqual(bridgedUserA);
+  await waitFor(async () => {
+    const cached = JSON.parse((await AsyncStorage.getItem('csg.session.user.production-account-a'))!);
+    expect(cached).toMatchObject({ version: 2, subject: 'production-account-a', user: bridgedUserA });
+  });
+});
+
+it('restores a subject-bound bridged session during a transient outage', async () => {
+  mockAuthState.current = { ...mockAuthState.current, subject: 'production-account-a' };
+  await AsyncStorage.setItem(
+    'csg.session.user.production-account-a',
+    serializeCachedSessionUser(bridgedUserA, 'production-account-a'),
+  );
+  mockSession.mockRejectedValueOnce(new ApiError('Offline'));
+  render(<SessionProvider><SessionObserver /></SessionProvider>);
+
+  await act(async () => { await observedSession!.refresh(); });
+
+  expect(observedSession!.user).toEqual(bridgedUserA);
 });
 
 it('restores a matching cached session with an explicitly null community policy', async () => {
