@@ -528,6 +528,32 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_not_equal student_message_id, JSON.parse(response.body).dig("message", "id")
   end
 
+  test "message replay preserves the original push preference without duplicate fanout" do
+    params = {
+      body: "Push this once",
+      client_message_id: "message-push-precedence",
+      send_push: true
+    }
+
+    assert_enqueued_jobs 1, only: PushNotificationJob do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+      end
+      assert_response :created
+
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages",
+          params: params.merge(send_push: false),
+          headers: auth_headers,
+          as: :json
+      end
+      assert_response :ok
+    end
+
+    message = Message.find_by!(author: @student, client_message_id: "message-push-precedence")
+    assert message.delivery_push_requested?
+  end
+
   test "message retries accept the same attachments in a different request order" do
     original_configured = S3Service.method(:configured?)
     S3Service.define_singleton_method(:configured?) { false }
@@ -726,11 +752,10 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     end
     params = { body: "Recover delivery", client_message_id: "message-delivery-recovery" }
 
-    assert_raises(RuntimeError) do
-      as_user(@student) do
-        post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
-      end
+    as_user(@student) do
+      post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
     end
+    assert_response :created
     committed = Message.find_by!(author: @student, client_message_id: "message-delivery-recovery")
     assert_nil committed.notifications_delivered_at
 

@@ -69,6 +69,7 @@ class MessageDeliveryServiceTest < ActiveSupport::TestCase
       "expired-claim",
       :broadcast_recipient_ids
     )
+    assert_nil message.reload.broadcasts_delivered_at
     assert_not MessageDeliveryService.send(
       :release_delivery,
       message,

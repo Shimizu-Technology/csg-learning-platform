@@ -260,7 +260,7 @@ module Api
         end
 
         mark_read_for(message)
-        MessageDeliveryService.created(message)
+        deliver_committed_message(message)
         render json: { message: message_json(message.reload) }, status: :created
       end
 
@@ -278,7 +278,7 @@ module Api
         end
 
         mark_read_for(message)
-        MessageDeliveryService.created(message)
+        deliver_committed_message(message)
         render json: { message: message_json(message.reload) }, status: :ok
       end
 
@@ -301,6 +301,17 @@ module Api
           (persisted_mention_user_ids - requested_mention_user_ids).empty? &&
           (mention_user_ids - persisted_mention_user_ids).empty? &&
           persisted_attachment_intent(message) == requested_attachment_intent(attachments)
+      end
+
+      def deliver_committed_message(message)
+        MessageDeliveryService.created(message)
+      rescue StandardError => error
+        # The API write is already committed. The delivery recovery sweep (or an
+        # identical client replay in inline mode) owns the unfinished fan-out.
+        Rails.logger.error(
+          "[MessagesController] delivery_deferred message_id=#{message.id} " \
+          "error=#{error.class}: #{error.message}"
+        )
       end
 
       def persisted_attachment_intent(message)

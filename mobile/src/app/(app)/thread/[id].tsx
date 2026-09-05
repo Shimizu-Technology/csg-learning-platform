@@ -241,13 +241,13 @@ export default function ThreadScreen() {
         setReplies((current) => current.map((message) => message.id === optimisticId ? { ...message, client_status: undefined } : message));
         failedSendRef.current = null;
         requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
-        voiceDraft.markSent(body);
+        if (!retryMessage) voiceDraft.markSent(body);
         return;
       }
       const result = await api.sendMessage(kind, conversationId, { body, parent_message_id: rootId, client_message_id: clientMessageId, mention_user_ids: resolveMentionUserIds(body, users), send_push: true });
       setReplies((current) => reconcileOptimistic(current, optimisticId, result.message));
       acknowledgeSentReply(result.message);
-      voiceDraft.markSent(body);
+      if (!retryMessage) voiceDraft.markSent(body);
       requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
     } catch (requestError) {
       if (failedSendRef.current?.clientMessageId !== clientMessageId) return;

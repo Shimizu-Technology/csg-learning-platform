@@ -206,6 +206,7 @@ class NotificationDeliveryServiceTest < ActiveSupport::TestCase
     error = assert_raises(RuntimeError) { NotificationDeliveryService.message_created(message, push: true) }
 
     assert_equal "original enqueue failure", error.message
+    assert_equal 2, lock_calls
   ensure
     PushNotificationJob.define_singleton_method(:perform_later, original_enqueue) if defined?(original_enqueue) && original_enqueue
   end

@@ -50,6 +50,10 @@ class PushNotificationJob < ApplicationJob
   def deliver(service, method, notifiable, notifications)
     service.public_send(method, notifiable, notifications)
   rescue StandardError => e
-    Rails.logger.error("[PushNotificationJob] #{service.name} failed for #{notifiable.class.name} #{notifiable.id}: #{e.class} #{e.message}")
+    Rails.logger.error(
+      "[PushNotificationJob] provider_attempt_failed provider=#{service.name} " \
+      "notifiable_type=#{notifiable.class.name} notifiable_id=#{notifiable.id} " \
+      "notification_ids=#{notifications.pluck(:id).join(',')} error=#{e.class}: #{e.message}"
+    )
   end
 end

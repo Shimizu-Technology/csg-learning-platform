@@ -90,7 +90,6 @@ class MessageBroadcastServiceTest < ActiveSupport::TestCase
     UserMessagesChannel.define_singleton_method(:broadcast_to, original_user_broadcast) if defined?(original_user_broadcast) && original_user_broadcast
   end
 
-
   test "delivery errors report the total failures and preserve the first cause" do
     curriculum = Curriculum.create!(name: "Broadcast failure curriculum")
     cohort = Cohort.create!(curriculum: curriculum, name: "Broadcast failure cohort", start_date: Date.current, status: :active)

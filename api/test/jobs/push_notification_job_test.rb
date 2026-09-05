@@ -31,6 +31,9 @@ class PushNotificationJobTest < ActiveJob::TestCase
     original_expo_delivery = ExpoPushNotificationService.method(:message_created)
     WebPushNotificationService.define_singleton_method(:message_created) { |notifiable, notifications| web_deliveries << [ notifiable, notifications.pluck(:id) ] }
     expo_attempts = 0
+    errors = []
+    original_log_error = Rails.logger.method(:error)
+    Rails.logger.define_singleton_method(:error) { |entry| errors << entry }
     ExpoPushNotificationService.define_singleton_method(:message_created) do |*, **|
       expo_attempts += 1
       raise "Expo unavailable"
@@ -41,7 +44,11 @@ class PushNotificationJobTest < ActiveJob::TestCase
     end
     assert_equal [ [ message, [ notification.id ] ] ], web_deliveries
     assert_equal 1, expo_attempts, "a provider exception may follow partial external delivery and must not be retried blindly"
+    assert_equal 1, errors.size
+    assert_includes errors.first, "provider=ExpoPushNotificationService"
+    assert_includes errors.first, "notification_ids=#{notification.id}"
   ensure
+    Rails.logger.define_singleton_method(:error, original_log_error) if defined?(original_log_error) && original_log_error
     WebPushNotificationService.define_singleton_method(:message_created, original_web_delivery) if defined?(original_web_delivery) && original_web_delivery
     ExpoPushNotificationService.define_singleton_method(:message_created, original_expo_delivery) if defined?(original_expo_delivery) && original_expo_delivery
   end
