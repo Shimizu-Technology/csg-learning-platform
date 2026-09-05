@@ -39,7 +39,7 @@ The finished experience must work on desktop web, mobile web, and the native iOS
 ### PR 1 — delivery integrity and native draft safety
 
 - Add an optional per-author client message ID with a database uniqueness guarantee.
-- Make identical retries return the original message without sending notifications or realtime events again.
+- Make identical retries return the original message, resume unfinished notification or realtime delivery, and avoid repeating completed delivery work.
 - Reconcile native optimistic messages against realtime events by client message ID.
 - Keep native edit text separate from the unsent conversation draft.
 - Enforce the shared 5,000-character limit in native conversation and thread inputs.

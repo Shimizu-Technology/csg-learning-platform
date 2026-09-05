@@ -1,4 +1,4 @@
-import { markOptimisticFailed, mergeMessageEvent, mergePinnedMessageEvent, mergeServerAndFailedMessages, prependOlderMessages, reconcileOptimistic, toggleOwnReaction } from '../message-state';
+import { markOptimisticFailed, mergeMessageEvent, mergeOlderMessages, mergePinnedMessageEvent, mergeServerAndFailedMessages, prependOlderMessages, reconcileOptimistic, toggleOwnReaction } from '../message-state';
 import type { Message } from '../types';
 
 const message = (id: number, body = String(id)): Message => ({
@@ -52,6 +52,14 @@ describe('message state', () => {
     const unmatched = { ...message(-4), client_message_id: 'send-4', client_status: 'failed' as const };
 
     expect(mergeServerAndFailedMessages([canonical], [failed, unmatched])).toEqual([unmatched, canonical]);
+  });
+
+  it('removes a matching persisted failure when an older page contains the canonical message', () => {
+    const failed = { ...message(-6), client_message_id: 'send-6', client_status: 'failed' as const };
+    const recent = message(9);
+    const canonical = { ...message(6), client_message_id: 'send-6', mine: true };
+
+    expect(mergeOlderMessages([failed, recent], [canonical])).toEqual([canonical, recent]);
   });
 
   it('does not recreate a failed copy after realtime already delivered it', () => {

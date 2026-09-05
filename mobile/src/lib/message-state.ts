@@ -65,6 +65,16 @@ export function prependOlderMessages(current: Message[], older: Message[]) {
   return sortMessages([...older.filter((message) => !ids.has(message.id)), ...current]);
 }
 
+export function mergeOlderMessages(current: Message[], older: Message[]) {
+  const deliveredClientIds = new Set(older.flatMap((message) => message.client_message_id ? [message.client_message_id] : []));
+  const withoutDeliveredFailures = current.filter((message) =>
+    message.client_status !== 'failed' ||
+    !message.client_message_id ||
+    !deliveredClientIds.has(message.client_message_id)
+  );
+  return prependOlderMessages(withoutDeliveredFailures, older);
+}
+
 export function toggleOwnReaction(message: Message, emoji: string, user: Message['author']): Message {
   const selected = message.reactions.find((reaction) => reaction.emoji === emoji);
 

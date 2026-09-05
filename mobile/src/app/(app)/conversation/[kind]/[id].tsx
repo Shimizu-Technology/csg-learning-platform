@@ -23,7 +23,7 @@ import { demoChannels, demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { insertMention, mentionSuggestions, mentionTriggerAt, resolveMentionUserIds } from '@/lib/mentions';
 import { clientMessageIdForSend, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
 import { messagePreview } from '@/lib/message-format';
-import { markOptimisticFailed, mergeMessageEvent, mergePinnedMessageEvent, mergeServerAndFailedMessages, prependOlderMessages, reconcileOptimistic, sortMessages, toggleOwnReaction } from '@/lib/message-state';
+import { markOptimisticFailed, mergeMessageEvent, mergeOlderMessages, mergePinnedMessageEvent, mergeServerAndFailedMessages, reconcileOptimistic, sortMessages, toggleOwnReaction } from '@/lib/message-state';
 import { REACTION_OPTIONS } from '@/lib/reactions';
 import type { ChannelSummary, ConversationKind, DirectConversationSummary, Message, MessageEvent, MessageWindowMeta, PendingAttachment, UserSummary } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
@@ -179,7 +179,7 @@ export default function ConversationScreen() {
       const result = kind === 'channel'
         ? await api.channel(id, { message_limit: 60, before_message_id: meta.oldest_message_id })
         : await api.directConversation(id, { message_limit: 60, before_message_id: meta.oldest_message_id });
-      setMessages((current) => prependOlderMessages(current, result.messages));
+      setMessages((current) => { const next = mergeOlderMessages(current, result.messages); persistFailed(next); return next; });
       setMeta((current) => ({ ...result.meta, newest_message_id: current.newest_message_id, has_newer: current.has_newer }));
     } catch (requestError) { Alert.alert('Could not load earlier messages', (requestError as Error).message); }
     finally { setLoadingOlder(false); }

@@ -19,23 +19,39 @@ class MessageDeliveryService
     end
 
     def deliver_message_broadcast(message)
-      return if message.broadcasts_delivered_at?
+      failure = nil
+      message.with_lock do
+        next if message.broadcasts_delivered_at?
 
-      delivered_ids = message.delivered_recipient_ids(:broadcast_recipient_ids)
-      MessageBroadcastService.created(message, skip_user_ids: delivered_ids, raise_on_failure: true) do |user|
-        record_recipient(message, :broadcast_recipient_ids, user.id)
+        begin
+          delivered_ids = message.delivered_recipient_ids(:broadcast_recipient_ids)
+          MessageBroadcastService.created(message, skip_user_ids: delivered_ids, raise_on_failure: true) do |user|
+            record_recipient(message, :broadcast_recipient_ids, user.id)
+          end
+          message.update_column(:broadcasts_delivered_at, Time.current)
+        rescue StandardError => e
+          failure = e
+        end
       end
-      message.update_column(:broadcasts_delivered_at, Time.current)
+      raise failure if failure
     end
 
     def deliver_thread_broadcast(message)
-      return if message.thread_broadcasts_delivered_at?
+      failure = nil
+      message.with_lock do
+        next if message.thread_broadcasts_delivered_at?
 
-      delivered_ids = message.delivered_recipient_ids(:thread_broadcast_recipient_ids)
-      MessageBroadcastService.updated(message.parent_message.reload, skip_user_ids: delivered_ids, raise_on_failure: true) do |user|
-        record_recipient(message, :thread_broadcast_recipient_ids, user.id)
+        begin
+          delivered_ids = message.delivered_recipient_ids(:thread_broadcast_recipient_ids)
+          MessageBroadcastService.updated(message.parent_message.reload, skip_user_ids: delivered_ids, raise_on_failure: true) do |user|
+            record_recipient(message, :thread_broadcast_recipient_ids, user.id)
+          end
+          message.update_column(:thread_broadcasts_delivered_at, Time.current)
+        rescue StandardError => e
+          failure = e
+        end
       end
-      message.update_column(:thread_broadcasts_delivered_at, Time.current)
+      raise failure if failure
     end
 
     def record_recipient(message, attribute, user_id)
