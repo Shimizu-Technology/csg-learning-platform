@@ -289,7 +289,10 @@ export default function ConversationScreen() {
       if (follow) scrollToLatest(false);
     }, (nextStatus) => {
       setStatus(nextStatus);
-      if (nextStatus === 'connected') setRealtimeSubscriptionVersion((current) => current + 1);
+      if (nextStatus === 'connected') {
+        outboundTypingRef.current = null;
+        setRealtimeSubscriptionVersion((current) => current + 1);
+      }
     }, (event: MessageTypingEvent) => {
       if (event.user.id === userId || event.thread_root_id !== null) return;
       const existingTimer = typingTimers.get(event.user.id);

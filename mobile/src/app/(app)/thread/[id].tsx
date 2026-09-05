@@ -213,7 +213,10 @@ export default function ThreadScreen() {
         if (event.event === 'created') acknowledgeSentReply(event.message);
       }
     }, (nextStatus) => {
-      if (nextStatus === 'connected') setRealtimeSubscriptionVersion((current) => current + 1);
+      if (nextStatus === 'connected') {
+        outboundTypingRef.current = null;
+        setRealtimeSubscriptionVersion((current) => current + 1);
+      }
     }, (event: MessageTypingEvent) => {
       if (event.user.id === userId || event.thread_root_id !== rootId) return;
       const existingTimer = typingTimers.get(event.user.id);
