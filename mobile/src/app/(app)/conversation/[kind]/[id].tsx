@@ -168,6 +168,8 @@ export default function ConversationScreen() {
   const load = useCallback(async () => {
     const requestIdentity = operationIdentity;
     const requestId = ++loadRequestRef.current;
+    loadOlderRequestRef.current += 1;
+    setLoadingOlder(false);
     const isCurrentRequest = () => operationIdentityRef.current === requestIdentity && loadRequestRef.current === requestId;
     persistedFailedRef.current = null;
     setLoading(true);
