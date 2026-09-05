@@ -1,5 +1,5 @@
 import { ApiError } from '../api';
-import { canUseCachedSession, isSessionAccessDenied, parseCachedSessionUser } from '../session-access';
+import { canUseCachedSession, isSessionAccessDenied, parseCachedSessionUser, serializeCachedSessionUser } from '../session-access';
 
 describe('session access errors', () => {
   it('recognizes explicit invite-only and archived account denials', () => {
@@ -31,16 +31,37 @@ describe('session access errors', () => {
       last_name: 'One',
       github_username: null,
     };
-    expect(parseCachedSessionUser(JSON.stringify(validUser))?.id).toBe(7);
-    expect(parseCachedSessionUser('{"id":0}')).toBeNull();
-    expect(parseCachedSessionUser('{"id":-1}')).toBeNull();
-    expect(parseCachedSessionUser('{"id":7.5}')).toBeNull();
-    expect(parseCachedSessionUser('{"id":"7"}')).toBeNull();
-    expect(parseCachedSessionUser(JSON.stringify({ ...validUser, email: undefined }))).toBeNull();
-    expect(parseCachedSessionUser(JSON.stringify({ ...validUser, is_staff: 'false' }))).toBeNull();
-    expect(parseCachedSessionUser(JSON.stringify({ ...validUser, community_policy: { version: '1' } }))).toBeNull();
-    expect(parseCachedSessionUser(JSON.stringify({ ...validUser, community_policy: null }))?.id).toBe(7);
-    expect(parseCachedSessionUser('null')).toBeNull();
-    expect(parseCachedSessionUser('{malformed')).toBeNull();
+    expect(parseCachedSessionUser(JSON.stringify(validUser), 'clerk_student')?.id).toBe(7);
+    expect(parseCachedSessionUser('{"id":0}', 'clerk_student')).toBeNull();
+    expect(parseCachedSessionUser('{"id":-1}', 'clerk_student')).toBeNull();
+    expect(parseCachedSessionUser('{"id":7.5}', 'clerk_student')).toBeNull();
+    expect(parseCachedSessionUser('{"id":"7"}', 'clerk_student')).toBeNull();
+    expect(parseCachedSessionUser(JSON.stringify({ ...validUser, email: undefined }), 'clerk_student')).toBeNull();
+    expect(parseCachedSessionUser(JSON.stringify({ ...validUser, is_staff: 'false' }), 'clerk_student')).toBeNull();
+    expect(parseCachedSessionUser(JSON.stringify({ ...validUser, community_policy: { version: '1' } }), 'clerk_student')).toBeNull();
+    expect(parseCachedSessionUser(JSON.stringify({ ...validUser, community_policy: null }), 'clerk_student')?.id).toBe(7);
+    expect(parseCachedSessionUser('null', 'clerk_student')).toBeNull();
+    expect(parseCachedSessionUser('{malformed', 'clerk_student')).toBeNull();
+  });
+
+  it('binds versioned cached sessions to the authenticated subject instead of the legacy Clerk id', () => {
+    const bridgedUser = {
+      id: 7,
+      full_name: 'Student One',
+      email: 'student@example.com',
+      role: 'student',
+      avatar_url: null,
+      is_admin: false,
+      is_staff: false,
+      clerk_id: 'legacy_clerk_student',
+      first_name: 'Student',
+      last_name: 'One',
+      github_username: null,
+    } as const;
+    const cached = serializeCachedSessionUser(bridgedUser, 'production_clerk_student');
+
+    expect(parseCachedSessionUser(cached, 'production_clerk_student')).toEqual(bridgedUser);
+    expect(parseCachedSessionUser(cached, 'different_clerk_student')).toBeNull();
+    expect(parseCachedSessionUser(JSON.stringify(bridgedUser), 'production_clerk_student')).toBeNull();
   });
 });
