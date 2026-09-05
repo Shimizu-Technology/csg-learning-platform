@@ -3,7 +3,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { ArrowDownToLine, ArrowLeft, Bell, BellOff, BookOpen, ChevronDown, Edit3, Flag, Hash, MessageSquareReply, Paperclip, Pin, Send, Trash2, UserX, Wifi, WifiOff, X, type LucideIcon } from 'lucide-react-native';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -22,7 +22,7 @@ import { formatConversationDay, isDifferentConversationDay, isNearConversationBo
 import { clearConversationDraftAfterSend, loadConversationDraft, loadFailedMessages, retryableMessagesForStorage, saveConversationDraft, saveFailedMessagesWithRetry } from '@/lib/conversation-storage';
 import { demoChannels, demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { insertMention, mentionSuggestions, mentionTriggerAt, resolveMentionUserIds } from '@/lib/mentions';
-import { clientMessageIdForSend, draftAfterSendConfirmation, draftAfterStoredLoad, messageBodyChangeAllowed, messageBodyWithinLimit, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
+import { clientMessageIdForSend, conversationOperationIdentity, draftAfterSendConfirmation, draftAfterStoredLoad, messageBodyChangeAllowed, messageBodyWithinLimit, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
 import { messagePreview } from '@/lib/message-format';
 import { markOptimisticFailed, mergeMessageEvent, mergeOlderMessages, mergePinnedMessageEvent, mergeServerAndFailedMessages, reconcileOptimistic, sortMessages, toggleOwnReaction } from '@/lib/message-state';
 import { REACTION_OPTIONS } from '@/lib/reactions';
@@ -57,6 +57,8 @@ export default function ConversationScreen() {
   const persistedFailedRef = useRef<string | null>(null);
   const anchorScrolledRef = useRef(false);
   const loadRequestRef = useRef(0);
+  const sendRequestRef = useRef(0);
+  const sendAbortRef = useRef<AbortController | null>(null);
   const [summary, setSummary] = useState<ChannelSummary | DirectConversationSummary | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
@@ -81,6 +83,11 @@ export default function ConversationScreen() {
   const [editSelection, setEditSelection] = useState({ start: 0, end: 0 });
   const [reactionDetails, setReactionDetails] = useState<{ messageId: number; emoji: string } | null>(null);
   const [imagePreview, setImagePreview] = useState<{ attachments: Message['attachments']; attachmentId: number } | null>(null);
+  const operationIdentity = conversationOperationIdentity(userId, kind, id);
+  const operationIdentityRef = useRef(operationIdentity);
+  useLayoutEffect(() => {
+    operationIdentityRef.current = operationIdentity;
+  }, [operationIdentity]);
   const updateDraft = useCallback((value: string) => {
     draftValueRef.current = value;
     setDraft(value);
@@ -126,10 +133,23 @@ export default function ConversationScreen() {
   }, []);
 
   useEffect(() => {
+    sendRequestRef.current += 1;
+    sendAbortRef.current?.abort();
+    sendAbortRef.current = null;
     flushPendingDraft();
     draftValueRef.current = '';
     setDraft('');
     setSelection({ start: 0, end: 0 });
+    setAttachments([]);
+    setEditingMessage(null);
+    setEditDraft('');
+    setEditSelection({ start: 0, end: 0 });
+    setSending(false);
+    return () => {
+      sendRequestRef.current += 1;
+      sendAbortRef.current?.abort();
+      sendAbortRef.current = null;
+    };
   }, [conversationIdentity, flushPendingDraft, userId]);
 
   const load = useCallback(async () => {
@@ -249,13 +269,23 @@ export default function ConversationScreen() {
       if (retryMessage) Alert.alert('Message is too long to send', `Shorten this message to ${MESSAGE_BODY_LIMIT.toLocaleString()} characters, then send it again.`);
       return;
     }
+    const requestIdentity = operationIdentity;
+    const requestId = ++sendRequestRef.current;
+    const abortController = new AbortController();
+    sendAbortRef.current?.abort();
+    sendAbortRef.current = abortController;
+    const isCurrentRequest = () => operationIdentityRef.current === requestIdentity && sendRequestRef.current === requestId;
     setSending(true);
     let optimistic: Message | null = retryMessage || null;
     try {
       const uploaded = [...(retryMessage?.client_uploads || [])];
       for (const attachment of retryMessage ? [] : attachments) {
+        if (!isCurrentRequest()) return;
         setAttachments((current) => current.map((item) => item.local_id === attachment.local_id ? { ...item, status: 'uploading' } : item));
-        const value = await uploadAttachment(api, kind, id, attachment, (progress) => setAttachments((current) => current.map((item) => item.local_id === attachment.local_id ? { ...item, progress } : item)));
+        const value = await uploadAttachment(api, kind, id, attachment, (progress) => {
+          if (isCurrentRequest()) setAttachments((current) => current.map((item) => item.local_id === attachment.local_id ? { ...item, progress } : item));
+        }, abortController.signal);
+        if (!isCurrentRequest()) return;
         uploaded.push(value);
       }
       const optimisticId = retryMessage?.id || -Date.now();
@@ -276,6 +306,7 @@ export default function ConversationScreen() {
         return;
       }
       const { message } = await api.sendMessage(kind, id, { body, client_message_id: clientMessageId, mention_user_ids: resolveMentionUserIds(body, mentionUsers), attachments: uploaded, send_push: true });
+      if (!isCurrentRequest()) return;
       setMessages((current) => reconcileOptimistic(current, optimisticId, message));
       if (!retryMessage) voiceDraft.markSent(body);
       if (userId && !retryMessage) {
@@ -294,6 +325,7 @@ export default function ConversationScreen() {
           : clearConversationDraftAfterSend(userId, kind, id));
       }
     } catch (requestError) {
+      if (!isCurrentRequest()) return;
       if (!optimistic) {
         setAttachments((current) => current.map((item) => item.status === 'uploading' ? { ...item, status: 'failed', error: (requestError as Error).message } : item));
         Alert.alert('Attachment not uploaded', (requestError as Error).message);
@@ -304,19 +336,31 @@ export default function ConversationScreen() {
         return markOptimisticFailed(current, optimistic!, (requestError as Error).message);
       });
       Alert.alert('Message not sent', (requestError as Error).message, [{ text: 'Keep for retry' }]);
-    } finally { setSending(false); }
+    } finally {
+      if (isCurrentRequest()) {
+        sendAbortRef.current = null;
+        setSending(false);
+      }
+    }
   };
 
   const saveEdit = async () => {
     if (!editingMessage || sending || !editDraft.trim() || !messageBodyWithinLimit(editDraft.trim())) return;
+    const requestIdentity = operationIdentity;
+    const requestId = ++sendRequestRef.current;
+    const isCurrentRequest = () => operationIdentityRef.current === requestIdentity && sendRequestRef.current === requestId;
     setSending(true);
     try {
       const body = editDraft.trim();
       const result = await api.updateMessage(editingMessage.id, body, resolveMentionUserIds(body, mentionUsers));
+      if (!isCurrentRequest()) return;
       setMessages((current) => current.map((message) => message.id === result.message.id ? result.message : message));
       setEditingMessage(null); setEditDraft(''); setEditSelection({ start: 0, end: 0 });
-    } catch (requestError) { Alert.alert('Could not edit message', (requestError as Error).message); }
-    finally { setSending(false); }
+    } catch (requestError) {
+      if (isCurrentRequest()) Alert.alert('Could not edit message', (requestError as Error).message);
+    } finally {
+      if (isCurrentRequest()) setSending(false);
+    }
   };
 
   const deleteMessage = (message: Message) => Alert.alert('Remove this message?', 'The message will no longer appear in the conversation.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: async () => { try { await api.deleteMessage(message.id); setMessages((current) => current.filter((item) => item.id !== message.id)); } catch (requestError) { Alert.alert('Could not remove message', (requestError as Error).message); } } }]);

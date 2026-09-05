@@ -65,6 +65,18 @@ describe('push registration cleanup', () => {
     expect(api.unregisterDevice).not.toHaveBeenCalled();
   });
 
+  it('retains the persisted token when device registration rejects', async () => {
+    const registrationError = new Error('registration unavailable');
+    const api = {
+      registerDevice: jest.fn().mockRejectedValue(registrationError),
+      unregisterDevice: jest.fn().mockResolvedValue(undefined),
+    } as unknown as CsgApi;
+
+    await expect(registerPushNotifications(api)).rejects.toBe(registrationError);
+    expect(api.unregisterDevice).not.toHaveBeenCalled();
+    expect(await AsyncStorage.getItem('csg.push.token')).toBe('ExpoPushToken[test]');
+  });
+
   it('retains the persisted token when an inactive session cannot unregister it', async () => {
     const unregisterError = new Error('unregister unavailable');
     let activeChecks = 0;

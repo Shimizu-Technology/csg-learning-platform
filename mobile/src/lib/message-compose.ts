@@ -1,5 +1,9 @@
 export const MESSAGE_BODY_LIMIT = 5_000;
 
+export function conversationOperationIdentity(userId: number | null, kind: 'channel' | 'dm', id: number) {
+  return `${userId ?? 'signed-out'}:${kind}:${id}`;
+}
+
 export interface FailedSendIntent {
   body: string;
   clientMessageId: string;
