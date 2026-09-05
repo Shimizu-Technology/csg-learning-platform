@@ -14,7 +14,7 @@ import { useVoiceDraft } from '@/hooks/use-voice-draft';
 import { subscribeToMessages } from '@/lib/cable';
 import { demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { resolveMentionUserIds } from '@/lib/mentions';
-import { clientMessageIdForSend, type FailedSendIntent, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
+import { clientMessageIdForSend, type FailedSendIntent, messageBodyWithinLimit } from '@/lib/message-compose';
 import { mergeMessageEvent, sortMessages } from '@/lib/message-state';
 import { clearThreadDraftAfterSend, loadStoredThreadDraft, saveThreadDraft } from '@/lib/conversation-storage';
 import type { Message, MessageEvent, UserSummary } from '@/lib/types';
@@ -63,7 +63,7 @@ export default function ThreadScreen() {
         const storedDraft = await loadStoredThreadDraft(userId, rootId);
         setDraft(storedDraft.body);
         failedSendRef.current = storedDraft.clientMessageId
-          ? { body: storedDraft.body, clientMessageId: storedDraft.clientMessageId }
+          ? { body: storedDraft.body.trim(), clientMessageId: storedDraft.clientMessageId }
           : null;
       }
       if (!Number.isInteger(workspaceId) || workspaceId <= 0) throw new Error('This thread link is incomplete. Open it again from the conversation.');
@@ -107,7 +107,7 @@ export default function ThreadScreen() {
   useEffect(() => {
     if (!userId || loading) return;
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
-    const failedIntent = failedSendRef.current?.body === draft ? failedSendRef.current : null;
+    const failedIntent = failedSendRef.current?.body === draft.trim() ? failedSendRef.current : null;
     const pending = { userId, rootId, body: draft, clientMessageId: failedIntent?.clientMessageId || null };
     pendingDraftRef.current = pending;
     draftTimerRef.current = setTimeout(() => void saveThreadDraft(pending.userId, pending.rootId, pending.body, pending.clientMessageId).then(() => { if (pendingDraftRef.current === pending) pendingDraftRef.current = null; }).catch(() => undefined), 300);
@@ -200,7 +200,7 @@ export default function ThreadScreen() {
       <FlatList ref={listRef} data={visible} keyExtractor={(message) => String(message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list} renderItem={({ item, index }) => <MessageBubble message={item} showAuthor={!visible[index - 1] || visible[index - 1].author.id !== item.author.id} mentionUsers={users} onLongPress={openSafetyActions} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} />} ListEmptyComponent={<Text style={styles.empty}>Start a focused conversation about this message.</Text>} />
     </>}
     <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />
-    <View style={styles.composer}><VoiceDraftButton state={voiceDraft.state} disabled={sending} onPress={() => void voiceDraft.start()} /><TextInput accessibilityLabel="Reply to thread" value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={setDraft} placeholder="Reply to thread" placeholderTextColor={palette.quiet} multiline maxLength={MESSAGE_BODY_LIMIT} style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel="Send reply" disabled={!draft.trim() || sending} onPress={() => void send()} style={[styles.send, (!draft.trim() || sending) && styles.disabled]}><Send color={palette.text} size={19} /></Pressable></View>
+    <View style={styles.composer}><VoiceDraftButton state={voiceDraft.state} disabled={sending} onPress={() => void voiceDraft.start()} /><TextInput accessibilityLabel="Reply to thread" value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={(value) => { if (messageBodyWithinLimit(value)) setDraft(value); }} placeholder="Reply to thread" placeholderTextColor={palette.quiet} multiline style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel="Send reply" disabled={!draft.trim() || sending} onPress={() => void send()} style={[styles.send, (!draft.trim() || sending) && styles.disabled]}><Send color={palette.text} size={19} /></Pressable></View>
     <ReactionDetailsSheet key={reactionDetails ? `${reactionDetails.messageId}-${reactionDetails.emoji}` : 'closed-reactions'} initialEmoji={reactionDetails?.emoji || null} message={reactionDetailsMessage} onClose={() => setReactionDetails(null)} onToggle={async (message, value) => { await toggleReaction(message, value); }} />
     <ImagePreview key={imagePreview?.attachmentId ?? 'closed-preview'} attachments={imagePreview?.attachments || []} initialAttachmentId={imagePreview?.attachmentId || null} onClose={() => setImagePreview(null)} />
   </KeyboardAvoidingView></SafeAreaView>;

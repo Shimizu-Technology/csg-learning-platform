@@ -70,14 +70,14 @@ describe('offline authored storage', () => {
   });
 
   it('restores a failed thread send identifier after the screen unmounts', async () => {
-    await saveThreadDraft(7, 88, 'Possibly delivered', 'thread-send-1');
+    await saveThreadDraft(7, 88, 'Possibly delivered   ', 'thread-send-1');
 
     const restored = await loadStoredThreadDraft(7, 88);
-    expect(restored).toEqual({ body: 'Possibly delivered', clientMessageId: 'thread-send-1' });
+    expect(restored).toEqual({ body: 'Possibly delivered   ', clientMessageId: 'thread-send-1' });
     const retryIntent = restored.clientMessageId
-      ? { body: restored.body, clientMessageId: restored.clientMessageId }
+      ? { body: restored.body.trim(), clientMessageId: restored.clientMessageId }
       : null;
-    expect(clientMessageIdForSend(restored.body, retryIntent)).toBe('thread-send-1');
+    expect(clientMessageIdForSend(restored.body.trim(), retryIntent)).toBe('thread-send-1');
   });
 
   it('persists failed conversation retry identifiers', async () => {

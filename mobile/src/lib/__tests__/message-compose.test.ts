@@ -1,4 +1,4 @@
-import { clientMessageIdForSend, createClientMessageId, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '../message-compose';
+import { clientMessageIdForSend, createClientMessageId, messageBodyWithinLimit, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '../message-compose';
 
 describe('message compose contract', () => {
   it('matches the API body limit', () => {
@@ -18,6 +18,7 @@ describe('message compose contract', () => {
     const failed = { body: 'Retry me', clientMessageId: 'send-1' };
 
     expect(clientMessageIdForSend('Retry me', failed)).toBe('send-1');
+    expect(clientMessageIdForSend('  Retry me  ', failed)).toBe('send-1');
     expect(clientMessageIdForSend('Changed body', failed)).not.toBe('send-1');
   });
 
@@ -26,5 +27,14 @@ describe('message compose contract', () => {
 
     expect(messageInsertionWithinLimit(`${current}@member `, current.length + 8)).toBeNull();
     expect(messageInsertionWithinLimit('Hi @Maya ', 9)).toEqual({ value: 'Hi @Maya ', cursor: 9 });
+  });
+
+  it('counts Unicode code points the same way as the API', () => {
+    const boundary = '🚀'.repeat(MESSAGE_BODY_LIMIT);
+
+    expect(messageBodyWithinLimit(boundary)).toBe(true);
+    expect(messageInsertionWithinLimit(boundary, boundary.length)).toEqual({ value: boundary, cursor: boundary.length });
+    expect(messageBodyWithinLimit(`${boundary}🚀`)).toBe(false);
+    expect(messageInsertionWithinLimit(`${boundary}🚀`, boundary.length + 2)).toBeNull();
   });
 });

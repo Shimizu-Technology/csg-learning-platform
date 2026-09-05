@@ -14,10 +14,14 @@ export function createClientMessageId() {
 }
 
 export function clientMessageIdForSend(body: string, failedIntent?: FailedSendIntent | null) {
-  return failedIntent?.body === body ? failedIntent.clientMessageId : createClientMessageId();
+  return failedIntent?.body.trim() === body.trim() ? failedIntent.clientMessageId : createClientMessageId();
+}
+
+export function messageBodyWithinLimit(value: string) {
+  return Array.from(value).length <= MESSAGE_BODY_LIMIT;
 }
 
 export function messageInsertionWithinLimit(nextValue: string, nextCursor: number) {
-  if (nextValue.length > MESSAGE_BODY_LIMIT) return null;
+  if (!messageBodyWithinLimit(nextValue)) return null;
   return { value: nextValue, cursor: Math.min(nextCursor, nextValue.length) };
 }

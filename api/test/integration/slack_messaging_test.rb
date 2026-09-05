@@ -445,6 +445,8 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_response :created
     message_id = JSON.parse(response.body).dig("message", "id")
     notification_count = Notification.where(notifiable_type: "Message", notifiable_id: message_id).count
+    assert_operator notification_count, :>, 0
+    assert_operator broadcasts.length, :>, 0
     broadcast_count = broadcasts.length
 
     assert_no_difference([ "Message.count", "Notification.count" ]) do
