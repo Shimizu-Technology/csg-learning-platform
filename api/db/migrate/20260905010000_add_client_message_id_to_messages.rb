@@ -6,6 +6,8 @@ class AddClientMessageIdToMessages < ActiveRecord::Migration[8.1]
   def up
     execute "SET lock_timeout = '5s'"
     add_column :messages, :client_message_id, :string, limit: 100 unless column_exists?(:messages, :client_message_id)
+    # Concurrent index creation must be allowed to wait out in-flight writes.
+    execute "SET lock_timeout = '60s'"
     return if usable_expected_index?
 
     # CREATE INDEX CONCURRENTLY can leave an invalid same-named index when it
@@ -23,7 +25,7 @@ class AddClientMessageIdToMessages < ActiveRecord::Migration[8.1]
   end
 
   def down
-    execute "SET lock_timeout = '5s'"
+    execute "SET lock_timeout = '60s'"
     execute "DROP INDEX CONCURRENTLY IF EXISTS #{connection.quote_table_name(INDEX_NAME)}"
     remove_column :messages, :client_message_id if column_exists?(:messages, :client_message_id)
   ensure

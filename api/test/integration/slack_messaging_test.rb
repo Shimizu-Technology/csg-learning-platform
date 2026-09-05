@@ -863,6 +863,39 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_nil message.pinned_by
   end
 
+  test "a committed deletion returns success and remains recoverable when broadcast fails" do
+    message = Message.create!(
+      channel: @channel,
+      author: @student,
+      body: "Remove reliably",
+      delivery_tracking_requested: true,
+      notifications_delivered_at: Time.current,
+      broadcasts_delivered_at: Time.current
+    )
+    original_delete_broadcast = MessageBroadcastService.method(:deleted)
+    fail_delete_broadcast = true
+    MessageBroadcastService.define_singleton_method(:deleted) do |target, **options, &block|
+      raise "delete broadcast unavailable" if fail_delete_broadcast
+
+      original_delete_broadcast.call(target, **options, &block)
+    end
+
+    as_user(@student) do
+      delete "/api/v1/messages/#{message.id}", headers: auth_headers
+    end
+
+    assert_response :success
+    assert message.reload.deleted?
+    assert_nil message.broadcasts_delivered_at
+    assert_nil message.broadcast_delivery_claim
+
+    fail_delete_broadcast = false
+    MessageDeliveryService.created(message)
+    assert message.reload.broadcasts_delivered_at?
+  ensure
+    MessageBroadcastService.define_singleton_method(:deleted, original_delete_broadcast) if defined?(original_delete_broadcast) && original_delete_broadcast
+  end
+
   test "thread endpoint does not expose a conversation after access is lost" do
     root = Message.create!(channel: @channel, author: @admin, body: "Private after dropout")
     @student.enrollments.find_by!(cohort: @cohort).update!(status: :dropped)

@@ -88,8 +88,9 @@ API-created messages explicitly opt into recovery; historical messages remain
 excluded so enabling the worker cannot replay old notifications or broadcasts.
 Incomplete work rotates behind never-attempted work and does not silently
 expire; failures remain visible in job logs until an operator-owned dead-letter
-workflow exists. Message push enqueue and provider attempts are checkpointed by
-notification ID so lease recovery does not duplicate push fan-out.
+workflow exists. Message push jobs may be enqueued again after an interrupted
+notification stage; per-provider attempts are checkpointed by notification ID,
+so duplicate jobs do not duplicate provider fan-out.
 Each sweep logs `backlog_due` and `batch_limit`. Alert when `backlog_due` grows
 across consecutive runs or remains above the batch limit; that is the signal to
 raise throughput or investigate a persistent delivery failure.

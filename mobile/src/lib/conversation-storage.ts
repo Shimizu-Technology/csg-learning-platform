@@ -19,7 +19,12 @@ function enqueueStorageWrite(userId: number, key: string, operation: () => Promi
 }
 
 async function readAfterPendingWrites(userId: number, key: string) {
-  await authoredStorageWrites.get(key)?.catch(() => undefined);
+  while (true) {
+    const pending = authoredStorageWrites.get(key);
+    if (!pending) break;
+    await pending.catch(() => undefined);
+    if (authoredStorageWrites.get(key) === pending) break;
+  }
   if (blockedStorageUsers.has(userId)) return null;
   return AsyncStorage.getItem(key);
 }

@@ -484,7 +484,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_100000) do
     t.bigint "parent_message_id"
     t.datetime "pinned_at"
     t.bigint "pinned_by_id"
-    t.jsonb "push_enqueued_notification_ids", default: [], null: false
     t.string "thread_broadcast_delivery_claim", limit: 36
     t.datetime "thread_broadcast_delivery_started_at"
     t.jsonb "thread_broadcast_recipient_ids", default: [], null: false

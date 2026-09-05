@@ -81,10 +81,22 @@ module Api
           return
         end
 
-        root = @message.parent_message && thread_root(@message)
-        @message.update!(deleted_at: Time.current, pinned_at: nil, pinned_by: nil)
-        MessageBroadcastService.deleted(@message)
-        MessageBroadcastService.updated(root.reload) if root
+        @message.update!(
+          deleted_at: Time.current,
+          pinned_at: nil,
+          pinned_by: nil,
+          delivery_tracking_requested: true,
+          delivery_recovery_attempted_at: Time.at(0).utc,
+          broadcast_recipient_ids: [],
+          broadcast_delivery_claim: nil,
+          broadcast_delivery_started_at: nil,
+          broadcasts_delivered_at: nil,
+          thread_broadcast_recipient_ids: [],
+          thread_broadcast_delivery_claim: nil,
+          thread_broadcast_delivery_started_at: nil,
+          thread_broadcasts_delivered_at: nil
+        )
+        deliver_committed_message(@message)
         render json: { message: message_json(@message) }
       end
 
@@ -294,6 +306,8 @@ module Api
 
       def same_message_intent?(message, destination, attachments, mention_user_ids)
         persisted_mention_user_ids = Array(message.mention_user_ids).map(&:to_i)
+        # Raw IDs preserve the original intent when a mentioned member leaves;
+        # sanitized IDs still reject any newly valid mention added on replay.
         message.deleted_at.nil? &&
           message.destination == destination &&
           message.body.to_s == message_params[:body].to_s &&

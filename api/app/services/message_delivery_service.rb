@@ -4,6 +4,7 @@ class MessageDeliveryService
   class StaleDeliveryClaim < StandardError; end
 
   DELIVERY_LEASE = 5.minutes
+  LEASE_RENEWAL_INTERVAL = 1.minute
   RECIPIENT_CHECKPOINT_BATCH_SIZE = 25
 
   class << self
@@ -60,15 +61,19 @@ class MessageDeliveryService
       return false if claim == :in_progress
 
       pending_ids = []
+      last_checkpoint_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       delivered_ids = message.reload.delivered_recipient_ids(recipients_attribute)
       broadcast_message = event == :created ? message : message.parent_message.reload
-      MessageBroadcastService.public_send(event, broadcast_message, skip_user_ids: delivered_ids, raise_on_failure: true) do |user|
+      broadcast_event = event == :created && message.deleted? ? :deleted : event
+      MessageBroadcastService.public_send(broadcast_event, broadcast_message, skip_user_ids: delivered_ids, raise_on_failure: true) do |user|
         pending_ids << user.id
-        next if pending_ids.size < RECIPIENT_CHECKPOINT_BATCH_SIZE
+        elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - last_checkpoint_at
+        next if pending_ids.size < RECIPIENT_CHECKPOINT_BATCH_SIZE && elapsed < LEASE_RENEWAL_INTERVAL
 
         checkpointed = checkpoint_recipients(message, recipients_attribute, started_attribute, claim_attribute, claim, pending_ids)
         raise StaleDeliveryClaim, "message delivery claim expired" unless checkpointed
 
+        last_checkpoint_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         pending_ids.clear
       end
       checkpointed = checkpoint_recipients(message, recipients_attribute, started_attribute, claim_attribute, claim, pending_ids)

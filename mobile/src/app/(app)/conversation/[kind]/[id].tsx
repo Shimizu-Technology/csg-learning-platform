@@ -279,12 +279,14 @@ export default function ConversationScreen() {
   };
 
   const saveEdit = async () => {
-    if (!editingMessage || !editDraft.trim() || !messageBodyWithinLimit(editDraft.trim())) return;
+    if (!editingMessage || sending || !editDraft.trim() || !messageBodyWithinLimit(editDraft.trim())) return;
+    setSending(true);
     try {
       const result = await api.updateMessage(editingMessage.id, editDraft.trim(), resolveMentionUserIds(editDraft, mentionUsers));
       setMessages((current) => current.map((message) => message.id === result.message.id ? result.message : message));
       setEditingMessage(null); setEditDraft(''); setEditSelection({ start: 0, end: 0 });
     } catch (requestError) { Alert.alert('Could not edit message', (requestError as Error).message); }
+    finally { setSending(false); }
   };
 
   const deleteMessage = (message: Message) => Alert.alert('Remove this message?', 'The message will no longer appear in the conversation.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: async () => { try { await api.deleteMessage(message.id); setMessages((current) => current.filter((item) => item.id !== message.id)); } catch (requestError) { Alert.alert('Could not remove message', (requestError as Error).message); } } }]);

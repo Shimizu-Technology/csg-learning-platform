@@ -4,8 +4,8 @@ class MessageDeliveryRecoveryJob < ApplicationJob
   MAX_MESSAGES_PER_RUN = 100
 
   def perform
-    due_messages = Message.delivery_recovery_due.visible
-    backlog_size = due_messages.count
+    due_messages = Message.delivery_recovery_due
+    backlog_size = due_messages.limit(MAX_MESSAGES_PER_RUN + 1).count
     Rails.logger.info(
       "[MessageDeliveryRecoveryJob] backlog_due=#{backlog_size} batch_limit=#{MAX_MESSAGES_PER_RUN}"
     )

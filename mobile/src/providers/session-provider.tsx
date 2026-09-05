@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { CsgApi } from '@/lib/api';
 import { demoUser } from '@/lib/demo-data';
@@ -35,7 +35,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const lastUserIdRef = useRef<number | null>(user?.id ?? null);
   const refreshGenerationRef = useRef(0);
   const authSubjectRef = useRef(auth.subject);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (authSubjectRef.current === auth.subject) return;
     authSubjectRef.current = auth.subject;
     userIdRef.current = null;
@@ -49,7 +49,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
   const refresh = useCallback(async () => {
     const refreshGeneration = ++refreshGenerationRef.current;
-    const isCurrentRefresh = () => refreshGenerationRef.current === refreshGeneration;
+    const refreshSubject = auth.subject;
+    const isCurrentRefresh = () => refreshGenerationRef.current === refreshGeneration && authSubjectRef.current === refreshSubject;
     if (!auth.signedIn) { setUser(null); setError(null); setAccessDenied(false); setLoading(false); return; }
     if (auth.demo) { setUser(demoUser); setError(null); setAccessDenied(false); setLoading(false); return; }
     // Session validation after the first successful load is background work.
@@ -98,7 +99,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     } finally {
       if (isCurrentRefresh()) setLoading(false);
     }
-  }, [api, auth.demo, auth.signedIn, userCacheKey]);
+  }, [api, auth.demo, auth.signedIn, auth.subject, userCacheKey]);
 
   useEffect(() => {
     if (!auth.loaded) return undefined;
@@ -129,7 +130,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
     await auth.signOut();
     lastUserIdRef.current = null;
   }, [api, auth, user, userCacheKey]);
-  const value = useMemo(() => ({ api, user, loading, error, accessDenied, refresh, signOut }), [api, user, loading, error, accessDenied, refresh, signOut]);
+  const visibleUser = auth.demo || user?.clerk_id === auth.subject ? user : null;
+  const value = useMemo(() => ({ api, user: visibleUser, loading, error, accessDenied, refresh, signOut }), [api, visibleUser, loading, error, accessDenied, refresh, signOut]);
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 

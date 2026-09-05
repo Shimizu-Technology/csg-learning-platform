@@ -107,6 +107,31 @@ it('ignores an account A refresh that completes after account B', async () => {
   expect(observedSession!.user?.id).toBe(userB.id);
 });
 
+it('masks account A and rejects its response immediately after an account B render', async () => {
+  const accountA = deferred<{ user: SessionUser }>();
+  mockSession
+    .mockResolvedValueOnce({ user: userA })
+    .mockReturnValueOnce(accountA.promise)
+    .mockResolvedValueOnce({ user: userB });
+  const view = render(<SessionProvider><SessionObserver /></SessionProvider>);
+
+  await act(async () => { await observedSession!.refresh(); });
+  expect(observedSession!.user?.id).toBe(userA.id);
+
+  let staleRefresh!: Promise<void>;
+  act(() => { staleRefresh = observedSession!.refresh(); });
+  mockAuthState.current = { ...mockAuthState.current, subject: 'account-b' };
+  view.rerender(<SessionProvider><SessionObserver /></SessionProvider>);
+  expect(observedSession!.user).toBeNull();
+
+  accountA.resolve({ user: userA });
+  await act(async () => { await staleRefresh; });
+  expect(observedSession!.user).toBeNull();
+
+  await act(async () => { await observedSession!.refresh(); });
+  expect(observedSession!.user?.id).toBe(userB.id);
+});
+
 it('ignores an in-flight refresh after sign-out', async () => {
   const accountA = deferred<{ user: SessionUser }>();
   mockSession.mockReturnValueOnce(accountA.promise);

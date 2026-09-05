@@ -40,6 +40,7 @@ The finished experience must work on desktop web, mobile web, and the native iOS
 
 - Add an optional per-author client message ID with a database uniqueness guarantee.
 - Make identical retries return the original message, resume unfinished notification or realtime delivery, and avoid repeating completed delivery work.
+- Route soft-delete events through the same recipient checkpoints so an interrupted realtime deletion is recovered without a manual refresh.
 - Reconcile native optimistic messages against realtime events by client message ID.
 - Keep native edit text separate from the unsent conversation draft.
 - Enforce the shared 5,000-character limit in native conversation and thread inputs.

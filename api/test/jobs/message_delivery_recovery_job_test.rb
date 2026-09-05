@@ -40,9 +40,9 @@ class MessageDeliveryRecoveryJobTest < ActiveJob::TestCase
 
     MessageDeliveryRecoveryJob.perform_now
 
-    assert_equal [ unclaimed.id, thread_reply.id ].sort, delivered_ids.sort
+    assert_equal [ unclaimed.id, deleted.id, thread_reply.id ].sort, delivered_ids.sort
     assert_not_includes delivered_ids, legacy.id
-    assert_not_includes delivered_ids, deleted.id
+    assert deleted.reload.broadcasts_delivered_at?
     assert_operator abandoned.reload.delivery_recovery_attempted_at, :>, abandoned_attempted_before
     assert_nil abandoned.notifications_delivery_claim
     assert_nil abandoned.notifications_delivery_started_at

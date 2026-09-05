@@ -13,9 +13,12 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
   end
 
   def teardown
-    @cohort&.destroy!
-    @curriculum&.destroy!
-    User.where(clerk_id: %w[concurrent_delivery_author concurrent_delivery_recipient]).destroy_all
+    begin
+      @cohort&.destroy!
+      @curriculum&.destroy!
+    ensure
+      User.where(clerk_id: %w[concurrent_delivery_author concurrent_delivery_recipient]).destroy_all
+    end
   end
 
   test "concurrent retries serialize created and thread broadcasts" do
@@ -60,8 +63,9 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
     2.times { release << true }
     threads.each { |thread| assert thread.join(5), "concurrent delivery did not finish" }
 
-    error = errors.pop(true) unless errors.empty?
-    assert_nil error, error&.message
+    collected_errors = []
+    collected_errors << errors.pop(true) until errors.empty?
+    assert_empty collected_errors, collected_errors.map(&:message).join("; ")
     assert_equal 1, notification_calls
     [ @author.id, @recipient.id ].each do |user_id|
       assert_equal 1, broadcasts[[ "created", reply.id, user_id ]]
@@ -120,8 +124,9 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
       2.times { ready.pop }
       2.times { release << true }
       threads.each { |thread| assert thread.join(5), "concurrent #{stage} did not finish" }
-      error = errors.pop(true) unless errors.empty?
-      assert_nil error, error&.message
+      collected_errors = []
+      collected_errors << errors.pop(true) until errors.empty?
+      assert_empty collected_errors, collected_errors.map(&:message).join("; ")
     end
 
     [ @author.id, @recipient.id ].each do |user_id|

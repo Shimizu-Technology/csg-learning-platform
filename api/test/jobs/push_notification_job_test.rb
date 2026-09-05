@@ -32,6 +32,7 @@ class PushNotificationJobTest < ActiveJob::TestCase
     WebPushNotificationService.define_singleton_method(:message_created) { |notifiable, notifications| web_deliveries << [ notifiable, notifications.pluck(:id) ] }
     expo_attempts = 0
     errors = []
+    log_error_was_owned = Rails.logger.singleton_methods(false).include?(:error)
     original_log_error = Rails.logger.method(:error)
     Rails.logger.define_singleton_method(:error) { |entry| errors << entry }
     ExpoPushNotificationService.define_singleton_method(:message_created) do |*, **|
@@ -44,11 +45,17 @@ class PushNotificationJobTest < ActiveJob::TestCase
     end
     assert_equal [ [ message, [ notification.id ] ] ], web_deliveries
     assert_equal 1, expo_attempts, "a provider exception may follow partial external delivery and must not be retried blindly"
-    assert_equal 1, errors.size
-    assert_includes errors.first, "provider=ExpoPushNotificationService"
-    assert_includes errors.first, "notification_ids=#{notification.id}"
+    provider_errors = errors.select { |entry| entry.include?("provider=ExpoPushNotificationService") }
+    assert_equal 1, provider_errors.size
+    assert_includes provider_errors.first, "notification_ids=#{notification.id}"
   ensure
-    Rails.logger.define_singleton_method(:error, original_log_error) if defined?(original_log_error) && original_log_error
+    if defined?(original_log_error) && original_log_error
+      if defined?(log_error_was_owned) && log_error_was_owned
+        Rails.logger.define_singleton_method(:error, original_log_error)
+      elsif Rails.logger.singleton_methods(false).include?(:error)
+        Rails.logger.singleton_class.send(:remove_method, :error)
+      end
+    end
     WebPushNotificationService.define_singleton_method(:message_created, original_web_delivery) if defined?(original_web_delivery) && original_web_delivery
     ExpoPushNotificationService.define_singleton_method(:message_created, original_expo_delivery) if defined?(original_expo_delivery) && original_expo_delivery
   end

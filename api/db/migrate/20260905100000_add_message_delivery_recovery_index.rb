@@ -9,9 +9,15 @@ class AddMessageDeliveryRecoveryIndex < ActiveRecord::Migration[8.1]
       (parent_message_id IS NOT NULL AND thread_broadcasts_delivered_at IS NULL)
     )
   SQL
+  DATABASE_PREDICATE = <<~SQL.squish
+    ((delivery_tracking_requested = true) AND
+      ((notifications_delivered_at IS NULL) OR
+       (broadcasts_delivered_at IS NULL) OR
+       ((parent_message_id IS NOT NULL) AND (thread_broadcasts_delivered_at IS NULL))))
+  SQL
 
   def up
-    execute "SET lock_timeout = '5s'"
+    execute "SET lock_timeout = '60s'"
     return if usable_expected_index?
 
     execute "DROP INDEX CONCURRENTLY IF EXISTS #{connection.quote_table_name(INDEX_NAME)}"
@@ -25,7 +31,7 @@ class AddMessageDeliveryRecoveryIndex < ActiveRecord::Migration[8.1]
   end
 
   def down
-    execute "SET lock_timeout = '5s'"
+    execute "SET lock_timeout = '60s'"
     execute "DROP INDEX CONCURRENTLY IF EXISTS #{connection.quote_table_name(INDEX_NAME)}"
   ensure
     execute "SET lock_timeout = DEFAULT"
@@ -37,7 +43,7 @@ class AddMessageDeliveryRecoveryIndex < ActiveRecord::Migration[8.1]
     index = connection.indexes(:messages).find { |candidate| candidate.name == INDEX_NAME }
     return false unless index && index.columns == %w[delivery_recovery_attempted_at id] && !index.unique
 
-    return false unless normalize_predicate(index.where) == normalize_predicate(PREDICATE)
+    return false unless index.where.to_s.squish == DATABASE_PREDICATE
 
     connection.select_value(<<~SQL.squish) == true
       SELECT index.indisvalid AND index.indisready
@@ -49,35 +55,4 @@ class AddMessageDeliveryRecoveryIndex < ActiveRecord::Migration[8.1]
     SQL
   end
 
-  def normalize_predicate(value)
-    predicate = value.to_s.downcase.squish
-      .gsub(/\s*\(\s*/, " (")
-      .gsub(/\s*\)\s*/, ") ")
-      .squish
-
-    loop do
-      simplified = predicate.gsub(/\(([^()]*)\)/) do |match|
-        inner = Regexp.last_match(1).strip
-        inner.match?(/\b(?:and|or)\b/) ? "(#{inner})" : inner
-      end
-      break if simplified == predicate
-
-      predicate = simplified.squish
-    end
-
-    while predicate.start_with?("(") && outer_parentheses_wrap?(predicate)
-      predicate = predicate[1...-1].strip
-    end
-    predicate.gsub(/\(\s+/, "(").gsub(/\s+\)/, ")")
-  end
-
-  def outer_parentheses_wrap?(predicate)
-    depth = 0
-    predicate.each_char.with_index do |character, index|
-      depth += 1 if character == "("
-      depth -= 1 if character == ")"
-      return false if depth.zero? && index < predicate.length - 1
-    end
-    depth.zero?
-  end
 end

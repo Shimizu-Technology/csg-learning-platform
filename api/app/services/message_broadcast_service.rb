@@ -12,8 +12,8 @@ class MessageBroadcastService
       broadcast("updated", message, **options, &block)
     end
 
-    def deleted(message)
-      broadcast("deleted", message)
+    def deleted(message, **options, &block)
+      broadcast("deleted", message, **options, &block)
     end
 
     private
@@ -36,7 +36,7 @@ class MessageBroadcastService
           # at-least-once delivery, so consumers must deduplicate retried events.
           UserMessagesChannel.broadcast_to(user, payload_for_user(event, message, user))
         rescue StandardError => e
-          log_failure(e)
+          log_failure(e, user)
           failures << e
           next
         end
@@ -48,8 +48,8 @@ class MessageBroadcastService
       end
     end
 
-    def log_failure(e)
-      Rails.logger.warn("MessageBroadcastService: broadcast failed: #{e.class}: #{e.message}")
+    def log_failure(e, user)
+      Rails.logger.warn("MessageBroadcastService: broadcast failed user_id=#{user.id}: #{e.class}: #{e.message}")
     end
 
     def payload_for_user(event, message, user)
