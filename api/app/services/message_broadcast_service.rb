@@ -1,11 +1,11 @@
 class MessageBroadcastService
   class << self
-    def created(message)
-      broadcast("created", message)
+    def created(message, **options, &block)
+      broadcast("created", message, **options, &block)
     end
 
-    def updated(message)
-      broadcast("updated", message)
+    def updated(message, **options, &block)
+      broadcast("updated", message, **options, &block)
     end
 
     def deleted(message)
@@ -14,22 +14,30 @@ class MessageBroadcastService
 
     private
 
-    def broadcast(event, message)
+    def broadcast(event, message, skip_user_ids: [], raise_on_failure: false, &block)
       # Per-user delivery is intentional: block state changes the serialized
       # message and must never leak blocked text or attachment URLs through a
       # shared conversation broadcast.
-      broadcast_to_recipients(event, message)
+      broadcast_to_recipients(event, message, skip_user_ids:, raise_on_failure:, &block)
     end
 
-    def broadcast_to_recipients(event, message)
+    def broadcast_to_recipients(event, message, skip_user_ids:, raise_on_failure:)
+      failures = []
       message.destination.recipients.find_each do |user|
-        safe_broadcast { UserMessagesChannel.broadcast_to(user, payload_for_user(event, message, user)) }
+        next if skip_user_ids.include?(user.id)
+
+        begin
+          UserMessagesChannel.broadcast_to(user, payload_for_user(event, message, user))
+          yield user if block_given?
+        rescue StandardError => e
+          log_failure(e)
+          failures << e
+        end
       end
+      raise failures.first if raise_on_failure && failures.any?
     end
 
-    def safe_broadcast
-      yield
-    rescue StandardError => e
+    def log_failure(e)
       Rails.logger.warn("MessageBroadcastService: broadcast failed: #{e.class}: #{e.message}")
     end
 

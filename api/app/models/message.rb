@@ -55,6 +55,10 @@ class Message < ApplicationRecord
     pinned_at.present?
   end
 
+  def delivered_recipient_ids(attribute)
+    Array(public_send(attribute)).map(&:to_i).uniq
+  end
+
   private
 
   def normalize_client_message_id

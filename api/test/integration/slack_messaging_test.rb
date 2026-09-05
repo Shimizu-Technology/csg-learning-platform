@@ -491,6 +491,78 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
 
     assert_response :conflict
     assert_includes JSON.parse(response.body).fetch("errors"), "Client message ID has already been used for a different message"
+
+    student_message_id = Message.find_by!(author: @student, client_message_id: "message-retry-conflict").id
+    as_user(@classmate) do
+      post "/api/v1/channels/#{@channel.id}/messages",
+        params: { body: "Classmate intent", client_message_id: "message-retry-conflict" },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :created
+    assert_not_equal student_message_id, JSON.parse(response.body).dig("message", "id")
+  end
+
+  test "validation-time duplicate races replay the committed message" do
+    client_message_id = "message-validation-race"
+    winner = Message.create!(channel: @channel, author: @student, body: "Race-safe send", client_message_id: client_message_id)
+    original_lookup = Api::V1::MessagesController.instance_method(:existing_message_for_client_id)
+    lookup_count = 0
+    Api::V1::MessagesController.define_method(:existing_message_for_client_id) do
+      lookup_count += 1
+      lookup_count == 1 ? nil : original_lookup.bind_call(self)
+    end
+    Api::V1::MessagesController.send(:private, :existing_message_for_client_id)
+
+    as_user(@student) do
+      post "/api/v1/channels/#{@channel.id}/messages",
+        params: { body: "Race-safe send", client_message_id: client_message_id },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :success
+    assert_equal winner.id, JSON.parse(response.body).dig("message", "id")
+    assert_equal 1, Message.where(author: @student, client_message_id: client_message_id).count
+  ensure
+    if defined?(original_lookup) && original_lookup
+      Api::V1::MessagesController.define_method(:existing_message_for_client_id, original_lookup)
+      Api::V1::MessagesController.send(:private, :existing_message_for_client_id)
+    end
+  end
+
+  test "a retry recovers delivery after the message commits" do
+    original_delivery = NotificationDeliveryService.method(:message_created)
+    fail_delivery = true
+    NotificationDeliveryService.define_singleton_method(:message_created) do |message, push: false|
+      raise "delivery interrupted" if fail_delivery
+
+      original_delivery.call(message, push: push)
+    end
+    params = { body: "Recover delivery", client_message_id: "message-delivery-recovery" }
+
+    assert_raises(RuntimeError) do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+      end
+    end
+    committed = Message.find_by!(author: @student, client_message_id: "message-delivery-recovery")
+    assert_nil committed.notifications_delivered_at
+
+    fail_delivery = false
+    assert_no_difference("Message.count") do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+      end
+    end
+
+    assert_response :success
+    committed.reload
+    assert committed.notifications_delivered_at?
+    assert_equal committed.destination.recipients.reorder(nil).pluck(:id).sort, committed.delivered_recipient_ids(:broadcast_recipient_ids).sort
+  ensure
+    NotificationDeliveryService.define_singleton_method(:message_created, original_delivery) if defined?(original_delivery) && original_delivery
   end
 
   test "message create rejects client message ids outside the contract" do

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_05_010000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_05_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -463,16 +463,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_010000) do
   create_table "messages", force: :cascade do |t|
     t.bigint "author_id", null: false
     t.text "body"
+    t.jsonb "broadcast_recipient_ids", default: [], null: false
+    t.datetime "broadcasts_delivered_at"
     t.bigint "channel_id"
     t.string "client_message_id"
     t.datetime "created_at", null: false
     t.datetime "deleted_at"
+    t.boolean "delivery_push_requested", default: true, null: false
     t.bigint "direct_conversation_id"
     t.datetime "edited_at"
     t.bigint "mention_user_ids", default: [], null: false, array: true
+    t.datetime "notifications_delivered_at"
     t.bigint "parent_message_id"
     t.datetime "pinned_at"
     t.bigint "pinned_by_id"
+    t.jsonb "thread_broadcast_recipient_ids", default: [], null: false
+    t.datetime "thread_broadcasts_delivered_at"
     t.datetime "updated_at", null: false
     t.index ["author_id", "client_message_id"], name: "idx_messages_on_author_and_client_message_id", unique: true, where: "(client_message_id IS NOT NULL)"
     t.index ["author_id"], name: "index_messages_on_author_id"

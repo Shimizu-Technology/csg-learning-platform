@@ -1,4 +1,4 @@
-import { mergeMessageEvent, mergePinnedMessageEvent, prependOlderMessages, reconcileOptimistic, toggleOwnReaction } from '../message-state';
+import { markOptimisticFailed, mergeMessageEvent, mergePinnedMessageEvent, mergeServerAndFailedMessages, prependOlderMessages, reconcileOptimistic, toggleOwnReaction } from '../message-state';
 import type { Message } from '../types';
 
 const message = (id: number, body = String(id)): Message => ({
@@ -44,6 +44,24 @@ describe('message state', () => {
     const canonical = { ...message(3), client_message_id: 'send-2', mine: true };
 
     expect(reconcileOptimistic([stale], -1, canonical)).toEqual([canonical]);
+  });
+
+  it('hydrates canonical messages without matching persisted failures', () => {
+    const canonical = { ...message(3), client_message_id: 'send-3', mine: true };
+    const failed = { ...message(-3), client_message_id: 'send-3', client_status: 'failed' as const };
+    const unmatched = { ...message(-4), client_message_id: 'send-4', client_status: 'failed' as const };
+
+    expect(mergeServerAndFailedMessages([canonical], [failed, unmatched])).toEqual([unmatched, canonical]);
+  });
+
+  it('does not recreate a failed copy after realtime already delivered it', () => {
+    const optimistic = { ...message(-5), client_message_id: 'send-5', client_status: 'sending' as const };
+    const canonical = { ...message(5), client_message_id: 'send-5', mine: true };
+
+    expect(markOptimisticFailed([canonical], optimistic, 'Timed out')).toEqual([canonical]);
+    expect(markOptimisticFailed([optimistic], optimistic, 'Timed out')).toEqual([
+      { ...optimistic, client_status: 'failed', client_error: 'Timed out' },
+    ]);
   });
 
   it('removes a pinned message when its realtime event deletes it', () => {

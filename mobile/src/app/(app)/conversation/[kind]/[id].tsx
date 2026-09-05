@@ -23,7 +23,7 @@ import { demoChannels, demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { insertMention, mentionSuggestions, mentionTriggerAt, resolveMentionUserIds } from '@/lib/mentions';
 import { clientMessageIdForSend, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
 import { messagePreview } from '@/lib/message-format';
-import { mergeMessageEvent, mergePinnedMessageEvent, prependOlderMessages, reconcileOptimistic, sortMessages, toggleOwnReaction } from '@/lib/message-state';
+import { markOptimisticFailed, mergeMessageEvent, mergePinnedMessageEvent, mergeServerAndFailedMessages, prependOlderMessages, reconcileOptimistic, sortMessages, toggleOwnReaction } from '@/lib/message-state';
 import { REACTION_OPTIONS } from '@/lib/reactions';
 import type { ChannelSummary, ConversationKind, DirectConversationSummary, Message, MessageEvent, MessageWindowMeta, PendingAttachment, UserSummary } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
@@ -122,7 +122,7 @@ export default function ConversationScreen() {
         const workspaceResult = await api.workspace(nextSummary.workspace_id);
         const failed = userId ? await loadFailedMessages(userId, kind, id) : [];
         setSummary(nextSummary);
-        setMessages(sortMessages([...result.messages, ...failed]));
+        setMessages(mergeServerAndFailedMessages(result.messages, failed));
         setPinnedMessages(result.pinned_messages);
         setMeta(result.meta);
         setMentionUsers(workspaceResult.workspace.members);
@@ -232,8 +232,7 @@ export default function ConversationScreen() {
         return;
       }
       setMessages((current) => {
-        const failed: Message = { ...optimistic!, client_status: 'failed', client_error: (requestError as Error).message };
-        const next = sortMessages([...current.filter((item) => item.id !== failed.id), failed]); persistFailed(next); return next;
+        const next = markOptimisticFailed(current, optimistic!, (requestError as Error).message); persistFailed(next); return next;
       });
       Alert.alert('Message not sent', (requestError as Error).message, [{ text: 'Keep for retry' }]);
     } finally { setSending(false); }

@@ -220,33 +220,45 @@ module Api
           return
         end
 
-        attachments.each { |attachment| validate_uploaded_attachment!(attachment) }
+        begin
+          attachments.each { |attachment| validate_uploaded_attachment!(attachment) }
+        rescue ActiveRecord::RecordInvalid => e
+          render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+          return
+        end
 
         message = destination.messages.new(
           body: message_params[:body].to_s,
           parent_message_id: message_params[:parent_message_id],
           client_message_id: message_params[:client_message_id],
-          mention_user_ids: mention_user_ids
+          mention_user_ids: mention_user_ids,
+          delivery_push_requested: send_push?
         )
         message.author = current_user
 
-        Message.transaction do
-          message.save!
-          persist_files!(message, attachments)
+        begin
+          Message.transaction do
+            message.save!
+            persist_files!(message, attachments)
+          end
+        rescue ActiveRecord::RecordNotUnique
+          existing = existing_message_for_client_id
+          raise unless existing
+
+          render_existing_message(existing, destination, attachments, mention_user_ids)
+          return
+        rescue ActiveRecord::RecordInvalid => e
+          if duplicate_client_message_id_error?(e, message) && (existing = existing_message_for_client_id)
+            render_existing_message(existing, destination, attachments, mention_user_ids)
+          else
+            render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+          end
+          return
         end
 
         mark_read_for(message)
-        NotificationDeliveryService.message_created(message, push: send_push?)
-        MessageBroadcastService.created(message)
-        MessageBroadcastService.updated(thread_root(message).reload) if message.parent_message
+        MessageDeliveryService.created(message)
         render json: { message: message_json(message.reload) }, status: :created
-      rescue ActiveRecord::RecordNotUnique
-        existing = existing_message_for_client_id
-        raise unless existing
-
-        render_existing_message(existing, destination, attachments, mention_user_ids)
-      rescue ActiveRecord::RecordInvalid => e
-        render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
       end
 
       def existing_message_for_client_id
@@ -263,7 +275,14 @@ module Api
         end
 
         mark_read_for(message)
+        MessageDeliveryService.created(message)
         render json: { message: message_json(message.reload) }, status: :ok
+      end
+
+      def duplicate_client_message_id_error?(error, message)
+        error.record.is_a?(Message) &&
+          error.record.client_message_id == message.client_message_id &&
+          error.record.errors.details.fetch(:client_message_id, []).any? { |detail| detail[:error] == :taken }
       end
 
       def same_message_intent?(message, destination, attachments, mention_user_ids)

@@ -39,6 +39,27 @@ export function reconcileOptimistic(messages: Message[], optimisticId: number, c
   ]);
 }
 
+export function mergeServerAndFailedMessages(serverMessages: Message[], failedMessages: Message[]) {
+  const deliveredClientIds = new Set(serverMessages.flatMap((message) => message.client_message_id ? [message.client_message_id] : []));
+  return sortMessages([
+    ...serverMessages,
+    ...failedMessages.filter((message) => !message.client_message_id || !deliveredClientIds.has(message.client_message_id)),
+  ]);
+}
+
+export function markOptimisticFailed(messages: Message[], optimistic: Message, error: string) {
+  const alreadyDelivered = optimistic.client_message_id && messages.some((message) =>
+    message.id !== optimistic.id &&
+    message.client_message_id === optimistic.client_message_id &&
+    message.id > 0 &&
+    message.client_status !== 'failed'
+  );
+  if (alreadyDelivered) return sortMessages(messages.filter((message) => message.id !== optimistic.id));
+
+  const failed: Message = { ...optimistic, client_status: 'failed', client_error: error };
+  return sortMessages([...messages.filter((message) => message.id !== failed.id), failed]);
+}
+
 export function prependOlderMessages(current: Message[], older: Message[]) {
   const ids = new Set(current.map((message) => message.id));
   return sortMessages([...older.filter((message) => !ids.has(message.id)), ...current]);
