@@ -293,10 +293,10 @@ module Api
       end
 
       def same_message_intent?(message, destination, attachments, mention_user_ids)
-        message.deleted_at.nil? &&
+          message.deleted_at.nil? &&
           message.destination == destination &&
           message.body.to_s == message_params[:body].to_s &&
-          message.parent_message_id == message_params[:parent_message_id].presence&.to_i &&
+          message.parent_message_id == Message.type_for_attribute(:parent_message_id).cast(message_params[:parent_message_id]) &&
           Array(message.mention_user_ids).sort == mention_user_ids.sort &&
           persisted_attachment_intent(message) == requested_attachment_intent(attachments)
       end

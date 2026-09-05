@@ -1,6 +1,8 @@
 require "set"
 
 class MessageBroadcastService
+  class BroadcastFailures < StandardError; end
+
   class << self
     def created(message, **options, &block)
       broadcast("created", message, **options, &block)
@@ -40,7 +42,10 @@ class MessageBroadcastService
         end
         yield user if block_given?
       end
-      raise failures.first if raise_on_failure && failures.any?
+      if raise_on_failure && failures.any?
+        count = failures.size
+        raise BroadcastFailures, "#{count} recipient broadcast #{count == 1 ? 'failure' : 'failures'}", cause: failures.first
+      end
     end
 
     def log_failure(e)

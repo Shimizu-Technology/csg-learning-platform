@@ -107,8 +107,10 @@ export function useVoiceDraft({ api, demo, surface, draft, selection, disabled, 
         return;
       }
       const inserted = insertVoiceDraft(draftRef.current, selectionRef.current, suggestedText);
-      if (maxDraftLength !== undefined && !voiceDraftWithinLimit(inserted.value, maxDraftLength)) {
-        setError(`That voice draft would exceed the ${maxDraftLength.toLocaleString()}-character limit. Shorten the current draft or record a shorter addition.`);
+      if (!voiceDraftWithinLimit(inserted.value, maxDraftLength)) {
+        captureProductEvent('voice_draft_transcribed', { surface, latency_bucket: latencyBucket(Date.now() - startedAt), outcome: 'over_limit' });
+        const formattedLimit = maxDraftLength?.toLocaleString() || 'configured';
+        setError(`That voice draft would exceed the ${formattedLimit}-character limit. Shorten the current draft or record a shorter addition.`);
         setState('error');
         return;
       }

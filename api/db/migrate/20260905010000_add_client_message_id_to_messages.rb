@@ -4,6 +4,7 @@ class AddClientMessageIdToMessages < ActiveRecord::Migration[8.1]
   INDEX_NAME = "idx_messages_on_author_and_client_message_id"
 
   def up
+    execute "SET lock_timeout = '5s'"
     add_column :messages, :client_message_id, :string, limit: 100 unless column_exists?(:messages, :client_message_id)
     return if usable_expected_index?
 
@@ -17,11 +18,16 @@ class AddClientMessageIdToMessages < ActiveRecord::Migration[8.1]
       where: "client_message_id IS NOT NULL",
       algorithm: :concurrently,
       name: INDEX_NAME
+  ensure
+    execute "SET lock_timeout = DEFAULT"
   end
 
   def down
+    execute "SET lock_timeout = '5s'"
     execute "DROP INDEX CONCURRENTLY IF EXISTS #{connection.quote_table_name(INDEX_NAME)}"
     remove_column :messages, :client_message_id if column_exists?(:messages, :client_message_id)
+  ensure
+    execute "SET lock_timeout = DEFAULT"
   end
 
   private

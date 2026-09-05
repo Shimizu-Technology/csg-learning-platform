@@ -24,7 +24,7 @@ export interface ProductEventMap {
   code_block_copied: { surface: 'message' | 'lesson'; language: string };
   voice_draft_started: { surface: VoiceSurface; permission_state: 'unknown' | 'granted' | 'denied' };
   voice_draft_recorded: { surface: VoiceSurface; duration_bucket: DurationBucket };
-  voice_draft_transcribed: { surface: VoiceSurface; latency_bucket: LatencyBucket; outcome: 'success' | 'empty' | 'timeout' | 'provider_error' | 'network_error' };
+  voice_draft_transcribed: { surface: VoiceSurface; latency_bucket: LatencyBucket; outcome: 'success' | 'empty' | 'over_limit' | 'timeout' | 'provider_error' | 'network_error' };
   voice_draft_inserted: { surface: VoiceSurface; raw_or_cleaned: 'raw' | 'cleaned' };
   voice_draft_restored: { surface: VoiceSurface };
   voice_draft_sent: { surface: VoiceSurface; edit_distance_bucket: 'none' | 'light' | 'substantial' };

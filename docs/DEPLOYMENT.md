@@ -86,6 +86,10 @@ That sweep recovers up to 100 of the least-recently-attempted abandoned
 notification and realtime leases without waiting for the sender to retry. New
 API-created messages explicitly opt into recovery; historical messages remain
 excluded so enabling the worker cannot replay old notifications or broadcasts.
+Incomplete work rotates behind never-attempted work and does not silently
+expire; failures remain visible in job logs until an operator-owned dead-letter
+workflow exists. Message push enqueue and provider attempts are checkpointed by
+notification ID so lease recovery does not duplicate push fan-out.
 Inline mode keeps message delivery synchronous and supports idempotent request
 replay, but it does not run recurring schedules.
 

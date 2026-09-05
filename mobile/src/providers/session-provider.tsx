@@ -33,12 +33,23 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const [accessDenied, setAccessDenied] = useState(false);
   const userIdRef = useRef<number | null>(user?.id ?? null);
   const lastUserIdRef = useRef<number | null>(user?.id ?? null);
+  const refreshGenerationRef = useRef(0);
+  const authSubjectRef = useRef(auth.subject);
+  useEffect(() => {
+    if (authSubjectRef.current === auth.subject) return;
+    authSubjectRef.current = auth.subject;
+    userIdRef.current = null;
+    lastUserIdRef.current = null;
+    refreshGenerationRef.current += 1;
+  }, [auth.subject]);
   useEffect(() => {
     userIdRef.current = user?.id ?? null;
     if (user?.id) lastUserIdRef.current = user.id;
   }, [user?.id]);
 
   const refresh = useCallback(async () => {
+    const refreshGeneration = ++refreshGenerationRef.current;
+    const isCurrentRefresh = () => refreshGenerationRef.current === refreshGeneration;
     if (!auth.signedIn) { setUser(null); setError(null); setAccessDenied(false); setLoading(false); return; }
     if (auth.demo) { setUser(demoUser); setError(null); setAccessDenied(false); setLoading(false); return; }
     // Session validation after the first successful load is background work.
@@ -47,18 +58,17 @@ export function SessionProvider({ children }: PropsWithChildren) {
     setLoading(userIdRef.current === null);
     try {
       const result = await api.session();
+      if (!isCurrentRefresh()) return;
       if (userIdRef.current !== result.user.id) activateUserConversationStorage(result.user.id);
       setUser(result.user); setError(null); setAccessDenied(false);
       if (userCacheKey) await AsyncStorage.setItem(userCacheKey, JSON.stringify(result.user));
+      if (!isCurrentRefresh()) return;
       void registerPushNotifications(api).catch(() => undefined);
     } catch (requestError) {
       const cached = userCacheKey ? await AsyncStorage.getItem(userCacheKey) : null;
+      if (!isCurrentRefresh()) return;
       if (isSessionAccessDenied(requestError)) {
-        let cachedUserId: number | null = null;
-        if (cached) {
-          cachedUserId = parseCachedSessionUser(cached)?.id || null;
-        }
-        cachedUserId ||= userIdRef.current || lastUserIdRef.current;
+        const cachedUserId = cached ? parseCachedSessionUser(cached)?.id || null : null;
         const keys = [PUSH_TOKEN_KEY];
         if (userCacheKey) keys.push(userCacheKey);
         if (cachedUserId) {
@@ -69,7 +79,9 @@ export function SessionProvider({ children }: PropsWithChildren) {
             clearUserSubmissionDrafts(cachedUserId),
           ].map((operation) => operation.catch(() => undefined)));
         }
+        if (!isCurrentRefresh()) return;
         await AsyncStorage.multiRemove(keys);
+        if (!isCurrentRefresh()) return;
         setUser(null);
         setAccessDenied(true);
       } else if (cached && canUseCachedSession(requestError)) {
@@ -83,15 +95,21 @@ export function SessionProvider({ children }: PropsWithChildren) {
         setUser(null);
       }
       setError((requestError as Error).message);
-    } finally { setLoading(false); }
+    } finally {
+      if (isCurrentRefresh()) setLoading(false);
+    }
   }, [api, auth.demo, auth.signedIn, userCacheKey]);
 
   useEffect(() => {
     if (!auth.loaded) return undefined;
     const frame = requestAnimationFrame(() => void refresh());
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+      refreshGenerationRef.current += 1;
+    };
   }, [auth.loaded, auth.signedIn, auth.subject, refresh]);
   const signOut = useCallback(async () => {
+    refreshGenerationRef.current += 1;
     const pushToken = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
     if (pushToken && !auth.demo) await api.unregisterDevice(pushToken).catch(() => undefined);
     let cleanupUserId = user?.id || lastUserIdRef.current;

@@ -8,6 +8,9 @@ describe('privacy-safe product analytics', () => {
       event: 'submission_created',
       properties: { platform: 'ios', cohort_id: 3, content_block_id: 42, submission_type: 'text_submission', attempt: 2 },
     });
+    expect(safeProductEvent('voice_draft_transcribed', {
+      surface: 'message', latency_bucket: 'under_2s', outcome: 'over_limit',
+    })?.properties.outcome).toBe('over_limit');
   });
 
   it('drops unknown keys and rejects content-like values', () => {

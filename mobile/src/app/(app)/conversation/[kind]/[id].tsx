@@ -53,6 +53,7 @@ export default function ConversationScreen() {
   const keyboardShouldFollowRef = useRef(false);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingDraftRef = useRef<PendingConversationDraft | null>(null);
+  const persistedFailedRef = useRef<string | null>(null);
   const anchorScrolledRef = useRef(false);
   const loadRequestRef = useRef(0);
   const [summary, setSummary] = useState<ChannelSummary | DirectConversationSummary | null>(null);
@@ -120,6 +121,7 @@ export default function ConversationScreen() {
 
   const load = useCallback(async () => {
     const requestId = ++loadRequestRef.current;
+    persistedFailedRef.current = null;
     setLoading(true);
     setLoadedConversationIdentity(null);
     anchorScrolledRef.current = false;
@@ -170,7 +172,13 @@ export default function ConversationScreen() {
 
   useEffect(() => {
     if (!userId || auth.demo || loading || loadedConversationIdentity !== conversationIdentity) return;
-    void saveFailedMessages(userId, kind, id, messages).catch(() => undefined);
+    const failed = messages.filter((message) => message.client_status === 'failed');
+    const serialized = JSON.stringify(failed);
+    if (persistedFailedRef.current === serialized) return;
+    persistedFailedRef.current = serialized;
+    void saveFailedMessages(userId, kind, id, failed).catch(() => {
+      if (persistedFailedRef.current === serialized) persistedFailedRef.current = null;
+    });
   }, [auth.demo, conversationIdentity, id, kind, loadedConversationIdentity, loading, messages, userId]);
 
   useEffect(() => auth.demo || loading || error ? undefined : subscribeToMessages(api, kind, id, (payload: MessageEvent) => {

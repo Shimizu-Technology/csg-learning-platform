@@ -89,4 +89,34 @@ class MessageBroadcastServiceTest < ActiveSupport::TestCase
     DirectMessagesChannel.define_singleton_method(:broadcast_to, original_broadcast) if defined?(original_broadcast) && original_broadcast
     UserMessagesChannel.define_singleton_method(:broadcast_to, original_user_broadcast) if defined?(original_user_broadcast) && original_user_broadcast
   end
+
+
+  test "delivery errors report the total failures and preserve the first cause" do
+    curriculum = Curriculum.create!(name: "Broadcast failure curriculum")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Broadcast failure cohort", start_date: Date.current, status: :active)
+    author = User.create!(clerk_id: "broadcast_failure_author", email: "broadcast-failure-author@example.com", role: :admin)
+    first_recipient = User.create!(clerk_id: "broadcast_failure_one", email: "broadcast-failure-one@example.com", role: :student)
+    second_recipient = User.create!(clerk_id: "broadcast_failure_two", email: "broadcast-failure-two@example.com", role: :student)
+    Enrollment.create!(user: first_recipient, cohort: cohort, status: :active)
+    Enrollment.create!(user: second_recipient, cohort: cohort, status: :active)
+    message = Message.create!(channel: cohort.channels.find_by!(name: "Class Chat"), author: author, body: "Failure count")
+    failures = {}
+    original_user_broadcast = UserMessagesChannel.method(:broadcast_to)
+    UserMessagesChannel.define_singleton_method(:broadcast_to) do |user, _payload|
+      next if user == author
+
+      failure = RuntimeError.new("recipient #{user.id} unavailable")
+      failures[user.id] = failure
+      raise failure
+    end
+
+    error = assert_raises(MessageBroadcastService::BroadcastFailures) do
+      MessageBroadcastService.created(message, raise_on_failure: true)
+    end
+
+    assert_equal "2 recipient broadcast failures", error.message
+    assert_same failures.values.first, error.cause
+  ensure
+    UserMessagesChannel.define_singleton_method(:broadcast_to, original_user_broadcast) if defined?(original_user_broadcast) && original_user_broadcast
+  end
 end

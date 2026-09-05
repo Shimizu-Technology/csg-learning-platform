@@ -24,7 +24,8 @@ class MessageDeliveryServiceTest < ActiveSupport::TestCase
       raise "recipient unavailable" if user.id == recipient.id && fail_recipient
     end
 
-    assert_raises(RuntimeError) { MessageDeliveryService.created(message) }
+    delivery_error = assert_raises(MessageBroadcastService::BroadcastFailures) { MessageDeliveryService.created(message) }
+    assert_instance_of RuntimeError, delivery_error.cause
     assert_includes message.reload.delivered_recipient_ids(:broadcast_recipient_ids), author.id
     assert_not_includes message.delivered_recipient_ids(:broadcast_recipient_ids), recipient.id
 

@@ -2,7 +2,12 @@ class AddDeliveryStateToMessages < ActiveRecord::Migration[8.1]
   COLUMNS = {
     delivery_tracking_requested: [ :boolean, { null: false, default: false } ],
     delivery_push_requested: [ :boolean, { null: false, default: true } ],
+    # Epoch is the sentinel for never-attempted work. Keep it non-null because
+    # the ascending recovery queue must place untouched messages first.
     delivery_recovery_attempted_at: [ :datetime, { null: false, default: Time.utc(1970, 1, 1) } ],
+    push_enqueued_notification_ids: [ :jsonb, { null: false, default: [] } ],
+    web_push_attempted_notification_ids: [ :jsonb, { null: false, default: [] } ],
+    expo_push_attempted_notification_ids: [ :jsonb, { null: false, default: [] } ],
     notifications_delivery_claim: [ :string, { limit: 36 } ],
     notifications_delivery_started_at: [ :datetime, {} ],
     notifications_delivered_at: [ :datetime, {} ],

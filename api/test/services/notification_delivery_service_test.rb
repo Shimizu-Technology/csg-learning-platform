@@ -166,4 +166,22 @@ class NotificationDeliveryServiceTest < ActiveSupport::TestCase
       NotificationDeliveryService.message_created(message, push: true)
     end
   end
+
+  test "message delivery retries enqueue each recipient push only once" do
+    curriculum = Curriculum.create!(name: "Push enqueue dedupe")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Push enqueue dedupe cohort", start_date: Date.current, status: :active)
+    channel = cohort.channels.find_by!(name: "Class Chat")
+    author = User.create!(clerk_id: "push_enqueue_author", email: "push-enqueue-author@example.com", role: :admin)
+    recipient = User.create!(clerk_id: "push_enqueue_recipient", email: "push-enqueue-recipient@example.com", role: :student)
+    Enrollment.create!(user: recipient, cohort: cohort, status: :active)
+    message = Message.create!(channel: channel, author: author, body: "One push")
+
+    2.times { NotificationDeliveryService.message_created(message, push: true) }
+
+    push_jobs = enqueued_jobs.select { |job| job[:job] == PushNotificationJob }
+    assert_equal 1, push_jobs.size
+    notification = Notification.find_by!(notifiable: message, user: recipient)
+    assert_equal [ notification.id ], message.reload.push_enqueued_notification_ids
+    assert_equal [ notification.id ], push_jobs.first.fetch(:args).last
+  end
 end

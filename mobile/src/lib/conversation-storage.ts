@@ -147,7 +147,8 @@ export function saveFailedMessages(userId: number, kind: ConversationKind, id: n
 }
 
 export async function clearUserConversationStorage(userId: number) {
-  userStorageGenerations.set(userId, (userStorageGenerations.get(userId) || 0) + 1);
+  const cleanupGeneration = (userStorageGenerations.get(userId) || 0) + 1;
+  userStorageGenerations.set(userId, cleanupGeneration);
   blockedStorageUsers.add(userId);
   const prefixes = [
     `csg.message-draft.${userId}.`,
@@ -159,5 +160,6 @@ export async function clearUserConversationStorage(userId: number) {
     .map(([, write]) => write.catch(() => undefined));
   await Promise.all(pendingWrites);
   const keys = (await AsyncStorage.getAllKeys()).filter((key) => prefixes.some((prefix) => key.startsWith(prefix)));
+  if (userStorageGenerations.get(userId) !== cleanupGeneration || !blockedStorageUsers.has(userId)) return;
   if (keys.length) await AsyncStorage.multiRemove(keys);
 }

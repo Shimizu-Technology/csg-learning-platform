@@ -476,6 +476,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_100000) do
     t.boolean "delivery_tracking_requested", default: false, null: false
     t.bigint "direct_conversation_id"
     t.datetime "edited_at"
+    t.jsonb "expo_push_attempted_notification_ids", default: [], null: false
     t.bigint "mention_user_ids", default: [], null: false, array: true
     t.datetime "notifications_delivered_at"
     t.string "notifications_delivery_claim", limit: 36
@@ -483,11 +484,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_100000) do
     t.bigint "parent_message_id"
     t.datetime "pinned_at"
     t.bigint "pinned_by_id"
+    t.jsonb "push_enqueued_notification_ids", default: [], null: false
     t.string "thread_broadcast_delivery_claim", limit: 36
     t.datetime "thread_broadcast_delivery_started_at"
     t.jsonb "thread_broadcast_recipient_ids", default: [], null: false
     t.datetime "thread_broadcasts_delivered_at"
     t.datetime "updated_at", null: false
+    t.jsonb "web_push_attempted_notification_ids", default: [], null: false
     t.index ["author_id", "client_message_id"], name: "idx_messages_on_author_and_client_message_id", unique: true, where: "(client_message_id IS NOT NULL)"
     t.index ["author_id"], name: "index_messages_on_author_id"
     t.index ["channel_id", "created_at"], name: "index_messages_on_channel_id_and_created_at"

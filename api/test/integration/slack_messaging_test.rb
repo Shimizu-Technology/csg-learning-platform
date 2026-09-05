@@ -495,6 +495,16 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_response :conflict
     assert_includes JSON.parse(response.body).fetch("errors"), "Client message ID has already been used for a different message"
 
+    assert_no_difference("Message.count") do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages",
+          params: { body: "Original intent", client_message_id: "message-retry-conflict", mention_user_ids: [ @classmate.id ] },
+          headers: auth_headers,
+          as: :json
+      end
+    end
+    assert_response :conflict
+
     conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @student, @admin ])
     assert_no_difference("Message.count") do
       as_user(@student) do
@@ -544,6 +554,32 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
 
     assert_response :ok
     assert_equal message_id, JSON.parse(response.body).dig("message", "id")
+  ensure
+    S3Service.define_singleton_method(:configured?, original_configured) if defined?(original_configured) && original_configured
+  end
+
+  test "message retries reject a changed attachment set" do
+    original_configured = S3Service.method(:configured?)
+    S3Service.define_singleton_method(:configured?) { false }
+    first = { s3_key: "message_attachments/channel_#{@channel.id}/first.txt", filename: "first.txt", content_type: "text/plain", byte_size: 11 }
+    additional = { s3_key: "message_attachments/channel_#{@channel.id}/additional.txt", filename: "additional.txt", content_type: "text/plain", byte_size: 15 }
+    params = { body: "Exact files only", client_message_id: "message-attachment-conflict", attachments: [ first ] }
+
+    as_user(@student) do
+      post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+    end
+    assert_response :created
+
+    assert_no_difference([ "Message.count", "MessageAttachment.count" ]) do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages",
+          params: params.merge(attachments: [ first, additional ]),
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :conflict
   ensure
     S3Service.define_singleton_method(:configured?, original_configured) if defined?(original_configured) && original_configured
   end

@@ -26,13 +26,13 @@ class Message < ApplicationRecord
   scope :recent, -> { order(created_at: :desc) }
   scope :chronological, -> { order(:created_at, :id) }
   scope :delivery_recovery_due, lambda { |cutoff = MessageDeliveryService::DELIVERY_LEASE.ago|
-    where(delivery_tracking_requested: true).where(<<~SQL.squish, cutoff:, thread_cutoff: cutoff)
+    where(delivery_tracking_requested: true).where(<<~SQL.squish, cutoff:)
       (notifications_delivered_at IS NULL AND
         (notifications_delivery_started_at IS NULL OR notifications_delivery_started_at <= :cutoff)) OR
       (broadcasts_delivered_at IS NULL AND
         (broadcast_delivery_started_at IS NULL OR broadcast_delivery_started_at <= :cutoff)) OR
       (parent_message_id IS NOT NULL AND thread_broadcasts_delivered_at IS NULL AND
-        (thread_broadcast_delivery_started_at IS NULL OR thread_broadcast_delivery_started_at <= :thread_cutoff))
+        (thread_broadcast_delivery_started_at IS NULL OR thread_broadcast_delivery_started_at <= :cutoff))
     SQL
   }
   scope :pinned_recent, lambda {

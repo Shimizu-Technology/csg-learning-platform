@@ -73,7 +73,7 @@ class NotificationDeliveryService
     notification_ids = notifications.map(&:id)
     mention_email_skip_user_ids = []
     if push && notifications.any?
-      PushNotificationJob.perform_later("Message", message.id, notification_ids)
+      enqueue_message_push(message, notification_ids)
     end
     if message.direct_message? && notifications.any?
       MessageNotificationEmailJob.perform_later(message.id, notification_ids)
@@ -181,6 +181,24 @@ class NotificationDeliveryService
   end
 
   private
+
+  def enqueue_message_push(message, notification_ids)
+    claimed_ids = message.with_lock do
+      enqueued_ids = Array(message.push_enqueued_notification_ids).map(&:to_i)
+      next_ids = notification_ids - enqueued_ids
+      message.update_columns(push_enqueued_notification_ids: (enqueued_ids + next_ids).uniq) if next_ids.any?
+      next_ids
+    end
+    return if claimed_ids.empty?
+
+    PushNotificationJob.perform_later("Message", message.id, claimed_ids)
+  rescue StandardError
+    message.with_lock do
+      enqueued_ids = Array(message.push_enqueued_notification_ids).map(&:to_i)
+      message.update_columns(push_enqueued_notification_ids: enqueued_ids - Array(claimed_ids))
+    end
+    raise
+  end
 
   def intervention_notification_for(intervention, title:, body:, actor:)
     notification = Notification.find_or_initialize_by(notifiable: intervention, user: intervention.owner)

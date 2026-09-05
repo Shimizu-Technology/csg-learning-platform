@@ -241,6 +241,29 @@ describe('offline authored storage', () => {
     expect(await loadConversationDraft(7, 'channel', 3)).toBe('New session draft');
   });
 
+  it('does not let prior-session cleanup remove a reactivated session draft', async () => {
+    await saveConversationDraft(7, 'channel', 3, 'Old session draft');
+    let releaseKeyRead = () => {};
+    let markKeyReadStarted = () => {};
+    const keyReadGate = new Promise<void>((resolve) => { releaseKeyRead = resolve; });
+    const keyReadStarted = new Promise<void>((resolve) => { markKeyReadStarted = resolve; });
+    const originalGetAllKeys = AsyncStorage.getAllKeys.bind(AsyncStorage);
+    jest.spyOn(AsyncStorage, 'getAllKeys').mockImplementationOnce(async () => {
+      markKeyReadStarted();
+      await keyReadGate;
+      return originalGetAllKeys();
+    });
+
+    const priorCleanup = clearUserConversationStorage(7);
+    await keyReadStarted;
+    activateUserConversationStorage(7);
+    await saveConversationDraft(7, 'channel', 3, 'New session draft');
+    releaseKeyRead();
+    await priorCleanup;
+
+    expect(await loadConversationDraft(7, 'channel', 3)).toBe('New session draft');
+  });
+
   it('clears only the signed-out user authored drafts and retry copies', async () => {
     const failed = { client_status: 'failed' } as Message;
     await saveConversationDraft(7, 'channel', 3, 'student seven');
