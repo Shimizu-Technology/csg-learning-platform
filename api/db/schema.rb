@@ -463,6 +463,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_090000) do
   create_table "messages", force: :cascade do |t|
     t.bigint "author_id", null: false
     t.text "body"
+    t.string "broadcast_delivery_claim", limit: 36
     t.datetime "broadcast_delivery_started_at"
     t.jsonb "broadcast_recipient_ids", default: [], null: false
     t.datetime "broadcasts_delivered_at"
@@ -474,11 +475,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_090000) do
     t.bigint "direct_conversation_id"
     t.datetime "edited_at"
     t.bigint "mention_user_ids", default: [], null: false, array: true
+    t.string "notifications_delivery_claim", limit: 36
     t.datetime "notifications_delivery_started_at"
     t.datetime "notifications_delivered_at"
     t.bigint "parent_message_id"
     t.datetime "pinned_at"
     t.bigint "pinned_by_id"
+    t.string "thread_broadcast_delivery_claim", limit: 36
     t.datetime "thread_broadcast_delivery_started_at"
     t.jsonb "thread_broadcast_recipient_ids", default: [], null: false
     t.datetime "thread_broadcasts_delivered_at"

@@ -42,4 +42,46 @@ class MessageDeliveryServiceTest < ActiveSupport::TestCase
     UserMessagesChannel.define_singleton_method(:broadcast_to, original_broadcast) if defined?(original_broadcast) && original_broadcast
     NotificationDeliveryService.define_singleton_method(:message_created, original_notifications) if defined?(original_notifications) && original_notifications
   end
+
+  test "expired claimants cannot complete or release a newer delivery lease" do
+    curriculum = Curriculum.create!(name: "Delivery lease curriculum")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Delivery lease cohort", start_date: Date.current, status: :active)
+    author = User.create!(clerk_id: "delivery_lease_author", email: "delivery-lease-author@example.com", first_name: "Lease", last_name: "Author", role: :admin)
+    message = Message.create!(channel: cohort.channels.find_by!(name: "Class Chat"), author: author, body: "Lease ownership")
+    message.update_columns(broadcast_delivery_started_at: 6.minutes.ago, broadcast_delivery_claim: "expired-claim")
+
+    fresh_claim = MessageDeliveryService.send(
+      :claim_delivery,
+      message,
+      :broadcasts_delivered_at,
+      :broadcast_delivery_started_at,
+      :broadcast_delivery_claim
+    )
+
+    assert_match(/\A[0-9a-f-]{36}\z/, fresh_claim)
+    assert_not MessageDeliveryService.send(
+      :complete_delivery,
+      message,
+      :broadcasts_delivered_at,
+      :broadcast_delivery_started_at,
+      :broadcast_delivery_claim,
+      "expired-claim",
+      :broadcast_recipient_ids
+    )
+    assert_not MessageDeliveryService.send(
+      :release_delivery,
+      message,
+      :broadcast_delivery_started_at,
+      :broadcast_delivery_claim,
+      "expired-claim"
+    )
+    assert_equal fresh_claim, message.reload.broadcast_delivery_claim
+    assert MessageDeliveryService.send(
+      :release_delivery,
+      message,
+      :broadcast_delivery_started_at,
+      :broadcast_delivery_claim,
+      fresh_claim
+    )
+  end
 end

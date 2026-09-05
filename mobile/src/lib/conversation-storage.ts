@@ -28,6 +28,15 @@ export async function saveConversationDraft(userId: number, kind: ConversationKi
   else await AsyncStorage.removeItem(key);
 }
 
+export async function clearConversationDraftAfterSend(
+  userId: number,
+  kind: ConversationKind,
+  id: number,
+  saveDraft = saveConversationDraft,
+) {
+  await saveDraft(userId, kind, id, '').catch(() => undefined);
+}
+
 export async function loadThreadDraft(userId: number, rootMessageId: number) {
   return (await loadStoredThreadDraft(userId, rootMessageId)).body;
 }
@@ -51,6 +60,14 @@ export async function saveThreadDraft(userId: number, rootMessageId: number, bod
   if (body.trim() && clientMessageId) await AsyncStorage.setItem(key, JSON.stringify({ version: 1, body, clientMessageId }));
   else if (body.trim()) await AsyncStorage.setItem(key, body);
   else await AsyncStorage.removeItem(key);
+}
+
+export async function clearThreadDraftAfterSend(
+  userId: number,
+  rootMessageId: number,
+  saveDraft = saveThreadDraft,
+) {
+  await saveDraft(userId, rootMessageId, '').catch(() => undefined);
 }
 
 export async function loadFailedMessages(userId: number, kind: ConversationKind, id: number) {

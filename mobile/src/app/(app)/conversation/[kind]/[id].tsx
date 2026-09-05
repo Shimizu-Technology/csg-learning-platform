@@ -18,7 +18,7 @@ import { useVoiceDraft } from '@/hooks/use-voice-draft';
 import { pendingAttachment, uploadAttachment } from '@/lib/attachments';
 import { subscribeToMessages } from '@/lib/cable';
 import { formatConversationDay, isDifferentConversationDay, isNearConversationBottom } from '@/lib/conversation-scroll';
-import { loadConversationDraft, loadFailedMessages, saveConversationDraft, saveFailedMessages } from '@/lib/conversation-storage';
+import { clearConversationDraftAfterSend, loadConversationDraft, loadFailedMessages, saveConversationDraft, saveFailedMessages } from '@/lib/conversation-storage';
 import { demoChannels, demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { insertMention, mentionSuggestions, mentionTriggerAt, resolveMentionUserIds } from '@/lib/mentions';
 import { clientMessageIdForSend, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
@@ -224,7 +224,7 @@ export default function ConversationScreen() {
       if (userId) {
         if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
         pendingDraftRef.current = null;
-        await saveConversationDraft(userId, kind, id, '');
+        await clearConversationDraftAfterSend(userId, kind, id);
       }
     } catch (requestError) {
       if (!optimistic) {

@@ -543,8 +543,9 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     end
     Api::V1::MessagesController.send(:private, :existing_message_for_client_id)
     original_save = Message.instance_method(:save!)
+    target_client_message_id = client_message_id
     Message.define_method(:save!) do |*args, **kwargs|
-      if client_message_id == "message-index-race"
+      if self[:client_message_id] == target_client_message_id
         self.class.insert!({
           author_id: author_id,
           body: body,

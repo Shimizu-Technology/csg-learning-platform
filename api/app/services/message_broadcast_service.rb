@@ -27,12 +27,15 @@ class MessageBroadcastService
         next if skip_user_ids.include?(user.id)
 
         begin
+          # The event is sent before its durable recipient checkpoint. This is
+          # at-least-once delivery, so consumers must deduplicate retried events.
           UserMessagesChannel.broadcast_to(user, payload_for_user(event, message, user))
-          yield user if block_given?
         rescue StandardError => e
           log_failure(e)
           failures << e
+          next
         end
+        yield user if block_given?
       end
       raise failures.first if raise_on_failure && failures.any?
     end

@@ -465,7 +465,9 @@ Channel and direct-conversation show endpoints accept `message_limit`, `around_m
 }
 ```
 
-`body` is limited to 5,000 characters. Clients should generate one `client_message_id` for each send intent and reuse it for every retry of that message. The value is scoped to the author and limited to 100 characters. A first-time create returns `201 Created`. A matching replay returns `200 OK` with the original message, resumes any interrupted notification or realtime delivery, and does not repeat completed delivery work; reusing the value for different content returns `409 Conflict`. Create, replay, message-list, and realtime ActionCable payloads include the value only for the authenticated author and omit it for other viewers. Older clients may omit it.
+`body` is limited to 5,000 characters. Clients must generate a distinct `client_message_id` for each send intent and reuse it for every retry of that message. The identifier is scoped to the author—not the conversation—and is limited to 100 characters; a longer value returns `422 Unprocessable Entity`. A first-time create returns `201 Created`. A matching replay returns `200 OK` with the original message, resumes any interrupted notification or realtime delivery, and does not repeat completed delivery work. The first accepted request's `send_push` value governs all replays.
+
+`409 Conflict` is returned when an author reuses the identifier with a different body, parent message, mention set, attachment set, or conversation. Replaying an identifier whose message was subsequently deleted also returns `409 Conflict`; it does not recreate or expose the deleted message. Create, replay, message-list, and realtime ActionCable payloads include the value only for the authenticated author and omit it for other viewers. Older clients may omit it.
 
 Posting a message creates in-app `message` notifications for other visible channel recipients and can enqueue Web Push delivery when push is configured.
 

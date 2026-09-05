@@ -16,7 +16,7 @@ import { demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { resolveMentionUserIds } from '@/lib/mentions';
 import { clientMessageIdForSend, type FailedSendIntent, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
 import { mergeMessageEvent, sortMessages } from '@/lib/message-state';
-import { loadStoredThreadDraft, saveThreadDraft } from '@/lib/conversation-storage';
+import { clearThreadDraftAfterSend, loadStoredThreadDraft, saveThreadDraft } from '@/lib/conversation-storage';
 import type { Message, MessageEvent, UserSummary } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
@@ -156,7 +156,7 @@ export default function ThreadScreen() {
       if (userId) {
         if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
         pendingDraftRef.current = null;
-        await saveThreadDraft(userId, rootId, '');
+        await clearThreadDraftAfterSend(userId, rootId);
       }
     } catch (requestError) {
       failedSendRef.current = { body, clientMessageId };

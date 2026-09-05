@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
+  clearConversationDraftAfterSend,
+  clearThreadDraftAfterSend,
   clearUserConversationStorage,
   loadFailedMessages,
   loadStoredThreadDraft,
@@ -59,6 +61,14 @@ describe('offline authored storage', () => {
     expect(await loadThreadDraft(7, 88)).toBe('');
   });
 
+  it('does not turn successful sends into failures when local draft cleanup rejects', async () => {
+    const conversationCleanup = jest.fn().mockRejectedValue(new Error('storage unavailable'));
+    await expect(clearConversationDraftAfterSend(7, 'channel', 3, conversationCleanup)).resolves.toBeUndefined();
+
+    const threadCleanup = jest.fn().mockRejectedValue(new Error('storage unavailable'));
+    await expect(clearThreadDraftAfterSend(7, 88, threadCleanup)).resolves.toBeUndefined();
+  });
+
   it('restores a failed thread send identifier after the screen unmounts', async () => {
     await saveThreadDraft(7, 88, 'Possibly delivered', 'thread-send-1');
 
@@ -85,6 +95,7 @@ describe('offline authored storage', () => {
 
     const restored = await loadFailedMessages(7, 'channel', 3);
     const merged = mergeMessageEvent(restored, { event: 'created', channel_id: 3, direct_conversation_id: null, message: canonical });
+    expect(merged).toEqual([canonical]);
     await saveFailedMessages(7, 'channel', 3, merged);
 
     expect(await loadFailedMessages(7, 'channel', 3)).toEqual([]);

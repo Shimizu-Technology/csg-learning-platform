@@ -56,7 +56,12 @@ class Message < ApplicationRecord
   end
 
   def delivered_recipient_ids(attribute)
-    Array(public_send(attribute)).map(&:to_i).uniq
+    values = case attribute
+    when :broadcast_recipient_ids then self[:broadcast_recipient_ids]
+    when :thread_broadcast_recipient_ids then self[:thread_broadcast_recipient_ids]
+    else raise ArgumentError, "unsupported delivery recipient attribute"
+    end
+    Array(values).map(&:to_i).uniq
   end
 
   private

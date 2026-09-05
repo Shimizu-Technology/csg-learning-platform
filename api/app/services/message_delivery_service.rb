@@ -1,5 +1,10 @@
 class MessageDeliveryService
+  # Production can run Active Job inline, so request/replay recovery—not an
+  # assumed background worker—is the guaranteed execution path for delivery.
+  class StaleDeliveryClaim < StandardError; end
+
   DELIVERY_LEASE = 5.minutes
+  RECIPIENT_CHECKPOINT_BATCH_SIZE = 25
 
   class << self
     def created(message)
@@ -13,85 +18,121 @@ class MessageDeliveryService
     private
 
     def deliver_notifications(message)
-      claim = claim_delivery(message, :notifications_delivered_at, :notifications_delivery_started_at)
+      claim = claim_delivery(message, :notifications_delivered_at, :notifications_delivery_started_at, :notifications_delivery_claim)
       return true if claim == :complete
       return false if claim == :in_progress
 
       NotificationDeliveryService.message_created(message.reload, push: message.delivery_push_requested?)
-      complete_delivery(message, :notifications_delivered_at, :notifications_delivery_started_at)
+      completed = complete_delivery(message, :notifications_delivered_at, :notifications_delivery_started_at, :notifications_delivery_claim, claim)
+      raise StaleDeliveryClaim, "notification delivery claim expired" unless completed
+
       true
     rescue StandardError
-      release_delivery(message, :notifications_delivery_started_at) if claim == :claimed
+      release_delivery(message, :notifications_delivery_started_at, :notifications_delivery_claim, claim) if claim.is_a?(String)
       raise
     end
 
     def deliver_message_broadcast(message)
-      claim = claim_delivery(message, :broadcasts_delivered_at, :broadcast_delivery_started_at)
-      return true if claim == :complete
-      return false if claim == :in_progress
-
-      delivered_ids = message.reload.delivered_recipient_ids(:broadcast_recipient_ids)
-      MessageBroadcastService.created(message, skip_user_ids: delivered_ids, raise_on_failure: true) do |user|
-        record_recipient(message, :broadcast_recipient_ids, user.id)
-      end
-      complete_delivery(message, :broadcasts_delivered_at, :broadcast_delivery_started_at, :broadcast_recipient_ids)
-      true
-    rescue StandardError
-      release_delivery(message, :broadcast_delivery_started_at) if claim == :claimed
-      raise
+      deliver_broadcast(
+        message,
+        event: :created,
+        completed_attribute: :broadcasts_delivered_at,
+        started_attribute: :broadcast_delivery_started_at,
+        claim_attribute: :broadcast_delivery_claim,
+        recipients_attribute: :broadcast_recipient_ids
+      )
     end
 
     def deliver_thread_broadcast(message)
-      claim = claim_delivery(message, :thread_broadcasts_delivered_at, :thread_broadcast_delivery_started_at)
+      deliver_broadcast(
+        message,
+        event: :updated,
+        completed_attribute: :thread_broadcasts_delivered_at,
+        started_attribute: :thread_broadcast_delivery_started_at,
+        claim_attribute: :thread_broadcast_delivery_claim,
+        recipients_attribute: :thread_broadcast_recipient_ids
+      )
+    end
+
+    def deliver_broadcast(message, event:, completed_attribute:, started_attribute:, claim_attribute:, recipients_attribute:)
+      claim = claim_delivery(message, completed_attribute, started_attribute, claim_attribute)
       return true if claim == :complete
       return false if claim == :in_progress
 
-      delivered_ids = message.reload.delivered_recipient_ids(:thread_broadcast_recipient_ids)
-      MessageBroadcastService.updated(message.parent_message.reload, skip_user_ids: delivered_ids, raise_on_failure: true) do |user|
-        record_recipient(message, :thread_broadcast_recipient_ids, user.id)
+      pending_ids = []
+      delivered_ids = message.reload.delivered_recipient_ids(recipients_attribute)
+      broadcast_message = event == :created ? message : message.parent_message.reload
+      MessageBroadcastService.public_send(event, broadcast_message, skip_user_ids: delivered_ids, raise_on_failure: true) do |user|
+        pending_ids << user.id
+        next if pending_ids.size < RECIPIENT_CHECKPOINT_BATCH_SIZE
+
+        checkpointed = checkpoint_recipients(message, recipients_attribute, started_attribute, claim_attribute, claim, pending_ids)
+        raise StaleDeliveryClaim, "message delivery claim expired" unless checkpointed
+
+        pending_ids.clear
       end
-      complete_delivery(message, :thread_broadcasts_delivered_at, :thread_broadcast_delivery_started_at, :thread_broadcast_recipient_ids)
+      checkpointed = checkpoint_recipients(message, recipients_attribute, started_attribute, claim_attribute, claim, pending_ids)
+      raise StaleDeliveryClaim, "message delivery claim expired" unless checkpointed
+
+      completed = complete_delivery(message, completed_attribute, started_attribute, claim_attribute, claim, recipients_attribute)
+      raise StaleDeliveryClaim, "message delivery claim expired" unless completed
+
       true
     rescue StandardError
-      release_delivery(message, :thread_broadcast_delivery_started_at) if claim == :claimed
+      checkpoint_recipients(message, recipients_attribute, started_attribute, claim_attribute, claim, pending_ids) if claim.is_a?(String) && pending_ids&.any?
+      release_delivery(message, started_attribute, claim_attribute, claim) if claim.is_a?(String)
       raise
     end
 
-    def claim_delivery(message, completed_attribute, started_attribute)
+    def claim_delivery(message, completed_attribute, started_attribute, claim_attribute)
       message.with_lock do
         next :complete if message.public_send(completed_attribute).present?
 
         started_at = message.public_send(started_attribute)
         next :in_progress if started_at.present? && started_at > DELIVERY_LEASE.ago
 
-        message.update_column(started_attribute, Time.current)
-        :claimed
+        claim = SecureRandom.uuid
+        message.update_columns(started_attribute => Time.current, claim_attribute => claim)
+        claim
       end
     end
 
-    def complete_delivery(message, completed_attribute, started_attribute, recipients_attribute = nil)
+    def complete_delivery(message, completed_attribute, started_attribute, claim_attribute, claim, recipients_attribute = nil)
       message.with_lock do
+        next false unless message.public_send(claim_attribute) == claim
+
         attributes = {
           completed_attribute => Time.current,
-          started_attribute => nil
+          started_attribute => nil,
+          claim_attribute => nil
         }
         attributes[recipients_attribute] = [] if recipients_attribute
         message.update_columns(attributes)
+        true
       end
     end
 
-    def release_delivery(message, started_attribute)
+    def release_delivery(message, started_attribute, claim_attribute, claim)
       message.with_lock do
-        message.update_column(started_attribute, nil)
+        next false unless message.public_send(claim_attribute) == claim
+
+        message.update_columns(started_attribute => nil, claim_attribute => nil)
+        true
       end
     end
 
-    def record_recipient(message, attribute, user_id)
-      message.with_lock do
-        delivered_ids = message.delivered_recipient_ids(attribute)
-        next if delivered_ids.include?(user_id)
+    def checkpoint_recipients(message, recipients_attribute, started_attribute, claim_attribute, claim, recipient_ids)
+      return true if recipient_ids.empty?
 
-        message.update_column(attribute, delivered_ids + [ user_id ])
+      message.with_lock do
+        next false unless message.public_send(claim_attribute) == claim
+
+        delivered_ids = message.delivered_recipient_ids(recipients_attribute)
+        message.update_columns(
+          recipients_attribute => (delivered_ids + recipient_ids).uniq,
+          started_attribute => Time.current
+        )
+        true
       end
     end
   end
