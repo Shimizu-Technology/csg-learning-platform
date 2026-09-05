@@ -211,7 +211,11 @@ export default function ThreadScreen() {
     : null;
   const send = async (retryMessage?: Message) => {
     const body = (retryMessage?.body || draft).trim();
-    if (!root || !user || !body || !messageBodyWithinLimit(body) || sending) return;
+    if (!root || !user || !body || sending) return;
+    if (!messageBodyWithinLimit(body)) {
+      if (retryMessage) Alert.alert('Reply is too long to send', `Shorten this reply to ${MESSAGE_BODY_LIMIT.toLocaleString()} characters, then send it again.`);
+      return;
+    }
     const retryIntent = retryMessage?.client_message_id
       ? { body, clientMessageId: retryMessage.client_message_id }
       : null;

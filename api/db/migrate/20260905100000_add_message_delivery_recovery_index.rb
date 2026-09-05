@@ -11,6 +11,7 @@ class AddMessageDeliveryRecoveryIndex < ActiveRecord::Migration[8.1]
   SQL
 
   def up
+    execute "SET lock_timeout = '5s'"
     return if usable_expected_index?
 
     execute "DROP INDEX CONCURRENTLY IF EXISTS #{connection.quote_table_name(INDEX_NAME)}"
@@ -19,10 +20,15 @@ class AddMessageDeliveryRecoveryIndex < ActiveRecord::Migration[8.1]
       where: PREDICATE,
       algorithm: :concurrently,
       name: INDEX_NAME
+  ensure
+    execute "SET lock_timeout = DEFAULT"
   end
 
   def down
+    execute "SET lock_timeout = '5s'"
     execute "DROP INDEX CONCURRENTLY IF EXISTS #{connection.quote_table_name(INDEX_NAME)}"
+  ensure
+    execute "SET lock_timeout = DEFAULT"
   end
 
   private

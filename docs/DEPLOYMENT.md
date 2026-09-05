@@ -1,6 +1,6 @@
 # CSG Learning Platform — Deployment Guide
 
-**Last updated:** 2026-08-16
+**Last updated:** 2026-09-05
 
 ## Architecture Overview
 

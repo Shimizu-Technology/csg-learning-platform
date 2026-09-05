@@ -30,12 +30,17 @@ class PushNotificationJobTest < ActiveJob::TestCase
     original_web_delivery = WebPushNotificationService.method(:message_created)
     original_expo_delivery = ExpoPushNotificationService.method(:message_created)
     WebPushNotificationService.define_singleton_method(:message_created) { |notifiable, notifications| web_deliveries << [ notifiable, notifications.pluck(:id) ] }
-    ExpoPushNotificationService.define_singleton_method(:message_created) { |*, **| raise "Expo unavailable" }
+    expo_attempts = 0
+    ExpoPushNotificationService.define_singleton_method(:message_created) do |*, **|
+      expo_attempts += 1
+      raise "Expo unavailable"
+    end
 
     assert_nothing_raised do
-      PushNotificationJob.perform_now("Message", message.id, [ notification.id ])
+      2.times { PushNotificationJob.perform_now("Message", message.id, [ notification.id ]) }
     end
     assert_equal [ [ message, [ notification.id ] ] ], web_deliveries
+    assert_equal 1, expo_attempts, "a provider exception may follow partial external delivery and must not be retried blindly"
   ensure
     WebPushNotificationService.define_singleton_method(:message_created, original_web_delivery) if defined?(original_web_delivery) && original_web_delivery
     ExpoPushNotificationService.define_singleton_method(:message_created, original_expo_delivery) if defined?(original_expo_delivery) && original_expo_delivery

@@ -184,4 +184,29 @@ class NotificationDeliveryServiceTest < ActiveSupport::TestCase
     assert_equal [ notification.id ], message.reload.push_enqueued_notification_ids
     assert_equal [ notification.id ], push_jobs.first.fetch(:args).last
   end
+
+  test "push enqueue cleanup cannot mask the original enqueue error" do
+    curriculum = Curriculum.create!(name: "Push cleanup safety")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Push cleanup cohort", start_date: Date.current, status: :active)
+    author = User.create!(clerk_id: "push_cleanup_author", email: "push-cleanup-author@example.com", role: :admin)
+    recipient = User.create!(clerk_id: "push_cleanup_recipient", email: "push-cleanup-recipient@example.com", role: :student)
+    Enrollment.create!(user: recipient, cohort: cohort, status: :active)
+    message = Message.create!(channel: cohort.channels.find_by!(name: "Class Chat"), author: author, body: "Preserve enqueue failure")
+    original_enqueue = PushNotificationJob.method(:perform_later)
+    PushNotificationJob.define_singleton_method(:perform_later) { |*| raise "original enqueue failure" }
+    original_lock = message.method(:with_lock)
+    lock_calls = 0
+    message.define_singleton_method(:with_lock) do |&block|
+      lock_calls += 1
+      raise "cleanup lock failure" if lock_calls == 2
+
+      original_lock.call(&block)
+    end
+
+    error = assert_raises(RuntimeError) { NotificationDeliveryService.message_created(message, push: true) }
+
+    assert_equal "original enqueue failure", error.message
+  ensure
+    PushNotificationJob.define_singleton_method(:perform_later, original_enqueue) if defined?(original_enqueue) && original_enqueue
+  end
 end

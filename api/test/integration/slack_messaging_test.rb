@@ -558,6 +558,25 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     S3Service.define_singleton_method(:configured?, original_configured) if defined?(original_configured) && original_configured
   end
 
+  test "message retries preserve the original mention intent after membership changes" do
+    params = { body: "Before you go", client_message_id: "message-membership-change", mention_user_ids: [ @classmate.id ] }
+    as_user(@student) do
+      post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+    end
+    assert_response :created
+    message_id = JSON.parse(response.body).dig("message", "id")
+    @classmate.update!(archived_at: Time.current)
+
+    assert_no_difference("Message.count") do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+      end
+    end
+
+    assert_response :ok
+    assert_equal message_id, JSON.parse(response.body).dig("message", "id")
+  end
+
   test "message retries reject a changed attachment set" do
     original_configured = S3Service.method(:configured?)
     S3Service.define_singleton_method(:configured?) { false }

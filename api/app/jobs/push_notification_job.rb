@@ -33,6 +33,9 @@ class PushNotificationJob < ApplicationJob
 
   def deliver_message_push(service, attempted_attribute, message, notifications)
     requested_ids = notifications.pluck(:id)
+    # This is an at-most-once provider-attempt boundary. Providers can raise
+    # after partial external delivery and expose no transactional idempotency
+    # key, so releasing the claim here could notify the same recipient twice.
     claimed_ids = message.with_lock do
       attempted_ids = Array(message.public_send(attempted_attribute)).map(&:to_i)
       next_ids = requested_ids - attempted_ids

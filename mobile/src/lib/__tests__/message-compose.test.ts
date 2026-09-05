@@ -17,11 +17,15 @@ describe('message compose contract', () => {
   it('creates bounded distinct identifiers when randomUUID is unavailable', () => {
     const originalCrypto = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
     Object.defineProperty(globalThis, 'crypto', { value: undefined, configurable: true });
+    const now = jest.spyOn(Date, 'now').mockReturnValue(1_789_000_000_000);
+    const random = jest.spyOn(Math, 'random').mockReturnValue(0.12345);
     try {
       const identifiers = new Set(Array.from({ length: 50 }, () => createClientMessageId()));
       expect(identifiers.size).toBe(50);
       expect(Array.from(identifiers).every((value) => value.startsWith('message-') && value.length <= 100)).toBe(true);
     } finally {
+      now.mockRestore();
+      random.mockRestore();
       if (originalCrypto) Object.defineProperty(globalThis, 'crypto', originalCrypto);
       else Reflect.deleteProperty(globalThis, 'crypto');
     }

@@ -293,11 +293,13 @@ module Api
       end
 
       def same_message_intent?(message, destination, attachments, mention_user_ids)
-          message.deleted_at.nil? &&
+        persisted_mention_user_ids = Array(message.mention_user_ids).map(&:to_i)
+        message.deleted_at.nil? &&
           message.destination == destination &&
           message.body.to_s == message_params[:body].to_s &&
           message.parent_message_id == Message.type_for_attribute(:parent_message_id).cast(message_params[:parent_message_id]) &&
-          Array(message.mention_user_ids).sort == mention_user_ids.sort &&
+          (persisted_mention_user_ids - requested_mention_user_ids).empty? &&
+          (mention_user_ids - persisted_mention_user_ids).empty? &&
           persisted_attachment_intent(message) == requested_attachment_intent(attachments)
       end
 
@@ -369,15 +371,19 @@ module Api
       end
 
       def sanitized_mention_user_ids_for(destination)
-        raw_ids = Array(message_params[:mention_user_ids]).filter_map do |value|
-          next if value.blank?
-
-          value.to_i
-        end.uniq
+        raw_ids = requested_mention_user_ids
         return [] if raw_ids.empty?
 
         allowed_ids = destination.recipients.reorder(nil).where(id: raw_ids).pluck(:id)
         allowed_ids.reject { |id| id == current_user.id }
+      end
+
+      def requested_mention_user_ids
+        Array(message_params[:mention_user_ids]).filter_map do |value|
+          next if value.blank?
+
+          value.to_i
+        end.uniq
       end
 
       def message_json(message)

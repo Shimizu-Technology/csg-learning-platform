@@ -22,6 +22,7 @@ class MessageDeliveryRecoveryJobTest < ActiveJob::TestCase
     abandoned.update_columns(notifications_delivery_started_at: 6.minutes.ago, notifications_delivery_claim: SecureRandom.uuid, broadcasts_delivered_at: now)
     root.update_columns(notifications_delivered_at: now, broadcasts_delivered_at: now)
     thread_reply.update_columns(notifications_delivered_at: now, broadcasts_delivered_at: now)
+    abandoned_attempted_before = abandoned.delivery_recovery_attempted_at
 
     delivered_ids = []
     original_delivery = MessageDeliveryService.method(:created)
@@ -35,7 +36,7 @@ class MessageDeliveryRecoveryJobTest < ActiveJob::TestCase
 
     assert_equal [ unclaimed.id, thread_reply.id ].sort, delivered_ids.sort
     assert_not_includes delivered_ids, legacy.id
-    assert abandoned.reload.delivery_recovery_attempted_at
+    assert_operator abandoned.reload.delivery_recovery_attempted_at, :>, abandoned_attempted_before
   ensure
     MessageDeliveryService.define_singleton_method(:created, original_delivery) if defined?(original_delivery) && original_delivery
   end

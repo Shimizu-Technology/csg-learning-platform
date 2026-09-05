@@ -225,7 +225,11 @@ export default function ConversationScreen() {
 
   const send = async (retryMessage?: Message) => {
     const body = (retryMessage ? retryMessage.body : draft).trim();
-    if ((!body && !attachments.length && !retryMessage?.client_uploads?.length) || !messageBodyWithinLimit(body) || sending) return;
+    if ((!body && !attachments.length && !retryMessage?.client_uploads?.length) || sending) return;
+    if (!messageBodyWithinLimit(body)) {
+      if (retryMessage) Alert.alert('Message is too long to send', `Shorten this message to ${MESSAGE_BODY_LIMIT.toLocaleString()} characters, then send it again.`);
+      return;
+    }
     setSending(true);
     let optimistic: Message | null = retryMessage || null;
     try {

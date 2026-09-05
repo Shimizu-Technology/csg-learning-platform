@@ -5,12 +5,15 @@ export interface FailedSendIntent {
   clientMessageId: string;
 }
 
+let fallbackClientMessageSequence = 0;
+
 export function createClientMessageId() {
   const randomUuid = globalThis.crypto?.randomUUID;
   if (randomUuid) return randomUuid.call(globalThis.crypto);
 
+  fallbackClientMessageSequence = (fallbackClientMessageSequence + 1) % Number.MAX_SAFE_INTEGER;
   const random = Math.random().toString(36).slice(2);
-  return `message-${Date.now().toString(36)}-${random}`;
+  return `message-${Date.now().toString(36)}-${fallbackClientMessageSequence.toString(36)}-${random}`;
 }
 
 export function clientMessageIdForSend(body: string, failedIntent?: FailedSendIntent | null) {

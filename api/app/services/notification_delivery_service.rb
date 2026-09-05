@@ -193,11 +193,19 @@ class NotificationDeliveryService
 
     PushNotificationJob.perform_later("Message", message.id, claimed_ids)
   rescue StandardError
+    safely_release_message_push_claim(message, Array(claimed_ids))
+    raise
+  end
+
+  def safely_release_message_push_claim(message, claimed_ids)
+    return if claimed_ids.empty?
+
     message.with_lock do
       enqueued_ids = Array(message.push_enqueued_notification_ids).map(&:to_i)
-      message.update_columns(push_enqueued_notification_ids: enqueued_ids - Array(claimed_ids))
+      message.update_columns(push_enqueued_notification_ids: enqueued_ids - claimed_ids)
     end
-    raise
+  rescue StandardError => error
+    Rails.logger.warn("NotificationDeliveryService: push claim cleanup failed: #{error.class}: #{error.message}")
   end
 
   def intervention_notification_for(intervention, title:, body:, actor:)
