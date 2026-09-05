@@ -247,6 +247,17 @@ export interface MessageEvent {
   direct_conversation?: DirectConversationSummary | null;
 }
 
+export interface MessageTypingEvent {
+  event: 'typing';
+  channel_id: number | null;
+  direct_conversation_id: number | null;
+  thread_root_id: number | null;
+  active: boolean;
+  user: Pick<UserSummary, 'id' | 'full_name' | 'avatar_url'>;
+}
+
+export type RealtimeMessageEvent = MessageEvent | MessageTypingEvent;
+
 export type MessageSearchResult = Message & {
   context: {
     type: 'channel' | 'direct_conversation';

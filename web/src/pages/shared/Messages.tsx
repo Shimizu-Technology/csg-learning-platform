@@ -22,6 +22,7 @@ import {
   ChevronRight,
   CircleCheck,
   Code2,
+  Copy,
   Download,
   Edit3,
   File,
@@ -57,7 +58,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { api } from '../../lib/api'
-import { subscribeToUserMessages } from '../../lib/realtime'
+import { isMessageTypingEvent, subscribeToUserMessages, type RealtimeSubscription } from '../../lib/realtime'
 import { isVisiblePage, shouldPollMessages } from '../../lib/backgroundActivity'
 import { disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
 import { formatFileSize, uploadToS3 } from '../../lib/uploadToS3'
@@ -88,6 +89,7 @@ import type {
   DirectConversationSummary,
   MessageAttachment,
   MessageWindowMeta,
+  MessageTypingEvent,
   UserSummary,
   WorkspaceDetail,
   WorkspaceSummary,
@@ -136,6 +138,7 @@ type MessageSearchResult = ChannelMessage & {
 }
 
 type ReadReceipts = NonNullable<ChannelMessage['read_receipts']>
+type TypingUser = MessageTypingEvent['user']
 
 function targetKey(target: Target) {
   return `${target.type}:${target.id}`
@@ -455,6 +458,14 @@ export function applyComposerListShortcut(
   event.preventDefault()
   applyComposerList(editor, kind, selection)
   return true
+}
+
+export function typingIndicatorLabel(users: TypingUser[]) {
+  const names = users.map((typingUser) => typingUser.full_name)
+  if (names.length === 0) return ''
+  if (names.length === 1) return `${names[0]} is typing…`
+  if (names.length === 2) return `${names[0]} and ${names[1]} are typing…`
+  return `${names[0]}, ${names[1]}, and ${names.length - 2} more are typing…`
 }
 
 function stripMentionLabel(value: string) {
@@ -808,6 +819,8 @@ export function Messages() {
   const [hasUnreadBelow, setHasUnreadBelow] = useState(false)
   const [showScrollToLatest, setShowScrollToLatest] = useState(false)
   const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'error'>('disconnected')
+  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([])
+  const [realtimeSubscriptionVersion, setRealtimeSubscriptionVersion] = useState(0)
   const [body, setBody] = useState('')
   const [composerMentionUserIds, setComposerMentionUserIds] = useState<number[]>([])
   const [composerTriggerText, setComposerTriggerText] = useState('')
@@ -877,6 +890,15 @@ export function Messages() {
   const draftSaveTimerRef = useRef<number | null>(null)
   const pendingAttachmentBucketsRef = useRef(new Map<string, PendingAttachment[]>())
   const pendingAttachmentsRef = useRef(pendingAttachments)
+  const realtimeSubscriptionRef = useRef<RealtimeSubscription | null>(null)
+  const typingExpiryTimersRef = useRef(new Map<number, number>())
+  const typingStopTimerRef = useRef<number | null>(null)
+  const outboundTypingRef = useRef<{
+    target: Target
+    threadRootId: number | null
+    active: boolean
+    lastSentAt: number
+  } | null>(null)
   const deferredSearchQuery = useDeferredValue(searchQuery)
 
   activeThreadRootIdRef.current = activeThreadRootId
@@ -943,6 +965,7 @@ export function Messages() {
   )
   const activeThreadRoot = activeThreadRootId ? messagesById.get(activeThreadRootId) || null : null
   const mobileActionsMessage = mobileActionsMessageId ? messagesById.get(mobileActionsMessageId) || null : null
+  const typingLabel = typingIndicatorLabel(typingUsers)
   const reactionDetailsMessage = reactionDetails ? messagesById.get(reactionDetails.messageId) || null : null
   const selectedReaction = reactionDetailsMessage?.reactions.find((reaction) => reaction.emoji === reactionDetails?.emoji)
     || reactionDetailsMessage?.reactions[0]
@@ -1622,13 +1645,40 @@ export function Messages() {
   useEffect(() => {
     if (!user) return
 
-    let unsubscribe: (() => void) | null = null
+    let unsubscribe: RealtimeSubscription | null = null
     let active = true
 
     setRealtimeStatus('disconnected')
+    setTypingUsers([])
 
     subscribeToUserMessages((payload) => {
       if (!active) return
+      if (isMessageTypingEvent(payload)) {
+        const currentTarget = selectedTargetRef.current
+        const belongsToTarget = Boolean(currentTarget) && (
+          currentTarget!.type === 'channel'
+            ? payload.channel_id === currentTarget!.id
+            : payload.direct_conversation_id === currentTarget!.id
+        )
+        if (!belongsToTarget || payload.user.id === user.id || payload.thread_root_id !== activeThreadRootIdRef.current) return
+
+        const existingTimer = typingExpiryTimersRef.current.get(payload.user.id)
+        if (existingTimer) window.clearTimeout(existingTimer)
+        typingExpiryTimersRef.current.delete(payload.user.id)
+        if (!payload.active) {
+          setTypingUsers((current) => current.filter((typingUser) => typingUser.id !== payload.user.id))
+          return
+        }
+
+        setTypingUsers((current) => [payload.user, ...current.filter((typingUser) => typingUser.id !== payload.user.id)])
+        const timer = window.setTimeout(() => {
+          typingExpiryTimersRef.current.delete(payload.user.id)
+          setTypingUsers((current) => current.filter((typingUser) => typingUser.id !== payload.user.id))
+        }, 5_000)
+        typingExpiryTimersRef.current.set(payload.user.id, timer)
+        return
+      }
+
       const event = payload as ChannelMessageEvent
       if (!event.message) return
 
@@ -1639,6 +1689,12 @@ export function Messages() {
           : event.direct_conversation_id === currentTarget!.id
       )
       const message = { ...event.message, mine: event.message.mine ?? event.message.author.id === user.id }
+      if (belongsToTarget && message.parent_message_id === activeThreadRootIdRef.current) {
+        const typingTimer = typingExpiryTimersRef.current.get(message.author.id)
+        if (typingTimer) window.clearTimeout(typingTimer)
+        typingExpiryTimersRef.current.delete(message.author.id)
+        setTypingUsers((current) => current.filter((typingUser) => typingUser.id !== message.author.id))
+      }
       const shouldMarkIncomingRead = Boolean(belongsToTarget && !message.mine && event.event === 'created' && canAutoMarkRead())
 
       updateTargetSummaryFromEvent(event, message, message.mine || shouldMarkIncomingRead)
@@ -1674,16 +1730,85 @@ export function Messages() {
           markRead(currentTarget).catch(() => {})
         }
       }
-    }, setRealtimeStatus).then((cleanup) => {
-      if (active) unsubscribe = cleanup
+    }, (status) => {
+      setRealtimeStatus(status)
+      if (status === 'connected') setRealtimeSubscriptionVersion((current) => current + 1)
+    }).then((cleanup) => {
+      if (active) {
+        unsubscribe = cleanup
+        realtimeSubscriptionRef.current = cleanup
+      }
       else cleanup()
     })
 
     return () => {
       active = false
+      const outbound = outboundTypingRef.current
+      if (outbound?.active) {
+        unsubscribe?.perform('typing', {
+          target_type: outbound.target.type,
+          target_id: outbound.target.id,
+          thread_root_id: outbound.threadRootId,
+          active: false,
+        })
+      }
+      outboundTypingRef.current = null
+      if (typingStopTimerRef.current) window.clearTimeout(typingStopTimerRef.current)
+      typingStopTimerRef.current = null
+      realtimeSubscriptionRef.current = null
       unsubscribe?.()
+      typingExpiryTimersRef.current.forEach((timer) => window.clearTimeout(timer))
+      typingExpiryTimersRef.current.clear()
     }
   }, [user?.id])
+
+  useEffect(() => {
+    const subscription = realtimeSubscriptionRef.current
+    const target = selectedTarget
+    const hasContent = Boolean(normalizeMessageMarkdown(body))
+    const threadRootId = activeThreadRootId
+    const previous = outboundTypingRef.current
+    const sameDestination = Boolean(previous && target
+      && previous.target.type === target.type
+      && previous.target.id === target.id
+      && previous.threadRootId === threadRootId)
+
+    const send = (outboundTarget: Target, outboundThreadRootId: number | null, active: boolean) => subscription?.perform('typing', {
+      target_type: outboundTarget.type,
+      target_id: outboundTarget.id,
+      thread_root_id: outboundThreadRootId,
+      active,
+    }) ?? false
+
+    if (previous?.active && (!sameDestination || !hasContent)) {
+      send(previous.target, previous.threadRootId, false)
+      outboundTypingRef.current = null
+    }
+
+    if (typingStopTimerRef.current) window.clearTimeout(typingStopTimerRef.current)
+    typingStopTimerRef.current = null
+    if (!subscription || !target || !hasContent) return
+
+    const now = Date.now()
+    if (!sameDestination || !previous?.active || now - previous.lastSentAt >= 2_000) {
+      if (send(target, threadRootId, true)) {
+        outboundTypingRef.current = { target, threadRootId, active: true, lastSentAt: now }
+      }
+    }
+
+    typingStopTimerRef.current = window.setTimeout(() => {
+      const latest = outboundTypingRef.current
+      if (latest?.active) send(latest.target, latest.threadRootId, false)
+      outboundTypingRef.current = null
+      typingStopTimerRef.current = null
+    }, 4_000)
+  }, [activeThreadRootId, body, realtimeSubscriptionVersion, selectedTarget])
+
+  useEffect(() => {
+    typingExpiryTimersRef.current.forEach((timer) => window.clearTimeout(timer))
+    typingExpiryTimersRef.current.clear()
+    setTypingUsers([])
+  }, [activeThreadRootId, selectedTarget?.id, selectedTarget?.type])
 
   useEffect(() => {
     if (activeThreadRootId && !messagesById.has(activeThreadRootId)) {
@@ -2660,6 +2785,17 @@ export function Messages() {
     }
   }
 
+  const copyMessage = async (message: ChannelMessage) => {
+    if (!message.body) return
+
+    try {
+      await navigator.clipboard.writeText(message.body)
+      toast.success('Message copied')
+    } catch {
+      toast.error('Could not copy message.')
+    }
+  }
+
   const reportMessage = async (message: ChannelMessage) => {
     const res = await api.reportContent({ message_id: message.id, reason: 'inappropriate_content' })
     if (!res.data) return toast.error(res.error || 'Could not submit the report.')
@@ -2744,6 +2880,16 @@ export function Messages() {
         onSubmit={handleSend}
         className={`${inThreadPanel ? 'shrink-0 border-t border-slate-200 bg-white p-3' : 'shrink-0 border-t border-slate-200 bg-white px-2.5 pb-[calc(env(safe-area-inset-bottom)+0.625rem)] pt-2.5 sm:px-4 sm:pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:pt-3'}`}
       >
+        {typingLabel && (
+          <div className="mb-1.5 flex min-h-5 items-center gap-2 px-2 text-xs font-semibold text-slate-500" role="status" aria-live="polite">
+            <span className="inline-flex items-center gap-0.5" aria-hidden="true">
+              <span className="h-1 w-1 rounded-full bg-slate-400" />
+              <span className="h-1 w-1 rounded-full bg-slate-400" />
+              <span className="h-1 w-1 rounded-full bg-slate-400" />
+            </span>
+            {typingLabel}
+          </div>
+        )}
         {error && (
           <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             {error}
@@ -3368,6 +3514,7 @@ export function Messages() {
                           onCancelEdit={() => setEditing(null)}
                           onSaveEdit={() => saveEdit(message)}
                           onDelete={() => setMessagePendingDelete(message)}
+                          onCopy={() => void copyMessage(message)}
                           onRetry={() => void retryFailedMessage(message)}
                           onDiscard={() => discardFailedMessage(message)}
                           onRestore={() => restoreFailedMessageText(message)}
@@ -3443,6 +3590,7 @@ export function Messages() {
                             onCancelEdit={() => setEditing(null)}
                             onSaveEdit={() => saveEdit(message)}
                             onDelete={() => setMessagePendingDelete(message)}
+                            onCopy={() => void copyMessage(message)}
                             onRetry={() => void retryFailedMessage(message)}
                             onDiscard={() => discardFailedMessage(message)}
                             onRestore={() => restoreFailedMessageText(message)}
@@ -3924,6 +4072,19 @@ export function Messages() {
             >
               <Pin className="h-4 w-4" />
               {mobileActionsMessage.pinned_at ? 'Unpin message' : 'Pin message'}
+            </button>
+          )}
+          {mobileActionsMessage?.body && !mobileActionsMessage.blocked && (
+            <button
+              type="button"
+              onClick={() => {
+                void copyMessage(mobileActionsMessage)
+                setMobileActionsMessageId(null)
+              }}
+              className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              <Copy className="h-4 w-4" />
+              Copy message
             </button>
           )}
           {mobileActionsMessage && (
@@ -4421,6 +4582,7 @@ function MessageRow({
   onCancelEdit,
   onSaveEdit,
   onDelete,
+  onCopy,
   onRetry,
   onDiscard,
   onRestore,
@@ -4445,6 +4607,7 @@ function MessageRow({
   onCancelEdit: () => void
   onSaveEdit: () => void
   onDelete: () => void
+  onCopy: () => void
   onRetry: () => void
   onDiscard: () => void
   onRestore: () => void
@@ -4619,6 +4782,11 @@ function MessageRow({
         {!message.blocked && <button type="button" onClick={onReply} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={inThreadView ? 'Reply in thread' : 'Reply'}>
           <MessageCircle className="h-4 w-4" />
         </button>}
+        {!message.blocked && message.body && (
+          <button type="button" onClick={onCopy} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Copy message">
+            <Copy className="h-4 w-4" />
+          </button>
+        )}
         {canPin && (
           <button type="button" onClick={onPin} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Pin message">
             <Pin className="h-4 w-4" />

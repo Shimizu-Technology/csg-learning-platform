@@ -1,14 +1,30 @@
 import { api } from './api'
+import type { MessageTypingEvent } from '../types/api'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || ''
 
 type RealtimeStatus = 'connected' | 'disconnected' | 'error'
-type Unsubscribe = () => void
+export type RealtimeSubscription = (() => void) & {
+  perform: (action: string, data?: Record<string, unknown>) => boolean
+}
 
 export type PresenceUpdateEvent = {
   event: 'presence.updated'
   user_id: number
   last_seen_at: string
+}
+
+export function isMessageTypingEvent(payload: unknown): payload is MessageTypingEvent {
+  if (!payload || typeof payload !== 'object') return false
+  const event = payload as Partial<MessageTypingEvent>
+
+  return event.event === 'typing'
+    && (typeof event.channel_id === 'number' || event.channel_id === null)
+    && (typeof event.direct_conversation_id === 'number' || event.direct_conversation_id === null)
+    && (typeof event.thread_root_id === 'number' || event.thread_root_id === null)
+    && typeof event.active === 'boolean'
+    && typeof event.user?.id === 'number'
+    && typeof event.user.full_name === 'string'
 }
 
 const RECONNECT_DELAYS = [1000, 2500, 5000, 10000]
@@ -115,7 +131,12 @@ async function subscribe(
     })
 
     socket.addEventListener('message', (event) => {
-      const payload = JSON.parse(event.data)
+      let payload: { type?: string; identifier?: string; message?: unknown }
+      try {
+        payload = JSON.parse(event.data) as typeof payload
+      } catch {
+        return
+      }
       if (payload.type === 'confirm_subscription' && payload.identifier === identifier) {
         reconnectAttempts = 0
         onStatus?.('connected')
@@ -144,7 +165,7 @@ async function subscribe(
 
   await connect()
 
-  const unsubscribe: Unsubscribe = () => {
+  const unsubscribe = (() => {
     closing = true
     clearReconnect()
     if (socket?.readyState === WebSocket.OPEN) {
@@ -153,6 +174,15 @@ async function subscribe(
       return
     }
     socket?.close()
+  }) as RealtimeSubscription
+  unsubscribe.perform = (action, data = {}) => {
+    if (closing || socket?.readyState !== WebSocket.OPEN) return false
+    socket.send(JSON.stringify({
+      command: 'message',
+      identifier,
+      data: JSON.stringify({ action, ...data }),
+    }))
+    return true
   }
 
   return unsubscribe

@@ -10,15 +10,16 @@ import { ImagePreview } from '@/components/image-preview';
 import { ReactionDetailsSheet } from '@/components/reaction-details-sheet';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { VoiceDraftButton, VoiceDraftPanel } from '@/components/voice-draft-controls';
-import { fonts, palette } from '@/constants/csg-theme';
+import { fontScaleLimits, fonts, palette } from '@/constants/csg-theme';
 import { useVoiceDraft } from '@/hooks/use-voice-draft';
-import { subscribeToMessages } from '@/lib/cable';
+import { subscribeToMessages, type CableSubscription } from '@/lib/cable';
 import { demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { resolveMentionUserIds } from '@/lib/mentions';
 import { clientMessageIdForSend, draftAfterSendConfirmation, draftAfterStoredLoad, type FailedSendIntent, messageBodyChangeAllowed, messageBodyWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
 import { markOptimisticFailed, mergeMessageEvent, reconcileOptimistic, sortMessages } from '@/lib/message-state';
 import { clearThreadDraftAfterSend, loadStoredThreadDraft, saveThreadDraftState } from '@/lib/conversation-storage';
-import type { Message, MessageEvent, UserSummary } from '@/lib/types';
+import { typingIndicatorLabel, type TypingUser } from '@/lib/typing';
+import type { Message, MessageEvent, MessageTypingEvent, UserSummary } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 
@@ -75,6 +76,8 @@ export default function ThreadScreen() {
   const [error, setError] = useState<string | null>(null);
   const [reactionDetails, setReactionDetails] = useState<{ messageId: number; emoji: string } | null>(null);
   const [imagePreview, setImagePreview] = useState<{ attachments: Message['attachments']; attachmentId: number } | null>(null);
+  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
+  const [realtimeSubscriptionVersion, setRealtimeSubscriptionVersion] = useState(0);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingDraftRef = useRef<{ userId: number; rootId: number; body: string; failedSend: FailedSendIntent | null } | null>(null);
   const loadRequestRef = useRef(0);
@@ -82,6 +85,10 @@ export default function ThreadScreen() {
   const failedSendRef = useRef<FailedSendIntent | null>(null);
   const draftRef = useRef(draft);
   const userRef = useRef(user);
+  const realtimeSubscriptionRef = useRef<CableSubscription | null>(null);
+  const typingExpiryTimersRef = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+  const typingStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const outboundTypingRef = useRef<{ active: boolean; lastSentAt: number } | null>(null);
   useEffect(() => { userRef.current = user; }, [user]);
   const voiceDraft = useVoiceDraft({
     api,
@@ -190,13 +197,78 @@ export default function ThreadScreen() {
       flushPendingDraft();
     };
   }, [flushPendingDraft, load]);
-  useEffect(() => auth.demo || loading || error ? undefined : subscribeToMessages(api, kind, conversationId, (event: MessageEvent) => {
-    if (event.message.id === rootId) setRoot(event.event === 'deleted' ? null : event.message);
-    else if (event.message.parent_message_id === rootId) {
-      setReplies((current) => mergeMessageEvent(current, event));
-      if (event.event === 'created') acknowledgeSentReply(event.message);
+  useEffect(() => {
+    if (auth.demo || loading || error) return undefined;
+    const typingTimers = typingExpiryTimersRef.current;
+    setTypingUsers([]);
+    const subscription = subscribeToMessages(api, kind, conversationId, (event: MessageEvent) => {
+      if (event.message.id === rootId) setRoot(event.event === 'deleted' ? null : event.message);
+      else if (event.message.parent_message_id === rootId) {
+        const timer = typingTimers.get(event.message.author.id);
+        if (timer) clearTimeout(timer);
+        typingTimers.delete(event.message.author.id);
+        setTypingUsers((current) => current.filter((typingUser) => typingUser.id !== event.message.author.id));
+        setReplies((current) => mergeMessageEvent(current, event));
+        if (event.event === 'created') acknowledgeSentReply(event.message);
+      }
+    }, (nextStatus) => {
+      if (nextStatus === 'connected') setRealtimeSubscriptionVersion((current) => current + 1);
+    }, (event: MessageTypingEvent) => {
+      if (event.user.id === userId || event.thread_root_id !== rootId) return;
+      const existingTimer = typingTimers.get(event.user.id);
+      if (existingTimer) clearTimeout(existingTimer);
+      typingTimers.delete(event.user.id);
+      setTypingUsers((current) => event.active
+        ? [...current.filter((typingUser) => typingUser.id !== event.user.id), event.user]
+        : current.filter((typingUser) => typingUser.id !== event.user.id));
+      if (event.active) {
+        typingTimers.set(event.user.id, setTimeout(() => {
+          typingTimers.delete(event.user.id);
+          setTypingUsers((current) => current.filter((typingUser) => typingUser.id !== event.user.id));
+        }, 5_000));
+      }
+    });
+    realtimeSubscriptionRef.current = subscription;
+    return () => {
+      if (outboundTypingRef.current?.active) subscription.perform('typing', { target_type: kind, target_id: conversationId, thread_root_id: rootId, active: false });
+      outboundTypingRef.current = null;
+      if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current);
+      typingStopTimerRef.current = null;
+      typingTimers.forEach((timer) => clearTimeout(timer));
+      typingTimers.clear();
+      realtimeSubscriptionRef.current = null;
+      subscription();
+    };
+  }, [acknowledgeSentReply, api, auth.demo, conversationId, error, kind, loading, rootId, userId]);
+
+  useEffect(() => {
+    const subscription = realtimeSubscriptionRef.current;
+    const active = Boolean(draft.trim());
+    const previous = outboundTypingRef.current;
+    const send = (nextActive: boolean) => subscription?.perform('typing', { target_type: kind, target_id: conversationId, thread_root_id: rootId, active: nextActive }) ?? false;
+    if (previous?.active && !active) {
+      send(false);
+      outboundTypingRef.current = null;
     }
-  }, () => undefined), [acknowledgeSentReply, api, auth.demo, conversationId, error, kind, loading, rootId]);
+    if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current);
+    typingStopTimerRef.current = null;
+    if (!subscription || !active) return;
+    const now = Date.now();
+    if (!previous?.active || now - previous.lastSentAt >= 2_000) {
+      if (send(true)) outboundTypingRef.current = { active: true, lastSentAt: now };
+    }
+    typingStopTimerRef.current = setTimeout(() => {
+      if (outboundTypingRef.current?.active) send(false);
+      outboundTypingRef.current = null;
+      typingStopTimerRef.current = null;
+    }, 4_000);
+  }, [conversationId, draft, kind, realtimeSubscriptionVersion, rootId]);
+
+  useEffect(() => {
+    typingExpiryTimersRef.current.forEach((timer) => clearTimeout(timer));
+    typingExpiryTimersRef.current.clear();
+    setTypingUsers([]);
+  }, [conversationId, kind, rootId]);
 
   useEffect(() => {
     if (!userId || loading || sending) return;
@@ -294,6 +366,7 @@ export default function ThreadScreen() {
       <FlatList ref={listRef} data={visible} keyExtractor={(message) => String(message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list} renderItem={({ item, index }) => <MessageBubble message={item} showAuthor={!visible[index - 1] || visible[index - 1].author.id !== item.author.id} mentionUsers={users} onLongPress={openSafetyActions} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} onRetry={(message) => void send(message)} />} ListEmptyComponent={<Text style={styles.empty}>Start a focused conversation about this message.</Text>} />
     </>}
     <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />
+    {typingUsers.length > 0 && <View accessibilityLiveRegion="polite" style={styles.typingRow}><View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.typingDots}><View style={styles.typingDot} /><View style={styles.typingDot} /><View style={styles.typingDot} /></View><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.typingText}>{typingIndicatorLabel(typingUsers)}</Text></View>}
     <ComposerLimitNotice value={draft} />
     <View style={styles.composer}><VoiceDraftButton state={voiceDraft.state} disabled={sending} onPress={() => void voiceDraft.start()} /><TextInput accessibilityLabel="Reply to thread" value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={(value) => { if (messageBodyChangeAllowed(draftRef.current, value)) { draftRef.current = value; setDraft(value); } }} placeholder="Reply to thread" placeholderTextColor={palette.quiet} multiline style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel="Send reply" disabled={!draft.trim() || !draftWithinLimit || sending} onPress={() => void send()} style={[styles.send, (!draft.trim() || !draftWithinLimit || sending) && styles.disabled]}><Send color={palette.text} size={19} /></Pressable></View>
     <ReactionDetailsSheet key={reactionDetails ? `${reactionDetails.messageId}-${reactionDetails.emoji}` : 'closed-reactions'} initialEmoji={reactionDetails?.emoji || null} message={reactionDetailsMessage} onClose={() => setReactionDetails(null)} onToggle={async (message, value) => { await toggleReaction(message, value); }} />
@@ -303,4 +376,5 @@ export default function ThreadScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.ink }, header: { minHeight: 68, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.line }, back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, title: { color: palette.text, fontFamily: fonts.bold, fontSize: 17 }, subtitle: { color: palette.subtle, fontFamily: fonts.medium, fontSize: 11, marginTop: 2 }, root: { paddingHorizontal: 14, paddingTop: 18 }, divider: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, marginVertical: 12 }, dividerText: { color: palette.subtle, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.2 }, line: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: palette.line }, list: { paddingHorizontal: 14, paddingBottom: 24, flexGrow: 1 }, empty: { color: palette.muted, fontFamily: fonts.regular, fontSize: 13, textAlign: 'center', paddingHorizontal: 40, paddingTop: 50 }, composer: { paddingHorizontal: 14, paddingVertical: 9, flexDirection: 'row', alignItems: 'flex-end', gap: 9, backgroundColor: palette.panel, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.line }, input: { flex: 1, minHeight: 46, maxHeight: 120, borderRadius: 17, backgroundColor: palette.ink, borderWidth: 1, borderColor: palette.line, color: palette.text, fontFamily: fonts.regular, fontSize: 14, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 11 }, send: { width: 46, height: 46, borderRadius: 16, backgroundColor: palette.ruby, alignItems: 'center', justifyContent: 'center' }, disabled: { opacity: 0.38 },
+  typingRow: { minHeight: 28, paddingHorizontal: 16, backgroundColor: palette.panel, flexDirection: 'row', alignItems: 'center', gap: 7 }, typingDots: { flexDirection: 'row', gap: 3 }, typingDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: palette.subtle }, typingText: { flex: 1, color: palette.subtle, fontFamily: fonts.semibold, fontSize: 11 },
 });
