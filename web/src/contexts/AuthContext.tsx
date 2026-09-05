@@ -92,6 +92,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
       setSessionError(res.error || 'Could not connect to your CSG account. Check your connection and try again.')
       return false
     } catch (err) {
+      if (requestGeneration !== sessionRequestGenerationRef.current) return false
       console.error('Session sync failed:', err)
       setUser(null)
       setAccessDenied(false)

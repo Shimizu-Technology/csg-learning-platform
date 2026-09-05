@@ -36,9 +36,16 @@ vi.mock('posthog-js', () => ({ default: { identify: vi.fn(), reset: vi.fn() } })
 let root: Root | null = null
 let container: HTMLDivElement | null = null
 
-function SessionProbe({ onUser }: { onUser: (userId: number | null) => void }) {
-  const { user } = useAuthContext()
+function SessionProbe({
+  onUser,
+  onError = () => undefined,
+}: {
+  onUser: (userId: number | null) => void
+  onError?: (error: string | null) => void
+}) {
+  const { user, sessionError } = useAuthContext()
   useEffect(() => { onUser(user?.id ?? null) }, [onUser, user])
+  useEffect(() => { onError(sessionError) }, [onError, sessionError])
   return null
 }
 
@@ -86,5 +93,34 @@ describe('AuthProvider session lifecycle', () => {
 
     expect(seenUserIds.at(-1)).toBeNull()
     expect(seenUserIds).not.toContain(41)
+  })
+
+  it('ignores a session failure that rejects after sign-out', async () => {
+    let rejectSession: ((reason?: unknown) => void) | undefined
+    createSession.mockReturnValue(new Promise((_resolve, reject) => { rejectSession = reject }))
+    const seenErrors: Array<string | null> = []
+    const onUser = () => undefined
+    const onError = (error: string | null) => seenErrors.push(error)
+    container = document.createElement('div')
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(<AuthProvider><SessionProbe onUser={onUser} onError={onError} /></AuthProvider>)
+    })
+    expect(createSession).toHaveBeenCalledOnce()
+
+    authState.isSignedIn = false
+    authState.clerkUserId = ''
+    await act(async () => {
+      root?.render(<AuthProvider><SessionProbe onUser={onUser} onError={onError} /></AuthProvider>)
+    })
+
+    await act(async () => {
+      rejectSession?.(new Error('Late network failure'))
+      await Promise.resolve()
+    })
+
+    expect(seenErrors.at(-1)).toBeNull()
+    expect(seenErrors).not.toContain('Late network failure')
   })
 })
