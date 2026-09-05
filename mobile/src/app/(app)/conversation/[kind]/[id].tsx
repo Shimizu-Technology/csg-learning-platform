@@ -57,6 +57,7 @@ export default function ConversationScreen() {
   const persistedFailedRef = useRef<string | null>(null);
   const anchorScrolledRef = useRef(false);
   const loadRequestRef = useRef(0);
+  const loadOlderRequestRef = useRef(0);
   const sendRequestRef = useRef(0);
   const sendAbortRef = useRef<AbortController | null>(null);
   const [summary, setSummary] = useState<ChannelSummary | DirectConversationSummary | null>(null);
@@ -68,11 +69,11 @@ export default function ConversationScreen() {
   const [selection, setSelection] = useState({ start: 0, end: 0 });
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadedConversationIdentity, setLoadedConversationIdentity] = useState<string | null>(null);
+  const [loadedOperationIdentity, setLoadedOperationIdentity] = useState<string | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [draftReadyConversationIdentity, setDraftReadyConversationIdentity] = useState<string | null>(null);
+  const [draftReadyOperationIdentity, setDraftReadyOperationIdentity] = useState<string | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>(auth.demo ? 'connected' : 'connecting');
   const [showScrollToLatest, setShowScrollToLatest] = useState(Boolean(anchorMessageId));
   const [newMessagesBelow, setNewMessagesBelow] = useState(0);
@@ -87,6 +88,26 @@ export default function ConversationScreen() {
   const operationIdentityRef = useRef(operationIdentity);
   useLayoutEffect(() => {
     operationIdentityRef.current = operationIdentity;
+    loadRequestRef.current += 1;
+    loadOlderRequestRef.current += 1;
+    sendRequestRef.current += 1;
+    sendAbortRef.current?.abort();
+    sendAbortRef.current = null;
+    setLoading(true);
+    setLoadingOlder(false);
+    setLoadedOperationIdentity(null);
+    setDraftReadyOperationIdentity(null);
+    setSummary(null);
+    setMessages([]);
+    setPinnedMessages([]);
+    setMeta({ oldest_message_id: null, newest_message_id: null, has_older: false, has_newer: false });
+    setMentionUsers([]);
+    setError(null);
+    setAttachments([]);
+    setEditingMessage(null);
+    setEditDraft('');
+    setEditSelection({ start: 0, end: 0 });
+    setSending(false);
   }, [operationIdentity]);
   const updateDraft = useCallback((value: string) => {
     draftValueRef.current = value;
@@ -133,18 +154,10 @@ export default function ConversationScreen() {
   }, []);
 
   useEffect(() => {
-    sendRequestRef.current += 1;
-    sendAbortRef.current?.abort();
-    sendAbortRef.current = null;
     flushPendingDraft();
     draftValueRef.current = '';
     setDraft('');
     setSelection({ start: 0, end: 0 });
-    setAttachments([]);
-    setEditingMessage(null);
-    setEditDraft('');
-    setEditSelection({ start: 0, end: 0 });
-    setSending(false);
     return () => {
       sendRequestRef.current += 1;
       sendAbortRef.current?.abort();
@@ -153,54 +166,57 @@ export default function ConversationScreen() {
   }, [conversationIdentity, flushPendingDraft, userId]);
 
   const load = useCallback(async () => {
+    const requestIdentity = operationIdentity;
     const requestId = ++loadRequestRef.current;
+    const isCurrentRequest = () => operationIdentityRef.current === requestIdentity && loadRequestRef.current === requestId;
     persistedFailedRef.current = null;
     setLoading(true);
-    setLoadedConversationIdentity(null);
-    setDraftReadyConversationIdentity(null);
+    setLoadedOperationIdentity(null);
+    setDraftReadyOperationIdentity(null);
     anchorScrolledRef.current = false;
     try {
       if (userId && !auth.demo) {
         const storedDraft = await loadConversationDraft(userId, kind, id).catch(() => '');
-        if (requestId !== loadRequestRef.current) return;
+        if (!isCurrentRequest()) return;
         const nextDraft = draftAfterStoredLoad(draftValueRef.current, storedDraft);
         if (nextDraft !== draftValueRef.current) updateDraft(nextDraft);
       }
-      if (requestId !== loadRequestRef.current) return;
-      setDraftReadyConversationIdentity(conversationIdentity);
+      if (!isCurrentRequest()) return;
+      setDraftReadyOperationIdentity(operationIdentity);
       if (auth.demo) {
         setSummary(kind === 'channel' ? demoChannels.find((item) => item.id === id) || null : demoDms.find((item) => item.id === id) || null);
         setMessages(demoMessages[`${kind}:${id}`] || []);
         setMentionUsers([demoUser]);
-        setLoadedConversationIdentity(conversationIdentity);
+        setLoadedOperationIdentity(operationIdentity);
       } else {
         const result = kind === 'channel'
           ? await api.channel(id, { message_limit: 80, around_message_id: anchorMessageId })
           : await api.directConversation(id, { message_limit: 80, around_message_id: anchorMessageId });
-        if (requestId !== loadRequestRef.current) return;
+        if (!isCurrentRequest()) return;
         const nextSummary = 'channel' in result ? result.channel : result.direct_conversation;
         const workspaceResult = await api.workspace(nextSummary.workspace_id);
         const failed = userId ? await loadFailedMessages(userId, kind, id) : [];
-        if (requestId !== loadRequestRef.current) return;
+        if (!isCurrentRequest()) return;
         const mergedMessages = mergeServerAndFailedMessages(result.messages, failed);
         setSummary(nextSummary);
         setMessages(mergedMessages);
         setPinnedMessages(result.pinned_messages);
         setMeta(result.meta);
         setMentionUsers(workspaceResult.workspace.members);
-        setLoadedConversationIdentity(conversationIdentity);
+        setLoadedOperationIdentity(operationIdentity);
         await api.markRead(kind, id).catch(() => undefined);
       }
+      if (!isCurrentRequest()) return;
       nearBottomRef.current = !anchorMessageId;
       pendingScrollRef.current = !anchorMessageId;
       setShowScrollToLatest(Boolean(anchorMessageId));
       setError(null);
     } catch (requestError) {
-      if (requestId === loadRequestRef.current) setError((requestError as Error).message);
+      if (isCurrentRequest()) setError((requestError as Error).message);
     } finally {
-      if (requestId === loadRequestRef.current) setLoading(false);
+      if (isCurrentRequest()) setLoading(false);
     }
-  }, [anchorMessageId, api, auth.demo, conversationIdentity, id, kind, updateDraft, userId]);
+  }, [anchorMessageId, api, auth.demo, id, kind, operationIdentity, updateDraft, userId]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => void load());
@@ -208,7 +224,7 @@ export default function ConversationScreen() {
   }, [flushPendingDraft, load]);
 
   useEffect(() => {
-    if (!userId || auth.demo || loading || loadedConversationIdentity !== conversationIdentity) return;
+    if (!userId || auth.demo || loading || loadedOperationIdentity !== operationIdentity) return;
     const failed = retryableMessagesForStorage(messages);
     const serialized = JSON.stringify(failed);
     if (persistedFailedRef.current === serialized) return;
@@ -218,9 +234,9 @@ export default function ConversationScreen() {
       if (!saved && persistedFailedRef.current === serialized) persistedFailedRef.current = null;
     });
     return () => { active = false; };
-  }, [auth.demo, conversationIdentity, id, kind, loadedConversationIdentity, loading, messages, userId]);
+  }, [auth.demo, id, kind, loadedOperationIdentity, loading, messages, operationIdentity, userId]);
 
-  useEffect(() => auth.demo || loading || error ? undefined : subscribeToMessages(api, kind, id, (payload: MessageEvent) => {
+  useEffect(() => auth.demo || loading || error || loadedOperationIdentity !== operationIdentity ? undefined : subscribeToMessages(api, kind, id, (payload: MessageEvent) => {
     if ((kind === 'channel' && payload.channel_id !== id) || (kind === 'dm' && payload.direct_conversation_id !== id)) return;
     if (payload.message.parent_message_id && payload.event === 'created') return;
     const follow = payload.message.mine || nearBottomRef.current;
@@ -231,16 +247,16 @@ export default function ConversationScreen() {
     setMessages((current) => mergeMessageEvent(current, payload));
     setPinnedMessages((current) => mergePinnedMessageEvent(current, payload));
     if (follow) scrollToLatest(false);
-  }, setStatus), [api, auth.demo, error, id, kind, loading, scrollToLatest]);
+  }, setStatus), [api, auth.demo, error, id, kind, loadedOperationIdentity, loading, operationIdentity, scrollToLatest]);
 
   useEffect(() => {
-    if (!userId || loading || draftReadyConversationIdentity !== conversationIdentity) return;
+    if (!userId || loading || draftReadyOperationIdentity !== operationIdentity) return;
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
     const pending = { userId, kind, id, body: draft };
     pendingDraftRef.current = pending;
     draftTimerRef.current = setTimeout(() => void saveConversationDraft(pending.userId, pending.kind, pending.id, pending.body).then(() => { if (pendingDraftRef.current === pending) pendingDraftRef.current = null; }).catch(() => undefined), 300);
     return () => { if (draftTimerRef.current) clearTimeout(draftTimerRef.current); };
-  }, [conversationIdentity, draft, draftReadyConversationIdentity, id, kind, loading, userId]);
+  }, [draft, draftReadyOperationIdentity, id, kind, loading, operationIdentity, userId]);
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -251,15 +267,22 @@ export default function ConversationScreen() {
 
   const loadOlder = async () => {
     if (auth.demo || loadingOlder || !meta.has_older || !meta.oldest_message_id) return;
+    const requestIdentity = operationIdentity;
+    const requestId = ++loadOlderRequestRef.current;
+    const isCurrentRequest = () => operationIdentityRef.current === requestIdentity && loadOlderRequestRef.current === requestId;
     setLoadingOlder(true);
     try {
       const result = kind === 'channel'
         ? await api.channel(id, { message_limit: 60, before_message_id: meta.oldest_message_id })
         : await api.directConversation(id, { message_limit: 60, before_message_id: meta.oldest_message_id });
+      if (!isCurrentRequest()) return;
       setMessages((current) => mergeOlderMessages(current, result.messages));
       setMeta((current) => ({ ...result.meta, newest_message_id: current.newest_message_id, has_newer: current.has_newer }));
-    } catch (requestError) { Alert.alert('Could not load earlier messages', (requestError as Error).message); }
-    finally { setLoadingOlder(false); }
+    } catch (requestError) {
+      if (isCurrentRequest()) Alert.alert('Could not load earlier messages', (requestError as Error).message);
+    } finally {
+      if (isCurrentRequest()) setLoadingOlder(false);
+    }
   };
 
   const send = async (retryMessage?: Message) => {
@@ -431,7 +454,8 @@ export default function ConversationScreen() {
   };
 
   const toggleMute = async () => { if (!summary) return; const next = !summary.muted; setSummary({ ...summary, muted: next }); if (!auth.demo) try { await api.updatePreference(kind, id, next); } catch { setSummary({ ...summary, muted: !next }); } };
-  const title = summary ? ('name' in summary ? summary.name : summary.title) : 'Conversation';
+  const conversationReady = loadedOperationIdentity === operationIdentity;
+  const title = conversationReady && summary ? ('name' in summary ? summary.name : summary.title) : 'Conversation';
   const canManage = user?.is_staff;
 
   const openSourceRecord = () => {
@@ -450,7 +474,7 @@ export default function ConversationScreen() {
           <Pressable accessibilityRole="button" accessibilityLabel={summary?.muted ? 'Unmute conversation' : 'Mute conversation'} onPress={() => void toggleMute()} style={styles.iconButton}>{summary?.muted ? <BellOff color={palette.muted} size={20} /> : <Bell color={palette.muted} size={20} />}</Pressable>
         </View>
         {sourceType && sourceId && sourceLabel && <Pressable accessibilityRole="button" accessibilityLabel={`Return to ${sourceLabel}`} onPress={openSourceRecord} style={styles.sourceChip}><BookOpen color="#7DA8E8" size={15} /><Text numberOfLines={1} style={styles.sourceText}>From {sourceType === 'submission' ? 'submission' : 'help request'}: {sourceLabel}</Text></Pressable>}
-        {loading ? <LoadingState label="Loading messages" /> : error ? <ErrorState message={error} retry={() => void load()} /> : <View style={styles.messagePane}>
+        {error && !loading ? <ErrorState message={error} retry={() => void load()} /> : loading || !conversationReady ? <LoadingState label="Loading messages" /> : <View style={styles.messagePane}>
           <FlatList ref={listRef} data={conversationItems} inverted keyExtractor={(item) => String(item.message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" maintainVisibleContentPosition={{ minIndexForVisible: 0 }} scrollEventThrottle={16}
             onEndReached={() => void loadOlder()} onEndReachedThreshold={0.2}
             onScroll={(event: NativeSyntheticEvent<NativeScrollEvent>) => { const near = isNearConversationBottom(event.nativeEvent, 96, true); nearBottomRef.current = near; setShowScrollToLatest(!near); if (near) setNewMessagesBelow(0); }}
