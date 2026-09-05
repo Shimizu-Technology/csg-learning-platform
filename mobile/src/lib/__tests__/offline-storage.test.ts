@@ -11,6 +11,7 @@ import {
   loadStoredThreadDraft,
   loadThreadDraft,
   saveConversationDraft,
+  saveConversationDraftWithRetry,
   saveFailedMessages,
   saveFailedMessagesWithRetry,
   saveThreadDraft,
@@ -30,6 +31,7 @@ import { beginUserStorageCleanup } from '../user-storage-lifecycle';
 import type { Message } from '../types';
 
 const storedAuthor = { id: 7, full_name: 'Student', email: 'student@example.com', role: 'student', avatar_url: null } as const;
+const persistAsyncStorageItem = async (key: string, value: string) => AsyncStorage.multiSet([[key, value]]);
 
 jest.mock('@react-native-async-storage/async-storage', () => jest.requireActual('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 
@@ -104,6 +106,39 @@ describe('offline authored storage', () => {
 
     const threadCleanup = jest.fn().mockRejectedValue(new Error('storage unavailable'));
     await expect(clearThreadDraftAfterSend(7, 88, threadCleanup)).resolves.toBeUndefined();
+  });
+
+  it('retries a rejected conversation draft save and reports when it is durable', async () => {
+    const waitForRetry = jest.fn().mockResolvedValue(undefined);
+    const setItem = AsyncStorage.setItem as jest.Mock;
+    setItem.mockImplementation(persistAsyncStorageItem)
+      .mockRejectedValueOnce(new Error('storage unavailable'))
+      .mockRejectedValueOnce(new Error('storage unavailable'));
+
+    try {
+      await expect(saveConversationDraftWithRetry(7, 'channel', 3, 'Replacement draft', () => true, waitForRetry)).resolves.toBe(true);
+      expect(waitForRetry).toHaveBeenNthCalledWith(1, 250);
+      expect(waitForRetry).toHaveBeenNthCalledWith(2, 500);
+      expect(await loadConversationDraft(7, 'channel', 3)).toBe('Replacement draft');
+    } finally {
+      setItem.mockImplementation(persistAsyncStorageItem);
+    }
+  });
+
+  it('stops retrying a conversation draft when its pending intent is replaced', async () => {
+    let active = true;
+    const waitForRetry = jest.fn().mockImplementation(async () => { active = false; });
+    const setItem = AsyncStorage.setItem as jest.Mock;
+    setItem.mockClear();
+    setItem.mockRejectedValue(new Error('storage unavailable'));
+
+    try {
+      await expect(saveConversationDraftWithRetry(7, 'channel', 3, 'Stale draft', () => active, waitForRetry)).resolves.toBe(false);
+      expect(waitForRetry).toHaveBeenCalledWith(250);
+      expect(setItem).toHaveBeenCalledTimes(1);
+    } finally {
+      setItem.mockImplementation(persistAsyncStorageItem);
+    }
   });
 
   it.each([

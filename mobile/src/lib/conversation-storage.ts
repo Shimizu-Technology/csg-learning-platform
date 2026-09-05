@@ -67,6 +67,28 @@ export function saveConversationDraft(userId: number, kind: ConversationKind, id
   return enqueueStorageWrite(userId, key, () => body.trim() ? AsyncStorage.setItem(key, body) : AsyncStorage.removeItem(key));
 }
 
+export async function saveConversationDraftWithRetry(
+  userId: number,
+  kind: ConversationKind,
+  id: number,
+  body: string,
+  shouldContinue: () => boolean = () => true,
+  waitForRetry: (milliseconds: number) => Promise<void> = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+) {
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await saveConversationDraft(userId, kind, id, body);
+      return true;
+    } catch {
+      if (attempt === maxAttempts || !shouldContinue()) return false;
+      await waitForRetry(250 * (2 ** (attempt - 1)));
+      if (!shouldContinue()) return false;
+    }
+  }
+  return false;
+}
+
 export async function clearConversationDraftAfterSend(
   userId: number,
   kind: ConversationKind,

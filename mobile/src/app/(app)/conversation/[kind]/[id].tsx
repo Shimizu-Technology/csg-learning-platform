@@ -19,7 +19,7 @@ import { useVoiceDraft } from '@/hooks/use-voice-draft';
 import { pendingAttachment, uploadAttachment } from '@/lib/attachments';
 import { subscribeToMessages } from '@/lib/cable';
 import { formatConversationDay, isDifferentConversationDay, isNearConversationBottom } from '@/lib/conversation-scroll';
-import { clearConversationDraftAfterSend, loadConversationDraft, loadFailedMessages, retryableMessagesForStorage, saveConversationDraft, saveFailedMessagesWithRetry } from '@/lib/conversation-storage';
+import { loadConversationDraft, loadFailedMessages, retryableMessagesForStorage, saveConversationDraftWithRetry, saveFailedMessagesWithRetry } from '@/lib/conversation-storage';
 import { demoChannels, demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { insertMention, mentionSuggestions, mentionTriggerAt, resolveMentionUserIds } from '@/lib/mentions';
 import { clientMessageIdForSend, conversationOperationIdentity, draftAfterSendConfirmation, draftAfterStoredLoad, messageBodyChangeAllowed, messageBodyWithinLimit, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
@@ -107,6 +107,10 @@ export default function ConversationScreen() {
     setEditingMessage(null);
     setEditDraft('');
     setEditSelection({ start: 0, end: 0 });
+    setSelectedMessage(null);
+    setImagePreview(null);
+    setReactionDetails(null);
+    setShowPins(false);
     setSending(false);
   }, [operationIdentity]);
   const updateDraft = useCallback((value: string) => {
@@ -149,8 +153,9 @@ export default function ConversationScreen() {
   const flushPendingDraft = useCallback(() => {
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
     const pending = pendingDraftRef.current;
-    pendingDraftRef.current = null;
-    if (pending) void saveConversationDraft(pending.userId, pending.kind, pending.id, pending.body).catch(() => undefined);
+    if (pending) void saveConversationDraftWithRetry(pending.userId, pending.kind, pending.id, pending.body, () => pendingDraftRef.current === pending).then((saved) => {
+      if (saved && pendingDraftRef.current === pending) pendingDraftRef.current = null;
+    });
   }, []);
 
   useEffect(() => {
@@ -256,7 +261,9 @@ export default function ConversationScreen() {
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
     const pending = { userId, kind, id, body: draft };
     pendingDraftRef.current = pending;
-    draftTimerRef.current = setTimeout(() => void saveConversationDraft(pending.userId, pending.kind, pending.id, pending.body).then(() => { if (pendingDraftRef.current === pending) pendingDraftRef.current = null; }).catch(() => undefined), 300);
+    draftTimerRef.current = setTimeout(() => void saveConversationDraftWithRetry(pending.userId, pending.kind, pending.id, pending.body, () => pendingDraftRef.current === pending).then((saved) => {
+      if (saved && pendingDraftRef.current === pending) pendingDraftRef.current = null;
+    }), 300);
     return () => { if (draftTimerRef.current) clearTimeout(draftTimerRef.current); };
   }, [draft, draftReadyOperationIdentity, id, kind, loading, operationIdentity, userId]);
 
@@ -344,10 +351,11 @@ export default function ConversationScreen() {
         );
         if (retainedDraft === null) return;
         if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
-        pendingDraftRef.current = null;
-        await (retainedDraft
-          ? saveConversationDraft(userId, kind, id, retainedDraft)
-          : clearConversationDraftAfterSend(userId, kind, id));
+        const pending = { userId, kind, id, body: retainedDraft };
+        pendingDraftRef.current = pending;
+        void saveConversationDraftWithRetry(userId, kind, id, retainedDraft, () => operationIdentityRef.current === requestIdentity && pendingDraftRef.current === pending).then((saved) => {
+          if (saved && pendingDraftRef.current === pending) pendingDraftRef.current = null;
+        });
       }
     } catch (requestError) {
       if (!isCurrentRequest()) return;
@@ -442,6 +450,20 @@ export default function ConversationScreen() {
       Alert.alert('Could not update reaction', (requestError as Error).message);
     }
   };
+  const startEditingSelectedMessage = () => {
+    if (!selectedMessage) return;
+    const message = selectedMessage;
+    const requestIdentity = operationIdentity;
+    setSelectedMessage(null);
+    void voiceDraft.cancel().then(() => {
+      if (operationIdentityRef.current !== requestIdentity) return;
+      setEditingMessage(message);
+      setEditDraft(message.body);
+      setEditSelection({ start: message.body.length, end: message.body.length });
+    }).catch((cancelError) => {
+      if (operationIdentityRef.current === requestIdentity) Alert.alert('Could not start editing', (cancelError as Error).message);
+    });
+  };
   const openThread = (message: Message) => router.push({ pathname: '/thread/[id]', params: { id: String(message.id), kind, conversationId: String(id), workspaceId: String(summary?.workspace_id || '') } } as unknown as Href);
 
   const pickDocument = async () => {
@@ -514,7 +536,7 @@ export default function ConversationScreen() {
         {!selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Flag} label="Report message" destructive onPress={() => { reportMessage(selectedMessage); setSelectedMessage(null); }} />}
         {!selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Flag} label={`Report ${selectedMessage.author.full_name}`} destructive onPress={() => { reportUser(selectedMessage); setSelectedMessage(null); }} />}
         {!selectedMessage.mine && selectedMessage.id > 0 && !selectedMessage.blocked && <Action icon={UserX} label={`Block ${selectedMessage.author.full_name}`} destructive onPress={() => { blockUser(selectedMessage); setSelectedMessage(null); }} />}
-        {selectedMessage.mine && !selectedMessage.deleted_at && selectedMessage.id > 0 && <Action icon={Edit3} label="Edit message" onPress={() => { void voiceDraft.cancel().then(() => { setEditingMessage(selectedMessage); setEditDraft(selectedMessage.body); setEditSelection({ start: selectedMessage.body.length, end: selectedMessage.body.length }); setSelectedMessage(null); }); }} />}
+        {selectedMessage.mine && !selectedMessage.deleted_at && selectedMessage.id > 0 && <Action icon={Edit3} label="Edit message" onPress={startEditingSelectedMessage} />}
         {selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Trash2} label="Remove message" destructive onPress={() => { deleteMessage(selectedMessage); setSelectedMessage(null); }} />}
       </>}</View></View></Modal>
 
