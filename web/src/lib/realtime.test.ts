@@ -69,6 +69,14 @@ describe('message realtime subscription', () => {
       user: { id: 2, full_name: 'Ada', avatar_url: null },
     })).toBe(true)
     expect(isMessageTypingEvent({ event: 'typing', active: true, user: { id: 2 } })).toBe(false)
+    expect(isMessageTypingEvent({
+      event: 'typing', channel_id: 4, direct_conversation_id: null, thread_root_id: null, active: true,
+      user: { id: 2, full_name: 'Ada' },
+    })).toBe(false)
+    expect(isMessageTypingEvent({
+      event: 'typing', channel_id: 4, direct_conversation_id: null, thread_root_id: null, active: true,
+      user: { id: 2, full_name: 'Ada', avatar_url: 4 },
+    })).toBe(false)
     expect(isMessageTypingEvent({ event: 'created' })).toBe(false)
   })
 })

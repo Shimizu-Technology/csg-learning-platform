@@ -25,6 +25,7 @@ export function isMessageTypingEvent(payload: unknown): payload is MessageTyping
     && typeof event.active === 'boolean'
     && typeof event.user?.id === 'number'
     && typeof event.user.full_name === 'string'
+    && (typeof event.user.avatar_url === 'string' || event.user.avatar_url === null)
 }
 
 const RECONNECT_DELAYS = [1000, 2500, 5000, 10000]

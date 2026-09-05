@@ -65,6 +65,7 @@ import { formatFileSize, uploadToS3 } from '../../lib/uploadToS3'
 import { editorJsonToMarkdown, normalizeMessageMarkdown, parseMessageBlocks } from '../../lib/messageFormat'
 import {
   MESSAGE_BODY_LIMIT,
+  composerBodyMatchesDestination,
   composerDestinationKey,
   createClientMessageId,
   failedSendsKey,
@@ -822,6 +823,7 @@ export function Messages() {
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([])
   const [realtimeSubscriptionVersion, setRealtimeSubscriptionVersion] = useState(0)
   const [body, setBody] = useState('')
+  const [bodyDestinationKey, setBodyDestinationKey] = useState<string | null>(null)
   const [composerMentionUserIds, setComposerMentionUserIds] = useState<number[]>([])
   const [composerTriggerText, setComposerTriggerText] = useState('')
   const [activeMentionIndex, setActiveMentionIndex] = useState(0)
@@ -1176,6 +1178,7 @@ export function Messages() {
       const nextBody = editorJsonToMarkdown(content)
       composerSelectionRef.current = { from: editor.state.selection.from, to: editor.state.selection.to }
       setBody(nextBody)
+      setBodyDestinationKey(activeDraftKeyRef.current)
       scheduleDraftSave(nextBody, content)
       setComposerTriggerText(editorTextBeforeCursor(editor))
     },
@@ -1214,6 +1217,7 @@ export function Messages() {
     const draft = readComposerDraft(nextKey, window.localStorage)
     editor.commands.setContent(draft?.content || { type: 'doc', content: [{ type: 'paragraph' }] }, { emitUpdate: false })
     setBody(draft?.body || '')
+    setBodyDestinationKey(nextKey)
     setComposerMentionUserIds([])
     setComposerTriggerText('')
     setPendingAttachments(pendingAttachmentBucketsRef.current.get(nextKey) || [])
@@ -1765,8 +1769,9 @@ export function Messages() {
   useEffect(() => {
     const subscription = realtimeSubscriptionRef.current
     const target = selectedTarget
-    const hasContent = Boolean(normalizeMessageMarkdown(body))
     const threadRootId = activeThreadRootId
+    const hasContent = composerBodyMatchesDestination(bodyDestinationKey, user?.id, target, threadRootId)
+      && Boolean(normalizeMessageMarkdown(body))
     const previous = outboundTypingRef.current
     const sameDestination = Boolean(previous && target
       && previous.target.type === target.type
@@ -1802,7 +1807,7 @@ export function Messages() {
       outboundTypingRef.current = null
       typingStopTimerRef.current = null
     }, 4_000)
-  }, [activeThreadRootId, body, realtimeSubscriptionVersion, selectedTarget])
+  }, [activeThreadRootId, body, bodyDestinationKey, realtimeSubscriptionVersion, selectedTarget, user?.id])
 
   useEffect(() => {
     typingExpiryTimersRef.current.forEach((timer) => window.clearTimeout(timer))

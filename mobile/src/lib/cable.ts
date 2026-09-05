@@ -25,6 +25,7 @@ export function parseCableEnvelope(raw: string): RealtimeMessageEvent | null {
         && typeof event.active === 'boolean'
         && typeof event.user?.id === 'number'
         && typeof event.user.full_name === 'string'
+        && (typeof event.user.avatar_url === 'string' || event.user.avatar_url === null)
         ? event
         : null;
     }

@@ -3,6 +3,7 @@ import {
   clearComposerState,
   clearComposerStateFromWindow,
   MESSAGE_BODY_LIMIT,
+  composerBodyMatchesDestination,
   composerDestinationKey,
   messageCharacterCount,
   readComposerDraft,
@@ -56,6 +57,14 @@ describe('message composer state', () => {
     const target = { type: 'channel' as const, id: 42 }
     expect(composerDestinationKey(7, target, null)).toBe('csg-message-draft:7:channel:42:root')
     expect(composerDestinationKey(7, target, 99)).toBe('csg-message-draft:7:channel:42:99')
+  })
+
+  it('does not associate a stale thread draft with a newly selected destination', () => {
+    const threadDraftKey = composerDestinationKey(7, { type: 'channel', id: 42 }, 99)
+
+    expect(composerBodyMatchesDestination(threadDraftKey, 7, { type: 'channel', id: 42 }, 99)).toBe(true)
+    expect(composerBodyMatchesDestination(threadDraftKey, 7, { type: 'dm', id: 8 }, 99)).toBe(false)
+    expect(composerBodyMatchesDestination(threadDraftKey, 7, { type: 'channel', id: 42 }, null)).toBe(false)
   })
 
   it('round trips rich editor drafts and removes an empty draft', () => {

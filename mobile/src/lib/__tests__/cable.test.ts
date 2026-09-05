@@ -13,6 +13,8 @@ describe('parseCableEnvelope', () => {
     };
     expect(parseCableEnvelope(JSON.stringify({ identifier: '{}', message: event }))).toEqual(event);
     expect(parseCableEnvelope(JSON.stringify({ identifier: '{}', message: { ...event, active: 'true' } }))).toBeNull();
+    expect(parseCableEnvelope(JSON.stringify({ identifier: '{}', message: { ...event, user: { id: 9, full_name: 'Ada' } } }))).toBeNull();
+    expect(parseCableEnvelope(JSON.stringify({ identifier: '{}', message: { ...event, user: { id: 9, full_name: 'Ada', avatar_url: 4 } } }))).toBeNull();
   });
 
   it('ignores control frames and malformed payloads', () => {

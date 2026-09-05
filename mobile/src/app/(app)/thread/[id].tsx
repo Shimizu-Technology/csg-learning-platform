@@ -9,8 +9,9 @@ import { ComposerLimitNotice } from '@/components/composer-limit-notice';
 import { ImagePreview } from '@/components/image-preview';
 import { ReactionDetailsSheet } from '@/components/reaction-details-sheet';
 import { ErrorState, LoadingState } from '@/components/screen-states';
+import { TypingIndicator } from '@/components/typing-indicator';
 import { VoiceDraftButton, VoiceDraftPanel } from '@/components/voice-draft-controls';
-import { fontScaleLimits, fonts, palette } from '@/constants/csg-theme';
+import { fonts, palette } from '@/constants/csg-theme';
 import { useVoiceDraft } from '@/hooks/use-voice-draft';
 import { subscribeToMessages, type CableSubscription } from '@/lib/cable';
 import { demoDms, demoMessages, demoUser } from '@/lib/demo-data';
@@ -18,7 +19,7 @@ import { resolveMentionUserIds } from '@/lib/mentions';
 import { clientMessageIdForSend, draftAfterSendConfirmation, draftAfterStoredLoad, type FailedSendIntent, messageBodyChangeAllowed, messageBodyWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
 import { markOptimisticFailed, mergeMessageEvent, reconcileOptimistic, sortMessages } from '@/lib/message-state';
 import { clearThreadDraftAfterSend, loadStoredThreadDraft, saveThreadDraftState } from '@/lib/conversation-storage';
-import { typingIndicatorLabel, type TypingUser } from '@/lib/typing';
+import type { TypingUser } from '@/lib/typing';
 import type { Message, MessageEvent, MessageTypingEvent, UserSummary } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
@@ -366,7 +367,7 @@ export default function ThreadScreen() {
       <FlatList ref={listRef} data={visible} keyExtractor={(message) => String(message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list} renderItem={({ item, index }) => <MessageBubble message={item} showAuthor={!visible[index - 1] || visible[index - 1].author.id !== item.author.id} mentionUsers={users} onLongPress={openSafetyActions} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} onRetry={(message) => void send(message)} />} ListEmptyComponent={<Text style={styles.empty}>Start a focused conversation about this message.</Text>} />
     </>}
     <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />
-    {typingUsers.length > 0 && <View accessibilityLiveRegion="polite" style={styles.typingRow}><View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.typingDots}><View style={styles.typingDot} /><View style={styles.typingDot} /><View style={styles.typingDot} /></View><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.typingText}>{typingIndicatorLabel(typingUsers)}</Text></View>}
+    <TypingIndicator users={typingUsers} />
     <ComposerLimitNotice value={draft} />
     <View style={styles.composer}><VoiceDraftButton state={voiceDraft.state} disabled={sending} onPress={() => void voiceDraft.start()} /><TextInput accessibilityLabel="Reply to thread" value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={(value) => { if (messageBodyChangeAllowed(draftRef.current, value)) { draftRef.current = value; setDraft(value); } }} placeholder="Reply to thread" placeholderTextColor={palette.quiet} multiline style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel="Send reply" disabled={!draft.trim() || !draftWithinLimit || sending} onPress={() => void send()} style={[styles.send, (!draft.trim() || !draftWithinLimit || sending) && styles.disabled]}><Send color={palette.text} size={19} /></Pressable></View>
     <ReactionDetailsSheet key={reactionDetails ? `${reactionDetails.messageId}-${reactionDetails.emoji}` : 'closed-reactions'} initialEmoji={reactionDetails?.emoji || null} message={reactionDetailsMessage} onClose={() => setReactionDetails(null)} onToggle={async (message, value) => { await toggleReaction(message, value); }} />
@@ -376,5 +377,4 @@ export default function ThreadScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.ink }, header: { minHeight: 68, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.line }, back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, title: { color: palette.text, fontFamily: fonts.bold, fontSize: 17 }, subtitle: { color: palette.subtle, fontFamily: fonts.medium, fontSize: 11, marginTop: 2 }, root: { paddingHorizontal: 14, paddingTop: 18 }, divider: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, marginVertical: 12 }, dividerText: { color: palette.subtle, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.2 }, line: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: palette.line }, list: { paddingHorizontal: 14, paddingBottom: 24, flexGrow: 1 }, empty: { color: palette.muted, fontFamily: fonts.regular, fontSize: 13, textAlign: 'center', paddingHorizontal: 40, paddingTop: 50 }, composer: { paddingHorizontal: 14, paddingVertical: 9, flexDirection: 'row', alignItems: 'flex-end', gap: 9, backgroundColor: palette.panel, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.line }, input: { flex: 1, minHeight: 46, maxHeight: 120, borderRadius: 17, backgroundColor: palette.ink, borderWidth: 1, borderColor: palette.line, color: palette.text, fontFamily: fonts.regular, fontSize: 14, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 11 }, send: { width: 46, height: 46, borderRadius: 16, backgroundColor: palette.ruby, alignItems: 'center', justifyContent: 'center' }, disabled: { opacity: 0.38 },
-  typingRow: { minHeight: 28, paddingHorizontal: 16, backgroundColor: palette.panel, flexDirection: 'row', alignItems: 'center', gap: 7 }, typingDots: { flexDirection: 'row', gap: 3 }, typingDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: palette.subtle }, typingText: { flex: 1, color: palette.subtle, fontFamily: fonts.semibold, fontSize: 11 },
 });

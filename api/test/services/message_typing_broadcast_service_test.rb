@@ -49,6 +49,30 @@ class MessageTypingBroadcastServiceTest < ActiveSupport::TestCase
     assert_equal root.id, broadcasts.first.second.fetch(:thread_root_id)
   end
 
+  test "broadcasts direct-message typing state only to the other participants" do
+    conversation = DirectConversation.find_or_create_for!(
+      workspace: @channel.workspace,
+      users: [ @author, @recipient ]
+    )
+
+    broadcasts = capture_broadcasts do
+      assert MessageTypingBroadcastService.call(
+        user: @author,
+        target_type: "dm",
+        target_id: conversation.id,
+        active: true
+      )
+    end
+
+    assert_equal [ @recipient ], broadcasts.map(&:first)
+    assert_equal "typing", broadcasts.first.second.fetch(:event)
+    assert_nil broadcasts.first.second.fetch(:channel_id)
+    assert_equal conversation.id, broadcasts.first.second.fetch(:direct_conversation_id)
+    assert_equal true, broadcasts.first.second.fetch(:active)
+    assert_equal @author.id, broadcasts.first.second.dig(:user, :id)
+    assert_nil broadcasts.first.second.dig(:user, :email)
+  end
+
   private
 
   def capture_broadcasts
