@@ -19,7 +19,7 @@ import { useVoiceDraft } from '@/hooks/use-voice-draft';
 import { pendingAttachment, uploadAttachment } from '@/lib/attachments';
 import { subscribeToMessages } from '@/lib/cable';
 import { formatConversationDay, isDifferentConversationDay, isNearConversationBottom } from '@/lib/conversation-scroll';
-import { loadConversationDraft, loadFailedMessages, retryableMessagesForStorage, saveConversationDraftWithRetry, saveFailedMessagesWithRetry } from '@/lib/conversation-storage';
+import { conversationDraftKey, loadConversationDraft, loadFailedMessages, retryableMessagesForStorage, saveConversationDraftWithRetry, saveFailedMessagesWithRetry } from '@/lib/conversation-storage';
 import { demoChannels, demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { insertMention, mentionSuggestions, mentionTriggerAt, resolveMentionUserIds } from '@/lib/mentions';
 import { clientMessageIdForSend, conversationOperationIdentity, draftAfterSendConfirmation, draftAfterStoredLoad, messageBodyChangeAllowed, messageBodyWithinLimit, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
@@ -54,6 +54,7 @@ export default function ConversationScreen() {
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftValueRef = useRef('');
   const pendingDraftRef = useRef<PendingConversationDraft | null>(null);
+  const draftWriteGenerationsRef = useRef(new Map<string, number>());
   const persistedFailedRef = useRef<string | null>(null);
   const anchorScrolledRef = useRef(false);
   const loadRequestRef = useRef(0);
@@ -150,13 +151,27 @@ export default function ConversationScreen() {
     requestAnimationFrame(() => listRef.current?.scrollToOffset({ animated, offset: 0 }));
   }, []);
 
-  const flushPendingDraft = useCallback(() => {
-    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
-    const pending = pendingDraftRef.current;
-    if (pending) void saveConversationDraftWithRetry(pending.userId, pending.kind, pending.id, pending.body, () => pendingDraftRef.current === pending).then((saved) => {
+  const persistPendingDraft = useCallback((pending: PendingConversationDraft) => {
+    const key = conversationDraftKey(pending.userId, pending.kind, pending.id);
+    const generation = (draftWriteGenerationsRef.current.get(key) || 0) + 1;
+    draftWriteGenerationsRef.current.set(key, generation);
+    void saveConversationDraftWithRetry(
+      pending.userId,
+      pending.kind,
+      pending.id,
+      pending.body,
+      () => draftWriteGenerationsRef.current.get(key) === generation,
+    ).then((saved) => {
+      if (draftWriteGenerationsRef.current.get(key) === generation) draftWriteGenerationsRef.current.delete(key);
       if (saved && pendingDraftRef.current === pending) pendingDraftRef.current = null;
     });
   }, []);
+
+  const flushPendingDraft = useCallback(() => {
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    const pending = pendingDraftRef.current;
+    if (pending) persistPendingDraft(pending);
+  }, [persistPendingDraft]);
 
   useEffect(() => {
     flushPendingDraft();
@@ -261,11 +276,9 @@ export default function ConversationScreen() {
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
     const pending = { userId, kind, id, body: draft };
     pendingDraftRef.current = pending;
-    draftTimerRef.current = setTimeout(() => void saveConversationDraftWithRetry(pending.userId, pending.kind, pending.id, pending.body, () => pendingDraftRef.current === pending).then((saved) => {
-      if (saved && pendingDraftRef.current === pending) pendingDraftRef.current = null;
-    }), 300);
+    draftTimerRef.current = setTimeout(() => persistPendingDraft(pending), 300);
     return () => { if (draftTimerRef.current) clearTimeout(draftTimerRef.current); };
-  }, [draft, draftReadyOperationIdentity, id, kind, loading, operationIdentity, userId]);
+  }, [draft, draftReadyOperationIdentity, id, kind, loading, operationIdentity, persistPendingDraft, userId]);
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -353,9 +366,7 @@ export default function ConversationScreen() {
         if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
         const pending = { userId, kind, id, body: retainedDraft };
         pendingDraftRef.current = pending;
-        void saveConversationDraftWithRetry(userId, kind, id, retainedDraft, () => operationIdentityRef.current === requestIdentity && pendingDraftRef.current === pending).then((saved) => {
-          if (saved && pendingDraftRef.current === pending) pendingDraftRef.current = null;
-        });
+        persistPendingDraft(pending);
       }
     } catch (requestError) {
       if (!isCurrentRequest()) return;
