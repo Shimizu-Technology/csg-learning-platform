@@ -27,7 +27,9 @@ export function mergeMessageEvent(messages: Message[], payload: MessageEvent) {
       : undefined;
     const matchingId = matchingClientId ?? payload.message.id;
     return messages.some((message) => message.id === matchingId)
-      ? sortMessages(messages.map((message) => message.id === matchingId ? { ...message, ...payload.message, client_status: undefined, client_error: undefined } : message))
+      ? sortMessages(messages
+          .filter((message) => message.id === matchingId || message.id !== payload.message.id)
+          .map((message) => message.id === matchingId ? { ...message, ...payload.message, client_status: undefined, client_error: undefined } : message))
       : sortMessages([...messages, payload.message]);
   }
 

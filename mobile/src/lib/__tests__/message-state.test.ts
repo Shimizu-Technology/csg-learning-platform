@@ -21,6 +21,15 @@ describe('message state', () => {
     expect(mergeMessageEvent([optimistic], { event: 'created', channel_id: 1, direct_conversation_id: null, message: canonical })).toEqual([canonical]);
   });
 
+  it('removes an existing canonical duplicate when realtime also replaces its optimistic copy', () => {
+    const optimistic = { ...message(-1), client_message_id: 'send-duplicate', client_status: 'sending' as const };
+    const canonical = { ...message(2), client_message_id: 'send-duplicate', mine: true };
+
+    expect(mergeMessageEvent([optimistic, canonical], {
+      event: 'created', channel_id: 1, direct_conversation_id: null, message: canonical,
+    })).toEqual([canonical]);
+  });
+
   it('reconciles optimistic messages and prepends unique history', () => {
     const optimistic = { ...message(-1), client_status: 'sending' as const };
     expect(reconcileOptimistic([optimistic], -1, message(2))).toEqual([message(2)]);

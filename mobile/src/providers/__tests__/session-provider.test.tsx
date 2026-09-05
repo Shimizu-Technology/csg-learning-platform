@@ -34,6 +34,8 @@ jest.mock('@/lib/push-notifications', () => ({
 }));
 jest.mock('@react-native-async-storage/async-storage', () => jest.requireActual('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 
+const mockedRegisterPushNotifications = jest.requireMock('@/lib/push-notifications').registerPushNotifications as jest.Mock;
+
 const userA: SessionUser = {
   id: 7,
   full_name: 'Student A',
@@ -85,6 +87,21 @@ beforeEach(async () => {
   await AsyncStorage.clear();
   jest.restoreAllMocks();
   mockSession.mockReset();
+  mockedRegisterPushNotifications.mockClear();
+});
+
+it('passes push registration a predicate that expires with the refresh', async () => {
+  mockSession.mockResolvedValueOnce({ user: userA });
+  const view = render(<SessionProvider><SessionObserver /></SessionProvider>);
+
+  await act(async () => { await observedSession!.refresh(); });
+  await waitFor(() => expect(mockedRegisterPushNotifications).toHaveBeenCalledTimes(1));
+  const isCurrentRefresh = mockedRegisterPushNotifications.mock.calls[0][1] as () => boolean;
+  expect(isCurrentRefresh()).toBe(true);
+
+  mockAuthState.current = { ...mockAuthState.current, subject: 'account-b' };
+  view.rerender(<SessionProvider><SessionObserver /></SessionProvider>);
+  expect(isCurrentRefresh()).toBe(false);
 });
 
 it('ignores an account A refresh that completes after account B', async () => {

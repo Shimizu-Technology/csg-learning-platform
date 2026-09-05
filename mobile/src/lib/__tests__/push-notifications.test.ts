@@ -29,6 +29,29 @@ beforeEach(async () => {
 });
 
 describe('push registration cleanup', () => {
+  it('does nothing when the session is already inactive', async () => {
+    const api = {
+      registerDevice: jest.fn().mockResolvedValue(undefined),
+      unregisterDevice: jest.fn().mockResolvedValue(undefined),
+    } as unknown as CsgApi;
+
+    await expect(registerPushNotifications(api, () => false)).resolves.toBeNull();
+    expect(api.registerDevice).not.toHaveBeenCalled();
+    expect(await AsyncStorage.getItem('csg.push.token')).toBeNull();
+  });
+
+  it('removes a locally persisted token if the session ends before registration', async () => {
+    let activeChecks = 0;
+    const api = {
+      registerDevice: jest.fn().mockResolvedValue(undefined),
+      unregisterDevice: jest.fn().mockResolvedValue(undefined),
+    } as unknown as CsgApi;
+
+    await expect(registerPushNotifications(api, () => ++activeChecks < 2)).resolves.toBeNull();
+    expect(api.registerDevice).not.toHaveBeenCalled();
+    expect(await AsyncStorage.getItem('csg.push.token')).toBeNull();
+  });
+
   it('does not register a token that cannot be persisted for later cleanup', async () => {
     const storageError = new Error('storage unavailable');
     jest.spyOn(AsyncStorage, 'setItem').mockRejectedValueOnce(storageError);

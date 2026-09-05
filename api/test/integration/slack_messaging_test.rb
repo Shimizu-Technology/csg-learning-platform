@@ -927,6 +927,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
       broadcasts_delivered_at: Time.current
     )
     original_delete_broadcast = MessageBroadcastService.method(:deleted)
+    queue_adapter_name_was_owned = ActiveJob::Base.singleton_methods(false).include?(:queue_adapter_name)
     original_queue_adapter_name = ActiveJob::Base.method(:queue_adapter_name)
     ActiveJob::Base.define_singleton_method(:queue_adapter_name) { "solid_queue" }
     fail_delete_broadcast = true
@@ -951,7 +952,13 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     MessageDeliveryService.created(message)
     assert message.reload.broadcasts_delivered_at?
   ensure
-    ActiveJob::Base.define_singleton_method(:queue_adapter_name, original_queue_adapter_name) if defined?(original_queue_adapter_name) && original_queue_adapter_name
+    if defined?(original_queue_adapter_name) && original_queue_adapter_name
+      if defined?(queue_adapter_name_was_owned) && queue_adapter_name_was_owned
+        ActiveJob::Base.define_singleton_method(:queue_adapter_name, original_queue_adapter_name)
+      elsif ActiveJob::Base.singleton_methods(false).include?(:queue_adapter_name)
+        ActiveJob::Base.singleton_class.send(:remove_method, :queue_adapter_name)
+      end
+    end
     MessageBroadcastService.define_singleton_method(:deleted, original_delete_broadcast) if defined?(original_delete_broadcast) && original_delete_broadcast
   end
 

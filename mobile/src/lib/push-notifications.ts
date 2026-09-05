@@ -22,6 +22,9 @@ async function unregisterPushToken(api: CsgApi, token: string) {
       return;
     } catch (error) {
       finalError = error;
+      if (attempt < PUSH_UNREGISTER_ATTEMPTS - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 250 * (2 ** attempt)));
+      }
     }
   }
   throw finalError;

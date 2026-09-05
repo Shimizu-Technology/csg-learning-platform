@@ -9,6 +9,7 @@ import {
 } from './user-storage-lifecycle';
 
 const authoredStorageWrites = new Map<string, Promise<void>>();
+const MAX_PENDING_WRITE_DRAINS = 10;
 
 function enqueueStorageWrite(userId: number, key: string, operation: () => Promise<void>) {
   const generation = userStorageGeneration(userId);
@@ -25,10 +26,12 @@ function enqueueStorageWrite(userId: number, key: string, operation: () => Promi
 
 async function readAfterPendingWrites(userId: number, key: string) {
   const generation = userStorageGeneration(userId);
-  const pending = authoredStorageWrites.get(key);
-  if (pending) await pending.catch(() => undefined);
-  const newestPending = authoredStorageWrites.get(key);
-  if (newestPending && newestPending !== pending) await newestPending.catch(() => undefined);
+  let pending = authoredStorageWrites.get(key);
+  for (let drain = 0; pending && drain < MAX_PENDING_WRITE_DRAINS; drain += 1) {
+    await pending.catch(() => undefined);
+    const newestPending = authoredStorageWrites.get(key);
+    pending = newestPending === pending ? undefined : newestPending;
+  }
   if (!userStorageGenerationIsCurrent(userId, generation)) return null;
   const value = await AsyncStorage.getItem(key);
   return userStorageGenerationIsCurrent(userId, generation) ? value : null;
