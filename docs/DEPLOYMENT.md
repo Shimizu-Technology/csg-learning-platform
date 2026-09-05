@@ -81,6 +81,11 @@ SOLID_QUEUE_DISPATCHER_POLLING_INTERVAL_SECONDS=5
 SOLID_QUEUE_WORKER_POLLING_INTERVAL_SECONDS=2
 ```
 
+Solid Queue also activates the one-minute `MessageDeliveryRecoveryJob` schedule.
+That sweep recovers abandoned notification and realtime leases without waiting
+for the sender to retry. Inline mode keeps message delivery synchronous and
+supports idempotent request replay, but it does not run recurring schedules.
+
 Rails will fail boot if `ACTIVE_JOB_QUEUE_ADAPTER=solid_queue` is enabled
 without either `SOLID_QUEUE_WORKER_PROVISIONED=true` or
 `SOLID_QUEUE_IN_PUMA=true`, so jobs cannot silently enqueue with no worker.

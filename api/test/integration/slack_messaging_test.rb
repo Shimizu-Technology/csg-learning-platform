@@ -517,6 +517,36 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_not_equal student_message_id, JSON.parse(response.body).dig("message", "id")
   end
 
+  test "message retries accept the same attachments in a different request order" do
+    original_configured = S3Service.method(:configured?)
+    S3Service.define_singleton_method(:configured?) { false }
+    attachments = [
+      { s3_key: "message_attachments/channel_#{@channel.id}/first.txt", filename: "first.txt", content_type: "text/plain", byte_size: 11 },
+      { s3_key: "message_attachments/channel_#{@channel.id}/second.txt", filename: "second.txt", content_type: "text/plain", byte_size: 12 }
+    ]
+    params = { body: "Same files", client_message_id: "message-attachment-order", attachments: attachments }
+
+    as_user(@student) do
+      post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+    end
+    assert_response :created
+    message_id = JSON.parse(response.body).dig("message", "id")
+
+    assert_no_difference([ "Message.count", "MessageAttachment.count" ]) do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages",
+          params: params.merge(attachments: attachments.reverse),
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :ok
+    assert_equal message_id, JSON.parse(response.body).dig("message", "id")
+  ensure
+    S3Service.define_singleton_method(:configured?, original_configured) if defined?(original_configured) && original_configured
+  end
+
   test "validation-time duplicate races replay the committed message" do
     client_message_id = "message-validation-race"
     winner = Message.create!(channel: @channel, author: @student, body: "Race-safe send", client_message_id: client_message_id)
@@ -545,7 +575,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "database uniqueness races replay the committed message" do
+  test "database uniqueness races replay the committed message inside an outer transaction" do
     client_message_id = "message-index-race"
     winner = Message.create!(channel: @channel, author: @student, body: "Index-safe send", client_message_id: client_message_id)
     original_lookup = Api::V1::MessagesController.instance_method(:existing_message_for_client_id)
@@ -555,6 +585,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
       lookup_count == 1 ? nil : original_lookup.bind_call(self)
     end
     Api::V1::MessagesController.send(:private, :existing_message_for_client_id)
+    save_was_owned = Message.instance_methods(false).include?(:save!)
     original_save = Message.instance_method(:save!)
     target_client_message_id = client_message_id
     Message.define_method(:save!) do |*args, **kwargs|
@@ -575,17 +606,26 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
       end
     end
 
-    as_user(@student) do
-      post "/api/v1/channels/#{@channel.id}/messages",
-        params: { body: "Index-safe send", client_message_id: client_message_id },
-        headers: auth_headers,
-        as: :json
-    end
+    Message.transaction(requires_new: true) do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages",
+          params: { body: "Index-safe send", client_message_id: client_message_id },
+          headers: auth_headers,
+          as: :json
+      end
 
-    assert_response :ok
-    assert_equal winner.id, JSON.parse(response.body).dig("message", "id")
+      assert_response :ok
+      assert_equal winner.id, JSON.parse(response.body).dig("message", "id")
+      assert_equal winner.id, Message.find_by!(author: @student, client_message_id: client_message_id).id
+    end
   ensure
-    Message.define_method(:save!, original_save) if defined?(original_save) && original_save
+    if defined?(original_save) && original_save
+      if defined?(save_was_owned) && save_was_owned
+        Message.define_method(:save!, original_save)
+      elsif Message.instance_methods(false).include?(:save!)
+        Message.send(:remove_method, :save!)
+      end
+    end
     if defined?(original_lookup) && original_lookup
       Api::V1::MessagesController.define_method(:existing_message_for_client_id, original_lookup)
       Api::V1::MessagesController.send(:private, :existing_message_for_client_id)

@@ -20,6 +20,8 @@ describe('session access errors', () => {
   it('accepts only cached session objects with a positive integer user id', () => {
     expect(parseCachedSessionUser('{"id":7,"email":"student@example.com"}')?.id).toBe(7);
     expect(parseCachedSessionUser('{"id":0}')).toBeNull();
+    expect(parseCachedSessionUser('{"id":-1}')).toBeNull();
+    expect(parseCachedSessionUser('{"id":7.5}')).toBeNull();
     expect(parseCachedSessionUser('{"id":"7"}')).toBeNull();
     expect(parseCachedSessionUser('null')).toBeNull();
     expect(parseCachedSessionUser('{malformed')).toBeNull();

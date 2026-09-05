@@ -16,11 +16,43 @@ import { subscribeToMessages } from '@/lib/cable';
 import { demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { resolveMentionUserIds } from '@/lib/mentions';
 import { clientMessageIdForSend, draftAfterSendConfirmation, type FailedSendIntent, messageBodyChangeAllowed, messageBodyWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
-import { mergeMessageEvent, sortMessages } from '@/lib/message-state';
-import { clearThreadDraftAfterSend, loadStoredThreadDraft, saveThreadDraft } from '@/lib/conversation-storage';
+import { markOptimisticFailed, mergeMessageEvent, reconcileOptimistic, sortMessages } from '@/lib/message-state';
+import { clearThreadDraftAfterSend, loadStoredThreadDraft, saveThreadDraftState } from '@/lib/conversation-storage';
 import type { Message, MessageEvent, UserSummary } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
+
+function pendingReplyMessage(root: Message, author: Message['author'], id: number, intent: FailedSendIntent): Message {
+  const now = new Date().toISOString();
+  return {
+    id,
+    channel_id: root.channel_id,
+    direct_conversation_id: root.direct_conversation_id,
+    parent_message_id: root.id,
+    client_message_id: intent.clientMessageId,
+    body: intent.body,
+    mention_user_ids: [],
+    edited_at: null,
+    deleted_at: null,
+    pinned_at: null,
+    pinned_by_id: null,
+    created_at: now,
+    updated_at: now,
+    mine: true,
+    reactions: [],
+    attachments: [],
+    reply_count: 0,
+    author,
+  };
+}
+
+function failedReplyMessage(root: Message, author: Message['author'], intent: FailedSendIntent): Message {
+  return {
+    ...pendingReplyMessage(root, author, -Date.now(), intent),
+    client_status: 'failed',
+    client_error: 'Message not sent',
+  };
+}
 
 export default function ThreadScreen() {
   const params = useLocalSearchParams<{ id: string; kind: string; conversationId: string; workspaceId: string }>();
@@ -44,10 +76,13 @@ export default function ThreadScreen() {
   const [reactionDetails, setReactionDetails] = useState<{ messageId: number; emoji: string } | null>(null);
   const [imagePreview, setImagePreview] = useState<{ attachments: Message['attachments']; attachmentId: number } | null>(null);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingDraftRef = useRef<{ userId: number; rootId: number; body: string; clientMessageId: string | null } | null>(null);
+  const pendingDraftRef = useRef<{ userId: number; rootId: number; body: string; failedSend: FailedSendIntent | null } | null>(null);
   const loadRequestRef = useRef(0);
+  const tempMessageIdRef = useRef(0);
   const failedSendRef = useRef<FailedSendIntent | null>(null);
   const draftRef = useRef(draft);
+  const userRef = useRef(user);
+  userRef.current = user;
   const voiceDraft = useVoiceDraft({
     api,
     demo: auth.demo,
@@ -74,7 +109,7 @@ export default function ThreadScreen() {
       setDraft('');
       void clearThreadDraftAfterSend(userId, rootId);
     } else {
-      void saveThreadDraft(userId, rootId, nextDraft).catch(() => undefined);
+      void saveThreadDraftState(userId, rootId, nextDraft, null).catch(() => undefined);
     }
     return true;
   }, [rootId, userId]);
@@ -83,11 +118,12 @@ export default function ThreadScreen() {
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
     const pending = pendingDraftRef.current;
     pendingDraftRef.current = null;
-    if (pending) void saveThreadDraft(pending.userId, pending.rootId, pending.body, pending.clientMessageId).catch(() => undefined);
+    if (pending) void saveThreadDraftState(pending.userId, pending.rootId, pending.body, pending.failedSend).catch(() => undefined);
   }, []);
 
   const load = useCallback(async () => {
     const requestId = ++loadRequestRef.current;
+    let storedFailedSend: FailedSendIntent | null = null;
     setLoading(true);
     try {
       if (userId && !auth.demo) {
@@ -95,9 +131,8 @@ export default function ThreadScreen() {
         if (requestId !== loadRequestRef.current) return;
         draftRef.current = storedDraft.body;
         setDraft(storedDraft.body);
-        failedSendRef.current = storedDraft.clientMessageId
-          ? { body: storedDraft.body.trim(), clientMessageId: storedDraft.clientMessageId }
-          : null;
+        storedFailedSend = storedDraft.failedSend;
+        failedSendRef.current = storedFailedSend;
       }
       if (!Number.isInteger(workspaceId) || workspaceId <= 0) throw new Error('This thread link is incomplete. Open it again from the conversation.');
       if (auth.demo) {
@@ -125,9 +160,13 @@ export default function ThreadScreen() {
       const [result, workspace] = await Promise.all([api.messageThread(rootId), api.workspace(workspaceId)]);
       if (requestId !== loadRequestRef.current) return;
       setRoot(result.root_message);
-      setReplies(result.replies);
-      const confirmedReply = result.replies.find((reply) => reply.client_message_id === failedSendRef.current?.clientMessageId);
+      const confirmedReply = result.replies.find((reply) => reply.client_message_id === storedFailedSend?.clientMessageId);
       if (confirmedReply) acknowledgeSentReply(confirmedReply);
+      const currentUser = userRef.current;
+      const restoredFailure = !confirmedReply && storedFailedSend && currentUser
+        ? failedReplyMessage(result.root_message, currentUser, storedFailedSend)
+        : null;
+      setReplies(restoredFailure ? sortMessages([...result.replies, restoredFailure]) : result.replies);
       setUsers(workspace.workspace.members);
       setError(null);
     } catch (requestError) {
@@ -156,10 +195,9 @@ export default function ThreadScreen() {
   useEffect(() => {
     if (!userId || loading || sending) return;
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
-    const failedIntent = failedSendRef.current?.body === draft.trim() ? failedSendRef.current : null;
-    const pending = { userId, rootId, body: draft, clientMessageId: failedIntent?.clientMessageId || null };
+    const pending = { userId, rootId, body: draft, failedSend: failedSendRef.current };
     pendingDraftRef.current = pending;
-    draftTimerRef.current = setTimeout(() => void saveThreadDraft(pending.userId, pending.rootId, pending.body, pending.clientMessageId).then(() => { if (pendingDraftRef.current === pending) pendingDraftRef.current = null; }).catch(() => undefined), 300);
+    draftTimerRef.current = setTimeout(() => void saveThreadDraftState(pending.userId, pending.rootId, pending.body, pending.failedSend).then(() => { if (pendingDraftRef.current === pending) pendingDraftRef.current = null; }).catch(() => undefined), 300);
     return () => { if (draftTimerRef.current) clearTimeout(draftTimerRef.current); };
   }, [draft, loading, rootId, sending, userId]);
 
@@ -168,54 +206,47 @@ export default function ThreadScreen() {
   const reactionDetailsMessage = reactionDetails
     ? reactionDetails.messageId === root?.id ? root : replies.find((message) => message.id === reactionDetails.messageId) || null
     : null;
-  const send = async () => {
-    const body = draft.trim();
-    if (!body || !messageBodyWithinLimit(body) || sending) return;
-    const clientMessageId = clientMessageIdForSend(body, failedSendRef.current);
+  const send = async (retryMessage?: Message) => {
+    const body = (retryMessage?.body || draft).trim();
+    if (!root || !user || !body || !messageBodyWithinLimit(body) || sending) return;
+    const retryIntent = retryMessage?.client_message_id
+      ? { body, clientMessageId: retryMessage.client_message_id }
+      : null;
+    const clientMessageId = clientMessageIdForSend(body, retryIntent);
     const intent = { body, clientMessageId };
+    const optimisticId = retryMessage?.id || --tempMessageIdRef.current;
+    const optimistic = retryMessage || pendingReplyMessage(root, user, optimisticId, intent);
     setSending(true);
     failedSendRef.current = intent;
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
     pendingDraftRef.current = null;
-    if (userId) void saveThreadDraft(userId, rootId, body, clientMessageId).catch(() => undefined);
-    draftRef.current = '';
-    setDraft('');
+    if (!retryMessage) {
+      draftRef.current = '';
+      setDraft('');
+    }
+    if (userId) void saveThreadDraftState(userId, rootId, draftRef.current, intent).catch(() => undefined);
+    setReplies((current) => sortMessages([
+      ...current.filter((message) => message.id !== optimisticId),
+      { ...optimistic, client_message_id: clientMessageId, client_status: 'sending', client_error: undefined },
+    ]));
     try {
       if (auth.demo) {
-        const demoReply: Message = {
-          ...(root as Message),
-          id: -Date.now(),
-          parent_message_id: rootId,
-          body,
-          mine: true,
-          reactions: [],
-          read_receipts: undefined,
-          author: demoUser,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        setReplies((current) => sortMessages([...current, demoReply]));
+        setReplies((current) => current.map((message) => message.id === optimisticId ? { ...message, client_status: undefined } : message));
+        failedSendRef.current = null;
         requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
         voiceDraft.markSent(body);
         return;
       }
       const result = await api.sendMessage(kind, conversationId, { body, parent_message_id: rootId, client_message_id: clientMessageId, mention_user_ids: resolveMentionUserIds(body, users), send_push: true });
-      setReplies((current) => sortMessages([...current.filter((message) => message.id !== result.message.id), result.message]));
+      setReplies((current) => reconcileOptimistic(current, optimisticId, result.message));
       acknowledgeSentReply(result.message);
       voiceDraft.markSent(body);
       requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
     } catch (requestError) {
       if (failedSendRef.current?.clientMessageId !== clientMessageId) return;
-      const replacementDraft = draftRef.current;
-      if (replacementDraft.trim() && replacementDraft.trim() !== body) {
-        failedSendRef.current = null;
-        if (userId) await saveThreadDraft(userId, rootId, replacementDraft).catch(() => undefined);
-      } else {
-        draftRef.current = body;
-        setDraft(body);
-        if (userId) await saveThreadDraft(userId, rootId, body, clientMessageId).catch(() => undefined);
-      }
-      Alert.alert('Reply not sent', (requestError as Error).message);
+      setReplies((current) => markOptimisticFailed(current, optimistic, (requestError as Error).message));
+      if (userId) await saveThreadDraftState(userId, rootId, draftRef.current, intent).catch(() => undefined);
+      Alert.alert('Reply not sent', (requestError as Error).message, [{ text: 'Keep for retry' }]);
     }
     finally { setSending(false); }
   };
@@ -250,7 +281,7 @@ export default function ThreadScreen() {
     {loading ? <LoadingState label="Loading thread" /> : error || !root ? <ErrorState message={error || 'This thread is no longer available.'} retry={() => void load()} /> : <>
       <View style={styles.root}><MessageBubble message={root} showAuthor mentionUsers={users} onLongPress={openSafetyActions} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} /></View>
       <View style={styles.divider}><Text style={styles.dividerText}>REPLIES</Text><View style={styles.line} /></View>
-      <FlatList ref={listRef} data={visible} keyExtractor={(message) => String(message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list} renderItem={({ item, index }) => <MessageBubble message={item} showAuthor={!visible[index - 1] || visible[index - 1].author.id !== item.author.id} mentionUsers={users} onLongPress={openSafetyActions} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} />} ListEmptyComponent={<Text style={styles.empty}>Start a focused conversation about this message.</Text>} />
+      <FlatList ref={listRef} data={visible} keyExtractor={(message) => String(message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list} renderItem={({ item, index }) => <MessageBubble message={item} showAuthor={!visible[index - 1] || visible[index - 1].author.id !== item.author.id} mentionUsers={users} onLongPress={openSafetyActions} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} onRetry={(message) => void send(message)} />} ListEmptyComponent={<Text style={styles.empty}>Start a focused conversation about this message.</Text>} />
     </>}
     <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />
     <ComposerLimitNotice value={draft} />

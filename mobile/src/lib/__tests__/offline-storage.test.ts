@@ -13,6 +13,7 @@ import {
   saveConversationDraft,
   saveFailedMessages,
   saveThreadDraft,
+  saveThreadDraftState,
 } from '../conversation-storage';
 import { clientMessageIdForSend } from '../message-compose';
 import { mergeMessageEvent } from '../message-state';
@@ -122,11 +123,21 @@ describe('offline authored storage', () => {
     await saveThreadDraft(7, 88, 'Possibly delivered   ', 'thread-send-1');
 
     const restored = await loadStoredThreadDraft(7, 88);
-    expect(restored).toEqual({ body: 'Possibly delivered   ', clientMessageId: 'thread-send-1' });
-    const retryIntent = restored.clientMessageId
-      ? { body: restored.body.trim(), clientMessageId: restored.clientMessageId }
-      : null;
-    expect(clientMessageIdForSend(restored.body.trim(), retryIntent)).toBe('thread-send-1');
+    expect(restored).toEqual({
+      body: 'Possibly delivered   ',
+      failedSend: { body: 'Possibly delivered', clientMessageId: 'thread-send-1' },
+    });
+    const retryIntent = restored.failedSend;
+    expect(clientMessageIdForSend(retryIntent!.body, retryIntent)).toBe('thread-send-1');
+  });
+
+  it('stores a failed thread reply separately from a replacement draft', async () => {
+    await saveThreadDraftState(7, 88, 'A newer reply', { body: 'Failed reply', clientMessageId: 'thread-send-2' });
+
+    expect(await loadStoredThreadDraft(7, 88)).toEqual({
+      body: 'A newer reply',
+      failedSend: { body: 'Failed reply', clientMessageId: 'thread-send-2' },
+    });
   });
 
   it('persists failed conversation retry identifiers', async () => {

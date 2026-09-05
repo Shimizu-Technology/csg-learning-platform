@@ -237,7 +237,7 @@ module Api
         message.author = current_user
 
         begin
-          Message.transaction do
+          Message.transaction(requires_new: true) do
             message.save!
             persist_files!(message, attachments)
           end
@@ -301,15 +301,15 @@ module Api
       end
 
       def persisted_attachment_intent(message)
-        message.message_attachments.order(:id).map do |attachment|
+        message.message_attachments.map do |attachment|
           [ attachment.s3_key, attachment.filename, attachment.content_type, attachment.byte_size ]
-        end
+        end.sort
       end
 
       def requested_attachment_intent(attachments)
         attachments.map do |attachment|
           [ attachment[:s3_key].to_s, attachment[:filename].to_s, attachment[:content_type].to_s, attachment[:byte_size].to_i ]
-        end
+        end.sort
       end
 
       def persist_files!(message, attachments)

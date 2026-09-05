@@ -43,7 +43,7 @@ export function threadDraftKey(userId: number, rootMessageId: number) {
 
 export interface StoredThreadDraft {
   body: string;
-  clientMessageId: string | null;
+  failedSend: { body: string; clientMessageId: string } | null;
 }
 
 export async function loadConversationDraft(userId: number, kind: ConversationKind, id: number) {
@@ -70,22 +70,45 @@ export async function loadThreadDraft(userId: number, rootMessageId: number) {
 
 export async function loadStoredThreadDraft(userId: number, rootMessageId: number): Promise<StoredThreadDraft> {
   const value = await readAfterPendingWrites(userId, threadDraftKey(userId, rootMessageId));
-  if (!value) return { body: '', clientMessageId: null };
+  if (!value) return { body: '', failedSend: null };
   try {
-    const stored = JSON.parse(value) as { version?: unknown; body?: unknown; clientMessageId?: unknown };
+    const stored = JSON.parse(value) as { version?: unknown; body?: unknown; failedBody?: unknown; clientMessageId?: unknown };
+    if (stored.version === 2 && typeof stored.body === 'string') {
+      const failedSend = typeof stored.failedBody === 'string' && typeof stored.clientMessageId === 'string'
+        ? { body: stored.failedBody, clientMessageId: stored.clientMessageId }
+        : null;
+      return { body: stored.body, failedSend };
+    }
     if (stored.version === 1 && typeof stored.body === 'string') {
-      return { body: stored.body, clientMessageId: typeof stored.clientMessageId === 'string' ? stored.clientMessageId : null };
+      const failedSend = typeof stored.clientMessageId === 'string'
+        ? { body: stored.body.trim(), clientMessageId: stored.clientMessageId }
+        : null;
+      return { body: failedSend ? '' : stored.body, failedSend };
     }
   } catch {
     // Existing drafts were stored as plain text and remain valid.
   }
-  return { body: value, clientMessageId: null };
+  return { body: value, failedSend: null };
 }
 
 export function saveThreadDraft(userId: number, rootMessageId: number, body: string, clientMessageId?: string | null) {
+  return saveThreadDraftState(
+    userId,
+    rootMessageId,
+    body,
+    clientMessageId ? { body: body.trim(), clientMessageId } : null,
+  );
+}
+
+export function saveThreadDraftState(
+  userId: number,
+  rootMessageId: number,
+  body: string,
+  failedSend: StoredThreadDraft['failedSend'],
+) {
   const key = threadDraftKey(userId, rootMessageId);
   return enqueueStorageWrite(userId, key, () => {
-    if (body.trim() && clientMessageId) return AsyncStorage.setItem(key, JSON.stringify({ version: 1, body, clientMessageId }));
+    if (failedSend) return AsyncStorage.setItem(key, JSON.stringify({ version: 2, body, failedBody: failedSend.body, clientMessageId: failedSend.clientMessageId }));
     if (body.trim()) return AsyncStorage.setItem(key, body);
     return AsyncStorage.removeItem(key);
   });
