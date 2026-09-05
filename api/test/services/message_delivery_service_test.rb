@@ -112,4 +112,29 @@ class MessageDeliveryServiceTest < ActiveSupport::TestCase
     MessageBroadcastService.define_singleton_method(:created, original_broadcast) if defined?(original_broadcast) && original_broadcast
     MessageDeliveryService.define_singleton_method(:checkpoint_recipients, original_checkpoint) if defined?(original_checkpoint) && original_checkpoint
   end
+
+  test "a missing thread parent completes the thread stage without retrying forever" do
+    curriculum = Curriculum.create!(name: "Missing parent curriculum")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Missing parent cohort", start_date: Date.current, status: :active)
+    author = User.create!(clerk_id: "missing_parent_author", email: "missing-parent@example.com", role: :admin)
+    channel = cohort.channels.find_by!(name: "Class Chat")
+    root = Message.create!(channel: channel, author: author, body: "Removed root")
+    reply = Message.create!(channel: channel, author: author, parent_message: root, body: "Orphaned reply")
+
+    original_find_by = Message.method(:find_by)
+    begin
+      Message.define_singleton_method(:find_by) do |*arguments|
+        query = arguments.first
+        query.is_a?(Hash) && query[:id] == root.id ? nil : original_find_by.call(*arguments)
+      end
+      assert MessageDeliveryService.send(:deliver_thread_broadcast, reply)
+    ensure
+      Message.define_singleton_method(:find_by, original_find_by)
+    end
+
+    reply.reload
+    assert reply.thread_broadcasts_delivered_at?
+    assert_nil reply.thread_broadcast_delivery_claim
+    assert_empty reply.delivered_recipient_ids(:thread_broadcast_recipient_ids)
+  end
 end

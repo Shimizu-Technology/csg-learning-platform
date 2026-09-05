@@ -2,10 +2,13 @@ class MessageDeliveryService
   # Production can run Active Job inline, so request/replay recovery—not an
   # assumed background worker—is the guaranteed execution path for delivery.
   class StaleDeliveryClaim < StandardError; end
+  class DeliveryLockTimeout < StandardError; end
 
   DELIVERY_LEASE = 5.minutes
   LEASE_RENEWAL_INTERVAL = 1.minute
   DELIVERY_LOCK_NAMESPACE = 4_853_470_000_000_000
+  DELIVERY_LOCK_WAIT = 5.seconds
+  DELIVERY_LOCK_RETRY_INTERVAL = 0.05
   RECIPIENT_CHECKPOINT_BATCH_SIZE = 25
 
   class << self
@@ -13,15 +16,25 @@ class MessageDeliveryService
       synchronize_delivery(message) { deliver_created(message) }
     end
 
-    def synchronize_delivery(message)
+    def synchronize_delivery(message, wait_budget: DELIVERY_LOCK_WAIT)
       # A session-level advisory lock orders a soft-delete state reset after any
       # in-flight create fan-out without holding an Active Record row lock over
       # external notification or Action Cable work.
       lock_key = DELIVERY_LOCK_NAMESPACE + message.id
       ActiveRecord::Base.connection_pool.with_connection do |connection|
         locked = false
-        connection.select_value("SELECT pg_advisory_lock(#{connection.quote(lock_key)})")
-        locked = true
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + wait_budget.to_f
+        loop do
+          locked = ActiveModel::Type::Boolean.new.cast(
+            connection.select_value("SELECT pg_try_advisory_lock(#{connection.quote(lock_key)})")
+          )
+          break if locked
+
+          remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          raise DeliveryLockTimeout, "message delivery is already active" if remaining <= 0
+
+          sleep [ DELIVERY_LOCK_RETRY_INTERVAL, remaining ].min
+        end
         yield
       ensure
         connection.select_value("SELECT pg_advisory_unlock(#{connection.quote(lock_key)})") if locked
@@ -103,7 +116,13 @@ class MessageDeliveryService
       pending_ids = []
       last_checkpoint_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       delivered_ids = message.reload.delivered_recipient_ids(recipients_attribute)
-      broadcast_message = event == :created ? message : message.parent_message.reload
+      broadcast_message = event == :created ? message : Message.find_by(id: message.reload.parent_message_id)
+      unless broadcast_message
+        completed = complete_delivery(message, completed_attribute, started_attribute, claim_attribute, claim, recipients_attribute)
+        raise StaleDeliveryClaim, "message delivery claim expired" unless completed
+
+        return true
+      end
       broadcast_event = event == :created && message.deleted? ? :deleted : event
       MessageBroadcastService.public_send(broadcast_event, broadcast_message, skip_user_ids: delivered_ids, raise_on_failure: true) do |user|
         pending_ids << user.id

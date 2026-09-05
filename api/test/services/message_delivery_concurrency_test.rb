@@ -178,4 +178,26 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
     first&.kill if first&.alive?
     second&.kill if second&.alive?
   end
+
+  test "delivery lock wait is bounded and retryable" do
+    message = Message.create!(channel: @cohort.channels.find_by!(name: "Class Chat"), author: @author, body: "Bounded lock")
+    first_entered = Queue.new
+    release_first = Queue.new
+    first = Thread.new do
+      MessageDeliveryService.synchronize_delivery(Message.find(message.id)) do
+        first_entered << true
+        release_first.pop
+      end
+    end
+    first_entered.pop
+
+    error = assert_raises(MessageDeliveryService::DeliveryLockTimeout) do
+      MessageDeliveryService.synchronize_delivery(Message.find(message.id), wait_budget: 0) { flunk "contended lock should not yield" }
+    end
+    assert_equal "message delivery is already active", error.message
+  ensure
+    release_first << true if defined?(release_first) && first&.alive?
+    first&.join(5)
+    first&.kill if first&.alive?
+  end
 end

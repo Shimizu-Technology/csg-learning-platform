@@ -179,6 +179,52 @@ it('does not clear account A when sign-out happens before account B refreshes', 
   expect(await loadConversationDraft(userA.id, 'channel', 3)).toBe('Keep account A draft');
 });
 
+it('keeps a valid server session when writing its cache fails', async () => {
+  jest.spyOn(AsyncStorage, 'setItem').mockRejectedValueOnce(new Error('Storage unavailable'));
+  mockSession.mockResolvedValueOnce({ user: userA });
+  render(<SessionProvider><SessionObserver /></SessionProvider>);
+
+  await act(async () => { await observedSession!.refresh(); });
+
+  expect(observedSession!.user?.id).toBe(userA.id);
+  expect(observedSession!.accessDenied).toBe(false);
+});
+
+it('rejects an offline cache entry that belongs to another Clerk subject', async () => {
+  await AsyncStorage.setItem('csg.session.user.account-a', JSON.stringify(userB));
+  mockSession.mockRejectedValueOnce(new ApiError('Offline'));
+  render(<SessionProvider><SessionObserver /></SessionProvider>);
+
+  await act(async () => { await observedSession!.refresh(); });
+
+  expect(observedSession!.user).toBeNull();
+  expect(await AsyncStorage.getItem('csg.session.user.account-a')).toBeNull();
+});
+
+it('clears active account data on access denial even when its session cache is missing', async () => {
+  mockSession.mockResolvedValueOnce({ user: userA });
+  render(<SessionProvider><SessionObserver /></SessionProvider>);
+  await act(async () => { await observedSession!.refresh(); });
+  await saveConversationDraft(userA.id, 'channel', 3, 'Remove denied account draft');
+  await AsyncStorage.removeItem('csg.session.user.account-a');
+  mockSession.mockRejectedValueOnce(new ApiError('No access', 403, 'account_not_authorized'));
+
+  await act(async () => { await observedSession!.refresh(); });
+
+  expect(observedSession!.accessDenied).toBe(true);
+  expect(await loadConversationDraft(userA.id, 'channel', 3)).toBe('');
+});
+
+it('does not clear another account from a wrong-subject cache during sign-out', async () => {
+  await saveConversationDraft(userB.id, 'channel', 3, 'Keep account B draft');
+  await AsyncStorage.setItem('csg.session.user.account-a', JSON.stringify(userB));
+  render(<SessionProvider><SessionObserver /></SessionProvider>);
+
+  await act(async () => { await observedSession!.signOut(); });
+
+  expect(await loadConversationDraft(userB.id, 'channel', 3)).toBe('Keep account B draft');
+});
+
 it('does not clear account B when stale account A cache removal finishes later', async () => {
   await AsyncStorage.setItem('csg.session.user.account-a', '{"id":7}');
   let releaseRemoval = () => {};

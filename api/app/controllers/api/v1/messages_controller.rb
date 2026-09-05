@@ -81,25 +81,30 @@ module Api
           return
         end
 
-        MessageDeliveryService.synchronize_delivery(@message) do
-          @message.update!(
-            deleted_at: Time.current,
-            pinned_at: nil,
-            pinned_by: nil,
-            delivery_tracking_requested: true,
-            delivery_recovery_attempted_at: Time.at(0).utc,
-            notifications_delivery_claim: nil,
-            notifications_delivery_started_at: nil,
-            notifications_delivered_at: Time.current,
-            broadcast_recipient_ids: [],
-            broadcast_delivery_claim: nil,
-            broadcast_delivery_started_at: nil,
-            broadcasts_delivered_at: nil,
-            thread_broadcast_recipient_ids: [],
-            thread_broadcast_delivery_claim: nil,
-            thread_broadcast_delivery_started_at: nil,
-            thread_broadcasts_delivered_at: nil
-          )
+        begin
+          MessageDeliveryService.synchronize_delivery(@message) do
+            @message.update!(
+              deleted_at: Time.current,
+              pinned_at: nil,
+              pinned_by: nil,
+              delivery_tracking_requested: true,
+              delivery_recovery_attempted_at: Time.at(0).utc,
+              notifications_delivery_claim: nil,
+              notifications_delivery_started_at: nil,
+              notifications_delivered_at: Time.current,
+              broadcast_recipient_ids: [],
+              broadcast_delivery_claim: nil,
+              broadcast_delivery_started_at: nil,
+              broadcasts_delivered_at: nil,
+              thread_broadcast_recipient_ids: [],
+              thread_broadcast_delivery_claim: nil,
+              thread_broadcast_delivery_started_at: nil,
+              thread_broadcasts_delivered_at: nil
+            )
+          end
+        rescue MessageDeliveryService::DeliveryLockTimeout
+          render json: { errors: [ "Message delivery is still finishing; try again" ] }, status: :service_unavailable
+          return
         end
         deliver_committed_message(@message)
         render json: { message: message_json(@message) }
@@ -301,6 +306,7 @@ module Api
 
       def duplicate_client_message_id_error?(error, message)
         error.record.is_a?(Message) &&
+          message.client_message_id.present? &&
           error.record.client_message_id == message.client_message_id &&
           error.record.errors.details.fetch(:client_message_id, []).any? { |detail| detail[:error] == :taken }
       end
@@ -329,7 +335,7 @@ module Api
         # identical client replay in inline mode) owns the unfinished fan-out.
         Rails.logger.error(
           "[MessagesController] delivery_deferred message_id=#{message.id} " \
-          "error=#{error.class}: #{error.message}\n#{Array(error.backtrace).first(5).join("\n")}"
+          "error_class=#{error.class.name}"
         )
       end
 

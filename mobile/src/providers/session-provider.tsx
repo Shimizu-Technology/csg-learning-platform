@@ -62,22 +62,25 @@ export function SessionProvider({ children }: PropsWithChildren) {
       if (!isCurrentRefresh()) return;
       if (userIdRef.current !== result.user.id) activateUserConversationStorage(result.user.id);
       setUser(result.user); setError(null); setAccessDenied(false);
-      if (userCacheKey) await AsyncStorage.setItem(userCacheKey, JSON.stringify(result.user));
-      if (!isCurrentRefresh()) return;
+      // The authenticated server session is authoritative. A device-storage
+      // failure must not turn a valid sign-in into a session failure.
+      if (userCacheKey) void AsyncStorage.setItem(userCacheKey, JSON.stringify(result.user)).catch(() => undefined);
       void registerPushNotifications(api).catch(() => undefined);
     } catch (requestError) {
-      const cached = userCacheKey ? await AsyncStorage.getItem(userCacheKey) : null;
+      const cached = userCacheKey ? await AsyncStorage.getItem(userCacheKey).catch(() => null) : null;
       if (!isCurrentRefresh()) return;
+      const parsedCachedUser = cached ? parseCachedSessionUser(cached) : null;
+      const cachedUser = parsedCachedUser?.clerk_id === refreshSubject ? parsedCachedUser : null;
       if (isSessionAccessDenied(requestError)) {
-        const cachedUserId = cached ? parseCachedSessionUser(cached)?.id || null : null;
+        const cleanupUserId = userIdRef.current || cachedUser?.id || null;
         const keys = [PUSH_TOKEN_KEY];
         if (userCacheKey) keys.push(userCacheKey);
-        if (cachedUserId) {
-          keys.push(`csg.inbox.${cachedUserId}`, `csg.workspaces.${cachedUserId}`, `csg.workspace.active.${cachedUserId}`);
+        if (cleanupUserId) {
+          keys.push(`csg.inbox.${cleanupUserId}`, `csg.workspaces.${cleanupUserId}`, `csg.workspace.active.${cleanupUserId}`);
           await Promise.all([
-            clearLearningCache(cachedUserId),
-            clearUserConversationStorage(cachedUserId),
-            clearUserSubmissionDrafts(cachedUserId),
+            clearLearningCache(cleanupUserId),
+            clearUserConversationStorage(cleanupUserId),
+            clearUserSubmissionDrafts(cleanupUserId),
           ].map((operation) => operation.catch(() => undefined)));
         }
         if (!isCurrentRefresh()) return;
@@ -85,14 +88,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
         if (!isCurrentRefresh()) return;
         setUser(null);
         setAccessDenied(true);
-      } else if (cached && canUseCachedSession(requestError)) {
-        try {
-          const cachedUser = parseCachedSessionUser(cached);
-          if (!cachedUser) throw new Error('Invalid cached session user');
+      } else if (canUseCachedSession(requestError)) {
+        if (cachedUser) {
           if (userIdRef.current !== cachedUser.id) activateUserConversationStorage(cachedUser.id);
           setUser(cachedUser);
-        } catch {
-          await AsyncStorage.removeItem(userCacheKey!);
+        } else {
+          if (cached && userCacheKey) await AsyncStorage.removeItem(userCacheKey).catch(() => undefined);
           if (!isCurrentRefresh()) return;
           setUser(null);
         }
@@ -120,7 +121,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
     let cleanupUserId = (auth.demo || user?.clerk_id === auth.subject ? user?.id : null) || lastUserIdRef.current;
     if (!cleanupUserId && userCacheKey) {
       const cached = await AsyncStorage.getItem(userCacheKey);
-      if (cached) cleanupUserId = parseCachedSessionUser(cached)?.id || null;
+      const cachedUser = cached ? parseCachedSessionUser(cached) : null;
+      if (cachedUser?.clerk_id === auth.subject) cleanupUserId = cachedUser.id;
     }
     const keys = [PUSH_TOKEN_KEY];
     if (userCacheKey) keys.push(userCacheKey);

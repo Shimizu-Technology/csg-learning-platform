@@ -25,7 +25,7 @@ class MessageBroadcastService
       broadcast_to_recipients(event, message, skip_user_ids:, raise_on_failure:, &block)
     end
 
-    def broadcast_to_recipients(event, message, skip_user_ids:, raise_on_failure:)
+    def broadcast_to_recipients(event, message, skip_user_ids:, raise_on_failure:, &block)
       failures = []
       skipped_recipients = skip_user_ids.to_set
       message.destination.recipients.find_each do |user|
@@ -40,7 +40,7 @@ class MessageBroadcastService
           failures << e
           next
         end
-        yield user if block_given?
+        block&.call(user)
       end
       if raise_on_failure && failures.any?
         count = failures.size
