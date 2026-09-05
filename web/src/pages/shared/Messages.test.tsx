@@ -1,6 +1,29 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { FormattedMessage, MessageEditSurface } from './Messages'
+import { FormattedMessage, MessageEditSurface, mergeMessageWindow } from './Messages'
+import type { ChannelMessage } from '../../types/api'
+
+function message(overrides: Partial<ChannelMessage>): ChannelMessage {
+  return {
+    id: 1,
+    channel_id: 2,
+    direct_conversation_id: null,
+    parent_message_id: null,
+    body: 'Message',
+    mention_user_ids: [],
+    edited_at: null,
+    deleted_at: null,
+    pinned_at: null,
+    pinned_by_id: null,
+    created_at: '2026-09-05T00:00:00.000Z',
+    updated_at: '2026-09-05T00:00:00.000Z',
+    mine: true,
+    attachments: [],
+    reactions: [],
+    author: { id: 4, full_name: 'Student', email: 'student@example.com', role: 'student', avatar_url: null },
+    ...overrides,
+  }
+}
 
 describe('FormattedMessage', () => {
   it('renders mobile-safe semantic lists and formatting', () => {
@@ -46,5 +69,31 @@ describe('MessageEditSurface', () => {
     )
 
     expect(html).toContain('disabled=""')
+  })
+})
+
+describe('message window reconciliation', () => {
+  it('replaces an optimistic message with its idempotent server response', () => {
+    const optimistic = { ...message({ id: -1, client_message_id: 'client-1' }), pending: true }
+    const delivered = message({ id: 20, client_message_id: 'client-1' })
+
+    expect(mergeMessageWindow([optimistic], [delivered])).toEqual([delivered])
+  })
+
+  it('preserves unmatched pending and failed messages during background refreshes', () => {
+    const pending = { ...message({ id: -1, client_message_id: 'client-1' }), pending: true }
+    const failed = { ...message({ id: -2, client_message_id: 'client-2' }), failed: true }
+    const delivered = message({ id: 20, client_message_id: 'client-3' })
+
+    expect(mergeMessageWindow([pending, failed], [delivered]).map((item) => item.id)).toEqual([-2, -1, 20])
+  })
+
+  it('retains previously loaded older history without keeping stale messages in the refreshed window', () => {
+    const old = message({ id: 1, created_at: '2026-09-01T00:00:00.000Z' })
+    const stale = message({ id: 2, created_at: '2026-09-05T00:00:00.000Z' })
+    const latest = message({ id: 3, created_at: '2026-09-05T00:01:00.000Z' })
+
+    expect(mergeMessageWindow([old, stale], [latest], true).map((item) => item.id)).toEqual([1, 2, 3])
+    expect(mergeMessageWindow([stale], [latest], false).map((item) => item.id)).toEqual([3])
   })
 })

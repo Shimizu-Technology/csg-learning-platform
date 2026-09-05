@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
+import { useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { EditorContent, useEditor } from '@tiptap/react'
@@ -62,6 +62,19 @@ import { isVisiblePage, shouldPollMessages } from '../../lib/backgroundActivity'
 import { disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
 import { formatFileSize, uploadToS3 } from '../../lib/uploadToS3'
 import { editorJsonToMarkdown, normalizeMessageMarkdown, parseMessageBlocks } from '../../lib/messageFormat'
+import {
+  MESSAGE_BODY_LIMIT,
+  composerDestinationKey,
+  createClientMessageId,
+  failedSendsKey,
+  messageCharacterCount,
+  readComposerDraft,
+  readFailedSends,
+  writeComposerDraft,
+  writeFailedSends,
+  type StoredFailedSend,
+  type UploadedMessageAttachment,
+} from '../../lib/messageComposerState'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { MessagesLoadingShell } from '../../components/shared/MessagesLoadingShell'
@@ -74,6 +87,7 @@ import type {
   ChannelSummary,
   DirectConversationSummary,
   MessageAttachment,
+  MessageWindowMeta,
   UserSummary,
   WorkspaceDetail,
   WorkspaceSummary,
@@ -91,7 +105,15 @@ type PendingAttachment = {
   progress: number
   uploaded: boolean
 }
-type LocalMessage = ChannelMessage & { pending?: boolean; failed?: boolean }
+type RetrySend = {
+  clientMessageId: string
+  body: string
+  parentMessageId: number | null
+  mentionUserIds: number[]
+  pendingAttachments: PendingAttachment[]
+  uploadedAttachments: UploadedMessageAttachment[]
+}
+type LocalMessage = ChannelMessage & { pending?: boolean; failed?: boolean; failureError?: string; retrySend?: RetrySend }
 type MentionSuggestion = {
   id: string
   label: string
@@ -117,6 +139,14 @@ type ReadReceipts = NonNullable<ChannelMessage['read_receipts']>
 
 function targetKey(target: Target) {
   return `${target.type}:${target.id}`
+}
+
+function targetMatches(left: Target | null, right: Target) {
+  return left?.type === right.type && left.id === right.id
+}
+
+function messageBelongsToTarget(message: ChannelMessage, target: Target) {
+  return target.type === 'channel' ? message.channel_id === target.id : message.direct_conversation_id === target.id
 }
 
 function scrollStorageKey(userId: number, target: Target) {
@@ -310,6 +340,28 @@ function mergeIncomingMessage(existing: LocalMessage, incoming: LocalMessage) {
   return { ...incoming, reactions: mergedReactions }
 }
 
+export function mergeMessageWindow(existing: LocalMessage[], incoming: ChannelMessage[], preserveOlder = false) {
+  const incomingIds = new Set(incoming.map((message) => message.id))
+  const incomingClientIds = new Set(incoming.map((message) => message.client_message_id).filter(Boolean))
+  const oldestIncoming = sortChronologicalMessages(incoming)[0]
+  const localOnly = existing.filter((message) => (
+    (message.pending || message.failed || (preserveOlder && oldestIncoming && (
+      new Date(message.created_at).getTime() < new Date(oldestIncoming.created_at).getTime()
+      || (message.created_at === oldestIncoming.created_at && message.id < oldestIncoming.id)
+    )))
+    && !incomingIds.has(message.id)
+    && (!message.client_message_id || !incomingClientIds.has(message.client_message_id))
+  ))
+  const mergedIncoming = incoming.map((message) => {
+    const previous = existing.find((item) => item.id === message.id || (
+      message.client_message_id && item.client_message_id === message.client_message_id
+    ))
+    return previous ? mergeIncomingMessage(previous, message) : message
+  })
+
+  return sortChronologicalMessages([...mergedIncoming, ...localOnly])
+}
+
 function sortChronologicalMessages<T extends ChannelMessage>(items: T[]) {
   return [...items].sort((a, b) => {
     const createdDelta = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
@@ -358,6 +410,32 @@ function upsertPinnedMessage(prev: LocalMessage[], incoming: LocalMessage) {
 function editorTextBeforeCursor(editor: Editor) {
   const from = editor.state.selection.from
   return editor.state.doc.textBetween(Math.max(0, from - 80), from, '\n', '\n')
+}
+
+export function applyComposerList(
+  editor: Editor,
+  kind: 'orderedList' | 'bulletList',
+  selection?: { from: number; to: number } | null,
+) {
+  if (selection) {
+    const maxPosition = editor.state.doc.content.size
+    editor.commands.setTextSelection({
+      from: Math.min(selection.from, maxPosition),
+      to: Math.min(selection.to, maxPosition),
+    })
+  }
+
+  const toggle = () => kind === 'orderedList'
+    ? editor.chain().focus().toggleOrderedList().run()
+    : editor.chain().focus().toggleBulletList().run()
+  const { empty, $from } = editor.state.selection
+
+  if (!editor.isActive(kind) && empty && $from.parent.isTextblock && $from.parentOffset > 0) {
+    const split = editor.chain().focus().splitBlock().run()
+    if (!split) return false
+  }
+
+  return toggle()
 }
 
 function stripMentionLabel(value: string) {
@@ -563,16 +641,18 @@ function ComposerToolbarButton({
   active = false,
   children,
   className = '',
+  toggle = false,
   onClick,
-  onMouseDown,
+  onPointerDown,
 }: {
   label: string
   shortcut?: string
   active?: boolean
   children: ReactNode
   className?: string
+  toggle?: boolean
   onClick?: () => void
-  onMouseDown?: (event: MouseEvent<HTMLButtonElement>) => void
+  onPointerDown?: (event: PointerEvent<HTMLButtonElement>) => void
 }) {
   const tooltipId = useId()
   const buttonRef = useRef<HTMLButtonElement | null>(null)
@@ -597,16 +677,17 @@ function ComposerToolbarButton({
         ref={buttonRef}
         type="button"
         onClick={onClick}
-        onMouseDown={onMouseDown}
+        onPointerDown={onPointerDown}
         onMouseEnter={showTooltip}
         onMouseLeave={hideTooltip}
         onFocus={showTooltip}
         onBlur={hideTooltip}
-        className={`relative min-h-10 min-w-10 shrink-0 rounded-lg p-2 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 sm:min-h-9 sm:min-w-9 ${
+        className={`relative min-h-11 min-w-11 shrink-0 rounded-lg p-2 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 sm:min-h-9 sm:min-w-9 ${
           active ? 'bg-slate-100 text-slate-900' : ''
         } ${className}`}
         aria-label={shortcut ? `${label} (${shortcut})` : label}
         aria-describedby={tooltipPosition ? tooltipId : undefined}
+        aria-pressed={toggle ? active : undefined}
       >
         {children}
       </button>
@@ -677,6 +758,7 @@ export function Messages() {
   const routedMessageId = Number(searchParams.get('message_id')) || null
   const { user } = useAuthContext()
   const toast = useToast()
+  const composerHelpId = useId()
   const isStaff = Boolean(user?.is_staff)
   const [channels, setChannels] = useState<ChannelSummary[]>([])
   const [directConversations, setDirectConversations] = useState<DirectConversationSummary[]>([])
@@ -688,6 +770,8 @@ export function Messages() {
   const [selectedTarget, setSelectedTarget] = useState<Target | null>(dmId ? { type: 'dm', id: Number(dmId) } : channelId ? { type: 'channel', id: Number(channelId) } : null)
   const [messages, setMessages] = useState<LocalMessage[]>([])
   const [pinnedMessages, setPinnedMessages] = useState<LocalMessage[]>([])
+  const [messageWindowMeta, setMessageWindowMeta] = useState<MessageWindowMeta | null>(null)
+  const [loadingOlder, setLoadingOlder] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadingTarget, setLoadingTarget] = useState(false)
   const [sending, setSending] = useState(false)
@@ -769,12 +853,18 @@ export function Messages() {
   const isDesktopRef = useRef(isDesktop)
   const mobilePaneRef = useRef(mobilePane)
   const selectedTargetRef = useRef<Target | null>(selectedTarget)
+  const composerSelectionRef = useRef<{ from: number; to: number } | null>(null)
+  const activeDraftKeyRef = useRef<string | null>(null)
+  const draftSaveTimerRef = useRef<number | null>(null)
+  const pendingAttachmentBucketsRef = useRef(new Map<string, PendingAttachment[]>())
+  const pendingAttachmentsRef = useRef(pendingAttachments)
   const deferredSearchQuery = useDeferredValue(searchQuery)
 
   activeThreadRootIdRef.current = activeThreadRootId
   isDesktopRef.current = isDesktop
   mobilePaneRef.current = mobilePane
   selectedTargetRef.current = selectedTarget
+  pendingAttachmentsRef.current = pendingAttachments
 
   const setTargetLoading = (value: boolean) => {
     loadingTargetRef.current = value
@@ -987,6 +1077,17 @@ export function Messages() {
     mentionPatternsRef.current = mentionPatterns
   }, [mentionPatterns])
 
+  const scheduleDraftSave = (draftBody: string, content: ReturnType<Editor['getJSON']>) => {
+    const key = activeDraftKeyRef.current
+    if (!key || typeof window === 'undefined') return
+    if (draftSaveTimerRef.current !== null) window.clearTimeout(draftSaveTimerRef.current)
+
+    draftSaveTimerRef.current = window.setTimeout(() => {
+      writeComposerDraft(key, { version: 1, body: draftBody, content }, window.localStorage)
+      draftSaveTimerRef.current = null
+    }, 250)
+  }
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -1008,6 +1109,8 @@ export function Messages() {
     editorProps: {
       attributes: {
         class: 'message-composer px-3 py-2.5 text-base leading-6 text-slate-800 outline-none sm:py-3 sm:text-sm',
+        'aria-label': 'Write a message',
+        'aria-describedby': composerHelpId,
         autocapitalize: 'sentences',
         autocorrect: 'on',
         spellcheck: 'true',
@@ -1027,10 +1130,15 @@ export function Messages() {
       },
     },
     onUpdate: ({ editor }) => {
-      setBody(editorJsonToMarkdown(editor.getJSON()).trim())
+      const content = editor.getJSON()
+      const nextBody = editorJsonToMarkdown(content)
+      composerSelectionRef.current = { from: editor.state.selection.from, to: editor.state.selection.to }
+      setBody(nextBody)
+      scheduleDraftSave(nextBody, content)
       setComposerTriggerText(editorTextBeforeCursor(editor))
     },
     onSelectionUpdate: ({ editor }) => {
+      composerSelectionRef.current = { from: editor.state.selection.from, to: editor.state.selection.to }
       setComposerTriggerText(editorTextBeforeCursor(editor))
     },
     onTransaction: () => {
@@ -1042,6 +1150,45 @@ export function Messages() {
     if (!editor) return
     editor.view.dispatch(editor.state.tr)
   }, [editor, mentionPatterns])
+
+  useEffect(() => {
+    if (!editor || !user || !selectedTarget || typeof window === 'undefined') return
+
+    const nextKey = composerDestinationKey(user.id, selectedTarget, activeThreadRootId)
+    const previousKey = activeDraftKeyRef.current
+    if (previousKey === nextKey) return
+
+    if (previousKey) {
+      if (draftSaveTimerRef.current !== null) window.clearTimeout(draftSaveTimerRef.current)
+      writeComposerDraft(previousKey, {
+        version: 1,
+        body: editorJsonToMarkdown(editor.getJSON()),
+        content: editor.getJSON(),
+      }, window.localStorage)
+      pendingAttachmentBucketsRef.current.set(previousKey, pendingAttachmentsRef.current)
+    }
+
+    activeDraftKeyRef.current = nextKey
+    const draft = readComposerDraft(nextKey, window.localStorage)
+    editor.commands.setContent(draft?.content || { type: 'doc', content: [{ type: 'paragraph' }] }, { emitUpdate: false })
+    setBody(draft?.body || '')
+    setComposerMentionUserIds([])
+    setComposerTriggerText('')
+    setPendingAttachments(pendingAttachmentBucketsRef.current.get(nextKey) || [])
+    composerSelectionRef.current = { from: 1, to: 1 }
+  }, [editor, user?.id, selectedTarget?.type, selectedTarget?.id, activeThreadRootId])
+
+  useEffect(() => () => {
+    if (draftSaveTimerRef.current !== null) window.clearTimeout(draftSaveTimerRef.current)
+    const key = activeDraftKeyRef.current
+    if (key && editor && typeof window !== 'undefined') {
+      writeComposerDraft(key, {
+        version: 1,
+        body: editorJsonToMarkdown(editor.getJSON()),
+        content: editor.getJSON(),
+      }, window.localStorage)
+    }
+  }, [editor])
 
   const loadLists = async () => {
     const [workspaceRes, channelRes, dmRes] = await Promise.all([api.getWorkspaces(), api.getChannels(), api.getDirectConversations()])
@@ -1109,6 +1256,76 @@ export function Messages() {
     return new Date(conversation.latest_message.created_at) > new Date(conversation.last_read_at)
   }
 
+  const storedFailureMessages = (target: Target): LocalMessage[] => {
+    if (!user || typeof window === 'undefined') return []
+
+    return readFailedSends(failedSendsKey(user.id, target), window.localStorage)
+      .filter((failure) => targetMatches(failure.target, target))
+      .map((failure) => {
+        tempMessageIdRef.current -= 1
+        return {
+          id: tempMessageIdRef.current,
+          channel_id: target.type === 'channel' ? target.id : null,
+          direct_conversation_id: target.type === 'dm' ? target.id : null,
+          parent_message_id: failure.parentMessageId,
+          client_message_id: failure.clientMessageId,
+          body: failure.body,
+          mention_user_ids: failure.mentionUserIds,
+          edited_at: null,
+          deleted_at: null,
+          pinned_at: null,
+          pinned_by_id: null,
+          created_at: failure.createdAt,
+          updated_at: failure.createdAt,
+          mine: true,
+          failed: true,
+          failureError: failure.attachmentCount !== failure.attachments.length
+            ? `${failure.error} Restore the text and attach the files again.`
+            : failure.error,
+          retrySend: failure.attachmentCount === failure.attachments.length ? {
+            clientMessageId: failure.clientMessageId,
+            body: failure.body,
+            parentMessageId: failure.parentMessageId,
+            mentionUserIds: failure.mentionUserIds,
+            pendingAttachments: [],
+            uploadedAttachments: failure.attachments,
+          } : undefined,
+          attachments: failure.attachments.map((attachment, index) => ({
+            id: tempMessageIdRef.current - index - 1,
+            filename: attachment.filename,
+            content_type: attachment.content_type,
+            byte_size: attachment.byte_size,
+            image: attachment.content_type.startsWith('image/'),
+          })),
+          reactions: [],
+          author: {
+            id: user.id,
+            full_name: user.full_name,
+            email: user.email,
+            role: user.role,
+            avatar_url: user.avatar_url,
+          },
+        }
+      })
+  }
+
+  const saveStoredFailure = (target: Target, failure: StoredFailedSend) => {
+    if (!user || typeof window === 'undefined') return
+    const key = failedSendsKey(user.id, target)
+    const failures = readFailedSends(key, window.localStorage).filter((item) => item.clientMessageId !== failure.clientMessageId)
+    writeFailedSends(key, [...failures, failure], window.localStorage)
+  }
+
+  const removeStoredFailure = (target: Target, clientMessageId: string) => {
+    if (!user || typeof window === 'undefined') return
+    const key = failedSendsKey(user.id, target)
+    writeFailedSends(
+      key,
+      readFailedSends(key, window.localStorage).filter((item) => item.clientMessageId !== clientMessageId),
+      window.localStorage,
+    )
+  }
+
   const loadTarget = async (target: Target, markRead = false, options: TargetLoadOptions = {}) => {
     const requestId = targetRequestRef.current + 1
     targetRequestRef.current = requestId
@@ -1133,8 +1350,21 @@ export function Messages() {
         return
       }
 
-      setMessages(sortChronologicalMessages(res.data.messages || []))
+      const serverMessages = sortChronologicalMessages(res.data.messages || [])
+      serverMessages.forEach((message) => {
+        if (message.client_message_id) removeStoredFailure(target, message.client_message_id)
+      })
+      setMessages((current) => mergeMessageWindow(
+        options.background ? current.filter((message) => messageBelongsToTarget(message, target)) : storedFailureMessages(target),
+        serverMessages,
+        options.background,
+      ))
       setPinnedMessages(sortPinnedMessages(res.data.pinned_messages || []))
+      setMessageWindowMeta((current) => options.background && current && res.data?.meta ? {
+        ...res.data.meta,
+        oldest_message_id: current.oldest_message_id,
+        has_older: current.has_older,
+      } : res.data?.meta || null)
       setChannels((prev) => prev.map((channel) => channel.id === target.id ? res.data!.channel : channel))
       setHighlightedMessageId(options.highlightedMessageId || null)
       if (markRead && channelNeedsRead(res.data.channel)) {
@@ -1154,8 +1384,21 @@ export function Messages() {
       return
     }
 
-    setMessages(sortChronologicalMessages(res.data.messages || []))
+    const serverMessages = sortChronologicalMessages(res.data.messages || [])
+    serverMessages.forEach((message) => {
+      if (message.client_message_id) removeStoredFailure(target, message.client_message_id)
+    })
+    setMessages((current) => mergeMessageWindow(
+      options.background ? current.filter((message) => messageBelongsToTarget(message, target)) : storedFailureMessages(target),
+      serverMessages,
+      options.background,
+    ))
     setPinnedMessages(sortPinnedMessages(res.data.pinned_messages || []))
+    setMessageWindowMeta((current) => options.background && current && res.data?.meta ? {
+      ...res.data.meta,
+      oldest_message_id: current.oldest_message_id,
+      has_older: current.has_older,
+    } : res.data?.meta || null)
     setDirectConversations((prev) => prev.map((conversation) => conversation.id === target.id ? res.data!.direct_conversation : conversation))
     setHighlightedMessageId(options.highlightedMessageId || null)
     if (markRead && dmNeedsRead(res.data.direct_conversation)) {
@@ -1163,6 +1406,42 @@ export function Messages() {
       setDirectConversations((prev) => prev.map((conversation) => conversation.id === target.id ? { ...conversation, unread_count: 0, last_read_at: new Date().toISOString() } : conversation))
     }
     if (showTargetLoader) setTargetLoading(false)
+  }
+
+  const loadOlderMessages = async () => {
+    if (!selectedTarget || !messageWindowMeta?.has_older || !messageWindowMeta.oldest_message_id || loadingOlder) return
+
+    const target = selectedTarget
+    const element = messageScrollRef.current
+    const previousHeight = element?.scrollHeight || 0
+    const previousTop = element?.scrollTop || 0
+    setLoadingOlder(true)
+
+    const params = { before_message_id: messageWindowMeta.oldest_message_id }
+    const res = target.type === 'channel'
+      ? await api.getChannel(target.id, params)
+      : await api.getDirectConversation(target.id, params)
+
+    if (targetMatches(selectedTargetRef.current, target) && !res.data) {
+      toast.error(res.error || 'Could not load earlier messages.')
+    } else if (targetMatches(selectedTargetRef.current, target) && res.data) {
+      const older = sortChronologicalMessages(res.data.messages || [])
+      setMessages((current) => {
+        const existingIds = new Set(current.map((message) => message.id))
+        return sortChronologicalMessages([...older.filter((message) => !existingIds.has(message.id)), ...current])
+      })
+      setMessageWindowMeta((current) => ({
+        oldest_message_id: res.data?.meta?.oldest_message_id ?? current?.oldest_message_id ?? null,
+        newest_message_id: current?.newest_message_id ?? res.data?.meta?.newest_message_id ?? null,
+        has_older: res.data?.meta?.has_older ?? false,
+        has_newer: current?.has_newer ?? res.data?.meta?.has_newer ?? false,
+      }))
+      window.requestAnimationFrame(() => {
+        if (element) element.scrollTop = previousTop + Math.max(0, element.scrollHeight - previousHeight)
+      })
+    }
+
+    setLoadingOlder(false)
   }
 
   useEffect(() => {
@@ -1356,8 +1635,13 @@ export function Messages() {
 
         setMessages((prev) => {
           if (event.event === 'deleted') return prev.filter((item) => item.id !== message.id)
-          if (prev.some((item) => item.id === message.id)) {
-            return sortChronologicalMessages(prev.map((item) => item.id === message.id ? mergeIncomingMessage(item, message) : item))
+          const matchingLocal = prev.find((item) => item.id === message.id || (
+            message.client_message_id && item.client_message_id === message.client_message_id
+          ))
+          if (matchingLocal) {
+            if (matchingLocal.id < 0) releaseOptimisticAttachmentUrls(matchingLocal.id)
+            if (message.client_message_id && currentTarget) removeStoredFailure(currentTarget, message.client_message_id)
+            return sortChronologicalMessages(prev.map((item) => item === matchingLocal ? mergeIncomingMessage(item, message) : item))
           }
           return sortChronologicalMessages([...prev, message])
         })
@@ -1719,8 +2003,8 @@ export function Messages() {
     }
   }
 
-  const uploadAttachments = async (attachmentsToUpload = pendingAttachments) => {
-    if (!selectedTarget) return []
+  const uploadAttachments = async (attachmentsToUpload = pendingAttachments, target = selectedTarget) => {
+    if (!target) return []
 
     const uploaded = []
     for (const attachment of attachmentsToUpload) {
@@ -1735,8 +2019,8 @@ export function Messages() {
       }
 
       const presign = await api.presignMessageAttachment({
-        channel_id: selectedTarget.type === 'channel' ? selectedTarget.id : undefined,
-        direct_conversation_id: selectedTarget.type === 'dm' ? selectedTarget.id : undefined,
+        channel_id: target.type === 'channel' ? target.id : undefined,
+        direct_conversation_id: target.type === 'dm' ? target.id : undefined,
         filename: attachment.filename,
         content_type: attachment.content_type,
       })
@@ -1762,9 +2046,14 @@ export function Messages() {
 
     const submittedBody = normalizeMessageMarkdown(editor ? editorJsonToMarkdown(editor.getJSON()) : body)
     const submittedAttachments = pendingAttachments
+    const submittedTarget = selectedTarget
+    const submittedDraftKey = activeDraftKeyRef.current
     const threadRoot = activeThreadRoot
     const mentionUserIds = resolveMentionedUserIds(submittedBody, mentionableUsers, composerMentionUserIds)
     if (!submittedBody && submittedAttachments.length === 0) return
+    if (messageCharacterCount(submittedBody) > MESSAGE_BODY_LIMIT) return
+
+    const clientMessageId = createClientMessageId()
 
     tempMessageIdRef.current -= 1
     const tempId = tempMessageIdRef.current
@@ -1788,6 +2077,7 @@ export function Messages() {
       channel_id: selectedTarget.type === 'channel' ? selectedTarget.id : null,
       direct_conversation_id: selectedTarget.type === 'dm' ? selectedTarget.id : null,
       parent_message_id: threadRoot?.id || null,
+      client_message_id: clientMessageId,
       body: submittedBody,
       mention_user_ids: mentionUserIds,
       edited_at: null,
@@ -1817,39 +2107,146 @@ export function Messages() {
     setComposerTriggerText('')
     editor?.commands.clearContent()
     setPendingAttachments([])
+    if (submittedDraftKey && typeof window !== 'undefined') {
+      writeComposerDraft(submittedDraftKey, null, window.localStorage)
+      pendingAttachmentBucketsRef.current.delete(submittedDraftKey)
+    }
 
     setSending(true)
     setError('')
+    let uploadedAttachments: UploadedMessageAttachment[] = []
     try {
-      const attachments = await uploadAttachments(submittedAttachments)
+      uploadedAttachments = await uploadAttachments(submittedAttachments, submittedTarget)
       const payload = {
         body: submittedBody,
         parent_message_id: optimisticMessage.parent_message_id,
+        client_message_id: clientMessageId,
         mention_user_ids: mentionUserIds,
-        attachments,
+        attachments: uploadedAttachments,
         send_push: true,
       }
-      const res = selectedTarget.type === 'channel'
-        ? await api.createMessage(selectedTarget.id, payload)
-        : await api.createDirectMessage(selectedTarget.id, payload)
+      const res = submittedTarget.type === 'channel'
+        ? await api.createMessage(submittedTarget.id, payload)
+        : await api.createDirectMessage(submittedTarget.id, payload)
 
       if (res.error) {
-        setError(res.error)
-        toast.error(res.error)
-        setMessages((prev) => prev.map((item) => item.id === tempId ? { ...item, pending: false, failed: true } : item))
+        const failureError = res.error
+        setError(failureError)
+        toast.error(failureError)
+        const retrySend: RetrySend = { clientMessageId, body: submittedBody, parentMessageId: optimisticMessage.parent_message_id, mentionUserIds, pendingAttachments: submittedAttachments, uploadedAttachments }
+        saveStoredFailure(submittedTarget, { version: 1, clientMessageId, target: submittedTarget, body: submittedBody, parentMessageId: optimisticMessage.parent_message_id, mentionUserIds, attachments: uploadedAttachments, attachmentCount: submittedAttachments.length, createdAt: optimisticMessage.created_at, error: failureError })
+        if (targetMatches(selectedTargetRef.current, submittedTarget)) {
+          setMessages((prev) => prev.map((item) => item.id === tempId ? { ...item, pending: false, failed: true, failureError, retrySend } : item))
+        }
       } else if (res.data) {
         const message = res.data.message
+        removeStoredFailure(submittedTarget, clientMessageId)
         releaseOptimisticAttachmentUrls(tempId)
-        setMessages((prev) => sortChronologicalMessages([...prev.filter((item) => item.id !== tempId && item.id !== message.id), message]))
+        if (targetMatches(selectedTargetRef.current, submittedTarget)) {
+          setMessages((prev) => sortChronologicalMessages([...prev.filter((item) => item.id !== tempId && item.id !== message.id && item.client_message_id !== clientMessageId), message]))
+        }
         updateLatestForTarget(message)
       }
     } catch (sendError) {
       const message = sendError instanceof Error ? sendError.message : 'Could not send message.'
       setError(message)
       toast.error(message)
-      setMessages((prev) => prev.map((item) => item.id === tempId ? { ...item, pending: false, failed: true } : item))
+      const retrySend: RetrySend = { clientMessageId, body: submittedBody, parentMessageId: optimisticMessage.parent_message_id, mentionUserIds, pendingAttachments: submittedAttachments, uploadedAttachments }
+      saveStoredFailure(submittedTarget, { version: 1, clientMessageId, target: submittedTarget, body: submittedBody, parentMessageId: optimisticMessage.parent_message_id, mentionUserIds, attachments: uploadedAttachments, attachmentCount: submittedAttachments.length, createdAt: optimisticMessage.created_at, error: message })
+      if (targetMatches(selectedTargetRef.current, submittedTarget)) {
+        setMessages((prev) => prev.map((item) => item.id === tempId ? { ...item, pending: false, failed: true, failureError: message, retrySend } : item))
+      }
     }
     setSending(false)
+  }
+
+  const retryFailedMessage = async (message: LocalMessage) => {
+    if (!selectedTarget || !message.retrySend || sending) return
+    const target = selectedTarget
+    const retry = message.retrySend
+    setSending(true)
+    setError('')
+    setMessages((current) => current.map((item) => item.id === message.id ? { ...item, pending: true, failed: false } : item))
+    let retryAttachments = retry.uploadedAttachments
+
+    try {
+      retryAttachments = retry.uploadedAttachments.length > 0
+        ? retry.uploadedAttachments
+        : await uploadAttachments(retry.pendingAttachments, target)
+      const payload = {
+        body: retry.body,
+        parent_message_id: retry.parentMessageId,
+        client_message_id: retry.clientMessageId,
+        mention_user_ids: retry.mentionUserIds,
+        attachments: retryAttachments,
+        send_push: true,
+      }
+      const res = target.type === 'channel'
+        ? await api.createMessage(target.id, payload)
+        : await api.createDirectMessage(target.id, payload)
+
+      if (!res.data) throw new Error(res.error || 'Could not send message.')
+
+      removeStoredFailure(target, retry.clientMessageId)
+      releaseOptimisticAttachmentUrls(message.id)
+      if (targetMatches(selectedTargetRef.current, target)) {
+        setMessages((current) => sortChronologicalMessages([
+          ...current.filter((item) => item.id !== message.id && item.id !== res.data!.message.id && item.client_message_id !== retry.clientMessageId),
+          res.data!.message,
+        ]))
+      }
+      updateLatestForTarget(res.data.message)
+    } catch (retryError) {
+      const failureError = retryError instanceof Error ? retryError.message : 'Could not send message.'
+      saveStoredFailure(target, {
+        version: 1,
+        clientMessageId: retry.clientMessageId,
+        target,
+        body: retry.body,
+        parentMessageId: retry.parentMessageId,
+        mentionUserIds: retry.mentionUserIds,
+        attachments: retryAttachments,
+        attachmentCount: Math.max(retry.pendingAttachments.length, retryAttachments.length),
+        createdAt: message.created_at,
+        error: failureError,
+      })
+      if (targetMatches(selectedTargetRef.current, target)) {
+        setMessages((current) => current.map((item) => item.id === message.id ? {
+          ...item,
+          pending: false,
+          failed: true,
+          failureError,
+          retrySend: { ...retry, uploadedAttachments: retryAttachments },
+        } : item))
+      }
+      setError(failureError)
+      toast.error(failureError)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const discardFailedMessage = (message: LocalMessage) => {
+    if (!selectedTarget || !message.client_message_id) return
+    removeStoredFailure(selectedTarget, message.client_message_id)
+    releaseOptimisticAttachmentUrls(message.id)
+    setMessages((current) => current.filter((item) => item.id !== message.id))
+  }
+
+  const restoreFailedMessageText = (message: LocalMessage) => {
+    if (!editor) return
+    const insert = () => {
+      if (message.body) editor.chain().focus().insertContent(message.body).run()
+      discardFailedMessage(message)
+      if (!message.body) fileInputRef.current?.click()
+    }
+
+    if (message.parent_message_id && activeThreadRootId !== message.parent_message_id) {
+      setActiveThreadRootId(message.parent_message_id)
+      window.requestAnimationFrame(insert)
+    } else {
+      insert()
+    }
   }
 
   const handleCreateChannel = async (event: React.FormEvent) => {
@@ -2072,6 +2469,8 @@ export function Messages() {
   const openLinkForm = () => {
     if (!editor) return
 
+    restoreComposerSelection()
+
     const { from, to } = editor.state.selection
     const selectedText = editor.state.doc.textBetween(from, to, ' ').trim()
     const currentHref = editor.getAttributes('link').href || ''
@@ -2092,6 +2491,8 @@ export function Messages() {
   const applyLink = (event: React.FormEvent) => {
     event.preventDefault()
     if (!editor) return
+
+    restoreComposerSelection()
 
     const href = normalizeLinkHref(linkHref)
     if (!href) {
@@ -2130,9 +2531,24 @@ export function Messages() {
     closeLinkForm()
   }
 
-  const runToolbarCommand = (event: MouseEvent<HTMLButtonElement>, command: () => void) => {
-    event.preventDefault()
+  const restoreComposerSelection = () => {
+    if (!editor || !composerSelectionRef.current) return
+    const maxPosition = editor.state.doc.content.size
+    const from = Math.min(composerSelectionRef.current.from, maxPosition)
+    const to = Math.min(composerSelectionRef.current.to, maxPosition)
+    editor.commands.setTextSelection({ from, to })
+  }
+
+  const runToolbarCommand = (command: () => void) => {
+    restoreComposerSelection()
     command()
+    setToolbarTick((current) => current + 1)
+  }
+
+  const toggleComposerList = (kind: 'orderedList' | 'bulletList') => {
+    if (!editor) return
+    applyComposerList(editor, kind, composerSelectionRef.current)
+    composerSelectionRef.current = { from: editor.state.selection.from, to: editor.state.selection.to }
     setToolbarTick((current) => current + 1)
   }
 
@@ -2143,6 +2559,18 @@ export function Messages() {
     if (modifier && event.shiftKey && key === 'u') {
       event.preventDefault()
       openLinkForm()
+      return
+    }
+
+    if (modifier && event.shiftKey && key === '7') {
+      event.preventDefault()
+      toggleComposerList('orderedList')
+      return
+    }
+
+    if (modifier && event.shiftKey && key === '8') {
+      event.preventDefault()
+      toggleComposerList('bulletList')
       return
     }
 
@@ -2189,7 +2617,7 @@ export function Messages() {
 
   const saveEdit = async (message: ChannelMessage) => {
     const normalizedBody = normalizeMessageMarkdown(editBody)
-    if (!normalizedBody) return
+    if (!normalizedBody || messageCharacterCount(normalizedBody) > MESSAGE_BODY_LIMIT) return
 
     const mentionUserIds = resolveMentionedUserIds(normalizedBody, mentionableUsers, message.mention_user_ids)
     const res = await api.updateMessage(message.id, { body: normalizedBody, mention_user_ids: mentionUserIds })
@@ -2291,6 +2719,8 @@ export function Messages() {
   const showPageIntro = !selectedTarget
   const showConversationHeaderPushMessage = Boolean(pushMessage) && Boolean(selectedTarget)
   const displayedMessages = conversationView === 'pins' && !activeThreadRoot ? selectedPinnedMessages : conversationMessages
+  const composerCharacterCount = messageCharacterCount(normalizeMessageMarkdown(body))
+  const composerOverLimit = composerCharacterCount > MESSAGE_BODY_LIMIT
   const renderComposer = (placement: 'main' | 'thread') => {
     const inThreadPanel = placement === 'thread'
 
@@ -2338,41 +2768,41 @@ export function Messages() {
           onDragOver={(event) => event.preventDefault()}
           onDrop={handleDrop}
         >
-          <div className="messages-toolbar-scroll flex items-center gap-1 overflow-x-auto border-b border-slate-100 px-1.5 py-1 text-slate-500 sm:gap-1.5 sm:px-2 sm:py-1.5">
-            <ComposerToolbarButton label="Attach files" onMouseDown={(event) => event.preventDefault()} onClick={() => fileInputRef.current?.click()}>
+          <div className="messages-toolbar-scroll flex items-center gap-1 overflow-x-auto border-b border-slate-100 px-1.5 py-1 text-slate-500 sm:gap-1.5 sm:px-2 sm:py-1.5" role="toolbar" aria-label="Message formatting">
+            <ComposerToolbarButton label="Attach files" onPointerDown={(event) => event.preventDefault()} onClick={() => fileInputRef.current?.click()}>
               <Paperclip className="h-4 w-4" />
             </ComposerToolbarButton>
-            <ComposerToolbarButton label="Bold" shortcut="⌘B" active={Boolean(editor?.isActive('bold'))} onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleBold().run())}>
+            <ComposerToolbarButton label="Bold" shortcut="⌘B" toggle active={Boolean(editor?.isActive('bold'))} onPointerDown={(event) => event.preventDefault()} onClick={() => runToolbarCommand(() => editor?.chain().focus().toggleBold().run())}>
               <Bold className="h-4 w-4" />
             </ComposerToolbarButton>
-            <ComposerToolbarButton label="Italic" shortcut="⌘I" active={Boolean(editor?.isActive('italic'))} onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleItalic().run())}>
+            <ComposerToolbarButton label="Italic" shortcut="⌘I" toggle active={Boolean(editor?.isActive('italic'))} onPointerDown={(event) => event.preventDefault()} onClick={() => runToolbarCommand(() => editor?.chain().focus().toggleItalic().run())}>
               <Italic className="h-4 w-4" />
             </ComposerToolbarButton>
-            <ComposerToolbarButton label="Underline" shortcut="⌘U" active={Boolean(editor?.isActive('underline'))} onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleUnderline().run())}>
+            <ComposerToolbarButton label="Underline" shortcut="⌘U" toggle active={Boolean(editor?.isActive('underline'))} onPointerDown={(event) => event.preventDefault()} onClick={() => runToolbarCommand(() => editor?.chain().focus().toggleUnderline().run())}>
               <UnderlineIcon className="h-4 w-4" />
             </ComposerToolbarButton>
-            <ComposerToolbarButton label="Strikethrough" active={Boolean(editor?.isActive('strike'))} onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleStrike().run())}>
+            <ComposerToolbarButton label="Strikethrough" toggle active={Boolean(editor?.isActive('strike'))} onPointerDown={(event) => event.preventDefault()} onClick={() => runToolbarCommand(() => editor?.chain().focus().toggleStrike().run())}>
               <Strikethrough className="h-4 w-4" />
             </ComposerToolbarButton>
-            <ComposerToolbarButton label="Link" shortcut="⌘⇧U" active={Boolean(editor?.isActive('link'))} onMouseDown={(event) => runToolbarCommand(event, openLinkForm)}>
+            <ComposerToolbarButton label="Link" shortcut="⌘⇧U" toggle active={Boolean(editor?.isActive('link'))} onPointerDown={(event) => event.preventDefault()} onClick={() => runToolbarCommand(openLinkForm)}>
               <Link2 className="h-4 w-4" />
             </ComposerToolbarButton>
-            <ComposerToolbarButton label="Numbered list" active={Boolean(editor?.isActive('orderedList'))} onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleOrderedList().run())}>
+            <ComposerToolbarButton label="Numbered list" shortcut="⌘⇧7" toggle active={Boolean(editor?.isActive('orderedList'))} onPointerDown={(event) => event.preventDefault()} onClick={() => toggleComposerList('orderedList')}>
               <ListOrdered className="h-4 w-4" />
             </ComposerToolbarButton>
-            <ComposerToolbarButton label="Bulleted list" active={Boolean(editor?.isActive('bulletList'))} onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleBulletList().run())}>
+            <ComposerToolbarButton label="Bulleted list" shortcut="⌘⇧8" toggle active={Boolean(editor?.isActive('bulletList'))} onPointerDown={(event) => event.preventDefault()} onClick={() => toggleComposerList('bulletList')}>
               <List className="h-4 w-4" />
             </ComposerToolbarButton>
-            <ComposerToolbarButton label="Quote" active={Boolean(editor?.isActive('blockquote'))} onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleBlockquote().run())}>
+            <ComposerToolbarButton label="Quote" toggle active={Boolean(editor?.isActive('blockquote'))} onPointerDown={(event) => event.preventDefault()} onClick={() => runToolbarCommand(() => editor?.chain().focus().toggleBlockquote().run())}>
               <TextQuote className="h-4 w-4" />
             </ComposerToolbarButton>
-            <ComposerToolbarButton label="Inline code" shortcut="⌘⇧C" active={Boolean(editor?.isActive('code'))} onMouseDown={(event) => runToolbarCommand(event, () => editor?.chain().focus().toggleCode().run())}>
+            <ComposerToolbarButton label="Inline code" shortcut="⌘⇧C" toggle active={Boolean(editor?.isActive('code'))} onPointerDown={(event) => event.preventDefault()} onClick={() => runToolbarCommand(() => editor?.chain().focus().toggleCode().run())}>
               <Code2 className="h-4 w-4" />
             </ComposerToolbarButton>
-            <ComposerToolbarButton label="Code block" shortcut="⌘⌥⇧C" active={Boolean(editor?.isActive('codeBlock'))} onMouseDown={(event) => runToolbarCommand(event, insertCodeBlock)}>
+            <ComposerToolbarButton label="Code block" shortcut="⌘⌥⇧C" toggle active={Boolean(editor?.isActive('codeBlock'))} onPointerDown={(event) => event.preventDefault()} onClick={() => runToolbarCommand(insertCodeBlock)}>
               <Braces className="h-4 w-4" />
             </ComposerToolbarButton>
-            <ComposerToolbarButton label="Mention" shortcut="@" className="px-2.5 text-xs font-medium" onMouseDown={(event) => { event.preventDefault(); insertIntoComposer('@') }}>
+            <ComposerToolbarButton label="Mention" shortcut="@" className="px-2.5 text-xs font-medium" onPointerDown={(event) => event.preventDefault()} onClick={() => runToolbarCommand(() => insertIntoComposer('@'))}>
               @ mention
             </ComposerToolbarButton>
             <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => handleFiles(event.target.files)} />
@@ -2382,11 +2812,16 @@ export function Messages() {
               <EditorContent editor={editor} />
             </div>
           </div>
-          <div className="flex items-end justify-end border-t border-slate-100 px-2.5 py-2 sm:px-3 sm:py-2.5">
+          <div className="flex min-h-14 items-center justify-between gap-3 border-t border-slate-100 px-2.5 py-1.5 sm:min-h-0 sm:px-3 sm:py-2.5">
+            <div id={composerHelpId} className={`min-w-0 text-xs ${composerOverLimit ? 'font-semibold text-red-600' : 'text-slate-400'}`} aria-live="polite">
+              {composerOverLimit || composerCharacterCount >= 4_500
+                ? `${composerCharacterCount.toLocaleString()} / ${MESSAGE_BODY_LIMIT.toLocaleString()} characters`
+                : <span className="hidden sm:inline">Press ⌘/Ctrl + Enter to send</span>}
+            </div>
             <button
               type="submit"
-              disabled={sending || (!body.trim() && pendingAttachments.length === 0)}
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary-500 text-sm font-medium text-white shadow-sm transition hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:w-auto sm:px-4"
+              disabled={sending || composerOverLimit || (!body.trim() && pendingAttachments.length === 0)}
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary-500 text-sm font-medium text-white shadow-sm transition hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:w-auto sm:px-4"
               aria-label={sending ? 'Sending message' : 'Send message'}
             >
               <Send className="h-4 w-4" />
@@ -2867,6 +3302,19 @@ export function Messages() {
                       Pinned messages stay easy to find here for this workspace conversation.
                     </div>
                   )}
+                  {!activeThreadRoot && conversationView === 'messages' && messageWindowMeta?.has_older && (
+                    <div className="flex justify-center pb-3">
+                      <button
+                        type="button"
+                        onClick={() => void loadOlderMessages()}
+                        disabled={loadingOlder}
+                        className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 shadow-sm transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-wait disabled:opacity-60"
+                      >
+                        <RefreshCw className={`h-4 w-4 ${loadingOlder ? 'animate-spin' : ''}`} />
+                        {loadingOlder ? 'Loading earlier messages…' : 'Load earlier messages'}
+                      </button>
+                    </div>
+                  )}
                   {displayedMessages.length === 0 ? (
                     <div className="flex min-h-full items-center justify-center py-16 text-center text-sm text-slate-500">
                       {activeThreadRoot
@@ -2906,6 +3354,9 @@ export function Messages() {
                           onCancelEdit={() => setEditing(null)}
                           onSaveEdit={() => saveEdit(message)}
                           onDelete={() => setMessagePendingDelete(message)}
+                          onRetry={() => void retryFailedMessage(message)}
+                          onDiscard={() => discardFailedMessage(message)}
+                          onRestore={() => restoreFailedMessageText(message)}
                           onOpenActions={() => setMobileActionsMessageId(message.id)}
                           onPin={() => togglePin(message)}
                           canPin={isStaff}
@@ -2978,6 +3429,9 @@ export function Messages() {
                             onCancelEdit={() => setEditing(null)}
                             onSaveEdit={() => saveEdit(message)}
                             onDelete={() => setMessagePendingDelete(message)}
+                            onRetry={() => void retryFailedMessage(message)}
+                            onDiscard={() => discardFailedMessage(message)}
+                            onRestore={() => restoreFailedMessageText(message)}
                             onOpenActions={() => setMobileActionsMessageId(message.id)}
                             onPin={() => togglePin(message)}
                             canPin={isStaff}
@@ -3953,6 +4407,9 @@ function MessageRow({
   onCancelEdit,
   onSaveEdit,
   onDelete,
+  onRetry,
+  onDiscard,
+  onRestore,
   onOpenActions,
   onPin,
   canPin,
@@ -3974,6 +4431,9 @@ function MessageRow({
   onCancelEdit: () => void
   onSaveEdit: () => void
   onDelete: () => void
+  onRetry: () => void
+  onDiscard: () => void
+  onRestore: () => void
   onOpenActions: () => void
   onPin: () => void
   canPin: boolean
@@ -4029,6 +4489,23 @@ function MessageRow({
           />
         ) : (
           <FormattedMessage body={message.body} mentionPatterns={mentionPatterns} />
+        )}
+        {message.failed && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700" role="status">
+            <span className="min-w-0 flex-1">{message.failureError || 'This message was not sent.'}</span>
+            {message.retrySend ? (
+              <button type="button" onClick={onRetry} className="min-h-9 rounded-lg bg-red-600 px-3 py-1.5 font-semibold text-white hover:bg-red-700">
+                Retry
+              </button>
+            ) : (
+              <button type="button" onClick={onRestore} className="min-h-9 rounded-lg bg-red-600 px-3 py-1.5 font-semibold text-white hover:bg-red-700">
+                {message.body ? 'Restore text' : 'Reattach files'}
+              </button>
+            )}
+            <button type="button" onClick={onDiscard} className="min-h-9 rounded-lg px-3 py-1.5 font-semibold text-red-700 hover:bg-red-100">
+              Discard
+            </button>
+          </div>
         )}
         {!message.blocked && message.attachments.length > 0 && (
           <div className="mt-3 grid max-w-full min-w-0 gap-2 sm:grid-cols-2">
@@ -4102,7 +4579,7 @@ function MessageRow({
         </div>
         )}
       </div>
-      <div className="ml-auto flex shrink-0 items-start gap-1 sm:hidden">
+      {!message.pending && !message.failed && <div className="ml-auto flex shrink-0 items-start gap-1 sm:hidden">
         <button
           type="button"
           onClick={onOpenActions}
@@ -4111,8 +4588,8 @@ function MessageRow({
         >
           <MoreHorizontal className="h-5 w-5" />
         </button>
-      </div>
-      <div className="absolute right-2 top-1 z-10 hidden items-center gap-0.5 rounded-xl border border-slate-200 bg-white px-1.5 py-1 shadow-lg opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 sm:flex">
+      </div>}
+      {!message.pending && !message.failed && <div className="absolute right-2 top-1 z-10 hidden items-center gap-0.5 rounded-xl border border-slate-200 bg-white px-1.5 py-1 shadow-lg opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 sm:flex">
         {!message.blocked && REACTIONS.map(({ value, label, Icon }) => (
           <button
             key={value}
@@ -4146,7 +4623,7 @@ function MessageRow({
         <button type="button" onClick={onOpenActions} className="rounded-lg p-1.5 text-slate-300 hover:bg-slate-100 hover:text-slate-600" aria-label="More message actions">
           <MoreHorizontal className="h-4 w-4" />
         </button>
-      </div>
+      </div>}
     </div>
   )
 }
@@ -4163,7 +4640,9 @@ export function MessageEditSurface({
   onCancel: () => void
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const canSave = normalizeMessageMarkdown(value).length > 0
+  const normalizedValue = normalizeMessageMarkdown(value)
+  const characterCount = messageCharacterCount(normalizedValue)
+  const canSave = normalizedValue.length > 0 && characterCount <= MESSAGE_BODY_LIMIT
 
   useLayoutEffect(() => {
     const textarea = textareaRef.current
@@ -4195,7 +4674,11 @@ export function MessageEditSurface({
         className="block min-h-28 max-h-[50dvh] w-full resize-y overflow-y-auto border-0 bg-slate-50/70 px-4 py-3 text-base leading-6 text-slate-800 outline-none placeholder:text-slate-400 focus:bg-white sm:text-sm"
       />
       <div className="flex flex-col gap-3 border-t border-slate-200/80 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-xs font-medium text-slate-400">The editor grows as you type. Press Ctrl/Command + Enter to save.</p>
+        <p className={`text-xs font-medium ${characterCount > MESSAGE_BODY_LIMIT ? 'text-red-600' : 'text-slate-400'}`}>
+          {characterCount > MESSAGE_BODY_LIMIT
+            ? `${characterCount.toLocaleString()} / ${MESSAGE_BODY_LIMIT.toLocaleString()} characters`
+            : 'The editor grows as you type. Press Ctrl/Command + Enter to save.'}
+        </p>
         <div className="flex shrink-0 justify-end gap-2">
           <button type="button" onClick={onCancel} className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900">
             Cancel

@@ -463,7 +463,7 @@ export const api = {
     }),
   getChannels: () =>
     fetchApi<ChannelsResponse>('/api/v1/channels'),
-  getChannel: (id: number, params?: { message_limit?: number; around_message_id?: number }) =>
+  getChannel: (id: number, params?: { message_limit?: number; around_message_id?: number; before_message_id?: number }) =>
     fetchApi<ChannelResponse>(`/api/v1/channels/${id}${queryString(params)}`),
   createChannel: (data: { workspace_id?: number; cohort_id?: number; name: string; description?: string; visibility?: string }) =>
     fetchApi<ChannelResponse>('/api/v1/channels', {
@@ -472,7 +472,7 @@ export const api = {
     }),
   markChannelRead: (id: number) =>
     fetchApi<ChannelResponse>(`/api/v1/channels/${id}/read`, { method: 'PATCH' }),
-  createMessage: (channelId: number, data: { body: string; parent_message_id?: number | null; mention_user_ids?: number[]; attachments?: { s3_key: string; filename: string; content_type: string; byte_size: number }[]; send_push?: boolean }) =>
+  createMessage: (channelId: number, data: { body: string; parent_message_id?: number | null; client_message_id?: string; mention_user_ids?: number[]; attachments?: { s3_key: string; filename: string; content_type: string; byte_size: number }[]; send_push?: boolean }) =>
     fetchApi<MessageResponse>(`/api/v1/channels/${channelId}/messages`, {
       method: 'POST',
       body: JSON.stringify(data),
@@ -481,7 +481,7 @@ export const api = {
     fetchApi<DirectConversationsResponse>('/api/v1/direct_conversations'),
   getAvailableDirectUsers: (workspaceId: number) =>
     fetchApi<AvailableDirectUsersResponse>(`/api/v1/direct_conversations/available_users?workspace_id=${workspaceId}`),
-  getDirectConversation: (id: number, params?: { message_limit?: number; around_message_id?: number }) =>
+  getDirectConversation: (id: number, params?: { message_limit?: number; around_message_id?: number; before_message_id?: number }) =>
     fetchApi<DirectConversationResponse>(`/api/v1/direct_conversations/${id}${queryString(params)}`),
   createDirectConversation: (data: { workspace_id?: number; cohort_id?: number; user_ids: number[] }) =>
     fetchApi<DirectConversationResponse>('/api/v1/direct_conversations', {
@@ -490,7 +490,7 @@ export const api = {
     }),
   markDirectConversationRead: (id: number) =>
     fetchApi<DirectConversationResponse>(`/api/v1/direct_conversations/${id}/read`, { method: 'PATCH' }),
-  createDirectMessage: (conversationId: number, data: { body: string; parent_message_id?: number | null; mention_user_ids?: number[]; attachments?: { s3_key: string; filename: string; content_type: string; byte_size: number }[]; send_push?: boolean }) =>
+  createDirectMessage: (conversationId: number, data: { body: string; parent_message_id?: number | null; client_message_id?: string; mention_user_ids?: number[]; attachments?: { s3_key: string; filename: string; content_type: string; byte_size: number }[]; send_push?: boolean }) =>
     fetchApi<MessageResponse>(`/api/v1/direct_conversations/${conversationId}/messages`, {
       method: 'POST',
       body: JSON.stringify(data),
