@@ -13,6 +13,11 @@ export function threadDraftKey(userId: number, rootMessageId: number) {
   return `csg.thread-draft.${userId}.${rootMessageId}`;
 }
 
+export interface StoredThreadDraft {
+  body: string;
+  clientMessageId: string | null;
+}
+
 export async function loadConversationDraft(userId: number, kind: ConversationKind, id: number) {
   return (await AsyncStorage.getItem(conversationDraftKey(userId, kind, id))) || '';
 }
@@ -24,12 +29,27 @@ export async function saveConversationDraft(userId: number, kind: ConversationKi
 }
 
 export async function loadThreadDraft(userId: number, rootMessageId: number) {
-  return (await AsyncStorage.getItem(threadDraftKey(userId, rootMessageId))) || '';
+  return (await loadStoredThreadDraft(userId, rootMessageId)).body;
 }
 
-export async function saveThreadDraft(userId: number, rootMessageId: number, body: string) {
+export async function loadStoredThreadDraft(userId: number, rootMessageId: number): Promise<StoredThreadDraft> {
+  const value = await AsyncStorage.getItem(threadDraftKey(userId, rootMessageId));
+  if (!value) return { body: '', clientMessageId: null };
+  try {
+    const stored = JSON.parse(value) as { version?: unknown; body?: unknown; clientMessageId?: unknown };
+    if (stored.version === 1 && typeof stored.body === 'string') {
+      return { body: stored.body, clientMessageId: typeof stored.clientMessageId === 'string' ? stored.clientMessageId : null };
+    }
+  } catch {
+    // Existing drafts were stored as plain text and remain valid.
+  }
+  return { body: value, clientMessageId: null };
+}
+
+export async function saveThreadDraft(userId: number, rootMessageId: number, body: string, clientMessageId?: string | null) {
   const key = threadDraftKey(userId, rootMessageId);
-  if (body.trim()) await AsyncStorage.setItem(key, body);
+  if (body.trim() && clientMessageId) await AsyncStorage.setItem(key, JSON.stringify({ version: 1, body, clientMessageId }));
+  else if (body.trim()) await AsyncStorage.setItem(key, body);
   else await AsyncStorage.removeItem(key);
 }
 

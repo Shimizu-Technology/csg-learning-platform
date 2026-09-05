@@ -430,6 +430,9 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
       mention_user_ids: [ @classmate.id ]
     }
 
+    broadcasts = []
+    original_user_broadcast = UserMessagesChannel.method(:broadcast_to)
+    UserMessagesChannel.define_singleton_method(:broadcast_to) { |target, payload| broadcasts << [ target, payload ] }
     assert_difference("Message.count", 1) do
       as_user(@student) do
         post "/api/v1/channels/#{@channel.id}/messages",
@@ -442,6 +445,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_response :created
     message_id = JSON.parse(response.body).dig("message", "id")
     notification_count = Notification.where(notifiable_type: "Message", notifiable_id: message_id).count
+    broadcast_count = broadcasts.length
 
     assert_no_difference([ "Message.count", "Notification.count" ]) do
       as_user(@student) do
@@ -456,12 +460,15 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_equal message_id, JSON.parse(response.body).dig("message", "id")
     assert_equal "message-retry-1", JSON.parse(response.body).dig("message", "client_message_id")
     assert_equal notification_count, Notification.where(notifiable_type: "Message", notifiable_id: message_id).count
+    assert_equal broadcast_count, broadcasts.length, "replayed sends must not emit another realtime event"
 
     as_user(@classmate) do
       get "/api/v1/channels/#{@channel.id}", headers: auth_headers
     end
     delivered = JSON.parse(response.body).fetch("messages").find { |message| message.fetch("id") == message_id }
-    assert_nil delivered.fetch("client_message_id"), "client message IDs must remain private to their author"
+    assert_not delivered.key?("client_message_id"), "client message IDs must remain private to their author"
+  ensure
+    UserMessagesChannel.define_singleton_method(:broadcast_to, original_user_broadcast) if defined?(original_user_broadcast) && original_user_broadcast
   end
 
   test "message create rejects a client message id reused for different content" do

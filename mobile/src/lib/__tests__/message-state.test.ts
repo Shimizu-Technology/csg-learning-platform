@@ -27,6 +27,25 @@ describe('message state', () => {
     expect(prependOlderMessages([message(2)], [message(1), message(2)]).map((item) => item.id)).toEqual([1, 2]);
   });
 
+  it('deduplicates both realtime-before-response and response-before-realtime delivery', () => {
+    const optimistic = { ...message(-1), client_message_id: 'send-1', client_status: 'sending' as const };
+    const canonical = { ...message(2), client_message_id: 'send-1', mine: true };
+    const created = { event: 'created' as const, channel_id: 1, direct_conversation_id: null, message: canonical };
+
+    const realtimeFirst = mergeMessageEvent([optimistic], created);
+    expect(reconcileOptimistic(realtimeFirst, optimistic.id, canonical)).toEqual([canonical]);
+
+    const responseFirst = reconcileOptimistic([optimistic], optimistic.id, canonical);
+    expect(mergeMessageEvent(responseFirst, created)).toEqual([canonical]);
+  });
+
+  it('removes a stale local message with the canonical client message id', () => {
+    const stale = { ...message(-2), client_message_id: 'send-2', client_status: 'failed' as const };
+    const canonical = { ...message(3), client_message_id: 'send-2', mine: true };
+
+    expect(reconcileOptimistic([stale], -1, canonical)).toEqual([canonical]);
+  });
+
   it('removes a pinned message when its realtime event deletes it', () => {
     const pinned = { ...message(1), pinned_at: new Date().toISOString() };
     const deleted = { ...pinned, deleted_at: new Date().toISOString() };

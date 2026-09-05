@@ -2,11 +2,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
   clearUserConversationStorage,
+  loadFailedMessages,
+  loadStoredThreadDraft,
   loadThreadDraft,
   saveConversationDraft,
   saveFailedMessages,
   saveThreadDraft,
 } from '../conversation-storage';
+import { clientMessageIdForSend } from '../message-compose';
 import {
   clearSubmissionDraft,
   clearUserSubmissionDrafts,
@@ -53,6 +56,24 @@ describe('offline authored storage', () => {
 
     await saveThreadDraft(7, 88, '');
     expect(await loadThreadDraft(7, 88)).toBe('');
+  });
+
+  it('restores a failed thread send identifier after the screen unmounts', async () => {
+    await saveThreadDraft(7, 88, 'Possibly delivered', 'thread-send-1');
+
+    const restored = await loadStoredThreadDraft(7, 88);
+    expect(restored).toEqual({ body: 'Possibly delivered', clientMessageId: 'thread-send-1' });
+    const retryIntent = restored.clientMessageId
+      ? { body: restored.body, clientMessageId: restored.clientMessageId }
+      : null;
+    expect(clientMessageIdForSend(restored.body, retryIntent)).toBe('thread-send-1');
+  });
+
+  it('persists failed conversation retry identifiers', async () => {
+    const failed = { client_status: 'failed', client_message_id: 'conversation-send-1' } as Message;
+    await saveFailedMessages(7, 'channel', 3, [failed]);
+
+    expect((await loadFailedMessages(7, 'channel', 3))[0].client_message_id).toBe('conversation-send-1');
   });
 
   it('clears only the signed-out user authored drafts and retry copies', async () => {

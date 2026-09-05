@@ -14,9 +14,9 @@ import { useVoiceDraft } from '@/hooks/use-voice-draft';
 import { subscribeToMessages } from '@/lib/cable';
 import { demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { resolveMentionUserIds } from '@/lib/mentions';
-import { createClientMessageId, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
+import { clientMessageIdForSend, type FailedSendIntent, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
 import { mergeMessageEvent, sortMessages } from '@/lib/message-state';
-import { loadThreadDraft, saveThreadDraft } from '@/lib/conversation-storage';
+import { loadStoredThreadDraft, saveThreadDraft } from '@/lib/conversation-storage';
 import type { Message, MessageEvent, UserSummary } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
@@ -43,8 +43,8 @@ export default function ThreadScreen() {
   const [reactionDetails, setReactionDetails] = useState<{ messageId: number; emoji: string } | null>(null);
   const [imagePreview, setImagePreview] = useState<{ attachments: Message['attachments']; attachmentId: number } | null>(null);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingDraftRef = useRef<{ userId: number; rootId: number; body: string } | null>(null);
-  const failedSendRef = useRef<{ body: string; clientMessageId: string } | null>(null);
+  const pendingDraftRef = useRef<{ userId: number; rootId: number; body: string; clientMessageId: string | null } | null>(null);
+  const failedSendRef = useRef<FailedSendIntent | null>(null);
   const voiceDraft = useVoiceDraft({
     api,
     demo: auth.demo,
@@ -59,7 +59,13 @@ export default function ThreadScreen() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      if (userId && !auth.demo) setDraft(await loadThreadDraft(userId, rootId));
+      if (userId && !auth.demo) {
+        const storedDraft = await loadStoredThreadDraft(userId, rootId);
+        setDraft(storedDraft.body);
+        failedSendRef.current = storedDraft.clientMessageId
+          ? { body: storedDraft.body, clientMessageId: storedDraft.clientMessageId }
+          : null;
+      }
       if (!Number.isInteger(workspaceId) || workspaceId <= 0) throw new Error('This thread link is incomplete. Open it again from the conversation.');
       if (auth.demo) {
         const conversationMessages = demoMessages[`${kind}:${conversationId}`] || [];
@@ -101,16 +107,17 @@ export default function ThreadScreen() {
   useEffect(() => {
     if (!userId || loading) return;
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
-    const pending = { userId, rootId, body: draft };
+    const failedIntent = failedSendRef.current?.body === draft ? failedSendRef.current : null;
+    const pending = { userId, rootId, body: draft, clientMessageId: failedIntent?.clientMessageId || null };
     pendingDraftRef.current = pending;
-    draftTimerRef.current = setTimeout(() => void saveThreadDraft(pending.userId, pending.rootId, pending.body).then(() => { if (pendingDraftRef.current === pending) pendingDraftRef.current = null; }).catch(() => undefined), 300);
+    draftTimerRef.current = setTimeout(() => void saveThreadDraft(pending.userId, pending.rootId, pending.body, pending.clientMessageId).then(() => { if (pendingDraftRef.current === pending) pendingDraftRef.current = null; }).catch(() => undefined), 300);
     return () => { if (draftTimerRef.current) clearTimeout(draftTimerRef.current); };
   }, [draft, loading, rootId, userId]);
 
   useEffect(() => () => {
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
     const pending = pendingDraftRef.current;
-    if (pending) void saveThreadDraft(pending.userId, pending.rootId, pending.body).catch(() => undefined);
+    if (pending) void saveThreadDraft(pending.userId, pending.rootId, pending.body, pending.clientMessageId).catch(() => undefined);
   }, []);
 
   const visible = useMemo(() => sortMessages(replies), [replies]);
@@ -120,9 +127,7 @@ export default function ThreadScreen() {
   const send = async () => {
     const body = draft.trim();
     if (!body || sending) return;
-    const clientMessageId = failedSendRef.current?.body === body
-      ? failedSendRef.current.clientMessageId
-      : createClientMessageId();
+    const clientMessageId = clientMessageIdForSend(body, failedSendRef.current);
     setSending(true); setDraft('');
     try {
       if (auth.demo) {
@@ -153,7 +158,12 @@ export default function ThreadScreen() {
         pendingDraftRef.current = null;
         await saveThreadDraft(userId, rootId, '');
       }
-    } catch (requestError) { failedSendRef.current = { body, clientMessageId }; setDraft(body); Alert.alert('Reply not sent', (requestError as Error).message); }
+    } catch (requestError) {
+      failedSendRef.current = { body, clientMessageId };
+      setDraft(body);
+      if (userId) await saveThreadDraft(userId, rootId, body, clientMessageId).catch(() => undefined);
+      Alert.alert('Reply not sent', (requestError as Error).message);
+    }
     finally { setSending(false); }
   };
 

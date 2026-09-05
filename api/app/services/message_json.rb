@@ -7,7 +7,6 @@ class MessageJson
         channel_id: message.channel_id,
         direct_conversation_id: message.direct_conversation_id,
         parent_message_id: message.parent_message_id,
-        client_message_id: message.author_id == current_user&.id ? message.client_message_id : nil,
         body: blocked ? "" : message.body.to_s,
         mention_user_ids: blocked ? [] : Array(message.mention_user_ids),
         edited_at: message.edited_at,
@@ -23,6 +22,7 @@ class MessageJson
         reactions: blocked ? [] : reaction_json(message, current_user),
         reply_count: reply_count(message)
       }.tap do |json|
+        json[:client_message_id] = message.client_message_id if message.author_id == current_user&.id
         json[:read_receipts] = read_receipts if read_receipts
       end
     end
