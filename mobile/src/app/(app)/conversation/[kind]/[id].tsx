@@ -126,10 +126,11 @@ export default function ConversationScreen() {
   }, []);
 
   useEffect(() => {
+    flushPendingDraft();
     draftValueRef.current = '';
     setDraft('');
     setSelection({ start: 0, end: 0 });
-  }, [conversationIdentity]);
+  }, [conversationIdentity, flushPendingDraft, userId]);
 
   const load = useCallback(async () => {
     const requestId = ++loadRequestRef.current;

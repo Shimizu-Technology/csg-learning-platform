@@ -29,20 +29,7 @@ beforeEach(async () => {
 });
 
 describe('push registration cleanup', () => {
-  it('retries and surfaces unregister failures when the token cannot be persisted', async () => {
-    const storageError = new Error('storage unavailable');
-    const unregisterError = new Error('unregister unavailable');
-    jest.spyOn(AsyncStorage, 'setItem').mockRejectedValueOnce(storageError);
-    const api = {
-      registerDevice: jest.fn().mockResolvedValue(undefined),
-      unregisterDevice: jest.fn().mockRejectedValue(unregisterError),
-    } as unknown as CsgApi;
-
-    await expect(registerPushNotifications(api)).rejects.toBe(unregisterError);
-    expect(api.unregisterDevice).toHaveBeenCalledTimes(3);
-  });
-
-  it('returns the storage failure after successfully undoing server registration', async () => {
+  it('does not register a token that cannot be persisted for later cleanup', async () => {
     const storageError = new Error('storage unavailable');
     jest.spyOn(AsyncStorage, 'setItem').mockRejectedValueOnce(storageError);
     const api = {
@@ -51,6 +38,33 @@ describe('push registration cleanup', () => {
     } as unknown as CsgApi;
 
     await expect(registerPushNotifications(api)).rejects.toBe(storageError);
+    expect(api.registerDevice).not.toHaveBeenCalled();
+    expect(api.unregisterDevice).not.toHaveBeenCalled();
+  });
+
+  it('retains the persisted token when an inactive session cannot unregister it', async () => {
+    const unregisterError = new Error('unregister unavailable');
+    let activeChecks = 0;
+    const api = {
+      registerDevice: jest.fn().mockResolvedValue(undefined),
+      unregisterDevice: jest.fn().mockRejectedValue(unregisterError),
+    } as unknown as CsgApi;
+
+    await expect(registerPushNotifications(api, () => ++activeChecks < 3)).rejects.toBe(unregisterError);
+    expect(api.registerDevice).toHaveBeenCalledTimes(1);
+    expect(api.unregisterDevice).toHaveBeenCalledTimes(3);
+    expect(await AsyncStorage.getItem('csg.push.token')).toBe('ExpoPushToken[test]');
+  });
+
+  it('removes the persisted token after an inactive session unregisters successfully', async () => {
+    let activeChecks = 0;
+    const api = {
+      registerDevice: jest.fn().mockResolvedValue(undefined),
+      unregisterDevice: jest.fn().mockResolvedValue(undefined),
+    } as unknown as CsgApi;
+
+    await expect(registerPushNotifications(api, () => ++activeChecks < 3)).resolves.toBeNull();
     expect(api.unregisterDevice).toHaveBeenCalledTimes(1);
+    expect(await AsyncStorage.getItem('csg.push.token')).toBeNull();
   });
 });

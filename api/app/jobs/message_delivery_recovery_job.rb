@@ -1,6 +1,6 @@
 class MessageDeliveryRecoveryJob < ApplicationJob
   queue_as :default
-  limits_concurrency to: 1, key: -> { "message-delivery-recovery" }, duration: 10.minutes
+  limits_concurrency to: 1, key: -> { "message-delivery-recovery" }, duration: 10.minutes, on_conflict: :discard
 
   MAX_MESSAGES_PER_RUN = 100
 

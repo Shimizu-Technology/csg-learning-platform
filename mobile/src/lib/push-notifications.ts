@@ -40,21 +40,18 @@ export async function registerPushNotifications(api: CsgApi, isActive: () => boo
   const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
   const deviceId = Platform.OS === 'ios' ? await Application.getIosIdForVendorAsync() : Application.getAndroidId();
   if (!isActive()) return null;
+  // Store the cleanup handle before the server can accept the registration.
+  // A rejected request may still have committed remotely, so retain the token
+  // until a confirmed unregister succeeds.
+  await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
+  if (!isActive()) {
+    await AsyncStorage.removeItem(PUSH_TOKEN_KEY);
+    return null;
+  }
   await api.registerDevice(token, Platform.OS, deviceId, Application.nativeApplicationVersion);
   if (!isActive()) {
     await unregisterPushToken(api, token);
-    return null;
-  }
-  try {
-    await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
-  } catch (error) {
-    // Without a persisted token, sign-out cannot unregister this device later.
-    await unregisterPushToken(api, token);
-    throw error;
-  }
-  if (!isActive()) {
-    await AsyncStorage.removeItem(PUSH_TOKEN_KEY).catch(() => undefined);
-    await unregisterPushToken(api, token);
+    await AsyncStorage.removeItem(PUSH_TOKEN_KEY);
     return null;
   }
   return token;

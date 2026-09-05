@@ -1,6 +1,10 @@
 require "test_helper"
 
 class MessageDeliveryRecoveryJobTest < ActiveJob::TestCase
+  test "discards redundant runs while recovery is already active" do
+    assert_equal :discard, MessageDeliveryRecoveryJob.concurrency_on_conflict
+  end
+
   test "retries only incomplete deliveries without an active lease" do
     curriculum = Curriculum.create!(name: "Recovery job curriculum")
     cohort = Cohort.create!(curriculum: curriculum, name: "Recovery job cohort", start_date: Date.current, status: :active)
