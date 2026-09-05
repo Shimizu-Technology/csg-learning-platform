@@ -378,6 +378,29 @@ describe('offline authored storage', () => {
     expect((await loadSubmissionDraft(7, 42))?.text).toBe('Recovered session draft');
   });
 
+  it('does not let an old in-flight submission save overwrite a reactivated session', async () => {
+    const originalSetItem = AsyncStorage.setItem.bind(AsyncStorage);
+    let releaseOldSave = () => {};
+    let markOldSaveStarted = () => {};
+    const oldSaveGate = new Promise<void>((resolve) => { releaseOldSave = resolve; });
+    const oldSaveStarted = new Promise<void>((resolve) => { markOldSaveStarted = resolve; });
+    jest.spyOn(AsyncStorage, 'setItem').mockImplementationOnce(async (key, value) => {
+      markOldSaveStarted();
+      await oldSaveGate;
+      await originalSetItem(key, value);
+    });
+
+    const oldSave = saveSubmissionDraft(7, 42, 'Old session draft', null, null);
+    await oldSaveStarted;
+    const cleanup = clearUserSubmissionDrafts(7);
+    activateUserConversationStorage(7);
+    const currentSave = saveSubmissionDraft(7, 42, 'Current session draft', null, null);
+    releaseOldSave();
+    await Promise.all([oldSave, cleanup, currentSave]);
+
+    expect((await loadSubmissionDraft(7, 42))?.text).toBe('Current session draft');
+  });
+
   it('clears only the signed-out user authored drafts and retry copies', async () => {
     const failed = { client_status: 'failed' } as Message;
     await saveConversationDraft(7, 'channel', 3, 'student seven');

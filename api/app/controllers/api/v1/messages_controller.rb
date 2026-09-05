@@ -344,9 +344,14 @@ module Api
           "error_class=#{error.class.name}"
         )
         # Solid Queue owns durable recovery after the committed write. Inline
-        # deployments have no sweep, so the client must retry the same
-        # client_message_id instead of treating incomplete fan-out as success.
+        # clients with an idempotency key can safely retry; legacy clients are
+        # told the write was accepted because retrying would duplicate it.
         return true if ActiveJob::Base.queue_adapter_name == "solid_queue"
+
+        if message.client_message_id.blank?
+          render json: { message: message_json(message.reload), delivery_pending: true }, status: :accepted
+          return false
+        end
 
         render json: { errors: [ "Message was saved but delivery is still pending; try again" ] }, status: :service_unavailable
         false

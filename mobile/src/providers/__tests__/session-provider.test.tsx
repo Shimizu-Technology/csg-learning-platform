@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { act, render } from '@testing-library/react-native';
+import { act, render, waitFor } from '@testing-library/react-native';
 import { useEffect } from 'react';
 import { Text } from 'react-native';
 
@@ -30,7 +30,7 @@ jest.mock('@/lib/api', () => ({
 }));
 jest.mock('@/lib/push-notifications', () => ({
   PUSH_TOKEN_KEY: 'csg.push-token',
-  registerPushNotifications: jest.fn().mockResolvedValue(undefined),
+  registerPushNotifications: jest.fn().mockResolvedValue(null),
 }));
 jest.mock('@react-native-async-storage/async-storage', () => jest.requireActual('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 
@@ -262,6 +262,30 @@ it('signs out of Clerk when local storage cleanup fails', async () => {
   await act(async () => { await observedSession!.signOut(); });
 
   expect(signOut).toHaveBeenCalledTimes(1);
+});
+
+it('removes a session cache write that finishes after sign-out', async () => {
+  const originalSetItem = AsyncStorage.setItem.bind(AsyncStorage);
+  let releaseCacheWrite = () => {};
+  let markCacheWriteStarted = () => {};
+  const cacheWriteGate = new Promise<void>((resolve) => { releaseCacheWrite = resolve; });
+  const cacheWriteStarted = new Promise<void>((resolve) => { markCacheWriteStarted = resolve; });
+  jest.spyOn(AsyncStorage, 'setItem').mockImplementationOnce(async (key, value) => {
+    markCacheWriteStarted();
+    await cacheWriteGate;
+    await originalSetItem(key, value);
+  });
+  mockSession.mockResolvedValueOnce({ user: userA });
+  render(<SessionProvider><SessionObserver /></SessionProvider>);
+
+  await act(async () => { await observedSession!.refresh(); });
+  await cacheWriteStarted;
+  await act(async () => { await observedSession!.signOut(); });
+  releaseCacheWrite();
+
+  await waitFor(async () => {
+    expect(await AsyncStorage.getItem('csg.session.user.account-a')).toBeNull();
+  });
 });
 
 it('does not clear account B when stale account A cache removal finishes later', async () => {

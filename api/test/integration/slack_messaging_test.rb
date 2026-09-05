@@ -789,6 +789,27 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     NotificationDeliveryService.define_singleton_method(:message_created, original_delivery) if defined?(original_delivery) && original_delivery
   end
 
+  test "inline delivery failure acknowledges a committed message without a retry key" do
+    original_delivery = NotificationDeliveryService.method(:message_created)
+    NotificationDeliveryService.define_singleton_method(:message_created) { |*, **| raise "delivery interrupted" }
+
+    assert_difference("Message.count", 1) do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages",
+          params: { body: "Legacy retry safety" },
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :accepted
+    payload = JSON.parse(response.body)
+    assert payload.fetch("delivery_pending")
+    assert_equal "Legacy retry safety", payload.dig("message", "body")
+  ensure
+    NotificationDeliveryService.define_singleton_method(:message_created, original_delivery) if defined?(original_delivery) && original_delivery
+  end
+
   test "deleted messages cannot be replayed" do
     params = { body: "Delete this", client_message_id: "message-deleted-retry" }
     as_user(@student) do

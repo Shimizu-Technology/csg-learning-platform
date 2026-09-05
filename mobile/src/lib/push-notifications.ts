@@ -13,7 +13,7 @@ Notifications.setNotificationHandler({
   handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true }),
 });
 
-export async function registerPushNotifications(api: CsgApi) {
+export async function registerPushNotifications(api: CsgApi, isActive: () => boolean = () => true) {
   if (!Device.isDevice) return null;
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('messages', { name: 'Messages', importance: Notifications.AndroidImportance.HIGH });
@@ -25,7 +25,22 @@ export async function registerPushNotifications(api: CsgApi) {
   if (!projectId) return null;
   const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
   const deviceId = Platform.OS === 'ios' ? await Application.getIosIdForVendorAsync() : Application.getAndroidId();
+  if (!isActive()) return null;
   await api.registerDevice(token, Platform.OS, deviceId, Application.nativeApplicationVersion);
-  await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
+  if (!isActive()) {
+    await api.unregisterDevice(token).catch(() => undefined);
+    return null;
+  }
+  try {
+    await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
+  } catch (error) {
+    if (!isActive()) await api.unregisterDevice(token).catch(() => undefined);
+    throw error;
+  }
+  if (!isActive()) {
+    await AsyncStorage.removeItem(PUSH_TOKEN_KEY).catch(() => undefined);
+    await api.unregisterDevice(token).catch(() => undefined);
+    return null;
+  }
   return token;
 }

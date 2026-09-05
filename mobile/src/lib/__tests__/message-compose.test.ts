@@ -1,6 +1,11 @@
-import { clientMessageIdForSend, createClientMessageId, draftAfterSendConfirmation, messageBodyChangeAllowed, messageBodyLength, messageBodyWithinLimit, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '../message-compose';
+import { clientMessageIdForSend, createClientMessageId, draftAfterSendConfirmation, draftAfterStoredLoad, messageBodyChangeAllowed, messageBodyLength, messageBodyWithinLimit, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '../message-compose';
 
 describe('message compose contract', () => {
+  it('does not overwrite text entered while a stored draft is loading', () => {
+    expect(draftAfterStoredLoad('', 'Stored draft')).toBe('Stored draft');
+    expect(draftAfterStoredLoad('Typed while loading', 'Stored draft')).toBe('Typed while loading');
+  });
+
   it('matches the API body limit', () => {
     expect(MESSAGE_BODY_LIMIT).toBe(5_000);
   });

@@ -47,3 +47,7 @@ export function messageInsertionWithinLimit(nextValue: string, nextCursor: numbe
   if (!messageBodyWithinLimit(nextValue)) return null;
   return { value: nextValue, cursor: Math.min(nextCursor, nextValue.length) };
 }
+
+export function draftAfterStoredLoad(currentDraft: string, storedDraft: string) {
+  return currentDraft || storedDraft;
+}

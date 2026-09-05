@@ -25,12 +25,10 @@ function enqueueStorageWrite(userId: number, key: string, operation: () => Promi
 
 async function readAfterPendingWrites(userId: number, key: string) {
   const generation = userStorageGeneration(userId);
-  while (true) {
-    const pending = authoredStorageWrites.get(key);
-    if (!pending) break;
-    await pending.catch(() => undefined);
-    if (authoredStorageWrites.get(key) === pending) break;
-  }
+  const pending = authoredStorageWrites.get(key);
+  if (pending) await pending.catch(() => undefined);
+  const newestPending = authoredStorageWrites.get(key);
+  if (newestPending && newestPending !== pending) await newestPending.catch(() => undefined);
   if (!userStorageGenerationIsCurrent(userId, generation)) return null;
   const value = await AsyncStorage.getItem(key);
   return userStorageGenerationIsCurrent(userId, generation) ? value : null;

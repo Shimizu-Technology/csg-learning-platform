@@ -14,7 +14,7 @@ describe('ComposerLimitNotice', () => {
 
     const overflow = render(<ComposerLimitNotice value={'🚀'.repeat(MESSAGE_BODY_LIMIT + 1)} />);
     expect(overflow.getByRole('alert')).toBeTruthy();
-    expect(overflow.getByText(/5001 now/)).toBeTruthy();
+    expect(overflow.getByText(new RegExp(`${MESSAGE_BODY_LIMIT + 1} now`))).toBeTruthy();
   });
 
   it('announces only the transition into an over-limit draft on iOS', () => {

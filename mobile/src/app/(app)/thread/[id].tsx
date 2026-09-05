@@ -15,7 +15,7 @@ import { useVoiceDraft } from '@/hooks/use-voice-draft';
 import { subscribeToMessages } from '@/lib/cable';
 import { demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { resolveMentionUserIds } from '@/lib/mentions';
-import { clientMessageIdForSend, draftAfterSendConfirmation, type FailedSendIntent, messageBodyChangeAllowed, messageBodyWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
+import { clientMessageIdForSend, draftAfterSendConfirmation, draftAfterStoredLoad, type FailedSendIntent, messageBodyChangeAllowed, messageBodyWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
 import { markOptimisticFailed, mergeMessageEvent, reconcileOptimistic, sortMessages } from '@/lib/message-state';
 import { clearThreadDraftAfterSend, loadStoredThreadDraft, saveThreadDraftState } from '@/lib/conversation-storage';
 import type { Message, MessageEvent, UserSummary } from '@/lib/types';
@@ -129,8 +129,11 @@ export default function ThreadScreen() {
       if (userId && !auth.demo) {
         const storedDraft = await loadStoredThreadDraft(userId, rootId);
         if (requestId !== loadRequestRef.current) return;
-        draftRef.current = storedDraft.body;
-        setDraft(storedDraft.body);
+        const nextDraft = draftAfterStoredLoad(draftRef.current, storedDraft.body);
+        if (nextDraft !== draftRef.current) {
+          draftRef.current = nextDraft;
+          setDraft(nextDraft);
+        }
         storedFailedSend = storedDraft.failedSend;
         failedSendRef.current = storedFailedSend;
       }

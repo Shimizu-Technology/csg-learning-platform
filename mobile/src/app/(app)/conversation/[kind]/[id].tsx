@@ -22,7 +22,7 @@ import { formatConversationDay, isDifferentConversationDay, isNearConversationBo
 import { clearConversationDraftAfterSend, loadConversationDraft, loadFailedMessages, retryableMessagesForStorage, saveConversationDraft, saveFailedMessagesWithRetry } from '@/lib/conversation-storage';
 import { demoChannels, demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { insertMention, mentionSuggestions, mentionTriggerAt, resolveMentionUserIds } from '@/lib/mentions';
-import { clientMessageIdForSend, draftAfterSendConfirmation, messageBodyChangeAllowed, messageBodyWithinLimit, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
+import { clientMessageIdForSend, draftAfterSendConfirmation, draftAfterStoredLoad, messageBodyChangeAllowed, messageBodyWithinLimit, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
 import { messagePreview } from '@/lib/message-format';
 import { markOptimisticFailed, mergeMessageEvent, mergeOlderMessages, mergePinnedMessageEvent, mergeServerAndFailedMessages, reconcileOptimistic, sortMessages, toggleOwnReaction } from '@/lib/message-state';
 import { REACTION_OPTIONS } from '@/lib/reactions';
@@ -124,6 +124,12 @@ export default function ConversationScreen() {
     if (pending) void saveConversationDraft(pending.userId, pending.kind, pending.id, pending.body).catch(() => undefined);
   }, []);
 
+  useEffect(() => {
+    draftValueRef.current = '';
+    setDraft('');
+    setSelection({ start: 0, end: 0 });
+  }, [conversationIdentity]);
+
   const load = useCallback(async () => {
     const requestId = ++loadRequestRef.current;
     persistedFailedRef.current = null;
@@ -134,7 +140,8 @@ export default function ConversationScreen() {
       if (userId && !auth.demo) {
         const storedDraft = await loadConversationDraft(userId, kind, id);
         if (requestId !== loadRequestRef.current) return;
-        updateDraft(storedDraft);
+        const nextDraft = draftAfterStoredLoad(draftValueRef.current, storedDraft);
+        if (nextDraft !== draftValueRef.current) updateDraft(nextDraft);
       }
       if (auth.demo) {
         setSummary(kind === 'channel' ? demoChannels.find((item) => item.id === id) || null : demoDms.find((item) => item.id === id) || null);
@@ -202,13 +209,13 @@ export default function ConversationScreen() {
   }, setStatus), [api, auth.demo, error, id, kind, loading, scrollToLatest]);
 
   useEffect(() => {
-    if (!userId || loading) return;
+    if (!userId || loading || loadedConversationIdentity !== conversationIdentity) return;
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
     const pending = { userId, kind, id, body: draft };
     pendingDraftRef.current = pending;
     draftTimerRef.current = setTimeout(() => void saveConversationDraft(pending.userId, pending.kind, pending.id, pending.body).then(() => { if (pendingDraftRef.current === pending) pendingDraftRef.current = null; }).catch(() => undefined), 300);
     return () => { if (draftTimerRef.current) clearTimeout(draftTimerRef.current); };
-  }, [draft, id, kind, loading, userId]);
+  }, [conversationIdentity, draft, id, kind, loadedConversationIdentity, loading, userId]);
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';

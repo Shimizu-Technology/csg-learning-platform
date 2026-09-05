@@ -35,6 +35,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const userIdRef = useRef<number | null>(user?.id ?? null);
   const lastUserIdRef = useRef<number | null>(user?.id ?? null);
   const refreshGenerationRef = useRef(0);
+  const sessionCacheWriteRef = useRef<Promise<void>>(Promise.resolve());
+  const pushRegistrationRef = useRef<Promise<void>>(Promise.resolve());
   const authSubjectRef = useRef(auth.subject);
   useLayoutEffect(() => {
     if (authSubjectRef.current === auth.subject) return;
@@ -65,8 +67,20 @@ export function SessionProvider({ children }: PropsWithChildren) {
       setUser(result.user); setError(null); setAccessDenied(false);
       // The authenticated server session is authoritative. A device-storage
       // failure must not turn a valid sign-in into a session failure.
-      if (userCacheKey) void AsyncStorage.setItem(userCacheKey, JSON.stringify(result.user)).catch(() => undefined);
-      void registerPushNotifications(api).catch(() => undefined);
+      if (userCacheKey) {
+        const serializedUser = JSON.stringify(result.user);
+        const cacheWrite = sessionCacheWriteRef.current.catch(() => undefined).then(async () => {
+          if (!isCurrentRefresh()) return;
+          await AsyncStorage.setItem(userCacheKey, serializedUser);
+          if (!isCurrentRefresh()) await AsyncStorage.removeItem(userCacheKey);
+        });
+        sessionCacheWriteRef.current = cacheWrite.catch(() => undefined);
+      }
+      const pushRegistration = pushRegistrationRef.current.catch(() => undefined).then(async () => {
+        if (!isCurrentRefresh()) return;
+        await registerPushNotifications(api, isCurrentRefresh);
+      });
+      pushRegistrationRef.current = pushRegistration.catch(() => undefined);
     } catch (requestError) {
       const cached = userCacheKey ? await AsyncStorage.getItem(userCacheKey).catch(() => null) : null;
       // A superseded denial must not delete credentials or caches written by a
