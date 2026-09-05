@@ -259,7 +259,7 @@ export default function ConversationScreen() {
       const { message } = await api.sendMessage(kind, id, { body, client_message_id: clientMessageId, mention_user_ids: resolveMentionUserIds(body, mentionUsers), attachments: uploaded, send_push: true });
       setMessages((current) => reconcileOptimistic(current, optimisticId, message));
       if (!retryMessage) voiceDraft.markSent(body);
-      if (userId) {
+      if (userId && !retryMessage) {
         if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
         pendingDraftRef.current = null;
         await clearConversationDraftAfterSend(userId, kind, id);

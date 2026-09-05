@@ -8,8 +8,8 @@ function nullableString(value: unknown) {
 }
 
 function validCommunityPolicy(value: unknown) {
-  if (value === undefined) return true;
-  if (!value || typeof value !== 'object') return false;
+  if (value === undefined || value === null) return true;
+  if (typeof value !== 'object') return false;
   const policy = value as Record<string, unknown>;
   return typeof policy.version === 'string'
     && typeof policy.accepted === 'boolean'

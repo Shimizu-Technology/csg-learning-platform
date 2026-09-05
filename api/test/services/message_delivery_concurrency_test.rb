@@ -140,4 +140,42 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
     all_threads&.each { |thread| thread.kill if thread.alive? }
     UserMessagesChannel.define_singleton_method(:broadcast_to, original_broadcast) if defined?(original_broadcast) && original_broadcast
   end
+
+  test "deletion waits for an active broadcast critical section" do
+    message = Message.create!(channel: @cohort.channels.find_by!(name: "Class Chat"), author: @author, body: "Ordered delete")
+    first_entered = Queue.new
+    release_first = Queue.new
+    second_entered = Queue.new
+    errors = Queue.new
+
+    first = Thread.new do
+      MessageDeliveryService.synchronize_delivery(Message.find(message.id)) do
+        first_entered << true
+        release_first.pop
+      end
+    rescue StandardError => error
+      errors << error
+    end
+    first_entered.pop
+    second = Thread.new do
+      MessageDeliveryService.synchronize_delivery(Message.find(message.id)) do
+        second_entered << true
+      end
+    rescue StandardError => error
+      errors << error
+    end
+
+    assert_raises(ThreadError) { second_entered.pop(true) }
+    release_first << true
+    assert first.join(5), "active broadcast lock did not release"
+    assert second.join(5), "waiting deletion lock did not proceed"
+    assert second_entered.pop(true)
+    collected_errors = []
+    collected_errors << errors.pop(true) until errors.empty?
+    assert_empty collected_errors, collected_errors.map(&:message).join("; ")
+  ensure
+    release_first << true if defined?(release_first) && first&.alive?
+    first&.kill if first&.alive?
+    second&.kill if second&.alive?
+  end
 end

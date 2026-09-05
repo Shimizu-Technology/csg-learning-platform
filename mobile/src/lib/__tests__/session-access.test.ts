@@ -39,6 +39,7 @@ describe('session access errors', () => {
     expect(parseCachedSessionUser(JSON.stringify({ ...validUser, email: undefined }))).toBeNull();
     expect(parseCachedSessionUser(JSON.stringify({ ...validUser, is_staff: 'false' }))).toBeNull();
     expect(parseCachedSessionUser(JSON.stringify({ ...validUser, community_policy: { version: '1' } }))).toBeNull();
+    expect(parseCachedSessionUser(JSON.stringify({ ...validUser, community_policy: null }))?.id).toBe(7);
     expect(parseCachedSessionUser('null')).toBeNull();
     expect(parseCachedSessionUser('{malformed')).toBeNull();
   });

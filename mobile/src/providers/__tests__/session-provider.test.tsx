@@ -166,6 +166,19 @@ it('does not clear account A data when account B has an invalid cache entry', as
   expect(await loadConversationDraft(userA.id, 'channel', 3)).toBe('Account A draft');
 });
 
+it('does not clear account A when sign-out happens before account B refreshes', async () => {
+  mockSession.mockResolvedValueOnce({ user: userA });
+  const view = render(<SessionProvider><SessionObserver /></SessionProvider>);
+  await act(async () => { await observedSession!.refresh(); });
+  await saveConversationDraft(userA.id, 'channel', 3, 'Keep account A draft');
+
+  mockAuthState.current = { ...mockAuthState.current, subject: 'account-b' };
+  view.rerender(<SessionProvider><SessionObserver /></SessionProvider>);
+  await act(async () => { await observedSession!.signOut(); });
+
+  expect(await loadConversationDraft(userA.id, 'channel', 3)).toBe('Keep account A draft');
+});
+
 it('does not clear account B when stale account A cache removal finishes later', async () => {
   await AsyncStorage.setItem('csg.session.user.account-a', '{"id":7}');
   let releaseRemoval = () => {};

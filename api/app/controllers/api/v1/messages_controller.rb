@@ -81,24 +81,26 @@ module Api
           return
         end
 
-        @message.update!(
-          deleted_at: Time.current,
-          pinned_at: nil,
-          pinned_by: nil,
-          delivery_tracking_requested: true,
-          delivery_recovery_attempted_at: Time.at(0).utc,
-          notifications_delivery_claim: nil,
-          notifications_delivery_started_at: nil,
-          notifications_delivered_at: Time.current,
-          broadcast_recipient_ids: [],
-          broadcast_delivery_claim: nil,
-          broadcast_delivery_started_at: nil,
-          broadcasts_delivered_at: nil,
-          thread_broadcast_recipient_ids: [],
-          thread_broadcast_delivery_claim: nil,
-          thread_broadcast_delivery_started_at: nil,
-          thread_broadcasts_delivered_at: nil
-        )
+        MessageDeliveryService.synchronize_delivery(@message) do
+          @message.update!(
+            deleted_at: Time.current,
+            pinned_at: nil,
+            pinned_by: nil,
+            delivery_tracking_requested: true,
+            delivery_recovery_attempted_at: Time.at(0).utc,
+            notifications_delivery_claim: nil,
+            notifications_delivery_started_at: nil,
+            notifications_delivered_at: Time.current,
+            broadcast_recipient_ids: [],
+            broadcast_delivery_claim: nil,
+            broadcast_delivery_started_at: nil,
+            broadcasts_delivered_at: nil,
+            thread_broadcast_recipient_ids: [],
+            thread_broadcast_delivery_claim: nil,
+            thread_broadcast_delivery_started_at: nil,
+            thread_broadcasts_delivered_at: nil
+          )
+        end
         deliver_committed_message(@message)
         render json: { message: message_json(@message) }
       end

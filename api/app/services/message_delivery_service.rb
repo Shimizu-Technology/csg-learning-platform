@@ -5,10 +5,32 @@ class MessageDeliveryService
 
   DELIVERY_LEASE = 5.minutes
   LEASE_RENEWAL_INTERVAL = 1.minute
+  DELIVERY_LOCK_NAMESPACE = 4_853_470_000_000_000
   RECIPIENT_CHECKPOINT_BATCH_SIZE = 25
 
   class << self
     def created(message)
+      synchronize_delivery(message) { deliver_created(message) }
+    end
+
+    def synchronize_delivery(message)
+      # A session-level advisory lock orders a soft-delete state reset after any
+      # in-flight create fan-out without holding an Active Record row lock over
+      # external notification or Action Cable work.
+      lock_key = DELIVERY_LOCK_NAMESPACE + message.id
+      ActiveRecord::Base.connection_pool.with_connection do |connection|
+        locked = false
+        connection.select_value("SELECT pg_advisory_lock(#{connection.quote(lock_key)})")
+        locked = true
+        yield
+      ensure
+        connection.select_value("SELECT pg_advisory_unlock(#{connection.quote(lock_key)})") if locked
+      end
+    end
+
+    private
+
+    def deliver_created(message)
       message.reload
       if message.deleted?
         return unless deliver_message_broadcast(message)
@@ -22,8 +44,6 @@ class MessageDeliveryService
 
       deliver_thread_broadcast(message) if message.parent_message
     end
-
-    private
 
     def deliver_notifications(message)
       claim = claim_delivery(message, :notifications_delivered_at, :notifications_delivery_started_at, :notifications_delivery_claim)
@@ -63,6 +83,19 @@ class MessageDeliveryService
     end
 
     def deliver_broadcast(message, event:, completed_attribute:, started_attribute:, claim_attribute:, recipients_attribute:)
+      synchronize_delivery(message) do
+        deliver_broadcast_locked(
+          message,
+          event:,
+          completed_attribute:,
+          started_attribute:,
+          claim_attribute:,
+          recipients_attribute:
+        )
+      end
+    end
+
+    def deliver_broadcast_locked(message, event:, completed_attribute:, started_attribute:, claim_attribute:, recipients_attribute:)
       claim = claim_delivery(message, completed_attribute, started_attribute, claim_attribute)
       return true if claim == :complete
       return false if claim == :in_progress

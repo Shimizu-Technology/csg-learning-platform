@@ -15,7 +15,7 @@ export interface SessionUser extends UserSummary {
   first_name: string;
   last_name: string;
   github_username: string | null;
-  community_policy?: CommunityPolicy;
+  community_policy?: CommunityPolicy | null;
 }
 
 export interface CommunityPolicy {

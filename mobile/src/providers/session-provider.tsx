@@ -117,7 +117,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     refreshGenerationRef.current += 1;
     const pushToken = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
     if (pushToken && !auth.demo) await api.unregisterDevice(pushToken).catch(() => undefined);
-    let cleanupUserId = user?.id || lastUserIdRef.current;
+    let cleanupUserId = (auth.demo || user?.clerk_id === auth.subject ? user?.id : null) || lastUserIdRef.current;
     if (!cleanupUserId && userCacheKey) {
       const cached = await AsyncStorage.getItem(userCacheKey);
       if (cached) cleanupUserId = parseCachedSessionUser(cached)?.id || null;
