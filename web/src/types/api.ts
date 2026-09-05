@@ -607,6 +607,7 @@ export interface ChannelMessage {
   created_at: string;
   updated_at: string;
   mine: boolean;
+  client_message_id?: string | null;
   blocked?: boolean;
   attachments: MessageAttachment[];
   reactions: MessageReaction[];
@@ -658,6 +659,14 @@ export interface ChannelResponse {
   channel: ChannelSummary;
   messages?: ChannelMessage[];
   pinned_messages?: ChannelMessage[];
+  meta?: MessageWindowMeta;
+}
+
+export interface MessageWindowMeta {
+  oldest_message_id: number | null;
+  newest_message_id: number | null;
+  has_older: boolean;
+  has_newer: boolean;
 }
 
 export interface MessageResponse {
@@ -681,6 +690,7 @@ export interface DirectConversationResponse {
   direct_conversation: DirectConversationSummary;
   messages?: ChannelMessage[];
   pinned_messages?: ChannelMessage[];
+  meta?: MessageWindowMeta;
 }
 
 export interface WorkspacesResponse {

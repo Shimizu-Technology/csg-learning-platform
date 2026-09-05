@@ -5,6 +5,7 @@ import posthog from 'posthog-js'
 import { api, clearApiCache, setApiCacheScope, setAuthTokenGetter } from '../lib/api'
 import { isPostHogEnabled } from '../providers/PostHogProvider'
 import { isAccessDeniedResponse } from '../lib/sessionAccess'
+import { clearComposerStateFromWindow } from '../lib/messageComposerState'
 import type { User } from '../types/api'
 
 type UserData = User
@@ -40,6 +41,8 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
   const [accessDenied, setAccessDenied] = useState(false)
   const clerkUserId = clerkUser?.id
   const cacheScopeRef = useRef<string | null>(null)
+  const applicationUserIdRef = useRef<number | null>(null)
+  const sessionRequestGenerationRef = useRef(0)
 
   useEffect(() => {
     setAuthTokenGetter(async (forceRefresh = false) => {
@@ -62,12 +65,15 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
 
   const syncSession = useCallback(async () => {
     if (!isSignedIn) return false
+    const requestGeneration = ++sessionRequestGenerationRef.current
     setSessionError(null)
     setAccessDenied(false)
 
     try {
       const res = await api.createSession()
+      if (requestGeneration !== sessionRequestGenerationRef.current) return false
       if (res.data?.user) {
+        applicationUserIdRef.current = res.data.user.id
         setUser(res.data.user)
         if (isPostHogEnabled) {
           const activeCohortId = res.data.enrollments.find((enrollment) => enrollment.status === 'active')?.cohort.id
@@ -86,6 +92,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
       setSessionError(res.error || 'Could not connect to your CSG account. Check your connection and try again.')
       return false
     } catch (err) {
+      if (requestGeneration !== sessionRequestGenerationRef.current) return false
       console.error('Session sync failed:', err)
       setUser(null)
       setAccessDenied(false)
@@ -97,6 +104,10 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isLoaded) return
     if (!isSignedIn) {
+      sessionRequestGenerationRef.current += 1
+      const signedOutUserId = applicationUserIdRef.current
+      applicationUserIdRef.current = null
+      if (signedOutUserId && typeof window !== 'undefined') clearComposerStateFromWindow(signedOutUserId, window)
       setUser(null)
       setSessionError(null)
       setAccessDenied(false)
