@@ -18,10 +18,10 @@ describe('ComposerLimitNotice', () => {
   });
 
   it('announces only the transition into an over-limit draft on iOS', () => {
-    if (Platform.OS !== 'ios') return;
+    jest.replaceProperty(Platform, 'OS', 'ios');
     const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => undefined);
-    announce.mockClear();
     const notice = render(<ComposerLimitNotice value="Short draft" />);
+    announce.mockClear();
 
     notice.rerender(<ComposerLimitNotice value={'a'.repeat(MESSAGE_BODY_LIMIT + 1)} />);
     notice.rerender(<ComposerLimitNotice value={'a'.repeat(MESSAGE_BODY_LIMIT + 2)} />);

@@ -46,7 +46,9 @@ export function createLearningPersister(userId: number): Persister {
     restoreClient: async () => {
       if (!userStorageIsActive(userId)) return undefined;
       const db = await database();
+      if (!userStorageIsActive(userId)) return undefined;
       const row = await db.getFirstAsync<{ payload: string }>(`SELECT payload FROM ${CACHE_TABLE} WHERE cache_key = ?`, cacheKey);
+      if (!userStorageIsActive(userId)) return undefined;
       if (!row) return undefined;
       try {
         return JSON.parse(row.payload) as PersistedClient;

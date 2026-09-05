@@ -1,4 +1,5 @@
 require "test_helper"
+require "timeout"
 
 class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
@@ -157,7 +158,7 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
     rescue StandardError => error
       errors << error
     end
-    first_entered.pop
+    Timeout.timeout(5) { first_entered.pop }
     second = Thread.new do
       second_attempting << true
       MessageDeliveryService.synchronize_delivery(Message.find(message.id)) do
@@ -167,10 +168,8 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
       errors << error
     end
 
-    second_attempting.pop
-    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
-    sleep 0.01 until second.status == "sleep" || Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
-    assert_equal "sleep", second.status, "second thread never waited for the delivery lock"
+    Timeout.timeout(5) { second_attempting.pop }
+    assert_not second.join(0.2), "second thread did not wait for the delivery lock"
     assert_raises(ThreadError) { second_entered.pop(true) }
     release_first << true
     assert first.join(5), "active broadcast lock did not release"

@@ -25,6 +25,14 @@ export function userStorageIsActive(userId: number) {
   return !blockedStorageUsers.has(userId);
 }
 
+export function userStorageGeneration(userId: number) {
+  return userStorageGenerations.get(userId) || 0;
+}
+
+export function userStorageGenerationIsCurrent(userId: number, generation: number) {
+  return userStorageIsActive(userId) && userStorageGeneration(userId) === generation;
+}
+
 export function userStorageCleanupIsCurrent(cleanup: UserStorageCleanup) {
   return blockedStorageUsers.has(cleanup.userId)
     && userStorageGenerations.get(cleanup.userId) === cleanup.generation;

@@ -1,16 +1,20 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ConversationKind, Message } from './types';
-import { activateUserStorage, beginUserStorageCleanup, userStorageCleanupIsCurrent } from './user-storage-lifecycle';
+import {
+  activateUserStorage,
+  beginUserStorageCleanup,
+  userStorageCleanupIsCurrent,
+  userStorageGeneration,
+  userStorageGenerationIsCurrent,
+} from './user-storage-lifecycle';
 
 const authoredStorageWrites = new Map<string, Promise<void>>();
-const userStorageGenerations = new Map<number, number>();
-const blockedStorageUsers = new Set<number>();
 
 function enqueueStorageWrite(userId: number, key: string, operation: () => Promise<void>) {
-  const generation = userStorageGenerations.get(userId) || 0;
+  const generation = userStorageGeneration(userId);
   const previous = authoredStorageWrites.get(key) || Promise.resolve();
   const write = previous.catch(() => undefined).then(() => {
-    if (blockedStorageUsers.has(userId) || userStorageGenerations.get(userId) !== generation) return;
+    if (!userStorageGenerationIsCurrent(userId, generation)) return;
     return operation();
   });
   authoredStorageWrites.set(key, write);
@@ -20,23 +24,20 @@ function enqueueStorageWrite(userId: number, key: string, operation: () => Promi
 }
 
 async function readAfterPendingWrites(userId: number, key: string) {
+  const generation = userStorageGeneration(userId);
   while (true) {
     const pending = authoredStorageWrites.get(key);
     if (!pending) break;
     await pending.catch(() => undefined);
     if (authoredStorageWrites.get(key) === pending) break;
   }
-  if (blockedStorageUsers.has(userId)) return null;
-  return AsyncStorage.getItem(key);
+  if (!userStorageGenerationIsCurrent(userId, generation)) return null;
+  const value = await AsyncStorage.getItem(key);
+  return userStorageGenerationIsCurrent(userId, generation) ? value : null;
 }
 
 export function activateUserConversationStorage(userId: number) {
   activateUserStorage(userId);
-  if (!userStorageGenerations.has(userId)) {
-    userStorageGenerations.set(userId, 0);
-  } else if (blockedStorageUsers.delete(userId)) {
-    userStorageGenerations.set(userId, (userStorageGenerations.get(userId) || 0) + 1);
-  }
 }
 
 export function conversationDraftKey(userId: number, kind: ConversationKind, id: number) {
@@ -179,9 +180,6 @@ export async function saveFailedMessagesWithRetry(
 }
 
 export async function clearUserConversationStorage(userId: number, sharedCleanup = beginUserStorageCleanup(userId)) {
-  const cleanupGeneration = (userStorageGenerations.get(userId) || 0) + 1;
-  userStorageGenerations.set(userId, cleanupGeneration);
-  blockedStorageUsers.add(userId);
   const prefixes = [
     `csg.message-draft.${userId}.`,
     `csg.thread-draft.${userId}.`,
@@ -192,6 +190,6 @@ export async function clearUserConversationStorage(userId: number, sharedCleanup
     .map(([, write]) => write.catch(() => undefined));
   await Promise.all(pendingWrites);
   const keys = (await AsyncStorage.getAllKeys()).filter((key) => prefixes.some((prefix) => key.startsWith(prefix)));
-  if (userStorageGenerations.get(userId) !== cleanupGeneration || !blockedStorageUsers.has(userId) || !userStorageCleanupIsCurrent(sharedCleanup)) return;
+  if (!userStorageCleanupIsCurrent(sharedCleanup)) return;
   if (keys.length) await AsyncStorage.multiRemove(keys);
 }

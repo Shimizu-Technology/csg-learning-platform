@@ -69,6 +69,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
       void registerPushNotifications(api).catch(() => undefined);
     } catch (requestError) {
       const cached = userCacheKey ? await AsyncStorage.getItem(userCacheKey).catch(() => null) : null;
+      // A superseded denial must not delete credentials or caches written by a
+      // newer refresh for the same subject.
       if (!isCurrentRefresh()) return;
       const parsedCachedUser = cached ? parseCachedSessionUser(cached) : null;
       const cachedUser = parsedCachedUser?.clerk_id === refreshSubject ? parsedCachedUser : null;
@@ -86,7 +88,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
           ].map((operation) => operation.catch(() => undefined)));
         }
         if (!isCurrentRefresh()) return;
-        await AsyncStorage.multiRemove(keys);
+        await AsyncStorage.multiRemove(keys).catch(() => undefined);
         if (!isCurrentRefresh()) return;
         setUser(null);
         setAccessDenied(true);
@@ -118,28 +120,31 @@ export function SessionProvider({ children }: PropsWithChildren) {
   }, [auth.loaded, auth.signedIn, auth.subject, refresh]);
   const signOut = useCallback(async () => {
     refreshGenerationRef.current += 1;
-    const pushToken = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
-    if (pushToken && !auth.demo) await api.unregisterDevice(pushToken).catch(() => undefined);
-    let cleanupUserId = (auth.demo || user?.clerk_id === auth.subject ? user?.id : null) || lastUserIdRef.current;
-    if (!cleanupUserId && userCacheKey) {
-      const cached = await AsyncStorage.getItem(userCacheKey);
-      const cachedUser = cached ? parseCachedSessionUser(cached) : null;
-      if (cachedUser?.clerk_id === auth.subject) cleanupUserId = cachedUser.id;
+    try {
+      const pushToken = await AsyncStorage.getItem(PUSH_TOKEN_KEY).catch(() => null);
+      if (pushToken && !auth.demo) await api.unregisterDevice(pushToken).catch(() => undefined);
+      let cleanupUserId = (auth.demo || user?.clerk_id === auth.subject ? user?.id : null) || lastUserIdRef.current;
+      if (!cleanupUserId && userCacheKey) {
+        const cached = await AsyncStorage.getItem(userCacheKey).catch(() => null);
+        const cachedUser = cached ? parseCachedSessionUser(cached) : null;
+        if (cachedUser?.clerk_id === auth.subject) cleanupUserId = cachedUser.id;
+      }
+      const keys = [PUSH_TOKEN_KEY];
+      if (userCacheKey) keys.push(userCacheKey);
+      if (cleanupUserId) keys.push(`csg.inbox.${cleanupUserId}`, `csg.workspaces.${cleanupUserId}`, `csg.workspace.active.${cleanupUserId}`);
+      if (cleanupUserId) {
+        const cleanup = beginUserStorageCleanup(cleanupUserId);
+        await Promise.all([
+          clearLearningCache(cleanupUserId, cleanup),
+          clearUserConversationStorage(cleanupUserId, cleanup),
+          clearUserSubmissionDrafts(cleanupUserId, cleanup),
+        ].map((operation) => operation.catch(() => undefined)));
+      }
+      await AsyncStorage.multiRemove(keys).catch(() => undefined);
+    } finally {
+      await auth.signOut();
+      lastUserIdRef.current = null;
     }
-    const keys = [PUSH_TOKEN_KEY];
-    if (userCacheKey) keys.push(userCacheKey);
-    if (cleanupUserId) keys.push(`csg.inbox.${cleanupUserId}`, `csg.workspaces.${cleanupUserId}`, `csg.workspace.active.${cleanupUserId}`);
-    if (cleanupUserId) {
-      const cleanup = beginUserStorageCleanup(cleanupUserId);
-      await Promise.all([
-        clearLearningCache(cleanupUserId, cleanup),
-        clearUserConversationStorage(cleanupUserId, cleanup),
-        clearUserSubmissionDrafts(cleanupUserId, cleanup),
-      ].map((operation) => operation.catch(() => undefined)));
-    }
-    await AsyncStorage.multiRemove(keys);
-    await auth.signOut();
-    lastUserIdRef.current = null;
   }, [api, auth, user, userCacheKey]);
   const visibleUser = auth.demo || user?.clerk_id === auth.subject ? user : null;
   const value = useMemo(() => ({ api, user: visibleUser, loading, error, accessDenied, refresh, signOut }), [api, visibleUser, loading, error, accessDenied, refresh, signOut]);

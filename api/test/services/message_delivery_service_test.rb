@@ -120,7 +120,10 @@ class MessageDeliveryServiceTest < ActiveSupport::TestCase
     assert_nil message.broadcast_delivery_started_at
   ensure
     MessageBroadcastService.define_singleton_method(:created, original_broadcast) if defined?(original_broadcast) && original_broadcast
-    MessageDeliveryService.define_singleton_method(:checkpoint_recipients, original_checkpoint) if defined?(original_checkpoint) && original_checkpoint
+    if defined?(original_checkpoint) && original_checkpoint
+      MessageDeliveryService.define_singleton_method(:checkpoint_recipients, original_checkpoint)
+      MessageDeliveryService.singleton_class.send(:private, :checkpoint_recipients)
+    end
   end
 
   test "a missing thread parent completes the thread stage without retrying forever" do

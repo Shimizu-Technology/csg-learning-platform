@@ -36,6 +36,8 @@ export function restoreRawVoiceDraft(draft: string, review: VoiceDraftReview) {
 }
 
 export function voiceDraftWithinLimit(value: string, maximum?: number) {
+  // Match the shared message counter and Rails' character validation. Message
+  // composers deliberately gate changes instead of using TextInput maxLength.
   return maximum === undefined || Array.from(value).length <= maximum;
 }
 

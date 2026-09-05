@@ -77,6 +77,7 @@ beforeEach(async () => {
     loaded: false,
     signedIn: true,
     subject: 'account-a',
+    signOut: async () => undefined,
   };
   observedSession = null;
   activateUserConversationStorage(userA.id);
@@ -190,6 +191,17 @@ it('keeps a valid server session when writing its cache fails', async () => {
   expect(observedSession!.accessDenied).toBe(false);
 });
 
+it('restores a matching cached session with an explicitly null community policy', async () => {
+  const cachedUser: SessionUser = { ...userA, community_policy: null };
+  await AsyncStorage.setItem('csg.session.user.account-a', JSON.stringify(cachedUser));
+  mockSession.mockRejectedValueOnce(new ApiError('Offline'));
+  render(<SessionProvider><SessionObserver /></SessionProvider>);
+
+  await act(async () => { await observedSession!.refresh(); });
+
+  expect(observedSession!.user).toEqual(cachedUser);
+});
+
 it('rejects an offline cache entry that belongs to another Clerk subject', async () => {
   await AsyncStorage.setItem('csg.session.user.account-a', JSON.stringify(userB));
   mockSession.mockRejectedValueOnce(new ApiError('Offline'));
@@ -239,6 +251,17 @@ it('does not clear another account from a wrong-subject cache during sign-out', 
   await act(async () => { await observedSession!.signOut(); });
 
   expect(await loadConversationDraft(userB.id, 'channel', 3)).toBe('Keep account B draft');
+});
+
+it('signs out of Clerk when local storage cleanup fails', async () => {
+  const signOut = jest.fn().mockResolvedValue(undefined);
+  mockAuthState.current = { ...mockAuthState.current, signOut };
+  jest.spyOn(AsyncStorage, 'multiRemove').mockRejectedValueOnce(new Error('Storage unavailable'));
+  render(<SessionProvider><SessionObserver /></SessionProvider>);
+
+  await act(async () => { await observedSession!.signOut(); });
+
+  expect(signOut).toHaveBeenCalledTimes(1);
 });
 
 it('does not clear account B when stale account A cache removal finishes later', async () => {

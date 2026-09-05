@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { beginUserStorageCleanup, userStorageCleanupIsCurrent, userStorageIsActive, type UserStorageCleanup } from './user-storage-lifecycle';
+import { beginUserStorageCleanup, userStorageCleanupIsCurrent, userStorageGeneration, userStorageGenerationIsCurrent, userStorageIsActive, type UserStorageCleanup } from './user-storage-lifecycle';
 
 export interface SubmissionDraft {
   text: string;
@@ -17,8 +17,11 @@ export function submissionDraftMatches(draft: SubmissionDraft, submissionId: num
 }
 
 export async function loadSubmissionDraft(userId: number, contentBlockId: number): Promise<SubmissionDraft | null> {
+  if (!userStorageIsActive(userId)) return null;
+  const storageGeneration = userStorageGeneration(userId);
   const key = submissionDraftKey(userId, contentBlockId);
   const value = await AsyncStorage.getItem(key);
+  if (!userStorageGenerationIsCurrent(userId, storageGeneration)) return null;
   if (!value) return null;
 
   try {
@@ -27,13 +30,14 @@ export async function loadSubmissionDraft(userId: number, contentBlockId: number
     if (draft.base_submission_updated_at !== undefined && draft.base_submission_updated_at !== null && typeof draft.base_submission_updated_at !== 'string') throw new Error('Invalid draft version');
     return { ...draft, base_submission_updated_at: draft.base_submission_updated_at ?? null } as SubmissionDraft;
   } catch {
-    await AsyncStorage.removeItem(key);
+    if (userStorageGenerationIsCurrent(userId, storageGeneration)) await AsyncStorage.removeItem(key);
     return null;
   }
 }
 
 export async function saveSubmissionDraft(userId: number, contentBlockId: number, text: string, baseSubmissionId: number | null, baseSubmissionUpdatedAt: string | null) {
   if (!userStorageIsActive(userId)) return;
+  const storageGeneration = userStorageGeneration(userId);
   const key = submissionDraftKey(userId, contentBlockId);
   if (!text.trim()) {
     await AsyncStorage.removeItem(key);
@@ -41,6 +45,9 @@ export async function saveSubmissionDraft(userId: number, contentBlockId: number
   }
   const draft: SubmissionDraft = { text, base_submission_id: baseSubmissionId, base_submission_updated_at: baseSubmissionUpdatedAt, saved_at: new Date().toISOString() };
   await AsyncStorage.setItem(key, JSON.stringify(draft));
+  if (!userStorageIsActive(userId) && !userStorageGenerationIsCurrent(userId, storageGeneration)) {
+    await AsyncStorage.removeItem(key);
+  }
 }
 
 export async function clearSubmissionDraft(userId: number, contentBlockId: number) {
