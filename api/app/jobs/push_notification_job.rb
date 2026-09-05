@@ -39,6 +39,8 @@ class PushNotificationJob < ApplicationJob
     # after partial external delivery and expose no transactional idempotency
     # key, so releasing the claim here could notify the same recipient twice.
     claimed_ids = message.with_lock do
+      next [] if message.deleted?
+
       attempted_ids = Array(message.public_send(attempted_attribute)).map(&:to_i)
       next_ids = requested_ids - attempted_ids
       message.update_columns(attempted_attribute => (attempted_ids + next_ids).uniq) if next_ids.any?

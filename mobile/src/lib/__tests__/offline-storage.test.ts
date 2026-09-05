@@ -17,7 +17,7 @@ import {
   saveThreadDraftState,
 } from '../conversation-storage';
 import { clientMessageIdForSend } from '../message-compose';
-import { mergeMessageEvent } from '../message-state';
+import { mergeMessageEvent, mergeServerAndFailedMessages } from '../message-state';
 import {
   clearSubmissionDraft,
   clearUserSubmissionDrafts,
@@ -191,6 +191,28 @@ describe('offline authored storage', () => {
     await saveFailedMessages(7, 'channel', 3, [failed]);
 
     expect((await loadFailedMessages(7, 'channel', 3))[0].client_message_id).toBe('conversation-send-1');
+  });
+
+  it('restores an interrupted conversation retry until server history confirms it', async () => {
+    const author = { id: 7, full_name: 'Student', email: 'student@example.com', role: 'student', avatar_url: null } as const;
+    const sending = {
+      id: -1,
+      author,
+      body: 'Retry after restart',
+      client_status: 'sending',
+      client_message_id: 'conversation-retry-1',
+    } as Message;
+    await saveFailedMessages(7, 'channel', 3, [sending]);
+
+    const restored = await loadFailedMessages(7, 'channel', 3);
+    expect(restored).toEqual([expect.objectContaining({
+      body: 'Retry after restart',
+      client_status: 'failed',
+      client_message_id: 'conversation-retry-1',
+    })]);
+
+    const canonical = { ...sending, id: 81, client_status: undefined };
+    expect(mergeServerAndFailedMessages([canonical], restored)).toEqual([canonical]);
   });
 
   it('removes a persisted failure after realtime delivers its canonical message', async () => {

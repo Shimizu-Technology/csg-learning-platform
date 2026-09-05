@@ -139,7 +139,7 @@ export async function loadFailedMessages(userId: number, kind: ConversationKind,
   if (!value) return [];
   try {
     const messages = JSON.parse(value) as Message[];
-    return messages.filter((message) => message.client_status === 'failed');
+    return retryableMessagesForStorage(messages);
   } catch {
     await enqueueStorageWrite(userId, key, async () => {
       if (await AsyncStorage.getItem(key) === value) await AsyncStorage.removeItem(key);
@@ -148,8 +148,20 @@ export async function loadFailedMessages(userId: number, kind: ConversationKind,
   }
 }
 
+export function retryableMessagesForStorage(messages: Message[]) {
+  return messages.flatMap((message) => {
+    if (message.client_status === 'failed') return [message];
+    if (message.client_status !== 'sending') return [];
+    return [{
+      ...message,
+      client_status: 'failed' as const,
+      client_error: message.client_error || 'Send interrupted. Try again.',
+    }];
+  });
+}
+
 export function saveFailedMessages(userId: number, kind: ConversationKind, id: number, messages: Message[]) {
-  const failed = messages.filter((message) => message.client_status === 'failed');
+  const failed = retryableMessagesForStorage(messages);
   const key = failedMessagesKey(userId, kind, id);
   return enqueueStorageWrite(userId, key, async () => {
     if (failed.length) await AsyncStorage.setItem(key, JSON.stringify(failed));
