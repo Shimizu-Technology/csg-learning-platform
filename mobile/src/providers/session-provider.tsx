@@ -97,9 +97,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     let cleanupUserId = user?.id || lastUserIdRef.current;
     if (!cleanupUserId && userCacheKey) {
       const cached = await AsyncStorage.getItem(userCacheKey);
-      if (cached) {
-        try { cleanupUserId = (JSON.parse(cached) as SessionUser).id; } catch { cleanupUserId = null; }
-      }
+      if (cached) cleanupUserId = parseCachedSessionUser(cached)?.id || null;
     }
     const keys = [PUSH_TOKEN_KEY];
     if (userCacheKey) keys.push(userCacheKey);
