@@ -5,6 +5,7 @@ import posthog from 'posthog-js'
 import { api, clearApiCache, setApiCacheScope, setAuthTokenGetter } from '../lib/api'
 import { isPostHogEnabled } from '../providers/PostHogProvider'
 import { isAccessDeniedResponse } from '../lib/sessionAccess'
+import { clearComposerState } from '../lib/messageComposerState'
 import type { User } from '../types/api'
 
 type UserData = User
@@ -40,6 +41,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
   const [accessDenied, setAccessDenied] = useState(false)
   const clerkUserId = clerkUser?.id
   const cacheScopeRef = useRef<string | null>(null)
+  const applicationUserIdRef = useRef<number | null>(null)
 
   useEffect(() => {
     setAuthTokenGetter(async (forceRefresh = false) => {
@@ -68,6 +70,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await api.createSession()
       if (res.data?.user) {
+        applicationUserIdRef.current = res.data.user.id
         setUser(res.data.user)
         if (isPostHogEnabled) {
           const activeCohortId = res.data.enrollments.find((enrollment) => enrollment.status === 'active')?.cohort.id
@@ -97,6 +100,10 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isLoaded) return
     if (!isSignedIn) {
+      if (applicationUserIdRef.current && typeof window !== 'undefined') {
+        clearComposerState(applicationUserIdRef.current, window.localStorage)
+        applicationUserIdRef.current = null
+      }
       setUser(null)
       setSessionError(null)
       setAccessDenied(false)

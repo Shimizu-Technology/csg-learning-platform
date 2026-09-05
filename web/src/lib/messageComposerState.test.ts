@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  clearComposerState,
   MESSAGE_BODY_LIMIT,
   composerDestinationKey,
   messageCharacterCount,
@@ -22,6 +23,21 @@ class MemoryStorage implements Storage {
 }
 
 describe('message composer state', () => {
+  it('clears only the signed-out user’s drafts and failed sends', () => {
+    const storage = new MemoryStorage()
+    storage.setItem('csg-message-draft:4:channel:2:root', 'draft')
+    storage.setItem('csg-message-failures:4:dm:3', 'failure')
+    storage.setItem('csg-message-draft:5:channel:2:root', 'other user')
+    storage.setItem('unrelated', 'keep')
+
+    clearComposerState(4, storage)
+
+    expect(storage.getItem('csg-message-draft:4:channel:2:root')).toBeNull()
+    expect(storage.getItem('csg-message-failures:4:dm:3')).toBeNull()
+    expect(storage.getItem('csg-message-draft:5:channel:2:root')).toBe('other user')
+    expect(storage.getItem('unrelated')).toBe('keep')
+  })
+
   it('counts Unicode characters instead of UTF-16 code units', () => {
     expect(messageCharacterCount('A👍🏽B')).toBe(4)
     expect(messageCharacterCount('a'.repeat(MESSAGE_BODY_LIMIT))).toBe(MESSAGE_BODY_LIMIT)

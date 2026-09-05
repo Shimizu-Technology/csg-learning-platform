@@ -438,6 +438,25 @@ export function applyComposerList(
   return toggle()
 }
 
+export function applyComposerListShortcut(
+  editor: Editor,
+  event: Pick<KeyboardEvent<HTMLDivElement>, 'metaKey' | 'ctrlKey' | 'shiftKey' | 'code' | 'preventDefault'>,
+  selection?: { from: number; to: number } | null,
+) {
+  if (!(event.metaKey || event.ctrlKey) || !event.shiftKey) return false
+
+  const kind = event.code === 'Digit7'
+    ? 'orderedList'
+    : event.code === 'Digit8'
+      ? 'bulletList'
+      : null
+  if (!kind) return false
+
+  event.preventDefault()
+  applyComposerList(editor, kind, selection)
+  return true
+}
+
 function stripMentionLabel(value: string) {
   return value.replace(/^@/, '').trim().toLowerCase()
 }
@@ -635,7 +654,7 @@ function renderLinkNode(text: ReactNode, href: string, key: string) {
   )
 }
 
-function ComposerToolbarButton({
+export function ComposerToolbarButton({
   label,
   shortcut,
   active = false,
@@ -682,7 +701,7 @@ function ComposerToolbarButton({
         onMouseLeave={hideTooltip}
         onFocus={showTooltip}
         onBlur={hideTooltip}
-        className={`relative min-h-11 min-w-11 shrink-0 rounded-lg p-2 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 sm:min-h-9 sm:min-w-9 ${
+        className={`relative min-h-11 min-w-11 shrink-0 rounded-xl p-2 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 sm:min-h-9 sm:min-w-9 ${
           active ? 'bg-slate-100 text-slate-900' : ''
         } ${className}`}
         aria-label={shortcut ? `${label} (${shortcut})` : label}
@@ -1415,6 +1434,7 @@ export function Messages() {
     const element = messageScrollRef.current
     const previousHeight = element?.scrollHeight || 0
     const previousTop = element?.scrollTop || 0
+    shouldStickToBottomRef.current = false
     setLoadingOlder(true)
 
     const params = { before_message_id: messageWindowMeta.oldest_message_id }
@@ -2129,8 +2149,8 @@ export function Messages() {
         ? await api.createMessage(submittedTarget.id, payload)
         : await api.createDirectMessage(submittedTarget.id, payload)
 
-      if (res.error) {
-        const failureError = res.error
+      if (!res.data) {
+        const failureError = res.error || 'Could not send message.'
         setError(failureError)
         toast.error(failureError)
         const retrySend: RetrySend = { clientMessageId, body: submittedBody, parentMessageId: optimisticMessage.parent_message_id, mentionUserIds, pendingAttachments: submittedAttachments, uploadedAttachments }
@@ -2138,7 +2158,7 @@ export function Messages() {
         if (targetMatches(selectedTargetRef.current, submittedTarget)) {
           setMessages((prev) => prev.map((item) => item.id === tempId ? { ...item, pending: false, failed: true, failureError, retrySend } : item))
         }
-      } else if (res.data) {
+      } else {
         const message = res.data.message
         removeStoredFailure(submittedTarget, clientMessageId)
         releaseOptimisticAttachmentUrls(tempId)
@@ -2562,15 +2582,9 @@ export function Messages() {
       return
     }
 
-    if (modifier && event.shiftKey && key === '7') {
-      event.preventDefault()
-      toggleComposerList('orderedList')
-      return
-    }
-
-    if (modifier && event.shiftKey && key === '8') {
-      event.preventDefault()
-      toggleComposerList('bulletList')
+    if (editor && applyComposerListShortcut(editor, event, composerSelectionRef.current)) {
+      composerSelectionRef.current = { from: editor.state.selection.from, to: editor.state.selection.to }
+      setToolbarTick((current) => current + 1)
       return
     }
 
@@ -4494,15 +4508,15 @@ function MessageRow({
           <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700" role="status">
             <span className="min-w-0 flex-1">{message.failureError || 'This message was not sent.'}</span>
             {message.retrySend ? (
-              <button type="button" onClick={onRetry} className="min-h-9 rounded-lg bg-red-600 px-3 py-1.5 font-semibold text-white hover:bg-red-700">
+              <button type="button" onClick={onRetry} className="min-h-11 rounded-xl bg-red-600 px-3 py-1.5 font-semibold text-white hover:bg-red-700">
                 Retry
               </button>
             ) : (
-              <button type="button" onClick={onRestore} className="min-h-9 rounded-lg bg-red-600 px-3 py-1.5 font-semibold text-white hover:bg-red-700">
+              <button type="button" onClick={onRestore} className="min-h-11 rounded-xl bg-red-600 px-3 py-1.5 font-semibold text-white hover:bg-red-700">
                 {message.body ? 'Restore text' : 'Reattach files'}
               </button>
             )}
-            <button type="button" onClick={onDiscard} className="min-h-9 rounded-lg px-3 py-1.5 font-semibold text-red-700 hover:bg-red-100">
+            <button type="button" onClick={onDiscard} className="min-h-11 rounded-xl px-3 py-1.5 font-semibold text-red-700 hover:bg-red-100">
               Discard
             </button>
           </div>

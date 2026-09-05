@@ -90,10 +90,10 @@ describe('message window reconciliation', () => {
 
   it('retains previously loaded older history without keeping stale messages in the refreshed window', () => {
     const old = message({ id: 1, created_at: '2026-09-01T00:00:00.000Z' })
-    const stale = message({ id: 2, created_at: '2026-09-05T00:00:00.000Z' })
+    const stale = message({ id: 2, created_at: '2026-09-05T00:02:00.000Z' })
     const latest = message({ id: 3, created_at: '2026-09-05T00:01:00.000Z' })
 
-    expect(mergeMessageWindow([old, stale], [latest], true).map((item) => item.id)).toEqual([1, 2, 3])
+    expect(mergeMessageWindow([old, stale], [latest], true).map((item) => item.id)).toEqual([1, 3])
     expect(mergeMessageWindow([stale], [latest], false).map((item) => item.id)).toEqual([3])
   })
 })

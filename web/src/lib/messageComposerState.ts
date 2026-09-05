@@ -57,6 +57,20 @@ export function failedSendsKey(userId: number, target: MessageTargetIdentity) {
   return `csg-message-failures:${userId}:${target.type}:${target.id}`
 }
 
+export function clearComposerState(userId: number, storage?: Storage | null) {
+  if (!storageAvailable(storage)) return
+
+  try {
+    const prefixes = [`csg-message-draft:${userId}:`, `csg-message-failures:${userId}:`]
+    const keys = Array.from({ length: storage.length }, (_, index) => storage.key(index))
+    keys.forEach((key) => {
+      if (key && prefixes.some((prefix) => key.startsWith(prefix))) storage.removeItem(key)
+    })
+  } catch {
+    // Local storage may be unavailable. Cleanup is best effort.
+  }
+}
+
 export function readComposerDraft(key: string, storage?: Storage | null): StoredComposerDraft | null {
   if (!storageAvailable(storage)) return null
 
@@ -110,7 +124,9 @@ export function readFailedSends(key: string, storage?: Storage | null): StoredFa
         typeof attachment?.s3_key === 'string'
         && typeof attachment.filename === 'string'
         && typeof attachment.content_type === 'string'
+        && typeof attachment.byte_size === 'number'
         && Number.isInteger(attachment.byte_size)
+        && attachment.byte_size >= 0
       ))
       && Number.isInteger(item.attachmentCount)
       && item.attachmentCount >= item.attachments.length

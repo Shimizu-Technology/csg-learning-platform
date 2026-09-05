@@ -607,7 +607,7 @@ export interface ChannelMessage {
   created_at: string;
   updated_at: string;
   mine: boolean;
-  client_message_id?: string;
+  client_message_id?: string | null;
   blocked?: boolean;
   attachments: MessageAttachment[];
   reactions: MessageReaction[];
