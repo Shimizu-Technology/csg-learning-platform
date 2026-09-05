@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ConversationKind, Message } from './types';
 
+const failedMessageWrites = new Map<string, Promise<void>>();
+
 export function conversationDraftKey(userId: number, kind: ConversationKind, id: number) {
   return `csg.message-draft.${userId}.${kind}.${id}`;
 }
@@ -71,22 +73,31 @@ export async function clearThreadDraftAfterSend(
 }
 
 export async function loadFailedMessages(userId: number, kind: ConversationKind, id: number) {
-  const value = await AsyncStorage.getItem(failedMessagesKey(userId, kind, id));
+  const key = failedMessagesKey(userId, kind, id);
+  await failedMessageWrites.get(key)?.catch(() => undefined);
+  const value = await AsyncStorage.getItem(key);
   if (!value) return [];
   try {
     const messages = JSON.parse(value) as Message[];
     return messages.filter((message) => message.client_status === 'failed');
   } catch {
-    await AsyncStorage.removeItem(failedMessagesKey(userId, kind, id));
+    await AsyncStorage.removeItem(key);
     return [];
   }
 }
 
-export async function saveFailedMessages(userId: number, kind: ConversationKind, id: number, messages: Message[]) {
+export function saveFailedMessages(userId: number, kind: ConversationKind, id: number, messages: Message[]) {
   const failed = messages.filter((message) => message.client_status === 'failed');
   const key = failedMessagesKey(userId, kind, id);
-  if (failed.length) await AsyncStorage.setItem(key, JSON.stringify(failed));
-  else await AsyncStorage.removeItem(key);
+  const previous = failedMessageWrites.get(key) || Promise.resolve();
+  const write = previous.catch(() => undefined).then(async () => {
+    if (failed.length) await AsyncStorage.setItem(key, JSON.stringify(failed));
+    else await AsyncStorage.removeItem(key);
+  });
+  failedMessageWrites.set(key, write);
+  return write.finally(() => {
+    if (failedMessageWrites.get(key) === write) failedMessageWrites.delete(key);
+  });
 }
 
 export async function clearUserConversationStorage(userId: number) {

@@ -29,6 +29,10 @@ beforeEach(async () => {
   await AsyncStorage.clear();
 });
 
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+
 describe('offline authored storage', () => {
   it('persists and clears a versioned text-submission draft', async () => {
     await saveSubmissionDraft(7, 42, 'My offline response', 12, '2026-08-01T00:00:00Z');
@@ -99,6 +103,35 @@ describe('offline authored storage', () => {
     await saveFailedMessages(7, 'channel', 3, merged);
 
     expect(await loadFailedMessages(7, 'channel', 3)).toEqual([]);
+  });
+
+  it('serializes failed-message writes so an older save cannot beat realtime cleanup', async () => {
+    const failed = { id: -1, client_status: 'failed', client_message_id: 'conversation-send-3' } as Message;
+    const order: string[] = [];
+    let releaseFirstWrite = () => {};
+    let markFirstWriteStarted = () => {};
+    const firstWriteGate = new Promise<void>((resolve) => { releaseFirstWrite = resolve; });
+    const firstWriteStarted = new Promise<void>((resolve) => { markFirstWriteStarted = resolve; });
+    jest.spyOn(AsyncStorage, 'setItem').mockImplementationOnce(async () => {
+      order.push('set-start');
+      markFirstWriteStarted();
+      await firstWriteGate;
+      order.push('set-finish');
+    });
+    jest.spyOn(AsyncStorage, 'removeItem').mockImplementation(async () => {
+      order.push('remove');
+    });
+
+    const staleSave = saveFailedMessages(7, 'channel', 3, [failed]);
+    await firstWriteStarted;
+    const realtimeCleanup = saveFailedMessages(7, 'channel', 3, []);
+    await Promise.resolve();
+    expect(order).toEqual(['set-start']);
+
+    releaseFirstWrite();
+    await Promise.all([staleSave, realtimeCleanup]);
+
+    expect(order).toEqual(['set-start', 'set-finish', 'remove']);
   });
 
   it('clears only the signed-out user authored drafts and retry copies', async () => {

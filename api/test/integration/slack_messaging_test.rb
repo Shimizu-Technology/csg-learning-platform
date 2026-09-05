@@ -608,6 +608,9 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
 
   test "a retry recovers delivery after the message commits" do
     original_delivery = NotificationDeliveryService.method(:message_created)
+    original_user_broadcast = UserMessagesChannel.method(:broadcast_to)
+    broadcasts = []
+    UserMessagesChannel.define_singleton_method(:broadcast_to) { |target, payload| broadcasts << [ target, payload ] }
     fail_delivery = true
     NotificationDeliveryService.define_singleton_method(:message_created) do |message, push: false|
       raise "delivery interrupted" if fail_delivery
@@ -636,7 +639,21 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert committed.notifications_delivered_at?
     assert committed.broadcasts_delivered_at?
     assert_empty committed.delivered_recipient_ids(:broadcast_recipient_ids)
+    notification_count = Notification.where(notifiable_type: "Message", notifiable_id: committed.id).count
+    broadcast_count = broadcasts.length
+    assert_operator notification_count, :>, 0
+    assert_operator broadcast_count, :>, 0
+
+    assert_no_difference([ "Message.count", "Notification.count" ]) do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+      end
+    end
+    assert_response :ok
+    assert_equal notification_count, Notification.where(notifiable_type: "Message", notifiable_id: committed.id).count
+    assert_equal broadcast_count, broadcasts.length
   ensure
+    UserMessagesChannel.define_singleton_method(:broadcast_to, original_user_broadcast) if defined?(original_user_broadcast) && original_user_broadcast
     NotificationDeliveryService.define_singleton_method(:message_created, original_delivery) if defined?(original_delivery) && original_delivery
   end
 

@@ -105,7 +105,7 @@ export default function ConversationScreen() {
     requestAnimationFrame(() => listRef.current?.scrollToOffset({ animated, offset: 0 }));
   }, []);
 
-  const persistFailed = useCallback((next: Message[]) => { if (userId) void saveFailedMessages(userId, kind, id, next); }, [id, kind, userId]);
+  const persistFailed = useCallback((next: Message[]) => { if (userId) void saveFailedMessages(userId, kind, id, next).catch(() => undefined); }, [id, kind, userId]);
 
   const load = useCallback(async () => {
     setLoading(true);
