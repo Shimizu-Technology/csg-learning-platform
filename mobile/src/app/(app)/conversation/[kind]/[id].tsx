@@ -70,6 +70,7 @@ export default function ConversationScreen() {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [draftReadyConversationIdentity, setDraftReadyConversationIdentity] = useState<string | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>(auth.demo ? 'connected' : 'connecting');
   const [showScrollToLatest, setShowScrollToLatest] = useState(Boolean(anchorMessageId));
   const [newMessagesBelow, setNewMessagesBelow] = useState(0);
@@ -135,14 +136,17 @@ export default function ConversationScreen() {
     persistedFailedRef.current = null;
     setLoading(true);
     setLoadedConversationIdentity(null);
+    setDraftReadyConversationIdentity(null);
     anchorScrolledRef.current = false;
     try {
       if (userId && !auth.demo) {
-        const storedDraft = await loadConversationDraft(userId, kind, id);
+        const storedDraft = await loadConversationDraft(userId, kind, id).catch(() => '');
         if (requestId !== loadRequestRef.current) return;
         const nextDraft = draftAfterStoredLoad(draftValueRef.current, storedDraft);
         if (nextDraft !== draftValueRef.current) updateDraft(nextDraft);
       }
+      if (requestId !== loadRequestRef.current) return;
+      setDraftReadyConversationIdentity(conversationIdentity);
       if (auth.demo) {
         setSummary(kind === 'channel' ? demoChannels.find((item) => item.id === id) || null : demoDms.find((item) => item.id === id) || null);
         setMessages(demoMessages[`${kind}:${id}`] || []);
@@ -209,13 +213,13 @@ export default function ConversationScreen() {
   }, setStatus), [api, auth.demo, error, id, kind, loading, scrollToLatest]);
 
   useEffect(() => {
-    if (!userId || loading || loadedConversationIdentity !== conversationIdentity) return;
+    if (!userId || loading || draftReadyConversationIdentity !== conversationIdentity) return;
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
     const pending = { userId, kind, id, body: draft };
     pendingDraftRef.current = pending;
     draftTimerRef.current = setTimeout(() => void saveConversationDraft(pending.userId, pending.kind, pending.id, pending.body).then(() => { if (pendingDraftRef.current === pending) pendingDraftRef.current = null; }).catch(() => undefined), 300);
     return () => { if (draftTimerRef.current) clearTimeout(draftTimerRef.current); };
-  }, [conversationIdentity, draft, id, kind, loadedConversationIdentity, loading, userId]);
+  }, [conversationIdentity, draft, draftReadyConversationIdentity, id, kind, loading, userId]);
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -423,7 +427,7 @@ export default function ConversationScreen() {
           />
           {showScrollToLatest && <Pressable accessibilityRole="button" accessibilityLabel="Jump to latest message" onPress={() => { scrollToLatest(true); if (!auth.demo) void api.markRead(kind, id); }} style={styles.latestButton}><ChevronDown color={palette.text} size={17} strokeWidth={2.5} /><Text style={styles.latestText}>{newMessagesBelow ? `${newMessagesBelow} new` : 'Jump to latest'}</Text></Pressable>}
         </View>}
-        {mentionTrigger && (showEveryone || suggestions.length > 0) && <View style={styles.mentionPanel}>{showEveryone && <Pressable accessibilityRole="button" accessibilityLabel="Mention everyone" onPress={() => { const value = `${composerValue.slice(0, mentionTrigger.start)}@everyone ${composerValue.slice(mentionTrigger.end)}`; const next = messageInsertionWithinLimit(value, mentionTrigger.start + 10); if (!next) return; updateComposerValue(next.value); updateComposerSelection({ start: next.cursor, end: next.cursor }); }} style={styles.mentionRow}><View style={styles.everyoneIcon}><Hash color={palette.rubySoft} size={15} /></View><View><Text style={styles.mentionName}>@everyone</Text><Text style={styles.mentionEmail}>Notify everyone in this channel</Text></View></Pressable>}{suggestions.map((member) => <Pressable key={member.id} accessibilityRole="button" onPress={() => { const inserted = insertMention(composerValue, mentionTrigger, member); const next = messageInsertionWithinLimit(inserted.value, inserted.cursor); if (!next) return; updateComposerValue(next.value); updateComposerSelection({ start: next.cursor, end: next.cursor }); }} style={styles.mentionRow}><Avatar name={member.full_name} size={30} /><View><Text style={styles.mentionName}>{member.full_name}</Text><Text style={styles.mentionEmail}>{member.email}</Text></View></Pressable>)}</View>}
+        {mentionTrigger && (showEveryone || suggestions.length > 0) && <View style={styles.mentionPanel}>{showEveryone && <Pressable accessibilityRole="button" accessibilityLabel="Mention everyone" onPress={() => { const value = `${composerValue.slice(0, mentionTrigger.start)}@everyone ${composerValue.slice(mentionTrigger.end)}`; const next = messageInsertionWithinLimit(value, mentionTrigger.start + 10); if (!next) { Alert.alert('Draft is too long', `Adding this mention would exceed the ${MESSAGE_BODY_LIMIT.toLocaleString()}-character limit.`); return; } updateComposerValue(next.value); updateComposerSelection({ start: next.cursor, end: next.cursor }); }} style={styles.mentionRow}><View style={styles.everyoneIcon}><Hash color={palette.rubySoft} size={15} /></View><View><Text style={styles.mentionName}>@everyone</Text><Text style={styles.mentionEmail}>Notify everyone in this channel</Text></View></Pressable>}{suggestions.map((member) => <Pressable key={member.id} accessibilityRole="button" onPress={() => { const inserted = insertMention(composerValue, mentionTrigger, member); const next = messageInsertionWithinLimit(inserted.value, inserted.cursor); if (!next) { Alert.alert('Draft is too long', `Adding this mention would exceed the ${MESSAGE_BODY_LIMIT.toLocaleString()}-character limit.`); return; } updateComposerValue(next.value); updateComposerSelection({ start: next.cursor, end: next.cursor }); }} style={styles.mentionRow}><Avatar name={member.full_name} size={30} /><View><Text style={styles.mentionName}>{member.full_name}</Text><Text style={styles.mentionEmail}>{member.email}</Text></View></Pressable>)}</View>}
         {!!attachments.length && <ScrollView horizontal keyboardShouldPersistTaps="handled" contentContainerStyle={styles.attachmentTray}>{attachments.map((attachment) => <View key={attachment.local_id} style={styles.pendingAttachment}><Paperclip color={palette.rubySoft} size={14} /><View style={styles.pendingCopy}><Text numberOfLines={1} style={styles.pendingName}>{attachment.filename}</Text><Text style={styles.pendingStatus}>{attachment.status === 'uploading' ? `${Math.round(attachment.progress * 100)}%` : 'Ready to send'}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Remove ${attachment.filename}`} onPress={() => setAttachments((current) => current.filter((item) => item.local_id !== attachment.local_id))} style={styles.removeAttachment}><X color={palette.muted} size={14} /></Pressable></View>)}</ScrollView>}
         {!editingMessage && <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />}
         {editingMessage && <View style={styles.editBanner}><Edit3 color={palette.rubySoft} size={15} /><Text style={styles.editText}>Editing message</Text><Pressable accessibilityRole="button" accessibilityLabel="Cancel editing" onPress={() => { setEditingMessage(null); setEditDraft(''); setEditSelection({ start: 0, end: 0 }); }} style={styles.editClose}><X color={palette.muted} size={16} /></Pressable></View>}
@@ -439,7 +443,7 @@ export default function ConversationScreen() {
         {!selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Flag} label="Report message" destructive onPress={() => { reportMessage(selectedMessage); setSelectedMessage(null); }} />}
         {!selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Flag} label={`Report ${selectedMessage.author.full_name}`} destructive onPress={() => { reportUser(selectedMessage); setSelectedMessage(null); }} />}
         {!selectedMessage.mine && selectedMessage.id > 0 && !selectedMessage.blocked && <Action icon={UserX} label={`Block ${selectedMessage.author.full_name}`} destructive onPress={() => { blockUser(selectedMessage); setSelectedMessage(null); }} />}
-        {selectedMessage.mine && !selectedMessage.deleted_at && selectedMessage.id > 0 && <Action icon={Edit3} label="Edit message" onPress={() => { setEditingMessage(selectedMessage); setEditDraft(selectedMessage.body); setEditSelection({ start: selectedMessage.body.length, end: selectedMessage.body.length }); setSelectedMessage(null); }} />}
+        {selectedMessage.mine && !selectedMessage.deleted_at && selectedMessage.id > 0 && <Action icon={Edit3} label="Edit message" onPress={() => { void voiceDraft.cancel().then(() => { setEditingMessage(selectedMessage); setEditDraft(selectedMessage.body); setEditSelection({ start: selectedMessage.body.length, end: selectedMessage.body.length }); setSelectedMessage(null); }); }} />}
         {selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Trash2} label="Remove message" destructive onPress={() => { deleteMessage(selectedMessage); setSelectedMessage(null); }} />}
       </>}</View></View></Modal>
 

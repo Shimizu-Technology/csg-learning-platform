@@ -39,7 +39,7 @@ class AddClientMessageIdToMessages < ActiveRecord::Migration[8.1]
     return false unless index && index.unique && index.columns == %w[author_id client_message_id]
     return false unless index.where.to_s.gsub(/[()]/, "").squish == "client_message_id IS NOT NULL"
 
-    connection.select_value(<<~SQL.squish) == true
+    ActiveModel::Type::Boolean.new.cast(connection.select_value(<<~SQL.squish))
       SELECT index.indisvalid AND index.indisready
       FROM pg_class relation
       JOIN pg_index index ON index.indexrelid = relation.oid

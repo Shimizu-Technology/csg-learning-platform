@@ -47,7 +47,9 @@ export async function loadSubmissionDraft(userId: number, contentBlockId: number
     if (draft.base_submission_updated_at !== undefined && draft.base_submission_updated_at !== null && typeof draft.base_submission_updated_at !== 'string') throw new Error('Invalid draft version');
     return { ...draft, base_submission_updated_at: draft.base_submission_updated_at ?? null } as SubmissionDraft;
   } catch {
-    if (userStorageGenerationIsCurrent(userId, storageGeneration)) await AsyncStorage.removeItem(key);
+    await enqueueSubmissionWrite(userId, key, async () => {
+      if (await AsyncStorage.getItem(key) === value) await AsyncStorage.removeItem(key);
+    }).catch(() => undefined);
     return null;
   }
 }

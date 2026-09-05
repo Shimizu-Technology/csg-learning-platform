@@ -238,6 +238,14 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
     end
 
     assert_equal "delivery failed", error.message
+    lock_key = MessageDeliveryService::DELIVERY_LOCK_NAMESPACE + message.id
+    ActiveRecord::Base.connection_pool.with_connection do |replacement_connection|
+      acquired = ActiveModel::Type::Boolean.new.cast(
+        replacement_connection.select_value("SELECT pg_try_advisory_lock(#{replacement_connection.quote(lock_key)})")
+      )
+      assert acquired, "the replacement connection could not acquire the lock released by disconnect"
+      replacement_connection.select_value("SELECT pg_advisory_unlock(#{replacement_connection.quote(lock_key)})")
+    end
   ensure
     if defined?(connection) && defined?(original_select_value) && original_select_value
       if defined?(select_value_was_owned) && select_value_was_owned

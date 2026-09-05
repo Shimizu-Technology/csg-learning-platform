@@ -67,6 +67,29 @@ describe('offline authored storage', () => {
     expect(await AsyncStorage.getItem(submissionDraftKey(7, 42))).toBeNull();
   });
 
+  it('does not remove a valid submission draft saved while a malformed value is being read', async () => {
+    const key = submissionDraftKey(7, 42);
+    const malformed = JSON.stringify({ text: 9 });
+    await AsyncStorage.setItem(key, malformed);
+    let releaseRead = () => {};
+    let markReadStarted = () => {};
+    const readGate = new Promise<void>((resolve) => { releaseRead = resolve; });
+    const readStarted = new Promise<void>((resolve) => { markReadStarted = resolve; });
+    jest.spyOn(AsyncStorage, 'getItem').mockImplementationOnce(async () => {
+      markReadStarted();
+      await readGate;
+      return malformed;
+    });
+
+    const staleLoad = loadSubmissionDraft(7, 42);
+    await readStarted;
+    await saveSubmissionDraft(7, 42, 'New valid draft', null, null);
+    releaseRead();
+
+    await expect(staleLoad).resolves.toBeNull();
+    await expect(loadSubmissionDraft(7, 42)).resolves.toEqual(expect.objectContaining({ text: 'New valid draft' }));
+  });
+
   it('persists thread drafts until the server-acknowledged send clears them', async () => {
     await saveThreadDraft(7, 88, 'A reply written offline');
     expect(await loadThreadDraft(7, 88)).toBe('A reply written offline');

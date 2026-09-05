@@ -8,10 +8,24 @@ import { Platform } from 'react-native';
 import type { CsgApi } from './api';
 
 export const PUSH_TOKEN_KEY = 'csg.push.token';
+const PUSH_UNREGISTER_ATTEMPTS = 3;
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true }),
 });
+
+async function unregisterPushToken(api: CsgApi, token: string) {
+  let finalError: unknown;
+  for (let attempt = 0; attempt < PUSH_UNREGISTER_ATTEMPTS; attempt += 1) {
+    try {
+      await api.unregisterDevice(token);
+      return;
+    } catch (error) {
+      finalError = error;
+    }
+  }
+  throw finalError;
+}
 
 export async function registerPushNotifications(api: CsgApi, isActive: () => boolean = () => true) {
   if (!Device.isDevice) return null;
@@ -28,19 +42,19 @@ export async function registerPushNotifications(api: CsgApi, isActive: () => boo
   if (!isActive()) return null;
   await api.registerDevice(token, Platform.OS, deviceId, Application.nativeApplicationVersion);
   if (!isActive()) {
-    await api.unregisterDevice(token).catch(() => undefined);
+    await unregisterPushToken(api, token);
     return null;
   }
   try {
     await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
   } catch (error) {
     // Without a persisted token, sign-out cannot unregister this device later.
-    await api.unregisterDevice(token).catch(() => undefined);
+    await unregisterPushToken(api, token);
     throw error;
   }
   if (!isActive()) {
     await AsyncStorage.removeItem(PUSH_TOKEN_KEY).catch(() => undefined);
-    await api.unregisterDevice(token).catch(() => undefined);
+    await unregisterPushToken(api, token);
     return null;
   }
   return token;

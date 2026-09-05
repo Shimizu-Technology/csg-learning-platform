@@ -44,6 +44,23 @@ class MessageDeliveryService
             Rails.logger.error(
               "[MessageDeliveryService] advisory_unlock_failed message_id=#{message.id} error=#{unlock_error.class}"
             )
+            # Session advisory locks survive until their PostgreSQL connection
+            # closes. Never return a connection whose unlock result is unknown
+            # to the pool, or later requests could inherit the leaked lock.
+            begin
+              ActiveRecord::Base.connection_pool.remove(connection)
+            rescue StandardError => removal_error
+              Rails.logger.error(
+                "[MessageDeliveryService] advisory_connection_remove_failed message_id=#{message.id} error=#{removal_error.class}"
+              )
+            end
+            begin
+              connection.disconnect!
+            rescue StandardError => disconnect_error
+              Rails.logger.error(
+                "[MessageDeliveryService] advisory_connection_disconnect_failed message_id=#{message.id} error=#{disconnect_error.class}"
+              )
+            end
           end
         end
       end

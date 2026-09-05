@@ -433,13 +433,15 @@ module Api
       end
 
       def requested_mention_user_ids
+        return @requested_mention_user_ids if defined?(@requested_mention_user_ids)
+
         values = Array(message_params[:mention_user_ids]).reject(&:blank?)
         unless values.all? { |value| value.is_a?(Integer) || value.to_s.match?(/\A\d+\z/) }
           render json: { errors: [ "Mention user IDs must be numeric" ] }, status: :unprocessable_entity
-          return []
+          return @requested_mention_user_ids = []
         end
 
-        values.map(&:to_i).uniq
+        @requested_mention_user_ids = values.map(&:to_i).uniq
       end
 
       def message_json(message)
