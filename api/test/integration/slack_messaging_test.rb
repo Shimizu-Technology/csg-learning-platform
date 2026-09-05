@@ -456,7 +456,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
       end
     end
 
-    assert_response :success
+    assert_response :ok
     assert_equal message_id, JSON.parse(response.body).dig("message", "id")
     assert_equal "message-retry-1", JSON.parse(response.body).dig("message", "client_message_id")
     assert_equal notification_count, Notification.where(notifiable_type: "Message", notifiable_id: message_id).count
@@ -522,13 +522,84 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
         as: :json
     end
 
-    assert_response :success
+    assert_response :ok
     assert_equal winner.id, JSON.parse(response.body).dig("message", "id")
     assert_equal 1, Message.where(author: @student, client_message_id: client_message_id).count
   ensure
     if defined?(original_lookup) && original_lookup
       Api::V1::MessagesController.define_method(:existing_message_for_client_id, original_lookup)
       Api::V1::MessagesController.send(:private, :existing_message_for_client_id)
+    end
+  end
+
+  test "database uniqueness races replay the committed message" do
+    client_message_id = "message-index-race"
+    winner = Message.create!(channel: @channel, author: @student, body: "Index-safe send", client_message_id: client_message_id)
+    original_lookup = Api::V1::MessagesController.instance_method(:existing_message_for_client_id)
+    lookup_count = 0
+    Api::V1::MessagesController.define_method(:existing_message_for_client_id) do
+      lookup_count += 1
+      lookup_count == 1 ? nil : original_lookup.bind_call(self)
+    end
+    Api::V1::MessagesController.send(:private, :existing_message_for_client_id)
+    original_save = Message.instance_method(:save!)
+    Message.define_method(:save!) do |*args, **kwargs|
+      if client_message_id == "message-index-race"
+        self.class.insert!({
+          author_id: author_id,
+          body: body,
+          channel_id: channel_id,
+          client_message_id: client_message_id,
+          direct_conversation_id: direct_conversation_id,
+          mention_user_ids: mention_user_ids,
+          parent_message_id: parent_message_id,
+          created_at: Time.current,
+          updated_at: Time.current
+        })
+      else
+        original_save.bind_call(self, *args, **kwargs)
+      end
+    end
+
+    as_user(@student) do
+      post "/api/v1/channels/#{@channel.id}/messages",
+        params: { body: "Index-safe send", client_message_id: client_message_id },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :ok
+    assert_equal winner.id, JSON.parse(response.body).dig("message", "id")
+  ensure
+    Message.define_method(:save!, original_save) if defined?(original_save) && original_save
+    if defined?(original_lookup) && original_lookup
+      Api::V1::MessagesController.define_method(:existing_message_for_client_id, original_lookup)
+      Api::V1::MessagesController.send(:private, :existing_message_for_client_id)
+    end
+  end
+
+  test "unrelated record-not-unique errors are not treated as message replays" do
+    original_persist = Api::V1::MessagesController.instance_method(:persist_files!)
+    Api::V1::MessagesController.define_method(:persist_files!) do |message, attachments|
+      raise ActiveRecord::RecordNotUnique, "different unique index" if message.client_message_id == "unrelated-constraint"
+
+      original_persist.bind_call(self, message, attachments)
+    end
+    Api::V1::MessagesController.send(:private, :persist_files!)
+
+    assert_raises(ActiveRecord::RecordNotUnique) do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages",
+          params: { body: "Must not replay", client_message_id: "unrelated-constraint" },
+          headers: auth_headers,
+          as: :json
+      end
+    end
+    assert_not Message.exists?(author: @student, client_message_id: "unrelated-constraint")
+  ensure
+    if defined?(original_persist) && original_persist
+      Api::V1::MessagesController.define_method(:persist_files!, original_persist)
+      Api::V1::MessagesController.send(:private, :persist_files!)
     end
   end
 
@@ -557,12 +628,30 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
       end
     end
 
-    assert_response :success
+    assert_response :ok
     committed.reload
     assert committed.notifications_delivered_at?
-    assert_equal committed.destination.recipients.reorder(nil).pluck(:id).sort, committed.delivered_recipient_ids(:broadcast_recipient_ids).sort
+    assert committed.broadcasts_delivered_at?
+    assert_empty committed.delivered_recipient_ids(:broadcast_recipient_ids)
   ensure
     NotificationDeliveryService.define_singleton_method(:message_created, original_delivery) if defined?(original_delivery) && original_delivery
+  end
+
+  test "deleted messages cannot be replayed" do
+    params = { body: "Delete this", client_message_id: "message-deleted-retry" }
+    as_user(@student) do
+      post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+    end
+    assert_response :created
+    Message.find_by!(author: @student, client_message_id: "message-deleted-retry").update!(deleted_at: Time.current)
+
+    assert_no_difference("Message.count") do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+      end
+    end
+
+    assert_response :conflict
   end
 
   test "message create rejects client message ids outside the contract" do

@@ -72,6 +72,25 @@ describe('message state', () => {
     ]);
   });
 
+  it('scopes client message identity to its author in every reconciliation path', () => {
+    const ownFailed = { ...message(-7), client_message_id: 'shared-id', client_status: 'failed' as const };
+    const otherCanonical = {
+      ...message(7),
+      client_message_id: 'shared-id',
+      author: { ...message(7).author, id: 99 },
+    };
+    const otherCreated = { event: 'created' as const, channel_id: 1, direct_conversation_id: null, message: otherCanonical };
+
+    expect(mergeMessageEvent([ownFailed], otherCreated)).toEqual([ownFailed, otherCanonical]);
+    expect(reconcileOptimistic([ownFailed], -99, otherCanonical)).toEqual([ownFailed, otherCanonical]);
+    expect(mergeServerAndFailedMessages([otherCanonical], [ownFailed])).toEqual([ownFailed, otherCanonical]);
+    expect(markOptimisticFailed([otherCanonical], ownFailed, 'Timed out')).toEqual([
+      { ...ownFailed, client_error: 'Timed out' },
+      otherCanonical,
+    ]);
+    expect(mergeOlderMessages([ownFailed], [otherCanonical])).toEqual([ownFailed, otherCanonical]);
+  });
+
   it('removes a pinned message when its realtime event deletes it', () => {
     const pinned = { ...message(1), pinned_at: new Date().toISOString() };
     const deleted = { ...pinned, deleted_at: new Date().toISOString() };

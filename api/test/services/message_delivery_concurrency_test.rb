@@ -68,6 +68,8 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
     reply.reload
     assert reply.broadcasts_delivered_at?
     assert reply.thread_broadcasts_delivered_at?
+    assert_empty reply.delivered_recipient_ids(:broadcast_recipient_ids)
+    assert_empty reply.delivered_recipient_ids(:thread_broadcast_recipient_ids)
   ensure
     threads&.each { |thread| thread.kill if thread.alive? }
     UserMessagesChannel.define_singleton_method(:broadcast_to, original_broadcast) if defined?(original_broadcast) && original_broadcast

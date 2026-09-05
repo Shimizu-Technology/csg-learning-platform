@@ -241,7 +241,9 @@ module Api
             message.save!
             persist_files!(message, attachments)
           end
-        rescue ActiveRecord::RecordNotUnique
+        rescue ActiveRecord::RecordNotUnique => e
+          raise unless client_message_id_unique_violation?(e)
+
           existing = existing_message_for_client_id
           raise unless existing
 
@@ -285,8 +287,16 @@ module Api
           error.record.errors.details.fetch(:client_message_id, []).any? { |detail| detail[:error] == :taken }
       end
 
+      def client_message_id_unique_violation?(error)
+        cause = error.cause
+        return false unless cause.respond_to?(:result)
+
+        cause.result.error_field(PG::Result::PG_DIAG_CONSTRAINT_NAME) == "idx_messages_on_author_and_client_message_id"
+      end
+
       def same_message_intent?(message, destination, attachments, mention_user_ids)
-        message.destination == destination &&
+        message.deleted_at.nil? &&
+          message.destination == destination &&
           message.body.to_s == message_params[:body].to_s &&
           message.parent_message_id == message_params[:parent_message_id].presence&.to_i &&
           Array(message.mention_user_ids).sort == mention_user_ids.sort &&

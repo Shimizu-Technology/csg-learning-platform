@@ -105,6 +105,8 @@ export default function ConversationScreen() {
     requestAnimationFrame(() => listRef.current?.scrollToOffset({ animated, offset: 0 }));
   }, []);
 
+  const persistFailed = useCallback((next: Message[]) => { if (userId) void saveFailedMessages(userId, kind, id, next); }, [id, kind, userId]);
+
   const load = useCallback(async () => {
     setLoading(true);
     anchorScrolledRef.current = false;
@@ -121,8 +123,10 @@ export default function ConversationScreen() {
         const nextSummary = 'channel' in result ? result.channel : result.direct_conversation;
         const workspaceResult = await api.workspace(nextSummary.workspace_id);
         const failed = userId ? await loadFailedMessages(userId, kind, id) : [];
+        const mergedMessages = mergeServerAndFailedMessages(result.messages, failed);
         setSummary(nextSummary);
-        setMessages(mergeServerAndFailedMessages(result.messages, failed));
+        setMessages(mergedMessages);
+        persistFailed(mergedMessages);
         setPinnedMessages(result.pinned_messages);
         setMeta(result.meta);
         setMentionUsers(workspaceResult.workspace.members);
@@ -134,7 +138,7 @@ export default function ConversationScreen() {
       setError(null);
     } catch (requestError) { setError((requestError as Error).message); }
     finally { setLoading(false); }
-  }, [anchorMessageId, api, auth.demo, id, kind, userId]);
+  }, [anchorMessageId, api, auth.demo, id, kind, persistFailed, userId]);
 
   useEffect(() => { const frame = requestAnimationFrame(() => void load()); return () => cancelAnimationFrame(frame); }, [load]);
   useEffect(() => auth.demo || loading || error ? undefined : subscribeToMessages(api, kind, id, (payload: MessageEvent) => {
@@ -145,10 +149,10 @@ export default function ConversationScreen() {
       setShowScrollToLatest(true);
       if (!payload.message.mine) setNewMessagesBelow((current) => current + 1);
     }
-    setMessages((current) => mergeMessageEvent(current, payload));
+    setMessages((current) => { const next = mergeMessageEvent(current, payload); persistFailed(next); return next; });
     setPinnedMessages((current) => mergePinnedMessageEvent(current, payload));
     if (follow) scrollToLatest(false);
-  }, setStatus), [api, auth.demo, error, id, kind, loading, scrollToLatest]);
+  }, setStatus), [api, auth.demo, error, id, kind, loading, persistFailed, scrollToLatest]);
 
   useEffect(() => {
     if (!userId || loading) return;
@@ -184,8 +188,6 @@ export default function ConversationScreen() {
     } catch (requestError) { Alert.alert('Could not load earlier messages', (requestError as Error).message); }
     finally { setLoadingOlder(false); }
   };
-
-  const persistFailed = useCallback((next: Message[]) => { if (userId) void saveFailedMessages(userId, kind, id, next); }, [id, kind, userId]);
 
   const send = async (retryMessage?: Message) => {
     const body = (retryMessage ? retryMessage.body : draft).trim();

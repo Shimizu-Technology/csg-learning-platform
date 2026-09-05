@@ -10,6 +10,7 @@ import {
   saveThreadDraft,
 } from '../conversation-storage';
 import { clientMessageIdForSend } from '../message-compose';
+import { mergeMessageEvent } from '../message-state';
 import {
   clearSubmissionDraft,
   clearUserSubmissionDrafts,
@@ -74,6 +75,19 @@ describe('offline authored storage', () => {
     await saveFailedMessages(7, 'channel', 3, [failed]);
 
     expect((await loadFailedMessages(7, 'channel', 3))[0].client_message_id).toBe('conversation-send-1');
+  });
+
+  it('removes a persisted failure after realtime delivers its canonical message', async () => {
+    const author = { id: 7, full_name: 'Student', email: 'student@example.com', role: 'student', avatar_url: null } as const;
+    const failed = { id: -1, author, client_status: 'failed', client_message_id: 'conversation-send-2' } as Message;
+    const canonical = { ...failed, id: 81, client_status: undefined };
+    await saveFailedMessages(7, 'channel', 3, [failed]);
+
+    const restored = await loadFailedMessages(7, 'channel', 3);
+    const merged = mergeMessageEvent(restored, { event: 'created', channel_id: 3, direct_conversation_id: null, message: canonical });
+    await saveFailedMessages(7, 'channel', 3, merged);
+
+    expect(await loadFailedMessages(7, 'channel', 3)).toEqual([]);
   });
 
   it('clears only the signed-out user authored drafts and retry copies', async () => {

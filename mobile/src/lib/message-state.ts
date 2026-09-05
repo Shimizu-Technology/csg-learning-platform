@@ -1,5 +1,18 @@
 import type { Message, MessageEvent } from './types';
 
+function clientMessageKey(message: Message) {
+  return message.client_message_id ? `${message.author.id}:${message.client_message_id}` : null;
+}
+
+function sameClientMessage(left: Message, right: Message) {
+  const leftKey = clientMessageKey(left);
+  return Boolean(leftKey && leftKey === clientMessageKey(right));
+}
+
+function clientMessageKeys(messages: Message[]) {
+  return new Set(messages.map(clientMessageKey).filter((key): key is string => key !== null));
+}
+
 export function sortMessages(messages: Message[]) {
   return [...messages].sort((left, right) => {
     const time = new Date(left.created_at).getTime() - new Date(right.created_at).getTime();
@@ -10,7 +23,7 @@ export function sortMessages(messages: Message[]) {
 export function mergeMessageEvent(messages: Message[], payload: MessageEvent) {
   if (payload.event === 'created') {
     const matchingClientId = payload.message.client_message_id
-      ? messages.find((message) => message.client_message_id === payload.message.client_message_id)?.id
+      ? messages.find((message) => sameClientMessage(message, payload.message))?.id
       : undefined;
     const matchingId = matchingClientId ?? payload.message.id;
     return messages.some((message) => message.id === matchingId)
@@ -34,23 +47,26 @@ export function mergePinnedMessageEvent(messages: Message[], payload: MessageEve
 
 export function reconcileOptimistic(messages: Message[], optimisticId: number, canonical: Message) {
   return sortMessages([
-    ...messages.filter((message) => message.id !== optimisticId && message.id !== canonical.id && (!canonical.client_message_id || message.client_message_id !== canonical.client_message_id)),
+    ...messages.filter((message) => message.id !== optimisticId && message.id !== canonical.id && !sameClientMessage(message, canonical)),
     canonical,
   ]);
 }
 
 export function mergeServerAndFailedMessages(serverMessages: Message[], failedMessages: Message[]) {
-  const deliveredClientIds = new Set(serverMessages.flatMap((message) => message.client_message_id ? [message.client_message_id] : []));
+  const deliveredClientIds = clientMessageKeys(serverMessages);
   return sortMessages([
     ...serverMessages,
-    ...failedMessages.filter((message) => !message.client_message_id || !deliveredClientIds.has(message.client_message_id)),
+    ...failedMessages.filter((message) => {
+      const key = clientMessageKey(message);
+      return !key || !deliveredClientIds.has(key);
+    }),
   ]);
 }
 
 export function markOptimisticFailed(messages: Message[], optimistic: Message, error: string) {
   const alreadyDelivered = optimistic.client_message_id && messages.some((message) =>
     message.id !== optimistic.id &&
-    message.client_message_id === optimistic.client_message_id &&
+    sameClientMessage(message, optimistic) &&
     message.id > 0 &&
     message.client_status !== 'failed'
   );
@@ -66,12 +82,11 @@ export function prependOlderMessages(current: Message[], older: Message[]) {
 }
 
 export function mergeOlderMessages(current: Message[], older: Message[]) {
-  const deliveredClientIds = new Set(older.flatMap((message) => message.client_message_id ? [message.client_message_id] : []));
-  const withoutDeliveredFailures = current.filter((message) =>
-    message.client_status !== 'failed' ||
-    !message.client_message_id ||
-    !deliveredClientIds.has(message.client_message_id)
-  );
+  const deliveredClientIds = clientMessageKeys(older);
+  const withoutDeliveredFailures = current.filter((message) => {
+    const key = clientMessageKey(message);
+    return message.client_status !== 'failed' || !key || !deliveredClientIds.has(key);
+  });
   return prependOlderMessages(withoutDeliveredFailures, older);
 }
 

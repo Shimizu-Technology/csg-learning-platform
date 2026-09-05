@@ -35,7 +35,7 @@ class MessageDeliveryServiceTest < ActiveSupport::TestCase
     assert_equal 1, attempts[author.id]
     assert_equal 2, attempts[recipient.id]
     assert_equal 1, notification_attempts
-    assert_equal [ author.id, recipient.id ].sort, message.reload.delivered_recipient_ids(:broadcast_recipient_ids).sort
+    assert_empty message.reload.delivered_recipient_ids(:broadcast_recipient_ids)
     assert message.notifications_delivered_at?
     assert message.broadcasts_delivered_at?
   ensure

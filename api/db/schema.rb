@@ -463,20 +463,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_090000) do
   create_table "messages", force: :cascade do |t|
     t.bigint "author_id", null: false
     t.text "body"
+    t.datetime "broadcast_delivery_started_at"
     t.jsonb "broadcast_recipient_ids", default: [], null: false
     t.datetime "broadcasts_delivered_at"
     t.bigint "channel_id"
-    t.string "client_message_id"
+    t.string "client_message_id", limit: 100
     t.datetime "created_at", null: false
     t.datetime "deleted_at"
     t.boolean "delivery_push_requested", default: true, null: false
     t.bigint "direct_conversation_id"
     t.datetime "edited_at"
     t.bigint "mention_user_ids", default: [], null: false, array: true
+    t.datetime "notifications_delivery_started_at"
     t.datetime "notifications_delivered_at"
     t.bigint "parent_message_id"
     t.datetime "pinned_at"
     t.bigint "pinned_by_id"
+    t.datetime "thread_broadcast_delivery_started_at"
     t.jsonb "thread_broadcast_recipient_ids", default: [], null: false
     t.datetime "thread_broadcasts_delivered_at"
     t.datetime "updated_at", null: false
