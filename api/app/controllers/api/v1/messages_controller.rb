@@ -109,7 +109,7 @@ module Api
           render json: { errors: [ "Message delivery is still finishing; try again" ] }, status: :service_unavailable
           return
         end
-        return unless deliver_committed_message(@message)
+        return unless deliver_committed_message(@message, operation: :destroy)
 
         render json: { message: message_json(@message) }
       end
@@ -335,7 +335,7 @@ module Api
           persisted_attachment_intent(message) == requested_attachment_intent(attachments)
       end
 
-      def deliver_committed_message(message)
+      def deliver_committed_message(message, operation: :create)
         MessageDeliveryService.created(message)
         true
       rescue StandardError => error
@@ -348,7 +348,7 @@ module Api
         # told the write was accepted because retrying would duplicate it.
         return true if ActiveJob::Base.queue_adapter_name == "solid_queue"
 
-        if message.client_message_id.blank?
+        if operation == :destroy || message.client_message_id.blank?
           render json: { message: message_json(message.reload), delivery_pending: true }, status: :accepted
           return false
         end

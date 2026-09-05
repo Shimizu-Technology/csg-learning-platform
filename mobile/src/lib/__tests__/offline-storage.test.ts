@@ -29,6 +29,8 @@ import {
 import { beginUserStorageCleanup } from '../user-storage-lifecycle';
 import type { Message } from '../types';
 
+const storedAuthor = { id: 7, full_name: 'Student', email: 'student@example.com', role: 'student', avatar_url: null } as const;
+
 jest.mock('@react-native-async-storage/async-storage', () => jest.requireActual('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 
 beforeEach(async () => {
@@ -187,10 +189,20 @@ describe('offline authored storage', () => {
   });
 
   it('persists failed conversation retry identifiers', async () => {
-    const failed = { client_status: 'failed', client_message_id: 'conversation-send-1' } as Message;
+    const failed = { author: storedAuthor, client_status: 'failed', client_message_id: 'conversation-send-1' } as Message;
     await saveFailedMessages(7, 'channel', 3, [failed]);
 
     expect((await loadFailedMessages(7, 'channel', 3))[0].client_message_id).toBe('conversation-send-1');
+  });
+
+  it('discards malformed retry records before message reconciliation', async () => {
+    await AsyncStorage.setItem(failedMessagesKey(7, 'channel', 3), JSON.stringify([{
+      id: -1,
+      client_status: 'failed',
+      client_message_id: 'missing-author',
+    }]));
+
+    expect(await loadFailedMessages(7, 'channel', 3)).toEqual([]);
   });
 
   it('restores an interrupted conversation retry until server history confirms it', async () => {
@@ -230,7 +242,7 @@ describe('offline authored storage', () => {
   });
 
   it('serializes failed-message writes so an older save cannot beat realtime cleanup', async () => {
-    const failed = { id: -1, client_status: 'failed', client_message_id: 'conversation-send-3' } as Message;
+    const failed = { id: -1, author: storedAuthor, client_status: 'failed', client_message_id: 'conversation-send-3' } as Message;
     const order: string[] = [];
     let releaseFirstWrite = () => {};
     let markFirstWriteStarted = () => {};
@@ -259,7 +271,7 @@ describe('offline authored storage', () => {
   });
 
   it('retries transient failed-message persistence errors with a bound', async () => {
-    const failed = { id: -1, client_status: 'failed', client_message_id: 'retry-persistence' } as Message;
+    const failed = { id: -1, author: storedAuthor, client_status: 'failed', client_message_id: 'retry-persistence' } as Message;
     const setItem = jest.spyOn(AsyncStorage, 'setItem');
     setItem.mockClear();
     setItem.mockRejectedValueOnce(new Error('Storage unavailable'));
@@ -295,7 +307,7 @@ describe('offline authored storage', () => {
 
     const malformedLoad = loadFailedMessages(7, 'channel', 3);
     await readStarted;
-    const valid = { id: -1, client_status: 'failed', client_message_id: 'newer-send' } as Message;
+    const valid = { id: -1, author: storedAuthor, client_status: 'failed', client_message_id: 'newer-send' } as Message;
     await saveFailedMessages(7, 'channel', 3, [valid]);
     releaseRead();
     expect(await malformedLoad).toEqual([]);
@@ -402,7 +414,7 @@ describe('offline authored storage', () => {
   });
 
   it('clears only the signed-out user authored drafts and retry copies', async () => {
-    const failed = { client_status: 'failed' } as Message;
+    const failed = { author: storedAuthor, client_status: 'failed' } as Message;
     await saveConversationDraft(7, 'channel', 3, 'student seven');
     await saveThreadDraft(7, 88, 'student seven thread');
     await saveFailedMessages(7, 'channel', 3, [failed]);

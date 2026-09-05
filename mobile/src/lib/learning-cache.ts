@@ -73,8 +73,12 @@ export function createLearningPersister(userId: number, loadDatabase: () => Prom
   };
 }
 
-export async function clearLearningCache(userId: number, cleanup: UserStorageCleanup = beginUserStorageCleanup(userId)) {
-  const db = await database();
+export async function clearLearningCache(
+  userId: number,
+  cleanup: UserStorageCleanup = beginUserStorageCleanup(userId),
+  loadDatabase: () => Promise<LearningDatabase> = database,
+) {
+  const db = await loadDatabase();
   if (!userStorageCleanupIsCurrent(cleanup)) return;
   await db.runAsync(`DELETE FROM ${CACHE_TABLE} WHERE cache_key = ?`, learningCacheKey(userId));
 }

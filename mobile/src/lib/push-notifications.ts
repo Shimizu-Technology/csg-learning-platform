@@ -34,7 +34,8 @@ export async function registerPushNotifications(api: CsgApi, isActive: () => boo
   try {
     await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
   } catch (error) {
-    if (!isActive()) await api.unregisterDevice(token).catch(() => undefined);
+    // Without a persisted token, sign-out cannot unregister this device later.
+    await api.unregisterDevice(token).catch(() => undefined);
     throw error;
   }
   if (!isActive()) {

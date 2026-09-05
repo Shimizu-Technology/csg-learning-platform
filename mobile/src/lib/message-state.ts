@@ -1,7 +1,7 @@
 import type { Message, MessageEvent } from './types';
 
 function clientMessageKey(message: Message) {
-  return message.client_message_id ? `${message.author.id}:${message.client_message_id}` : null;
+  return message.client_message_id && message.author ? `${message.author.id}:${message.client_message_id}` : null;
 }
 
 function sameClientMessage(left: Message, right: Message) {

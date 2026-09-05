@@ -810,6 +810,24 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     NotificationDeliveryService.define_singleton_method(:message_created, original_delivery) if defined?(original_delivery) && original_delivery
   end
 
+  test "inline deletion failure acknowledges the committed removal as pending" do
+    message = Message.create!(channel: @channel, author: @student, body: "Remove once", client_message_id: "delete-delivery-pending")
+    original_delivery = MessageDeliveryService.method(:created)
+    MessageDeliveryService.define_singleton_method(:created) { |_message| raise "broadcast interrupted" }
+
+    as_user(@student) do
+      delete "/api/v1/messages/#{message.id}", headers: auth_headers, as: :json
+    end
+
+    assert_response :accepted
+    payload = JSON.parse(response.body)
+    assert payload.fetch("delivery_pending")
+    assert payload.dig("message", "deleted_at")
+    assert message.reload.deleted?
+  ensure
+    MessageDeliveryService.define_singleton_method(:created, original_delivery) if defined?(original_delivery) && original_delivery
+  end
+
   test "deleted messages cannot be replayed" do
     params = { body: "Delete this", client_message_id: "message-deleted-retry" }
     as_user(@student) do

@@ -22,7 +22,9 @@ class AddDeliveryStateToMessages < ActiveRecord::Migration[8.1]
 
   def up
     execute "SET LOCAL lock_timeout = '5s'"
-    COLUMNS.each { |name, (type, options)| add_column :messages, name, type, **options }
+    change_table :messages, bulk: true do |table|
+      COLUMNS.each { |name, (type, options)| table.column name, type, **options }
+    end
   end
 
   def down

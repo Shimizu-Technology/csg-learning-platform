@@ -37,7 +37,15 @@ class MessageDeliveryService
         end
         yield
       ensure
-        connection.select_value("SELECT pg_advisory_unlock(#{connection.quote(lock_key)})") if locked
+        if locked
+          begin
+            connection.select_value("SELECT pg_advisory_unlock(#{connection.quote(lock_key)})")
+          rescue StandardError => unlock_error
+            Rails.logger.error(
+              "[MessageDeliveryService] advisory_unlock_failed message_id=#{message.id} error=#{unlock_error.class}"
+            )
+          end
+        end
       end
     end
 

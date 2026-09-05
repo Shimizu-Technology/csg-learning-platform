@@ -148,6 +148,7 @@ export async function loadFailedMessages(userId: number, kind: ConversationKind,
 
 export function retryableMessagesForStorage(messages: Message[]) {
   return messages.flatMap((message) => {
+    if (!message || typeof message !== 'object' || !message.author || !Number.isInteger(message.author.id)) return [];
     if (message.client_status === 'failed') return [message];
     if (message.client_status !== 'sending') return [];
     return [{

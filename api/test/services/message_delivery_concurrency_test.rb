@@ -188,13 +188,17 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
     message = Message.create!(channel: @cohort.channels.find_by!(name: "Class Chat"), author: @author, body: "Bounded lock")
     first_entered = Queue.new
     release_first = Queue.new
+    errors = Queue.new
     first = Thread.new do
       MessageDeliveryService.synchronize_delivery(Message.find(message.id)) do
         first_entered << true
         release_first.pop
       end
+    rescue StandardError => error
+      errors << error
+      first_entered << false
     end
-    first_entered.pop
+    assert Timeout.timeout(5) { first_entered.pop }, "active delivery lock did not start: #{errors.empty? ? 'no worker error' : errors.pop.message}"
 
     error = assert_raises(MessageDeliveryService::DeliveryLockTimeout) do
       MessageDeliveryService.synchronize_delivery(Message.find(message.id), wait_budget: 0) { flunk "contended lock should not yield" }
@@ -216,5 +220,31 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
     end
 
     assert_equal [ :outer, :inner ], entered
+  end
+
+  test "advisory unlock failures do not replace the delivery failure" do
+    message = Message.create!(channel: @cohort.channels.find_by!(name: "Class Chat"), author: @author, body: "Unlock failure")
+    connection = ActiveRecord::Base.connection
+    select_value_was_owned = connection.singleton_methods(false).include?(:select_value)
+    original_select_value = connection.method(:select_value)
+    connection.define_singleton_method(:select_value) do |query, *arguments, **options|
+      raise "unlock failed" if query.to_s.include?("pg_advisory_unlock")
+
+      original_select_value.call(query, *arguments, **options)
+    end
+
+    error = assert_raises(RuntimeError) do
+      MessageDeliveryService.synchronize_delivery(message) { raise "delivery failed" }
+    end
+
+    assert_equal "delivery failed", error.message
+  ensure
+    if defined?(connection) && defined?(original_select_value) && original_select_value
+      if defined?(select_value_was_owned) && select_value_was_owned
+        connection.define_singleton_method(:select_value, original_select_value)
+      elsif connection.singleton_methods(false).include?(:select_value)
+        connection.singleton_class.send(:remove_method, :select_value)
+      end
+    end
   end
 end
