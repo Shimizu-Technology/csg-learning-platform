@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { FormattedMessage, MessageEditSurface, mergeMessageWindow } from './Messages'
+import { FormattedMessage, MessageEditSurface, mergeMessageWindow, typingIndicatorLabel } from './Messages'
 import type { ChannelMessage } from '../../types/api'
 
 function message(overrides: Partial<ChannelMessage>): ChannelMessage {
@@ -95,5 +95,16 @@ describe('message window reconciliation', () => {
 
     expect(mergeMessageWindow([old, stale], [latest], true).map((item) => item.id)).toEqual([1, 3])
     expect(mergeMessageWindow([stale], [latest], false).map((item) => item.id)).toEqual([3])
+  })
+})
+
+describe('typingIndicatorLabel', () => {
+  const typingUser = (id: number, full_name: string) => ({ id, full_name, avatar_url: null })
+
+  it('summarizes one, two, and several people without exposing account details', () => {
+    expect(typingIndicatorLabel([])).toBe('')
+    expect(typingIndicatorLabel([typingUser(1, 'Ada')])).toBe('Ada is typing…')
+    expect(typingIndicatorLabel([typingUser(1, 'Ada'), typingUser(2, 'Grace')])).toBe('Ada and Grace are typing…')
+    expect(typingIndicatorLabel([typingUser(1, 'Ada'), typingUser(2, 'Grace'), typingUser(3, 'Linus')])).toBe('Ada, Grace, and 1 more are typing…')
   })
 })

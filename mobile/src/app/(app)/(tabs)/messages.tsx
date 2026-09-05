@@ -10,7 +10,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/screen-states
 import { fontScaleLimits, fonts, palette, typography } from '@/constants/csg-theme';
 import { demoChannels, demoDms } from '@/lib/demo-data';
 import { subscribeToUserMessages } from '@/lib/cable';
-import type { ChannelSummary, DirectConversationSummary, MessageEvent } from '@/lib/types';
+import type { ChannelSummary, DirectConversationSummary, RealtimeMessageEvent } from '@/lib/types';
 import { buildWorkspaceCards } from '@/lib/workspaces';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
@@ -52,7 +52,8 @@ export default function MessagesScreen() {
   useFocusEffect(useCallback(() => { void load(); }, [load]));
   useFocusEffect(useCallback(() => {
     if (auth.demo || loading || error) return undefined;
-    return subscribeToUserMessages(api, (event: MessageEvent) => {
+    return subscribeToUserMessages(api, (event: RealtimeMessageEvent) => {
+      if (event.event === 'typing') return;
       const channel = event.channel;
       const conversation = event.direct_conversation;
       if (channel) setChannels((current) => [channel, ...current.filter((item) => item.id !== channel.id)]);

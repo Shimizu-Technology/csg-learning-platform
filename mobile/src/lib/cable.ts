@@ -1,25 +1,41 @@
-import type { MessageEvent } from './types';
+import type { MessageEvent, MessageTypingEvent, RealtimeMessageEvent } from './types';
 import { CsgApi, websocketOrigin, websocketUrl } from './api';
 
 type Status = 'connecting' | 'connected' | 'offline';
 
-interface CableEnvelope { type?: string; identifier?: string; message?: MessageEvent }
+interface CableEnvelope { type?: string; identifier?: string; message?: RealtimeMessageEvent }
+export type CableSubscription = (() => void) & {
+  perform: (action: string, data?: Record<string, unknown>) => boolean;
+};
 type NativeWebSocketConstructor = new (
   url: string,
   protocols?: string | string[],
   options?: { headers?: Record<string, string> },
 ) => WebSocket;
 
-export function parseCableEnvelope(raw: string): MessageEvent | null {
+export function parseCableEnvelope(raw: string): RealtimeMessageEvent | null {
   try {
     const parsed = JSON.parse(raw) as CableEnvelope;
-    return parsed.message?.event ? parsed.message : null;
+    const event = parsed.message;
+    if (!event) return null;
+    if (event.event === 'typing') {
+      return (typeof event.channel_id === 'number' || event.channel_id === null)
+        && (typeof event.direct_conversation_id === 'number' || event.direct_conversation_id === null)
+        && (typeof event.thread_root_id === 'number' || event.thread_root_id === null)
+        && typeof event.active === 'boolean'
+        && typeof event.user?.id === 'number'
+        && typeof event.user.full_name === 'string'
+        && (typeof event.user.avatar_url === 'string' || event.user.avatar_url === null)
+        ? event
+        : null;
+    }
+    return ['created', 'updated', 'deleted'].includes(event.event) && event.message ? event : null;
   } catch { return null; }
 }
 
 export function subscribeToUserMessages(
   api: CsgApi,
-  onEvent: (event: MessageEvent) => void,
+  onEvent: (event: RealtimeMessageEvent) => void,
   onStatus: (status: Status) => void = () => undefined,
 ) {
   let socket: WebSocket | null = null;
@@ -60,12 +76,18 @@ export function subscribeToUserMessages(
   };
   void connect();
 
-  return () => {
+  const subscription = (() => {
     cancelled = true;
     if (reconnectTimer) clearTimeout(reconnectTimer);
     if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ command: 'unsubscribe', identifier }));
     socket?.close();
+  }) as CableSubscription;
+  subscription.perform = (action, data = {}) => {
+    if (cancelled || socket?.readyState !== WebSocket.OPEN) return false;
+    socket.send(JSON.stringify({ command: 'message', identifier, data: JSON.stringify({ action, ...data }) }));
+    return true;
   };
+  return subscription;
 }
 
 export function subscribeToMessages(
@@ -74,9 +96,12 @@ export function subscribeToMessages(
   id: number,
   onEvent: (event: MessageEvent) => void,
   onStatus: (status: Status) => void,
+  onTyping: (event: MessageTypingEvent) => void = () => undefined,
 ) {
   return subscribeToUserMessages(api, (event) => {
     const matches = kind === 'channel' ? event.channel_id === id : event.direct_conversation_id === id;
-    if (matches) onEvent(event);
+    if (!matches) return;
+    if (event.event === 'typing') onTyping(event);
+    else onEvent(event);
   }, onStatus);
 }

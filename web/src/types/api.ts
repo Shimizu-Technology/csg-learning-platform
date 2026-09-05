@@ -682,6 +682,15 @@ export interface ChannelMessageEvent {
   direct_conversation?: DirectConversationSummary | null;
 }
 
+export interface MessageTypingEvent {
+  event: 'typing';
+  channel_id: number | null;
+  direct_conversation_id: number | null;
+  thread_root_id: number | null;
+  active: boolean;
+  user: Pick<UserSummary, 'id' | 'full_name' | 'avatar_url'>;
+}
+
 export interface DirectConversationsResponse {
   direct_conversations: DirectConversationSummary[];
 }

@@ -13,11 +13,12 @@ import { ImagePreview } from '@/components/image-preview';
 import { MessageBubble } from '@/components/message-bubble';
 import { ReactionDetailsSheet } from '@/components/reaction-details-sheet';
 import { ErrorState, LoadingState } from '@/components/screen-states';
+import { TypingIndicator } from '@/components/typing-indicator';
 import { VoiceDraftButton, VoiceDraftPanel } from '@/components/voice-draft-controls';
 import { fontScaleLimits, fonts, palette } from '@/constants/csg-theme';
 import { useVoiceDraft } from '@/hooks/use-voice-draft';
 import { pendingAttachment, uploadAttachment } from '@/lib/attachments';
-import { subscribeToMessages } from '@/lib/cable';
+import { subscribeToMessages, type CableSubscription } from '@/lib/cable';
 import { formatConversationDay, isDifferentConversationDay, isNearConversationBottom } from '@/lib/conversation-scroll';
 import { conversationDraftKey, loadConversationDraft, loadFailedMessages, retryableMessagesForStorage, saveConversationDraftWithRetry, saveFailedMessagesWithRetry } from '@/lib/conversation-storage';
 import { demoChannels, demoDms, demoMessages, demoUser } from '@/lib/demo-data';
@@ -26,7 +27,8 @@ import { clientMessageIdForSend, conversationOperationIdentity, draftAfterSendCo
 import { messagePreview } from '@/lib/message-format';
 import { markOptimisticFailed, mergeMessageEvent, mergeOlderMessages, mergePinnedMessageEvent, mergeServerAndFailedMessages, reconcileOptimistic, sortMessages, toggleOwnReaction } from '@/lib/message-state';
 import { REACTION_OPTIONS } from '@/lib/reactions';
-import type { ChannelSummary, ConversationKind, DirectConversationSummary, Message, MessageEvent, MessageWindowMeta, PendingAttachment, UserSummary } from '@/lib/types';
+import type { TypingUser } from '@/lib/typing';
+import type { ChannelSummary, ConversationKind, DirectConversationSummary, Message, MessageEvent, MessageTypingEvent, MessageWindowMeta, PendingAttachment, UserSummary } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 
@@ -61,6 +63,10 @@ export default function ConversationScreen() {
   const loadOlderRequestRef = useRef(0);
   const sendRequestRef = useRef(0);
   const sendAbortRef = useRef<AbortController | null>(null);
+  const realtimeSubscriptionRef = useRef<CableSubscription | null>(null);
+  const typingExpiryTimersRef = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+  const typingStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const outboundTypingRef = useRef<{ active: boolean; lastSentAt: number } | null>(null);
   const [summary, setSummary] = useState<ChannelSummary | DirectConversationSummary | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
@@ -76,6 +82,8 @@ export default function ConversationScreen() {
   const [error, setError] = useState<string | null>(null);
   const [draftReadyOperationIdentity, setDraftReadyOperationIdentity] = useState<string | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>(auth.demo ? 'connected' : 'connecting');
+  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
+  const [realtimeSubscriptionVersion, setRealtimeSubscriptionVersion] = useState(0);
   const [showScrollToLatest, setShowScrollToLatest] = useState(Boolean(anchorMessageId));
   const [newMessagesBelow, setNewMessagesBelow] = useState(0);
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
@@ -258,18 +266,92 @@ export default function ConversationScreen() {
     return () => { active = false; };
   }, [auth.demo, id, kind, loadedOperationIdentity, loading, messages, operationIdentity, userId]);
 
-  useEffect(() => auth.demo || loading || error || loadedOperationIdentity !== operationIdentity ? undefined : subscribeToMessages(api, kind, id, (payload: MessageEvent) => {
-    if ((kind === 'channel' && payload.channel_id !== id) || (kind === 'dm' && payload.direct_conversation_id !== id)) return;
-    if (payload.message.parent_message_id && payload.event === 'created') return;
-    const follow = payload.message.mine || nearBottomRef.current;
-    if (payload.event === 'created' && !follow) {
-      setShowScrollToLatest(true);
-      if (!payload.message.mine) setNewMessagesBelow((current) => current + 1);
+  useEffect(() => {
+    if (auth.demo || loading || error || loadedOperationIdentity !== operationIdentity) return undefined;
+    const typingTimers = typingExpiryTimersRef.current;
+    setTypingUsers([]);
+    const subscription = subscribeToMessages(api, kind, id, (payload: MessageEvent) => {
+      if ((kind === 'channel' && payload.channel_id !== id) || (kind === 'dm' && payload.direct_conversation_id !== id)) return;
+      if (payload.message.parent_message_id && payload.event === 'created') return;
+      if (payload.message.parent_message_id === null) {
+        const typingTimer = typingTimers.get(payload.message.author.id);
+        if (typingTimer) clearTimeout(typingTimer);
+        typingTimers.delete(payload.message.author.id);
+        setTypingUsers((current) => current.filter((typingUser) => typingUser.id !== payload.message.author.id));
+      }
+      const follow = payload.message.mine || nearBottomRef.current;
+      if (payload.event === 'created' && !follow) {
+        setShowScrollToLatest(true);
+        if (!payload.message.mine) setNewMessagesBelow((current) => current + 1);
+      }
+      setMessages((current) => mergeMessageEvent(current, payload));
+      setPinnedMessages((current) => mergePinnedMessageEvent(current, payload));
+      if (follow) scrollToLatest(false);
+    }, (nextStatus) => {
+      setStatus(nextStatus);
+      if (nextStatus === 'connected') {
+        outboundTypingRef.current = null;
+        setRealtimeSubscriptionVersion((current) => current + 1);
+      }
+    }, (event: MessageTypingEvent) => {
+      if (event.user.id === userId || event.thread_root_id !== null) return;
+      const existingTimer = typingTimers.get(event.user.id);
+      if (existingTimer) clearTimeout(existingTimer);
+      typingTimers.delete(event.user.id);
+      setTypingUsers((current) => event.active
+        ? [...current.filter((typingUser) => typingUser.id !== event.user.id), event.user]
+        : current.filter((typingUser) => typingUser.id !== event.user.id));
+      if (event.active) {
+        typingTimers.set(event.user.id, setTimeout(() => {
+          typingTimers.delete(event.user.id);
+          setTypingUsers((current) => current.filter((typingUser) => typingUser.id !== event.user.id));
+        }, 5_000));
+      }
+    });
+    realtimeSubscriptionRef.current = subscription;
+    return () => {
+      const outbound = outboundTypingRef.current;
+      if (outbound?.active) subscription.perform('typing', { target_type: kind, target_id: id, thread_root_id: null, active: false });
+      outboundTypingRef.current = null;
+      if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current);
+      typingStopTimerRef.current = null;
+      typingTimers.forEach((timer) => clearTimeout(timer));
+      typingTimers.clear();
+      realtimeSubscriptionRef.current = null;
+      subscription();
+    };
+  }, [api, auth.demo, error, id, kind, loadedOperationIdentity, loading, operationIdentity, scrollToLatest, userId]);
+
+  useEffect(() => {
+    const subscription = realtimeSubscriptionRef.current;
+    const active = Boolean(draft.trim()) && !editingMessage;
+    const previous = outboundTypingRef.current;
+    const send = (nextActive: boolean) => subscription?.perform('typing', { target_type: kind, target_id: id, thread_root_id: null, active: nextActive }) ?? false;
+
+    if (previous?.active && !active) {
+      send(false);
+      outboundTypingRef.current = null;
     }
-    setMessages((current) => mergeMessageEvent(current, payload));
-    setPinnedMessages((current) => mergePinnedMessageEvent(current, payload));
-    if (follow) scrollToLatest(false);
-  }, setStatus), [api, auth.demo, error, id, kind, loadedOperationIdentity, loading, operationIdentity, scrollToLatest]);
+    if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current);
+    typingStopTimerRef.current = null;
+    if (!subscription || !active) return;
+
+    const now = Date.now();
+    if (!previous?.active || now - previous.lastSentAt >= 2_000) {
+      if (send(true)) outboundTypingRef.current = { active: true, lastSentAt: now };
+    }
+    typingStopTimerRef.current = setTimeout(() => {
+      if (outboundTypingRef.current?.active) send(false);
+      outboundTypingRef.current = null;
+      typingStopTimerRef.current = null;
+    }, 4_000);
+  }, [draft, editingMessage, id, kind, realtimeSubscriptionVersion]);
+
+  useEffect(() => {
+    typingExpiryTimersRef.current.forEach((timer) => clearTimeout(timer));
+    typingExpiryTimersRef.current.clear();
+    setTypingUsers([]);
+  }, [conversationIdentity]);
 
   useEffect(() => {
     if (!userId || loading || draftReadyOperationIdentity !== operationIdentity) return;
@@ -535,6 +617,7 @@ export default function ConversationScreen() {
         {!!attachments.length && <ScrollView horizontal keyboardShouldPersistTaps="handled" contentContainerStyle={styles.attachmentTray}>{attachments.map((attachment) => <View key={attachment.local_id} style={styles.pendingAttachment}><Paperclip color={palette.rubySoft} size={14} /><View style={styles.pendingCopy}><Text numberOfLines={1} style={styles.pendingName}>{attachment.filename}</Text><Text style={styles.pendingStatus}>{attachment.status === 'uploading' ? `${Math.round(attachment.progress * 100)}%` : 'Ready to send'}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Remove ${attachment.filename}`} onPress={() => setAttachments((current) => current.filter((item) => item.local_id !== attachment.local_id))} style={styles.removeAttachment}><X color={palette.muted} size={14} /></Pressable></View>)}</ScrollView>}
         {!editingMessage && <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />}
         {editingMessage && <View style={styles.editBanner}><Edit3 color={palette.rubySoft} size={15} /><Text style={styles.editText}>Editing message</Text><Pressable accessibilityRole="button" accessibilityLabel="Cancel editing" onPress={() => { setEditingMessage(null); setEditDraft(''); setEditSelection({ start: 0, end: 0 }); }} style={styles.editClose}><X color={palette.muted} size={16} /></Pressable></View>}
+        <TypingIndicator users={typingUsers} />
         <ComposerLimitNotice value={composerValue} />
         <View style={styles.composer}><Pressable accessibilityRole="button" accessibilityLabel="Add an attachment" disabled={sending || Boolean(editingMessage)} onPress={() => Alert.alert('Add an attachment', undefined, [{ text: 'Photo library', onPress: () => void pickImage() }, { text: 'Choose a file', onPress: () => void pickDocument() }, { text: 'Cancel', style: 'cancel' }])} style={styles.attachButton}><Paperclip color={palette.muted} size={19} /></Pressable><VoiceDraftButton state={voiceDraft.state} disabled={sending || Boolean(editingMessage)} onPress={() => void voiceDraft.start()} /><TextInput accessibilityLabel={editingMessage ? 'Edit message' : 'Message composer'} accessibilityHint={editingMessage ? 'Update the selected message' : `Enter a message for ${title}`} maxFontSizeMultiplier={fontScaleLimits.content} value={composerValue} selection={composerSelection} onSelectionChange={(event) => updateComposerSelection(event.nativeEvent.selection)} onChangeText={(value) => { if (messageBodyChangeAllowed(composerValue, value)) updateComposerValue(value); }} onFocus={() => { keyboardShouldFollowRef.current = nearBottomRef.current; if (nearBottomRef.current) scrollToLatest(false); }} placeholder={editingMessage ? 'Edit message' : `Message ${kind === 'channel' ? '#' : ''}${title}`} placeholderTextColor={palette.quiet} multiline style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel={editingMessage ? 'Save edit' : 'Send message'} disabled={!composerHasContent || !composerWithinLimit || sending} onPress={() => void (editingMessage ? saveEdit() : send())} style={({ pressed }) => [styles.send, (!composerHasContent || !composerWithinLimit || sending) && styles.sendDisabled, pressed && styles.pressed]}><Send color={palette.text} size={19} /></Pressable></View>
       </KeyboardAvoidingView>
@@ -542,7 +625,7 @@ export default function ConversationScreen() {
       <Modal visible={Boolean(selectedMessage)} transparent animationType="fade" onRequestClose={() => setSelectedMessage(null)}><View style={styles.modalRoot}><Pressable accessibilityRole="button" accessibilityLabel="Close message actions" style={StyleSheet.absoluteFill} onPress={() => setSelectedMessage(null)} /><View style={styles.actionSheet}><View style={styles.sheetHandle} /><Text style={styles.sheetTitle}>Message actions</Text>{selectedMessage && <>
         {!selectedMessage.deleted_at && !selectedMessage.blocked && <View style={styles.reactionPicker}>{REACTION_OPTIONS.map(({ value, label, Icon }) => <Pressable key={value} accessibilityRole="button" accessibilityLabel={label} onPress={() => { void toggleReaction(selectedMessage, value); setSelectedMessage(null); }} style={styles.reactionButton}><Icon color={palette.text} size={20} /><Text style={styles.reactionLabel}>{label}</Text></Pressable>)}</View>}
         {!selectedMessage.blocked && <Action icon={MessageSquareReply} label="Reply in thread" onPress={() => { openThread(selectedMessage); setSelectedMessage(null); }} />}
-        {!!selectedMessage.body && <Action icon={ArrowDownToLine} label="Copy message" onPress={() => { void Clipboard.setStringAsync(selectedMessage.body); setSelectedMessage(null); }} />}
+        {!!selectedMessage.body && !selectedMessage.blocked && <Action icon={ArrowDownToLine} label="Copy message" onPress={() => { void Clipboard.setStringAsync(selectedMessage.body); setSelectedMessage(null); }} />}
         {canManage && <Action icon={Pin} label={selectedMessage.pinned_at ? 'Unpin message' : 'Pin message'} onPress={() => void togglePin(selectedMessage)} />}
         {!selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Flag} label="Report message" destructive onPress={() => { reportMessage(selectedMessage); setSelectedMessage(null); }} />}
         {!selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Flag} label={`Report ${selectedMessage.author.full_name}`} destructive onPress={() => { reportUser(selectedMessage); setSelectedMessage(null); }} />}

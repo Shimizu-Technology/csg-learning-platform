@@ -53,6 +53,20 @@ export function composerDestinationKey(userId: number, target: MessageTargetIden
   return `csg-message-draft:${userId}:${target.type}:${target.id}:${threadRootId ?? 'root'}`
 }
 
+export function composerBodyMatchesDestination(
+  bodyDestinationKey: string | null,
+  userId: number | undefined,
+  target: MessageTargetIdentity | null,
+  threadRootId: number | null,
+) {
+  return Boolean(
+    bodyDestinationKey
+    && userId
+    && target
+    && bodyDestinationKey === composerDestinationKey(userId, target, threadRootId),
+  )
+}
+
 export function failedSendsKey(userId: number, target: MessageTargetIdentity) {
   return `csg-message-failures:${userId}:${target.type}:${target.id}`
 }
