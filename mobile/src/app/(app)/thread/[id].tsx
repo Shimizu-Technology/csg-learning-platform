@@ -45,6 +45,7 @@ export default function ThreadScreen() {
   const [imagePreview, setImagePreview] = useState<{ attachments: Message['attachments']; attachmentId: number } | null>(null);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingDraftRef = useRef<{ userId: number; rootId: number; body: string; clientMessageId: string | null } | null>(null);
+  const loadRequestRef = useRef(0);
   const failedSendRef = useRef<FailedSendIntent | null>(null);
   const draftRef = useRef(draft);
   const voiceDraft = useVoiceDraft({
@@ -78,11 +79,20 @@ export default function ThreadScreen() {
     return true;
   }, [rootId, userId]);
 
+  const flushPendingDraft = useCallback(() => {
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    const pending = pendingDraftRef.current;
+    pendingDraftRef.current = null;
+    if (pending) void saveThreadDraft(pending.userId, pending.rootId, pending.body, pending.clientMessageId).catch(() => undefined);
+  }, []);
+
   const load = useCallback(async () => {
+    const requestId = ++loadRequestRef.current;
     setLoading(true);
     try {
       if (userId && !auth.demo) {
         const storedDraft = await loadStoredThreadDraft(userId, rootId);
+        if (requestId !== loadRequestRef.current) return;
         draftRef.current = storedDraft.body;
         setDraft(storedDraft.body);
         failedSendRef.current = storedDraft.clientMessageId
@@ -113,17 +123,28 @@ export default function ThreadScreen() {
         return;
       }
       const [result, workspace] = await Promise.all([api.messageThread(rootId), api.workspace(workspaceId)]);
+      if (requestId !== loadRequestRef.current) return;
       setRoot(result.root_message);
       setReplies(result.replies);
       const confirmedReply = result.replies.find((reply) => reply.client_message_id === failedSendRef.current?.clientMessageId);
       if (confirmedReply) acknowledgeSentReply(confirmedReply);
       setUsers(workspace.workspace.members);
       setError(null);
-    } catch (requestError) { setError((requestError as Error).message); }
-    finally { setLoading(false); }
+    } catch (requestError) {
+      if (requestId === loadRequestRef.current) setError((requestError as Error).message);
+    } finally {
+      if (requestId === loadRequestRef.current) setLoading(false);
+    }
   }, [acknowledgeSentReply, api, auth.demo, conversationId, kind, rootId, userId, workspaceId]);
 
-  useEffect(() => { const frame = requestAnimationFrame(() => void load()); return () => cancelAnimationFrame(frame); }, [load]);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => void load());
+    return () => {
+      cancelAnimationFrame(frame);
+      loadRequestRef.current += 1;
+      flushPendingDraft();
+    };
+  }, [flushPendingDraft, load]);
   useEffect(() => auth.demo || loading || error ? undefined : subscribeToMessages(api, kind, conversationId, (event: MessageEvent) => {
     if (event.message.id === rootId) setRoot(event.event === 'deleted' ? null : event.message);
     else if (event.message.parent_message_id === rootId) {
@@ -141,12 +162,6 @@ export default function ThreadScreen() {
     draftTimerRef.current = setTimeout(() => void saveThreadDraft(pending.userId, pending.rootId, pending.body, pending.clientMessageId).then(() => { if (pendingDraftRef.current === pending) pendingDraftRef.current = null; }).catch(() => undefined), 300);
     return () => { if (draftTimerRef.current) clearTimeout(draftTimerRef.current); };
   }, [draft, loading, rootId, sending, userId]);
-
-  useEffect(() => () => {
-    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
-    const pending = pendingDraftRef.current;
-    if (pending) void saveThreadDraft(pending.userId, pending.rootId, pending.body, pending.clientMessageId).catch(() => undefined);
-  }, []);
 
   const visible = useMemo(() => sortMessages(replies), [replies]);
   const draftWithinLimit = messageBodyWithinLimit(draft);
