@@ -7,7 +7,7 @@ export function ComposerLimitNotice({ value }: { value: string }) {
   if (messageBodyWithinLimit(value)) return null;
 
   return (
-    <Text accessibilityRole="alert" style={styles.notice}>
+    <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.notice}>
       Shorten this draft to {MESSAGE_BODY_LIMIT.toLocaleString()} characters ({messageBodyLength(value).toLocaleString()} now).
     </Text>
   );

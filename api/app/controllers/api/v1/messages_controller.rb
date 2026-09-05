@@ -232,7 +232,8 @@ module Api
           parent_message_id: message_params[:parent_message_id],
           client_message_id: message_params[:client_message_id],
           mention_user_ids: mention_user_ids,
-          delivery_push_requested: send_push?
+          delivery_push_requested: send_push?,
+          delivery_tracking_requested: true
         )
         message.author = current_user
 

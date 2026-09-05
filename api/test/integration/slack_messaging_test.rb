@@ -444,6 +444,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
 
     assert_response :created
     message_id = JSON.parse(response.body).dig("message", "id")
+    assert Message.find(message_id).delivery_tracking_requested?, "new API messages must opt into recovery tracking"
     notification_count = Notification.where(notifiable_type: "Message", notifiable_id: message_id).count
     assert_operator notification_count, :>, 0
     assert_operator broadcasts.length, :>, 0

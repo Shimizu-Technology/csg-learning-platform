@@ -82,9 +82,12 @@ SOLID_QUEUE_WORKER_POLLING_INTERVAL_SECONDS=2
 ```
 
 Solid Queue also activates the one-minute `MessageDeliveryRecoveryJob` schedule.
-That sweep recovers abandoned notification and realtime leases without waiting
-for the sender to retry. Inline mode keeps message delivery synchronous and
-supports idempotent request replay, but it does not run recurring schedules.
+That sweep recovers up to 100 of the least-recently-attempted abandoned
+notification and realtime leases without waiting for the sender to retry. New
+API-created messages explicitly opt into recovery; historical messages remain
+excluded so enabling the worker cannot replay old notifications or broadcasts.
+Inline mode keeps message delivery synchronous and supports idempotent request
+replay, but it does not run recurring schedules.
 
 Rails will fail boot if `ACTIVE_JOB_QUEUE_ADAPTER=solid_queue` is enabled
 without either `SOLID_QUEUE_WORKER_PROVISIONED=true` or

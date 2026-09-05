@@ -9,6 +9,7 @@ describe('ComposerLimitNotice', () => {
     expect(valid.queryByRole('alert')).toBeNull();
 
     const overflow = render(<ComposerLimitNotice value={'🚀'.repeat(MESSAGE_BODY_LIMIT + 1)} />);
+    expect(overflow.getByRole('alert')).toBeTruthy();
     expect(overflow.getByText(/5,001 now/)).toBeTruthy();
   });
 });

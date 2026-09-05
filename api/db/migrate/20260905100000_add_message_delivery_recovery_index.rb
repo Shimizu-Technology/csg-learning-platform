@@ -1,35 +1,45 @@
-class AddClientMessageIdToMessages < ActiveRecord::Migration[8.1]
+class AddMessageDeliveryRecoveryIndex < ActiveRecord::Migration[8.1]
   disable_ddl_transaction!
 
-  INDEX_NAME = "idx_messages_on_author_and_client_message_id"
+  INDEX_NAME = "idx_messages_delivery_recovery_due"
+  PREDICATE = <<~SQL.squish
+    delivery_tracking_requested = TRUE AND (
+      notifications_delivered_at IS NULL OR
+      broadcasts_delivered_at IS NULL OR
+      (parent_message_id IS NOT NULL AND thread_broadcasts_delivered_at IS NULL)
+    )
+  SQL
 
   def up
-    add_column :messages, :client_message_id, :string, limit: 100 unless column_exists?(:messages, :client_message_id)
     return if usable_expected_index?
 
-    # CREATE INDEX CONCURRENTLY can leave an invalid same-named index when it
-    # is interrupted. Rebuilding the exact index makes a retry deterministic
-    # without dropping an already-valid uniqueness guarantee.
     execute "DROP INDEX CONCURRENTLY IF EXISTS #{connection.quote_table_name(INDEX_NAME)}"
     add_index :messages,
-      [ :author_id, :client_message_id ],
-      unique: true,
-      where: "client_message_id IS NOT NULL",
+      [ :delivery_recovery_attempted_at, :id ],
+      where: PREDICATE,
       algorithm: :concurrently,
       name: INDEX_NAME
   end
 
   def down
     execute "DROP INDEX CONCURRENTLY IF EXISTS #{connection.quote_table_name(INDEX_NAME)}"
-    remove_column :messages, :client_message_id if column_exists?(:messages, :client_message_id)
   end
 
   private
 
   def usable_expected_index?
     index = connection.indexes(:messages).find { |candidate| candidate.name == INDEX_NAME }
-    return false unless index && index.unique && index.columns == %w[author_id client_message_id]
-    return false unless index.where.to_s.gsub(/[()]/, "").squish == "client_message_id IS NOT NULL"
+    return false unless index && index.columns == %w[delivery_recovery_attempted_at id] && !index.unique
+
+    predicate = index.where.to_s.downcase
+    required_terms = %w[
+      delivery_tracking_requested
+      notifications_delivered_at
+      broadcasts_delivered_at
+      parent_message_id
+      thread_broadcasts_delivered_at
+    ]
+    return false unless required_terms.all? { |term| predicate.include?(term) }
 
     connection.select_value(<<~SQL.squish) == true
       SELECT index.indisvalid AND index.indisready

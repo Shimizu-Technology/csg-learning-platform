@@ -111,6 +111,13 @@ export default function ConversationScreen() {
     requestAnimationFrame(() => listRef.current?.scrollToOffset({ animated, offset: 0 }));
   }, []);
 
+  const flushPendingDraft = useCallback(() => {
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    const pending = pendingDraftRef.current;
+    pendingDraftRef.current = null;
+    if (pending) void saveConversationDraft(pending.userId, pending.kind, pending.id, pending.body).catch(() => undefined);
+  }, []);
+
   const load = useCallback(async () => {
     const requestId = ++loadRequestRef.current;
     setLoading(true);
@@ -143,7 +150,7 @@ export default function ConversationScreen() {
         setMeta(result.meta);
         setMentionUsers(workspaceResult.workspace.members);
         setLoadedConversationIdentity(conversationIdentity);
-        await api.markRead(kind, id);
+        await api.markRead(kind, id).catch(() => undefined);
       }
       nearBottomRef.current = !anchorMessageId;
       pendingScrollRef.current = !anchorMessageId;
@@ -158,8 +165,8 @@ export default function ConversationScreen() {
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => void load());
-    return () => { cancelAnimationFrame(frame); loadRequestRef.current += 1; };
-  }, [load]);
+    return () => { cancelAnimationFrame(frame); loadRequestRef.current += 1; flushPendingDraft(); };
+  }, [flushPendingDraft, load]);
 
   useEffect(() => {
     if (!userId || auth.demo || loading || loadedConversationIdentity !== conversationIdentity) return;
@@ -187,12 +194,6 @@ export default function ConversationScreen() {
     draftTimerRef.current = setTimeout(() => void saveConversationDraft(pending.userId, pending.kind, pending.id, pending.body).then(() => { if (pendingDraftRef.current === pending) pendingDraftRef.current = null; }).catch(() => undefined), 300);
     return () => { if (draftTimerRef.current) clearTimeout(draftTimerRef.current); };
   }, [draft, id, kind, loading, userId]);
-
-  useEffect(() => () => {
-    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
-    const pending = pendingDraftRef.current;
-    if (pending) void saveConversationDraft(pending.userId, pending.kind, pending.id, pending.body).catch(() => undefined);
-  }, []);
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';

@@ -82,7 +82,7 @@ export default function ThreadScreen() {
   const failedSendRef = useRef<FailedSendIntent | null>(null);
   const draftRef = useRef(draft);
   const userRef = useRef(user);
-  userRef.current = user;
+  useEffect(() => { userRef.current = user; }, [user]);
   const voiceDraft = useVoiceDraft({
     api,
     demo: auth.demo,
@@ -160,7 +160,10 @@ export default function ThreadScreen() {
       const [result, workspace] = await Promise.all([api.messageThread(rootId), api.workspace(workspaceId)]);
       if (requestId !== loadRequestRef.current) return;
       setRoot(result.root_message);
-      const confirmedReply = result.replies.find((reply) => reply.client_message_id === storedFailedSend?.clientMessageId);
+      const failedClientMessageId = storedFailedSend?.clientMessageId;
+      const confirmedReply = failedClientMessageId
+        ? result.replies.find((reply) => reply.client_message_id === failedClientMessageId)
+        : undefined;
       if (confirmedReply) acknowledgeSentReply(confirmedReply);
       const currentUser = userRef.current;
       const restoredFailure = !confirmedReply && storedFailedSend && currentUser

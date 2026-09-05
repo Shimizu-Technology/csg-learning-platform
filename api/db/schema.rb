@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_05_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_05_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -472,12 +472,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_090000) do
     t.datetime "created_at", null: false
     t.datetime "deleted_at"
     t.boolean "delivery_push_requested", default: true, null: false
+    t.datetime "delivery_recovery_attempted_at", default: "1970-01-01 00:00:00", null: false
+    t.boolean "delivery_tracking_requested", default: false, null: false
     t.bigint "direct_conversation_id"
     t.datetime "edited_at"
     t.bigint "mention_user_ids", default: [], null: false, array: true
+    t.datetime "notifications_delivered_at"
     t.string "notifications_delivery_claim", limit: 36
     t.datetime "notifications_delivery_started_at"
-    t.datetime "notifications_delivered_at"
     t.bigint "parent_message_id"
     t.datetime "pinned_at"
     t.bigint "pinned_by_id"
@@ -491,6 +493,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_090000) do
     t.index ["channel_id", "created_at"], name: "index_messages_on_channel_id_and_created_at"
     t.index ["channel_id", "deleted_at"], name: "index_messages_on_channel_id_and_deleted_at"
     t.index ["channel_id"], name: "index_messages_on_channel_id"
+    t.index ["delivery_recovery_attempted_at", "id"], name: "idx_messages_delivery_recovery_due", where: "((delivery_tracking_requested = true) AND ((notifications_delivered_at IS NULL) OR (broadcasts_delivered_at IS NULL) OR ((parent_message_id IS NOT NULL) AND (thread_broadcasts_delivered_at IS NULL))))"
     t.index ["direct_conversation_id", "created_at"], name: "idx_messages_on_direct_conversation_created"
     t.index ["direct_conversation_id"], name: "index_messages_on_direct_conversation_id"
     t.index ["parent_message_id"], name: "index_messages_on_parent_message_id"

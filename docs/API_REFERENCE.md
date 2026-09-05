@@ -469,7 +469,7 @@ Channel and direct-conversation show endpoints accept `message_limit`, `around_m
 
 `409 Conflict` is returned when an author reuses the identifier with a different body, parent message, mention set, attachment set, or conversation. Replaying an identifier whose message was subsequently deleted also returns `409 Conflict`; it does not recreate or expose the deleted message. Create, replay, message-list, and realtime ActionCable payloads include the value only for the authenticated author and omit it for other viewers. Older clients may omit it.
 
-When Solid Queue is enabled, `MessageDeliveryRecoveryJob` also sweeps abandoned delivery leases every minute in database batches of 100. Deployments using the low-volume inline adapter retain synchronous delivery and identical-request replay, but do not run recurring jobs.
+New API-created messages opt into delivery recovery. When Solid Queue is enabled, `MessageDeliveryRecoveryJob` sweeps up to 100 of the least-recently-attempted incomplete deliveries every minute. This bounded rotation prevents one failing message from blocking newer recovery work. Messages created before tracking shipped are excluded so deployment cannot replay historical notifications or broadcasts. Deployments using the low-volume inline adapter retain synchronous delivery and identical-request replay, but do not run recurring jobs.
 
 Posting a message creates in-app `message` notifications for other visible channel recipients and can enqueue Web Push delivery when push is configured.
 

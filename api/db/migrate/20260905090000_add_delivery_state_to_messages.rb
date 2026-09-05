@@ -1,6 +1,8 @@
 class AddDeliveryStateToMessages < ActiveRecord::Migration[8.1]
   COLUMNS = {
+    delivery_tracking_requested: [ :boolean, { null: false, default: false } ],
     delivery_push_requested: [ :boolean, { null: false, default: true } ],
+    delivery_recovery_attempted_at: [ :datetime, { null: false, default: Time.utc(1970, 1, 1) } ],
     notifications_delivery_claim: [ :string, { limit: 36 } ],
     notifications_delivery_started_at: [ :datetime, {} ],
     notifications_delivered_at: [ :datetime, {} ],
@@ -17,17 +19,6 @@ class AddDeliveryStateToMessages < ActiveRecord::Migration[8.1]
   def up
     execute "SET LOCAL lock_timeout = '5s'"
     COLUMNS.each { |name, (type, options)| add_column :messages, name, type, **options }
-
-    # Rows committed before delivery tracking shipped were already handled by
-    # the legacy synchronous path. Marking them complete prevents the recovery
-    # sweep from replaying historical notifications and broadcasts.
-    timestamp = connection.quote(Time.current)
-    execute <<~SQL.squish
-      UPDATE messages
-      SET notifications_delivered_at = #{timestamp},
-          broadcasts_delivered_at = #{timestamp},
-          thread_broadcasts_delivered_at = #{timestamp}
-    SQL
   end
 
   def down

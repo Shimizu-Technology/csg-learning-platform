@@ -45,13 +45,15 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
     errors = Queue.new
     threads = 2.times.map do
       Thread.new do
-        ActiveRecord::Base.connection_pool.with_connection do
-          ready << true
-          release.pop
-          MessageDeliveryService.created(Message.find(reply.id))
+        begin
+          ActiveRecord::Base.connection_pool.with_connection do
+            ready << true
+            release.pop
+            MessageDeliveryService.created(Message.find(reply.id))
+          end
+        rescue StandardError => e
+          errors << e
         end
-      rescue StandardError => e
-        errors << e
       end
     end
     2.times { ready.pop }
@@ -103,13 +105,15 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
       errors = Queue.new
       threads = 2.times.map do
         Thread.new do
-          ActiveRecord::Base.connection_pool.with_connection do
-            ready << true
-            release.pop
-            MessageDeliveryService.send(stage, Message.find(reply.id))
+          begin
+            ActiveRecord::Base.connection_pool.with_connection do
+              ready << true
+              release.pop
+              MessageDeliveryService.send(stage, Message.find(reply.id))
+            end
+          rescue StandardError => e
+            errors << e
           end
-        rescue StandardError => e
-          errors << e
         end
       end
       all_threads.concat(threads)
