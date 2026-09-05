@@ -2,19 +2,31 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ConversationKind, Message } from './types';
 
 const authoredStorageWrites = new Map<string, Promise<void>>();
+const userStorageGenerations = new Map<number, number>();
+const blockedStorageUsers = new Set<number>();
 
-function enqueueStorageWrite(key: string, operation: () => Promise<void>) {
+function enqueueStorageWrite(userId: number, key: string, operation: () => Promise<void>) {
+  const generation = userStorageGenerations.get(userId) || 0;
   const previous = authoredStorageWrites.get(key) || Promise.resolve();
-  const write = previous.catch(() => undefined).then(operation);
+  const write = previous.catch(() => undefined).then(() => {
+    if (blockedStorageUsers.has(userId) || userStorageGenerations.get(userId) !== generation) return;
+    return operation();
+  });
   authoredStorageWrites.set(key, write);
   return write.finally(() => {
     if (authoredStorageWrites.get(key) === write) authoredStorageWrites.delete(key);
   });
 }
 
-async function readAfterPendingWrites(key: string) {
+async function readAfterPendingWrites(userId: number, key: string) {
   await authoredStorageWrites.get(key)?.catch(() => undefined);
+  if (blockedStorageUsers.has(userId)) return null;
   return AsyncStorage.getItem(key);
+}
+
+export function activateUserConversationStorage(userId: number) {
+  userStorageGenerations.set(userId, (userStorageGenerations.get(userId) || 0) + 1);
+  blockedStorageUsers.delete(userId);
 }
 
 export function conversationDraftKey(userId: number, kind: ConversationKind, id: number) {
@@ -35,12 +47,12 @@ export interface StoredThreadDraft {
 }
 
 export async function loadConversationDraft(userId: number, kind: ConversationKind, id: number) {
-  return (await readAfterPendingWrites(conversationDraftKey(userId, kind, id))) || '';
+  return (await readAfterPendingWrites(userId, conversationDraftKey(userId, kind, id))) || '';
 }
 
 export function saveConversationDraft(userId: number, kind: ConversationKind, id: number, body: string) {
   const key = conversationDraftKey(userId, kind, id);
-  return enqueueStorageWrite(key, () => body.trim() ? AsyncStorage.setItem(key, body) : AsyncStorage.removeItem(key));
+  return enqueueStorageWrite(userId, key, () => body.trim() ? AsyncStorage.setItem(key, body) : AsyncStorage.removeItem(key));
 }
 
 export async function clearConversationDraftAfterSend(
@@ -57,7 +69,7 @@ export async function loadThreadDraft(userId: number, rootMessageId: number) {
 }
 
 export async function loadStoredThreadDraft(userId: number, rootMessageId: number): Promise<StoredThreadDraft> {
-  const value = await readAfterPendingWrites(threadDraftKey(userId, rootMessageId));
+  const value = await readAfterPendingWrites(userId, threadDraftKey(userId, rootMessageId));
   if (!value) return { body: '', clientMessageId: null };
   try {
     const stored = JSON.parse(value) as { version?: unknown; body?: unknown; clientMessageId?: unknown };
@@ -72,7 +84,7 @@ export async function loadStoredThreadDraft(userId: number, rootMessageId: numbe
 
 export function saveThreadDraft(userId: number, rootMessageId: number, body: string, clientMessageId?: string | null) {
   const key = threadDraftKey(userId, rootMessageId);
-  return enqueueStorageWrite(key, () => {
+  return enqueueStorageWrite(userId, key, () => {
     if (body.trim() && clientMessageId) return AsyncStorage.setItem(key, JSON.stringify({ version: 1, body, clientMessageId }));
     if (body.trim()) return AsyncStorage.setItem(key, body);
     return AsyncStorage.removeItem(key);
@@ -89,13 +101,15 @@ export async function clearThreadDraftAfterSend(
 
 export async function loadFailedMessages(userId: number, kind: ConversationKind, id: number) {
   const key = failedMessagesKey(userId, kind, id);
-  const value = await readAfterPendingWrites(key);
+  const value = await readAfterPendingWrites(userId, key);
   if (!value) return [];
   try {
     const messages = JSON.parse(value) as Message[];
     return messages.filter((message) => message.client_status === 'failed');
   } catch {
-    await AsyncStorage.removeItem(key);
+    await enqueueStorageWrite(userId, key, async () => {
+      if (await AsyncStorage.getItem(key) === value) await AsyncStorage.removeItem(key);
+    });
     return [];
   }
 }
@@ -103,13 +117,15 @@ export async function loadFailedMessages(userId: number, kind: ConversationKind,
 export function saveFailedMessages(userId: number, kind: ConversationKind, id: number, messages: Message[]) {
   const failed = messages.filter((message) => message.client_status === 'failed');
   const key = failedMessagesKey(userId, kind, id);
-  return enqueueStorageWrite(key, async () => {
+  return enqueueStorageWrite(userId, key, async () => {
     if (failed.length) await AsyncStorage.setItem(key, JSON.stringify(failed));
     else await AsyncStorage.removeItem(key);
   });
 }
 
 export async function clearUserConversationStorage(userId: number) {
+  userStorageGenerations.set(userId, (userStorageGenerations.get(userId) || 0) + 1);
+  blockedStorageUsers.add(userId);
   const prefixes = [
     `csg.message-draft.${userId}.`,
     `csg.thread-draft.${userId}.`,

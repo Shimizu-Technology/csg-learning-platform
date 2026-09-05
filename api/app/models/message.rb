@@ -33,6 +33,13 @@ class Message < ApplicationRecord
       .limit(PINNED_LIMIT)
   }
 
+  def self.client_message_id_constraint_violation?(error)
+    return false unless defined?(PG::Result)
+
+    result = error.cause&.respond_to?(:result) ? error.cause.result : nil
+    result&.error_field(PG::Result::PG_DIAG_CONSTRAINT_NAME) == "idx_messages_on_author_and_client_message_id"
+  end
+
   def deleted?
     deleted_at.present?
   end

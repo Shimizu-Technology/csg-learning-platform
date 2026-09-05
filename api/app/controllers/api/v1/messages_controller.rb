@@ -288,10 +288,7 @@ module Api
       end
 
       def client_message_id_unique_violation?(error)
-        cause = error.cause
-        return false unless cause.respond_to?(:result)
-
-        cause.result.error_field(PG::Result::PG_DIAG_CONSTRAINT_NAME) == "idx_messages_on_author_and_client_message_id"
+        Message.client_message_id_constraint_violation?(error)
       end
 
       def same_message_intent?(message, destination, attachments, mention_user_ids)

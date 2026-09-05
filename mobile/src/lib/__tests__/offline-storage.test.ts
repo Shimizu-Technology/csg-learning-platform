@@ -1,9 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
+  activateUserConversationStorage,
   clearConversationDraftAfterSend,
   clearThreadDraftAfterSend,
   clearUserConversationStorage,
+  failedMessagesKey,
+  loadConversationDraft,
   loadFailedMessages,
   loadStoredThreadDraft,
   loadThreadDraft,
@@ -26,6 +29,8 @@ import type { Message } from '../types';
 jest.mock('@react-native-async-storage/async-storage', () => jest.requireActual('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 
 beforeEach(async () => {
+  activateUserConversationStorage(7);
+  activateUserConversationStorage(8);
   await AsyncStorage.clear();
 });
 
@@ -172,6 +177,57 @@ describe('offline authored storage', () => {
     await Promise.all([staleSave, realtimeCleanup]);
 
     expect(order).toEqual(['set-start', 'set-finish', 'remove']);
+  });
+
+  it('does not let malformed-data cleanup delete a newer valid failed message', async () => {
+    const key = failedMessagesKey(7, 'channel', 3);
+    await AsyncStorage.setItem(key, '{malformed');
+    let releaseRead = () => {};
+    let markReadStarted = () => {};
+    const readGate = new Promise<void>((resolve) => { releaseRead = resolve; });
+    const readStarted = new Promise<void>((resolve) => { markReadStarted = resolve; });
+    jest.spyOn(AsyncStorage, 'getItem').mockImplementationOnce(async () => {
+      markReadStarted();
+      await readGate;
+      return '{malformed';
+    });
+
+    const malformedLoad = loadFailedMessages(7, 'channel', 3);
+    await readStarted;
+    const valid = { id: -1, client_status: 'failed', client_message_id: 'newer-send' } as Message;
+    await saveFailedMessages(7, 'channel', 3, [valid]);
+    releaseRead();
+    expect(await malformedLoad).toEqual([]);
+
+    expect(await loadFailedMessages(7, 'channel', 3)).toEqual([valid]);
+  });
+
+  it('blocks stale session writes during cleanup and reopens storage for a new session', async () => {
+    let releaseSave = () => {};
+    let markSaveStarted = () => {};
+    const saveGate = new Promise<void>((resolve) => { releaseSave = resolve; });
+    const saveStarted = new Promise<void>((resolve) => { markSaveStarted = resolve; });
+    const setItem = jest.spyOn(AsyncStorage, 'setItem').mockImplementationOnce(async () => {
+      markSaveStarted();
+      await saveGate;
+    });
+    setItem.mockClear();
+
+    const inFlightSave = saveConversationDraft(7, 'channel', 3, 'Old session draft');
+    await saveStarted;
+    const cleanup = clearUserConversationStorage(7);
+    const staleLateSave = saveThreadDraft(7, 88, 'Late old session draft');
+    releaseSave();
+    await Promise.all([inFlightSave, cleanup, staleLateSave]);
+
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(await loadConversationDraft(7, 'channel', 3)).toBe('');
+    expect(await loadThreadDraft(7, 88)).toBe('');
+
+    jest.restoreAllMocks();
+    activateUserConversationStorage(7);
+    await saveConversationDraft(7, 'channel', 3, 'New session draft');
+    expect(await loadConversationDraft(7, 'channel', 3)).toBe('New session draft');
   });
 
   it('clears only the signed-out user authored drafts and retry copies', async () => {

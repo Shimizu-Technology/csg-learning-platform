@@ -5,7 +5,7 @@ import { CsgApi } from '@/lib/api';
 import { demoUser } from '@/lib/demo-data';
 import { PUSH_TOKEN_KEY, registerPushNotifications } from '@/lib/push-notifications';
 import { clearLearningCache } from '@/lib/learning-cache';
-import { clearUserConversationStorage } from '@/lib/conversation-storage';
+import { activateUserConversationStorage, clearUserConversationStorage } from '@/lib/conversation-storage';
 import { canUseCachedSession, isSessionAccessDenied } from '@/lib/session-access';
 import { clearUserSubmissionDrafts } from '@/lib/submission-storage';
 import type { SessionUser } from '@/lib/types';
@@ -47,6 +47,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     setLoading(userIdRef.current === null);
     try {
       const result = await api.session();
+      if (userIdRef.current !== result.user.id) activateUserConversationStorage(result.user.id);
       setUser(result.user); setError(null); setAccessDenied(false);
       if (userCacheKey) await AsyncStorage.setItem(userCacheKey, JSON.stringify(result.user));
       void registerPushNotifications(api).catch(() => undefined);
@@ -72,7 +73,11 @@ export function SessionProvider({ children }: PropsWithChildren) {
         setUser(null);
         setAccessDenied(true);
       } else if (cached && canUseCachedSession(requestError)) {
-        try { setUser(JSON.parse(cached) as SessionUser); } catch { await AsyncStorage.removeItem(userCacheKey!); setUser(null); }
+        try {
+          const cachedUser = JSON.parse(cached) as SessionUser;
+          if (userIdRef.current !== cachedUser.id) activateUserConversationStorage(cachedUser.id);
+          setUser(cachedUser);
+        } catch { await AsyncStorage.removeItem(userCacheKey!); setUser(null); }
       } else {
         setUser(null);
       }
