@@ -57,10 +57,13 @@ module Api
           return
         end
 
+        mention_user_ids = sanitized_mention_user_ids_for(@message.destination)
+        return if performed?
+
         if @message.update(
           body: message_params[:body],
           edited_at: Time.current,
-          mention_user_ids: sanitized_mention_user_ids_for(@message.destination)
+          mention_user_ids: mention_user_ids
         )
           MessageBroadcastService.updated(@message)
           render json: { message: message_json(@message) }
@@ -81,10 +84,33 @@ module Api
           return
         end
 
-        root = @message.parent_message && thread_root(@message)
-        @message.update!(deleted_at: Time.current, pinned_at: nil, pinned_by: nil)
-        MessageBroadcastService.deleted(@message)
-        MessageBroadcastService.updated(root.reload) if root
+        begin
+          MessageDeliveryService.synchronize_delivery(@message) do
+            @message.update!(
+              deleted_at: Time.current,
+              pinned_at: nil,
+              pinned_by: nil,
+              delivery_tracking_requested: true,
+              delivery_recovery_attempted_at: Time.at(0).utc,
+              notifications_delivery_claim: nil,
+              notifications_delivery_started_at: nil,
+              notifications_delivered_at: Time.current,
+              broadcast_recipient_ids: [],
+              broadcast_delivery_claim: nil,
+              broadcast_delivery_started_at: nil,
+              broadcasts_delivered_at: nil,
+              thread_broadcast_recipient_ids: [],
+              thread_broadcast_delivery_claim: nil,
+              thread_broadcast_delivery_started_at: nil,
+              thread_broadcasts_delivered_at: nil
+            )
+          end
+        rescue MessageDeliveryService::DeliveryLockTimeout
+          render json: { errors: [ "Message delivery is still finishing; try again" ] }, status: :service_unavailable
+          return
+        end
+        return unless deliver_committed_message(@message, operation: :destroy)
+
         render json: { message: message_json(@message) }
       end
 
@@ -179,7 +205,7 @@ module Api
       end
 
       def message_params
-        params.permit(:body, :parent_message_id, mention_user_ids: [], attachments: [ :s3_key, :filename, :content_type, :byte_size ])
+        params.permit(:body, :parent_message_id, :client_message_id, mention_user_ids: [], attachments: [ :s3_key, :filename, :content_type, :byte_size ])
       end
 
       def reaction_params
@@ -207,33 +233,140 @@ module Api
 
       def create_message_for(destination)
         attachments = Array(message_params[:attachments])
+        mention_user_ids = sanitized_mention_user_ids_for(destination)
+        return if performed?
+
+        existing = existing_message_for_client_id
+        if existing
+          render_existing_message(existing, destination, attachments, mention_user_ids)
+          return
+        end
 
         if message_params[:body].to_s.strip.blank? && attachments.empty?
           render json: { errors: [ "Message must include text or an attachment" ] }, status: :unprocessable_entity
           return
         end
 
-        attachments.each { |attachment| validate_uploaded_attachment!(attachment) }
+        begin
+          attachments.each { |attachment| validate_uploaded_attachment!(attachment) }
+        rescue ActiveRecord::RecordInvalid => e
+          render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+          return
+        end
 
         message = destination.messages.new(
           body: message_params[:body].to_s,
           parent_message_id: message_params[:parent_message_id],
-          mention_user_ids: sanitized_mention_user_ids_for(destination)
+          client_message_id: message_params[:client_message_id],
+          mention_user_ids: mention_user_ids,
+          delivery_push_requested: send_push?,
+          delivery_tracking_requested: true
         )
         message.author = current_user
 
-        Message.transaction do
-          message.save!
-          persist_files!(message, attachments)
+        begin
+          Message.transaction(requires_new: true) do
+            message.save!
+            persist_files!(message, attachments)
+          end
+        rescue ActiveRecord::RecordNotUnique => e
+          raise unless client_message_id_unique_violation?(e)
+
+          existing = existing_message_for_client_id
+          raise unless existing
+
+          render_existing_message(existing, destination, attachments, mention_user_ids)
+          return
+        rescue ActiveRecord::RecordInvalid => e
+          if duplicate_client_message_id_error?(e, message) && (existing = existing_message_for_client_id)
+            render_existing_message(existing, destination, attachments, mention_user_ids)
+          else
+            render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+          end
+          return
         end
 
         mark_read_for(message)
-        NotificationDeliveryService.message_created(message, push: send_push?)
-        MessageBroadcastService.created(message)
-        MessageBroadcastService.updated(thread_root(message).reload) if message.parent_message
+        return unless deliver_committed_message(message)
+
         render json: { message: message_json(message.reload) }, status: :created
-      rescue ActiveRecord::RecordInvalid => e
-        render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+      end
+
+      def existing_message_for_client_id
+        client_message_id = message_params[:client_message_id].to_s.strip
+        return if client_message_id.blank?
+
+        current_user.messages.find_by(client_message_id: client_message_id)
+      end
+
+      def render_existing_message(message, destination, attachments, mention_user_ids)
+        unless same_message_intent?(message, destination, attachments, mention_user_ids)
+          render json: { errors: [ "Client message ID has already been used for a different message" ] }, status: :conflict
+          return
+        end
+
+        mark_read_for(message)
+        return unless deliver_committed_message(message)
+
+        render json: { message: message_json(message.reload) }, status: :ok
+      end
+
+      def duplicate_client_message_id_error?(error, message)
+        error.record.is_a?(Message) &&
+          message.client_message_id.present? &&
+          error.record.client_message_id == message.client_message_id &&
+          error.record.errors.details.fetch(:client_message_id, []).any? { |detail| detail[:error] == :taken }
+      end
+
+      def client_message_id_unique_violation?(error)
+        Message.client_message_id_constraint_violation?(error)
+      end
+
+      def same_message_intent?(message, destination, attachments, mention_user_ids)
+        persisted_mention_user_ids = Array(message.mention_user_ids).map(&:to_i)
+        # Raw IDs preserve the original intent when a mentioned member leaves;
+        # sanitized IDs still reject any newly valid mention added on replay.
+        message.deleted_at.nil? &&
+          message.destination == destination &&
+          message.body.to_s == message_params[:body].to_s &&
+          message.parent_message_id == Message.type_for_attribute(:parent_message_id).cast(message_params[:parent_message_id]) &&
+          (persisted_mention_user_ids - requested_mention_user_ids).empty? &&
+          (mention_user_ids - persisted_mention_user_ids).empty? &&
+          persisted_attachment_intent(message) == requested_attachment_intent(attachments)
+      end
+
+      def deliver_committed_message(message, operation: :create)
+        MessageDeliveryService.created(message)
+        true
+      rescue StandardError => error
+        Rails.logger.error(
+          "[MessagesController] delivery_deferred message_id=#{message.id} " \
+          "error_class=#{error.class.name}"
+        )
+        # Solid Queue owns durable recovery after the committed write. Inline
+        # clients with an idempotency key can safely retry; legacy clients are
+        # told the write was accepted because retrying would duplicate it.
+        return true if ActiveJob::Base.queue_adapter_name == "solid_queue"
+
+        if operation == :destroy || message.client_message_id.blank?
+          render json: { message: message_json(message.reload), delivery_pending: true }, status: :accepted
+          return false
+        end
+
+        render json: { errors: [ "Message was saved but delivery is still pending; try again" ] }, status: :service_unavailable
+        false
+      end
+
+      def persisted_attachment_intent(message)
+        message.message_attachments.map do |attachment|
+          [ attachment.s3_key, attachment.filename, attachment.content_type, attachment.byte_size ]
+        end.sort
+      end
+
+      def requested_attachment_intent(attachments)
+        attachments.map do |attachment|
+          [ attachment[:s3_key].to_s, attachment[:filename].to_s, attachment[:content_type].to_s, attachment[:byte_size].to_i ]
+        end.sort
       end
 
       def persist_files!(message, attachments)
@@ -292,15 +425,23 @@ module Api
       end
 
       def sanitized_mention_user_ids_for(destination)
-        raw_ids = Array(message_params[:mention_user_ids]).filter_map do |value|
-          next if value.blank?
-
-          value.to_i
-        end.uniq
+        raw_ids = requested_mention_user_ids
         return [] if raw_ids.empty?
 
         allowed_ids = destination.recipients.reorder(nil).where(id: raw_ids).pluck(:id)
         allowed_ids.reject { |id| id == current_user.id }
+      end
+
+      def requested_mention_user_ids
+        return @requested_mention_user_ids if defined?(@requested_mention_user_ids)
+
+        values = Array(message_params[:mention_user_ids]).reject(&:blank?)
+        unless values.all? { |value| value.is_a?(Integer) || value.to_s.match?(/\A\d+\z/) }
+          render json: { errors: [ "Mention user IDs must be numeric" ] }, status: :unprocessable_entity
+          return @requested_mention_user_ids = []
+        end
+
+        @requested_mention_user_ids = values.map(&:to_i).uniq
       end
 
       def message_json(message)

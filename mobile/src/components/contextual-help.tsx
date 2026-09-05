@@ -56,6 +56,7 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
     draft: message,
     selection,
     disabled: saving || Boolean(active),
+    maxDraftLength: 2_000,
     onDraftChange: setMessage,
     onSelectionChange: setSelection,
   });

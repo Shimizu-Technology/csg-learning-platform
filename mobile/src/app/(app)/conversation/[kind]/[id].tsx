@@ -3,11 +3,12 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { ArrowDownToLine, ArrowLeft, Bell, BellOff, BookOpen, ChevronDown, Edit3, Flag, Hash, MessageSquareReply, Paperclip, Pin, Send, Trash2, UserX, Wifi, WifiOff, X, type LucideIcon } from 'lucide-react-native';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/avatar';
+import { ComposerLimitNotice } from '@/components/composer-limit-notice';
 import { ImagePreview } from '@/components/image-preview';
 import { MessageBubble } from '@/components/message-bubble';
 import { ReactionDetailsSheet } from '@/components/reaction-details-sheet';
@@ -18,11 +19,12 @@ import { useVoiceDraft } from '@/hooks/use-voice-draft';
 import { pendingAttachment, uploadAttachment } from '@/lib/attachments';
 import { subscribeToMessages } from '@/lib/cable';
 import { formatConversationDay, isDifferentConversationDay, isNearConversationBottom } from '@/lib/conversation-scroll';
-import { loadConversationDraft, loadFailedMessages, saveConversationDraft, saveFailedMessages } from '@/lib/conversation-storage';
+import { conversationDraftKey, loadConversationDraft, loadFailedMessages, retryableMessagesForStorage, saveConversationDraftWithRetry, saveFailedMessagesWithRetry } from '@/lib/conversation-storage';
 import { demoChannels, demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { insertMention, mentionSuggestions, mentionTriggerAt, resolveMentionUserIds } from '@/lib/mentions';
+import { clientMessageIdForSend, conversationOperationIdentity, draftAfterSendConfirmation, draftAfterStoredLoad, messageBodyChangeAllowed, messageBodyWithinLimit, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
 import { messagePreview } from '@/lib/message-format';
-import { mergeMessageEvent, mergePinnedMessageEvent, prependOlderMessages, reconcileOptimistic, sortMessages, toggleOwnReaction } from '@/lib/message-state';
+import { markOptimisticFailed, mergeMessageEvent, mergeOlderMessages, mergePinnedMessageEvent, mergeServerAndFailedMessages, reconcileOptimistic, sortMessages, toggleOwnReaction } from '@/lib/message-state';
 import { REACTION_OPTIONS } from '@/lib/reactions';
 import type { ChannelSummary, ConversationKind, DirectConversationSummary, Message, MessageEvent, MessageWindowMeta, PendingAttachment, UserSummary } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
@@ -36,6 +38,7 @@ export default function ConversationScreen() {
   const params = useLocalSearchParams<{ kind: string; id: string; messageId?: string; source_type?: string; source_id?: string; source_label?: string; source_cohort_id?: string; source_student_id?: string }>();
   const kind: ConversationKind = params.kind === 'dm' ? 'dm' : 'channel';
   const id = Number(params.id);
+  const conversationIdentity = `${kind}:${id}`;
   const anchorMessageId = Number(params.messageId) || undefined;
   const sourceId = Number(params.source_id) || undefined;
   const sourceType = params.source_type === 'submission' || params.source_type === 'help_request' ? params.source_type : undefined;
@@ -49,8 +52,15 @@ export default function ConversationScreen() {
   const pendingScrollRef = useRef(!anchorMessageId);
   const keyboardShouldFollowRef = useRef(false);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftValueRef = useRef('');
   const pendingDraftRef = useRef<PendingConversationDraft | null>(null);
+  const draftWriteGenerationsRef = useRef(new Map<string, number>());
+  const persistedFailedRef = useRef<string | null>(null);
   const anchorScrolledRef = useRef(false);
+  const loadRequestRef = useRef(0);
+  const loadOlderRequestRef = useRef(0);
+  const sendRequestRef = useRef(0);
+  const sendAbortRef = useRef<AbortController | null>(null);
   const [summary, setSummary] = useState<ChannelSummary | DirectConversationSummary | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
@@ -60,17 +70,54 @@ export default function ConversationScreen() {
   const [selection, setSelection] = useState({ start: 0, end: 0 });
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadedOperationIdentity, setLoadedOperationIdentity] = useState<string | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [draftReadyOperationIdentity, setDraftReadyOperationIdentity] = useState<string | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>(auth.demo ? 'connected' : 'connecting');
   const [showScrollToLatest, setShowScrollToLatest] = useState(Boolean(anchorMessageId));
   const [newMessagesBelow, setNewMessagesBelow] = useState(0);
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [showPins, setShowPins] = useState(false);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [editDraft, setEditDraft] = useState('');
+  const [editSelection, setEditSelection] = useState({ start: 0, end: 0 });
   const [reactionDetails, setReactionDetails] = useState<{ messageId: number; emoji: string } | null>(null);
   const [imagePreview, setImagePreview] = useState<{ attachments: Message['attachments']; attachmentId: number } | null>(null);
+  const operationIdentity = conversationOperationIdentity(userId, kind, id);
+  const operationIdentityRef = useRef(operationIdentity);
+  useLayoutEffect(() => {
+    operationIdentityRef.current = operationIdentity;
+    loadRequestRef.current += 1;
+    loadOlderRequestRef.current += 1;
+    sendRequestRef.current += 1;
+    sendAbortRef.current?.abort();
+    sendAbortRef.current = null;
+    setLoading(true);
+    setLoadingOlder(false);
+    setLoadedOperationIdentity(null);
+    setDraftReadyOperationIdentity(null);
+    setSummary(null);
+    setMessages([]);
+    setPinnedMessages([]);
+    setMeta({ oldest_message_id: null, newest_message_id: null, has_older: false, has_newer: false });
+    setMentionUsers([]);
+    setError(null);
+    setAttachments([]);
+    setEditingMessage(null);
+    setEditDraft('');
+    setEditSelection({ start: 0, end: 0 });
+    setSelectedMessage(null);
+    setImagePreview(null);
+    setReactionDetails(null);
+    setShowPins(false);
+    setSending(false);
+  }, [operationIdentity]);
+  const updateDraft = useCallback((value: string) => {
+    draftValueRef.current = value;
+    setDraft(value);
+  }, []);
   const voiceDraft = useVoiceDraft({
     api,
     demo: auth.demo,
@@ -78,13 +125,20 @@ export default function ConversationScreen() {
     draft,
     selection,
     disabled: sending || Boolean(editingMessage),
-    onDraftChange: setDraft,
+    maxDraftLength: MESSAGE_BODY_LIMIT,
+    onDraftChange: updateDraft,
     onSelectionChange: setSelection,
   });
 
+  const composerValue = editingMessage ? editDraft : draft;
+  const updateComposerValue = editingMessage ? setEditDraft : updateDraft;
+  const composerSelection = editingMessage ? editSelection : selection;
+  const updateComposerSelection = editingMessage ? setEditSelection : setSelection;
+  const composerHasContent = Boolean(composerValue.trim() || (!editingMessage && attachments.length));
+  const composerWithinLimit = messageBodyWithinLimit(composerValue);
   const rootMessages = useMemo(() => messages.filter((message) => !message.parent_message_id), [messages]);
   const conversationItems = useMemo(() => rootMessages.map((message, index) => ({ message, previous: rootMessages[index - 1] })).reverse(), [rootMessages]);
-  const mentionTrigger = useMemo(() => mentionTriggerAt(draft, selection.start), [draft, selection.start]);
+  const mentionTrigger = useMemo(() => mentionTriggerAt(composerValue, composerSelection.start), [composerSelection.start, composerValue]);
   const suggestions = useMemo(() => mentionTrigger ? mentionSuggestions(mentionUsers.filter((member) => member.id !== user?.id), mentionTrigger.query) : [], [mentionTrigger, mentionUsers, user?.id]);
   const showEveryone = Boolean(kind === 'channel' && mentionTrigger && 'everyone'.startsWith(mentionTrigger.query.trim().toLowerCase()));
   const reactionDetailsMessage = reactionDetails ? messages.find((message) => message.id === reactionDetails.messageId) || null : null;
@@ -97,39 +151,114 @@ export default function ConversationScreen() {
     requestAnimationFrame(() => listRef.current?.scrollToOffset({ animated, offset: 0 }));
   }, []);
 
+  const persistPendingDraft = useCallback((pending: PendingConversationDraft) => {
+    const key = conversationDraftKey(pending.userId, pending.kind, pending.id);
+    const generation = (draftWriteGenerationsRef.current.get(key) || 0) + 1;
+    draftWriteGenerationsRef.current.set(key, generation);
+    void saveConversationDraftWithRetry(
+      pending.userId,
+      pending.kind,
+      pending.id,
+      pending.body,
+      () => draftWriteGenerationsRef.current.get(key) === generation,
+    ).then((saved) => {
+      if (draftWriteGenerationsRef.current.get(key) === generation) draftWriteGenerationsRef.current.delete(key);
+      if (saved && pendingDraftRef.current === pending) pendingDraftRef.current = null;
+    });
+  }, []);
+
+  const flushPendingDraft = useCallback(() => {
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    const pending = pendingDraftRef.current;
+    if (pending) persistPendingDraft(pending);
+  }, [persistPendingDraft]);
+
+  useEffect(() => {
+    flushPendingDraft();
+    draftValueRef.current = '';
+    setDraft('');
+    setSelection({ start: 0, end: 0 });
+    return () => {
+      sendRequestRef.current += 1;
+      sendAbortRef.current?.abort();
+      sendAbortRef.current = null;
+    };
+  }, [conversationIdentity, flushPendingDraft, userId]);
+
   const load = useCallback(async () => {
+    const requestIdentity = operationIdentity;
+    const requestId = ++loadRequestRef.current;
+    loadOlderRequestRef.current += 1;
+    setLoadingOlder(false);
+    const isCurrentRequest = () => operationIdentityRef.current === requestIdentity && loadRequestRef.current === requestId;
+    persistedFailedRef.current = null;
     setLoading(true);
+    setLoadedOperationIdentity(null);
+    setDraftReadyOperationIdentity(null);
     anchorScrolledRef.current = false;
     try {
-      if (userId && !auth.demo) setDraft(await loadConversationDraft(userId, kind, id));
+      if (userId && !auth.demo) {
+        const storedDraft = await loadConversationDraft(userId, kind, id).catch(() => '');
+        if (!isCurrentRequest()) return;
+        const nextDraft = draftAfterStoredLoad(draftValueRef.current, storedDraft);
+        if (nextDraft !== draftValueRef.current) updateDraft(nextDraft);
+      }
+      if (!isCurrentRequest()) return;
+      setDraftReadyOperationIdentity(operationIdentity);
       if (auth.demo) {
         setSummary(kind === 'channel' ? demoChannels.find((item) => item.id === id) || null : demoDms.find((item) => item.id === id) || null);
         setMessages(demoMessages[`${kind}:${id}`] || []);
         setMentionUsers([demoUser]);
+        setLoadedOperationIdentity(operationIdentity);
       } else {
         const result = kind === 'channel'
           ? await api.channel(id, { message_limit: 80, around_message_id: anchorMessageId })
           : await api.directConversation(id, { message_limit: 80, around_message_id: anchorMessageId });
+        if (!isCurrentRequest()) return;
         const nextSummary = 'channel' in result ? result.channel : result.direct_conversation;
         const workspaceResult = await api.workspace(nextSummary.workspace_id);
         const failed = userId ? await loadFailedMessages(userId, kind, id) : [];
+        if (!isCurrentRequest()) return;
+        const mergedMessages = mergeServerAndFailedMessages(result.messages, failed);
         setSummary(nextSummary);
-        setMessages(sortMessages([...result.messages, ...failed]));
+        setMessages(mergedMessages);
         setPinnedMessages(result.pinned_messages);
         setMeta(result.meta);
         setMentionUsers(workspaceResult.workspace.members);
-        await api.markRead(kind, id);
+        setLoadedOperationIdentity(operationIdentity);
+        await api.markRead(kind, id).catch(() => undefined);
       }
+      if (!isCurrentRequest()) return;
       nearBottomRef.current = !anchorMessageId;
       pendingScrollRef.current = !anchorMessageId;
       setShowScrollToLatest(Boolean(anchorMessageId));
       setError(null);
-    } catch (requestError) { setError((requestError as Error).message); }
-    finally { setLoading(false); }
-  }, [anchorMessageId, api, auth.demo, id, kind, userId]);
+    } catch (requestError) {
+      if (isCurrentRequest()) setError((requestError as Error).message);
+    } finally {
+      if (isCurrentRequest()) setLoading(false);
+    }
+  }, [anchorMessageId, api, auth.demo, id, kind, operationIdentity, updateDraft, userId]);
 
-  useEffect(() => { const frame = requestAnimationFrame(() => void load()); return () => cancelAnimationFrame(frame); }, [load]);
-  useEffect(() => auth.demo || loading || error ? undefined : subscribeToMessages(api, kind, id, (payload: MessageEvent) => {
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => void load());
+    return () => { cancelAnimationFrame(frame); loadRequestRef.current += 1; flushPendingDraft(); };
+  }, [flushPendingDraft, load]);
+
+  useEffect(() => {
+    if (!userId || auth.demo || loading || loadedOperationIdentity !== operationIdentity) return;
+    const failed = retryableMessagesForStorage(messages);
+    const serialized = JSON.stringify(failed);
+    if (persistedFailedRef.current === serialized) return;
+    persistedFailedRef.current = serialized;
+    let active = true;
+    void saveFailedMessagesWithRetry(userId, kind, id, failed, () => active && persistedFailedRef.current === serialized).then((saved) => {
+      if (!saved && persistedFailedRef.current === serialized) persistedFailedRef.current = null;
+    });
+    return () => { active = false; };
+  }, [auth.demo, id, kind, loadedOperationIdentity, loading, messages, operationIdentity, userId]);
+
+  useEffect(() => auth.demo || loading || error || loadedOperationIdentity !== operationIdentity ? undefined : subscribeToMessages(api, kind, id, (payload: MessageEvent) => {
     if ((kind === 'channel' && payload.channel_id !== id) || (kind === 'dm' && payload.direct_conversation_id !== id)) return;
     if (payload.message.parent_message_id && payload.event === 'created') return;
     const follow = payload.message.mine || nearBottomRef.current;
@@ -140,22 +269,16 @@ export default function ConversationScreen() {
     setMessages((current) => mergeMessageEvent(current, payload));
     setPinnedMessages((current) => mergePinnedMessageEvent(current, payload));
     if (follow) scrollToLatest(false);
-  }, setStatus), [api, auth.demo, error, id, kind, loading, scrollToLatest]);
+  }, setStatus), [api, auth.demo, error, id, kind, loadedOperationIdentity, loading, operationIdentity, scrollToLatest]);
 
   useEffect(() => {
-    if (!userId || loading) return;
+    if (!userId || loading || draftReadyOperationIdentity !== operationIdentity) return;
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
     const pending = { userId, kind, id, body: draft };
     pendingDraftRef.current = pending;
-    draftTimerRef.current = setTimeout(() => void saveConversationDraft(pending.userId, pending.kind, pending.id, pending.body).then(() => { if (pendingDraftRef.current === pending) pendingDraftRef.current = null; }).catch(() => undefined), 300);
+    draftTimerRef.current = setTimeout(() => persistPendingDraft(pending), 300);
     return () => { if (draftTimerRef.current) clearTimeout(draftTimerRef.current); };
-  }, [draft, id, kind, loading, userId]);
-
-  useEffect(() => () => {
-    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
-    const pending = pendingDraftRef.current;
-    if (pending) void saveConversationDraft(pending.userId, pending.kind, pending.id, pending.body).catch(() => undefined);
-  }, []);
+  }, [draft, draftReadyOperationIdentity, id, kind, loading, operationIdentity, persistPendingDraft, userId]);
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -166,51 +289,87 @@ export default function ConversationScreen() {
 
   const loadOlder = async () => {
     if (auth.demo || loadingOlder || !meta.has_older || !meta.oldest_message_id) return;
+    const requestIdentity = operationIdentity;
+    const requestId = ++loadOlderRequestRef.current;
+    const isCurrentRequest = () => operationIdentityRef.current === requestIdentity && loadOlderRequestRef.current === requestId;
     setLoadingOlder(true);
     try {
       const result = kind === 'channel'
         ? await api.channel(id, { message_limit: 60, before_message_id: meta.oldest_message_id })
         : await api.directConversation(id, { message_limit: 60, before_message_id: meta.oldest_message_id });
-      setMessages((current) => prependOlderMessages(current, result.messages));
+      if (!isCurrentRequest()) return;
+      setMessages((current) => mergeOlderMessages(current, result.messages));
       setMeta((current) => ({ ...result.meta, newest_message_id: current.newest_message_id, has_newer: current.has_newer }));
-    } catch (requestError) { Alert.alert('Could not load earlier messages', (requestError as Error).message); }
-    finally { setLoadingOlder(false); }
+    } catch (requestError) {
+      if (isCurrentRequest()) Alert.alert('Could not load earlier messages', (requestError as Error).message);
+    } finally {
+      if (isCurrentRequest()) setLoadingOlder(false);
+    }
   };
 
-  const persistFailed = useCallback((next: Message[]) => { if (userId) void saveFailedMessages(userId, kind, id, next); }, [id, kind, userId]);
-
   const send = async (retryMessage?: Message) => {
-    const body = (retryMessage?.body || draft).trim();
+    const body = (retryMessage ? retryMessage.body : draft).trim();
     if ((!body && !attachments.length && !retryMessage?.client_uploads?.length) || sending) return;
+    if (!messageBodyWithinLimit(body)) {
+      if (retryMessage) Alert.alert('Message is too long to send', `Shorten this message to ${MESSAGE_BODY_LIMIT.toLocaleString()} characters, then send it again.`);
+      return;
+    }
+    const requestIdentity = operationIdentity;
+    const requestId = ++sendRequestRef.current;
+    const abortController = new AbortController();
+    sendAbortRef.current?.abort();
+    sendAbortRef.current = abortController;
+    const isCurrentRequest = () => operationIdentityRef.current === requestIdentity && sendRequestRef.current === requestId;
     setSending(true);
     let optimistic: Message | null = retryMessage || null;
     try {
       const uploaded = [...(retryMessage?.client_uploads || [])];
       for (const attachment of retryMessage ? [] : attachments) {
+        if (!isCurrentRequest()) return;
         setAttachments((current) => current.map((item) => item.local_id === attachment.local_id ? { ...item, status: 'uploading' } : item));
-        const value = await uploadAttachment(api, kind, id, attachment, (progress) => setAttachments((current) => current.map((item) => item.local_id === attachment.local_id ? { ...item, progress } : item)));
+        const value = await uploadAttachment(api, kind, id, attachment, (progress) => {
+          if (isCurrentRequest()) setAttachments((current) => current.map((item) => item.local_id === attachment.local_id ? { ...item, progress } : item));
+        }, abortController.signal);
+        if (!isCurrentRequest()) return;
         uploaded.push(value);
       }
       const optimisticId = retryMessage?.id || -Date.now();
-      optimistic = retryMessage || { id: optimisticId, channel_id: kind === 'channel' ? id : null, direct_conversation_id: kind === 'dm' ? id : null, parent_message_id: null, body, mention_user_ids: resolveMentionUserIds(body, mentionUsers), edited_at: null, deleted_at: null, pinned_at: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), mine: true, reactions: [], attachments: uploaded.map((item, index) => ({ id: -(index + 1), filename: item.filename, content_type: item.content_type, byte_size: item.byte_size, image: item.content_type.startsWith('image/'), url: attachments[index]?.uri })), author: user || demoUser, reply_count: 0, client_uploads: uploaded };
+      const failedIntent = retryMessage?.client_message_id
+        ? { body, clientMessageId: retryMessage.client_message_id }
+        : null;
+      const clientMessageId = clientMessageIdForSend(body, failedIntent);
+      optimistic = retryMessage
+        ? { ...retryMessage, client_message_id: clientMessageId }
+        : { id: optimisticId, channel_id: kind === 'channel' ? id : null, direct_conversation_id: kind === 'dm' ? id : null, parent_message_id: null, client_message_id: clientMessageId, body, mention_user_ids: resolveMentionUserIds(body, mentionUsers), edited_at: null, deleted_at: null, pinned_at: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), mine: true, reactions: [], attachments: uploaded.map((item, index) => ({ id: -(index + 1), filename: item.filename, content_type: item.content_type, byte_size: item.byte_size, image: item.content_type.startsWith('image/'), url: attachments[index]?.uri })), author: user || demoUser, reply_count: 0, client_uploads: uploaded };
       const sendingMessage = { ...optimistic, client_status: 'sending' as const, client_error: undefined };
       setMessages((current) => sortMessages([...current.filter((item) => item.id !== optimisticId), sendingMessage]));
       scrollToLatest(false);
-      if (!retryMessage) { setDraft(''); setAttachments([]); }
+      if (!retryMessage) { updateDraft(''); setAttachments([]); }
       if (auth.demo) {
         setMessages((current) => current.map((item) => item.id === optimisticId ? { ...item, client_status: undefined } : item));
         if (!retryMessage) voiceDraft.markSent(body);
         return;
       }
-      const { message } = await api.sendMessage(kind, id, { body, mention_user_ids: resolveMentionUserIds(body, mentionUsers), attachments: uploaded, send_push: true });
-      setMessages((current) => { const next = reconcileOptimistic(current, optimisticId, message); persistFailed(next); return next; });
+      const { message } = await api.sendMessage(kind, id, { body, client_message_id: clientMessageId, mention_user_ids: resolveMentionUserIds(body, mentionUsers), attachments: uploaded, send_push: true });
+      if (!isCurrentRequest()) return;
+      setMessages((current) => reconcileOptimistic(current, optimisticId, message));
       if (!retryMessage) voiceDraft.markSent(body);
-      if (userId) {
+      if (userId && !retryMessage) {
+        const retainedDraft = draftAfterSendConfirmation(
+          draftValueRef.current,
+          { body, clientMessageId },
+          message.client_message_id,
+          message.author.id,
+          userId,
+        );
+        if (retainedDraft === null) return;
         if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
-        pendingDraftRef.current = null;
-        await saveConversationDraft(userId, kind, id, '');
+        const pending = { userId, kind, id, body: retainedDraft };
+        pendingDraftRef.current = pending;
+        persistPendingDraft(pending);
       }
     } catch (requestError) {
+      if (!isCurrentRequest()) return;
       if (!optimistic) {
         setAttachments((current) => current.map((item) => item.status === 'uploading' ? { ...item, status: 'failed', error: (requestError as Error).message } : item));
         Alert.alert('Attachment not uploaded', (requestError as Error).message);
@@ -218,20 +377,34 @@ export default function ConversationScreen() {
         return;
       }
       setMessages((current) => {
-        const failed: Message = { ...optimistic!, client_status: 'failed', client_error: (requestError as Error).message };
-        const next = sortMessages([...current.filter((item) => item.id !== failed.id), failed]); persistFailed(next); return next;
+        return markOptimisticFailed(current, optimistic!, (requestError as Error).message);
       });
       Alert.alert('Message not sent', (requestError as Error).message, [{ text: 'Keep for retry' }]);
-    } finally { setSending(false); }
+    } finally {
+      if (isCurrentRequest()) {
+        sendAbortRef.current = null;
+        setSending(false);
+      }
+    }
   };
 
   const saveEdit = async () => {
-    if (!editingMessage || !draft.trim()) return;
+    if (!editingMessage || sending || !editDraft.trim() || !messageBodyWithinLimit(editDraft.trim())) return;
+    const requestIdentity = operationIdentity;
+    const requestId = ++sendRequestRef.current;
+    const isCurrentRequest = () => operationIdentityRef.current === requestIdentity && sendRequestRef.current === requestId;
+    setSending(true);
     try {
-      const result = await api.updateMessage(editingMessage.id, draft.trim(), resolveMentionUserIds(draft, mentionUsers));
+      const body = editDraft.trim();
+      const result = await api.updateMessage(editingMessage.id, body, resolveMentionUserIds(body, mentionUsers));
+      if (!isCurrentRequest()) return;
       setMessages((current) => current.map((message) => message.id === result.message.id ? result.message : message));
-      setEditingMessage(null); setDraft('');
-    } catch (requestError) { Alert.alert('Could not edit message', (requestError as Error).message); }
+      setEditingMessage(null); setEditDraft(''); setEditSelection({ start: 0, end: 0 });
+    } catch (requestError) {
+      if (isCurrentRequest()) Alert.alert('Could not edit message', (requestError as Error).message);
+    } finally {
+      if (isCurrentRequest()) setSending(false);
+    }
   };
 
   const deleteMessage = (message: Message) => Alert.alert('Remove this message?', 'The message will no longer appear in the conversation.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: async () => { try { await api.deleteMessage(message.id); setMessages((current) => current.filter((item) => item.id !== message.id)); } catch (requestError) { Alert.alert('Could not remove message', (requestError as Error).message); } } }]);
@@ -288,6 +461,20 @@ export default function ConversationScreen() {
       Alert.alert('Could not update reaction', (requestError as Error).message);
     }
   };
+  const startEditingSelectedMessage = () => {
+    if (!selectedMessage) return;
+    const message = selectedMessage;
+    const requestIdentity = operationIdentity;
+    setSelectedMessage(null);
+    void voiceDraft.cancel().then(() => {
+      if (operationIdentityRef.current !== requestIdentity) return;
+      setEditingMessage(message);
+      setEditDraft(message.body);
+      setEditSelection({ start: message.body.length, end: message.body.length });
+    }).catch((cancelError) => {
+      if (operationIdentityRef.current === requestIdentity) Alert.alert('Could not start editing', (cancelError as Error).message);
+    });
+  };
   const openThread = (message: Message) => router.push({ pathname: '/thread/[id]', params: { id: String(message.id), kind, conversationId: String(id), workspaceId: String(summary?.workspace_id || '') } } as unknown as Href);
 
   const pickDocument = async () => {
@@ -302,7 +489,8 @@ export default function ConversationScreen() {
   };
 
   const toggleMute = async () => { if (!summary) return; const next = !summary.muted; setSummary({ ...summary, muted: next }); if (!auth.demo) try { await api.updatePreference(kind, id, next); } catch { setSummary({ ...summary, muted: !next }); } };
-  const title = summary ? ('name' in summary ? summary.name : summary.title) : 'Conversation';
+  const conversationReady = loadedOperationIdentity === operationIdentity;
+  const title = conversationReady && summary ? ('name' in summary ? summary.name : summary.title) : 'Conversation';
   const canManage = user?.is_staff;
 
   const openSourceRecord = () => {
@@ -321,7 +509,7 @@ export default function ConversationScreen() {
           <Pressable accessibilityRole="button" accessibilityLabel={summary?.muted ? 'Unmute conversation' : 'Mute conversation'} onPress={() => void toggleMute()} style={styles.iconButton}>{summary?.muted ? <BellOff color={palette.muted} size={20} /> : <Bell color={palette.muted} size={20} />}</Pressable>
         </View>
         {sourceType && sourceId && sourceLabel && <Pressable accessibilityRole="button" accessibilityLabel={`Return to ${sourceLabel}`} onPress={openSourceRecord} style={styles.sourceChip}><BookOpen color="#7DA8E8" size={15} /><Text numberOfLines={1} style={styles.sourceText}>From {sourceType === 'submission' ? 'submission' : 'help request'}: {sourceLabel}</Text></Pressable>}
-        {loading ? <LoadingState label="Loading messages" /> : error ? <ErrorState message={error} retry={() => void load()} /> : <View style={styles.messagePane}>
+        {error && !loading ? <ErrorState message={error} retry={() => void load()} /> : loading || !conversationReady ? <LoadingState label="Loading messages" /> : <View style={styles.messagePane}>
           <FlatList ref={listRef} data={conversationItems} inverted keyExtractor={(item) => String(item.message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" maintainVisibleContentPosition={{ minIndexForVisible: 0 }} scrollEventThrottle={16}
             onEndReached={() => void loadOlder()} onEndReachedThreshold={0.2}
             onScroll={(event: NativeSyntheticEvent<NativeScrollEvent>) => { const near = isNearConversationBottom(event.nativeEvent, 96, true); nearBottomRef.current = near; setShowScrollToLatest(!near); if (near) setNewMessagesBelow(0); }}
@@ -343,11 +531,12 @@ export default function ConversationScreen() {
           />
           {showScrollToLatest && <Pressable accessibilityRole="button" accessibilityLabel="Jump to latest message" onPress={() => { scrollToLatest(true); if (!auth.demo) void api.markRead(kind, id); }} style={styles.latestButton}><ChevronDown color={palette.text} size={17} strokeWidth={2.5} /><Text style={styles.latestText}>{newMessagesBelow ? `${newMessagesBelow} new` : 'Jump to latest'}</Text></Pressable>}
         </View>}
-        {mentionTrigger && (showEveryone || suggestions.length > 0) && <View style={styles.mentionPanel}>{showEveryone && <Pressable accessibilityRole="button" accessibilityLabel="Mention everyone" onPress={() => { const value = `${draft.slice(0, mentionTrigger.start)}@everyone ${draft.slice(mentionTrigger.end)}`; const cursor = mentionTrigger.start + 10; setDraft(value); setSelection({ start: cursor, end: cursor }); }} style={styles.mentionRow}><View style={styles.everyoneIcon}><Hash color={palette.rubySoft} size={15} /></View><View><Text style={styles.mentionName}>@everyone</Text><Text style={styles.mentionEmail}>Notify everyone in this channel</Text></View></Pressable>}{suggestions.map((member) => <Pressable key={member.id} accessibilityRole="button" onPress={() => { const next = insertMention(draft, mentionTrigger, member); setDraft(next.value); setSelection({ start: next.cursor, end: next.cursor }); }} style={styles.mentionRow}><Avatar name={member.full_name} size={30} /><View><Text style={styles.mentionName}>{member.full_name}</Text><Text style={styles.mentionEmail}>{member.email}</Text></View></Pressable>)}</View>}
+        {mentionTrigger && (showEveryone || suggestions.length > 0) && <View style={styles.mentionPanel}>{showEveryone && <Pressable accessibilityRole="button" accessibilityLabel="Mention everyone" onPress={() => { const value = `${composerValue.slice(0, mentionTrigger.start)}@everyone ${composerValue.slice(mentionTrigger.end)}`; const next = messageInsertionWithinLimit(value, mentionTrigger.start + 10); if (!next) { Alert.alert('Draft is too long', `Adding this mention would exceed the ${MESSAGE_BODY_LIMIT.toLocaleString()}-character limit.`); return; } updateComposerValue(next.value); updateComposerSelection({ start: next.cursor, end: next.cursor }); }} style={styles.mentionRow}><View style={styles.everyoneIcon}><Hash color={palette.rubySoft} size={15} /></View><View><Text style={styles.mentionName}>@everyone</Text><Text style={styles.mentionEmail}>Notify everyone in this channel</Text></View></Pressable>}{suggestions.map((member) => <Pressable key={member.id} accessibilityRole="button" onPress={() => { const inserted = insertMention(composerValue, mentionTrigger, member); const next = messageInsertionWithinLimit(inserted.value, inserted.cursor); if (!next) { Alert.alert('Draft is too long', `Adding this mention would exceed the ${MESSAGE_BODY_LIMIT.toLocaleString()}-character limit.`); return; } updateComposerValue(next.value); updateComposerSelection({ start: next.cursor, end: next.cursor }); }} style={styles.mentionRow}><Avatar name={member.full_name} size={30} /><View><Text style={styles.mentionName}>{member.full_name}</Text><Text style={styles.mentionEmail}>{member.email}</Text></View></Pressable>)}</View>}
         {!!attachments.length && <ScrollView horizontal keyboardShouldPersistTaps="handled" contentContainerStyle={styles.attachmentTray}>{attachments.map((attachment) => <View key={attachment.local_id} style={styles.pendingAttachment}><Paperclip color={palette.rubySoft} size={14} /><View style={styles.pendingCopy}><Text numberOfLines={1} style={styles.pendingName}>{attachment.filename}</Text><Text style={styles.pendingStatus}>{attachment.status === 'uploading' ? `${Math.round(attachment.progress * 100)}%` : 'Ready to send'}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Remove ${attachment.filename}`} onPress={() => setAttachments((current) => current.filter((item) => item.local_id !== attachment.local_id))} style={styles.removeAttachment}><X color={palette.muted} size={14} /></Pressable></View>)}</ScrollView>}
-        <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />
-        {editingMessage && <View style={styles.editBanner}><Edit3 color={palette.rubySoft} size={15} /><Text style={styles.editText}>Editing message</Text><Pressable accessibilityRole="button" accessibilityLabel="Cancel editing" onPress={() => { setEditingMessage(null); setDraft(''); }} style={styles.editClose}><X color={palette.muted} size={16} /></Pressable></View>}
-        <View style={styles.composer}><Pressable accessibilityRole="button" accessibilityLabel="Add an attachment" disabled={sending || Boolean(editingMessage)} onPress={() => Alert.alert('Add an attachment', undefined, [{ text: 'Photo library', onPress: () => void pickImage() }, { text: 'Choose a file', onPress: () => void pickDocument() }, { text: 'Cancel', style: 'cancel' }])} style={styles.attachButton}><Paperclip color={palette.muted} size={19} /></Pressable><VoiceDraftButton state={voiceDraft.state} disabled={sending || Boolean(editingMessage)} onPress={() => void voiceDraft.start()} /><TextInput accessibilityLabel="Message composer" accessibilityHint={`Enter a message for ${title}`} maxFontSizeMultiplier={fontScaleLimits.content} value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={setDraft} onFocus={() => { keyboardShouldFollowRef.current = nearBottomRef.current; if (nearBottomRef.current) scrollToLatest(false); }} placeholder={`Message ${kind === 'channel' ? '#' : ''}${title}`} placeholderTextColor={palette.quiet} multiline maxLength={10_000} style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel={editingMessage ? 'Save edit' : 'Send message'} disabled={(!draft.trim() && !attachments.length) || sending} onPress={() => void (editingMessage ? saveEdit() : send())} style={({ pressed }) => [styles.send, ((!draft.trim() && !attachments.length) || sending) && styles.sendDisabled, pressed && styles.pressed]}><Send color={palette.text} size={19} /></Pressable></View>
+        {!editingMessage && <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />}
+        {editingMessage && <View style={styles.editBanner}><Edit3 color={palette.rubySoft} size={15} /><Text style={styles.editText}>Editing message</Text><Pressable accessibilityRole="button" accessibilityLabel="Cancel editing" onPress={() => { setEditingMessage(null); setEditDraft(''); setEditSelection({ start: 0, end: 0 }); }} style={styles.editClose}><X color={palette.muted} size={16} /></Pressable></View>}
+        <ComposerLimitNotice value={composerValue} />
+        <View style={styles.composer}><Pressable accessibilityRole="button" accessibilityLabel="Add an attachment" disabled={sending || Boolean(editingMessage)} onPress={() => Alert.alert('Add an attachment', undefined, [{ text: 'Photo library', onPress: () => void pickImage() }, { text: 'Choose a file', onPress: () => void pickDocument() }, { text: 'Cancel', style: 'cancel' }])} style={styles.attachButton}><Paperclip color={palette.muted} size={19} /></Pressable><VoiceDraftButton state={voiceDraft.state} disabled={sending || Boolean(editingMessage)} onPress={() => void voiceDraft.start()} /><TextInput accessibilityLabel={editingMessage ? 'Edit message' : 'Message composer'} accessibilityHint={editingMessage ? 'Update the selected message' : `Enter a message for ${title}`} maxFontSizeMultiplier={fontScaleLimits.content} value={composerValue} selection={composerSelection} onSelectionChange={(event) => updateComposerSelection(event.nativeEvent.selection)} onChangeText={(value) => { if (messageBodyChangeAllowed(composerValue, value)) updateComposerValue(value); }} onFocus={() => { keyboardShouldFollowRef.current = nearBottomRef.current; if (nearBottomRef.current) scrollToLatest(false); }} placeholder={editingMessage ? 'Edit message' : `Message ${kind === 'channel' ? '#' : ''}${title}`} placeholderTextColor={palette.quiet} multiline style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel={editingMessage ? 'Save edit' : 'Send message'} disabled={!composerHasContent || !composerWithinLimit || sending} onPress={() => void (editingMessage ? saveEdit() : send())} style={({ pressed }) => [styles.send, (!composerHasContent || !composerWithinLimit || sending) && styles.sendDisabled, pressed && styles.pressed]}><Send color={palette.text} size={19} /></Pressable></View>
       </KeyboardAvoidingView>
 
       <Modal visible={Boolean(selectedMessage)} transparent animationType="fade" onRequestClose={() => setSelectedMessage(null)}><View style={styles.modalRoot}><Pressable accessibilityRole="button" accessibilityLabel="Close message actions" style={StyleSheet.absoluteFill} onPress={() => setSelectedMessage(null)} /><View style={styles.actionSheet}><View style={styles.sheetHandle} /><Text style={styles.sheetTitle}>Message actions</Text>{selectedMessage && <>
@@ -358,7 +547,7 @@ export default function ConversationScreen() {
         {!selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Flag} label="Report message" destructive onPress={() => { reportMessage(selectedMessage); setSelectedMessage(null); }} />}
         {!selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Flag} label={`Report ${selectedMessage.author.full_name}`} destructive onPress={() => { reportUser(selectedMessage); setSelectedMessage(null); }} />}
         {!selectedMessage.mine && selectedMessage.id > 0 && !selectedMessage.blocked && <Action icon={UserX} label={`Block ${selectedMessage.author.full_name}`} destructive onPress={() => { blockUser(selectedMessage); setSelectedMessage(null); }} />}
-        {selectedMessage.mine && !selectedMessage.deleted_at && selectedMessage.id > 0 && <Action icon={Edit3} label="Edit message" onPress={() => { setEditingMessage(selectedMessage); setDraft(selectedMessage.body); setSelectedMessage(null); }} />}
+        {selectedMessage.mine && !selectedMessage.deleted_at && selectedMessage.id > 0 && <Action icon={Edit3} label="Edit message" onPress={startEditingSelectedMessage} />}
         {selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Trash2} label="Remove message" destructive onPress={() => { deleteMessage(selectedMessage); setSelectedMessage(null); }} />}
       </>}</View></View></Modal>
 

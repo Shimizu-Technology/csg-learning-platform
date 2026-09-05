@@ -32,6 +32,7 @@ export default function StaffSupportScreen() {
     draft: response,
     selection: responseSelection,
     disabled: Boolean(savingId),
+    maxDraftLength: 2_000,
     onDraftChange: setResponse,
     onSelectionChange: setResponseSelection,
   });

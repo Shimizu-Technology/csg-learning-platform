@@ -73,7 +73,7 @@ class NotificationDeliveryService
     notification_ids = notifications.map(&:id)
     mention_email_skip_user_ids = []
     if push && notifications.any?
-      PushNotificationJob.perform_later("Message", message.id, notification_ids)
+      enqueue_message_push(message, notification_ids)
     end
     if message.direct_message? && notifications.any?
       MessageNotificationEmailJob.perform_later(message.id, notification_ids)
@@ -181,6 +181,14 @@ class NotificationDeliveryService
   end
 
   private
+
+  def enqueue_message_push(message, notification_ids)
+    return if notification_ids.empty?
+
+    # Recovery may enqueue this job more than once after a crash. The job's
+    # per-provider attempt checkpoint is the durable deduplication boundary.
+    PushNotificationJob.perform_later("Message", message.id, notification_ids)
+  end
 
   def intervention_notification_for(intervention, title:, body:, actor:)
     notification = Notification.find_or_initialize_by(notifiable: intervention, user: intervention.owner)

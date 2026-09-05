@@ -423,6 +423,454 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_includes JSON.parse(response.body).fetch("errors"), "Message must include text or an attachment"
   end
 
+  test "message create replays the original result for the same client message id" do
+    params = {
+      body: "Send this once",
+      client_message_id: "message-retry-1",
+      mention_user_ids: [ @classmate.id ]
+    }
+
+    broadcasts = []
+    original_user_broadcast = UserMessagesChannel.method(:broadcast_to)
+    UserMessagesChannel.define_singleton_method(:broadcast_to) { |target, payload| broadcasts << [ target, payload ] }
+    assert_difference("Message.count", 1) do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages",
+          params: params,
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :created
+    message_id = JSON.parse(response.body).dig("message", "id")
+    assert Message.find(message_id).delivery_tracking_requested?, "new API messages must opt into recovery tracking"
+    notification_count = Notification.where(notifiable_type: "Message", notifiable_id: message_id).count
+    assert_operator notification_count, :>, 0
+    assert_operator broadcasts.length, :>, 0
+    broadcast_count = broadcasts.length
+
+    assert_no_difference([ "Message.count", "Notification.count" ]) do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages",
+          params: params,
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :ok
+    assert_equal message_id, JSON.parse(response.body).dig("message", "id")
+    assert_equal "message-retry-1", JSON.parse(response.body).dig("message", "client_message_id")
+    assert_equal notification_count, Notification.where(notifiable_type: "Message", notifiable_id: message_id).count
+    assert_equal broadcast_count, broadcasts.length, "replayed sends must not emit another realtime event"
+
+    as_user(@classmate) do
+      get "/api/v1/channels/#{@channel.id}", headers: auth_headers
+    end
+    delivered = JSON.parse(response.body).fetch("messages").find { |message| message.fetch("id") == message_id }
+    assert_not delivered.key?("client_message_id"), "client message IDs must remain private to their author"
+  ensure
+    UserMessagesChannel.define_singleton_method(:broadcast_to, original_user_broadcast) if defined?(original_user_broadcast) && original_user_broadcast
+  end
+
+  test "message create rejects a client message id reused for different content" do
+    as_user(@student) do
+      post "/api/v1/channels/#{@channel.id}/messages",
+        params: { body: "Original intent", client_message_id: "message-retry-conflict" },
+        headers: auth_headers,
+        as: :json
+    end
+    assert_response :created
+
+    assert_no_difference("Message.count") do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages",
+          params: { body: "Different intent", client_message_id: "message-retry-conflict" },
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :conflict
+    assert_includes JSON.parse(response.body).fetch("errors"), "Client message ID has already been used for a different message"
+
+    assert_no_difference("Message.count") do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages",
+          params: { body: "Original intent", client_message_id: "message-retry-conflict", mention_user_ids: [ @classmate.id ] },
+          headers: auth_headers,
+          as: :json
+      end
+    end
+    assert_response :conflict
+
+    conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @student, @admin ])
+    assert_no_difference("Message.count") do
+      as_user(@student) do
+        post "/api/v1/direct_conversations/#{conversation.id}/messages",
+          params: { body: "Original intent", client_message_id: "message-retry-conflict" },
+          headers: auth_headers,
+          as: :json
+      end
+    end
+    assert_response :conflict
+
+    student_message_id = Message.find_by!(author: @student, client_message_id: "message-retry-conflict").id
+    as_user(@classmate) do
+      post "/api/v1/channels/#{@channel.id}/messages",
+        params: { body: "Classmate intent", client_message_id: "message-retry-conflict" },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :created
+    assert_not_equal student_message_id, JSON.parse(response.body).dig("message", "id")
+  end
+
+  test "message replay preserves the original push preference without duplicate fanout" do
+    params = {
+      body: "Push this once",
+      client_message_id: "message-push-precedence",
+      send_push: true
+    }
+
+    assert_enqueued_jobs 1, only: PushNotificationJob do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+      end
+      assert_response :created
+
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages",
+          params: params.merge(send_push: false),
+          headers: auth_headers,
+          as: :json
+      end
+      assert_response :ok
+    end
+
+    message = Message.find_by!(author: @student, client_message_id: "message-push-precedence")
+    assert message.delivery_push_requested?
+  end
+
+  test "message retries accept the same attachments in a different request order" do
+    original_configured = S3Service.method(:configured?)
+    S3Service.define_singleton_method(:configured?) { false }
+    attachments = [
+      { s3_key: "message_attachments/channel_#{@channel.id}/first.txt", filename: "first.txt", content_type: "text/plain", byte_size: 11 },
+      { s3_key: "message_attachments/channel_#{@channel.id}/second.txt", filename: "second.txt", content_type: "text/plain", byte_size: 12 }
+    ]
+    params = { body: "Same files", client_message_id: "message-attachment-order", attachments: attachments }
+
+    as_user(@student) do
+      post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+    end
+    assert_response :created
+    message_id = JSON.parse(response.body).dig("message", "id")
+
+    assert_no_difference([ "Message.count", "MessageAttachment.count" ]) do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages",
+          params: params.merge(attachments: attachments.reverse),
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :ok
+    assert_equal message_id, JSON.parse(response.body).dig("message", "id")
+  ensure
+    S3Service.define_singleton_method(:configured?, original_configured) if defined?(original_configured) && original_configured
+  end
+
+  test "message retries preserve the original mention intent after membership changes" do
+    params = { body: "Before you go", client_message_id: "message-membership-change", mention_user_ids: [ @classmate.id ] }
+    as_user(@student) do
+      post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+    end
+    assert_response :created
+    message_id = JSON.parse(response.body).dig("message", "id")
+    @classmate.update!(archived_at: Time.current)
+
+    assert_no_difference("Message.count") do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+      end
+    end
+
+    assert_response :ok
+    assert_equal message_id, JSON.parse(response.body).dig("message", "id")
+  end
+
+  test "message retries reject a changed attachment set" do
+    original_configured = S3Service.method(:configured?)
+    S3Service.define_singleton_method(:configured?) { false }
+    first = { s3_key: "message_attachments/channel_#{@channel.id}/first.txt", filename: "first.txt", content_type: "text/plain", byte_size: 11 }
+    additional = { s3_key: "message_attachments/channel_#{@channel.id}/additional.txt", filename: "additional.txt", content_type: "text/plain", byte_size: 15 }
+    params = { body: "Exact files only", client_message_id: "message-attachment-conflict", attachments: [ first ] }
+
+    as_user(@student) do
+      post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+    end
+    assert_response :created
+
+    assert_no_difference([ "Message.count", "MessageAttachment.count" ]) do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages",
+          params: params.merge(attachments: [ first, additional ]),
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :conflict
+  ensure
+    S3Service.define_singleton_method(:configured?, original_configured) if defined?(original_configured) && original_configured
+  end
+
+  test "validation-time duplicate races replay the committed message" do
+    client_message_id = "message-validation-race"
+    winner = Message.create!(channel: @channel, author: @student, body: "Race-safe send", client_message_id: client_message_id)
+    original_lookup = Api::V1::MessagesController.instance_method(:existing_message_for_client_id)
+    lookup_count = 0
+    Api::V1::MessagesController.define_method(:existing_message_for_client_id) do
+      lookup_count += 1
+      lookup_count == 1 ? nil : original_lookup.bind_call(self)
+    end
+    Api::V1::MessagesController.send(:private, :existing_message_for_client_id)
+
+    as_user(@student) do
+      post "/api/v1/channels/#{@channel.id}/messages",
+        params: { body: "Race-safe send", client_message_id: client_message_id },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :ok
+    assert_equal winner.id, JSON.parse(response.body).dig("message", "id")
+    assert_equal 1, Message.where(author: @student, client_message_id: client_message_id).count
+  ensure
+    if defined?(original_lookup) && original_lookup
+      Api::V1::MessagesController.define_method(:existing_message_for_client_id, original_lookup)
+      Api::V1::MessagesController.send(:private, :existing_message_for_client_id)
+    end
+  end
+
+  test "database uniqueness races replay the committed message inside an outer transaction" do
+    client_message_id = "message-index-race"
+    winner = Message.create!(channel: @channel, author: @student, body: "Index-safe send", client_message_id: client_message_id)
+    original_lookup = Api::V1::MessagesController.instance_method(:existing_message_for_client_id)
+    lookup_count = 0
+    Api::V1::MessagesController.define_method(:existing_message_for_client_id) do
+      lookup_count += 1
+      lookup_count == 1 ? nil : original_lookup.bind_call(self)
+    end
+    Api::V1::MessagesController.send(:private, :existing_message_for_client_id)
+    save_was_owned = Message.instance_methods(false).include?(:save!)
+    original_save = Message.instance_method(:save!)
+    target_client_message_id = client_message_id
+    Message.define_method(:save!) do |*args, **kwargs|
+      if self[:client_message_id] == target_client_message_id
+        self.class.insert!({
+          author_id: author_id,
+          body: body,
+          channel_id: channel_id,
+          client_message_id: client_message_id,
+          direct_conversation_id: direct_conversation_id,
+          mention_user_ids: mention_user_ids,
+          parent_message_id: parent_message_id,
+          created_at: Time.current,
+          updated_at: Time.current
+        })
+      else
+        original_save.bind_call(self, *args, **kwargs)
+      end
+    end
+
+    Message.transaction(requires_new: true) do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages",
+          params: { body: "Index-safe send", client_message_id: client_message_id },
+          headers: auth_headers,
+          as: :json
+      end
+
+      assert_response :ok
+      assert_equal winner.id, JSON.parse(response.body).dig("message", "id")
+      assert_equal winner.id, Message.find_by!(author: @student, client_message_id: client_message_id).id
+    end
+  ensure
+    if defined?(original_save) && original_save
+      if defined?(save_was_owned) && save_was_owned
+        Message.define_method(:save!, original_save)
+      elsif Message.instance_methods(false).include?(:save!)
+        Message.send(:remove_method, :save!)
+      end
+    end
+    if defined?(original_lookup) && original_lookup
+      Api::V1::MessagesController.define_method(:existing_message_for_client_id, original_lookup)
+      Api::V1::MessagesController.send(:private, :existing_message_for_client_id)
+    end
+  end
+
+  test "unrelated record-not-unique errors are not treated as message replays" do
+    original_persist = Api::V1::MessagesController.instance_method(:persist_files!)
+    Api::V1::MessagesController.define_method(:persist_files!) do |message, attachments|
+      raise ActiveRecord::RecordNotUnique, "different unique index" if message.client_message_id == "unrelated-constraint"
+
+      original_persist.bind_call(self, message, attachments)
+    end
+    Api::V1::MessagesController.send(:private, :persist_files!)
+
+    assert_raises(ActiveRecord::RecordNotUnique) do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages",
+          params: { body: "Must not replay", client_message_id: "unrelated-constraint" },
+          headers: auth_headers,
+          as: :json
+      end
+    end
+    assert_not Message.exists?(author: @student, client_message_id: "unrelated-constraint")
+  ensure
+    if defined?(original_persist) && original_persist
+      Api::V1::MessagesController.define_method(:persist_files!, original_persist)
+      Api::V1::MessagesController.send(:private, :persist_files!)
+    end
+  end
+
+  test "inline delivery failure asks the client to retry the committed message" do
+    original_delivery = NotificationDeliveryService.method(:message_created)
+    original_user_broadcast = UserMessagesChannel.method(:broadcast_to)
+    broadcasts = []
+    UserMessagesChannel.define_singleton_method(:broadcast_to) { |target, payload| broadcasts << [ target, payload ] }
+    fail_delivery = true
+    NotificationDeliveryService.define_singleton_method(:message_created) do |message, push: false|
+      raise "delivery interrupted" if fail_delivery
+
+      original_delivery.call(message, push: push)
+    end
+    params = { body: "Recover delivery", client_message_id: "message-delivery-recovery" }
+
+    as_user(@student) do
+      post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+    end
+    assert_response :service_unavailable
+    committed = Message.find_by!(author: @student, client_message_id: "message-delivery-recovery")
+    assert_nil committed.notifications_delivered_at
+
+    fail_delivery = false
+    assert_no_difference("Message.count") do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+      end
+    end
+
+    assert_response :ok
+    committed.reload
+    assert committed.notifications_delivered_at?
+    assert committed.broadcasts_delivered_at?
+    assert_empty committed.delivered_recipient_ids(:broadcast_recipient_ids)
+    notification_count = Notification.where(notifiable_type: "Message", notifiable_id: committed.id).count
+    broadcast_count = broadcasts.length
+    assert_operator notification_count, :>, 0
+    assert_operator broadcast_count, :>, 0
+
+    assert_no_difference([ "Message.count", "Notification.count" ]) do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+      end
+    end
+    assert_response :ok
+    assert_equal notification_count, Notification.where(notifiable_type: "Message", notifiable_id: committed.id).count
+    assert_equal broadcast_count, broadcasts.length
+  ensure
+    UserMessagesChannel.define_singleton_method(:broadcast_to, original_user_broadcast) if defined?(original_user_broadcast) && original_user_broadcast
+    NotificationDeliveryService.define_singleton_method(:message_created, original_delivery) if defined?(original_delivery) && original_delivery
+  end
+
+  test "inline delivery failure acknowledges a committed message without a retry key" do
+    original_delivery = NotificationDeliveryService.method(:message_created)
+    NotificationDeliveryService.define_singleton_method(:message_created) { |*, **| raise "delivery interrupted" }
+
+    assert_difference("Message.count", 1) do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages",
+          params: { body: "Legacy retry safety" },
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :accepted
+    payload = JSON.parse(response.body)
+    assert payload.fetch("delivery_pending")
+    assert_equal "Legacy retry safety", payload.dig("message", "body")
+  ensure
+    NotificationDeliveryService.define_singleton_method(:message_created, original_delivery) if defined?(original_delivery) && original_delivery
+  end
+
+  test "inline deletion failure acknowledges the committed removal as pending" do
+    message = Message.create!(channel: @channel, author: @student, body: "Remove once", client_message_id: "delete-delivery-pending")
+    original_delivery = MessageDeliveryService.method(:created)
+    MessageDeliveryService.define_singleton_method(:created) { |_message| raise "broadcast interrupted" }
+
+    as_user(@student) do
+      delete "/api/v1/messages/#{message.id}", headers: auth_headers, as: :json
+    end
+
+    assert_response :accepted
+    payload = JSON.parse(response.body)
+    assert payload.fetch("delivery_pending")
+    assert payload.dig("message", "deleted_at")
+    assert message.reload.deleted?
+  ensure
+    MessageDeliveryService.define_singleton_method(:created, original_delivery) if defined?(original_delivery) && original_delivery
+  end
+
+  test "deleted messages cannot be replayed" do
+    params = { body: "Delete this", client_message_id: "message-deleted-retry" }
+    as_user(@student) do
+      post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+    end
+    assert_response :created
+    Message.find_by!(author: @student, client_message_id: "message-deleted-retry").update!(deleted_at: Time.current)
+
+    assert_no_difference("Message.count") do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+      end
+    end
+
+    assert_response :conflict
+  end
+
+  test "message create rejects client message ids outside the contract" do
+    as_user(@student) do
+      post "/api/v1/channels/#{@channel.id}/messages",
+        params: { body: "Too long an id", client_message_id: "m" * 101 },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :unprocessable_entity
+    assert_includes JSON.parse(response.body).fetch("errors"), "Client message ID is too long (maximum is 100 characters)"
+  end
+
+  test "message create rejects malformed mention user ids" do
+    assert_no_difference("Message.count") do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages",
+          params: { body: "Malformed mention", mention_user_ids: [ "#{@classmate.id}invalid" ] },
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal [ "Mention user IDs must be numeric" ], JSON.parse(response.body).fetch("errors")
+  end
+
   test "thread endpoint returns the root and chronological replies with a reply count" do
     root = Message.create!(channel: @channel, author: @admin, body: "Thread root", created_at: 10.minutes.ago)
     later = Message.create!(channel: @channel, author: @student, body: "Second reply", parent_message: root, created_at: 2.minutes.ago)
@@ -466,6 +914,52 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert message.deleted?
     assert_nil message.pinned_at
     assert_nil message.pinned_by
+  end
+
+  test "a committed deletion returns success and remains recoverable when broadcast fails" do
+    message = Message.create!(
+      channel: @channel,
+      author: @student,
+      body: "Remove reliably",
+      delivery_tracking_requested: true,
+      notifications_delivery_claim: SecureRandom.uuid,
+      notifications_delivery_started_at: Time.current,
+      broadcasts_delivered_at: Time.current
+    )
+    original_delete_broadcast = MessageBroadcastService.method(:deleted)
+    queue_adapter_name_was_owned = ActiveJob::Base.singleton_methods(false).include?(:queue_adapter_name)
+    original_queue_adapter_name = ActiveJob::Base.method(:queue_adapter_name)
+    ActiveJob::Base.define_singleton_method(:queue_adapter_name) { "solid_queue" }
+    fail_delete_broadcast = true
+    MessageBroadcastService.define_singleton_method(:deleted) do |target, **options, &block|
+      raise "delete broadcast unavailable" if fail_delete_broadcast
+
+      original_delete_broadcast.call(target, **options, &block)
+    end
+
+    as_user(@student) do
+      delete "/api/v1/messages/#{message.id}", headers: auth_headers
+    end
+
+    assert_response :success
+    assert message.reload.deleted?
+    assert message.notifications_delivered_at?
+    assert_nil message.notifications_delivery_claim
+    assert_nil message.broadcasts_delivered_at
+    assert_nil message.broadcast_delivery_claim
+
+    fail_delete_broadcast = false
+    MessageDeliveryService.created(message)
+    assert message.reload.broadcasts_delivered_at?
+  ensure
+    if defined?(original_queue_adapter_name) && original_queue_adapter_name
+      if defined?(queue_adapter_name_was_owned) && queue_adapter_name_was_owned
+        ActiveJob::Base.define_singleton_method(:queue_adapter_name, original_queue_adapter_name)
+      elsif ActiveJob::Base.singleton_methods(false).include?(:queue_adapter_name)
+        ActiveJob::Base.singleton_class.send(:remove_method, :queue_adapter_name)
+      end
+    end
+    MessageBroadcastService.define_singleton_method(:deleted, original_delete_broadcast) if defined?(original_delete_broadcast) && original_delete_broadcast
   end
 
   test "thread endpoint does not expose a conversation after access is lost" do

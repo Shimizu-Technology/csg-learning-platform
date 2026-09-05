@@ -35,6 +35,12 @@ export function restoreRawVoiceDraft(draft: string, review: VoiceDraftReview) {
   return { value, selection: { start: cursor, end: cursor } };
 }
 
+export function voiceDraftWithinLimit(value: string, maximum?: number) {
+  // Match the shared message counter and Rails' character validation. Message
+  // composers deliberately gate changes instead of using TextInput maxLength.
+  return maximum === undefined || Array.from(value).length <= maximum;
+}
+
 export function voiceEditDistanceBucket(review: VoiceDraftReview, draft: string): 'none' | 'light' | 'substantial' {
   const current = voiceDraftSegment(draft, review);
   if (current === null) return 'substantial';

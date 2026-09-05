@@ -30,13 +30,36 @@ class PushNotificationJobTest < ActiveJob::TestCase
     original_web_delivery = WebPushNotificationService.method(:message_created)
     original_expo_delivery = ExpoPushNotificationService.method(:message_created)
     WebPushNotificationService.define_singleton_method(:message_created) { |notifiable, notifications| web_deliveries << [ notifiable, notifications.pluck(:id) ] }
-    ExpoPushNotificationService.define_singleton_method(:message_created) { |*, **| raise "Expo unavailable" }
+    expo_attempts = 0
+    errors = []
+    log_error_was_owned = Rails.logger.singleton_methods(false).include?(:error)
+    original_log_error = Rails.logger.method(:error)
+    Rails.logger.define_singleton_method(:error) do |entry = nil, *arguments, &block|
+      entry = block.call if entry.nil? && block
+      errors << entry.to_s
+      original_log_error.call(entry, *arguments)
+    end
+    ExpoPushNotificationService.define_singleton_method(:message_created) do |*, **|
+      expo_attempts += 1
+      raise "Expo unavailable"
+    end
 
     assert_nothing_raised do
-      PushNotificationJob.perform_now("Message", message.id, [ notification.id ])
+      2.times { PushNotificationJob.perform_now("Message", message.id, [ notification.id ]) }
     end
     assert_equal [ [ message, [ notification.id ] ] ], web_deliveries
+    assert_equal 1, expo_attempts, "a provider exception may follow partial external delivery and must not be retried blindly"
+    provider_errors = errors.select { |entry| entry.include?("provider=ExpoPushNotificationService") }
+    assert_equal 1, provider_errors.size
+    assert_includes provider_errors.first, "notification_ids=#{notification.id}"
   ensure
+    if defined?(original_log_error) && original_log_error
+      if defined?(log_error_was_owned) && log_error_was_owned
+        Rails.logger.define_singleton_method(:error, original_log_error)
+      elsif Rails.logger.singleton_methods(false).include?(:error)
+        Rails.logger.singleton_class.send(:remove_method, :error)
+      end
+    end
     WebPushNotificationService.define_singleton_method(:message_created, original_web_delivery) if defined?(original_web_delivery) && original_web_delivery
     ExpoPushNotificationService.define_singleton_method(:message_created, original_expo_delivery) if defined?(original_expo_delivery) && original_expo_delivery
   end
@@ -57,8 +80,83 @@ class PushNotificationJobTest < ActiveJob::TestCase
 
     PushNotificationJob.perform_now("Message", message.id, [ notification.id ])
 
-    assert_equal [ [], [] ], deliveries
+    assert_empty deliveries
     assert Notification.exists?(notification.id)
+  ensure
+    WebPushNotificationService.define_singleton_method(:message_created, original_web_delivery) if defined?(original_web_delivery) && original_web_delivery
+    ExpoPushNotificationService.define_singleton_method(:message_created, original_expo_delivery) if defined?(original_expo_delivery) && original_expo_delivery
+  end
+
+  test "message push stops when the message is deleted before the queued job runs" do
+    author = User.create!(clerk_id: "push_deleted_author", email: "push-deleted-author@example.com", role: :student)
+    recipient = User.create!(clerk_id: "push_deleted_recipient", email: "push-deleted-recipient@example.com", role: :student)
+    curriculum = Curriculum.create!(name: "Deleted push curriculum")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Deleted push cohort", start_date: Date.current, status: :active)
+    message = Message.create!(channel: cohort.channels.find_by!(name: "Class Chat"), author: author, body: "Do not notify", deleted_at: Time.current)
+    notification = recipient.notifications.create!(actor: author, notifiable: message, notification_type: :message, title: "Message", body: message.body, path: "/messages")
+    deliveries = []
+    original_web_delivery = WebPushNotificationService.method(:message_created)
+    original_expo_delivery = ExpoPushNotificationService.method(:message_created)
+    WebPushNotificationService.define_singleton_method(:message_created) { |*| deliveries << :web }
+    ExpoPushNotificationService.define_singleton_method(:message_created) { |*| deliveries << :expo }
+
+    PushNotificationJob.perform_now("Message", message.id, [ notification.id ])
+
+    assert_empty deliveries
+    assert_empty message.reload.web_push_attempted_notification_ids
+    assert_empty message.expo_push_attempted_notification_ids
+  ensure
+    WebPushNotificationService.define_singleton_method(:message_created, original_web_delivery) if defined?(original_web_delivery) && original_web_delivery
+    ExpoPushNotificationService.define_singleton_method(:message_created, original_expo_delivery) if defined?(original_expo_delivery) && original_expo_delivery
+  end
+
+  test "message push stops when deletion commits before the provider claim" do
+    author = User.create!(clerk_id: "push_deleted_claim_author", email: "push-deleted-claim-author@example.com", role: :student)
+    recipient = User.create!(clerk_id: "push_deleted_claim_recipient", email: "push-deleted-claim-recipient@example.com", role: :student)
+    curriculum = Curriculum.create!(name: "Deleted claim push curriculum")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Deleted claim push cohort", start_date: Date.current, status: :active)
+    message = Message.create!(channel: cohort.channels.find_by!(name: "Class Chat"), author: author, body: "Do not claim")
+    stale_message = Message.find(message.id)
+    notification = recipient.notifications.create!(actor: author, notifiable: message, notification_type: :message, title: "Message", body: message.body, path: "/messages")
+    deliveries = []
+    original_web_delivery = WebPushNotificationService.method(:message_created)
+    WebPushNotificationService.define_singleton_method(:message_created) { |*| deliveries << :web }
+    message.update!(deleted_at: Time.current)
+
+    PushNotificationJob.new.send(
+      :deliver_message_push,
+      WebPushNotificationService,
+      :web_push_attempted_notification_ids,
+      stale_message,
+      Notification.where(id: notification.id)
+    )
+
+    assert_empty deliveries
+    assert_empty message.reload.web_push_attempted_notification_ids
+  ensure
+    WebPushNotificationService.define_singleton_method(:message_created, original_web_delivery) if defined?(original_web_delivery) && original_web_delivery
+  end
+
+  test "repeated message jobs forward each notification only once per provider" do
+    author = User.create!(clerk_id: "push_dedupe_author", email: "push-dedupe-author@example.com", role: :student)
+    recipient = User.create!(clerk_id: "push_dedupe_recipient", email: "push-dedupe-recipient@example.com", role: :student)
+    curriculum = Curriculum.create!(name: "Push dedupe curriculum")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Push dedupe cohort", start_date: Date.current, status: :active)
+    message = Message.create!(channel: cohort.channels.find_by!(name: "Class Chat"), author: author, body: "Deliver push once")
+    notification = recipient.notifications.create!(actor: author, notifiable: message, notification_type: :message, title: "Message", body: message.body, path: "/messages")
+    web_deliveries = []
+    expo_deliveries = []
+    original_web_delivery = WebPushNotificationService.method(:message_created)
+    original_expo_delivery = ExpoPushNotificationService.method(:message_created)
+    WebPushNotificationService.define_singleton_method(:message_created) { |_message, notifications| web_deliveries.concat(notifications.pluck(:id)) }
+    ExpoPushNotificationService.define_singleton_method(:message_created) { |_message, notifications| expo_deliveries.concat(notifications.pluck(:id)) }
+
+    2.times { PushNotificationJob.perform_now("Message", message.id, [ notification.id ]) }
+
+    assert_equal [ notification.id ], web_deliveries
+    assert_equal [ notification.id ], expo_deliveries
+    assert_equal [ notification.id ], message.reload.web_push_attempted_notification_ids
+    assert_equal [ notification.id ], message.expo_push_attempted_notification_ids
   ensure
     WebPushNotificationService.define_singleton_method(:message_created, original_web_delivery) if defined?(original_web_delivery) && original_web_delivery
     ExpoPushNotificationService.define_singleton_method(:message_created, original_expo_delivery) if defined?(original_expo_delivery) && original_expo_delivery

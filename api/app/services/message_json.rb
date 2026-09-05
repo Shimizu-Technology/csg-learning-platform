@@ -22,6 +22,7 @@ class MessageJson
         reactions: blocked ? [] : reaction_json(message, current_user),
         reply_count: reply_count(message)
       }.tap do |json|
+        json[:client_message_id] = message.client_message_id if message.author_id == current_user&.id
         json[:read_receipts] = read_receipts if read_receipts
       end
     end

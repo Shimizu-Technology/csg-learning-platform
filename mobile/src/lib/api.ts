@@ -59,6 +59,7 @@ export class ApiError extends Error {
 type MessageInput = {
   body: string;
   parent_message_id?: number | null;
+  client_message_id?: string;
   mention_user_ids?: number[];
   attachments?: UploadAttachmentInput[];
   send_push?: boolean;

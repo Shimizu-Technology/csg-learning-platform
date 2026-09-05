@@ -8,12 +8,29 @@ import { Platform } from 'react-native';
 import type { CsgApi } from './api';
 
 export const PUSH_TOKEN_KEY = 'csg.push.token';
+const PUSH_UNREGISTER_ATTEMPTS = 3;
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true }),
 });
 
-export async function registerPushNotifications(api: CsgApi) {
+async function unregisterPushToken(api: CsgApi, token: string) {
+  let finalError: unknown;
+  for (let attempt = 0; attempt < PUSH_UNREGISTER_ATTEMPTS; attempt += 1) {
+    try {
+      await api.unregisterDevice(token);
+      return;
+    } catch (error) {
+      finalError = error;
+      if (attempt < PUSH_UNREGISTER_ATTEMPTS - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 250 * (2 ** attempt)));
+      }
+    }
+  }
+  throw finalError;
+}
+
+export async function registerPushNotifications(api: CsgApi, isActive: () => boolean = () => true) {
   if (!Device.isDevice) return null;
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('messages', { name: 'Messages', importance: Notifications.AndroidImportance.HIGH });
@@ -25,7 +42,20 @@ export async function registerPushNotifications(api: CsgApi) {
   if (!projectId) return null;
   const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
   const deviceId = Platform.OS === 'ios' ? await Application.getIosIdForVendorAsync() : Application.getAndroidId();
-  await api.registerDevice(token, Platform.OS, deviceId, Application.nativeApplicationVersion);
+  if (!isActive()) return null;
+  // Store the cleanup handle before the server can accept the registration.
+  // A rejected request may still have committed remotely, so retain the token
+  // until a confirmed unregister succeeds.
   await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
+  if (!isActive()) {
+    await AsyncStorage.removeItem(PUSH_TOKEN_KEY);
+    return null;
+  }
+  await api.registerDevice(token, Platform.OS, deviceId, Application.nativeApplicationVersion);
+  if (!isActive()) {
+    await unregisterPushToken(api, token);
+    await AsyncStorage.removeItem(PUSH_TOKEN_KEY);
+    return null;
+  }
   return token;
 }

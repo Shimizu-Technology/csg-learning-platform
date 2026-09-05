@@ -5,6 +5,7 @@ import { Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet,
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MessageBubble } from '@/components/message-bubble';
+import { ComposerLimitNotice } from '@/components/composer-limit-notice';
 import { ImagePreview } from '@/components/image-preview';
 import { ReactionDetailsSheet } from '@/components/reaction-details-sheet';
 import { ErrorState, LoadingState } from '@/components/screen-states';
@@ -14,11 +15,44 @@ import { useVoiceDraft } from '@/hooks/use-voice-draft';
 import { subscribeToMessages } from '@/lib/cable';
 import { demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { resolveMentionUserIds } from '@/lib/mentions';
-import { mergeMessageEvent, sortMessages } from '@/lib/message-state';
-import { loadThreadDraft, saveThreadDraft } from '@/lib/conversation-storage';
+import { clientMessageIdForSend, draftAfterSendConfirmation, draftAfterStoredLoad, type FailedSendIntent, messageBodyChangeAllowed, messageBodyWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
+import { markOptimisticFailed, mergeMessageEvent, reconcileOptimistic, sortMessages } from '@/lib/message-state';
+import { clearThreadDraftAfterSend, loadStoredThreadDraft, saveThreadDraftState } from '@/lib/conversation-storage';
 import type { Message, MessageEvent, UserSummary } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
+
+function pendingReplyMessage(root: Message, author: Message['author'], id: number, intent: FailedSendIntent): Message {
+  const now = new Date().toISOString();
+  return {
+    id,
+    channel_id: root.channel_id,
+    direct_conversation_id: root.direct_conversation_id,
+    parent_message_id: root.id,
+    client_message_id: intent.clientMessageId,
+    body: intent.body,
+    mention_user_ids: [],
+    edited_at: null,
+    deleted_at: null,
+    pinned_at: null,
+    pinned_by_id: null,
+    created_at: now,
+    updated_at: now,
+    mine: true,
+    reactions: [],
+    attachments: [],
+    reply_count: 0,
+    author,
+  };
+}
+
+function failedReplyMessage(root: Message, author: Message['author'], intent: FailedSendIntent): Message {
+  return {
+    ...pendingReplyMessage(root, author, -Date.now(), intent),
+    client_status: 'failed',
+    client_error: 'Message not sent',
+  };
+}
 
 export default function ThreadScreen() {
   const params = useLocalSearchParams<{ id: string; kind: string; conversationId: string; workspaceId: string }>();
@@ -42,7 +76,13 @@ export default function ThreadScreen() {
   const [reactionDetails, setReactionDetails] = useState<{ messageId: number; emoji: string } | null>(null);
   const [imagePreview, setImagePreview] = useState<{ attachments: Message['attachments']; attachmentId: number } | null>(null);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingDraftRef = useRef<{ userId: number; rootId: number; body: string } | null>(null);
+  const pendingDraftRef = useRef<{ userId: number; rootId: number; body: string; failedSend: FailedSendIntent | null } | null>(null);
+  const loadRequestRef = useRef(0);
+  const tempMessageIdRef = useRef(0);
+  const failedSendRef = useRef<FailedSendIntent | null>(null);
+  const draftRef = useRef(draft);
+  const userRef = useRef(user);
+  useEffect(() => { userRef.current = user; }, [user]);
   const voiceDraft = useVoiceDraft({
     api,
     demo: auth.demo,
@@ -50,14 +90,53 @@ export default function ThreadScreen() {
     draft,
     selection,
     disabled: sending,
-    onDraftChange: setDraft,
+    maxDraftLength: MESSAGE_BODY_LIMIT,
+    onDraftChange: (value) => { draftRef.current = value; setDraft(value); },
     onSelectionChange: setSelection,
   });
 
+  const acknowledgeSentReply = useCallback((message: Message) => {
+    const intent = failedSendRef.current;
+    if (!userId) return false;
+    const nextDraft = draftAfterSendConfirmation(draftRef.current, intent, message.client_message_id, message.author.id, userId);
+    if (nextDraft === null) return false;
+
+    failedSendRef.current = null;
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    pendingDraftRef.current = null;
+    if (!nextDraft) {
+      draftRef.current = '';
+      setDraft('');
+      void clearThreadDraftAfterSend(userId, rootId);
+    } else {
+      void saveThreadDraftState(userId, rootId, nextDraft, null).catch(() => undefined);
+    }
+    return true;
+  }, [rootId, userId]);
+
+  const flushPendingDraft = useCallback(() => {
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    const pending = pendingDraftRef.current;
+    pendingDraftRef.current = null;
+    if (pending) void saveThreadDraftState(pending.userId, pending.rootId, pending.body, pending.failedSend).catch(() => undefined);
+  }, []);
+
   const load = useCallback(async () => {
+    const requestId = ++loadRequestRef.current;
+    let storedFailedSend: FailedSendIntent | null = null;
     setLoading(true);
     try {
-      if (userId && !auth.demo) setDraft(await loadThreadDraft(userId, rootId));
+      if (userId && !auth.demo) {
+        const storedDraft = await loadStoredThreadDraft(userId, rootId);
+        if (requestId !== loadRequestRef.current) return;
+        const nextDraft = draftAfterStoredLoad(draftRef.current, storedDraft.body);
+        if (nextDraft !== draftRef.current) {
+          draftRef.current = nextDraft;
+          setDraft(nextDraft);
+        }
+        storedFailedSend = storedDraft.failedSend;
+        failedSendRef.current = storedFailedSend;
+      }
       if (!Number.isInteger(workspaceId) || workspaceId <= 0) throw new Error('This thread link is incomplete. Open it again from the conversation.');
       if (auth.demo) {
         const conversationMessages = demoMessages[`${kind}:${conversationId}`] || [];
@@ -82,72 +161,103 @@ export default function ThreadScreen() {
         return;
       }
       const [result, workspace] = await Promise.all([api.messageThread(rootId), api.workspace(workspaceId)]);
+      if (requestId !== loadRequestRef.current) return;
       setRoot(result.root_message);
-      setReplies(result.replies);
+      const failedClientMessageId = storedFailedSend?.clientMessageId;
+      const confirmedReply = failedClientMessageId
+        ? result.replies.find((reply) => reply.client_message_id === failedClientMessageId)
+        : undefined;
+      if (confirmedReply) acknowledgeSentReply(confirmedReply);
+      const currentUser = userRef.current;
+      const restoredFailure = !confirmedReply && storedFailedSend && currentUser
+        ? failedReplyMessage(result.root_message, currentUser, storedFailedSend)
+        : null;
+      setReplies(restoredFailure ? sortMessages([...result.replies, restoredFailure]) : result.replies);
       setUsers(workspace.workspace.members);
       setError(null);
-    } catch (requestError) { setError((requestError as Error).message); }
-    finally { setLoading(false); }
-  }, [api, auth.demo, conversationId, kind, rootId, userId, workspaceId]);
-
-  useEffect(() => { const frame = requestAnimationFrame(() => void load()); return () => cancelAnimationFrame(frame); }, [load]);
-  useEffect(() => auth.demo || loading || error ? undefined : subscribeToMessages(api, kind, conversationId, (event: MessageEvent) => {
-    if (event.message.id === rootId) setRoot(event.event === 'deleted' ? null : event.message);
-    else if (event.message.parent_message_id === rootId) setReplies((current) => mergeMessageEvent(current, event));
-  }, () => undefined), [api, auth.demo, conversationId, error, kind, loading, rootId]);
+    } catch (requestError) {
+      if (requestId === loadRequestRef.current) setError((requestError as Error).message);
+    } finally {
+      if (requestId === loadRequestRef.current) setLoading(false);
+    }
+  }, [acknowledgeSentReply, api, auth.demo, conversationId, kind, rootId, userId, workspaceId]);
 
   useEffect(() => {
-    if (!userId || loading) return;
-    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
-    const pending = { userId, rootId, body: draft };
-    pendingDraftRef.current = pending;
-    draftTimerRef.current = setTimeout(() => void saveThreadDraft(pending.userId, pending.rootId, pending.body).then(() => { if (pendingDraftRef.current === pending) pendingDraftRef.current = null; }).catch(() => undefined), 300);
-    return () => { if (draftTimerRef.current) clearTimeout(draftTimerRef.current); };
-  }, [draft, loading, rootId, userId]);
+    const frame = requestAnimationFrame(() => void load());
+    return () => {
+      cancelAnimationFrame(frame);
+      loadRequestRef.current += 1;
+      flushPendingDraft();
+    };
+  }, [flushPendingDraft, load]);
+  useEffect(() => auth.demo || loading || error ? undefined : subscribeToMessages(api, kind, conversationId, (event: MessageEvent) => {
+    if (event.message.id === rootId) setRoot(event.event === 'deleted' ? null : event.message);
+    else if (event.message.parent_message_id === rootId) {
+      setReplies((current) => mergeMessageEvent(current, event));
+      if (event.event === 'created') acknowledgeSentReply(event.message);
+    }
+  }, () => undefined), [acknowledgeSentReply, api, auth.demo, conversationId, error, kind, loading, rootId]);
 
-  useEffect(() => () => {
+  useEffect(() => {
+    if (!userId || loading || sending) return;
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
-    const pending = pendingDraftRef.current;
-    if (pending) void saveThreadDraft(pending.userId, pending.rootId, pending.body).catch(() => undefined);
-  }, []);
+    const pending = { userId, rootId, body: draft, failedSend: failedSendRef.current };
+    pendingDraftRef.current = pending;
+    draftTimerRef.current = setTimeout(() => void saveThreadDraftState(pending.userId, pending.rootId, pending.body, pending.failedSend).then(() => { if (pendingDraftRef.current === pending) pendingDraftRef.current = null; }).catch(() => undefined), 300);
+    return () => { if (draftTimerRef.current) clearTimeout(draftTimerRef.current); };
+  }, [draft, loading, rootId, sending, userId]);
 
   const visible = useMemo(() => sortMessages(replies), [replies]);
+  const draftWithinLimit = messageBodyWithinLimit(draft);
   const reactionDetailsMessage = reactionDetails
     ? reactionDetails.messageId === root?.id ? root : replies.find((message) => message.id === reactionDetails.messageId) || null
     : null;
-  const send = async () => {
-    const body = draft.trim();
-    if (!body || sending) return;
-    setSending(true); setDraft('');
+  const send = async (retryMessage?: Message) => {
+    const body = (retryMessage?.body || draft).trim();
+    if (!root || !user || !body || sending) return;
+    if (!messageBodyWithinLimit(body)) {
+      if (retryMessage) Alert.alert('Reply is too long to send', `Shorten this reply to ${MESSAGE_BODY_LIMIT.toLocaleString()} characters, then send it again.`);
+      return;
+    }
+    const retryIntent = retryMessage?.client_message_id
+      ? { body, clientMessageId: retryMessage.client_message_id }
+      : null;
+    const clientMessageId = clientMessageIdForSend(body, retryIntent);
+    const intent = { body, clientMessageId };
+    const optimisticId = retryMessage?.id || --tempMessageIdRef.current;
+    const optimistic = retryMessage || pendingReplyMessage(root, user, optimisticId, intent);
+    setSending(true);
+    failedSendRef.current = intent;
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    pendingDraftRef.current = null;
+    if (!retryMessage) {
+      draftRef.current = '';
+      setDraft('');
+    }
+    if (userId && !auth.demo) void saveThreadDraftState(userId, rootId, draftRef.current, intent).catch(() => undefined);
+    setReplies((current) => sortMessages([
+      ...current.filter((message) => message.id !== optimisticId),
+      { ...optimistic, client_message_id: clientMessageId, client_status: 'sending', client_error: undefined },
+    ]));
     try {
       if (auth.demo) {
-        const demoReply: Message = {
-          ...(root as Message),
-          id: -Date.now(),
-          parent_message_id: rootId,
-          body,
-          mine: true,
-          reactions: [],
-          read_receipts: undefined,
-          author: demoUser,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        setReplies((current) => sortMessages([...current, demoReply]));
+        setReplies((current) => current.map((message) => message.id === optimisticId ? { ...message, client_status: undefined } : message));
+        failedSendRef.current = null;
         requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
-        voiceDraft.markSent(body);
+        if (!retryMessage) voiceDraft.markSent(body);
         return;
       }
-      const result = await api.sendMessage(kind, conversationId, { body, parent_message_id: rootId, mention_user_ids: resolveMentionUserIds(body, users), send_push: true });
-      setReplies((current) => sortMessages([...current.filter((message) => message.id !== result.message.id), result.message]));
-      voiceDraft.markSent(body);
+      const result = await api.sendMessage(kind, conversationId, { body, parent_message_id: rootId, client_message_id: clientMessageId, mention_user_ids: resolveMentionUserIds(body, users), send_push: true });
+      setReplies((current) => reconcileOptimistic(current, optimisticId, result.message));
+      acknowledgeSentReply(result.message);
+      if (!retryMessage) voiceDraft.markSent(body);
       requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
-      if (userId) {
-        if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
-        pendingDraftRef.current = null;
-        await saveThreadDraft(userId, rootId, '');
-      }
-    } catch (requestError) { setDraft(body); Alert.alert('Reply not sent', (requestError as Error).message); }
+    } catch (requestError) {
+      if (failedSendRef.current?.clientMessageId !== clientMessageId) return;
+      setReplies((current) => markOptimisticFailed(current, optimistic, (requestError as Error).message));
+      if (userId && !auth.demo) await saveThreadDraftState(userId, rootId, draftRef.current, intent).catch(() => undefined);
+      Alert.alert('Reply not sent', (requestError as Error).message, [{ text: 'Keep for retry' }]);
+    }
     finally { setSending(false); }
   };
 
@@ -181,10 +291,11 @@ export default function ThreadScreen() {
     {loading ? <LoadingState label="Loading thread" /> : error || !root ? <ErrorState message={error || 'This thread is no longer available.'} retry={() => void load()} /> : <>
       <View style={styles.root}><MessageBubble message={root} showAuthor mentionUsers={users} onLongPress={openSafetyActions} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} /></View>
       <View style={styles.divider}><Text style={styles.dividerText}>REPLIES</Text><View style={styles.line} /></View>
-      <FlatList ref={listRef} data={visible} keyExtractor={(message) => String(message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list} renderItem={({ item, index }) => <MessageBubble message={item} showAuthor={!visible[index - 1] || visible[index - 1].author.id !== item.author.id} mentionUsers={users} onLongPress={openSafetyActions} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} />} ListEmptyComponent={<Text style={styles.empty}>Start a focused conversation about this message.</Text>} />
+      <FlatList ref={listRef} data={visible} keyExtractor={(message) => String(message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list} renderItem={({ item, index }) => <MessageBubble message={item} showAuthor={!visible[index - 1] || visible[index - 1].author.id !== item.author.id} mentionUsers={users} onLongPress={openSafetyActions} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} onRetry={(message) => void send(message)} />} ListEmptyComponent={<Text style={styles.empty}>Start a focused conversation about this message.</Text>} />
     </>}
     <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />
-    <View style={styles.composer}><VoiceDraftButton state={voiceDraft.state} disabled={sending} onPress={() => void voiceDraft.start()} /><TextInput accessibilityLabel="Reply to thread" value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={setDraft} placeholder="Reply to thread" placeholderTextColor={palette.quiet} multiline maxLength={10_000} style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel="Send reply" disabled={!draft.trim() || sending} onPress={() => void send()} style={[styles.send, (!draft.trim() || sending) && styles.disabled]}><Send color={palette.text} size={19} /></Pressable></View>
+    <ComposerLimitNotice value={draft} />
+    <View style={styles.composer}><VoiceDraftButton state={voiceDraft.state} disabled={sending} onPress={() => void voiceDraft.start()} /><TextInput accessibilityLabel="Reply to thread" value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={(value) => { if (messageBodyChangeAllowed(draftRef.current, value)) { draftRef.current = value; setDraft(value); } }} placeholder="Reply to thread" placeholderTextColor={palette.quiet} multiline style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel="Send reply" disabled={!draft.trim() || !draftWithinLimit || sending} onPress={() => void send()} style={[styles.send, (!draft.trim() || !draftWithinLimit || sending) && styles.disabled]}><Send color={palette.text} size={19} /></Pressable></View>
     <ReactionDetailsSheet key={reactionDetails ? `${reactionDetails.messageId}-${reactionDetails.emoji}` : 'closed-reactions'} initialEmoji={reactionDetails?.emoji || null} message={reactionDetailsMessage} onClose={() => setReactionDetails(null)} onToggle={async (message, value) => { await toggleReaction(message, value); }} />
     <ImagePreview key={imagePreview?.attachmentId ?? 'closed-preview'} attachments={imagePreview?.attachments || []} initialAttachmentId={imagePreview?.attachmentId || null} onClose={() => setImagePreview(null)} />
   </KeyboardAvoidingView></SafeAreaView>;

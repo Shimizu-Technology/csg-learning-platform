@@ -458,11 +458,24 @@ Channel and direct-conversation show endpoints accept `message_limit`, `around_m
 {
   "body": "Can someone share the Zoom link?",
   "parent_message_id": null,
+  "client_message_id": "01990f7a-2068-7e9f-b884-6a8b4bb44dd0",
   "mention_user_ids": [42],
   "attachments": [],
   "send_push": true
 }
 ```
+
+`body` is limited to 5,000 characters. Clients must generate a distinct `client_message_id` for each send intent and reuse it for every retry of that message. The identifier is scoped to the author—not the conversation—and is limited to 100 characters; a longer value returns `422 Unprocessable Entity`. A first-time create returns `201 Created`. A matching replay returns `200 OK` with the original message, resumes any interrupted notification or realtime delivery, and does not repeat completed delivery work. The first accepted request's `send_push` value governs all replays.
+
+`409 Conflict` is returned when an author reuses the identifier with a different body, parent message, mention set, attachment set, or conversation. Replaying an identifier whose message was subsequently deleted also returns `409 Conflict`; it does not recreate or expose the deleted message. Create, replay, message-list, and realtime ActionCable payloads include the value only for the authenticated author and omit it for other viewers. Older clients may omit it.
+
+Message deletion returns `503 Service Unavailable` with a retryable error when an in-flight delivery still owns the message after the bounded wait. The message is not deleted in that case, preventing a late create event from appearing after a successful deletion response.
+
+An inline deployment also returns a retryable `503` after a committed create or replay with a `client_message_id` when notification or realtime delivery is incomplete. Clients must retry the same operation and reuse the original identifier; a Solid Queue deployment can acknowledge the committed write because its recurring recovery sweep owns the unfinished delivery.
+
+If a create request omits `client_message_id`, an inline deployment cannot offer a duplicate-safe retry. It returns `202 Accepted` with `delivery_pending: true` and the committed `message`; clients must treat that message as sent and must not repeat the create request. A committed deletion whose final realtime delivery is incomplete also returns this success/pending response rather than create-specific retry guidance.
+
+New API-created messages opt into delivery recovery. When Solid Queue is enabled, `MessageDeliveryRecoveryJob` sweeps up to 100 of the least-recently-attempted incomplete deliveries every minute. This bounded rotation prevents one failing message from blocking newer recovery work. Recovery does not expire incomplete delivery because there is not yet an operator-owned dead-letter queue; each failed attempt is logged and rotated behind untouched work. A recovered notification stage may enqueue another push job, while per-provider forwarding is checkpointed by notification ID so duplicate jobs do not duplicate provider attempts. Messages created before tracking shipped are excluded so deployment cannot replay historical notifications or broadcasts. Deployments using the low-volume inline adapter retain synchronous delivery and identical-request replay, but do not run recurring jobs.
 
 Posting a message creates in-app `message` notifications for other visible channel recipients and can enqueue Web Push delivery when push is configured.
 

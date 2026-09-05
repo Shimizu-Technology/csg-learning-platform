@@ -76,7 +76,8 @@ class NotificationEmailService
           to: user.email,
           subject: "#{message.author.full_name} mentioned you - #{BRAND_NAME}",
           html: mention_html(user: user, message: message)
-        }
+        },
+        options: { idempotency_key: "message-mention/#{message.id}/#{user.id}" }
       )
 
       Rails.logger.info(

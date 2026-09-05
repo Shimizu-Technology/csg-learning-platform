@@ -15,7 +15,7 @@ export interface SessionUser extends UserSummary {
   first_name: string;
   last_name: string;
   github_username: string | null;
-  community_policy?: CommunityPolicy;
+  community_policy?: CommunityPolicy | null;
 }
 
 export interface CommunityPolicy {
@@ -118,6 +118,7 @@ export interface Message {
   channel_id: number | null;
   direct_conversation_id: number | null;
   parent_message_id: number | null;
+  client_message_id?: string | null;
   body: string;
   mention_user_ids: number[];
   edited_at: string | null;

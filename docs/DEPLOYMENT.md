@@ -1,6 +1,6 @@
 # CSG Learning Platform — Deployment Guide
 
-**Last updated:** 2026-08-16
+**Last updated:** 2026-09-05
 
 ## Architecture Overview
 
@@ -81,6 +81,22 @@ SOLID_QUEUE_DISPATCHER_POLLING_INTERVAL_SECONDS=5
 SOLID_QUEUE_WORKER_POLLING_INTERVAL_SECONDS=2
 ```
 
+Solid Queue also activates the one-minute `MessageDeliveryRecoveryJob` schedule.
+That sweep recovers up to 100 of the least-recently-attempted abandoned
+notification and realtime leases without waiting for the sender to retry. New
+API-created messages explicitly opt into recovery; historical messages remain
+excluded so enabling the worker cannot replay old notifications or broadcasts.
+Incomplete work rotates behind never-attempted work and does not silently
+expire; failures remain visible in job logs until an operator-owned dead-letter
+workflow exists. Message push jobs may be enqueued again after an interrupted
+notification stage; per-provider attempts are checkpointed by notification ID,
+so duplicate jobs do not duplicate provider fan-out.
+Each sweep logs `backlog_due` and `batch_limit`. Alert when `backlog_due` grows
+across consecutive runs or remains above the batch limit; that is the signal to
+raise throughput or investigate a persistent delivery failure.
+Inline mode keeps message delivery synchronous and supports idempotent request
+replay, but it does not run recurring schedules.
+
 Rails will fail boot if `ACTIVE_JOB_QUEUE_ADAPTER=solid_queue` is enabled
 without either `SOLID_QUEUE_WORKER_PROVISIONED=true` or
 `SOLID_QUEUE_IN_PUMA=true`, so jobs cannot silently enqueue with no worker.
@@ -89,6 +105,9 @@ declares Solid Queue infrastructure. Each deployment must have exactly one
 job-execution path.
 The polling defaults above keep normal notification latency while avoiding the
 ten database polls per second caused by Solid Queue's upstream worker default.
+If either concurrent message index migration times out, rerun the migration.
+Each migration checks the exact expected index identity, removes an interrupted
+or invalid same-named index with `DROP INDEX CONCURRENTLY`, and rebuilds it.
 
 ### Safely activating or recovering the worker
 

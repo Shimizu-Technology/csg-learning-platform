@@ -13,8 +13,10 @@ class Message < ApplicationRecord
   has_many :message_reactions, dependent: :destroy
 
   before_validation :normalize_mention_user_ids
+  before_validation :normalize_client_message_id
 
   validates :body, length: { maximum: 5000 }, allow_blank: true
+  validates :client_message_id, length: { maximum: 100 }, uniqueness: { scope: :author_id }, allow_nil: true
   validate :exactly_one_destination
   validate :parent_message_belongs_to_same_channel
   validate :parent_message_is_thread_root
@@ -23,6 +25,16 @@ class Message < ApplicationRecord
   scope :visible, -> { where(deleted_at: nil) }
   scope :recent, -> { order(created_at: :desc) }
   scope :chronological, -> { order(:created_at, :id) }
+  scope :delivery_recovery_due, lambda { |cutoff = MessageDeliveryService::DELIVERY_LEASE.ago|
+    where(delivery_tracking_requested: true).where(<<~SQL.squish, cutoff:)
+      (notifications_delivered_at IS NULL AND
+        (notifications_delivery_started_at IS NULL OR notifications_delivery_started_at <= :cutoff)) OR
+      (broadcasts_delivered_at IS NULL AND
+        (broadcast_delivery_started_at IS NULL OR broadcast_delivery_started_at <= :cutoff)) OR
+      (parent_message_id IS NOT NULL AND thread_broadcasts_delivered_at IS NULL AND
+        (thread_broadcast_delivery_started_at IS NULL OR thread_broadcast_delivery_started_at <= :cutoff))
+    SQL
+  }
   scope :pinned_recent, lambda {
     visible
       .where.not(pinned_at: nil)
@@ -30,6 +42,13 @@ class Message < ApplicationRecord
       .order(pinned_at: :desc, created_at: :desc, id: :desc)
       .limit(PINNED_LIMIT)
   }
+
+  def self.client_message_id_constraint_violation?(error)
+    return false unless defined?(PG::Result)
+
+    result = error.cause&.respond_to?(:result) ? error.cause.result : nil
+    result&.error_field(PG::Result::PG_DIAG_CONSTRAINT_NAME) == "idx_messages_on_author_and_client_message_id"
+  end
 
   def deleted?
     deleted_at.present?
@@ -53,7 +72,20 @@ class Message < ApplicationRecord
     pinned_at.present?
   end
 
+  def delivered_recipient_ids(attribute)
+    values = case attribute
+    when :broadcast_recipient_ids then self[:broadcast_recipient_ids]
+    when :thread_broadcast_recipient_ids then self[:thread_broadcast_recipient_ids]
+    else raise ArgumentError, "unsupported delivery recipient attribute"
+    end
+    Array(values).map(&:to_i).uniq
+  end
+
   private
+
+  def normalize_client_message_id
+    self.client_message_id = client_message_id.to_s.strip.presence
+  end
 
   def normalize_mention_user_ids
     return unless mention_user_ids.is_a?(Array)

@@ -1,36 +1,55 @@
+require "set"
+
 class MessageBroadcastService
+  class BroadcastFailures < StandardError; end
+
   class << self
-    def created(message)
-      broadcast("created", message)
+    def created(message, **options, &block)
+      broadcast("created", message, **options, &block)
     end
 
-    def updated(message)
-      broadcast("updated", message)
+    def updated(message, **options, &block)
+      broadcast("updated", message, **options, &block)
     end
 
-    def deleted(message)
-      broadcast("deleted", message)
+    def deleted(message, **options, &block)
+      broadcast("deleted", message, **options, &block)
     end
 
     private
 
-    def broadcast(event, message)
+    def broadcast(event, message, skip_user_ids: [], raise_on_failure: false, &block)
       # Per-user delivery is intentional: block state changes the serialized
       # message and must never leak blocked text or attachment URLs through a
       # shared conversation broadcast.
-      broadcast_to_recipients(event, message)
+      broadcast_to_recipients(event, message, skip_user_ids:, raise_on_failure:, &block)
     end
 
-    def broadcast_to_recipients(event, message)
+    def broadcast_to_recipients(event, message, skip_user_ids:, raise_on_failure:, &block)
+      failures = []
+      skipped_recipients = skip_user_ids.to_set
       message.destination.recipients.find_each do |user|
-        safe_broadcast { UserMessagesChannel.broadcast_to(user, payload_for_user(event, message, user)) }
+        next if skipped_recipients.include?(user.id)
+
+        begin
+          # The event is sent before its durable recipient checkpoint. This is
+          # at-least-once delivery, so consumers must deduplicate retried events.
+          UserMessagesChannel.broadcast_to(user, payload_for_user(event, message, user))
+        rescue StandardError => e
+          log_failure(e, user)
+          failures << e
+          next
+        end
+        block&.call(user)
+      end
+      if raise_on_failure && failures.any?
+        count = failures.size
+        raise BroadcastFailures, "#{count} recipient broadcast #{count == 1 ? 'failure' : 'failures'}", cause: failures.first
       end
     end
 
-    def safe_broadcast
-      yield
-    rescue StandardError => e
-      Rails.logger.warn("MessageBroadcastService: broadcast failed: #{e.class}: #{e.message}")
+    def log_failure(e, user)
+      Rails.logger.warn("MessageBroadcastService: broadcast failed user_id=#{user.id}: #{e.class}: #{e.message}")
     end
 
     def payload_for_user(event, message, user)

@@ -1,5 +1,6 @@
 import type { PersistedClient, Persister } from '@tanstack/react-query-persist-client';
 import * as SQLite from 'expo-sqlite';
+import { beginUserStorageCleanup, userStorageCleanupIsCurrent, userStorageGeneration, userStorageGenerationIsCurrent, type UserStorageCleanup } from './user-storage-lifecycle';
 
 const CACHE_DATABASE = 'csg-connect.db';
 const CACHE_TABLE = 'learning_query_cache';
@@ -28,11 +29,16 @@ const database = createRetryableInitializer(async () => {
   return db;
 });
 
-export function createLearningPersister(userId: number): Persister {
+type LearningDatabase = Pick<SQLite.SQLiteDatabase, 'getFirstAsync' | 'runAsync'>;
+
+export function createLearningPersister(userId: number, loadDatabase: () => Promise<LearningDatabase> = database): Persister {
   const cacheKey = learningCacheKey(userId);
   return {
     persistClient: async (client) => {
-      const db = await database();
+      const generation = userStorageGeneration(userId);
+      if (!userStorageGenerationIsCurrent(userId, generation)) return;
+      const db = await loadDatabase();
+      if (!userStorageGenerationIsCurrent(userId, generation)) return;
       await db.runAsync(
         `INSERT OR REPLACE INTO ${CACHE_TABLE} (cache_key, payload, updated_at) VALUES (?, ?, ?)`,
         cacheKey,
@@ -41,24 +47,38 @@ export function createLearningPersister(userId: number): Persister {
       );
     },
     restoreClient: async () => {
-      const db = await database();
+      const generation = userStorageGeneration(userId);
+      if (!userStorageGenerationIsCurrent(userId, generation)) return undefined;
+      const db = await loadDatabase();
+      if (!userStorageGenerationIsCurrent(userId, generation)) return undefined;
       const row = await db.getFirstAsync<{ payload: string }>(`SELECT payload FROM ${CACHE_TABLE} WHERE cache_key = ?`, cacheKey);
+      if (!userStorageGenerationIsCurrent(userId, generation)) return undefined;
       if (!row) return undefined;
       try {
         return JSON.parse(row.payload) as PersistedClient;
       } catch {
-        await db.runAsync(`DELETE FROM ${CACHE_TABLE} WHERE cache_key = ?`, cacheKey);
+        if (userStorageGenerationIsCurrent(userId, generation)) {
+          await db.runAsync(`DELETE FROM ${CACHE_TABLE} WHERE cache_key = ?`, cacheKey);
+        }
         return undefined;
       }
     },
     removeClient: async () => {
-      const db = await database();
+      const generation = userStorageGeneration(userId);
+      if (!userStorageGenerationIsCurrent(userId, generation)) return;
+      const db = await loadDatabase();
+      if (!userStorageGenerationIsCurrent(userId, generation)) return;
       await db.runAsync(`DELETE FROM ${CACHE_TABLE} WHERE cache_key = ?`, cacheKey);
     },
   };
 }
 
-export async function clearLearningCache(userId: number) {
-  const db = await database();
+export async function clearLearningCache(
+  userId: number,
+  cleanup: UserStorageCleanup = beginUserStorageCleanup(userId),
+  loadDatabase: () => Promise<LearningDatabase> = database,
+) {
+  const db = await loadDatabase();
+  if (!userStorageCleanupIsCurrent(cleanup)) return;
   await db.runAsync(`DELETE FROM ${CACHE_TABLE} WHERE cache_key = ?`, learningCacheKey(userId));
 }
