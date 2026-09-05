@@ -13,8 +13,10 @@ class Message < ApplicationRecord
   has_many :message_reactions, dependent: :destroy
 
   before_validation :normalize_mention_user_ids
+  before_validation :normalize_client_message_id
 
   validates :body, length: { maximum: 5000 }, allow_blank: true
+  validates :client_message_id, length: { maximum: 100 }, uniqueness: { scope: :author_id }, allow_nil: true
   validate :exactly_one_destination
   validate :parent_message_belongs_to_same_channel
   validate :parent_message_is_thread_root
@@ -54,6 +56,10 @@ class Message < ApplicationRecord
   end
 
   private
+
+  def normalize_client_message_id
+    self.client_message_id = client_message_id.to_s.strip.presence
+  end
 
   def normalize_mention_user_ids
     return unless mention_user_ids.is_a?(Array)

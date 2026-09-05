@@ -21,6 +21,7 @@ import { formatConversationDay, isDifferentConversationDay, isNearConversationBo
 import { loadConversationDraft, loadFailedMessages, saveConversationDraft, saveFailedMessages } from '@/lib/conversation-storage';
 import { demoChannels, demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { insertMention, mentionSuggestions, mentionTriggerAt, resolveMentionUserIds } from '@/lib/mentions';
+import { createClientMessageId, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
 import { messagePreview } from '@/lib/message-format';
 import { mergeMessageEvent, mergePinnedMessageEvent, prependOlderMessages, reconcileOptimistic, sortMessages, toggleOwnReaction } from '@/lib/message-state';
 import { REACTION_OPTIONS } from '@/lib/reactions';
@@ -69,6 +70,7 @@ export default function ConversationScreen() {
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [showPins, setShowPins] = useState(false);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [editDraft, setEditDraft] = useState('');
   const [reactionDetails, setReactionDetails] = useState<{ messageId: number; emoji: string } | null>(null);
   const [imagePreview, setImagePreview] = useState<{ attachments: Message['attachments']; attachmentId: number } | null>(null);
   const voiceDraft = useVoiceDraft({
@@ -82,9 +84,12 @@ export default function ConversationScreen() {
     onSelectionChange: setSelection,
   });
 
+  const composerValue = editingMessage ? editDraft : draft;
+  const updateComposerValue = editingMessage ? setEditDraft : setDraft;
+  const composerHasContent = Boolean(composerValue.trim() || (!editingMessage && attachments.length));
   const rootMessages = useMemo(() => messages.filter((message) => !message.parent_message_id), [messages]);
   const conversationItems = useMemo(() => rootMessages.map((message, index) => ({ message, previous: rootMessages[index - 1] })).reverse(), [rootMessages]);
-  const mentionTrigger = useMemo(() => mentionTriggerAt(draft, selection.start), [draft, selection.start]);
+  const mentionTrigger = useMemo(() => mentionTriggerAt(composerValue, selection.start), [composerValue, selection.start]);
   const suggestions = useMemo(() => mentionTrigger ? mentionSuggestions(mentionUsers.filter((member) => member.id !== user?.id), mentionTrigger.query) : [], [mentionTrigger, mentionUsers, user?.id]);
   const showEveryone = Boolean(kind === 'channel' && mentionTrigger && 'everyone'.startsWith(mentionTrigger.query.trim().toLowerCase()));
   const reactionDetailsMessage = reactionDetails ? messages.find((message) => message.id === reactionDetails.messageId) || null : null;
@@ -180,7 +185,7 @@ export default function ConversationScreen() {
   const persistFailed = useCallback((next: Message[]) => { if (userId) void saveFailedMessages(userId, kind, id, next); }, [id, kind, userId]);
 
   const send = async (retryMessage?: Message) => {
-    const body = (retryMessage?.body || draft).trim();
+    const body = (retryMessage ? retryMessage.body : draft).trim();
     if ((!body && !attachments.length && !retryMessage?.client_uploads?.length) || sending) return;
     setSending(true);
     let optimistic: Message | null = retryMessage || null;
@@ -192,7 +197,10 @@ export default function ConversationScreen() {
         uploaded.push(value);
       }
       const optimisticId = retryMessage?.id || -Date.now();
-      optimistic = retryMessage || { id: optimisticId, channel_id: kind === 'channel' ? id : null, direct_conversation_id: kind === 'dm' ? id : null, parent_message_id: null, body, mention_user_ids: resolveMentionUserIds(body, mentionUsers), edited_at: null, deleted_at: null, pinned_at: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), mine: true, reactions: [], attachments: uploaded.map((item, index) => ({ id: -(index + 1), filename: item.filename, content_type: item.content_type, byte_size: item.byte_size, image: item.content_type.startsWith('image/'), url: attachments[index]?.uri })), author: user || demoUser, reply_count: 0, client_uploads: uploaded };
+      const clientMessageId = retryMessage?.client_message_id || createClientMessageId();
+      optimistic = retryMessage
+        ? { ...retryMessage, client_message_id: clientMessageId }
+        : { id: optimisticId, channel_id: kind === 'channel' ? id : null, direct_conversation_id: kind === 'dm' ? id : null, parent_message_id: null, client_message_id: clientMessageId, body, mention_user_ids: resolveMentionUserIds(body, mentionUsers), edited_at: null, deleted_at: null, pinned_at: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), mine: true, reactions: [], attachments: uploaded.map((item, index) => ({ id: -(index + 1), filename: item.filename, content_type: item.content_type, byte_size: item.byte_size, image: item.content_type.startsWith('image/'), url: attachments[index]?.uri })), author: user || demoUser, reply_count: 0, client_uploads: uploaded };
       const sendingMessage = { ...optimistic, client_status: 'sending' as const, client_error: undefined };
       setMessages((current) => sortMessages([...current.filter((item) => item.id !== optimisticId), sendingMessage]));
       scrollToLatest(false);
@@ -202,7 +210,7 @@ export default function ConversationScreen() {
         if (!retryMessage) voiceDraft.markSent(body);
         return;
       }
-      const { message } = await api.sendMessage(kind, id, { body, mention_user_ids: resolveMentionUserIds(body, mentionUsers), attachments: uploaded, send_push: true });
+      const { message } = await api.sendMessage(kind, id, { body, client_message_id: clientMessageId, mention_user_ids: resolveMentionUserIds(body, mentionUsers), attachments: uploaded, send_push: true });
       setMessages((current) => { const next = reconcileOptimistic(current, optimisticId, message); persistFailed(next); return next; });
       if (!retryMessage) voiceDraft.markSent(body);
       if (userId) {
@@ -226,11 +234,11 @@ export default function ConversationScreen() {
   };
 
   const saveEdit = async () => {
-    if (!editingMessage || !draft.trim()) return;
+    if (!editingMessage || !editDraft.trim()) return;
     try {
-      const result = await api.updateMessage(editingMessage.id, draft.trim(), resolveMentionUserIds(draft, mentionUsers));
+      const result = await api.updateMessage(editingMessage.id, editDraft.trim(), resolveMentionUserIds(editDraft, mentionUsers));
       setMessages((current) => current.map((message) => message.id === result.message.id ? result.message : message));
-      setEditingMessage(null); setDraft('');
+      setEditingMessage(null); setEditDraft('');
     } catch (requestError) { Alert.alert('Could not edit message', (requestError as Error).message); }
   };
 
@@ -343,11 +351,11 @@ export default function ConversationScreen() {
           />
           {showScrollToLatest && <Pressable accessibilityRole="button" accessibilityLabel="Jump to latest message" onPress={() => { scrollToLatest(true); if (!auth.demo) void api.markRead(kind, id); }} style={styles.latestButton}><ChevronDown color={palette.text} size={17} strokeWidth={2.5} /><Text style={styles.latestText}>{newMessagesBelow ? `${newMessagesBelow} new` : 'Jump to latest'}</Text></Pressable>}
         </View>}
-        {mentionTrigger && (showEveryone || suggestions.length > 0) && <View style={styles.mentionPanel}>{showEveryone && <Pressable accessibilityRole="button" accessibilityLabel="Mention everyone" onPress={() => { const value = `${draft.slice(0, mentionTrigger.start)}@everyone ${draft.slice(mentionTrigger.end)}`; const cursor = mentionTrigger.start + 10; setDraft(value); setSelection({ start: cursor, end: cursor }); }} style={styles.mentionRow}><View style={styles.everyoneIcon}><Hash color={palette.rubySoft} size={15} /></View><View><Text style={styles.mentionName}>@everyone</Text><Text style={styles.mentionEmail}>Notify everyone in this channel</Text></View></Pressable>}{suggestions.map((member) => <Pressable key={member.id} accessibilityRole="button" onPress={() => { const next = insertMention(draft, mentionTrigger, member); setDraft(next.value); setSelection({ start: next.cursor, end: next.cursor }); }} style={styles.mentionRow}><Avatar name={member.full_name} size={30} /><View><Text style={styles.mentionName}>{member.full_name}</Text><Text style={styles.mentionEmail}>{member.email}</Text></View></Pressable>)}</View>}
+        {mentionTrigger && (showEveryone || suggestions.length > 0) && <View style={styles.mentionPanel}>{showEveryone && <Pressable accessibilityRole="button" accessibilityLabel="Mention everyone" onPress={() => { const value = `${composerValue.slice(0, mentionTrigger.start)}@everyone ${composerValue.slice(mentionTrigger.end)}`; const cursor = mentionTrigger.start + 10; updateComposerValue(value); setSelection({ start: cursor, end: cursor }); }} style={styles.mentionRow}><View style={styles.everyoneIcon}><Hash color={palette.rubySoft} size={15} /></View><View><Text style={styles.mentionName}>@everyone</Text><Text style={styles.mentionEmail}>Notify everyone in this channel</Text></View></Pressable>}{suggestions.map((member) => <Pressable key={member.id} accessibilityRole="button" onPress={() => { const next = insertMention(composerValue, mentionTrigger, member); updateComposerValue(next.value); setSelection({ start: next.cursor, end: next.cursor }); }} style={styles.mentionRow}><Avatar name={member.full_name} size={30} /><View><Text style={styles.mentionName}>{member.full_name}</Text><Text style={styles.mentionEmail}>{member.email}</Text></View></Pressable>)}</View>}
         {!!attachments.length && <ScrollView horizontal keyboardShouldPersistTaps="handled" contentContainerStyle={styles.attachmentTray}>{attachments.map((attachment) => <View key={attachment.local_id} style={styles.pendingAttachment}><Paperclip color={palette.rubySoft} size={14} /><View style={styles.pendingCopy}><Text numberOfLines={1} style={styles.pendingName}>{attachment.filename}</Text><Text style={styles.pendingStatus}>{attachment.status === 'uploading' ? `${Math.round(attachment.progress * 100)}%` : 'Ready to send'}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Remove ${attachment.filename}`} onPress={() => setAttachments((current) => current.filter((item) => item.local_id !== attachment.local_id))} style={styles.removeAttachment}><X color={palette.muted} size={14} /></Pressable></View>)}</ScrollView>}
         <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />
-        {editingMessage && <View style={styles.editBanner}><Edit3 color={palette.rubySoft} size={15} /><Text style={styles.editText}>Editing message</Text><Pressable accessibilityRole="button" accessibilityLabel="Cancel editing" onPress={() => { setEditingMessage(null); setDraft(''); }} style={styles.editClose}><X color={palette.muted} size={16} /></Pressable></View>}
-        <View style={styles.composer}><Pressable accessibilityRole="button" accessibilityLabel="Add an attachment" disabled={sending || Boolean(editingMessage)} onPress={() => Alert.alert('Add an attachment', undefined, [{ text: 'Photo library', onPress: () => void pickImage() }, { text: 'Choose a file', onPress: () => void pickDocument() }, { text: 'Cancel', style: 'cancel' }])} style={styles.attachButton}><Paperclip color={palette.muted} size={19} /></Pressable><VoiceDraftButton state={voiceDraft.state} disabled={sending || Boolean(editingMessage)} onPress={() => void voiceDraft.start()} /><TextInput accessibilityLabel="Message composer" accessibilityHint={`Enter a message for ${title}`} maxFontSizeMultiplier={fontScaleLimits.content} value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={setDraft} onFocus={() => { keyboardShouldFollowRef.current = nearBottomRef.current; if (nearBottomRef.current) scrollToLatest(false); }} placeholder={`Message ${kind === 'channel' ? '#' : ''}${title}`} placeholderTextColor={palette.quiet} multiline maxLength={10_000} style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel={editingMessage ? 'Save edit' : 'Send message'} disabled={(!draft.trim() && !attachments.length) || sending} onPress={() => void (editingMessage ? saveEdit() : send())} style={({ pressed }) => [styles.send, ((!draft.trim() && !attachments.length) || sending) && styles.sendDisabled, pressed && styles.pressed]}><Send color={palette.text} size={19} /></Pressable></View>
+        {editingMessage && <View style={styles.editBanner}><Edit3 color={palette.rubySoft} size={15} /><Text style={styles.editText}>Editing message</Text><Pressable accessibilityRole="button" accessibilityLabel="Cancel editing" onPress={() => { setEditingMessage(null); setEditDraft(''); }} style={styles.editClose}><X color={palette.muted} size={16} /></Pressable></View>}
+        <View style={styles.composer}><Pressable accessibilityRole="button" accessibilityLabel="Add an attachment" disabled={sending || Boolean(editingMessage)} onPress={() => Alert.alert('Add an attachment', undefined, [{ text: 'Photo library', onPress: () => void pickImage() }, { text: 'Choose a file', onPress: () => void pickDocument() }, { text: 'Cancel', style: 'cancel' }])} style={styles.attachButton}><Paperclip color={palette.muted} size={19} /></Pressable><VoiceDraftButton state={voiceDraft.state} disabled={sending || Boolean(editingMessage)} onPress={() => void voiceDraft.start()} /><TextInput accessibilityLabel={editingMessage ? 'Edit message' : 'Message composer'} accessibilityHint={editingMessage ? 'Update the selected message' : `Enter a message for ${title}`} maxFontSizeMultiplier={fontScaleLimits.content} value={composerValue} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={updateComposerValue} onFocus={() => { keyboardShouldFollowRef.current = nearBottomRef.current; if (nearBottomRef.current) scrollToLatest(false); }} placeholder={editingMessage ? 'Edit message' : `Message ${kind === 'channel' ? '#' : ''}${title}`} placeholderTextColor={palette.quiet} multiline maxLength={MESSAGE_BODY_LIMIT} style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel={editingMessage ? 'Save edit' : 'Send message'} disabled={!composerHasContent || sending} onPress={() => void (editingMessage ? saveEdit() : send())} style={({ pressed }) => [styles.send, (!composerHasContent || sending) && styles.sendDisabled, pressed && styles.pressed]}><Send color={palette.text} size={19} /></Pressable></View>
       </KeyboardAvoidingView>
 
       <Modal visible={Boolean(selectedMessage)} transparent animationType="fade" onRequestClose={() => setSelectedMessage(null)}><View style={styles.modalRoot}><Pressable accessibilityRole="button" accessibilityLabel="Close message actions" style={StyleSheet.absoluteFill} onPress={() => setSelectedMessage(null)} /><View style={styles.actionSheet}><View style={styles.sheetHandle} /><Text style={styles.sheetTitle}>Message actions</Text>{selectedMessage && <>
@@ -358,7 +366,7 @@ export default function ConversationScreen() {
         {!selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Flag} label="Report message" destructive onPress={() => { reportMessage(selectedMessage); setSelectedMessage(null); }} />}
         {!selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Flag} label={`Report ${selectedMessage.author.full_name}`} destructive onPress={() => { reportUser(selectedMessage); setSelectedMessage(null); }} />}
         {!selectedMessage.mine && selectedMessage.id > 0 && !selectedMessage.blocked && <Action icon={UserX} label={`Block ${selectedMessage.author.full_name}`} destructive onPress={() => { blockUser(selectedMessage); setSelectedMessage(null); }} />}
-        {selectedMessage.mine && !selectedMessage.deleted_at && selectedMessage.id > 0 && <Action icon={Edit3} label="Edit message" onPress={() => { setEditingMessage(selectedMessage); setDraft(selectedMessage.body); setSelectedMessage(null); }} />}
+        {selectedMessage.mine && !selectedMessage.deleted_at && selectedMessage.id > 0 && <Action icon={Edit3} label="Edit message" onPress={() => { setEditingMessage(selectedMessage); setEditDraft(selectedMessage.body); setSelection({ start: selectedMessage.body.length, end: selectedMessage.body.length }); setSelectedMessage(null); }} />}
         {selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Trash2} label="Remove message" destructive onPress={() => { deleteMessage(selectedMessage); setSelectedMessage(null); }} />}
       </>}</View></View></Modal>
 

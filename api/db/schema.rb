@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_30_010000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_05_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -464,6 +464,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_010000) do
     t.bigint "author_id", null: false
     t.text "body"
     t.bigint "channel_id"
+    t.string "client_message_id"
     t.datetime "created_at", null: false
     t.datetime "deleted_at"
     t.bigint "direct_conversation_id"
@@ -473,6 +474,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_010000) do
     t.datetime "pinned_at"
     t.bigint "pinned_by_id"
     t.datetime "updated_at", null: false
+    t.index ["author_id", "client_message_id"], name: "idx_messages_on_author_and_client_message_id", unique: true, where: "(client_message_id IS NOT NULL)"
     t.index ["author_id"], name: "index_messages_on_author_id"
     t.index ["channel_id", "created_at"], name: "index_messages_on_channel_id_and_created_at"
     t.index ["channel_id", "deleted_at"], name: "index_messages_on_channel_id_and_deleted_at"

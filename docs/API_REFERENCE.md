@@ -458,11 +458,14 @@ Channel and direct-conversation show endpoints accept `message_limit`, `around_m
 {
   "body": "Can someone share the Zoom link?",
   "parent_message_id": null,
+  "client_message_id": "01990f7a-2068-7e9f-b884-6a8b4bb44dd0",
   "mention_user_ids": [42],
   "attachments": [],
   "send_push": true
 }
 ```
+
+`body` is limited to 5,000 characters. Clients should generate one `client_message_id` for each send intent and reuse it for every retry of that message. The value is scoped to the author and limited to 100 characters. A matching replay returns the original message without creating duplicate notifications or realtime events; reusing the value for different content returns `409 Conflict`. Older clients may omit it.
 
 Posting a message creates in-app `message` notifications for other visible channel recipients and can enqueue Web Push delivery when push is configured.
 

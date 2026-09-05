@@ -423,6 +423,81 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_includes JSON.parse(response.body).fetch("errors"), "Message must include text or an attachment"
   end
 
+  test "message create replays the original result for the same client message id" do
+    params = {
+      body: "Send this once",
+      client_message_id: "message-retry-1",
+      mention_user_ids: [ @classmate.id ]
+    }
+
+    assert_difference("Message.count", 1) do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages",
+          params: params,
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :created
+    message_id = JSON.parse(response.body).dig("message", "id")
+    notification_count = Notification.where(notifiable_type: "Message", notifiable_id: message_id).count
+
+    assert_no_difference([ "Message.count", "Notification.count" ]) do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages",
+          params: params,
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :success
+    assert_equal message_id, JSON.parse(response.body).dig("message", "id")
+    assert_equal "message-retry-1", JSON.parse(response.body).dig("message", "client_message_id")
+    assert_equal notification_count, Notification.where(notifiable_type: "Message", notifiable_id: message_id).count
+
+    as_user(@classmate) do
+      get "/api/v1/channels/#{@channel.id}", headers: auth_headers
+    end
+    delivered = JSON.parse(response.body).fetch("messages").find { |message| message.fetch("id") == message_id }
+    assert_nil delivered.fetch("client_message_id"), "client message IDs must remain private to their author"
+  end
+
+  test "message create rejects a client message id reused for different content" do
+    as_user(@student) do
+      post "/api/v1/channels/#{@channel.id}/messages",
+        params: { body: "Original intent", client_message_id: "message-retry-conflict" },
+        headers: auth_headers,
+        as: :json
+    end
+    assert_response :created
+
+    assert_no_difference("Message.count") do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages",
+          params: { body: "Different intent", client_message_id: "message-retry-conflict" },
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :conflict
+    assert_includes JSON.parse(response.body).fetch("errors"), "Client message ID has already been used for a different message"
+  end
+
+  test "message create rejects client message ids outside the contract" do
+    as_user(@student) do
+      post "/api/v1/channels/#{@channel.id}/messages",
+        params: { body: "Too long an id", client_message_id: "m" * 101 },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :unprocessable_entity
+    assert_includes JSON.parse(response.body).fetch("errors"), "Client message is too long (maximum is 100 characters)"
+  end
+
   test "thread endpoint returns the root and chronological replies with a reply count" do
     root = Message.create!(channel: @channel, author: @admin, body: "Thread root", created_at: 10.minutes.ago)
     later = Message.create!(channel: @channel, author: @student, body: "Second reply", parent_message: root, created_at: 2.minutes.ago)

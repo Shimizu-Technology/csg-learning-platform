@@ -118,6 +118,7 @@ export interface Message {
   channel_id: number | null;
   direct_conversation_id: number | null;
   parent_message_id: number | null;
+  client_message_id?: string | null;
   body: string;
   mention_user_ids: number[];
   edited_at: string | null;

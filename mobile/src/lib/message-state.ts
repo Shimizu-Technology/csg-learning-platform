@@ -9,8 +9,12 @@ export function sortMessages(messages: Message[]) {
 
 export function mergeMessageEvent(messages: Message[], payload: MessageEvent) {
   if (payload.event === 'created') {
-    return messages.some((message) => message.id === payload.message.id)
-      ? messages.map((message) => message.id === payload.message.id ? { ...message, ...payload.message } : message)
+    const matchingClientId = payload.message.client_message_id
+      ? messages.find((message) => message.client_message_id === payload.message.client_message_id)?.id
+      : undefined;
+    const matchingId = matchingClientId ?? payload.message.id;
+    return messages.some((message) => message.id === matchingId)
+      ? sortMessages(messages.map((message) => message.id === matchingId ? { ...message, ...payload.message, client_status: undefined, client_error: undefined } : message))
       : sortMessages([...messages, payload.message]);
   }
 
@@ -29,7 +33,10 @@ export function mergePinnedMessageEvent(messages: Message[], payload: MessageEve
 }
 
 export function reconcileOptimistic(messages: Message[], optimisticId: number, canonical: Message) {
-  return sortMessages([...messages.filter((message) => message.id !== optimisticId && message.id !== canonical.id), canonical]);
+  return sortMessages([
+    ...messages.filter((message) => message.id !== optimisticId && message.id !== canonical.id && (!canonical.client_message_id || message.client_message_id !== canonical.client_message_id)),
+    canonical,
+  ]);
 }
 
 export function prependOlderMessages(current: Message[], older: Message[]) {

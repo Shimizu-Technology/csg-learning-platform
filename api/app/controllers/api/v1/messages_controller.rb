@@ -179,7 +179,7 @@ module Api
       end
 
       def message_params
-        params.permit(:body, :parent_message_id, mention_user_ids: [], attachments: [ :s3_key, :filename, :content_type, :byte_size ])
+        params.permit(:body, :parent_message_id, :client_message_id, mention_user_ids: [], attachments: [ :s3_key, :filename, :content_type, :byte_size ])
       end
 
       def reaction_params
@@ -207,6 +207,13 @@ module Api
 
       def create_message_for(destination)
         attachments = Array(message_params[:attachments])
+        mention_user_ids = sanitized_mention_user_ids_for(destination)
+
+        existing = existing_message_for_client_id
+        if existing
+          render_existing_message(existing, destination, attachments, mention_user_ids)
+          return
+        end
 
         if message_params[:body].to_s.strip.blank? && attachments.empty?
           render json: { errors: [ "Message must include text or an attachment" ] }, status: :unprocessable_entity
@@ -218,7 +225,8 @@ module Api
         message = destination.messages.new(
           body: message_params[:body].to_s,
           parent_message_id: message_params[:parent_message_id],
-          mention_user_ids: sanitized_mention_user_ids_for(destination)
+          client_message_id: message_params[:client_message_id],
+          mention_user_ids: mention_user_ids
         )
         message.author = current_user
 
@@ -232,8 +240,50 @@ module Api
         MessageBroadcastService.created(message)
         MessageBroadcastService.updated(thread_root(message).reload) if message.parent_message
         render json: { message: message_json(message.reload) }, status: :created
+      rescue ActiveRecord::RecordNotUnique
+        existing = existing_message_for_client_id
+        raise unless existing
+
+        render_existing_message(existing, destination, attachments, mention_user_ids)
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+      end
+
+      def existing_message_for_client_id
+        client_message_id = message_params[:client_message_id].to_s.strip
+        return if client_message_id.blank?
+
+        current_user.messages.find_by(client_message_id: client_message_id)
+      end
+
+      def render_existing_message(message, destination, attachments, mention_user_ids)
+        unless same_message_intent?(message, destination, attachments, mention_user_ids)
+          render json: { errors: [ "Client message ID has already been used for a different message" ] }, status: :conflict
+          return
+        end
+
+        mark_read_for(message)
+        render json: { message: message_json(message.reload) }, status: :ok
+      end
+
+      def same_message_intent?(message, destination, attachments, mention_user_ids)
+        message.destination == destination &&
+          message.body.to_s == message_params[:body].to_s &&
+          message.parent_message_id == message_params[:parent_message_id].presence&.to_i &&
+          Array(message.mention_user_ids).sort == mention_user_ids.sort &&
+          persisted_attachment_intent(message) == requested_attachment_intent(attachments)
+      end
+
+      def persisted_attachment_intent(message)
+        message.message_attachments.order(:id).map do |attachment|
+          [ attachment.s3_key, attachment.filename, attachment.content_type, attachment.byte_size ]
+        end
+      end
+
+      def requested_attachment_intent(attachments)
+        attachments.map do |attachment|
+          [ attachment[:s3_key].to_s, attachment[:filename].to_s, attachment[:content_type].to_s, attachment[:byte_size].to_i ]
+        end
       end
 
       def persist_files!(message, attachments)

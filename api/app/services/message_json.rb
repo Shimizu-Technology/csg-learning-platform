@@ -7,6 +7,7 @@ class MessageJson
         channel_id: message.channel_id,
         direct_conversation_id: message.direct_conversation_id,
         parent_message_id: message.parent_message_id,
+        client_message_id: message.author_id == current_user&.id ? message.client_message_id : nil,
         body: blocked ? "" : message.body.to_s,
         mention_user_ids: blocked ? [] : Array(message.mention_user_ids),
         edited_at: message.edited_at,

@@ -14,6 +14,13 @@ describe('message state', () => {
     expect(mergeMessageEvent([message(1)], { event: 'deleted', channel_id: 1, direct_conversation_id: null, message: message(1) })).toEqual([]);
   });
 
+  it('replaces an optimistic send when realtime delivers its client message id first', () => {
+    const optimistic = { ...message(-1), client_message_id: 'send-1', client_status: 'sending' as const };
+    const canonical = { ...message(2), client_message_id: 'send-1', mine: true };
+
+    expect(mergeMessageEvent([optimistic], { event: 'created', channel_id: 1, direct_conversation_id: null, message: canonical })).toEqual([canonical]);
+  });
+
   it('reconciles optimistic messages and prepends unique history', () => {
     const optimistic = { ...message(-1), client_status: 'sending' as const };
     expect(reconcileOptimistic([optimistic], -1, message(2))).toEqual([message(2)]);
