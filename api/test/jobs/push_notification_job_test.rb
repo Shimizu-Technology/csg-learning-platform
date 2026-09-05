@@ -87,6 +87,29 @@ class PushNotificationJobTest < ActiveJob::TestCase
     ExpoPushNotificationService.define_singleton_method(:message_created, original_expo_delivery) if defined?(original_expo_delivery) && original_expo_delivery
   end
 
+  test "message push stops when the message is deleted before the queued job runs" do
+    author = User.create!(clerk_id: "push_deleted_author", email: "push-deleted-author@example.com", role: :student)
+    recipient = User.create!(clerk_id: "push_deleted_recipient", email: "push-deleted-recipient@example.com", role: :student)
+    curriculum = Curriculum.create!(name: "Deleted push curriculum")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Deleted push cohort", start_date: Date.current, status: :active)
+    message = Message.create!(channel: cohort.channels.find_by!(name: "Class Chat"), author: author, body: "Do not notify", deleted_at: Time.current)
+    notification = recipient.notifications.create!(actor: author, notifiable: message, notification_type: :message, title: "Message", body: message.body, path: "/messages")
+    deliveries = []
+    original_web_delivery = WebPushNotificationService.method(:message_created)
+    original_expo_delivery = ExpoPushNotificationService.method(:message_created)
+    WebPushNotificationService.define_singleton_method(:message_created) { |*| deliveries << :web }
+    ExpoPushNotificationService.define_singleton_method(:message_created) { |*| deliveries << :expo }
+
+    PushNotificationJob.perform_now("Message", message.id, [ notification.id ])
+
+    assert_empty deliveries
+    assert_empty message.reload.web_push_attempted_notification_ids
+    assert_empty message.expo_push_attempted_notification_ids
+  ensure
+    WebPushNotificationService.define_singleton_method(:message_created, original_web_delivery) if defined?(original_web_delivery) && original_web_delivery
+    ExpoPushNotificationService.define_singleton_method(:message_created, original_expo_delivery) if defined?(original_expo_delivery) && original_expo_delivery
+  end
+
   test "repeated message jobs forward each notification only once per provider" do
     author = User.create!(clerk_id: "push_dedupe_author", email: "push-dedupe-author@example.com", role: :student)
     recipient = User.create!(clerk_id: "push_dedupe_recipient", email: "push-dedupe-recipient@example.com", role: :student)

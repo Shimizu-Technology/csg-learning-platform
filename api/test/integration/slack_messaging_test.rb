@@ -739,7 +739,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "a retry recovers delivery after the message commits" do
+  test "inline delivery failure asks the client to retry the committed message" do
     original_delivery = NotificationDeliveryService.method(:message_created)
     original_user_broadcast = UserMessagesChannel.method(:broadcast_to)
     broadcasts = []
@@ -755,7 +755,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     as_user(@student) do
       post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
     end
-    assert_response :created
+    assert_response :service_unavailable
     committed = Message.find_by!(author: @student, client_message_id: "message-delivery-recovery")
     assert_nil committed.notifications_delivered_at
 
@@ -818,6 +818,20 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_includes JSON.parse(response.body).fetch("errors"), "Client message is too long (maximum is 100 characters)"
   end
 
+  test "message create rejects malformed mention user ids" do
+    assert_no_difference("Message.count") do
+      as_user(@student) do
+        post "/api/v1/channels/#{@channel.id}/messages",
+          params: { body: "Malformed mention", mention_user_ids: [ "#{@classmate.id}invalid" ] },
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal [ "Mention user IDs must be numeric" ], JSON.parse(response.body).fetch("errors")
+  end
+
   test "thread endpoint returns the root and chronological replies with a reply count" do
     root = Message.create!(channel: @channel, author: @admin, body: "Thread root", created_at: 10.minutes.ago)
     later = Message.create!(channel: @channel, author: @student, body: "Second reply", parent_message: root, created_at: 2.minutes.ago)
@@ -874,6 +888,8 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
       broadcasts_delivered_at: Time.current
     )
     original_delete_broadcast = MessageBroadcastService.method(:deleted)
+    original_queue_adapter_name = ActiveJob::Base.method(:queue_adapter_name)
+    ActiveJob::Base.define_singleton_method(:queue_adapter_name) { "solid_queue" }
     fail_delete_broadcast = true
     MessageBroadcastService.define_singleton_method(:deleted) do |target, **options, &block|
       raise "delete broadcast unavailable" if fail_delete_broadcast
@@ -896,6 +912,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     MessageDeliveryService.created(message)
     assert message.reload.broadcasts_delivered_at?
   ensure
+    ActiveJob::Base.define_singleton_method(:queue_adapter_name, original_queue_adapter_name) if defined?(original_queue_adapter_name) && original_queue_adapter_name
     MessageBroadcastService.define_singleton_method(:deleted, original_delete_broadcast) if defined?(original_delete_broadcast) && original_delete_broadcast
   end
 

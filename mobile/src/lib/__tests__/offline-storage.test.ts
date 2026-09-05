@@ -141,6 +141,28 @@ describe('offline authored storage', () => {
     await expect(load).resolves.toBe('Newest draft');
   });
 
+  it('keeps queued writes when an already-active user is activated again', async () => {
+    const originalSetItem = AsyncStorage.setItem.bind(AsyncStorage);
+    let releaseFirstWrite = () => {};
+    let markFirstWriteStarted = () => {};
+    const firstWriteGate = new Promise<void>((resolve) => { releaseFirstWrite = resolve; });
+    const firstWriteStarted = new Promise<void>((resolve) => { markFirstWriteStarted = resolve; });
+    jest.spyOn(AsyncStorage, 'setItem').mockImplementationOnce(async (key, value) => {
+      markFirstWriteStarted();
+      await firstWriteGate;
+      await originalSetItem(key, value);
+    });
+
+    const firstSave = saveConversationDraft(7, 'channel', 3, 'Older draft');
+    await firstWriteStarted;
+    const newestSave = saveConversationDraft(7, 'channel', 3, 'Newest draft');
+    activateUserConversationStorage(7);
+
+    releaseFirstWrite();
+    await Promise.all([firstSave, newestSave]);
+    expect(await loadConversationDraft(7, 'channel', 3)).toBe('Newest draft');
+  });
+
   it('restores a failed thread send identifier after the screen unmounts', async () => {
     await saveThreadDraft(7, 88, 'Possibly delivered   ', 'thread-send-1');
 

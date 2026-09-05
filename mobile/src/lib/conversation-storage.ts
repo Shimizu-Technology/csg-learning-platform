@@ -30,8 +30,11 @@ async function readAfterPendingWrites(userId: number, key: string) {
 }
 
 export function activateUserConversationStorage(userId: number) {
-  userStorageGenerations.set(userId, (userStorageGenerations.get(userId) || 0) + 1);
-  blockedStorageUsers.delete(userId);
+  if (!userStorageGenerations.has(userId)) {
+    userStorageGenerations.set(userId, 0);
+  } else if (blockedStorageUsers.delete(userId)) {
+    userStorageGenerations.set(userId, (userStorageGenerations.get(userId) || 0) + 1);
+  }
 }
 
 export function conversationDraftKey(userId: number, kind: ConversationKind, id: number) {

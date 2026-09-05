@@ -471,6 +471,8 @@ Channel and direct-conversation show endpoints accept `message_limit`, `around_m
 
 Message deletion returns `503 Service Unavailable` with a retryable error when an in-flight delivery still owns the message after the bounded wait. The message is not deleted in that case, preventing a late create event from appearing after a successful deletion response.
 
+An inline deployment also returns a retryable `503` after a committed create, replay, or deletion when notification or realtime delivery is incomplete. Clients must retry the same operation and reuse the original `client_message_id`; a Solid Queue deployment can acknowledge the committed write because its recurring recovery sweep owns the unfinished delivery.
+
 New API-created messages opt into delivery recovery. When Solid Queue is enabled, `MessageDeliveryRecoveryJob` sweeps up to 100 of the least-recently-attempted incomplete deliveries every minute. This bounded rotation prevents one failing message from blocking newer recovery work. Recovery does not expire incomplete delivery because there is not yet an operator-owned dead-letter queue; each failed attempt is logged and rotated behind untouched work. A recovered notification stage may enqueue another push job, while per-provider forwarding is checkpointed by notification ID so duplicate jobs do not duplicate provider attempts. Messages created before tracking shipped are excluded so deployment cannot replay historical notifications or broadcasts. Deployments using the low-volume inline adapter retain synchronous delivery and identical-request replay, but do not run recurring jobs.
 
 Posting a message creates in-app `message` notifications for other visible channel recipients and can enqueue Web Push delivery when push is configured.

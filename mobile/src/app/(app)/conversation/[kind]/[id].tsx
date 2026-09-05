@@ -22,7 +22,7 @@ import { formatConversationDay, isDifferentConversationDay, isNearConversationBo
 import { clearConversationDraftAfterSend, loadConversationDraft, loadFailedMessages, saveConversationDraft, saveFailedMessages } from '@/lib/conversation-storage';
 import { demoChannels, demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { insertMention, mentionSuggestions, mentionTriggerAt, resolveMentionUserIds } from '@/lib/mentions';
-import { clientMessageIdForSend, messageBodyChangeAllowed, messageBodyWithinLimit, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
+import { clientMessageIdForSend, draftAfterSendConfirmation, messageBodyChangeAllowed, messageBodyWithinLimit, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
 import { messagePreview } from '@/lib/message-format';
 import { markOptimisticFailed, mergeMessageEvent, mergeOlderMessages, mergePinnedMessageEvent, mergeServerAndFailedMessages, reconcileOptimistic, sortMessages, toggleOwnReaction } from '@/lib/message-state';
 import { REACTION_OPTIONS } from '@/lib/reactions';
@@ -52,6 +52,7 @@ export default function ConversationScreen() {
   const pendingScrollRef = useRef(!anchorMessageId);
   const keyboardShouldFollowRef = useRef(false);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftValueRef = useRef('');
   const pendingDraftRef = useRef<PendingConversationDraft | null>(null);
   const persistedFailedRef = useRef<string | null>(null);
   const anchorScrolledRef = useRef(false);
@@ -79,6 +80,10 @@ export default function ConversationScreen() {
   const [editSelection, setEditSelection] = useState({ start: 0, end: 0 });
   const [reactionDetails, setReactionDetails] = useState<{ messageId: number; emoji: string } | null>(null);
   const [imagePreview, setImagePreview] = useState<{ attachments: Message['attachments']; attachmentId: number } | null>(null);
+  const updateDraft = useCallback((value: string) => {
+    draftValueRef.current = value;
+    setDraft(value);
+  }, []);
   const voiceDraft = useVoiceDraft({
     api,
     demo: auth.demo,
@@ -87,12 +92,12 @@ export default function ConversationScreen() {
     selection,
     disabled: sending || Boolean(editingMessage),
     maxDraftLength: MESSAGE_BODY_LIMIT,
-    onDraftChange: setDraft,
+    onDraftChange: updateDraft,
     onSelectionChange: setSelection,
   });
 
   const composerValue = editingMessage ? editDraft : draft;
-  const updateComposerValue = editingMessage ? setEditDraft : setDraft;
+  const updateComposerValue = editingMessage ? setEditDraft : updateDraft;
   const composerSelection = editingMessage ? editSelection : selection;
   const updateComposerSelection = editingMessage ? setEditSelection : setSelection;
   const composerHasContent = Boolean(composerValue.trim() || (!editingMessage && attachments.length));
@@ -129,7 +134,7 @@ export default function ConversationScreen() {
       if (userId && !auth.demo) {
         const storedDraft = await loadConversationDraft(userId, kind, id);
         if (requestId !== loadRequestRef.current) return;
-        setDraft(storedDraft);
+        updateDraft(storedDraft);
       }
       if (auth.demo) {
         setSummary(kind === 'channel' ? demoChannels.find((item) => item.id === id) || null : demoDms.find((item) => item.id === id) || null);
@@ -163,7 +168,7 @@ export default function ConversationScreen() {
     } finally {
       if (requestId === loadRequestRef.current) setLoading(false);
     }
-  }, [anchorMessageId, api, auth.demo, conversationIdentity, id, kind, userId]);
+  }, [anchorMessageId, api, auth.demo, conversationIdentity, id, kind, updateDraft, userId]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => void load());
@@ -250,7 +255,7 @@ export default function ConversationScreen() {
       const sendingMessage = { ...optimistic, client_status: 'sending' as const, client_error: undefined };
       setMessages((current) => sortMessages([...current.filter((item) => item.id !== optimisticId), sendingMessage]));
       scrollToLatest(false);
-      if (!retryMessage) { setDraft(''); setAttachments([]); }
+      if (!retryMessage) { updateDraft(''); setAttachments([]); }
       if (auth.demo) {
         setMessages((current) => current.map((item) => item.id === optimisticId ? { ...item, client_status: undefined } : item));
         if (!retryMessage) voiceDraft.markSent(body);
@@ -260,9 +265,19 @@ export default function ConversationScreen() {
       setMessages((current) => reconcileOptimistic(current, optimisticId, message));
       if (!retryMessage) voiceDraft.markSent(body);
       if (userId && !retryMessage) {
+        const retainedDraft = draftAfterSendConfirmation(
+          draftValueRef.current,
+          { body, clientMessageId },
+          message.client_message_id,
+          message.author.id,
+          userId,
+        );
+        if (retainedDraft === null) return;
         if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
         pendingDraftRef.current = null;
-        await clearConversationDraftAfterSend(userId, kind, id);
+        await (retainedDraft
+          ? saveConversationDraft(userId, kind, id, retainedDraft)
+          : clearConversationDraftAfterSend(userId, kind, id));
       }
     } catch (requestError) {
       if (!optimistic) {

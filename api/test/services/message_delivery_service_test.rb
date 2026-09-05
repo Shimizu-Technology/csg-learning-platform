@@ -77,6 +77,16 @@ class MessageDeliveryServiceTest < ActiveSupport::TestCase
       :broadcast_delivery_claim,
       "expired-claim"
     )
+    assert_not MessageDeliveryService.send(
+      :checkpoint_recipients,
+      message,
+      :broadcast_recipient_ids,
+      :broadcast_delivery_started_at,
+      :broadcast_delivery_claim,
+      "expired-claim",
+      [ author.id ]
+    )
+    assert_empty message.reload.delivered_recipient_ids(:broadcast_recipient_ids)
     assert_equal fresh_claim, message.reload.broadcast_delivery_claim
     assert MessageDeliveryService.send(
       :release_delivery,

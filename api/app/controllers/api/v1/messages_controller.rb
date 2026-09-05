@@ -57,10 +57,13 @@ module Api
           return
         end
 
+        mention_user_ids = sanitized_mention_user_ids_for(@message.destination)
+        return if performed?
+
         if @message.update(
           body: message_params[:body],
           edited_at: Time.current,
-          mention_user_ids: sanitized_mention_user_ids_for(@message.destination)
+          mention_user_ids: mention_user_ids
         )
           MessageBroadcastService.updated(@message)
           render json: { message: message_json(@message) }
@@ -106,7 +109,8 @@ module Api
           render json: { errors: [ "Message delivery is still finishing; try again" ] }, status: :service_unavailable
           return
         end
-        deliver_committed_message(@message)
+        return unless deliver_committed_message(@message)
+
         render json: { message: message_json(@message) }
       end
 
@@ -230,6 +234,7 @@ module Api
       def create_message_for(destination)
         attachments = Array(message_params[:attachments])
         mention_user_ids = sanitized_mention_user_ids_for(destination)
+        return if performed?
 
         existing = existing_message_for_client_id
         if existing
@@ -282,7 +287,8 @@ module Api
         end
 
         mark_read_for(message)
-        deliver_committed_message(message)
+        return unless deliver_committed_message(message)
+
         render json: { message: message_json(message.reload) }, status: :created
       end
 
@@ -300,7 +306,8 @@ module Api
         end
 
         mark_read_for(message)
-        deliver_committed_message(message)
+        return unless deliver_committed_message(message)
+
         render json: { message: message_json(message.reload) }, status: :ok
       end
 
@@ -330,13 +337,19 @@ module Api
 
       def deliver_committed_message(message)
         MessageDeliveryService.created(message)
+        true
       rescue StandardError => error
-        # The API write is already committed. The delivery recovery sweep (or an
-        # identical client replay in inline mode) owns the unfinished fan-out.
         Rails.logger.error(
           "[MessagesController] delivery_deferred message_id=#{message.id} " \
           "error_class=#{error.class.name}"
         )
+        # Solid Queue owns durable recovery after the committed write. Inline
+        # deployments have no sweep, so the client must retry the same
+        # client_message_id instead of treating incomplete fan-out as success.
+        return true if ActiveJob::Base.queue_adapter_name == "solid_queue"
+
+        render json: { errors: [ "Message was saved but delivery is still pending; try again" ] }, status: :service_unavailable
+        false
       end
 
       def persisted_attachment_intent(message)
@@ -415,11 +428,13 @@ module Api
       end
 
       def requested_mention_user_ids
-        Array(message_params[:mention_user_ids]).filter_map do |value|
-          next if value.blank?
+        values = Array(message_params[:mention_user_ids]).reject(&:blank?)
+        unless values.all? { |value| value.is_a?(Integer) || value.to_s.match?(/\A\d+\z/) }
+          render json: { errors: [ "Mention user IDs must be numeric" ] }, status: :unprocessable_entity
+          return []
+        end
 
-          value.to_i
-        end.uniq
+        values.map(&:to_i).uniq
       end
 
       def message_json(message)
