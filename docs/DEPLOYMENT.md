@@ -105,6 +105,9 @@ declares Solid Queue infrastructure. Each deployment must have exactly one
 job-execution path.
 The polling defaults above keep normal notification latency while avoiding the
 ten database polls per second caused by Solid Queue's upstream worker default.
+If either concurrent message index migration times out, rerun the migration.
+Each migration checks the exact expected index identity, removes an interrupted
+or invalid same-named index with `DROP INDEX CONCURRENTLY`, and rebuilds it.
 
 ### Safely activating or recovering the worker
 

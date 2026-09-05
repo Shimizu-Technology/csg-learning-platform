@@ -10,6 +10,13 @@ class MessageDeliveryService
   class << self
     def created(message)
       message.reload
+      if message.deleted?
+        return unless deliver_message_broadcast(message)
+
+        deliver_thread_broadcast(message) if message.parent_message
+        return
+      end
+
       return unless deliver_notifications(message)
       return unless deliver_message_broadcast(message)
 

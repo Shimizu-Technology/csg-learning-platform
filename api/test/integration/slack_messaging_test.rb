@@ -869,7 +869,8 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
       author: @student,
       body: "Remove reliably",
       delivery_tracking_requested: true,
-      notifications_delivered_at: Time.current,
+      notifications_delivery_claim: SecureRandom.uuid,
+      notifications_delivery_started_at: Time.current,
       broadcasts_delivered_at: Time.current
     )
     original_delete_broadcast = MessageBroadcastService.method(:deleted)
@@ -886,6 +887,8 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert message.reload.deleted?
+    assert message.notifications_delivered_at?
+    assert_nil message.notifications_delivery_claim
     assert_nil message.broadcasts_delivered_at
     assert_nil message.broadcast_delivery_claim
 

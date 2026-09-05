@@ -231,7 +231,7 @@ export default function ThreadScreen() {
       draftRef.current = '';
       setDraft('');
     }
-    if (userId) void saveThreadDraftState(userId, rootId, draftRef.current, intent).catch(() => undefined);
+    if (userId && !auth.demo) void saveThreadDraftState(userId, rootId, draftRef.current, intent).catch(() => undefined);
     setReplies((current) => sortMessages([
       ...current.filter((message) => message.id !== optimisticId),
       { ...optimistic, client_message_id: clientMessageId, client_status: 'sending', client_error: undefined },
@@ -252,7 +252,7 @@ export default function ThreadScreen() {
     } catch (requestError) {
       if (failedSendRef.current?.clientMessageId !== clientMessageId) return;
       setReplies((current) => markOptimisticFailed(current, optimistic, (requestError as Error).message));
-      if (userId) await saveThreadDraftState(userId, rootId, draftRef.current, intent).catch(() => undefined);
+      if (userId && !auth.demo) await saveThreadDraftState(userId, rootId, draftRef.current, intent).catch(() => undefined);
       Alert.alert('Reply not sent', (requestError as Error).message, [{ text: 'Keep for retry' }]);
     }
     finally { setSending(false); }

@@ -43,7 +43,7 @@ class AddMessageDeliveryRecoveryIndex < ActiveRecord::Migration[8.1]
     index = connection.indexes(:messages).find { |candidate| candidate.name == INDEX_NAME }
     return false unless index && index.columns == %w[delivery_recovery_attempted_at id] && !index.unique
 
-    return false unless index.where.to_s.squish == DATABASE_PREDICATE
+    return false unless index.where.to_s.downcase.squish == DATABASE_PREDICATE.downcase.squish
 
     connection.select_value(<<~SQL.squish) == true
       SELECT index.indisvalid AND index.indisready
@@ -54,5 +54,4 @@ class AddMessageDeliveryRecoveryIndex < ActiveRecord::Migration[8.1]
         AND namespace.nspname = ANY (current_schemas(false))
     SQL
   end
-
 end

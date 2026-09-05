@@ -91,7 +91,11 @@ export function SessionProvider({ children }: PropsWithChildren) {
           if (!cachedUser) throw new Error('Invalid cached session user');
           if (userIdRef.current !== cachedUser.id) activateUserConversationStorage(cachedUser.id);
           setUser(cachedUser);
-        } catch { await AsyncStorage.removeItem(userCacheKey!); setUser(null); }
+        } catch {
+          await AsyncStorage.removeItem(userCacheKey!);
+          if (!isCurrentRefresh()) return;
+          setUser(null);
+        }
       } else {
         setUser(null);
       }

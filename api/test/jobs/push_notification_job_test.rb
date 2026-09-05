@@ -34,7 +34,11 @@ class PushNotificationJobTest < ActiveJob::TestCase
     errors = []
     log_error_was_owned = Rails.logger.singleton_methods(false).include?(:error)
     original_log_error = Rails.logger.method(:error)
-    Rails.logger.define_singleton_method(:error) { |entry| errors << entry }
+    Rails.logger.define_singleton_method(:error) do |entry = nil, *arguments, &block|
+      entry = block.call if entry.nil? && block
+      errors << entry.to_s
+      original_log_error.call(entry, *arguments)
+    end
     ExpoPushNotificationService.define_singleton_method(:message_created) do |*, **|
       expo_attempts += 1
       raise "Expo unavailable"

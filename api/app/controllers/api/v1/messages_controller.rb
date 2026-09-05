@@ -87,6 +87,9 @@ module Api
           pinned_by: nil,
           delivery_tracking_requested: true,
           delivery_recovery_attempted_at: Time.at(0).utc,
+          notifications_delivery_claim: nil,
+          notifications_delivery_started_at: nil,
+          notifications_delivered_at: Time.current,
           broadcast_recipient_ids: [],
           broadcast_delivery_claim: nil,
           broadcast_delivery_started_at: nil,
@@ -324,7 +327,7 @@ module Api
         # identical client replay in inline mode) owns the unfinished fan-out.
         Rails.logger.error(
           "[MessagesController] delivery_deferred message_id=#{message.id} " \
-          "error=#{error.class}: #{error.message}"
+          "error=#{error.class}: #{error.message}\n#{Array(error.backtrace).first(5).join("\n")}"
         )
       end
 

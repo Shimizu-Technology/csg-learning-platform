@@ -165,3 +165,30 @@ it('does not clear account A data when account B has an invalid cache entry', as
   await act(async () => { await observedSession!.signOut(); });
   expect(await loadConversationDraft(userA.id, 'channel', 3)).toBe('Account A draft');
 });
+
+it('does not clear account B when stale account A cache removal finishes later', async () => {
+  await AsyncStorage.setItem('csg.session.user.account-a', '{"id":7}');
+  let releaseRemoval = () => {};
+  let markRemovalStarted = () => {};
+  const removalGate = new Promise<void>((resolve) => { releaseRemoval = resolve; });
+  const removalStarted = new Promise<void>((resolve) => { markRemovalStarted = resolve; });
+  jest.spyOn(AsyncStorage, 'removeItem').mockImplementationOnce(async () => {
+    markRemovalStarted();
+    await removalGate;
+  });
+  mockSession.mockRejectedValueOnce(new ApiError('Offline')).mockResolvedValueOnce({ user: userB });
+  const view = render(<SessionProvider><SessionObserver /></SessionProvider>);
+
+  let staleRefresh!: Promise<void>;
+  act(() => { staleRefresh = observedSession!.refresh(); });
+  await removalStarted;
+
+  mockAuthState.current = { ...mockAuthState.current, subject: 'account-b' };
+  view.rerender(<SessionProvider><SessionObserver /></SessionProvider>);
+  await act(async () => { await observedSession!.refresh(); });
+  expect(observedSession!.user?.id).toBe(userB.id);
+
+  releaseRemoval();
+  await act(async () => { await staleRefresh; });
+  expect(observedSession!.user?.id).toBe(userB.id);
+});
