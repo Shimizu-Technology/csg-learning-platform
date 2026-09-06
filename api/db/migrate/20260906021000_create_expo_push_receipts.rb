@@ -5,6 +5,7 @@ class CreateExpoPushReceipts < ActiveRecord::Migration[8.1]
       t.string :receipt_id, null: false
       t.datetime :available_at, null: false
       t.datetime :processing_at
+      t.string :processing_token
       t.integer :lookup_count, null: false, default: 0
       t.timestamps
     end

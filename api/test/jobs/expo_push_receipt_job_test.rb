@@ -221,4 +221,53 @@ class ExpoPushReceiptJobConcurrencyTest < ActiveSupport::TestCase
     assert_equal [], first.value
     assert_not ExpoPushReceipt.exists?(receipt_id: "receipt-concurrent")
   end
+
+  test "an expired worker cannot mutate a receipt reclaimed by a newer worker" do
+    first_started = Queue.new
+    second_started = Queue.new
+    release_first = Queue.new
+    release_second = Queue.new
+    calls = 0
+    mutex = Mutex.new
+    service = Object.new
+    service.define_singleton_method(:check) do |_requests|
+      call = mutex.synchronize { calls += 1 }
+      if call == 1
+        first_started << true
+        release_first.pop
+      else
+        second_started << true
+        release_second.pop
+      end
+      []
+    end
+    original_new = ExpoPushReceiptService.method(:new)
+    ExpoPushReceiptService.define_singleton_method(:new) { service }
+
+    first = Thread.new { ActiveRecord::Base.connection_pool.with_connection { ExpoPushReceiptJob.new.drain_due([ "receipt-concurrent" ]) } }
+    first_started.pop
+    first_token = ExpoPushReceipt.find_by!(receipt_id: "receipt-concurrent").processing_token
+    ExpoPushReceipt.where(receipt_id: "receipt-concurrent").update_all(processing_at: 3.minutes.ago)
+    second = Thread.new { ActiveRecord::Base.connection_pool.with_connection { ExpoPushReceiptJob.new.drain_due([ "receipt-concurrent" ]) } }
+    second_started.pop
+    second_token = ExpoPushReceipt.find_by!(receipt_id: "receipt-concurrent").processing_token
+
+    begin
+      refute_equal first_token, second_token
+      release_first << true
+      first.join
+      receipt = ExpoPushReceipt.find_by!(receipt_id: "receipt-concurrent")
+      assert_equal second_token, receipt.processing_token
+      assert receipt.processing_at.present?
+    ensure
+      release_first << true
+      release_second << true
+      first.join
+      second.join
+      ExpoPushReceiptService.define_singleton_method(:new, original_new)
+    end
+
+    assert_equal 2, calls
+    assert_not ExpoPushReceipt.exists?(receipt_id: "receipt-concurrent")
+  end
 end
