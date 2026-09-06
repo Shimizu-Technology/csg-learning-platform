@@ -54,7 +54,7 @@ class ExpoPushReceiptJob < ApplicationJob
     Rails.logger.warn("[ExpoPushReceiptJob] inline receipt backoff unavailable: #{e.message}")
   end
 
-  def perform(receipt_ids)
+  def perform(receipt_ids = nil)
     retryable_ids = drain_due(receipt_ids)
     self.class.set(wait: LOOKUP_DELAY).perform_later(retryable_ids) if retryable_ids.any?
   end

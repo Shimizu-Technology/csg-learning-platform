@@ -83,6 +83,18 @@ class ExpoPushReceiptJobTest < ActiveJob::TestCase
     assert_not ExpoPushReceipt.exists?(receipt_id: "receipt-ok")
   end
 
+  test "recurring sweep processes every due receipt without explicit ids" do
+    create_receipt("receipt-sweep")
+    service = Object.new
+    service.define_singleton_method(:check) { |_requests| [] }
+
+    with_receipt_service(service) do
+      assert_no_enqueued_jobs(only: ExpoPushReceiptJob) { ExpoPushReceiptJob.perform_now }
+    end
+
+    assert_not ExpoPushReceipt.exists?(receipt_id: "receipt-sweep")
+  end
+
   test "inline delivery checks due receipts without enqueueing an unsupported delayed job" do
     service = Object.new
     service.define_singleton_method(:check) { |_requests| [] }

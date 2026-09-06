@@ -1,9 +1,5 @@
-# Recurring jobs configuration. These schedules run when the deployment uses
-# Solid Queue; request/replay recovery remains available in inline mode.
 production:
-  message_delivery_recovery:
-    class: MessageDeliveryRecoveryJob
-    schedule: every minute
-  intervention_follow_ups:
-    class: InterventionFollowUpJob
-    schedule: every day at 8am Pacific/Guam
+  expo_push_receipt_sweep:
+    class: ExpoPushReceiptJob
+    schedule: every 15 minutes
+    description: Recover due Expo push receipts if their original delayed job could not be enqueued.
