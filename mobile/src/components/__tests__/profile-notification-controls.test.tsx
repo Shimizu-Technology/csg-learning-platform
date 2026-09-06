@@ -116,6 +116,26 @@ describe('ProfileScreen notification controls', () => {
     expect(mockApi.updateMobilePushPreference.mock.calls).toEqual([[true], [false]]);
   });
 
+  it('keeps the account state visible when registration and rollback both fail', async () => {
+    jest.mocked(attemptPushRegistration).mockResolvedValueOnce({ ok: false, message: 'Registration unavailable' });
+    mockApi.updateMobilePushPreference
+      .mockResolvedValueOnce({ notifications_enabled: true })
+      .mockRejectedValueOnce(new Error('Rollback unavailable'));
+    const screen = render(<ProfileScreen />);
+
+    fireEvent(await screen.findByLabelText('Device notifications'), 'valueChange', true);
+    continueThroughPrimer();
+
+    await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith(
+      'Device notifications need attention',
+      expect.stringContaining('Notifications remain on for your account'),
+    ));
+    expect(screen.getByLabelText('Device notifications').props.value).toBe(true);
+    expect(screen.getByText('Reconnect this device')).toBeTruthy();
+    expect(screen.getByLabelText('Retry device notification registration')).toBeTruthy();
+    expect(mockApi.updateMobilePushPreference.mock.calls).toEqual([[true], [false]]);
+  });
+
   it('prevents another message-email update while one is pending', async () => {
     let resolveUpdate!: (value: { notifications_enabled: boolean }) => void;
     mockApi.updateGlobalNotifications.mockReturnValueOnce(new Promise((resolve) => { resolveUpdate = resolve; }));

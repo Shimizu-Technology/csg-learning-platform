@@ -64,6 +64,7 @@ export default function ProfileScreen() {
   }, [invalidateRegistration, loadNotificationPreferences]));
   const enableDeviceNotifications = async () => {
     const generation = beginRegistration();
+    let accountPreferenceEnabled = false;
     setUpdatingPreference(true);
     try {
       const permission = await requestPushPermission();
@@ -80,6 +81,7 @@ export default function ProfileScreen() {
       }
       if (!auth.demo) {
         await api.updateMobilePushPreference(true);
+        accountPreferenceEnabled = true;
         const registration = await attemptPushRegistration(api, () => registrationIsCurrent(generation));
         if (!registrationIsCurrent(generation)) return;
         if (!registration.ok) throw new Error(registration.message);
@@ -88,8 +90,20 @@ export default function ProfileScreen() {
       setDeviceNotificationsEnabled(true);
     } catch (requestError) {
       if (!registrationIsCurrent(generation)) return;
-      if (!auth.demo) await api.updateMobilePushPreference(false).catch(() => undefined);
-      setDeviceNotificationsEnabled(false);
+      if (!auth.demo && accountPreferenceEnabled) {
+        try {
+          await api.updateMobilePushPreference(false);
+          accountPreferenceEnabled = false;
+        } catch (rollbackError) {
+          if (!registrationIsCurrent(generation)) return;
+          const reconnectMessage = `${(requestError as Error).message} The account setting is still on because it could not be rolled back: ${(rollbackError as Error).message}`;
+          setRegistrationError(reconnectMessage);
+          setDeviceNotificationsEnabled(true);
+          Alert.alert('Device notifications need attention', 'Notifications remain on for your account, but this device is not connected. Use Retry when your connection is stable.');
+          return;
+        }
+      }
+      setDeviceNotificationsEnabled(accountPreferenceEnabled);
       Alert.alert('Could not turn on device notifications', (requestError as Error).message);
     } finally {
       if (finishRegistration(generation)) setUpdatingPreference(false);
