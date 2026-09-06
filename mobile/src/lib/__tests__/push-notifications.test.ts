@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 
 import type { CsgApi } from '../api';
-import { registerPushNotifications, requestPushPermission } from '../push-notifications';
+import { getPushPermissionStatus, registerPushNotifications, requestPushPermission } from '../push-notifications';
 
 jest.mock('@react-native-async-storage/async-storage', () => jest.requireActual('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 jest.mock('expo-application', () => ({
@@ -17,6 +17,7 @@ jest.mock('expo-constants', () => ({
 jest.mock('expo-device', () => ({ isDevice: true }));
 jest.mock('expo-notifications', () => ({
   AndroidImportance: { HIGH: 4 },
+  IosAuthorizationStatus: { NOT_DETERMINED: 0, DENIED: 1, AUTHORIZED: 2, PROVISIONAL: 3, EPHEMERAL: 4 },
   getExpoPushTokenAsync: jest.fn().mockResolvedValue({ data: 'ExpoPushToken[test]' }),
   getPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
   requestPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
@@ -42,6 +43,20 @@ function enabledApi(overrides: Partial<CsgApi> = {}) {
 }
 
 describe('push permission intent', () => {
+  it('preserves provisional iOS authorization as a deliverable state', async () => {
+    jest.mocked(Notifications.getPermissionsAsync).mockResolvedValueOnce({ status: 'denied', ios: { status: Notifications.IosAuthorizationStatus.PROVISIONAL } } as Awaited<ReturnType<typeof Notifications.getPermissionsAsync>>);
+
+    await expect(getPushPermissionStatus()).resolves.toBe('provisional');
+  });
+
+  it('does not prompt again for provisional iOS authorization', async () => {
+    jest.mocked(Notifications.getPermissionsAsync).mockResolvedValueOnce({ status: 'denied', ios: { status: Notifications.IosAuthorizationStatus.PROVISIONAL } } as Awaited<ReturnType<typeof Notifications.getPermissionsAsync>>);
+
+    await expect(requestPushPermission()).resolves.toBe('provisional');
+
+    expect(Notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+  });
+
   it('never asks for OS permission during silent registration', async () => {
     jest.mocked(Notifications.getPermissionsAsync).mockResolvedValueOnce({ status: 'undetermined' } as Awaited<ReturnType<typeof Notifications.getPermissionsAsync>>);
     const api = enabledApi();

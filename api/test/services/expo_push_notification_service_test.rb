@@ -204,6 +204,23 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
     end
   end
 
+  test "intervention pushes use the learning channel" do
+    user = User.create!(clerk_id: "expo_intervention_staff", email: "expo-intervention-staff@example.com", role: :instructor)
+    user.mobile_push_tokens.create!(token: "ExpoPushToken[intervention-staff]", platform: "ios", last_seen_at: Time.current)
+    intervention = Struct.new(:id).new(42)
+    notification = user.notifications.create!(notifiable: user, notification_type: :intervention, title: "Follow-up due", body: "Student needs support", path: "/admin/interventions/42")
+    response = Net::HTTPOK.new("1.1", "200", "OK")
+    response.instance_variable_set(:@read, true)
+    response.body = { data: [ { status: "ok" } ] }.to_json
+
+    with_http_response(response) do |connection|
+      ExpoPushNotificationService.intervention_changed(intervention, [ notification ])
+      payload = JSON.parse(connection.request_received.body).first
+      assert_equal "learning", payload.fetch("channelId")
+      assert_equal "/staff/intervention/42", payload.dig("data", "path")
+    end
+  end
+
   private
 
   def with_http_response(response)

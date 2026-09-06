@@ -2,13 +2,13 @@ import * as Application from 'expo-application';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import { Bell, Check, ChevronRight, FileText, GitBranch, GraduationCap, LogOut, Mail, Save, Settings2, ShieldCheck, Trash2, UserX } from 'lucide-react-native';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/avatar';
 import { fontScaleLimits, fonts, palette, typography } from '@/constants/csg-theme';
 import { learningKeys } from '@/lib/learning';
-import { getPushPermissionStatus, registerPushNotifications, requestPushPermission, type PushPermissionStatus } from '@/lib/push-notifications';
+import { getPushPermissionStatus, pushPermissionAllowsDelivery, registerPushNotifications, requestPushPermission, type PushPermissionStatus } from '@/lib/push-notifications';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 
@@ -21,32 +21,41 @@ export default function ProfileScreen() {
   const [devicePermission, setDevicePermission] = useState<PushPermissionStatus>(auth.demo ? 'granted' : 'undetermined');
   const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(true);
   const [loadingPreference, setLoadingPreference] = useState(!auth.demo);
+  const [preferenceLoadError, setPreferenceLoadError] = useState<string | null>(null);
+  const preferenceLoadGeneration = useRef(0);
   const [updatingPreference, setUpdatingPreference] = useState(false);
   const [showBlockedUsers, setShowBlockedUsers] = useState(false);
   const [blockedUsers, setBlockedUsers] = useState<Awaited<ReturnType<typeof api.blockedUsers>>['blocked_users']>([]);
   const [loadingBlockedUsers, setLoadingBlockedUsers] = useState(false);
   const [deletionRequested, setDeletionRequested] = useState(false);
+  const loadNotificationPreferences = useCallback(async () => {
+    if (auth.demo) return;
+    const generation = ++preferenceLoadGeneration.current;
+    setLoadingPreference(true);
+    setPreferenceLoadError(null);
+    try {
+      const [mobileConfig, emailConfig, permission] = await Promise.all([api.mobilePushConfig(), api.pushConfig(), getPushPermissionStatus()]);
+      if (preferenceLoadGeneration.current !== generation) return;
+      setDeviceNotificationsEnabled(mobileConfig.notifications_enabled);
+      setEmailNotificationsEnabled(emailConfig.notifications_enabled);
+      setDevicePermission(permission);
+      if (mobileConfig.notifications_enabled && pushPermissionAllowsDelivery(permission)) void registerPushNotifications(api).catch(() => undefined);
+    } catch (requestError) {
+      if (preferenceLoadGeneration.current === generation) setPreferenceLoadError((requestError as Error).message || 'Could not load notification preferences.');
+    } finally {
+      if (preferenceLoadGeneration.current === generation) setLoadingPreference(false);
+    }
+  }, [api, auth.demo]);
   useFocusEffect(useCallback(() => {
-    if (auth.demo) return undefined;
-    let active = true;
-    void Promise.all([api.mobilePushConfig(), api.pushConfig(), getPushPermissionStatus()])
-      .then(([mobileConfig, emailConfig, permission]) => {
-        if (!active) return;
-        setDeviceNotificationsEnabled(mobileConfig.notifications_enabled);
-        setEmailNotificationsEnabled(emailConfig.notifications_enabled);
-        setDevicePermission(permission);
-        if (mobileConfig.notifications_enabled && permission === 'granted') void registerPushNotifications(api).catch(() => undefined);
-      })
-      .catch(() => undefined)
-      .finally(() => { if (active) setLoadingPreference(false); });
-    return () => { active = false; };
-  }, [api, auth.demo]));
+    void loadNotificationPreferences();
+    return () => { preferenceLoadGeneration.current += 1; };
+  }, [loadNotificationPreferences]));
   const enableDeviceNotifications = async () => {
     setUpdatingPreference(true);
     try {
       const permission = await requestPushPermission();
       setDevicePermission(permission);
-      if (permission !== 'granted') {
+      if (!pushPermissionAllowsDelivery(permission)) {
         if (!auth.demo) await api.updateMobilePushPreference(false);
         setDeviceNotificationsEnabled(false);
         Alert.alert('Notifications are off', 'Allow notifications in your device settings when you are ready.', [
@@ -128,8 +137,10 @@ export default function ProfileScreen() {
       {!!profileQuery.data?.enrollments.length && <><Text style={styles.sectionLabel}>ENROLLMENTS</Text><View style={styles.group}>{profileQuery.data.enrollments.map((enrollment, index) => <View key={enrollment.id} style={[styles.enrollment, index > 0 && styles.groupDivider]}><View style={styles.settingIcon}><GraduationCap color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>{enrollment.cohort_name}</Text><Text style={styles.settingCopy}>{enrollment.curriculum_name}</Text></View><Text style={[styles.enrollmentStatus, enrollment.status === 'active' && styles.enrollmentActive]}>{enrollment.status}</Text></View>)}</View></>}
       <Text style={styles.sectionLabel}>PREFERENCES</Text>
       <View style={styles.group}>
-        <View style={styles.setting}><View style={styles.settingIcon}><Bell color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Device notifications</Text><Text style={styles.settingCopy}>{devicePermission === 'denied' ? 'Off in device settings. Turn on to open Settings.' : 'Messages, announcements, grades, submissions, and support updates.'}</Text></View><View style={styles.switchSlot}>{loadingPreference || updatingPreference ? <ActivityIndicator color={palette.rubySoft} size="small" /> : <Switch accessibilityLabel="Device notifications" value={deviceNotificationsEnabled && devicePermission === 'granted'} onValueChange={toggleDeviceNotifications} trackColor={{ false: palette.line, true: '#6A2A36' }} thumbColor={deviceNotificationsEnabled && devicePermission === 'granted' ? palette.rubySoft : palette.muted} style={styles.switch} />}</View></View>
+        {preferenceLoadError ? <View style={styles.preferenceError}><View style={styles.settingIcon}><Bell color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Notifications unavailable</Text><Text style={styles.settingCopy}>{preferenceLoadError}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Retry notification preferences" onPress={() => void loadNotificationPreferences()} style={styles.retryPreference}><Text style={styles.retryPreferenceText}>Try again</Text></Pressable></View> : <>
+        <View style={styles.setting}><View style={styles.settingIcon}><Bell color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Device notifications</Text><Text style={styles.settingCopy}>{devicePermission === 'denied' ? 'Off in device settings. Turn on to open Settings.' : devicePermission === 'provisional' ? 'Delivered quietly until you choose prominent alerts in iOS.' : devicePermission === 'ephemeral' ? 'Temporarily allowed by iOS for this app session.' : 'Messages, announcements, grades, submissions, and support updates.'}</Text></View><View style={styles.switchSlot}>{loadingPreference || updatingPreference ? <ActivityIndicator color={palette.rubySoft} size="small" /> : <Switch accessibilityLabel="Device notifications" value={deviceNotificationsEnabled && pushPermissionAllowsDelivery(devicePermission)} onValueChange={toggleDeviceNotifications} trackColor={{ false: palette.line, true: '#6A2A36' }} thumbColor={deviceNotificationsEnabled && pushPermissionAllowsDelivery(devicePermission) ? palette.rubySoft : palette.muted} style={styles.switch} />}</View></View>
         <View style={[styles.setting, styles.groupDivider]}><View style={styles.settingIcon}><Mail color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Message emails</Text><Text style={styles.settingCopy}>Email alerts for direct messages and mentions. Conversation mutes still apply.</Text></View><View style={styles.switchSlot}>{loadingPreference ? <ActivityIndicator color={palette.rubySoft} size="small" /> : <Switch accessibilityLabel="Message emails" value={emailNotificationsEnabled} onValueChange={(value) => void toggleEmailNotifications(value)} trackColor={{ false: palette.line, true: '#6A2A36' }} thumbColor={emailNotificationsEnabled ? palette.rubySoft : palette.muted} style={styles.switch} />}</View></View>
+        </>}
       </View>
       {user?.is_staff && <Pressable accessibilityRole="button" accessibilityLabel="Manage communication workspaces" onPress={() => router.push('/manage-communications' as Href)} style={styles.manage}><View style={styles.settingIcon}><Settings2 color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Communication settings</Text><Text style={styles.settingCopy}>Manage workspaces, members, and channels.</Text></View><ChevronRight color={palette.quiet} size={18} /></Pressable>}
       <Text style={styles.sectionLabel}>PRIVACY & SAFETY</Text>
@@ -170,4 +181,5 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.ink }, content: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 40 }, eyebrow: { ...typography.label, color: palette.rubySoft, fontFamily: fonts.bold, letterSpacing: 1.8 }, heading: { ...typography.display, color: palette.text, fontFamily: fonts.extraBold, letterSpacing: -1.2 }, person: { flexDirection: 'row', alignItems: 'center', gap: 16, padding: 20, borderRadius: 22, backgroundColor: palette.panel, borderWidth: 1, borderColor: palette.line, marginTop: 22 }, name: { color: palette.text, fontFamily: fonts.bold, fontSize: 18 }, email: { ...typography.support, color: palette.muted, fontFamily: fonts.regular, marginTop: 2 }, role: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 }, roleText: { ...typography.label, color: palette.success, fontFamily: fonts.bold, textTransform: 'uppercase', letterSpacing: 0.8 }, demo: { marginTop: 14, padding: 16, borderRadius: 16, backgroundColor: '#2A2112', borderWidth: 1, borderColor: '#594522' }, demoTitle: { color: '#F0C56B', fontFamily: fonts.bold, fontSize: 13 }, demoCopy: { color: '#C8AE78', fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, marginTop: 4 }, sectionLabel: { ...typography.label, color: palette.subtle, fontFamily: fonts.bold, letterSpacing: 1.5, marginTop: 30, marginBottom: 8 }, group: { borderRadius: 20, backgroundColor: palette.panel, borderWidth: 1, borderColor: palette.line, overflow: 'hidden' }, setting: { minHeight: 82, paddingHorizontal: 16, paddingVertical: 13, flexDirection: 'row', alignItems: 'center', gap: 13 }, settingIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: '#2A151B', alignItems: 'center', justifyContent: 'center' }, settingTitle: { ...typography.body, color: palette.text, fontFamily: fonts.semibold }, settingCopy: { ...typography.meta, color: palette.subtle, fontFamily: fonts.regular, marginTop: 2 }, switchSlot: { width: 54, minHeight: 44, alignItems: 'center', justifyContent: 'center' }, switch: { transform: [{ scaleX: 0.88 }, { scaleY: 0.88 }] }, signOut: { minHeight: 52, borderRadius: 16, borderWidth: 1, borderColor: '#4A2029', backgroundColor: '#211216', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 28 }, signOutText: { ...typography.body, color: palette.rubySoft, fontFamily: fonts.bold }, version: { ...typography.meta, color: palette.subtle, fontFamily: fonts.medium, textAlign: 'center', marginTop: 20 },
   manage: { minHeight: 76, marginTop: 12, paddingHorizontal: 16, borderRadius: 20, backgroundColor: palette.panel, borderWidth: 1, borderColor: palette.line, flexDirection: 'row', alignItems: 'center', gap: 13 }, flex: { flex: 1, minWidth: 0 }, githubCard: { marginTop: 14, borderRadius: 20, backgroundColor: palette.panel, borderWidth: 1, borderColor: palette.line, padding: 16 }, githubHeader: { flexDirection: 'row', alignItems: 'center', gap: 13 }, githubForm: { flexDirection: 'row', gap: 9, marginTop: 14 }, githubInput: { flex: 1, minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.ink, color: palette.text, fontFamily: fonts.regular, fontSize: 13, paddingHorizontal: 13 }, save: { width: 50, minHeight: 48, borderRadius: 14, backgroundColor: palette.ruby, alignItems: 'center', justifyContent: 'center' }, disabled: { opacity: 0.42 }, enrollment: { minHeight: 76, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 13 }, groupDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.line }, enrollmentStatus: { color: palette.muted, fontFamily: fonts.bold, fontSize: 11, textTransform: 'uppercase' }, enrollmentActive: { color: palette.success },
   policyRow: { minHeight: 82, paddingHorizontal: 16, paddingVertical: 13, flexDirection: 'row', alignItems: 'center', gap: 13 }, destructiveTitle: { color: palette.rubySoft }, modalRoot: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.58)' }, blockedSheet: { maxHeight: '75%', borderTopLeftRadius: 26, borderTopRightRadius: 26, backgroundColor: palette.panel, borderWidth: 1, borderColor: palette.line, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 28 }, sheetHandle: { width: 42, height: 4, borderRadius: 2, alignSelf: 'center', backgroundColor: palette.line, marginBottom: 18 }, sheetTitle: { color: palette.text, fontFamily: fonts.extraBold, fontSize: 20 }, sheetCopy: { color: palette.muted, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, marginTop: 6, marginBottom: 18 }, sheetLoading: { marginVertical: 30 }, blockedRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 11, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.line }, blockedName: { flex: 1, color: palette.text, fontFamily: fonts.semibold, fontSize: 13 }, unblockButton: { minHeight: 44, minWidth: 76, borderRadius: 12, borderWidth: 1, borderColor: '#6A2A36', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 }, unblockText: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 12 }, emptyBlocked: { color: palette.muted, fontFamily: fonts.regular, fontSize: 13, textAlign: 'center', paddingVertical: 30 }, doneButton: { minHeight: 48, borderRadius: 14, backgroundColor: palette.ruby, alignItems: 'center', justifyContent: 'center', marginTop: 14 }, doneText: { color: palette.text, fontFamily: fonts.bold, fontSize: 14 },
+  preferenceError: { minHeight: 82, paddingHorizontal: 16, paddingVertical: 13, flexDirection: 'row', alignItems: 'center', gap: 13 }, retryPreference: { minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: '#6A2A36', justifyContent: 'center', paddingHorizontal: 12 }, retryPreferenceText: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 12 },
 });

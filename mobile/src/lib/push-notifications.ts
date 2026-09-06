@@ -10,7 +10,7 @@ import type { CsgApi } from './api';
 export const PUSH_TOKEN_KEY = 'csg.push.token';
 const PUSH_UNREGISTER_ATTEMPTS = 3;
 
-export type PushPermissionStatus = 'granted' | 'denied' | 'undetermined';
+export type PushPermissionStatus = 'granted' | 'provisional' | 'ephemeral' | 'denied' | 'undetermined';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true }),
@@ -44,16 +44,32 @@ async function configureAndroidChannels() {
 export async function getPushPermissionStatus(): Promise<PushPermissionStatus> {
   if (!Device.isDevice) return 'denied';
   const permissions = await Notifications.getPermissionsAsync();
-  return permissions.status;
+  return pushPermissionStatus(permissions);
 }
 
 export async function requestPushPermission(): Promise<PushPermissionStatus> {
   if (!Device.isDevice) return 'denied';
   await configureAndroidChannels();
   const existing = await Notifications.getPermissionsAsync();
-  if (existing.status === 'granted') return 'granted';
+  const existingStatus = pushPermissionStatus(existing);
+  if (pushPermissionAllowsDelivery(existingStatus)) return existingStatus;
   const requested = await Notifications.requestPermissionsAsync();
-  return requested.status;
+  return pushPermissionStatus(requested);
+}
+
+export function pushPermissionAllowsDelivery(status: PushPermissionStatus) {
+  return status === 'granted' || status === 'provisional' || status === 'ephemeral';
+}
+
+function pushPermissionStatus(permissions: Notifications.NotificationPermissionsStatus): PushPermissionStatus {
+  if (Platform.OS !== 'ios' || !permissions.ios) return permissions.status;
+  switch (permissions.ios.status) {
+    case Notifications.IosAuthorizationStatus.AUTHORIZED: return 'granted';
+    case Notifications.IosAuthorizationStatus.PROVISIONAL: return 'provisional';
+    case Notifications.IosAuthorizationStatus.EPHEMERAL: return 'ephemeral';
+    case Notifications.IosAuthorizationStatus.DENIED: return 'denied';
+    default: return 'undetermined';
+  }
 }
 
 export async function registerPushNotifications(api: CsgApi, isActive: () => boolean = () => true) {
@@ -61,8 +77,8 @@ export async function registerPushNotifications(api: CsgApi, isActive: () => boo
   const config = await api.mobilePushConfig();
   if (!isActive() || !config.notifications_enabled) return null;
   await configureAndroidChannels();
-  const permissions = await Notifications.getPermissionsAsync();
-  if (permissions.status !== 'granted') return null;
+  const permission = pushPermissionStatus(await Notifications.getPermissionsAsync());
+  if (!pushPermissionAllowsDelivery(permission)) return null;
   const projectId = process.env.EXPO_PUBLIC_EAS_PROJECT_ID || Constants.expoConfig?.extra?.eas?.projectId;
   if (!projectId) return null;
   const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
