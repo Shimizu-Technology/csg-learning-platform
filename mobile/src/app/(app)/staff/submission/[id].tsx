@@ -39,6 +39,8 @@ export default function StaffSubmissionScreen() {
     enabled: Boolean(user?.is_staff && Number.isInteger(submissionId) && submissionId > 0),
   });
   const submission = query.data?.submission;
+  const submissionLoaded = Boolean(submission);
+  const submissionUpdatedAt = submission?.updated_at || null;
   const contextQuery = useQuery({
     queryKey: learningKeys.submissionContext(user?.id || 0, submissionId, requestedCohortId || 0),
     queryFn: ({ signal }) => auth.demo ? Promise.resolve(demoStudentProgress) : api.studentProgress(submission!.user_id, requestedCohortId, signal),
@@ -79,8 +81,8 @@ export default function StaffSubmissionScreen() {
     grade: selectedGrade,
     feedback,
     criterion_results: criterionResults,
-    base_submission_updated_at: submission?.updated_at || null,
-  }), [criterionResults, feedback, selectedGrade, submission?.updated_at]);
+    base_submission_updated_at: submissionUpdatedAt,
+  }), [criterionResults, feedback, selectedGrade, submissionUpdatedAt]);
   const gradingDraftSignature = useMemo(() => JSON.stringify(gradingDraftPayload), [gradingDraftPayload]);
   const visibleDraftSaveState = draftSaveResult?.signature === gradingDraftSignature ? draftSaveResult.status : 'saving';
   const voiceDraft = useVoiceDraft({
@@ -100,7 +102,7 @@ export default function StaffSubmissionScreen() {
     return () => subscription.remove();
   }, []);
   useEffect(() => {
-    if (!submission || !user?.id) return;
+    if (!submissionLoaded || !user?.id) return;
     let active = true;
     void loadGradingDraft(user.id, submissionId).then((draft) => {
       if (!active) return;
@@ -108,7 +110,7 @@ export default function StaffSubmissionScreen() {
         setGradeDraft({ submissionId, value: draft.grade });
         setFeedbackDraft({ submissionId, value: draft.feedback });
         setCriterionDraft({ submissionId, values: draft.criterion_results });
-        if (!gradingDraftMatches(draft, submission.updated_at || null)) {
+        if (!gradingDraftMatches(draft, submissionUpdatedAt)) {
           setDraftNotice({ submissionId, value: 'This submission changed after the draft was saved. Recheck the latest work before saving your review.' });
         } else {
           setDraftNotice(null);
@@ -119,9 +121,9 @@ export default function StaffSubmissionScreen() {
       setDraftReadyFor(submissionId);
     });
     return () => { active = false; };
-  }, [submission, submissionId, user?.id]);
+  }, [submissionId, submissionLoaded, submissionUpdatedAt, user?.id]);
   useEffect(() => {
-    if (!submission || !user?.id || draftReadyFor !== submissionId) return;
+    if (!submissionLoaded || !user?.id || draftReadyFor !== submissionId) return;
     if (reviewChanged) reviewCommittedRef.current = false;
     const persist = (reportState: boolean) => {
       if (reviewCommittedRef.current) return;
@@ -138,7 +140,7 @@ export default function StaffSubmissionScreen() {
     };
     const timer = setTimeout(() => persist(true), 250);
     return () => { clearTimeout(timer); persist(false); };
-  }, [draftReadyFor, gradingDraftPayload, gradingDraftSignature, reviewChanged, submission, submissionId, user?.id]);
+  }, [draftReadyFor, gradingDraftPayload, gradingDraftSignature, reviewChanged, submissionId, submissionLoaded, user?.id]);
   const mutation = useMutation({
     mutationFn: ({ grade, feedback: nextFeedback }: { grade: GradingOutcome; feedback: string }) => auth.demo ? Promise.resolve({ submission: { ...submission!, grade, feedback: nextFeedback, graded_by: user?.full_name || 'Staff', graded_at: new Date().toISOString() } }) : api.gradeSubmission(submissionId, grade, nextFeedback, submission?.rubric?.criteria.map((criterion) => ({ rubric_criterion_id: criterion.id, rating: criterionResults[criterion.id].rating!, feedback: criterionResults[criterion.id].feedback })) || []),
     onSuccess: async (result, variables) => {
