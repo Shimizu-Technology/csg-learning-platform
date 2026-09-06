@@ -9,6 +9,7 @@ import { Avatar } from '@/components/avatar';
 import { fontScaleLimits, fonts, palette, typography } from '@/constants/csg-theme';
 import { useAsyncOperationGuard } from '@/hooks/use-async-operation-guard';
 import { learningKeys } from '@/lib/learning';
+import { disableMobilePushPreference } from '@/lib/mobile-push-preference';
 import { attemptPushRegistration, getPushPermissionStatus, pushPermissionAllowsDelivery, requestPushPermission, type PushPermissionStatus } from '@/lib/push-notifications';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
@@ -107,16 +108,16 @@ export default function ProfileScreen() {
       return;
     }
     const previous = deviceNotificationsEnabled;
-    invalidateRegistration();
-    setDeviceNotificationsEnabled(false);
-    setRegistrationError(null);
-    setUpdatingPreference(true);
-    void (auth.demo ? Promise.resolve() : api.updateMobilePushPreference(false))
-      .catch((requestError) => {
-        setDeviceNotificationsEnabled(previous);
-        Alert.alert('Could not update device notifications', (requestError as Error).message);
-      })
-      .finally(() => setUpdatingPreference(false));
+    void disableMobilePushPreference({
+      previousEnabled: previous,
+      persistDisabled: () => auth.demo ? Promise.resolve() : api.updateMobilePushPreference(false),
+      invalidateRegistration,
+      setEnabled: setDeviceNotificationsEnabled,
+      clearRegistrationError: () => setRegistrationError(null),
+      setUpdating: setUpdatingPreference,
+      reloadPreferences: loadNotificationPreferences,
+      reportError: (requestError) => Alert.alert('Could not update device notifications', requestError.message),
+    });
   };
   const toggleEmailNotifications = async (enabled: boolean) => {
     const previous = emailNotificationsEnabled;
