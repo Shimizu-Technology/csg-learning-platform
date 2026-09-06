@@ -18,6 +18,7 @@ const UNSUPPORTED_OR_UNSAFE_TAGS = [
   'video', 'audio', 'source',
 ];
 
+/** Preserves preformatted lines while making overflow reachable on narrow screens. */
 const AuthoredPre: CustomBlockRenderer = ({ TDefaultRenderer, ...props }) => (
   <ScrollView
     accessibilityHint="Drag horizontally to read long lines"
