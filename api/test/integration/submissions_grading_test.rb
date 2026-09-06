@@ -110,6 +110,23 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     assert_equal @lesson.id, payload.fetch("lesson_id")
     assert_equal @mod.id, payload.fetch("module_id")
     assert_equal @mod.name, payload.fetch("module_name")
+    assert_equal @cohort.id, payload.fetch("cohort_id")
+    assert_equal @cohort.name, payload.fetch("cohort_name")
+  end
+
+  test "submission context uses the newest active enrollment for the curriculum" do
+    @enrollment.update!(enrolled_at: 2.days.ago)
+    newer_cohort = Cohort.create!(curriculum: @curriculum, name: "New cohort", start_date: Date.current, status: :active)
+    Enrollment.create!(user: @student, cohort: newer_cohort, status: :active, enrolled_at: 1.day.ago)
+
+    as_user(@admin) do
+      get "/api/v1/submissions/#{@submission.id}", headers: auth_headers
+    end
+
+    assert_response :success
+    payload = response.parsed_body.fetch("submission")
+    assert_equal newer_cohort.id, payload.fetch("cohort_id")
+    assert_equal newer_cohort.name, payload.fetch("cohort_name")
   end
 
   test "student can submit repo and live url artifacts" do

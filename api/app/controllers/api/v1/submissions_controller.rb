@@ -7,7 +7,7 @@ module Api
 
       # GET /api/v1/submissions
       def index
-        submissions = Submission.includes(:user, { content_block: { lesson: :curriculum_module } }, :grader)
+        submissions = Submission.includes({ user: { enrollments: :cohort } }, { content_block: { lesson: :curriculum_module } }, :grader)
 
         # Staff can filter by any student; students can only see themselves.
         if current_user.staff?
@@ -208,11 +208,19 @@ module Api
 
       def learning_enrollment_for(user, content_block)
         curriculum_id = content_block.lesson.curriculum_module.curriculum_id
-        user.enrollments.joins(:cohort).find_by(cohorts: { curriculum_id: curriculum_id })
+        candidates = if user.enrollments.loaded?
+          user.enrollments.select { |enrollment| enrollment.cohort.curriculum_id == curriculum_id }
+        else
+          user.enrollments.includes(:cohort).joins(:cohort).where(cohorts: { curriculum_id: curriculum_id }).to_a
+        end
+
+        candidates.min_by do |enrollment|
+          [ Enrollment.statuses.fetch(enrollment.status), -(enrollment.enrolled_at || Time.at(0)).to_f, -enrollment.id ]
+        end
       end
 
       def set_submission
-        @submission = Submission.find(params[:id])
+        @submission = Submission.includes({ user: { enrollments: :cohort } }, { content_block: { lesson: :curriculum_module } }).find(params[:id])
       end
 
       def authorize_submission_read!
@@ -233,6 +241,7 @@ module Api
 
       def submission_json(submission, include_solution: false, include_github_checks: false)
         submission_type = submission.submission_type.presence || submission.content_block.effective_submission_type
+        enrollment = learning_enrollment_for(submission.user, submission.content_block)
         json = {
           id: submission.id,
           content_block_id: submission.content_block_id,
@@ -261,6 +270,8 @@ module Api
           lesson_title: submission.content_block.lesson.title,
           module_id: submission.content_block.lesson.module_id,
           module_name: submission.content_block.lesson.curriculum_module.name,
+          cohort_id: enrollment&.cohort_id,
+          cohort_name: enrollment&.cohort&.name,
           filename: submission.content_block.filename,
           submission_config: submission.content_block.submission_config || {},
           language_hint: submission.content_block.metadata.is_a?(Hash) ? submission.content_block.metadata["language"] : nil

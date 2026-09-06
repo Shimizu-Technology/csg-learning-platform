@@ -798,6 +798,8 @@ export interface Submission {
   lesson_id?: number;
   lesson_title: string;
   module_id?: number;
+  cohort_id?: number | null;
+  cohort_name?: string | null;
   module_name?: string;
   filename: string | null;
   submission_config?: Record<string, unknown>;
