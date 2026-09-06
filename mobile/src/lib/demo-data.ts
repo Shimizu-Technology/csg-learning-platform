@@ -2,7 +2,7 @@ import type { Announcement, ChannelSummary, DirectConversationSummary, Message, 
 
 const now = Date.now();
 const ago = (minutes: number) => new Date(now - minutes * 60_000).toISOString();
-const formattedDemoMessage = '**Command recap**\n\n```sh\nls - list\ncd <folder name> - change directory\ncd .. - go back a folder\ncurl https://learn.codeschoolofguam.com/api/v1/lessons/101?include=content_blocks,assignments,recordings,resources,submissions,feedback,progress --header "Accept: application/json" # END-OF-LONG-LINE\n```\n\n- `mkdir project` creates a folder\n- [Open the guide](https://example.com)\n\n> Tab completion saves time.';
+const formattedDemoMessage = '**Command recap**\n\n```sh\nls - list\ncd <folder name> - change directory\ncd .. - go back a folder\ncurl https://learn.codeschoolofguam.com/lesson/101 # END-OF-LONG-LINE\n```\n\n- `mkdir project` creates a folder\n- [Open the guide](https://example.com)\n\n> Tab completion saves time.';
 
 export const demoUser: SessionUser = {
   id: 7, clerk_id: 'demo', email: 'leon@codeschoolofguam.com', first_name: 'Leon', last_name: 'Shimizu',

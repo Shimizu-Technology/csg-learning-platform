@@ -56,6 +56,9 @@ tags:
     visible: "QUICK REVIEW"
     timeout: 15000
 - assertVisible: "Maya Santos"
+- assertVisible: "Build a responsive card grid and deploy it."
+- assertVisible: "Use CSS Grid."
+- assertNotVisible: "<p>"
 
 - openLink: "csgconnect://recordings"
 - tapOn:
@@ -72,7 +75,7 @@ tags:
 - extendedWaitUntil:
     visible: "Upload recording"
     timeout: 15000
-- assertVisible: "Publish directly to CSG"
+- assertVisible: "Upload directly to CSG"
 
 - openLink: "csgconnect://resources"
 - tapOn:
@@ -114,7 +117,7 @@ tags:
 - extendedWaitUntil:
     visible: "Open Maya Santos"
     timeout: 15000
-- assertVisible: "general"
+- assertVisible: "Open general"
 
 - openLink: "csgconnect://conversation/channel/12"
 - tapOn:
@@ -126,16 +129,12 @@ tags:
 - assertVisible: "Command recap"
 - assertVisible: "ls - list.*"
 - assertVisible: "Copy code"
-- assertVisible: "Code continues horizontally"
+- assertVisible: "Code continues horizontally. Drag to read more."
 - swipe:
     start: "85%,68%"
     end: "30%,68%"
     duration: 700
-- assertVisible: "Scroll code left"
-- tapOn: "Scroll code left"
-- assertVisible: "Scroll code right"
-- tapOn: "Scroll code right"
-- assertVisible: "Scroll code left"
+- assertVisible: ".*END-OF-LONG-LINE.*"
 - tapOn: "Copy code"
 - assertVisible: "Code copied"
 - assertVisible: "Tab completion saves time."
