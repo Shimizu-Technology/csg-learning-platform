@@ -89,6 +89,19 @@ describe('ProfileScreen notification controls', () => {
     expect(mockApi.updateMobilePushPreference).toHaveBeenCalledWith(false);
     expect(attemptPushRegistration).not.toHaveBeenCalled();
     expect(Alert.alert).toHaveBeenCalledWith('Notifications are off', expect.any(String), expect.any(Array));
+    expect(screen.getByLabelText('Message emails')).toBeTruthy();
+  });
+
+  it('restores the device control after an enable preference request fails', async () => {
+    mockApi.updateMobilePushPreference.mockRejectedValueOnce(new Error('Preference unavailable'));
+    const screen = render(<ProfileScreen />);
+
+    fireEvent(await screen.findByLabelText('Device notifications'), 'valueChange', true);
+    continueThroughPrimer();
+
+    await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith('Could not turn on device notifications', 'Preference unavailable'));
+    expect(screen.getByLabelText('Device notifications').props.value).toBe(false);
+    expect(screen.getByLabelText('Message emails')).toBeTruthy();
   });
 
   it('rolls the account preference back when device registration fails', async () => {

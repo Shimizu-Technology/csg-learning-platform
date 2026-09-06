@@ -81,17 +81,18 @@ export default function ProfileScreen() {
       if (!auth.demo) {
         await api.updateMobilePushPreference(true);
         const registration = await attemptPushRegistration(api, () => registrationIsCurrent(generation));
-        if (!finishRegistration(generation)) return;
+        if (!registrationIsCurrent(generation)) return;
         if (!registration.ok) throw new Error(registration.message);
       }
       setRegistrationError(null);
       setDeviceNotificationsEnabled(true);
     } catch (requestError) {
+      if (!registrationIsCurrent(generation)) return;
       if (!auth.demo) await api.updateMobilePushPreference(false).catch(() => undefined);
       setDeviceNotificationsEnabled(false);
       Alert.alert('Could not turn on device notifications', (requestError as Error).message);
     } finally {
-      if (registrationIsCurrent(generation)) setUpdatingPreference(false);
+      if (finishRegistration(generation)) setUpdatingPreference(false);
     }
   };
   const retryDeviceRegistration = async () => {
