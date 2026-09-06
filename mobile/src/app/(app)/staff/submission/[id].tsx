@@ -1,26 +1,27 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, BookmarkPlus, Check, CheckCircle2, CircleDashed, Code2, ExternalLink, FileText, GitBranch, GitPullRequest, Globe2, MessageSquareText, RotateCcw, XCircle } from 'lucide-react-native';
+import { ArrowLeft, BookmarkPlus, CheckCircle2, CircleDashed, Code2, ExternalLink, FileText, GitBranch, GitPullRequest, Globe2, MessageSquareText, RefreshCw, XCircle } from 'lucide-react-native';
 import { Alert, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthoredContent } from '@/components/authored-content';
+import { GradingReviewActions, type GradingOutcome } from '@/components/grading-review-actions';
 import { LearningCard } from '@/components/learning-ui';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { VoiceDraftButton, VoiceDraftPanel } from '@/components/voice-draft-controls';
 import { fonts, palette } from '@/constants/csg-theme';
 import { useVoiceDraft } from '@/hooks/use-voice-draft';
+import { ApiError } from '@/lib/api';
 import { demoStaffSubmissions, demoStudentProgress } from '@/lib/demo-staff';
 import { demoDms } from '@/lib/demo-data';
 import { openAuthenticatedWebPage, openExternalPage } from '@/lib/external-links';
 import { appendFeedbackSnippet } from '@/lib/feedback-snippets';
 import { learningKeys, safeExternalUrl, submissionBelongsToStudentProgress } from '@/lib/learning';
+import { clearGradingDraft, gradingDraftMatches, loadGradingDraft, saveGradingDraft } from '@/lib/submission-storage';
 import type { FeedbackSnippet, RubricRating, Submission } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
-import { useEffect, useRef, useState } from 'react';
-
-type Grade = 'A' | 'B' | 'C' | 'R';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 export default function StaffSubmissionScreen() {
   const { id, cohort_id: cohortIdParam, student_id: studentIdParam } = useLocalSearchParams<{ id: string; cohort_id?: string; student_id?: string }>();
@@ -39,6 +40,8 @@ export default function StaffSubmissionScreen() {
     enabled: Boolean(user?.is_staff && Number.isInteger(submissionId) && submissionId > 0),
   });
   const submission = query.data?.submission;
+  const submissionLoaded = Boolean(submission);
+  const submissionUpdatedAt = submission?.updated_at || null;
   const contextQuery = useQuery({
     queryKey: learningKeys.submissionContext(user?.id || 0, submissionId, requestedCohortId || 0),
     queryFn: ({ signal }) => auth.demo ? Promise.resolve(demoStudentProgress) : api.studentProgress(submission!.user_id, requestedCohortId, signal),
@@ -59,10 +62,37 @@ export default function StaffSubmissionScreen() {
   const [feedbackDraft, setFeedbackDraft] = useState<{ submissionId: number; value: string } | null>(null);
   const [feedbackSelection, setFeedbackSelection] = useState({ start: 0, end: 0 });
   const [criterionDraft, setCriterionDraft] = useState<{ submissionId: number; values: Record<number, { rating: RubricRating | null; feedback: string }> } | null>(null);
+  const [gradeDraft, setGradeDraft] = useState<{ submissionId: number; value: GradingOutcome | null } | null>(null);
+  const [draftReadyFor, setDraftReadyFor] = useState<number | null>(null);
+  const [draftNotice, setDraftNotice] = useState<{ submissionId: number; value: string } | null>(null);
+  const [draftSaveResult, setDraftSaveResult] = useState<{ signature: string; status: 'saved' | 'error' } | null>(null);
+  const [reviewBaseVersion, setReviewBaseVersion] = useState<{ submissionId: number; value: string | null } | null>(null);
+  const [staleReviewVersion, setStaleReviewVersion] = useState<{ submissionId: number; value: string | null } | null>(null);
+  const reviewCommittedRef = useRef(false);
+  const saveInFlightRef = useRef(false);
+  const restoredDraftKeyRef = useRef<string | null>(null);
   const feedback = feedbackDraft?.submissionId === submissionId ? feedbackDraft.value : submission?.feedback || '';
-  const criterionResults = criterionDraft?.submissionId === submissionId
+  const criterionResults = useMemo(() => criterionDraft?.submissionId === submissionId
     ? criterionDraft.values
-    : Object.fromEntries((submission?.rubric?.criteria || []).map((criterion) => [criterion.id, { rating: criterion.rating || null, feedback: criterion.feedback || '' }]));
+    : Object.fromEntries((submission?.rubric?.criteria || []).map((criterion) => [criterion.id, { rating: criterion.rating || null, feedback: criterion.feedback || '' }])), [criterionDraft, submission, submissionId]);
+  const selectedGrade = gradeDraft?.submissionId === submissionId ? gradeDraft.value : (submission?.grade as GradingOutcome | null) || null;
+  const reviewBaseUpdatedAt = reviewBaseVersion?.submissionId === submissionId ? reviewBaseVersion.value : submissionUpdatedAt;
+  const staleReview = staleReviewVersion?.submissionId === submissionId ? staleReviewVersion : null;
+  const visibleDraftNotice = draftNotice?.submissionId === submissionId ? draftNotice.value : null;
+  const reviewChanged = Boolean(submission && (
+    selectedGrade !== ((submission.grade as GradingOutcome | null) || null)
+    || feedback !== (submission.feedback || '')
+    || submission.rubric?.criteria.some((criterion) => criterionResults[criterion.id]?.rating !== (criterion.rating || null) || criterionResults[criterion.id]?.feedback !== (criterion.feedback || ''))
+  ));
+  const gradingDraftPayload = useMemo(() => ({
+    grade: selectedGrade,
+    feedback,
+    criterion_results: criterionResults,
+    base_submission_updated_at: reviewBaseUpdatedAt,
+  }), [criterionResults, feedback, reviewBaseUpdatedAt, selectedGrade]);
+  const gradingDraftSignature = useMemo(() => JSON.stringify(gradingDraftPayload), [gradingDraftPayload]);
+  const visibleDraftSaveState = draftSaveResult?.signature === gradingDraftSignature ? draftSaveResult.status : 'saving';
+  const draftRestoring = draftReadyFor !== submissionId;
   const voiceDraft = useVoiceDraft({
     api,
     demo: auth.demo,
@@ -70,7 +100,9 @@ export default function StaffSubmissionScreen() {
     draft: feedback,
     selection: feedbackSelection,
     disabled: false,
-    onDraftChange: (value) => setFeedbackDraft({ submissionId, value }),
+    onDraftChange: (value) => {
+      if (!draftRestoring && !saveInFlightRef.current) setFeedbackDraft({ submissionId, value });
+    },
     onSelectionChange: setFeedbackSelection,
   });
   useEffect(() => {
@@ -79,19 +111,99 @@ export default function StaffSubmissionScreen() {
     });
     return () => subscription.remove();
   }, []);
+  useEffect(() => {
+    if (!submissionLoaded || !user?.id) return;
+    const restoreKey = `${user.id}:${submissionId}`;
+    if (restoredDraftKeyRef.current === restoreKey) return;
+    restoredDraftKeyRef.current = restoreKey;
+    setDraftReadyFor(null);
+    let active = true;
+    void loadGradingDraft(user.id, submissionId)
+      .then((draft) => {
+        if (!active) return;
+        if (draft) {
+          setReviewBaseVersion({ submissionId, value: draft.base_submission_updated_at });
+          setGradeDraft({ submissionId, value: draft.grade });
+          setFeedbackDraft({ submissionId, value: draft.feedback });
+          setCriterionDraft({ submissionId, values: draft.criterion_results });
+          if (!gradingDraftMatches(draft, submissionUpdatedAt)) {
+            setStaleReviewVersion({ submissionId, value: submissionUpdatedAt });
+            setDraftNotice({ submissionId, value: 'This submission changed after the draft was saved. Recheck the latest work before saving your review.' });
+          } else {
+            setStaleReviewVersion(null);
+            setDraftNotice(null);
+          }
+        } else {
+          setReviewBaseVersion({ submissionId, value: submissionUpdatedAt });
+          setStaleReviewVersion(null);
+          setDraftNotice(null);
+        }
+        setDraftReadyFor(submissionId);
+      })
+      .catch(() => {
+        if (!active) return;
+        setReviewBaseVersion({ submissionId, value: submissionUpdatedAt });
+        setStaleReviewVersion(null);
+        setDraftNotice({ submissionId, value: 'A saved review draft could not be loaded. New changes will retry device storage.' });
+        setDraftReadyFor(submissionId);
+      });
+    return () => { active = false; };
+  }, [submissionId, submissionLoaded, submissionUpdatedAt, user?.id]);
+  useEffect(() => {
+    if (!submissionLoaded || !user?.id || draftReadyFor !== submissionId) return;
+    if (reviewChanged) reviewCommittedRef.current = false;
+    const persist = (reportState: boolean) => {
+      if (reviewCommittedRef.current) return;
+      const operation = reviewChanged
+        ? saveGradingDraft(user.id, submissionId, gradingDraftPayload)
+        : clearGradingDraft(user.id, submissionId);
+      if (reportState) {
+        void operation
+          .then(() => setDraftSaveResult(reviewChanged ? { signature: gradingDraftSignature, status: 'saved' } : null))
+          .catch(() => setDraftSaveResult({ signature: gradingDraftSignature, status: 'error' }));
+      } else {
+        void operation.catch(() => undefined);
+      }
+    };
+    const timer = setTimeout(() => persist(true), 250);
+    return () => { clearTimeout(timer); persist(false); };
+  }, [draftReadyFor, gradingDraftPayload, gradingDraftSignature, reviewChanged, submissionId, submissionLoaded, user?.id]);
   const mutation = useMutation({
-    mutationFn: ({ grade, feedback: nextFeedback }: { grade: Grade; feedback: string }) => auth.demo ? Promise.resolve({ submission: { ...submission!, grade, feedback: nextFeedback, graded_by: user?.full_name || 'Staff', graded_at: new Date().toISOString() } }) : api.gradeSubmission(submissionId, grade, nextFeedback, submission?.rubric?.criteria.map((criterion) => ({ rubric_criterion_id: criterion.id, rating: criterionResults[criterion.id].rating!, feedback: criterionResults[criterion.id].feedback })) || []),
+    mutationFn: ({ grade, feedback: nextFeedback, baseSubmissionUpdatedAt, criterionResults: submittedCriteria }: { grade: GradingOutcome; feedback: string; baseSubmissionUpdatedAt: string; criterionResults: { rubric_criterion_id: number; rating: RubricRating; feedback: string }[] }) => auth.demo ? Promise.resolve({ submission: { ...submission!, grade, feedback: nextFeedback, graded_by: user?.full_name || 'Staff', graded_at: new Date().toISOString() } }) : api.gradeSubmission(submissionId, grade, nextFeedback, baseSubmissionUpdatedAt, submittedCriteria),
+    onMutate: () => { saveInFlightRef.current = true; },
     onSuccess: async (result, variables) => {
+      reviewCommittedRef.current = true;
       queryClient.setQueryData(learningKeys.submission(user?.id || 0, submissionId), result);
+      queryClient.setQueryData<{ submissions: Submission[] }>(learningKeys.submissions(user?.id || 0), (current) => current ? { submissions: current.submissions.filter((item) => item.id !== submissionId) } : current);
       voiceDraft.markSent(variables.feedback);
+      setGradeDraft(null);
+      setFeedbackDraft(null);
       setCriterionDraft(null);
+      setDraftNotice(null);
+      setDraftSaveResult(null);
+      setReviewBaseVersion(null);
+      setStaleReviewVersion(null);
+      if (user?.id) await clearGradingDraft(user.id, submissionId).catch(() => undefined);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: learningKeys.dashboard(user?.id || 0) }),
-        queryClient.invalidateQueries({ queryKey: learningKeys.submissions(user?.id || 0) }),
+        queryClient.invalidateQueries({ queryKey: learningKeys.submissions(user?.id || 0), refetchType: 'none' }),
         submission && validatedCohortId ? queryClient.invalidateQueries({ queryKey: learningKeys.studentDetail(user?.id || 0, submission.user_id, validatedCohortId) }) : Promise.resolve(),
       ]);
     },
-    onError: (error) => Alert.alert('Could not save grade', (error as Error).message),
+    onError: (error) => {
+      if (error instanceof ApiError && error.status === 409) {
+        setStaleReviewVersion({ submissionId, value: null });
+        setDraftNotice({ submissionId, value: 'This submission changed while you were reviewing it. Your draft is still here; recheck the latest work before saving again.' });
+        void query.refetch().then((result) => {
+          const latestVersion = result.data?.submission.updated_at || null;
+          setStaleReviewVersion({ submissionId, value: latestVersion });
+        });
+        Alert.alert('Submission changed', 'Your draft was kept. Recheck the latest submission before saving again.');
+        return;
+      }
+      Alert.alert('Could not save grade', (error as Error).message);
+    },
+    onSettled: () => { saveInFlightRef.current = false; },
   });
   const snippetMutation = useMutation({
     mutationFn: (body: string) => auth.demo ? Promise.resolve({ feedback_snippet: { id: Date.now(), title: body.slice(0, 80), body, usage_count: 0, created_by: user?.full_name || 'Staff', can_manage: true } satisfies FeedbackSnippet }) : api.createFeedbackSnippet(body),
@@ -103,15 +215,41 @@ export default function StaffSubmissionScreen() {
   });
 
   const applySnippet = (snippet: FeedbackSnippet) => {
+    if (draftRestoring || saveInFlightRef.current) return;
     setFeedbackDraft({ submissionId, value: appendFeedbackSnippet(feedback, snippet.body) });
     if (!auth.demo) void api.useFeedbackSnippet(snippet.id).catch(() => undefined);
   };
 
-  const submitGrade = (grade: Grade) => {
+  const submitGrade = () => {
+    if (staleReview) { Alert.alert('Review the latest submission', 'Confirm that you reviewed the refreshed work before saving this draft.'); return; }
+    if (!reviewBaseUpdatedAt) { Alert.alert('Refresh required', 'Reload the latest submission before saving this review.'); return; }
+    if (!selectedGrade) { Alert.alert('Choose a grade', 'Select A, B, C, or Request redo before saving this review.'); return; }
     const cleanFeedback = feedback.trim();
-    if (grade === 'R' && !cleanFeedback) { Alert.alert('Feedback required', 'Tell the student what to change before requesting a redo.'); return; }
+    if (selectedGrade === 'R' && !cleanFeedback) { Alert.alert('Feedback required', 'Tell the student what to change before requesting a redo.'); return; }
     if (submission?.rubric?.criteria.some((criterion) => !criterionResults[criterion.id]?.rating)) { Alert.alert('Complete the rubric', 'Rate every criterion before saving this review.'); return; }
-    mutation.mutate({ grade, feedback: cleanFeedback });
+    mutation.mutate({
+      grade: selectedGrade,
+      feedback: cleanFeedback,
+      baseSubmissionUpdatedAt: reviewBaseUpdatedAt,
+      criterionResults: submission?.rubric?.criteria.map((criterion) => ({
+        rubric_criterion_id: criterion.id,
+        rating: criterionResults[criterion.id].rating!,
+        feedback: criterionResults[criterion.id].feedback,
+      })) || [],
+    });
+  };
+
+  const acceptLatestSubmission = () => {
+    if (!staleReview?.value) {
+      void query.refetch().then((result) => {
+        setStaleReviewVersion({ submissionId, value: result.data?.submission.updated_at || null });
+      });
+      return;
+    }
+    setReviewBaseVersion({ submissionId, value: staleReview.value });
+    setStaleReviewVersion(null);
+    setDraftNotice({ submissionId, value: 'Latest submission reviewed. Your draft is ready to save.' });
+    setDraftSaveResult(null);
   };
 
   async function openDirectMessage() {
@@ -144,9 +282,9 @@ export default function StaffSubmissionScreen() {
         {(submission.branch || submission.commit_sha || submission.notes) && <LearningCard><View style={styles.cardHeading}><GitBranch color={palette.rubySoft} size={18} /><Text style={styles.cardHeadingText}>Review context</Text></View>{submission.branch && <Detail label="Branch" value={submission.branch} />}{submission.commit_sha && <Detail label="Commit" value={submission.commit_sha} />}{submission.notes && <Detail label="Student note" value={submission.notes} />}</LearningCard>}
         {submission.github_checks && <GithubChecksCard submission={submission} />}
         {submission.solution && <LearningCard><View style={styles.cardHeading}><CheckCircle2 color={palette.success} size={18} /><Text style={styles.cardHeadingText}>Instructor solution</Text></View><Text selectable style={styles.response}>{submission.solution}</Text></LearningCard>}
-        {submission.rubric && <LearningCard><Text style={styles.feedbackLabel}>CRITERION REVIEW</Text><Text style={styles.rubricTitle}>{submission.rubric.title}</Text><View style={styles.rubricList}>{submission.rubric.criteria.map((criterion) => <View key={criterion.id} style={styles.rubricCriterion}><Text style={styles.cardHeadingText}>{criterion.title}</Text><Text style={styles.detailValue}>{criterion.description}</Text><View style={styles.ratingGrid}>{([['exceeds', 'Exceeds'], ['meets', 'Meets'], ['developing', 'Developing'], ['redo', 'Revision']] as [RubricRating, string][]).map(([rating, label]) => <Pressable key={rating} accessibilityRole="button" accessibilityState={{ selected: criterionResults[criterion.id]?.rating === rating }} onPress={() => setCriterionDraft({ submissionId, values: { ...criterionResults, [criterion.id]: { rating, feedback: criterionResults[criterion.id]?.feedback || '' } } })} style={[styles.ratingButton, criterionResults[criterion.id]?.rating === rating && styles.ratingButtonActive]}><Text style={styles.ratingButtonText}>{label}</Text></Pressable>)}</View><TextInput accessibilityLabel={`Feedback for ${criterion.title}`} value={criterionResults[criterion.id]?.feedback || ''} onChangeText={(value) => setCriterionDraft({ submissionId, values: { ...criterionResults, [criterion.id]: { rating: criterionResults[criterion.id]?.rating || null, feedback: value } } })} placeholder="Optional focused feedback" placeholderTextColor={palette.quiet} multiline style={styles.criterionFeedback} /></View>)}</View></LearningCard>}
-        <View style={styles.feedbackSection}><Text style={styles.feedbackLabel}>FEEDBACK</Text>{Boolean(snippetsQuery.data?.feedback_snippets.length) && <View style={styles.snippetPanel}><View style={styles.snippetHeading}><MessageSquareText color={palette.rubySoft} size={16} /><Text style={styles.snippetHeadingText}>REUSABLE SNIPPETS</Text></View><View style={styles.snippetList}>{snippetsQuery.data!.feedback_snippets.map((snippet) => <Pressable key={snippet.id} accessibilityRole="button" accessibilityHint="Inserts editable text into the feedback draft" onPress={() => applySnippet(snippet)} style={styles.snippetButton}><Text style={styles.snippetButtonText}>{snippet.title}</Text></Pressable>)}</View><Text style={styles.feedbackHint}>Tap to insert, then personalize the draft for this student.</Text></View>}<TextInput accessibilityLabel="Feedback for student" value={feedback} selection={feedbackSelection} onSelectionChange={(event) => setFeedbackSelection(event.nativeEvent.selection)} onChangeText={(value) => setFeedbackDraft({ submissionId, value })} onFocus={() => { feedbackFocusedRef.current = true; requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true })); }} onBlur={() => { feedbackFocusedRef.current = false; }} placeholder="Give one clear next step or reinforce what worked…" placeholderTextColor={palette.quiet} multiline textAlignVertical="top" style={styles.feedbackInput} /><View style={styles.voiceRow}><VoiceDraftButton state={voiceDraft.state} disabled={mutation.isPending} onPress={() => void voiceDraft.start()} /><Text style={styles.voiceHint}>Dictate a draft, then review and personalize it before saving.</Text></View><VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} /><Text style={styles.feedbackHint}>Redo requests require feedback. Passing grades may include concise feedback.</Text><Pressable accessibilityRole="button" disabled={!feedback.trim() || snippetMutation.isPending} onPress={() => snippetMutation.mutate(feedback.trim())} style={({ pressed }) => [styles.saveSnippet, pressed && styles.pressed, (!feedback.trim() || snippetMutation.isPending) && styles.disabled]}><BookmarkPlus color={palette.rubySoft} size={16} /><Text style={styles.saveSnippetText}>{snippetMutation.isPending ? 'Saving snippet…' : 'Save draft as reusable snippet'}</Text></Pressable></View>
-        <View style={styles.gradeSection}><Text style={styles.feedbackLabel}>GRADE</Text><View style={styles.gradeRow}>{(['A', 'B', 'C'] as Grade[]).map((grade) => <Pressable key={grade} accessibilityRole="button" accessibilityLabel={`Grade ${grade}`} disabled={mutation.isPending} onPress={() => submitGrade(grade)} style={[styles.gradeButton, submission.grade === grade && styles.gradeButtonActive]}><Check color={submission.grade === grade ? palette.text : palette.success} size={16} /><Text style={styles.gradeButtonText}>{grade}</Text></Pressable>)}</View><Pressable accessibilityRole="button" disabled={mutation.isPending} onPress={() => submitGrade('R')} style={[styles.redoButton, submission.grade === 'R' && styles.redoButtonActive]}><RotateCcw color={palette.warning} size={18} /><Text style={styles.redoButtonText}>{mutation.isPending ? 'Saving review…' : 'Request redo with feedback'}</Text></Pressable></View>
+        {submission.rubric && <LearningCard><Text style={styles.feedbackLabel}>CRITERION REVIEW</Text><Text style={styles.rubricTitle}>{submission.rubric.title}</Text><View style={styles.rubricList}>{submission.rubric.criteria.map((criterion) => <View key={criterion.id} style={styles.rubricCriterion}><Text style={styles.cardHeadingText}>{criterion.title}</Text><Text style={styles.detailValue}>{criterion.description}</Text><View style={styles.ratingGrid}>{([['exceeds', 'Exceeds'], ['meets', 'Meets'], ['developing', 'Developing'], ['redo', 'Revision']] as [RubricRating, string][]).map(([rating, label]) => <Pressable key={rating} accessibilityRole="button" accessibilityState={{ selected: criterionResults[criterion.id]?.rating === rating, disabled: draftRestoring || mutation.isPending }} disabled={draftRestoring || mutation.isPending} onPress={() => setCriterionDraft({ submissionId, values: { ...criterionResults, [criterion.id]: { rating, feedback: criterionResults[criterion.id]?.feedback || '' } } })} style={[styles.ratingButton, criterionResults[criterion.id]?.rating === rating && styles.ratingButtonActive, (draftRestoring || mutation.isPending) && styles.disabled]}><Text style={styles.ratingButtonText}>{label}</Text></Pressable>)}</View><TextInput accessibilityLabel={`Feedback for ${criterion.title}`} editable={!draftRestoring && !mutation.isPending} value={criterionResults[criterion.id]?.feedback || ''} onChangeText={(value) => setCriterionDraft({ submissionId, values: { ...criterionResults, [criterion.id]: { rating: criterionResults[criterion.id]?.rating || null, feedback: value } } })} placeholder="Optional focused feedback" placeholderTextColor={palette.quiet} multiline style={styles.criterionFeedback} /></View>)}</View></LearningCard>}
+        <View style={styles.feedbackSection}><Text style={styles.feedbackLabel}>FEEDBACK</Text>{Boolean(snippetsQuery.data?.feedback_snippets.length) && <View style={styles.snippetPanel}><View style={styles.snippetHeading}><MessageSquareText color={palette.rubySoft} size={16} /><Text style={styles.snippetHeadingText}>REUSABLE SNIPPETS</Text></View><View style={styles.snippetList}>{snippetsQuery.data!.feedback_snippets.map((snippet) => <Pressable key={snippet.id} accessibilityRole="button" accessibilityHint="Inserts editable text into the feedback draft" accessibilityState={{ disabled: draftRestoring || mutation.isPending }} disabled={draftRestoring || mutation.isPending} onPress={() => applySnippet(snippet)} style={[styles.snippetButton, (draftRestoring || mutation.isPending) && styles.disabled]}><Text style={styles.snippetButtonText}>{snippet.title}</Text></Pressable>)}</View><Text style={styles.feedbackHint}>Tap to insert, then personalize the draft for this student.</Text></View>}<TextInput accessibilityLabel="Feedback for student" editable={!draftRestoring && !mutation.isPending} value={feedback} selection={feedbackSelection} onSelectionChange={(event) => setFeedbackSelection(event.nativeEvent.selection)} onChangeText={(value) => setFeedbackDraft({ submissionId, value })} onFocus={() => { feedbackFocusedRef.current = true; requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true })); }} onBlur={() => { feedbackFocusedRef.current = false; }} placeholder="Give one clear next step or reinforce what worked…" placeholderTextColor={palette.quiet} multiline textAlignVertical="top" style={styles.feedbackInput} /><View style={styles.voiceRow}><VoiceDraftButton state={voiceDraft.state} disabled={draftRestoring || mutation.isPending} onPress={() => void voiceDraft.start()} /><Text style={styles.voiceHint}>Dictate a draft, then review and personalize it before saving.</Text></View><VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} /><Text style={styles.feedbackHint}>Redo requests require feedback. Passing grades may include concise feedback.</Text><Pressable accessibilityRole="button" disabled={draftRestoring || mutation.isPending || !feedback.trim() || snippetMutation.isPending} onPress={() => snippetMutation.mutate(feedback.trim())} style={({ pressed }) => [styles.saveSnippet, pressed && styles.pressed, (draftRestoring || mutation.isPending || !feedback.trim() || snippetMutation.isPending) && styles.disabled]}><BookmarkPlus color={palette.rubySoft} size={16} /><Text style={styles.saveSnippetText}>{snippetMutation.isPending ? 'Saving snippet…' : 'Save draft as reusable snippet'}</Text></Pressable></View>
+        <View><GradingReviewActions selected={selectedGrade} changed={reviewChanged} saving={mutation.isPending} disabled={draftRestoring} saveBlocked={Boolean(staleReview)} onSelect={(grade) => setGradeDraft({ submissionId, value: grade })} onSave={submitGrade} />{reviewChanged && <Text style={[styles.draftStatus, visibleDraftSaveState === 'error' && styles.draftStatusError]}>{visibleDraftSaveState === 'error' ? 'Draft could not be saved on this device. Keep this screen open and try another edit.' : visibleDraftSaveState === 'saved' ? 'Review draft saved on this device.' : 'Saving review draft…'}</Text>}{visibleDraftNotice && <Text style={styles.draftNotice}>{visibleDraftNotice}</Text>}{staleReview && <Pressable accessibilityRole="button" accessibilityLabel={staleReview.value ? 'Use latest submission and keep draft' : 'Refresh latest submission'} accessibilityState={{ disabled: query.isFetching }} disabled={query.isFetching} onPress={acceptLatestSubmission} style={({ pressed }) => [styles.latestSubmissionButton, pressed && styles.pressed, query.isFetching && styles.disabled]}><RefreshCw color={palette.warning} size={17} /><Text style={styles.latestSubmissionButtonText}>{query.isFetching ? 'Refreshing latest submission…' : staleReview.value ? 'I reviewed the latest work — keep my draft' : 'Refresh latest submission'}</Text></Pressable>}</View>
         {mutation.isSuccess && <View style={styles.saved}><CheckCircle2 color={palette.success} size={18} /><Text style={styles.savedText}>Review saved and student notification queued.</Text></View>}
         <Pressable accessibilityRole="button" onPress={() => void openAuthenticatedWebPage(api, validatedCohortId ? `/admin/submissions/${submission.id}?cohort_id=${validatedCohortId}&student_id=${submission.user_id}` : `/admin/submissions/${submission.id}`).catch((error) => Alert.alert('Could not open full grading', (error as Error).message))} style={styles.handoff}><ExternalLink color={palette.rubySoft} size={17} /><View style={styles.linkCopy}><Text style={styles.handoffTitle}>Open full submission record</Text><Text style={styles.handoffCopy}>{validatedCohortId ? 'Continue on the web with student, cohort, and grading context intact.' : 'Continue on the web in the submission record.'}</Text></View></Pressable>
         <View style={{ height: 20 }} />
@@ -189,9 +327,11 @@ function CheckCount({ label, count, tone }: { label: string; count: number; tone
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: palette.ink }, flexRoot: { flex: 1 }, header: { minHeight: 70, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.line, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }, back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, headerCopy: { flex: 1, minWidth: 0 }, kicker: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.2 }, headerTitle: { color: palette.text, fontFamily: fonts.bold, fontSize: 17 }, gradePill: { minHeight: 30, borderRadius: 15, backgroundColor: '#10271F', borderWidth: 1, borderColor: '#1E5A43', justifyContent: 'center', paddingHorizontal: 10, marginRight: 10 }, redoPill: { backgroundColor: '#2A2115', borderColor: '#5B4720' }, gradePillText: { color: palette.success, fontFamily: fonts.extraBold, fontSize: 11, letterSpacing: 0.8 }, content: { padding: 20, paddingBottom: 70, gap: 14 }, eyebrow: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.2, textTransform: 'uppercase' }, title: { color: palette.text, fontFamily: fonts.extraBold, fontSize: 27, lineHeight: 34, letterSpacing: -0.7, marginTop: 5 }, meta: { color: palette.muted, fontFamily: fonts.regular, fontSize: 12, marginTop: 7 }, cardHeading: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }, cardHeadingText: { color: palette.text, fontFamily: fonts.bold, fontSize: 14 }, linkGrid: { gap: 8 }, linkCard: { minHeight: 58, borderRadius: 16, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panelRaised, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }, linkCopy: { flex: 1, minWidth: 0 }, linkTitle: { color: palette.text, fontFamily: fonts.bold, fontSize: 12 }, linkValue: { color: palette.subtle, fontFamily: fonts.regular, fontSize: 12, marginTop: 3 }, detail: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.line, paddingVertical: 9 }, detailLabel: { color: palette.subtle, fontFamily: fonts.bold, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.8 }, detailValue: { color: '#D5D7DD', fontFamily: fonts.regular, fontSize: 13, lineHeight: 19, marginTop: 3 }, rubricTitle: { color: palette.text, fontFamily: fonts.extraBold, fontSize: 16 }, rubricList: { gap: 10, marginTop: 12 }, rubricCriterion: { borderRadius: 15, borderWidth: 1, borderColor: '#1E5A43', padding: 12 }, ratingGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 }, ratingButton: { minHeight: 44, minWidth: '47%', flexGrow: 1, borderRadius: 12, borderWidth: 1, borderColor: palette.line, alignItems: 'center', justifyContent: 'center' }, ratingButtonActive: { borderColor: palette.success, backgroundColor: '#15372A' }, ratingButtonText: { color: palette.text, fontFamily: fonts.bold, fontSize: 12 }, criterionFeedback: { minHeight: 76, borderRadius: 12, borderWidth: 1, borderColor: palette.line, color: palette.text, fontFamily: fonts.regular, fontSize: 14, lineHeight: 21, padding: 11, marginTop: 8 }, feedbackSection: { marginTop: 8 }, feedbackLabel: { color: palette.subtle, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.3, marginBottom: 8 }, snippetPanel: { borderRadius: 17, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panel, padding: 12, marginBottom: 10 }, snippetHeading: { flexDirection: 'row', alignItems: 'center', gap: 7 }, snippetHeadingText: { color: palette.subtle, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1 }, snippetList: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 10 }, snippetButton: { minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panelRaised, justifyContent: 'center', paddingHorizontal: 11, paddingVertical: 7 }, snippetButtonText: { color: palette.text, fontFamily: fonts.bold, fontSize: 12 }, feedbackInput: { minHeight: 142, borderRadius: 18, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panel, color: palette.text, fontFamily: fonts.regular, fontSize: 15, lineHeight: 23, padding: 14 }, feedbackHint: { color: palette.subtle, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, marginTop: 7 }, saveSnippet: { minHeight: 44, alignSelf: 'flex-start', borderRadius: 12, borderWidth: 1, borderColor: palette.line, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, marginTop: 10 }, saveSnippetText: { color: palette.text, fontFamily: fonts.bold, fontSize: 12 }, pressed: { opacity: 0.76 }, disabled: { opacity: 0.42 }, gradeSection: { marginTop: 6 }, gradeRow: { flexDirection: 'row', gap: 8 }, gradeButton: { flex: 1, minHeight: 50, borderRadius: 15, borderWidth: 1, borderColor: '#1E5A43', backgroundColor: '#10271F', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }, gradeButtonActive: { backgroundColor: '#1B684A', borderColor: palette.success }, gradeButtonText: { color: palette.text, fontFamily: fonts.extraBold, fontSize: 13 }, redoButton: { minHeight: 52, borderRadius: 15, borderWidth: 1, borderColor: '#5B4720', backgroundColor: '#2A2115', marginTop: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, redoButtonActive: { backgroundColor: '#493718' }, redoButtonText: { color: palette.warning, fontFamily: fonts.bold, fontSize: 12 }, saved: { minHeight: 48, borderRadius: 15, backgroundColor: '#10271F', borderWidth: 1, borderColor: '#1E5A43', paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 9 }, savedText: { color: '#A8E8C9', fontFamily: fonts.semibold, fontSize: 12 }, handoff: { minHeight: 70, borderRadius: 17, borderWidth: 1, borderColor: '#4A2029', backgroundColor: '#211216', padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 5 }, handoffTitle: { color: palette.text, fontFamily: fonts.bold, fontSize: 12 }, handoffCopy: { color: palette.subtle, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, marginTop: 3 },
+  safe: { flex: 1, backgroundColor: palette.ink }, flexRoot: { flex: 1 }, header: { minHeight: 70, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.line, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }, back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, headerCopy: { flex: 1, minWidth: 0 }, kicker: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.2 }, headerTitle: { color: palette.text, fontFamily: fonts.bold, fontSize: 17 }, gradePill: { minHeight: 30, borderRadius: 15, backgroundColor: '#10271F', borderWidth: 1, borderColor: '#1E5A43', justifyContent: 'center', paddingHorizontal: 10, marginRight: 10 }, redoPill: { backgroundColor: '#2A2115', borderColor: '#5B4720' }, gradePillText: { color: palette.success, fontFamily: fonts.extraBold, fontSize: 11, letterSpacing: 0.8 }, content: { padding: 20, paddingBottom: 70, gap: 14 }, eyebrow: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.2, textTransform: 'uppercase' }, title: { color: palette.text, fontFamily: fonts.extraBold, fontSize: 27, lineHeight: 34, letterSpacing: -0.7, marginTop: 5 }, meta: { color: palette.muted, fontFamily: fonts.regular, fontSize: 12, marginTop: 7 }, cardHeading: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }, cardHeadingText: { color: palette.text, fontFamily: fonts.bold, fontSize: 14 }, linkGrid: { gap: 8 }, linkCard: { minHeight: 58, borderRadius: 16, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panelRaised, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }, linkCopy: { flex: 1, minWidth: 0 }, linkTitle: { color: palette.text, fontFamily: fonts.bold, fontSize: 12 }, linkValue: { color: palette.subtle, fontFamily: fonts.regular, fontSize: 12, marginTop: 3 }, detail: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.line, paddingVertical: 9 }, detailLabel: { color: palette.subtle, fontFamily: fonts.bold, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.8 }, detailValue: { color: '#D5D7DD', fontFamily: fonts.regular, fontSize: 13, lineHeight: 19, marginTop: 3 }, rubricTitle: { color: palette.text, fontFamily: fonts.extraBold, fontSize: 16 }, rubricList: { gap: 10, marginTop: 12 }, rubricCriterion: { borderRadius: 15, borderWidth: 1, borderColor: '#1E5A43', padding: 12 }, ratingGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 }, ratingButton: { minHeight: 44, minWidth: '47%', flexGrow: 1, borderRadius: 12, borderWidth: 1, borderColor: palette.line, alignItems: 'center', justifyContent: 'center' }, ratingButtonActive: { borderColor: palette.success, backgroundColor: '#15372A' }, ratingButtonText: { color: palette.text, fontFamily: fonts.bold, fontSize: 12 }, criterionFeedback: { minHeight: 76, borderRadius: 12, borderWidth: 1, borderColor: palette.line, color: palette.text, fontFamily: fonts.regular, fontSize: 14, lineHeight: 21, padding: 11, marginTop: 8 }, feedbackSection: { marginTop: 8 }, feedbackLabel: { color: palette.subtle, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.3, marginBottom: 8 }, snippetPanel: { borderRadius: 17, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panel, padding: 12, marginBottom: 10 }, snippetHeading: { flexDirection: 'row', alignItems: 'center', gap: 7 }, snippetHeadingText: { color: palette.subtle, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1 }, snippetList: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 10 }, snippetButton: { minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panelRaised, justifyContent: 'center', paddingHorizontal: 11, paddingVertical: 7 }, snippetButtonText: { color: palette.text, fontFamily: fonts.bold, fontSize: 12 }, feedbackInput: { minHeight: 142, borderRadius: 18, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panel, color: palette.text, fontFamily: fonts.regular, fontSize: 15, lineHeight: 23, padding: 14 }, feedbackHint: { color: palette.subtle, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, marginTop: 7 }, saveSnippet: { minHeight: 44, alignSelf: 'flex-start', borderRadius: 12, borderWidth: 1, borderColor: palette.line, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, marginTop: 10 }, saveSnippetText: { color: palette.text, fontFamily: fonts.bold, fontSize: 12 }, pressed: { opacity: 0.76 }, disabled: { opacity: 0.42 }, gradeSection: { marginTop: 6 }, gradeHint: { color: palette.muted, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, marginTop: -3, marginBottom: 10 }, gradeRow: { flexDirection: 'row', gap: 8 }, gradeButton: { flex: 1, minHeight: 50, borderRadius: 15, borderWidth: 1, borderColor: '#1E5A43', backgroundColor: '#10271F', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }, gradeButtonActive: { backgroundColor: '#1B684A', borderColor: palette.success }, gradeButtonText: { color: palette.text, fontFamily: fonts.extraBold, fontSize: 13 }, redoButton: { minHeight: 52, borderRadius: 15, borderWidth: 1, borderColor: '#5B4720', backgroundColor: '#2A2115', marginTop: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, redoButtonActive: { backgroundColor: '#493718' }, redoButtonText: { color: palette.warning, fontFamily: fonts.bold, fontSize: 12 }, saveReview: { minHeight: 54, borderRadius: 16, backgroundColor: palette.ruby, marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, saveReviewText: { color: palette.text, fontFamily: fonts.extraBold, fontSize: 13 }, draftStatus: { color: palette.success, fontFamily: fonts.semibold, fontSize: 11, textAlign: 'center', marginTop: 9 }, draftStatusError: { color: palette.warning }, draftNotice: { color: palette.warning, fontFamily: fonts.semibold, fontSize: 11, lineHeight: 17, textAlign: 'center', marginTop: 7 }, saved: { minHeight: 48, borderRadius: 15, backgroundColor: '#10271F', borderWidth: 1, borderColor: '#1E5A43', paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 9 }, savedText: { color: '#A8E8C9', fontFamily: fonts.semibold, fontSize: 12 }, handoff: { minHeight: 70, borderRadius: 17, borderWidth: 1, borderColor: '#4A2029', backgroundColor: '#211216', padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 5 }, handoffTitle: { color: palette.text, fontFamily: fonts.bold, fontSize: 12 }, handoffCopy: { color: palette.subtle, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, marginTop: 3 },
   relationshipRow: { flexDirection: 'row', gap: 8 }, relationshipButton: { flex: 1, minHeight: 48, borderRadius: 15, borderWidth: 1, borderColor: '#4A2029', backgroundColor: '#211216', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, relationshipText: { color: palette.text, fontFamily: fonts.bold, fontSize: 11 },
   checkBoundary: { color: palette.subtle, fontFamily: fonts.regular, fontSize: 11, marginTop: 2 }, checkSummary: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 }, checkPill: { minHeight: 30, borderRadius: 15, borderWidth: 1, justifyContent: 'center', paddingHorizontal: 10 }, checkSuccess: { backgroundColor: '#10271F', borderColor: '#1E5A43' }, checkFailure: { backgroundColor: '#2A1719', borderColor: '#663039' }, checkPending: { backgroundColor: '#2A2115', borderColor: '#5B4720' }, checkPillText: { color: palette.text, fontFamily: fonts.bold, fontSize: 11 }, checkCommit: { color: palette.subtle, fontFamily: fonts.regular, fontSize: 11, marginTop: 9 }, checkList: { marginTop: 9 }, checkRow: { minHeight: 52, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.line, flexDirection: 'row', alignItems: 'center', gap: 9 }, checkName: { color: palette.text, fontFamily: fonts.bold, fontSize: 11 }, checkMeta: { color: palette.subtle, fontFamily: fonts.regular, fontSize: 11, marginTop: 2 },
   voiceRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 5 }, voiceHint: { flex: 1, color: palette.subtle, fontFamily: fonts.regular, fontSize: 11, lineHeight: 16 },
   response: { color: palette.muted, fontFamily: fonts.regular, fontSize: 14, lineHeight: 22 },
+  latestSubmissionButton: { minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: '#5B4720', backgroundColor: '#2A2115', marginTop: 10, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  latestSubmissionButtonText: { color: palette.warning, fontFamily: fonts.bold, fontSize: 12, textAlign: 'center' },
 });

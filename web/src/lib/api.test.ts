@@ -74,3 +74,25 @@ describe('browser push preference API', () => {
     expect(result).toEqual({ data: response, error: null, status: 200 })
   })
 })
+
+describe('submission grading API', () => {
+  it('sends the exact submission version with every grading write', async () => {
+    const fetchMock = successfulFetch()
+    vi.stubGlobal('fetch', fetchMock)
+
+    await api.gradeSubmission(42, {
+      grade: 'A',
+      feedback: 'Ready to ship',
+      base_submission_updated_at: '2026-09-06T10:44:12.123456Z',
+    })
+
+    expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({
+      method: 'PATCH',
+      body: JSON.stringify({
+        grade: 'A',
+        feedback: 'Ready to ship',
+        base_submission_updated_at: '2026-09-06T10:44:12.123456Z',
+      }),
+    }))
+  })
+})

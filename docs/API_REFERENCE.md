@@ -685,9 +685,12 @@ The staff student response keeps operational fields scoped to the selected enrol
 ```json
 {
   "grade": "A",
-  "feedback": "Great work!"
+  "feedback": "Great work!",
+  "base_submission_updated_at": "2026-09-06T10:44:12.123456Z"
 }
 ```
+
+`base_submission_updated_at` is required and must be the exact `updated_at` value returned with the submission. The API returns `409 Conflict` with code `stale_submission` if the record changed before the grade was saved.
 
 Grade values: `A` (0), `B` (1), `C` (2), `R` (3 — redo required)
 

@@ -792,12 +792,14 @@ export interface Submission {
   notes?: string | null;
   num_submissions: number;
   created_at: string;
-  updated_at?: string;
+  updated_at: string;
   content_block_title: string;
   content_block_type: string;
   lesson_id?: number;
   lesson_title: string;
   module_id?: number;
+  cohort_id?: number | null;
+  cohort_name?: string | null;
   module_name?: string;
   filename: string | null;
   submission_config?: Record<string, unknown>;

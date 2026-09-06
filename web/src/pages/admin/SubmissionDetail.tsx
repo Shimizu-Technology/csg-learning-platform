@@ -97,6 +97,7 @@ export function SubmissionDetail() {
     setGrading(true)
     const result = await api.gradeSubmission(submission.id, {
       grade: gradeValue,
+      base_submission_updated_at: submission.updated_at,
       feedback,
       criterion_results: submission.rubric?.criteria.map((criterion) => ({
         rubric_criterion_id: criterion.id,

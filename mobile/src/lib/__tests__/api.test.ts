@@ -113,12 +113,12 @@ describe('CsgApi', () => {
     await api.studentProgress(18, 4);
     await api.submissions({ user_id: 18, ungraded: true });
     await api.submission(9);
-    await api.gradeSubmission(9, 'A', 'Clear work');
+    await api.gradeSubmission(9, 'A', 'Clear work', '2026-09-06T01:02:03.000Z');
 
     expect(fetchMock.mock.calls[0][0]).toContain('/api/v1/progress/student/18?cohort_id=4');
     expect(fetchMock.mock.calls[1][0]).toContain('user_id=18&ungraded=true');
     expect(fetchMock.mock.calls[2][0]).toContain('/api/v1/submissions/9');
-    expect(fetchMock.mock.calls[3][1]).toEqual(expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ grade: 'A', feedback: 'Clear work' }) }));
+    expect(fetchMock.mock.calls[3][1]).toEqual(expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ grade: 'A', feedback: 'Clear work', base_submission_updated_at: '2026-09-06T01:02:03.000Z' }) }));
   });
 
   it('loads a stable help request record', async () => {

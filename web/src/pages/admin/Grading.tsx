@@ -28,6 +28,7 @@ interface SubmissionItem {
   graded_at: string | null
   num_submissions: number
   created_at: string
+  updated_at: string
   content_block_title: string
   content_block_type: string
   lesson_title: string
@@ -149,6 +150,7 @@ export function Grading() {
     setGrading(true)
     const res = await api.gradeSubmission(selectedSubmission.id, {
       grade,
+      base_submission_updated_at: selectedSubmission.updated_at,
       feedback,
       criterion_results: selectedSubmission.rubric?.criteria.map((criterion) => ({
         rubric_criterion_id: criterion.id,

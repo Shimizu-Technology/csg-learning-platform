@@ -20,9 +20,14 @@ import {
 import { clientMessageIdForSend } from '../message-compose';
 import { mergeMessageEvent, mergeServerAndFailedMessages } from '../message-state';
 import {
+  clearGradingDraft,
   clearSubmissionDraft,
   clearUserSubmissionDrafts,
+  gradingDraftKey,
+  gradingDraftMatches,
+  loadGradingDraft,
   loadSubmissionDraft,
+  saveGradingDraft,
   saveSubmissionDraft,
   submissionDraftMatches,
   submissionDraftKey,
@@ -46,6 +51,44 @@ afterEach(() => {
 });
 
 describe('offline authored storage', () => {
+  it('persists a grading review and clears it only after save', async () => {
+    await saveGradingDraft(7, 91, {
+      grade: 'R',
+      feedback: 'Add an error state.',
+      criterion_results: { 4: { rating: 'developing', feedback: 'Handle the failed request.' } },
+      base_submission_updated_at: '2026-09-06T00:00:00Z',
+    });
+
+    const draft = await loadGradingDraft(7, 91);
+    expect(draft).toEqual(expect.objectContaining({
+      grade: 'R',
+      feedback: 'Add an error state.',
+      criterion_results: { 4: { rating: 'developing', feedback: 'Handle the failed request.' } },
+    }));
+    expect(gradingDraftMatches(draft!, '2026-09-06T00:00:00Z')).toBe(true);
+    expect(gradingDraftMatches(draft!, '2026-09-06T01:00:00Z')).toBe(false);
+
+    await clearGradingDraft(7, 91);
+    expect(await loadGradingDraft(7, 91)).toBeNull();
+  });
+
+  it('removes malformed grading drafts instead of restoring partial reviews', async () => {
+    await AsyncStorage.setItem(gradingDraftKey(7, 91), JSON.stringify({ grade: 'A', feedback: 12 }));
+
+    expect(await loadGradingDraft(7, 91)).toBeNull();
+    expect(await AsyncStorage.getItem(gradingDraftKey(7, 91))).toBeNull();
+  });
+
+  it.each([
+    { feedback: 'Missing grade', criterion_results: {}, base_submission_updated_at: null, saved_at: new Date().toISOString() },
+    { grade: 'A', feedback: 'Array criteria', criterion_results: [], base_submission_updated_at: null, saved_at: new Date().toISOString() },
+  ])('rejects grading drafts with an unsafe schema', async (draft) => {
+    await AsyncStorage.setItem(gradingDraftKey(7, 91), JSON.stringify(draft));
+
+    expect(await loadGradingDraft(7, 91)).toBeNull();
+    expect(await AsyncStorage.getItem(gradingDraftKey(7, 91))).toBeNull();
+  });
+
   it('persists and clears a versioned text-submission draft', async () => {
     await saveSubmissionDraft(7, 42, 'My offline response', 12, '2026-08-01T00:00:00Z');
 
@@ -477,8 +520,10 @@ describe('offline authored storage', () => {
     await saveThreadDraft(7, 88, 'student seven thread');
     await saveFailedMessages(7, 'channel', 3, [failed]);
     await saveSubmissionDraft(7, 42, 'student seven work', null, null);
+    await saveGradingDraft(7, 91, { grade: 'A', feedback: '', criterion_results: {}, base_submission_updated_at: null });
     await saveConversationDraft(8, 'channel', 3, 'student eight');
     await saveSubmissionDraft(8, 42, 'student eight work', null, null);
+    await saveGradingDraft(8, 91, { grade: 'B', feedback: '', criterion_results: {}, base_submission_updated_at: null });
 
     await clearUserConversationStorage(7);
     await clearUserSubmissionDrafts(7);

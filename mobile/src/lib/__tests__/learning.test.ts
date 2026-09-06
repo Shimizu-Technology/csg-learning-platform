@@ -74,7 +74,7 @@ function submission(overrides: Partial<Submission>): Submission {
   return {
     id: 1, content_block_id: 1, user_id: 1, user_name: 'Student', text: null, grade: null, feedback: null,
     graded_by: null, graded_at: null, github_issue_url: null, github_code_url: null, num_submissions: 1,
-    created_at: '2026-07-20T00:00:00Z', content_block_title: 'Exercise', content_block_type: 'exercise',
+    created_at: '2026-07-20T00:00:00Z', updated_at: '2026-07-20T00:00:00Z', content_block_title: 'Exercise', content_block_type: 'exercise',
     lesson_title: 'Lesson', filename: null, language_hint: null, ...overrides,
   };
 }

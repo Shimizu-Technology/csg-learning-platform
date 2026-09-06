@@ -1,13 +1,15 @@
 module Api
   module V1
     class SubmissionsController < ApplicationController
+      class StaleGradingWrite < StandardError; end
+
       before_action :authenticate_user!
       before_action :set_submission, only: [ :show, :update, :grade, :github_issue ]
       before_action :authorize_submission_read!, only: [ :show ]
 
       # GET /api/v1/submissions
       def index
-        submissions = Submission.includes(:user, { content_block: { lesson: :curriculum_module } }, :grader)
+        submissions = Submission.includes({ user: { enrollments: :cohort } }, { content_block: { lesson: :curriculum_module } }, :grader)
 
         # Staff can filter by any student; students can only see themselves.
         if current_user.staff?
@@ -115,6 +117,8 @@ module Api
       def grade
         require_staff!
         return if performed?
+        base_updated_at = requested_grading_base_updated_at
+        return if performed?
 
         rubric = @submission.content_block.rubric
         requested_results = criterion_results_params
@@ -128,6 +132,11 @@ module Api
         enrollment = learning_enrollment_for(@submission.user, @submission.content_block)
         with_learning_write_guard(enrollment) do
           Submission.transaction do
+            @submission.lock!
+            if @submission.updated_at != base_updated_at
+              raise StaleGradingWrite
+            end
+
             @submission.update!(
               grade: params[:grade],
               feedback: params[:feedback],
@@ -172,6 +181,12 @@ module Api
         end
 
         render json: { submission: submission_json(@submission, include_github_checks: true) }
+      rescue StaleGradingWrite
+        @submission.reload
+        render json: {
+          error: "This submission changed after you opened it. Your draft was kept; review the latest version before saving again.",
+          code: "stale_submission"
+        }, status: :conflict
       rescue ActiveRecord::RecordInvalid => error
         render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
       end
@@ -208,11 +223,19 @@ module Api
 
       def learning_enrollment_for(user, content_block)
         curriculum_id = content_block.lesson.curriculum_module.curriculum_id
-        user.enrollments.joins(:cohort).find_by(cohorts: { curriculum_id: curriculum_id })
+        candidates = if user.enrollments.loaded?
+          user.enrollments.select { |enrollment| enrollment.cohort.curriculum_id == curriculum_id }
+        else
+          user.enrollments.includes(:cohort).joins(:cohort).where(cohorts: { curriculum_id: curriculum_id }).to_a
+        end
+
+        candidates.min_by do |enrollment|
+          [ Enrollment.statuses.fetch(enrollment.status), -(enrollment.enrolled_at || Time.at(0)).to_f, -enrollment.id ]
+        end
       end
 
       def set_submission
-        @submission = Submission.find(params[:id])
+        @submission = Submission.includes({ user: { enrollments: :cohort } }, { content_block: { lesson: :curriculum_module } }).find(params[:id])
       end
 
       def authorize_submission_read!
@@ -231,8 +254,22 @@ module Api
                       :commit_sha, :notes)
       end
 
+      def requested_grading_base_updated_at
+        value = params[:base_submission_updated_at]
+        if value.blank?
+          render json: { errors: [ "base_submission_updated_at is required" ] }, status: :unprocessable_entity
+          return nil
+        end
+
+        Time.iso8601(value.to_s)
+      rescue ArgumentError
+        render json: { errors: [ "base_submission_updated_at must be an ISO 8601 timestamp" ] }, status: :unprocessable_entity
+        nil
+      end
+
       def submission_json(submission, include_solution: false, include_github_checks: false)
         submission_type = submission.submission_type.presence || submission.content_block.effective_submission_type
+        enrollment = learning_enrollment_for(submission.user, submission.content_block)
         json = {
           id: submission.id,
           content_block_id: submission.content_block_id,
@@ -254,13 +291,15 @@ module Api
           notes: submission.notes,
           num_submissions: submission.num_submissions,
           created_at: submission.created_at,
-          updated_at: submission.updated_at,
+          updated_at: submission.updated_at.iso8601(6),
           content_block_title: submission.content_block.title,
           content_block_type: submission.content_block.block_type,
           lesson_id: submission.content_block.lesson_id,
           lesson_title: submission.content_block.lesson.title,
           module_id: submission.content_block.lesson.module_id,
           module_name: submission.content_block.lesson.curriculum_module.name,
+          cohort_id: enrollment&.cohort_id,
+          cohort_name: enrollment&.cohort&.name,
           filename: submission.content_block.filename,
           submission_config: submission.content_block.submission_config || {},
           language_hint: submission.content_block.metadata.is_a?(Hash) ? submission.content_block.metadata["language"] : nil
