@@ -24,7 +24,7 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
 
   test "sends one personalized payload for each active device" do
     user = User.create!(clerk_id: "expo_recipient", email: "expo-recipient@example.com", role: :student)
-    user.mobile_push_tokens.create!(token: "ExpoPushToken[device-1]", platform: "ios", last_seen_at: 1.day.ago)
+    token = user.mobile_push_tokens.create!(token: "ExpoPushToken[device-1]", platform: "ios", last_seen_at: 1.day.ago)
     announcement = Announcement.create!(title: "Test announcement", body: "Test", author: user, audience: :global, status: :published)
     notification = user.notifications.create!(notifiable: announcement, notification_type: :message, title: "New message", body: "Can you review this?", path: "/messages/1")
     request_payload = nil
@@ -51,6 +51,7 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
     assert_equal "Can you review this?", request_payload.first.fetch("body")
     assert user.mobile_push_tokens.first.last_seen_at > 1.hour.ago
     assert_equal "receipt-1", ExpoPushReceipt.last.receipt_id
+    assert_equal token.id, ExpoPushReceipt.last.mobile_push_token_id
   end
 
   test "marks an unregistered device as failed" do

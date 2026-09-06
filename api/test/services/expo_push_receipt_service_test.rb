@@ -41,13 +41,21 @@ class ExpoPushReceiptServiceTest < ActiveSupport::TestCase
     assert_nil @token.reload.failed_at
   end
 
-  test "raises a retryable error for throttling and server failures" do
-    [ Net::HTTPTooManyRequests, Net::HTTPServiceUnavailable ].each do |response_class|
-      response = http_response(response_class, response_class == Net::HTTPTooManyRequests ? 429 : 503, errors: [])
+  test "raises a retryable error for timeouts, throttling, and server failures" do
+    [ [ Net::HTTPRequestTimeout, 408 ], [ Net::HTTPTooManyRequests, 429 ], [ Net::HTTPServiceUnavailable, 503 ] ].each do |response_class, code|
+      response = http_response(response_class, code, errors: [])
 
       with_http_response(response) do
         assert_raises(ExpoPushReceiptService::RetryableError) { ExpoPushReceiptService.new.check([ @request ]) }
       end
+    end
+  end
+
+  test "raises a terminal error instead of treating a client failure as an empty receipt map" do
+    response = http_response(Net::HTTPUnauthorized, 401, errors: [])
+
+    with_http_response(response) do
+      assert_raises(ExpoPushReceiptService::TerminalError) { ExpoPushReceiptService.new.check([ @request ]) }
     end
   end
 

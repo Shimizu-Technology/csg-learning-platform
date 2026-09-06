@@ -3,5 +3,5 @@ class ExpoPushReceipt < ApplicationRecord
 
   validates :receipt_id, presence: true, uniqueness: true
 
-  scope :due, -> { where(available_at: ..Time.current).order(:available_at, :id) }
+  scope :due, -> { where(available_at: ..Time.current, processing_at: nil).order(:available_at, :id) }
 end

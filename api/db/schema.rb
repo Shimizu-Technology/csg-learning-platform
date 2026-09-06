@@ -260,6 +260,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_06_021000) do
     t.datetime "created_at", null: false
     t.integer "lookup_count", default: 0, null: false
     t.bigint "mobile_push_token_id", null: false
+    t.datetime "processing_at"
     t.string "receipt_id", null: false
     t.datetime "updated_at", null: false
     t.index ["available_at"], name: "index_expo_push_receipts_on_available_at"

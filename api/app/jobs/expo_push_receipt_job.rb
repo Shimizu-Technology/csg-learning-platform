@@ -5,6 +5,7 @@ class ExpoPushReceiptJob < ApplicationJob
   MAX_LOOKUPS = 2
   BATCH_SIZE = 1_000
   MAX_AGE = 24.hours
+  PROCESSING_LEASE = 2.minutes
 
   retry_on ExpoPushReceiptService::RetryableError, wait: :polynomially_longer, attempts: 4
   discard_on ActiveJob::DeserializationError
@@ -37,7 +38,7 @@ class ExpoPushReceiptJob < ApplicationJob
     return unless ActiveJob::Base.queue_adapter_name == "inline"
 
     new.drain_due
-  rescue ExpoPushReceiptService::RetryableError => e
+  rescue ExpoPushReceiptService::RetryableError, ExpoPushReceiptService::TerminalError => e
     defer_due_inline
     Rails.logger.warn("[ExpoPushReceiptJob] inline receipt check deferred: #{e.message}")
   rescue ActiveRecord::ActiveRecordError => e
@@ -60,9 +61,7 @@ class ExpoPushReceiptJob < ApplicationJob
 
   def drain_due(receipt_ids = nil)
     ExpoPushReceipt.where("created_at < ?", MAX_AGE.ago).delete_all
-    scope = ExpoPushReceipt.due
-    scope = scope.where(receipt_id: receipt_ids) if receipt_ids
-    receipts = scope.order(:available_at, :id).limit(BATCH_SIZE).to_a
+    receipts = claim_due(receipt_ids)
     return [] if receipts.empty?
 
     requests = receipts.map { |receipt| { "receipt_id" => receipt.receipt_id, "mobile_push_token_id" => receipt.mobile_push_token_id } }
@@ -75,6 +74,7 @@ class ExpoPushReceiptJob < ApplicationJob
       ExpoPushReceipt.where(id: retryable.map(&:id)).update_all(
         available_at: Time.current + LOOKUP_DELAY,
         lookup_count: Arel.sql("lookup_count + 1"),
+        processing_at: nil,
         updated_at: Time.current
       )
     end
@@ -83,5 +83,31 @@ class ExpoPushReceiptJob < ApplicationJob
       ExpoPushReceipt.where(id: exhausted.map(&:id)).delete_all
     end
     retryable.map(&:receipt_id)
+  ensure
+    release_claims(receipts)
+  end
+
+  private
+
+  def claim_due(receipt_ids)
+    now = Time.current
+    ids = ExpoPushReceipt.transaction do
+      scope = ExpoPushReceipt
+        .where(available_at: ..now)
+        .where("processing_at IS NULL OR processing_at < ?", now - PROCESSING_LEASE)
+      scope = scope.where(receipt_id: receipt_ids) if receipt_ids
+      claimed_ids = scope.order(:available_at, :id).lock("FOR UPDATE SKIP LOCKED").limit(BATCH_SIZE).pluck(:id)
+      ExpoPushReceipt.where(id: claimed_ids).update_all(processing_at: now, updated_at: now) if claimed_ids.any?
+      claimed_ids
+    end
+
+    ExpoPushReceipt.where(id: ids).order(:available_at, :id).to_a
+  end
+
+  def release_claims(receipts)
+    ids = Array(receipts).map(&:id)
+    ExpoPushReceipt.where(id: ids).update_all(processing_at: nil) if ids.any?
+  rescue ActiveRecord::ActiveRecordError => e
+    Rails.logger.warn("[ExpoPushReceiptJob] receipt lease release unavailable: #{e.message}")
   end
 end

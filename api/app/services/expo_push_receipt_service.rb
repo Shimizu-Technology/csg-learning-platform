@@ -8,18 +8,18 @@ class ExpoPushReceiptService
   READ_TIMEOUT = 5
 
   class RetryableError < StandardError; end
+  class TerminalError < StandardError; end
 
   def check(receipt_requests)
     requests = normalize_requests(receipt_requests)
     return [] if requests.empty?
 
     response = post({ ids: requests.map { |request| request.fetch("receipt_id") } }.to_json)
-    if response.code.to_i == 429 || response.code.to_i >= 500
+    if [ 408, 429 ].include?(response.code.to_i) || response.code.to_i >= 500
       raise RetryableError, "Expo receipt request failed with HTTP #{response.code}"
     end
     unless response.is_a?(Net::HTTPSuccess)
-      Rails.logger.warn("[ExpoPushReceipt] request failed with HTTP #{response.code}")
-      return []
+      raise TerminalError, "Expo receipt request failed with HTTP #{response.code}"
     end
 
     receipts = JSON.parse(response.body).fetch("data", {})
