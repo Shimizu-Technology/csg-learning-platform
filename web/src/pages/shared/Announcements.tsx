@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { Bell, Check, ChevronLeft, ChevronRight, Megaphone, Pin, Send, Sparkles, Trash2 } from 'lucide-react'
 import { api } from '../../lib/api'
-import { disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
+import { disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported, webPushPreferenceEnabled } from '../../lib/pushNotifications'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
@@ -150,9 +150,11 @@ export function Announcements() {
   useEffect(() => {
     if (!pushSupported()) return
 
-    navigator.serviceWorker.ready
-      .then((registration) => registration.pushManager.getSubscription())
-      .then((subscription) => setPushEnabled(Boolean(subscription)))
+    Promise.all([
+      api.getPushConfig(),
+      navigator.serviceWorker.ready.then((registration) => registration.pushManager.getSubscription()),
+    ])
+      .then(([config, subscription]) => setPushEnabled(Boolean(config.data && webPushPreferenceEnabled(config.data) && subscription)))
       .catch(() => setPushEnabled(false))
   }, [])
 
@@ -234,7 +236,7 @@ export function Announcements() {
       try {
         await disablePushNotifications()
         setPushEnabled(false)
-        setPushMessage('Class notifications are off for this device.')
+        setPushMessage('Browser alerts are off on your account. Message emails are unchanged.')
       } catch (error) {
         setPushMessage(error instanceof Error ? error.message : 'Could not turn off notifications.')
       }
@@ -261,7 +263,7 @@ export function Announcements() {
     try {
       await enablePushNotifications(publicKey)
       setPushEnabled(true)
-      setPushMessage('Class notifications are on for this device.')
+      setPushMessage('Browser alerts are on for this browser. Message emails are unchanged.')
     } catch (error) {
       setPushMessage(error instanceof Error ? error.message : 'Could not enable notifications.')
     }
@@ -313,7 +315,7 @@ export function Announcements() {
               className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
             >
               <Bell className="h-4 w-4" />
-              {pushEnabled ? 'Turn off push' : 'Turn on push'}
+              {pushEnabled ? 'Turn off browser alerts' : 'Turn on browser alerts'}
             </button>
           )}
         </div>

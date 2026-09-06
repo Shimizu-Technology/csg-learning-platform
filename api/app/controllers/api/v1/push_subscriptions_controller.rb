@@ -20,6 +20,7 @@ module Api
           public_key: public_key.empty? ? nil : public_key,
           missing: missing,
           notifications_enabled: current_user.message_email_notifications_enabled?,
+          web_push_notifications_enabled: current_user.web_push_notifications_enabled?,
           active_subscription_count: current_user.push_subscriptions.active.count
         )
       rescue => e
@@ -48,7 +49,7 @@ module Api
         subscription.failed_at = nil
 
         if subscription.save
-          current_user.update!(message_email_notifications_enabled: true) unless current_user.message_email_notifications_enabled?
+          current_user.update!(web_push_notifications_enabled: true) unless current_user.web_push_notifications_enabled?
           head new_subscription ? :created : :ok
         else
           render json: { errors: subscription.errors.full_messages }, status: :unprocessable_entity
@@ -66,11 +67,22 @@ module Api
         )
       end
 
+      # PATCH /api/v1/push_subscriptions/web_preferences
+      def update_web_preferences
+        enabled = ActiveModel::Type::Boolean.new.cast(params.require(:notifications_enabled))
+        current_user.update!(web_push_notifications_enabled: enabled)
+
+        render_push_config(
+          web_push_notifications_enabled: current_user.web_push_notifications_enabled?,
+          active_subscription_count: current_user.push_subscriptions.active.count
+        )
+      end
+
       # DELETE /api/v1/push_subscriptions
       def destroy
         if global_disable?
           current_user.push_subscriptions.destroy_all
-          current_user.update!(message_email_notifications_enabled: false)
+          current_user.update!(web_push_notifications_enabled: false)
         elsif params[:endpoint].present?
           current_user.push_subscriptions.where(endpoint: params[:endpoint].to_s).destroy_all
         end

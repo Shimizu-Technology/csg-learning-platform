@@ -50,6 +50,7 @@ Rails.application.routes.draw do
       end
       get "push_subscriptions/config", to: "push_subscriptions#config"
       patch "push_subscriptions/preferences", to: "push_subscriptions#update_preferences"
+      patch "push_subscriptions/web_preferences", to: "push_subscriptions#update_web_preferences"
       post "push_subscriptions", to: "push_subscriptions#create"
       delete "push_subscriptions", to: "push_subscriptions#destroy"
       post "mobile_push_tokens", to: "mobile_push_tokens#create"

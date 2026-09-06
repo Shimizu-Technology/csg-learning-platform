@@ -122,7 +122,7 @@ class WebPushNotificationService
   end
 
   def deliver_to_user(user_id, payload)
-    PushSubscription.active.where(user_id: user_id).find_each do |subscription|
+    PushSubscription.active.joins(:user).where(user_id: user_id, users: { web_push_notifications_enabled: true }).find_each do |subscription|
       deliver(subscription, payload)
     end
   end

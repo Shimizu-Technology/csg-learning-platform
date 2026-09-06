@@ -87,6 +87,7 @@ class ExpoPushNotificationService
   end
 
   def deliver_notifications(notifications)
+    ExpoPushReceiptJob.drain_due_inline
     notification_list = Array.wrap(notifications)
     ActiveRecord::Associations::Preloader.new(records: notification_list, associations: { user: :mobile_push_tokens }).call
     entries = notification_list.flat_map do |notification|
@@ -119,13 +120,17 @@ class ExpoPushNotificationService
     end
 
     receipts = Array(JSON.parse(response.body)["data"])
+    receipt_requests = []
     entries.zip(receipts).each do |(token, _payload), receipt|
       if receipt&.dig("status") == "error" && receipt.dig("details", "error") == "DeviceNotRegistered"
         token.mark_failed!
       elsif receipt&.dig("status") == "ok"
         token.mark_seen!
+        receipt_id = receipt["id"].to_s
+        receipt_requests << { "receipt_id" => receipt_id, "mobile_push_token_id" => token.id } if receipt_id.present?
       end
     end
+    ExpoPushReceiptJob.track(receipt_requests)
   rescue JSON::ParserError => e
     Rails.logger.warn("[ExpoPush] delivery failed: #{e.class} #{e.message}")
   end
@@ -140,6 +145,7 @@ class ExpoPushNotificationService
 
   def post(body, connection)
     request = Net::HTTP::Post.new(ENDPOINT.request_uri, "Content-Type" => "application/json", "Accept" => "application/json")
+    request["Authorization"] = "Bearer #{ENV.fetch('EXPO_ACCESS_TOKEN')}" if ENV["EXPO_ACCESS_TOKEN"].present?
     request.body = body
     connection.request(request)
   end

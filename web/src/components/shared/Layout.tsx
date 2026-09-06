@@ -26,7 +26,7 @@ import {
 import { UserButton } from '@clerk/clerk-react'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { api } from '../../lib/api'
-import { refreshExistingPushSubscription, pushSupported } from '../../lib/pushNotifications'
+import { refreshExistingPushSubscription, pushSupported, webPushPreferenceEnabled } from '../../lib/pushNotifications'
 import { subscribeToUserMessages } from '../../lib/realtime'
 import { isVisiblePage } from '../../lib/backgroundActivity'
 import { preloadPrimaryRoutes, preloadRoute } from '../../lib/routePreload'
@@ -140,7 +140,7 @@ export function Layout({ children }: LayoutProps) {
       if (!active) return
 
       const publicKey = config.data?.public_key || import.meta.env.VITE_WEB_PUSH_PUBLIC_KEY
-      if (!config.data?.configured || !publicKey || !config.data?.notifications_enabled) return
+      if (!config.data?.configured || !publicKey || !webPushPreferenceEnabled(config.data)) return
 
       refreshExistingPushSubscription(publicKey).catch((error) => {
         console.warn('Push subscription refresh failed:', error)

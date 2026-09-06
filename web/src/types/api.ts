@@ -469,6 +469,7 @@ export interface PushConfigResponse {
   public_key: string | null;
   missing?: string[];
   notifications_enabled?: boolean;
+  web_push_notifications_enabled?: boolean;
   active_subscription_count?: number;
 }
 
@@ -482,6 +483,11 @@ export interface PushSubscriptionResponse {
 
 export interface MessageNotificationPreferenceResponse {
   notifications_enabled: boolean;
+  active_subscription_count: number;
+}
+
+export interface WebPushNotificationPreferenceResponse {
+  web_push_notifications_enabled: boolean;
   active_subscription_count: number;
 }
 

@@ -60,7 +60,7 @@ import {
 import { api } from '../../lib/api'
 import { isMessageTypingEvent, subscribeToUserMessages, type RealtimeSubscription } from '../../lib/realtime'
 import { isVisiblePage, shouldPollMessages } from '../../lib/backgroundActivity'
-import { disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
+import { disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported, webPushPreferenceEnabled } from '../../lib/pushNotifications'
 import { formatFileSize, uploadToS3 } from '../../lib/uploadToS3'
 import { editorJsonToMarkdown, normalizeMessageMarkdown, parseMessageBlocks } from '../../lib/messageFormat'
 import {
@@ -1523,7 +1523,8 @@ export function Messages() {
         : Promise.resolve(null),
     ]).then(([config, subscription]) => {
       if (!active) return
-      setPushEnabled(typeof config.data?.notifications_enabled === 'boolean' ? config.data.notifications_enabled : Boolean(subscription))
+      const accountAllowsPush = config.data ? webPushPreferenceEnabled(config.data) : true
+      setPushEnabled(accountAllowsPush && Boolean(subscription))
     }).catch(() => {
       if (active) setPushEnabled(false)
     })
@@ -2515,28 +2516,21 @@ export function Messages() {
       try {
         await disablePushNotifications()
         setPushEnabled(false)
-        setPushMessage('Message email and push notifications are off globally.')
+        setPushMessage('Browser alerts are off on your account. Message emails are unchanged.')
       } catch (toggleError) {
         setPushMessage(toggleError instanceof Error ? toggleError.message : 'Could not turn off notifications.')
       }
       return
     }
 
-    const preference = await api.updateMessageNotifications(true)
-    if (preference.error) {
-      setPushMessage(preference.error)
-      return
-    }
-    setPushEnabled(true)
-
     if (!pushSupported()) {
-      setPushMessage('DM email notifications are on. Browser push is not supported on this device.')
+      setPushMessage('Browser alerts are not supported on this device. You can still manage message emails from Profile.')
       return
     }
 
     const config = await api.getPushConfig()
     if (config.error) {
-      setPushMessage(`DM email notifications are on. Browser push could not be checked: ${config.error}`)
+      setPushMessage(`Browser alerts could not be checked: ${config.error}`)
       return
     }
 
@@ -2548,17 +2542,17 @@ export function Messages() {
         missing: config.data?.missing || [],
         publicKey,
       })
-      setPushMessage(`DM email notifications are on. ${hint}`)
+      setPushMessage(hint)
       return
     }
 
     try {
       await enablePushNotifications(publicKey)
       setPushEnabled(true)
-      setPushMessage('Message notifications are on. DMs will email your account, and this device will receive browser push alerts.')
+      setPushMessage('Browser alerts are on for this device. Message emails are managed separately in Profile.')
     } catch (toggleError) {
       const detail = toggleError instanceof Error ? toggleError.message : 'Browser push could not be enabled.'
-      setPushMessage(`DM email notifications are on. ${detail}`)
+      setPushMessage(detail)
     }
   }
 
@@ -3043,7 +3037,7 @@ export function Messages() {
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
               >
                 {pushEnabled ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
-                {pushEnabled ? 'Turn off notifications globally' : 'Turn on notifications globally'}
+                {pushEnabled ? 'Turn off browser alerts' : 'Turn on browser alerts'}
               </button>
             )}
           </div>
@@ -3384,8 +3378,8 @@ export function Messages() {
                       onClick={handleTogglePush}
                       icon={pushEnabled ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
                       shortLabel={pushEnabled ? 'Notify off' : 'Notify on'}
-                      fullLabel={pushEnabled ? 'Turn off notifications globally' : 'Turn on notifications globally'}
-                      ariaLabel={pushEnabled ? 'Turn off message notifications' : 'Turn on message notifications'}
+                      fullLabel={pushEnabled ? 'Turn off browser alerts' : 'Turn on browser alerts'}
+                      ariaLabel={pushEnabled ? 'Turn off browser alerts' : 'Turn on browser alerts'}
                     />
                     {selectedTarget.type === 'channel' && selectedChannel?.visibility === 'staff_only' && (
                       <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">Staff only</span>
