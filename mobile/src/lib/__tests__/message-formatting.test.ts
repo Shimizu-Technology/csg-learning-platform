@@ -76,4 +76,30 @@ describe('mobile message formatting', () => {
   it('recognizes complete selected inline wrappers', () => {
     expect(messageFormatIsActive('~~done~~', { start: 0, end: 8 }, 'strike')).toBe(true);
   });
+
+  it('recognizes and toggles formatting around a cursor inside inline wrappers', () => {
+    const value = '**bold text**';
+    const selection = { start: 5, end: 5 };
+
+    expect(messageFormatIsActive(value, selection, 'bold')).toBe(true);
+    expect(applyMessageFormat(value, selection, 'bold')).toEqual({
+      value: 'bold text',
+      selection: { start: 3, end: 3 },
+    });
+  });
+
+  it('recognizes and toggles a partial selection inside inline wrappers', () => {
+    const value = 'before _formatted words_ after';
+    const selection = { start: 10, end: 19 };
+
+    expect(messageFormatIsActive(value, selection, 'italic')).toBe(true);
+    expect(applyMessageFormat(value, selection, 'italic')).toEqual({
+      value: 'before formatted words after',
+      selection: { start: 9, end: 18 },
+    });
+  });
+
+  it('does not treat text between separate wrappers as active', () => {
+    expect(messageFormatIsActive('**one** gap **two**', { start: 9, end: 9 }, 'bold')).toBe(false);
+  });
 });

@@ -29,6 +29,27 @@ function clampSelection(value: string, selection: ComposerSelection): ComposerSe
   return { start, end };
 }
 
+function enclosingInlineWrapper(value: string, selection: ComposerSelection, wrapper: string) {
+  const range = clampSelection(value, selection);
+  const occurrences: number[] = [];
+  let searchFrom = 0;
+
+  while (searchFrom <= value.length - wrapper.length) {
+    const index = value.indexOf(wrapper, searchFrom);
+    if (index === -1) break;
+    occurrences.push(index);
+    searchFrom = index + wrapper.length;
+  }
+
+  for (let pair = Math.floor(occurrences.length / 2) - 1; pair >= 0; pair -= 1) {
+    const open = occurrences[pair * 2];
+    const close = occurrences[(pair * 2) + 1];
+    if (open + wrapper.length <= range.start && range.end <= close) return { open, close };
+  }
+
+  return null;
+}
+
 function inlineFormat(value: string, selection: ComposerSelection, wrapper: string): MessageFormatResult {
   const range = clampSelection(value, selection);
   const before = value.slice(0, range.start);
@@ -48,6 +69,14 @@ function inlineFormat(value: string, selection: ComposerSelection, wrapper: stri
     return {
       value: `${before}${unwrapped}${after}`,
       selection: { start: range.start, end: range.start + unwrapped.length },
+    };
+  }
+
+  const enclosing = enclosingInlineWrapper(value, range, wrapper);
+  if (enclosing) {
+    return {
+      value: `${value.slice(0, enclosing.open)}${value.slice(enclosing.open + wrapper.length, enclosing.close)}${value.slice(enclosing.close + wrapper.length)}`,
+      selection: { start: range.start - wrapper.length, end: range.end - wrapper.length },
     };
   }
 
@@ -170,7 +199,8 @@ export function messageFormatIsActive(value: string, selection: ComposerSelectio
   if (wrapper) {
     const selected = value.slice(range.start, range.end);
     return (value.slice(0, range.start).endsWith(wrapper) && value.slice(range.end).startsWith(wrapper))
-      || (selected.length >= wrapper.length * 2 && selected.startsWith(wrapper) && selected.endsWith(wrapper));
+      || (selected.length >= wrapper.length * 2 && selected.startsWith(wrapper) && selected.endsWith(wrapper))
+      || enclosingInlineWrapper(value, range, wrapper) !== null;
   }
   const { start, end } = selectedLineBounds(value, range);
   const lines = value.slice(start, end).split('\n').filter((line) => line.trim());

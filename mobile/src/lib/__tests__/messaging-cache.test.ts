@@ -38,4 +38,16 @@ describe('messaging cache', () => {
 
     expect(queryClient.getQueryData(key)).toBeUndefined();
   });
+
+  it('stores an available thread snapshot under the exact thread key', () => {
+    const queryClient = new QueryClient();
+    const root = demoMessages['channel:12'][0];
+    const key = messagingKeys.thread(7, root.id);
+    const snapshot: ThreadSnapshot = { root, replies: [{ ...root, id: 102, parent_message_id: root.id }], users: [demoUser] };
+
+    syncThreadSnapshot(queryClient, key, snapshot.root, snapshot.replies, snapshot.users);
+
+    expect(queryClient.getQueryData(key)).toEqual(snapshot);
+    queryClient.clear();
+  });
 });
