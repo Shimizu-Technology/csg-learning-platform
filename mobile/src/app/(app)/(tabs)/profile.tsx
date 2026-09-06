@@ -36,17 +36,18 @@ export default function ProfileScreen() {
   const [loadingBlockedUsers, setLoadingBlockedUsers] = useState(false);
   const [deletionRequested, setDeletionRequested] = useState(false);
   const loadNotificationPreferences = useCallback(async () => {
-    if (auth.demo) return;
+    if (auth.demo) return true;
     const generation = ++preferenceLoadGeneration.current;
     const emailGeneration = emailPreferenceGeneration.current;
+    const emailUpdateWasPending = emailPreferenceUpdatePending.current;
     setLoadingPreference(true);
     setPreferenceLoadError(null);
     setRegistrationError(null);
     try {
       const [mobileConfig, emailConfig, permission] = await Promise.all([api.mobilePushConfig(), api.pushConfig(), getPushPermissionStatus()]);
-      if (preferenceLoadGeneration.current !== generation) return;
+      if (preferenceLoadGeneration.current !== generation) return false;
       setDeviceNotificationsEnabled(mobileConfig.notifications_enabled);
-      if (emailPreferenceGeneration.current === emailGeneration) setEmailNotificationsEnabled(emailConfig.notifications_enabled);
+      if (!emailUpdateWasPending && emailPreferenceGeneration.current === emailGeneration) setEmailNotificationsEnabled(emailConfig.notifications_enabled);
       setDevicePermission(permission);
       if (mobileConfig.notifications_enabled && pushPermissionAllowsDelivery(permission)) {
         const registration = beginRegistration();
@@ -54,8 +55,10 @@ export default function ProfileScreen() {
           if (preferenceLoadGeneration.current === generation && finishRegistration(registration)) setRegistrationError(result.ok ? null : result.message);
         });
       }
+      return true;
     } catch (requestError) {
       if (preferenceLoadGeneration.current === generation) setPreferenceLoadError((requestError as Error).message || 'Could not load notification preferences.');
+      return false;
     } finally {
       if (preferenceLoadGeneration.current === generation) setLoadingPreference(false);
     }
@@ -85,7 +88,16 @@ export default function ProfileScreen() {
       if (!registrationIsCurrent(generation)) return;
       setDevicePermission(permission);
       if (!pushPermissionAllowsDelivery(permission)) {
-        if (!auth.demo) await api.updateMobilePushPreference(false);
+        if (!auth.demo) {
+          try {
+            await api.updateMobilePushPreference(false);
+          } catch {
+            if (!registrationIsCurrent(generation)) return;
+            const recovered = await loadNotificationPreferences();
+            if (registrationIsCurrent(generation) && recovered) showNotificationSettingsAlert();
+            return;
+          }
+        }
         setDeviceNotificationsEnabled(false);
         showNotificationSettingsAlert();
         return;
@@ -148,7 +160,7 @@ export default function ProfileScreen() {
       setEnabled: setDeviceNotificationsEnabled,
       clearRegistrationError: () => setRegistrationError(null),
       setUpdating: setUpdatingPreference,
-      reloadPreferences: loadNotificationPreferences,
+      reloadPreferences: async () => { await loadNotificationPreferences(); },
       reportError: (requestError) => Alert.alert('Could not update device notifications', requestError.message),
     });
   };

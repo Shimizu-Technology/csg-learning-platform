@@ -122,6 +122,40 @@ describe('ProfileScreen notification controls', () => {
     expect(mockApi.updateMobilePushPreference).not.toHaveBeenCalled();
   });
 
+  it('reloads the persisted device preference when denial cannot be saved', async () => {
+    mockApi.mobilePushConfig.mockResolvedValue({ notifications_enabled: true, active_device_count: 1 });
+    mockApi.updateMobilePushPreference.mockRejectedValueOnce(new Error('Preference unavailable'));
+    jest.mocked(getPushPermissionStatus)
+      .mockResolvedValueOnce('undetermined')
+      .mockResolvedValueOnce('denied');
+    jest.mocked(requestPushPermission).mockResolvedValueOnce('denied');
+    const screen = render(<ProfileScreen />);
+
+    fireEvent(await screen.findByLabelText('Device notifications'), 'valueChange', true);
+    continueThroughPrimer();
+
+    await waitFor(() => expect(mockApi.mobilePushConfig).toHaveBeenCalledTimes(2));
+    expect(screen.getByLabelText('Device notifications').props.value).toBe(false);
+    expect(screen.getByText('Off in device settings. Turn on to open Settings.')).toBeTruthy();
+    expect(Alert.alert).toHaveBeenCalledWith('Notifications are off', expect.any(String), expect.any(Array));
+  });
+
+  it('shows retry instead of guessing when denial recovery cannot reload the server preference', async () => {
+    mockApi.mobilePushConfig
+      .mockResolvedValueOnce({ notifications_enabled: true, active_device_count: 1 })
+      .mockRejectedValueOnce(new Error('Config unavailable'));
+    mockApi.updateMobilePushPreference.mockRejectedValueOnce(new Error('Preference unavailable'));
+    jest.mocked(requestPushPermission).mockResolvedValueOnce('denied');
+    const screen = render(<ProfileScreen />);
+
+    fireEvent(await screen.findByLabelText('Device notifications'), 'valueChange', true);
+    continueThroughPrimer();
+
+    expect(await screen.findByText('Notifications unavailable')).toBeTruthy();
+    expect(screen.getByLabelText('Retry notification preferences')).toBeTruthy();
+    expect(screen.queryByLabelText('Device notifications')).toBeNull();
+  });
+
   it('restores the device control after an enable preference request fails', async () => {
     mockApi.updateMobilePushPreference.mockRejectedValueOnce(new Error('Preference unavailable'));
     const screen = render(<ProfileScreen />);
@@ -215,6 +249,26 @@ describe('ProfileScreen notification controls', () => {
       fireEvent(emailSwitch, 'valueChange', false);
     });
     await waitFor(() => expect(mockApi.updateGlobalNotifications).toHaveBeenCalledWith(false));
+    act(() => { resolveRefresh({ notifications_enabled: true }); });
+
+    await waitFor(() => expect(screen.getByLabelText('Message emails').props.value).toBe(false));
+  });
+
+  it('does not let a refresh started during an email update overwrite that update', async () => {
+    let resolveUpdate!: (value: { notifications_enabled: boolean }) => void;
+    let resolveRefresh!: (value: { notifications_enabled: boolean }) => void;
+    mockApi.updateGlobalNotifications.mockReturnValueOnce(new Promise((resolve) => { resolveUpdate = resolve; }));
+    mockApi.pushConfig
+      .mockResolvedValueOnce({ notifications_enabled: true })
+      .mockReturnValueOnce(new Promise((resolve) => { resolveRefresh = resolve; }));
+    const screen = render(<ProfileScreen />);
+    const emailSwitch = await screen.findByLabelText('Message emails');
+
+    fireEvent(emailSwitch, 'valueChange', false);
+    act(() => { mockFocusEffectCallback?.(); });
+    await waitFor(() => expect(mockApi.pushConfig).toHaveBeenCalledTimes(2));
+
+    await act(async () => { resolveUpdate({ notifications_enabled: false }); });
     act(() => { resolveRefresh({ notifications_enabled: true }); });
 
     await waitFor(() => expect(screen.getByLabelText('Message emails').props.value).toBe(false));
