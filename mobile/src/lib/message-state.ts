@@ -20,6 +20,12 @@ export function sortMessages(messages: Message[]) {
   });
 }
 
+export function pinnedMessagesFrom(messages: Message[]) {
+  return messages
+    .filter((message) => Boolean(message.pinned_at) && !message.deleted_at)
+    .sort((left, right) => Date.parse(right.pinned_at || '') - Date.parse(left.pinned_at || ''));
+}
+
 export function mergeMessageEvent(messages: Message[], payload: MessageEvent) {
   if (payload.event === 'created') {
     const matchingClientId = payload.message.client_message_id

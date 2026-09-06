@@ -1,4 +1,4 @@
-import { markOptimisticFailed, mergeMessageEvent, mergeOlderMessages, mergePinnedMessageEvent, mergeServerAndFailedMessages, prependOlderMessages, reconcileOptimistic, toggleOwnReaction } from '../message-state';
+import { markOptimisticFailed, mergeMessageEvent, mergeOlderMessages, mergePinnedMessageEvent, mergeServerAndFailedMessages, pinnedMessagesFrom, prependOlderMessages, reconcileOptimistic, toggleOwnReaction } from '../message-state';
 import type { Message } from '../types';
 
 const message = (id: number, body = String(id)): Message => ({
@@ -105,6 +105,14 @@ describe('message state', () => {
     const deleted = { ...pinned, deleted_at: new Date().toISOString() };
 
     expect(mergePinnedMessageEvent([pinned], { event: 'deleted', channel_id: 1, direct_conversation_id: null, message: deleted })).toEqual([]);
+  });
+
+  it('derives visible pinned messages in newest-pin order', () => {
+    const older = { ...message(1), pinned_at: '2026-01-01T00:00:00Z' };
+    const newer = { ...message(2), pinned_at: '2026-01-02T00:00:00Z' };
+    const deleted = { ...message(3), pinned_at: '2026-01-03T00:00:00Z', deleted_at: '2026-01-03T00:01:00Z' };
+
+    expect(pinnedMessagesFrom([older, message(4), deleted, newer])).toEqual([newer, older]);
   });
 
   it('adds and removes the current user without losing other reaction participants', () => {

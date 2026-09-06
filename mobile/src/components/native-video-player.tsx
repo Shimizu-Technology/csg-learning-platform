@@ -229,7 +229,7 @@ export function NativeVideoPlayer({ title, initialPosition = 0, initialTotalWatc
       {error && !loading && <View style={styles.overlay}><AlertCircle color={palette.rubySoft} size={26} /><Text style={styles.errorTitle}>Playback needs a reconnect</Text><Text numberOfLines={3} style={styles.errorCopy}>{error}</Text><Pressable accessibilityRole="button" accessibilityLabel="Retry playback" onPress={() => void loadSource()} style={styles.retry}><RefreshCw color={palette.text} size={16} /><Text style={styles.retryText}>Retry</Text></Pressable></View>}
     </View>
     <View style={styles.statusRow}><Text style={styles.time}>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</Text>{completed ? <View style={styles.synced}><Check color={palette.success} size={13} /><Text style={styles.completeText}>Watched</Text></View> : <Text style={[styles.sync, syncError && styles.syncError]}>{syncError ? 'Progress will retry' : playing ? 'Watching' : 'Progress saved'}</Text>}</View>
-    <View accessibilityLabel="Playback speed" style={styles.speedRow}>{SPEEDS.map((speed) => <Pressable key={speed} accessibilityRole="button" accessibilityLabel={`Play at ${speed} times speed`} onPress={() => changeRate(speed)} style={[styles.speed, rate === speed && styles.speedActive]}><Text style={[styles.speedText, rate === speed && styles.speedTextActive]}>{speed}×</Text></Pressable>)}</View>
+    <View accessibilityRole="radiogroup" accessibilityLabel="Playback speed" style={styles.speedRow}>{SPEEDS.map((speed) => <Pressable key={speed} accessibilityRole="radio" accessibilityState={{ checked: rate === speed }} accessibilityLabel={`Play at ${speed} times speed`} onPress={() => changeRate(speed)} style={[styles.speed, rate === speed && styles.speedActive]}><Text style={[styles.speedText, rate === speed && styles.speedTextActive]}>{speed}×</Text></Pressable>)}</View>
   </View>;
 }
 
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
   synced: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   completeText: { color: palette.success, fontFamily: fonts.bold, fontSize: 11 },
   speedRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 10, paddingBottom: 10 },
-  speed: { minWidth: 44, minHeight: 34, borderRadius: 10, borderWidth: 1, borderColor: palette.line, alignItems: 'center', justifyContent: 'center', flex: 1 },
+  speed: { minWidth: 44, minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: palette.line, alignItems: 'center', justifyContent: 'center', flex: 1 },
   speedActive: { borderColor: '#6B2A38', backgroundColor: '#2A151B' },
   speedText: { color: palette.muted, fontFamily: fonts.bold, fontSize: 11 },
   speedTextActive: { color: palette.rubySoft },

@@ -19,7 +19,7 @@ import { subscribeToMessages, type CableSubscription } from '@/lib/cable';
 import { demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { resolveMentionUserIds } from '@/lib/mentions';
 import { clientMessageIdForSend, draftAfterSendConfirmation, draftAfterStoredLoad, type FailedSendIntent, messageBodyChangeAllowed, messageBodyWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
-import { markOptimisticFailed, mergeMessageEvent, reconcileOptimistic, sortMessages } from '@/lib/message-state';
+import { markOptimisticFailed, mergeMessageEvent, reconcileOptimistic, sortMessages, toggleOwnReaction } from '@/lib/message-state';
 import { messagingKeys, syncThreadSnapshot, type ThreadSnapshot } from '@/lib/messaging-cache';
 import { clearThreadDraftAfterSend, loadStoredThreadDraft, saveThreadDraftState } from '@/lib/conversation-storage';
 import type { TypingUser } from '@/lib/typing';
@@ -156,6 +156,13 @@ export default function ThreadScreen() {
       }
       if (!Number.isInteger(workspaceId) || workspaceId <= 0) throw new Error('This thread link is incomplete. Open it again from the conversation.');
       if (auth.demo) {
+        if (cached) {
+          setRoot(cached.root);
+          setReplies(cached.replies);
+          setUsers(cached.users);
+          setError(null);
+          return;
+        }
         const conversationMessages = demoMessages[`${kind}:${conversationId}`] || [];
         const demoRoot = conversationMessages.find((message) => message.id === rootId) || conversationMessages[0];
         if (!demoRoot) throw new Error('This demo conversation has no message to open as a thread.');
@@ -289,13 +296,13 @@ export default function ThreadScreen() {
   }, [conversationId, kind, rootId]);
 
   useEffect(() => {
-    if (!userId || loading || sending) return;
+    if (auth.demo || !userId || loading || sending) return;
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
     const pending = { userId, rootId, body: draft, failedSend: failedSendRef.current };
     pendingDraftRef.current = pending;
     draftTimerRef.current = setTimeout(() => void saveThreadDraftState(pending.userId, pending.rootId, pending.body, pending.failedSend).then(() => { if (pendingDraftRef.current === pending) pendingDraftRef.current = null; }).catch(() => undefined), 300);
     return () => { if (draftTimerRef.current) clearTimeout(draftTimerRef.current); };
-  }, [draft, loading, rootId, sending, userId]);
+  }, [auth.demo, draft, loading, rootId, sending, userId]);
 
   const visible = useMemo(() => sortMessages(replies), [replies]);
   const draftWithinLimit = messageBodyWithinLimit(draft);
@@ -352,7 +359,12 @@ export default function ThreadScreen() {
   };
 
   const toggleReaction = async (message: Message, value: string) => {
-    if (auth.demo) return;
+    if (auth.demo) {
+      const actor = user || demoUser;
+      if (message.id === rootId) setRoot((current) => current ? toggleOwnReaction(current, value, actor) : current);
+      else setReplies((current) => current.map((item) => item.id === message.id ? toggleOwnReaction(item, value, actor) : item));
+      return;
+    }
     try { const remove = Boolean(message.reactions.find((reaction) => reaction.emoji === value)?.reacted); const result = await api.react(message.id, value, remove); if (message.id === rootId) setRoot(result.message); else setReplies((current) => current.map((item) => item.id === message.id ? result.message : item)); }
     catch (requestError) { Alert.alert('Could not update reaction', (requestError as Error).message); }
   };

@@ -12,7 +12,8 @@ if [[ -z "${maestro_bin}" ]]; then
 fi
 
 metro_host="${CSG_METRO_HOST:-localhost}"
-development_url="exp+csg-connect://expo-development-client/?url=http%3A%2F%2F${metro_host}%3A8081"
+metro_port="${CSG_METRO_PORT:-8081}"
+development_url="exp+csg-connect://expo-development-client/?url=http%3A%2F%2F${metro_host}%3A${metro_port}"
 device_args=()
 
 if [[ -n "${CSG_IOS_DEVICE:-}" ]]; then
@@ -20,14 +21,14 @@ if [[ -n "${CSG_IOS_DEVICE:-}" ]]; then
 fi
 
 for _attempt in {1..30}; do
-  if curl --fail --silent --max-time 1 "http://${metro_host}:8081/status" | grep -q "packager-status:running"; then
+  if curl --fail --silent --max-time 1 "http://${metro_host}:${metro_port}/status" | grep -q "packager-status:running"; then
     break
   fi
   sleep 1
 done
 
-if ! curl --fail --silent --max-time 2 "http://${metro_host}:8081/status" | grep -q "packager-status:running"; then
-  echo "Metro is not reachable at http://${metro_host}:8081. Start the Expo development server before running this flow." >&2
+if ! curl --fail --silent --max-time 2 "http://${metro_host}:${metro_port}/status" | grep -q "packager-status:running"; then
+  echo "Metro is not reachable at http://${metro_host}:${metro_port}. Start the Expo development server before running this flow." >&2
   exit 1
 fi
 

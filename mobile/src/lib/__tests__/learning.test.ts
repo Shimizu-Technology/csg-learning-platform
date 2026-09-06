@@ -1,4 +1,5 @@
-import { buildSubmissionInput, canSubmitWork, isNewSubmissionAttempt, lessonCompletion, safeExternalUrl, staffAttentionRank, submissionBelongsToStudentProgress, submissionState, submissionTypeFor } from '../learning';
+import { demoHelpRequests, demoInterventions, demoSupportQueue } from '../demo-staff';
+import { buildSubmissionInput, canSubmitWork, isNewSubmissionAttempt, lessonCompletion, safeExternalUrl, staffAttentionRank, submissionBelongsToStudentProgress, submissionState, submissionTypeFor, updateSupportQueueHelpRequest, updateSupportQueueIntervention } from '../learning';
 import type { LessonContentBlock, StaffStudentSummary, Submission } from '../types';
 
 const block = (id: number, status: string): LessonContentBlock => ({ id, block_type: 'checkpoint', position: id, title: null, body: null, video_url: null, filename: null, metadata: {}, progress: { status, completed_at: null } });
@@ -67,6 +68,33 @@ describe('learning helpers', () => {
     const now = Date.parse('2026-07-21T00:00:00Z');
     expect(staffAttentionRank(urgentRedo, now)).toBeGreaterThan(staffAttentionRank(activeReview, now));
     expect(staffAttentionRank(inactive, now)).toBeGreaterThan(staffAttentionRank(staffStudent({ last_activity_at: '2026-07-20T00:00:00Z' }), now));
+  });
+
+  it('keeps the support queue and student signal counts in sync when a request changes', () => {
+    const acknowledged = { ...demoHelpRequests[0], status: 'acknowledged' as const, acknowledged_at: '2026-07-21T00:00:00Z' };
+    const afterAcknowledge = updateSupportQueueHelpRequest(demoSupportQueue, acknowledged);
+    expect(afterAcknowledge.summary).toMatchObject({ open_help_count: 0, acknowledged_help_count: 1, urgent_help_count: 1 });
+    expect(afterAcknowledge.help_requests[0]).toBe(acknowledged);
+
+    const resolved = { ...acknowledged, status: 'resolved' as const, resolved_at: '2026-07-21T01:00:00Z' };
+    const afterResolve = updateSupportQueueHelpRequest(afterAcknowledge, resolved);
+    expect(afterResolve.summary).toMatchObject({ open_help_count: 0, acknowledged_help_count: 0, urgent_help_count: 0 });
+    expect(afterResolve.help_requests).toEqual([]);
+    expect(afterResolve.recently_resolved[0]).toBe(resolved);
+    expect(afterResolve.students.find((student) => student.user_id === 18)).toMatchObject({ help_request_count: 0, urgent_help_count: 0 });
+  });
+
+  it('keeps intervention metrics and the related student signal in sync', () => {
+    const monitoring = { ...demoInterventions[0], status: 'monitoring' as const, follow_up_due: false };
+    const afterMonitoring = updateSupportQueueIntervention(demoSupportQueue, monitoring);
+    expect(afterMonitoring.summary).toMatchObject({ active_intervention_count: 1, due_follow_up_count: 0 });
+    expect(afterMonitoring.students.find((student) => student.enrollment_id === 1)).toMatchObject({ active_intervention_id: 61, intervention_status: 'monitoring', follow_up_due: false });
+
+    const resolved = { ...monitoring, status: 'resolved' as const, resolved_at: '2026-07-21T01:00:00Z' };
+    const afterResolve = updateSupportQueueIntervention(afterMonitoring, resolved);
+    expect(afterResolve.summary).toMatchObject({ active_intervention_count: 0, due_follow_up_count: 0 });
+    expect(afterResolve.interventions).toEqual([]);
+    expect(afterResolve.students.find((student) => student.enrollment_id === 1)).toMatchObject({ active_intervention_id: null, intervention_status: null, follow_up_due: false });
   });
 });
 
