@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useFocusEffect, useRouter, type Href } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { Archive, Bell, CheckCheck, ChevronRight, FileCheck2, Inbox, Megaphone, MessageCircle, PenLine, Pin, Send, Users, X } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
 import { Alert, FlatList, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { fontScaleLimits, fonts, palette, typography } from '@/constants/csg-theme';
+import { UPDATES_STALE_TIME, useUpdatesFocusRefresh } from '@/hooks/use-updates-focus-refresh';
 import { demoAnnouncements, demoNotifications } from '@/lib/demo-data';
 import { mobileNotificationPath } from '@/lib/notification-path';
 import type { Announcement, AppNotification, PaginationMeta } from '@/lib/types';
@@ -42,7 +43,7 @@ export default function UpdatesScreen() {
       ? Promise.resolve({ announcements: demoAnnouncements, unread_count: demoAnnouncements.filter((item) => !item.read_at).length, meta: demoMeta(demoAnnouncements.length) })
       : api.announcements({ ...(managing && isStaff ? { scope: 'manage' as const, sort: 'updated_desc' } : {}), per_page: 50 }),
     enabled: Boolean(user),
-    staleTime: auth.demo ? Infinity : undefined,
+    staleTime: auth.demo ? Infinity : UPDATES_STALE_TIME,
     meta: { persist: true },
   });
   const notificationQuery = useQuery({
@@ -51,19 +52,16 @@ export default function UpdatesScreen() {
       ? Promise.resolve({ notifications: demoNotifications, unread_count: demoNotifications.filter((item) => !item.read_at).length, meta: demoMeta(demoNotifications.length) })
       : api.notifications({ per_page: 50 }),
     enabled: Boolean(user),
-    staleTime: auth.demo ? Infinity : undefined,
+    staleTime: auth.demo ? Infinity : UPDATES_STALE_TIME,
     meta: { persist: true },
   });
-  const { data: announcementData, error: announcementError, isFetching: announcementsFetching, isPending: announcementsPending, isStale: announcementsStale, refetch: refetchAnnouncements } = announcementQuery;
-  const { data: notificationData, error: notificationError, isFetching: notificationsFetching, isPending: notificationsPending, isStale: notificationsStale, refetch: refetchNotifications } = notificationQuery;
+  const { data: announcementData, error: announcementError, isPending: announcementsPending, refetch: refetchAnnouncements } = announcementQuery;
+  const { data: notificationData, error: notificationError, isPending: notificationsPending, refetch: refetchNotifications } = notificationQuery;
   const announcements = useMemo(() => announcementData?.announcements ?? [], [announcementData?.announcements]);
   const notifications = useMemo(() => notificationData?.notifications ?? [], [notificationData?.notifications]);
   const unread = notificationData?.unread_count ?? announcementData?.unread_count ?? 0;
 
-  useFocusEffect(useCallback(() => {
-    if (announcementData && announcementsStale && !announcementsFetching) void refetchAnnouncements();
-    if (notificationData && notificationsStale && !notificationsFetching) void refetchNotifications();
-  }, [announcementData, announcementsFetching, announcementsStale, notificationData, notificationsFetching, notificationsStale, refetchAnnouncements, refetchNotifications]));
+  useUpdatesFocusRefresh(userId, auth.demo);
 
   const setAnnouncementCaches = useCallback((announcement: Announcement, operation: 'read' | 'upsert') => {
     ([false, true] as const).forEach((managingCache) => {

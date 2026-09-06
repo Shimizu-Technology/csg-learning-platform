@@ -89,6 +89,7 @@ class NotificationDeliveryService
     # Staff authorization is intentionally platform-wide today: instructors and
     # admins can view every active cohort, and there is no teaching-team
     # assignment model to scope this further without silently dropping alerts.
+    path = staff_submission_path(submission)
     notifications = User.not_archived.where(role: %i[instructor admin]).find_each.filter_map do |staff|
       notification, claimed = submission_notification_for(
         staff,
@@ -96,7 +97,7 @@ class NotificationDeliveryService
         actor: submission.user,
         title: "#{submission.user.full_name} submitted #{submission.content_block.title}",
         body: "#{submission.content_block.lesson.title} · Attempt #{submission.num_submissions}",
-        path: staff_submission_path(submission),
+        path: path,
         event_at: event_at
       )
       notification if claimed

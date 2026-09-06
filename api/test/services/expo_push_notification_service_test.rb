@@ -151,6 +151,16 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
     end
   end
 
+  test "submission push rejects foreign and non-query notification path suffixes" do
+    submission = Struct.new(:id).new(31)
+
+    foreign = Struct.new(:path).new("/admin/submissions/99?cohort_id=4&student_id=18")
+    assert_equal "/staff/submission/31", ExpoPushNotificationService.mobile_staff_submission_path(submission, foreign)
+
+    non_query = Struct.new(:path).new("/admin/submissions/31/history")
+    assert_equal "/staff/submission/31", ExpoPushNotificationService.mobile_staff_submission_path(submission, non_query)
+  end
+
   test "help request pushes open the exact native staff record" do
     student = User.create!(clerk_id: "expo_help_student", email: "expo-help-student@example.com", role: :student)
     staff = User.create!(clerk_id: "expo_help_staff", email: "expo-help-staff@example.com", role: :instructor)
