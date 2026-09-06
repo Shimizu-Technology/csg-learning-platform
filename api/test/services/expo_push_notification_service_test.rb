@@ -147,20 +147,31 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
     end
   end
 
-  test "inline delivery drains a due unregistered receipt before sending another push" do
+  test "inline delivery sends the current push before draining due receipts" do
     user = User.create!(clerk_id: "expo_inline_receipt", email: "expo-inline-receipt@example.com", role: :student)
     token = user.mobile_push_tokens.create!(token: "ExpoPushToken[inline-receipt]", platform: "ios", last_seen_at: Time.current)
     ExpoPushReceipt.create!(mobile_push_token: token, receipt_id: "receipt-inline-failed", available_at: 1.minute.ago)
     notification = Notification.create!(user: user, notification_type: :announcement, title: "Test", body: "Test", path: "/updates", notifiable: user)
-    response = Net::HTTPOK.new("1.1", "200", "OK")
-    response.instance_variable_set(:@read, true)
-    response.body = { data: { "receipt-inline-failed" => { status: "error", details: { error: "DeviceNotRegistered" } } } }.to_json
+    send_response = Net::HTTPOK.new("1.1", "200", "OK")
+    send_response.instance_variable_set(:@read, true)
+    send_response.body = { data: [ { status: "ok" } ] }.to_json
+    receipt_response = Net::HTTPOK.new("1.1", "200", "OK")
+    receipt_response.instance_variable_set(:@read, true)
+    receipt_response.body = { data: { "receipt-inline-failed" => { status: "error", details: { error: "DeviceNotRegistered" } } } }.to_json
     original_adapter = ActiveJob::Base.queue_adapter
     ActiveJob::Base.queue_adapter = :inline
 
-    with_http_response(response) do
+    with_http_response(send_response) do |connection|
+      request_paths = []
+      connection.define_singleton_method(:request) do |request|
+        self.request_received = request
+        self.request_count = request_count.to_i + 1
+        request_paths << request.path
+        request.path == ExpoPushReceiptService::ENDPOINT.request_uri ? receipt_response : send_response
+      end
       delivered = ExpoPushNotificationService.new.deliver_notifications([ notification ]) { { title: "Test", body: "Test" } }
-      assert_equal false, delivered
+      assert delivered
+      assert_equal [ ExpoPushNotificationService::ENDPOINT.request_uri, ExpoPushReceiptService::ENDPOINT.request_uri ], request_paths
     end
 
     assert token.reload.failed_at.present?

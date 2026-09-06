@@ -87,7 +87,6 @@ class ExpoPushNotificationService
   end
 
   def deliver_notifications(notifications)
-    ExpoPushReceiptJob.drain_due_inline
     notification_list = Array.wrap(notifications)
     ActiveRecord::Associations::Preloader.new(records: notification_list, associations: { user: :mobile_push_tokens }).call
     entries = notification_list.flat_map do |notification|
@@ -98,12 +97,16 @@ class ExpoPushNotificationService
       end
     end
 
-    return false if entries.empty?
+    if entries.empty?
+      ExpoPushReceiptJob.drain_due_inline
+      return false
+    end
 
     connection = build_connection
     connection.start do |http|
       entries.each_slice(BATCH_SIZE) { |batch| deliver_batch(batch, http) }
     end
+    ExpoPushReceiptJob.drain_due_inline
     true
   rescue OpenSSL::SSL::SSLError, SocketError, SystemCallError, Timeout::Error => e
     Rails.logger.warn("[ExpoPush] delivery failed: #{e.class} #{e.message}")
