@@ -29,6 +29,7 @@ export default function ProfileScreen() {
   const { pending: registrationPending, begin: beginRegistration, finish: finishRegistration, isCurrent: registrationIsCurrent, invalidate: invalidateRegistration } = useAsyncOperationGuard();
   const [updatingPreference, setUpdatingPreference] = useState(false);
   const emailPreferenceUpdatePending = useRef(false);
+  const emailPreferenceGeneration = useRef(0);
   const [updatingEmailPreference, setUpdatingEmailPreference] = useState(false);
   const [showBlockedUsers, setShowBlockedUsers] = useState(false);
   const [blockedUsers, setBlockedUsers] = useState<Awaited<ReturnType<typeof api.blockedUsers>>['blocked_users']>([]);
@@ -37,6 +38,7 @@ export default function ProfileScreen() {
   const loadNotificationPreferences = useCallback(async () => {
     if (auth.demo) return;
     const generation = ++preferenceLoadGeneration.current;
+    const emailGeneration = emailPreferenceGeneration.current;
     setLoadingPreference(true);
     setPreferenceLoadError(null);
     setRegistrationError(null);
@@ -44,7 +46,7 @@ export default function ProfileScreen() {
       const [mobileConfig, emailConfig, permission] = await Promise.all([api.mobilePushConfig(), api.pushConfig(), getPushPermissionStatus()]);
       if (preferenceLoadGeneration.current !== generation) return;
       setDeviceNotificationsEnabled(mobileConfig.notifications_enabled);
-      setEmailNotificationsEnabled(emailConfig.notifications_enabled);
+      if (emailPreferenceGeneration.current === emailGeneration) setEmailNotificationsEnabled(emailConfig.notifications_enabled);
       setDevicePermission(permission);
       if (mobileConfig.notifications_enabled && pushPermissionAllowsDelivery(permission)) {
         const registration = beginRegistration();
@@ -139,13 +141,27 @@ export default function ProfileScreen() {
   };
   const toggleEmailNotifications = async (enabled: boolean) => {
     if (emailPreferenceUpdatePending.current) return;
+    const generation = ++emailPreferenceGeneration.current;
     emailPreferenceUpdatePending.current = true;
     setUpdatingEmailPreference(true);
     const previous = emailNotificationsEnabled;
     setEmailNotificationsEnabled(enabled);
-    try { if (!auth.demo) await api.updateGlobalNotifications(enabled); }
-    catch (requestError) { setEmailNotificationsEnabled(previous); Alert.alert('Could not update email notifications', (requestError as Error).message); }
-    finally { emailPreferenceUpdatePending.current = false; setUpdatingEmailPreference(false); }
+    try {
+      if (!auth.demo) {
+        const response = await api.updateGlobalNotifications(enabled);
+        if (emailPreferenceGeneration.current === generation) setEmailNotificationsEnabled(response.notifications_enabled);
+      }
+    } catch (requestError) {
+      if (emailPreferenceGeneration.current === generation) {
+        setEmailNotificationsEnabled(previous);
+        Alert.alert('Could not update email notifications', (requestError as Error).message);
+      }
+    } finally {
+      if (emailPreferenceGeneration.current === generation) {
+        emailPreferenceUpdatePending.current = false;
+        setUpdatingEmailPreference(false);
+      }
+    }
   };
   const signOut = () => Alert.alert('Sign out?', 'You can sign back in at any time.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Sign out', style: 'destructive', onPress: () => void endSession() }]);
   const policy = user?.community_policy;

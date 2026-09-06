@@ -8,13 +8,17 @@ const mockRouter = { push: jest.fn() };
 const mockQueryClient = { invalidateQueries: jest.fn().mockResolvedValue(undefined) };
 const mockUser = { id: 7, full_name: 'Maya Santos', email: 'maya@example.com', role: 'student', is_staff: false, github_username: null, community_policy: null };
 let mockApi: Record<string, jest.Mock>;
+let mockFocusEffectCallback: (() => void | (() => void)) | null = null;
 
 jest.mock('expo-application', () => ({ nativeApplicationVersion: '1.0.0' }));
 jest.mock('expo-router', () => {
   const React = jest.requireActual('react') as typeof import('react');
   return {
     useRouter: () => mockRouter,
-    useFocusEffect: (callback: () => void | (() => void)) => React.useEffect(callback, [callback]),
+    useFocusEffect: (callback: () => void | (() => void)) => {
+      mockFocusEffectCallback = callback;
+      React.useEffect(callback, [callback]);
+    },
   };
 });
 jest.mock('@tanstack/react-query', () => ({
@@ -51,6 +55,7 @@ function continueThroughPrimer() {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockFocusEffectCallback = null;
   mockApi = {
     profile: jest.fn(),
     mobilePushConfig: jest.fn().mockResolvedValue({ notifications_enabled: false, active_device_count: 0 }),
@@ -147,6 +152,25 @@ describe('ProfileScreen notification controls', () => {
     await waitFor(() => expect(screen.queryByLabelText('Message emails')).toBeNull());
     expect(mockApi.updateGlobalNotifications).toHaveBeenCalledTimes(1);
     act(() => { resolveUpdate({ notifications_enabled: false }); });
+    await waitFor(() => expect(screen.getByLabelText('Message emails').props.value).toBe(false));
+  });
+
+  it('does not let an older focus refresh overwrite a newer email choice', async () => {
+    let resolveRefresh!: (value: { notifications_enabled: boolean }) => void;
+    mockApi.pushConfig
+      .mockResolvedValueOnce({ notifications_enabled: true })
+      .mockReturnValueOnce(new Promise((resolve) => { resolveRefresh = resolve; }));
+    mockApi.updateGlobalNotifications.mockResolvedValueOnce({ notifications_enabled: false });
+    const screen = render(<ProfileScreen />);
+    const emailSwitch = await screen.findByLabelText('Message emails');
+
+    act(() => {
+      mockFocusEffectCallback?.();
+      fireEvent(emailSwitch, 'valueChange', false);
+    });
+    await waitFor(() => expect(mockApi.updateGlobalNotifications).toHaveBeenCalledWith(false));
+    act(() => { resolveRefresh({ notifications_enabled: true }); });
+
     await waitFor(() => expect(screen.getByLabelText('Message emails').props.value).toBe(false));
   });
 });
