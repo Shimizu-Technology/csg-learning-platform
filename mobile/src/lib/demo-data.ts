@@ -63,7 +63,7 @@ const demoStaffNotifications: AppNotification[] = [
 
 const demoStudentNotifications: AppNotification[] = [
   { id: 303, notification_type: 'submission_graded', title: 'Leon graded Semantic page exercise', body: 'HTML and semantic structure · Grade A', path: '/lessons/100', read_at: null, created_at: ago(4), actor: { id: demoAdminUser.id, full_name: demoAdminUser.full_name, email: demoAdminUser.email }, notifiable: { type: 'Submission', id: 8 } },
-  { id: 304, notification_type: 'direct_message', title: 'Leon Shimizu', body: 'Your component structure is solid. The redirect loop is probably in the layout guard.', path: '/messages/dm/31', read_at: null, created_at: ago(16), actor: { id: demoAdminUser.id, full_name: demoAdminUser.full_name, email: demoAdminUser.email }, notifiable: { type: 'Message', id: 201 } },
+  { id: 304, notification_type: 'direct_message', title: 'Leon Shimizu', body: 'Your component structure is solid. The redirect loop is probably in the layout guard.', path: '/messages/dm/31', read_at: null, created_at: ago(16), actor: { id: demoAdminUser.id, full_name: demoAdminUser.full_name, email: demoAdminUser.email }, notifiable: { type: 'Message', id: 203 } },
 ];
 
 export const demoNotifications = demoUser.is_staff ? demoStaffNotifications : demoStudentNotifications;

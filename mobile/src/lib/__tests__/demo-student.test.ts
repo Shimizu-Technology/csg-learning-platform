@@ -18,6 +18,7 @@ describe('student simulator walkthrough data', () => {
     expect(data.demoDms[0].users.map((user) => user.id)).toEqual(expect.arrayContaining([data.demoUser.id, data.demoAdminUser.id]));
     expect(data.demoPeople.filter((user) => user.id === data.demoUser.id)).toHaveLength(1);
     expect(data.demoNotifications[0]).toMatchObject({ path: '/lessons/100', notifiable: { type: 'Submission', id: 8 } });
+    expect(data.demoNotifications[1]).toMatchObject({ path: '/messages/dm/31', notifiable: { type: 'Message', id: data.demoDms[0].latest_message?.id } });
   });
 
   it('opens the lesson that matches each student dashboard action', () => {
