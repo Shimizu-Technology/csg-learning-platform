@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Check, ChevronDown, Hash, MessageCircle, PenLine, Search, Users, X } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
@@ -9,8 +9,9 @@ import { ConversationRow } from '@/components/conversation-row';
 import { EmptyState, ErrorState, LoadingState } from '@/components/screen-states';
 import { fontScaleLimits, fonts, palette, typography } from '@/constants/csg-theme';
 import { demoChannels, demoDms } from '@/lib/demo-data';
+import { messagingKeys, type InboxSnapshot } from '@/lib/messaging-cache';
 import { subscribeToUserMessages } from '@/lib/cable';
-import type { ChannelSummary, DirectConversationSummary, RealtimeMessageEvent } from '@/lib/types';
+import type { RealtimeMessageEvent } from '@/lib/types';
 import { buildWorkspaceCards } from '@/lib/workspaces';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
@@ -20,46 +21,42 @@ export default function MessagesScreen() {
   const router = useRouter();
   const auth = useCsgAuth();
   const { api, user } = useSession();
+  const queryClient = useQueryClient();
   const { workspaces, activeWorkspaceId, activeWorkspace, loading: loadingWorkspaces, error: workspaceError, refresh: refreshWorkspaces, selectWorkspace } = useWorkspace();
-  const inboxCacheKey = user ? `csg.inbox.${user.id}` : null;
-  const [channels, setChannels] = useState<ChannelSummary[]>([]);
-  const [dms, setDms] = useState<DirectConversationSummary[]>([]);
+  const inboxKey = useMemo(() => messagingKeys.inbox(user?.id ?? 0), [user?.id]);
+  const inboxQuery = useQuery({
+    queryKey: inboxKey,
+    queryFn: async (): Promise<InboxSnapshot> => {
+      if (auth.demo) return { channels: demoChannels, dms: demoDms };
+      const [channelResult, dmResult] = await Promise.all([api.channels(), api.directConversations()]);
+      return { channels: channelResult.channels, dms: dmResult.direct_conversations };
+    },
+    enabled: Boolean(user),
+    staleTime: 45_000,
+    meta: { persist: true },
+  });
+  const { data: inboxData, error: inboxError, isFetching: inboxFetching, isPending: inboxPending, isStale: inboxStale, refetch: refetchInbox } = inboxQuery;
+  const channels = useMemo(() => inboxData?.channels ?? [], [inboxData?.channels]);
+  const dms = useMemo(() => inboxData?.dms ?? [], [inboxData?.dms]);
   const [query, setQuery] = useState('');
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [showWorkspaces, setShowWorkspaces] = useState(false);
 
-  const load = useCallback(async (pull = false) => {
-    if (pull) setRefreshing(true); else setLoading(true);
-    try {
-      if (auth.demo) { setChannels(demoChannels); setDms(demoDms); }
-      else {
-        const [channelResult, dmResult] = await Promise.all([api.channels(), api.directConversations()]);
-        setChannels(channelResult.channels); setDms(dmResult.direct_conversations);
-        if (inboxCacheKey) await AsyncStorage.setItem(inboxCacheKey, JSON.stringify({ channels: channelResult.channels, dms: dmResult.direct_conversations }));
-      }
-      setError(null);
-    } catch (requestError) {
-      const cached = inboxCacheKey ? await AsyncStorage.getItem(inboxCacheKey) : null;
-      if (cached) {
-        try { const value = JSON.parse(cached) as { channels: ChannelSummary[]; dms: DirectConversationSummary[] }; setChannels(value.channels); setDms(value.dms); }
-        catch { await AsyncStorage.removeItem(inboxCacheKey!); setError((requestError as Error).message); }
-      } else setError((requestError as Error).message);
-    } finally { setLoading(false); setRefreshing(false); }
-  }, [api, auth.demo, inboxCacheKey]);
-
-  useFocusEffect(useCallback(() => { void load(); }, [load]));
   useFocusEffect(useCallback(() => {
-    if (auth.demo || loading || error) return undefined;
+    if (inboxData && inboxStale && !inboxFetching) void refetchInbox();
+  }, [inboxData, inboxFetching, inboxStale, refetchInbox]));
+  useFocusEffect(useCallback(() => {
+    if (auth.demo || !inboxData) return undefined;
     return subscribeToUserMessages(api, (event: RealtimeMessageEvent) => {
       if (event.event === 'typing') return;
       const channel = event.channel;
       const conversation = event.direct_conversation;
-      if (channel) setChannels((current) => [channel, ...current.filter((item) => item.id !== channel.id)]);
-      if (conversation) setDms((current) => [conversation, ...current.filter((item) => item.id !== conversation.id)]);
+      queryClient.setQueryData<InboxSnapshot>(inboxKey, (current) => ({
+        channels: channel ? [channel, ...(current?.channels || []).filter((item) => item.id !== channel.id)] : current?.channels || [],
+        dms: conversation ? [conversation, ...(current?.dms || []).filter((item) => item.id !== conversation.id)] : current?.dms || [],
+      }));
     });
-  }, [api, auth.demo, error, loading]));
+  }, [api, auth.demo, inboxData, inboxKey, queryClient]));
   const workspaceCards = useMemo(() => buildWorkspaceCards(workspaces, channels, dms), [channels, dms, workspaces]);
   const activeWorkspaceCard = workspaceCards.find((workspace) => workspace.id === activeWorkspaceId) ?? null;
   const filter = query.trim().toLowerCase();
@@ -69,8 +66,17 @@ export default function MessagesScreen() {
   const visibleDms = useMemo(() => workspaceDms.filter((item) => `${item.title} ${item.latest_message?.body || ''}`.toLowerCase().includes(filter)), [filter, workspaceDms]);
   const unread = workspaceCards.reduce((sum, workspace) => sum + workspace.unreadCount, 0);
   const otherUnread = unread - (activeWorkspaceCard?.unreadCount ?? 0);
-  const open = (kind: 'channel' | 'dm', id: number) => router.push({ pathname: '/conversation/[kind]/[id]', params: { kind, id: String(id) } });
-  const refreshAll = async (pull = false) => { await Promise.all([load(pull), refreshWorkspaces()]); };
+  const open = (kind: 'channel' | 'dm', item: typeof channels[number] | typeof dms[number]) => router.push({
+    pathname: '/conversation/[kind]/[id]',
+    params: { kind, id: String(item.id), title: 'name' in item ? item.name : item.title, workspaceName: item.workspace_name },
+  });
+  const refreshAll = async () => {
+    setRefreshing(true);
+    try { await Promise.all([refetchInbox(), refreshWorkspaces()]); }
+    finally { setRefreshing(false); }
+  };
+  const blockingLoad = (!inboxData && inboxPending) || (loadingWorkspaces && !workspaces.length);
+  const blockingError = !inboxData && inboxError ? inboxError.message : workspaceError && !workspaces.length ? workspaceError : null;
 
   return (
     <SafeAreaView edges={['top']} style={styles.safe}>
@@ -83,10 +89,10 @@ export default function MessagesScreen() {
         </Pressable>
       )}
       <View style={styles.search}><Search color={palette.quiet} size={18} /><TextInput accessibilityLabel="Filter conversations" maxFontSizeMultiplier={fontScaleLimits.content} value={query} onChangeText={setQuery} placeholder="Find a conversation" placeholderTextColor={palette.quiet} style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel="Search all messages" onPress={() => router.push('/search')} style={styles.searchAllButton}><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.searchAll}>Search all</Text></Pressable></View>
-      {loading || loadingWorkspaces ? <LoadingState /> : error || (workspaceError && !workspaces.length) ? <ErrorState message={error || workspaceError || 'Could not load messages'} retry={() => void refreshAll()} /> : (
-        <ScrollView keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refreshAll(true)} tintColor={palette.rubySoft} />} contentContainerStyle={styles.content}>
-          {visibleDms.length > 0 && <View style={styles.section}><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.label}>DIRECT</Text>{visibleDms.map((item) => <ConversationRow key={`dm-${item.id}`} kind="dm" item={item} onPress={() => open('dm', item.id)} />)}</View>}
-          {visibleChannels.length > 0 && <View style={styles.section}><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.label}>CHANNELS</Text>{visibleChannels.map((item) => <ConversationRow key={`channel-${item.id}`} kind="channel" item={item} onPress={() => open('channel', item.id)} />)}</View>}
+      {blockingLoad ? <LoadingState /> : blockingError ? <ErrorState message={blockingError} retry={() => void refreshAll()} /> : (
+        <ScrollView keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refreshAll()} tintColor={palette.rubySoft} />} contentContainerStyle={styles.content}>
+          {visibleDms.length > 0 && <View style={styles.section}><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.label}>DIRECT</Text>{visibleDms.map((item) => <ConversationRow key={`dm-${item.id}`} kind="dm" item={item} onPress={() => open('dm', item)} />)}</View>}
+          {visibleChannels.length > 0 && <View style={styles.section}><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.label}>CHANNELS</Text>{visibleChannels.map((item) => <ConversationRow key={`channel-${item.id}`} kind="channel" item={item} onPress={() => open('channel', item)} />)}</View>}
           {!activeWorkspace && <EmptyState title="No workspace yet" copy="Your cohort and community workspaces will appear here once you have access." />}
           {activeWorkspace && !visibleDms.length && !visibleChannels.length && <EmptyState title={filter ? 'Nothing found' : `Nothing in ${activeWorkspace.name} yet`} copy={filter ? 'Try a different conversation name or message preview.' : 'Channels and direct messages for this workspace will appear here.'} />}
         </ScrollView>

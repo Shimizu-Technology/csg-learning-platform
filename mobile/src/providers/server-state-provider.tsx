@@ -10,12 +10,14 @@ const CACHE_BUSTER = 'csg-learning-v1';
 const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 
 function client() {
-  return new QueryClient({
+  const queryClient = new QueryClient({
     defaultOptions: {
       queries: { staleTime: 60_000, gcTime: CACHE_MAX_AGE, retry: 1, networkMode: 'offlineFirst' },
       mutations: { retry: false, networkMode: 'online' },
     },
   });
+  queryClient.setQueryDefaults(['messaging'], { meta: { persist: false } });
+  return queryClient;
 }
 
 export function ServerStateProvider({ children }: PropsWithChildren) {

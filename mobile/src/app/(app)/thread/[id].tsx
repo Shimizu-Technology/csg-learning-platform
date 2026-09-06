@@ -1,4 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Send } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -7,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MessageBubble } from '@/components/message-bubble';
 import { ComposerLimitNotice } from '@/components/composer-limit-notice';
 import { ImagePreview } from '@/components/image-preview';
+import { FormattingToggleButton, MessageFormattingToolbar } from '@/components/message-formatting-toolbar';
 import { ReactionDetailsSheet } from '@/components/reaction-details-sheet';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { TypingIndicator } from '@/components/typing-indicator';
@@ -18,6 +20,7 @@ import { demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { resolveMentionUserIds } from '@/lib/mentions';
 import { clientMessageIdForSend, draftAfterSendConfirmation, draftAfterStoredLoad, type FailedSendIntent, messageBodyChangeAllowed, messageBodyWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
 import { markOptimisticFailed, mergeMessageEvent, reconcileOptimistic, sortMessages } from '@/lib/message-state';
+import { messagingKeys, type ThreadSnapshot } from '@/lib/messaging-cache';
 import { clearThreadDraftAfterSend, loadStoredThreadDraft, saveThreadDraftState } from '@/lib/conversation-storage';
 import type { TypingUser } from '@/lib/typing';
 import type { Message, MessageEvent, MessageTypingEvent, UserSummary } from '@/lib/types';
@@ -65,17 +68,22 @@ export default function ThreadScreen() {
   const router = useRouter();
   const auth = useCsgAuth();
   const { api, user } = useSession();
+  const queryClient = useQueryClient();
   const userId = user?.id ?? null;
+  const threadCacheKey = useMemo(() => messagingKeys.thread(userId ?? 0, rootId), [rootId, userId]);
+  const initialSnapshot = useMemo(() => queryClient.getQueryData<ThreadSnapshot>(threadCacheKey), [queryClient, threadCacheKey]);
   const listRef = useRef<FlatList<Message>>(null);
-  const [root, setRoot] = useState<Message | null>(null);
-  const [replies, setReplies] = useState<Message[]>([]);
-  const [users, setUsers] = useState<UserSummary[]>([]);
+  const inputRef = useRef<TextInput>(null);
+  const [root, setRoot] = useState<Message | null>(initialSnapshot?.root ?? null);
+  const [replies, setReplies] = useState<Message[]>(initialSnapshot?.replies ?? []);
+  const [users, setUsers] = useState<UserSummary[]>(initialSnapshot?.users ?? []);
   const [draft, setDraft] = useState('');
   const [selection, setSelection] = useState({ start: 0, end: 0 });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialSnapshot);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reactionDetails, setReactionDetails] = useState<{ messageId: number; emoji: string } | null>(null);
+  const [formattingExpanded, setFormattingExpanded] = useState(false);
   const [imagePreview, setImagePreview] = useState<{ attachments: Message['attachments']; attachmentId: number } | null>(null);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [realtimeSubscriptionVersion, setRealtimeSubscriptionVersion] = useState(0);
@@ -132,7 +140,8 @@ export default function ThreadScreen() {
   const load = useCallback(async () => {
     const requestId = ++loadRequestRef.current;
     let storedFailedSend: FailedSendIntent | null = null;
-    setLoading(true);
+    const cached = queryClient.getQueryData<ThreadSnapshot>(threadCacheKey);
+    if (!cached) setLoading(true);
     try {
       if (userId && !auth.demo) {
         const storedDraft = await loadStoredThreadDraft(userId, rootId);
@@ -168,7 +177,7 @@ export default function ThreadScreen() {
         setError(null);
         return;
       }
-      const [result, workspace] = await Promise.all([api.messageThread(rootId), api.workspace(workspaceId)]);
+      const result = await api.messageThread(rootId);
       if (requestId !== loadRequestRef.current) return;
       setRoot(result.root_message);
       const failedClientMessageId = storedFailedSend?.clientMessageId;
@@ -181,14 +190,16 @@ export default function ThreadScreen() {
         ? failedReplyMessage(result.root_message, currentUser, storedFailedSend)
         : null;
       setReplies(restoredFailure ? sortMessages([...result.replies, restoredFailure]) : result.replies);
-      setUsers(workspace.workspace.members);
       setError(null);
+      void api.workspace(workspaceId).then((workspace) => {
+        if (requestId === loadRequestRef.current) setUsers(workspace.workspace.members);
+      }).catch(() => undefined);
     } catch (requestError) {
-      if (requestId === loadRequestRef.current) setError((requestError as Error).message);
+      if (requestId === loadRequestRef.current) setError(cached ? null : (requestError as Error).message);
     } finally {
       if (requestId === loadRequestRef.current) setLoading(false);
     }
-  }, [acknowledgeSentReply, api, auth.demo, conversationId, kind, rootId, userId, workspaceId]);
+  }, [acknowledgeSentReply, api, auth.demo, conversationId, kind, queryClient, rootId, threadCacheKey, userId, workspaceId]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => void load());
@@ -198,6 +209,10 @@ export default function ThreadScreen() {
       flushPendingDraft();
     };
   }, [flushPendingDraft, load]);
+  useEffect(() => {
+    if (!root) return;
+    queryClient.setQueryData<ThreadSnapshot>(threadCacheKey, { root, replies, users });
+  }, [queryClient, replies, root, threadCacheKey, users]);
   useEffect(() => {
     if (auth.demo || loading || error) return undefined;
     const typingTimers = typingExpiryTimersRef.current;
@@ -364,7 +379,7 @@ export default function ThreadScreen() {
 
   return <SafeAreaView edges={['top', 'bottom']} style={styles.safe}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.safe}>
     <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={palette.text} size={22} /></Pressable><View><Text style={styles.title}>Thread</Text><Text style={styles.subtitle}>{replies.length} {replies.length === 1 ? 'reply' : 'replies'}</Text></View></View>
-    {loading ? <LoadingState label="Loading thread" /> : error || !root ? <ErrorState message={error || 'This thread is no longer available.'} retry={() => void load()} /> : <>
+    {loading && !root ? <LoadingState label="Loading thread" /> : !root ? <ErrorState message={error || 'This thread is no longer available.'} retry={() => void load()} /> : <>
       <View style={styles.root}><MessageBubble message={root} showAuthor mentionUsers={users} onLongPress={openSafetyActions} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} /></View>
       <View style={styles.divider}><Text style={styles.dividerText}>REPLIES</Text><View style={styles.line} /></View>
       <FlatList ref={listRef} data={visible} keyExtractor={(message) => String(message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list} renderItem={({ item, index }) => <MessageBubble message={item} showAuthor={!visible[index - 1] || visible[index - 1].author.id !== item.author.id} mentionUsers={users} onLongPress={openSafetyActions} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} onRetry={(message) => void send(message)} />} ListEmptyComponent={<Text style={styles.empty}>Start a focused conversation about this message.</Text>} />
@@ -372,12 +387,16 @@ export default function ThreadScreen() {
     <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />
     <TypingIndicator users={typingUsers} />
     <ComposerLimitNotice value={draft} />
-    <View style={styles.composer}><VoiceDraftButton state={voiceDraft.state} disabled={sending} onPress={() => void voiceDraft.start()} /><TextInput accessibilityLabel="Reply to thread" value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={(value) => { if (messageBodyChangeAllowed(draftRef.current, value)) { draftRef.current = value; setDraft(value); } }} placeholder="Reply to thread" placeholderTextColor={palette.quiet} multiline style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel="Send reply" disabled={!draft.trim() || !draftWithinLimit || sending} onPress={() => void send()} style={[styles.send, (!draft.trim() || !draftWithinLimit || sending) && styles.disabled]}><Send color={palette.text} size={19} /></Pressable></View>
+    <MessageFormattingToolbar value={draft} selection={selection} visible={formattingExpanded} disabled={sending} onChange={(value) => { draftRef.current = value; setDraft(value); }} onSelectionChange={setSelection} onComposerFocus={() => inputRef.current?.focus()} onLimitExceeded={() => Alert.alert('Draft is too long', `This formatting would exceed the ${MESSAGE_BODY_LIMIT.toLocaleString()}-character limit.`)} />
+    <View style={styles.composer}>
+      <TextInput ref={inputRef} accessibilityLabel="Reply to thread" value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={(value) => { if (messageBodyChangeAllowed(draftRef.current, value)) { draftRef.current = value; setDraft(value); } }} placeholder="Reply to thread" placeholderTextColor={palette.quiet} multiline style={styles.input} />
+      <View style={styles.composerActions}><FormattingToggleButton expanded={formattingExpanded} disabled={sending} onPress={() => setFormattingExpanded((current) => !current)} /><VoiceDraftButton state={voiceDraft.state} disabled={sending} onPress={() => void voiceDraft.start()} /><View style={styles.composerSpacer} /><Pressable accessibilityRole="button" accessibilityLabel="Send reply" disabled={!draft.trim() || !draftWithinLimit || sending} onPress={() => void send()} style={[styles.send, (!draft.trim() || !draftWithinLimit || sending) && styles.disabled]}><Send color={palette.text} size={19} /></Pressable></View>
+    </View>
     <ReactionDetailsSheet key={reactionDetails ? `${reactionDetails.messageId}-${reactionDetails.emoji}` : 'closed-reactions'} initialEmoji={reactionDetails?.emoji || null} message={reactionDetailsMessage} onClose={() => setReactionDetails(null)} onToggle={async (message, value) => { await toggleReaction(message, value); }} />
     <ImagePreview key={imagePreview?.attachmentId ?? 'closed-preview'} attachments={imagePreview?.attachments || []} initialAttachmentId={imagePreview?.attachmentId || null} onClose={() => setImagePreview(null)} />
   </KeyboardAvoidingView></SafeAreaView>;
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: palette.ink }, header: { minHeight: 68, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.line }, back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, title: { color: palette.text, fontFamily: fonts.bold, fontSize: 17 }, subtitle: { color: palette.subtle, fontFamily: fonts.medium, fontSize: 11, marginTop: 2 }, root: { paddingHorizontal: 14, paddingTop: 18 }, divider: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, marginVertical: 12 }, dividerText: { color: palette.subtle, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.2 }, line: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: palette.line }, list: { paddingHorizontal: 14, paddingBottom: 24, flexGrow: 1 }, empty: { color: palette.muted, fontFamily: fonts.regular, fontSize: 13, textAlign: 'center', paddingHorizontal: 40, paddingTop: 50 }, composer: { paddingHorizontal: 14, paddingVertical: 9, flexDirection: 'row', alignItems: 'flex-end', gap: 9, backgroundColor: palette.panel, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.line }, input: { flex: 1, minHeight: 46, maxHeight: 120, borderRadius: 17, backgroundColor: palette.ink, borderWidth: 1, borderColor: palette.line, color: palette.text, fontFamily: fonts.regular, fontSize: 14, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 11 }, send: { width: 46, height: 46, borderRadius: 16, backgroundColor: palette.ruby, alignItems: 'center', justifyContent: 'center' }, disabled: { opacity: 0.38 },
+  safe: { flex: 1, backgroundColor: palette.ink }, header: { minHeight: 68, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.line }, back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, title: { color: palette.text, fontFamily: fonts.bold, fontSize: 17 }, subtitle: { color: palette.subtle, fontFamily: fonts.medium, fontSize: 11, marginTop: 2 }, root: { paddingHorizontal: 14, paddingTop: 18 }, divider: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, marginVertical: 12 }, dividerText: { color: palette.subtle, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.2 }, line: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: palette.line }, list: { paddingHorizontal: 14, paddingBottom: 24, flexGrow: 1 }, empty: { color: palette.muted, fontFamily: fonts.regular, fontSize: 13, textAlign: 'center', paddingHorizontal: 40, paddingTop: 50 }, composer: { paddingHorizontal: 14, paddingVertical: 9, gap: 4, backgroundColor: palette.panel, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.line }, composerActions: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 4 }, composerSpacer: { flex: 1 }, input: { width: '100%', minHeight: 46, maxHeight: 120, borderRadius: 17, backgroundColor: palette.ink, borderWidth: 1, borderColor: palette.line, color: palette.text, fontFamily: fonts.regular, fontSize: 14, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 11 }, send: { width: 46, height: 46, borderRadius: 16, backgroundColor: palette.ruby, alignItems: 'center', justifyContent: 'center' }, disabled: { opacity: 0.38 },
 });
