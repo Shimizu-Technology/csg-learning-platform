@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
 import { Alert, useWindowDimensions } from 'react-native';
-import RenderHtml from 'react-native-render-html';
+import RenderHtml, { isDomElement } from 'react-native-render-html';
 
 import { fonts, palette } from '@/constants/csg-theme';
 import { authoredContentSource } from '@/lib/authored-content';
 import { openExternalPage } from '@/lib/external-links';
+import { safeExternalUrl } from '@/lib/learning';
 
 interface AuthoredContentProps {
   body: string;
@@ -34,6 +35,7 @@ export function AuthoredContent({ body, compact = false }: AuthoredContentProps)
       contentWidth={Math.max(240, width - 72)}
       source={{ html: source.html }}
       ignoredDomTags={UNSUPPORTED_OR_UNSAFE_TAGS}
+      ignoreDomNode={(node) => isDomElement(node) && node.name === 'img' && !safeExternalUrl(node.attribs.src)}
       enableCSSInlineProcessing={false}
       renderersProps={{
         a: {
