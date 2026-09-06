@@ -21,10 +21,26 @@ describe('AuthoredContent', () => {
       source: { html: body },
       enableCSSInlineProcessing: false,
       ignoredDomTags: expect.arrayContaining(['script', 'iframe', 'form', 'svg']),
+      renderers: expect.objectContaining({ pre: expect.any(Function) }),
     }));
 
     const { ignoreDomNode } = mockRenderHtml.mock.calls[0][0] as { ignoreDomNode: (node: unknown) => boolean };
     expect(ignoreDomNode({ type: 'tag', name: 'img', attribs: { src: 'javascript:alert(1)' } })).toBe(true);
     expect(ignoreDomNode({ type: 'tag', name: 'img', attribs: { src: 'https://images.example.com/lesson.png' } })).toBe(false);
+  });
+
+  it('renders preformatted content inside a horizontal scroller', () => {
+    render(<AuthoredContent body="<pre><code>const line = 'intentionally very long';</code></pre>" />);
+
+    const { renderers } = mockRenderHtml.mock.calls[0][0] as {
+      renderers: { pre: (props: { TDefaultRenderer: () => null }) => React.ReactElement };
+    };
+    const DefaultRenderer = jest.fn(() => null);
+    const renderedPre = renderers.pre({ TDefaultRenderer: DefaultRenderer });
+    const { getByTestId } = render(renderedPre);
+
+    expect(getByTestId('authored-code-scroller')).toHaveProp('horizontal', true);
+    expect(getByTestId('authored-code-scroller')).toHaveProp('accessibilityHint', 'Drag horizontally to read long lines');
+    expect(DefaultRenderer).toHaveBeenCalledTimes(1);
   });
 });

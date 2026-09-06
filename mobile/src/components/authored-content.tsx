@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { Alert, useWindowDimensions } from 'react-native';
-import RenderHtml, { isDomElement } from 'react-native-render-html';
+import { Alert, ScrollView, useWindowDimensions } from 'react-native';
+import RenderHtml, { isDomElement, type CustomBlockRenderer } from 'react-native-render-html';
 
 import { fonts, palette } from '@/constants/csg-theme';
 import { authoredContentSource } from '@/lib/authored-content';
@@ -17,6 +17,24 @@ const UNSUPPORTED_OR_UNSAFE_TAGS = [
   'textarea', 'select', 'option', 'link', 'meta', 'base', 'canvas', 'svg',
   'video', 'audio', 'source',
 ];
+
+const AuthoredPre: CustomBlockRenderer = ({ TDefaultRenderer, ...props }) => (
+  <ScrollView
+    accessibilityHint="Drag horizontally to read long lines"
+    accessibilityLabel="Code block"
+    alwaysBounceHorizontal={false}
+    contentContainerStyle={{ flexGrow: 1 }}
+    directionalLockEnabled
+    horizontal
+    nestedScrollEnabled
+    showsHorizontalScrollIndicator
+    testID="authored-code-scroller"
+  >
+    <TDefaultRenderer {...props} />
+  </ScrollView>
+);
+
+const AUTHORED_RENDERERS = { pre: AuthoredPre };
 
 /**
  * Renders the two formats used by CSG course content: legacy Markdown and the
@@ -37,6 +55,7 @@ export function AuthoredContent({ body, compact = false }: AuthoredContentProps)
       ignoredDomTags={UNSUPPORTED_OR_UNSAFE_TAGS}
       ignoreDomNode={(node) => isDomElement(node) && node.name === 'img' && !safeExternalUrl(node.attribs.src)}
       enableCSSInlineProcessing={false}
+      renderers={AUTHORED_RENDERERS}
       renderersProps={{
         a: {
           onPress: (_event, href) => {
