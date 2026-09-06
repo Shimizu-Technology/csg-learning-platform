@@ -1,6 +1,20 @@
 require "test_helper"
 
 class WebPushNotificationServiceTest < ActiveSupport::TestCase
+  test "announcement push payloads identify the author and include the details" do
+    author = User.create!(clerk_id: "web_announcement_author", email: "web-announcement-author@example.com", first_name: "Maya", last_name: "Santos", role: :instructor)
+    announcement = Announcement.create!(title: "Office hours moved", body: "Meet in the main classroom.", author: author, audience: :global, status: :published)
+    notification = author.notifications.create!(notifiable: announcement, notification_type: :announcement, title: announcement.title, body: announcement.body, path: "/updates")
+    payload = nil
+    service = WebPushNotificationService.new
+    service.define_singleton_method(:deliver_to_notifications) { |_notifications, raw_payload| payload = JSON.parse(raw_payload) }
+
+    service.announcement_published(announcement, [ notification ])
+
+    assert_equal "Office hours moved", payload.fetch("title")
+    assert_equal "Maya Santos · Meet in the main classroom.", payload.fetch("body")
+  end
+
   test "message push payloads use notification body for array inputs" do
     curriculum = Curriculum.create!(name: "Bootcamp 2026")
     cohort = Cohort.create!(curriculum: curriculum, name: "Cohort 3", start_date: Date.current, status: :active)

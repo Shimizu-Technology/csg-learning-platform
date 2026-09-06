@@ -1,6 +1,24 @@
 require "test_helper"
 
 class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
+  test "announcement pushes identify the author and include the announcement details" do
+    author = User.create!(clerk_id: "expo_announcement_author", email: "expo-announcement-author@example.com", first_name: "Maya", last_name: "Santos", role: :instructor)
+    author.mobile_push_tokens.create!(token: "ExpoPushToken[announcement]", platform: "ios", last_seen_at: Time.current)
+    announcement = Announcement.create!(title: "Office hours moved", body: "Meet in the main classroom at 5:30 PM.", author: author, audience: :global, status: :published)
+    notification = author.notifications.create!(notifiable: announcement, notification_type: :announcement, title: announcement.title, body: announcement.body, path: "/updates")
+    response = Net::HTTPOK.new("1.1", "200", "OK")
+    response.instance_variable_set(:@read, true)
+    response.body = { data: [ { status: "ok" } ] }.to_json
+
+    with_http_response(response) do |connection|
+      ExpoPushNotificationService.announcement_published(announcement, [ notification ])
+      payload = JSON.parse(connection.request_received.body).first
+      assert_equal "Office hours moved", payload.fetch("title")
+      assert_equal "Maya Santos · Meet in the main classroom at 5:30 PM.", payload.fetch("body")
+      assert_equal "/updates", payload.dig("data", "path")
+    end
+  end
+
   test "sends one personalized payload for each active device" do
     user = User.create!(clerk_id: "expo_recipient", email: "expo-recipient@example.com", role: :student)
     user.mobile_push_tokens.create!(token: "ExpoPushToken[device-1]", platform: "ios", last_seen_at: 1.day.ago)
@@ -111,13 +129,15 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
     student.mobile_push_tokens.create!(token: "ExpoPushToken[submission-student]", platform: "ios", last_seen_at: Time.current)
     staff.mobile_push_tokens.create!(token: "ExpoPushToken[submission-staff]", platform: "ios", last_seen_at: Time.current)
     curriculum = Curriculum.create!(name: "Expo submission curriculum")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Expo submission cohort", start_date: Date.current, status: :active)
+    Enrollment.create!(user: student, cohort: cohort, status: :active)
     mod = CurriculumModule.create!(curriculum: curriculum, name: "Module", position: 0, day_offset: 0, schedule_days: "weekdays")
     lesson = Lesson.create!(curriculum_module: mod, title: "Lesson", position: 0, release_day: 0)
     block = ContentBlock.create!(lesson: lesson, block_type: :exercise, position: 0, title: "Exercise")
     submission = Submission.create!(user: student, content_block: block, text: "Ready")
     notifications = [
       student.notifications.create!(notifiable: submission, notification_type: :submission, title: "Graded", body: "Done", path: "/lessons/#{lesson.id}"),
-      staff.notifications.create!(notifiable: submission, notification_type: :submission, title: "Review", body: "Ready", path: "/admin/grading")
+      staff.notifications.create!(notifiable: submission, notification_type: :submission, title: "Review", body: "Ready", path: "/admin/submissions/#{submission.id}?cohort_id=#{cohort.id}&student_id=#{student.id}")
     ]
     response = Net::HTTPOK.new("1.1", "200", "OK")
     response.instance_variable_set(:@read, true)
@@ -127,8 +147,18 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
       ExpoPushNotificationService.submission_changed(submission, Notification.where(id: notifications.map(&:id)))
       paths = JSON.parse(connection.request_received.body).map { |payload| payload.dig("data", "path") }
       assert_includes paths, "/lesson/#{lesson.id}"
-      assert_includes paths, "/staff/submission/#{submission.id}"
+      assert_includes paths, "/staff/submission/#{submission.id}?cohort_id=#{cohort.id}&student_id=#{student.id}"
     end
+  end
+
+  test "submission push rejects foreign and non-query notification path suffixes" do
+    submission = Struct.new(:id).new(31)
+
+    foreign = Struct.new(:path).new("/admin/submissions/99?cohort_id=4&student_id=18")
+    assert_equal "/staff/submission/31", ExpoPushNotificationService.mobile_staff_submission_path(submission, foreign)
+
+    non_query = Struct.new(:path).new("/admin/submissions/31/history")
+    assert_equal "/staff/submission/31", ExpoPushNotificationService.mobile_staff_submission_path(submission, non_query)
   end
 
   test "help request pushes open the exact native staff record" do

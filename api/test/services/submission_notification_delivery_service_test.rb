@@ -3,6 +3,7 @@ require "test_helper"
 class SubmissionNotificationDeliveryServiceTest < ActiveJob::TestCase
   def setup
     curriculum = Curriculum.create!(name: "Notification curriculum")
+    @cohort = Cohort.create!(curriculum: curriculum, name: "Notification cohort", start_date: Date.current, status: :active)
     mod = CurriculumModule.create!(curriculum: curriculum, name: "Module", position: 0, day_offset: 0, schedule_days: "weekdays")
     lesson = Lesson.create!(curriculum_module: mod, title: "Deploy safely", position: 0, release_day: 0)
     block = ContentBlock.create!(lesson: lesson, block_type: :exercise, position: 0, title: "Production checklist")
@@ -10,6 +11,7 @@ class SubmissionNotificationDeliveryServiceTest < ActiveJob::TestCase
     @instructor = User.create!(clerk_id: "submission_notify_instructor", email: "submission-notify-instructor@example.com", role: :instructor)
     @admin = User.create!(clerk_id: "submission_notify_admin", email: "submission-notify-admin@example.com", role: :admin)
     @archived_staff = User.create!(clerk_id: "submission_notify_archived", email: "submission-notify-archived@example.com", role: :instructor, archived_at: Time.current)
+    Enrollment.create!(user: @student, cohort: @cohort, status: :active)
     @submission = Submission.create!(user: @student, content_block: block, text: "Ready")
   end
 
@@ -23,6 +25,10 @@ class SubmissionNotificationDeliveryServiceTest < ActiveJob::TestCase
     assert_equal [ @instructor.id, @admin.id ].sort, recipients.sort
     assert_not_includes recipients, @archived_staff.id
     assert Notification.where(notifiable: @submission).all?(&:submission?)
+    notification = @instructor.notifications.find_by!(notifiable: @submission)
+    assert_equal "#{@student.full_name} submitted Production checklist", notification.title
+    assert_equal "Deploy safely · Attempt 1", notification.body
+    assert_equal "/admin/submissions/#{@submission.id}?cohort_id=#{@cohort.id}&student_id=#{@student.id}", notification.path
   end
 
   test "grading alerts the student and refreshes an existing unread notification" do
@@ -33,7 +39,7 @@ class SubmissionNotificationDeliveryServiceTest < ActiveJob::TestCase
     end
 
     notification = @student.notifications.find_by!(notifiable: @submission)
-    assert_equal "Redo requested", notification.title
+    assert_equal "#{@instructor.full_name} requested a redo on Production checklist", notification.title
     assert_equal "Add rollback steps", notification.body
     assert_equal "/lessons/#{@submission.content_block.lesson_id}", notification.path
 
@@ -43,7 +49,7 @@ class SubmissionNotificationDeliveryServiceTest < ActiveJob::TestCase
       NotificationDeliveryService.submission_graded(@submission, push: false)
     end
     assert_nil notification.reload.read_at
-    assert_equal "Submission graded A", notification.title
+    assert_equal "#{@instructor.full_name} graded Production checklist: A", notification.title
   end
 
   test "a create race refreshes the winning notification before push" do
@@ -64,7 +70,7 @@ class SubmissionNotificationDeliveryServiceTest < ActiveJob::TestCase
     NotificationDeliveryService.submission_graded(@submission, push: false, event_at: 1.second.from_now)
 
     existing.reload
-    assert_equal "Submission graded B", existing.title
+    assert_equal "#{@instructor.full_name} graded Production checklist: B", existing.title
     assert_equal "Ship it", existing.body
     assert_equal "/lessons/#{@submission.content_block.lesson_id}", existing.path
     assert_nil existing.read_at

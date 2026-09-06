@@ -11,6 +11,7 @@ describe('isAllowedNotificationPath', () => {
     expect(isAllowedNotificationPath('/recordings')).toBe(true);
     expect(isAllowedNotificationPath('/recording/uploaded-25')).toBe(true);
     expect(isAllowedNotificationPath('/staff/submission/31')).toBe(true);
+    expect(isAllowedNotificationPath('/staff/submission/31?cohort_id=4&student_id=18')).toBe(true);
     expect(isAllowedNotificationPath('/staff/student/18')).toBe(true);
     expect(isAllowedNotificationPath('/staff/grading')).toBe(true);
     expect(isAllowedNotificationPath('/staff/support')).toBe(true);
@@ -23,6 +24,8 @@ describe('isAllowedNotificationPath', () => {
     expect(isAllowedNotificationPath('/conversation/channel/not-an-id')).toBe(false);
     expect(isAllowedNotificationPath('/lesson/not-an-id')).toBe(false);
     expect(isAllowedNotificationPath('https://example.com')).toBe(false);
+    expect(isAllowedNotificationPath('/staff/submission/31?cohort_id=4&student_id=javascript:alert(1)')).toBe(false);
+    expect(isAllowedNotificationPath('/staff/submission/31?cohort_id=4&student_id=18&next=https://example.com')).toBe(false);
     expect(isAllowedNotificationPath(null)).toBe(false);
   });
 
@@ -31,6 +34,8 @@ describe('isAllowedNotificationPath', () => {
     expect(mobileNotificationPath('/messages/dm/31')).toBe('/conversation/dm/31');
     expect(mobileNotificationPath('/announcements/8')).toBe('/updates');
     expect(mobileNotificationPath('/admin/submissions/31')).toBe('/staff/submission/31');
+    expect(mobileNotificationPath('/admin/submissions/31?cohort_id=4&student_id=18')).toBe('/staff/submission/31?cohort_id=4&student_id=18');
+    expect(mobileNotificationPath('/admin/submissions/31?cohort_id=4&student_id=bad')).toBe('/staff/submission/31');
     expect(mobileNotificationPath('/admin/help-requests/41')).toBe('/staff/support/41');
     expect(mobileNotificationPath('/admin/interventions/61')).toBe('/staff/intervention/61');
     expect(mobileNotificationPath('/lessons/42')).toBe('/lesson/42');

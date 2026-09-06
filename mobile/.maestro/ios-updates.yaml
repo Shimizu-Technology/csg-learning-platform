@@ -1,0 +1,48 @@
+appId: com.codeschoolofguam.connect
+name: CSG Connect iOS updates audit
+tags:
+  - updates
+  - ios
+---
+- launchApp
+- openLink: ${CSG_DEVELOPMENT_URL}
+- tapOn:
+    text: "Open"
+    optional: true
+- runFlow:
+    when:
+      visible: "DEVELOPMENT SERVERS"
+    commands:
+      - tapOn:
+          point: "50%,22%"
+- extendedWaitUntil:
+    visible: "Needs attention"
+    timeout: 60000
+- assertVisible: "Updates, tab, 4 of 5"
+
+- openLink: "csgconnect://updates"
+- tapOn:
+    text: "Open"
+    optional: true
+- extendedWaitUntil:
+    visible: "WHAT MATTERS NOW"
+    timeout: 15000
+- tapOn: "Announcements"
+- assertVisible: "Open announcement: Office hours moved to Thursday"
+- tapOn: "Inbox.*"
+- assertVisible: ".*Maya Santos submitted Responsive card grid.*"
+- assertVisible: ".*Responsive layouts with Grid · Attempt 2.*"
+- tapOn: ".*Maya Santos submitted Responsive card grid.*"
+- extendedWaitUntil:
+    visible: "QUICK REVIEW"
+    timeout: 15000
+- assertVisible: "Open Maya Santos's student health"
+- assertVisible: "Message Maya Santos in Web Dev Cohort 4"
+- tapOn: "Back"
+- assertNotVisible: "Loading updates"
+- assertVisible: ".*Maya Santos submitted Responsive card grid.*"
+- tapOn: ".*Maya Santos. Can I send you the repo before office hours?.*"
+- extendedWaitUntil:
+    visible: "Message composer.*"
+    timeout: 15000
+- assertVisible: "Can I send you the repo before office hours?"

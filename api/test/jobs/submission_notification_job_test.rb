@@ -38,7 +38,7 @@ class SubmissionNotificationJobTest < ActiveJob::TestCase
     end
 
     notification = @student.notifications.find_by!(notifiable: @submission)
-    assert_equal "Submission graded B", notification.title
+    assert_equal "#{@instructor.full_name} graded #{@submission.content_block.title}: B", notification.title
     assert_equal "Strong work", notification.body
   end
 

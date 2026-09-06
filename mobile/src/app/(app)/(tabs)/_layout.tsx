@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { BookOpen, CalendarDays, MessagesSquare, UserRound } from 'lucide-react-native';
+import { Bell, BookOpen, CalendarDays, MessagesSquare, UserRound } from 'lucide-react-native';
 import { fonts, palette } from '@/constants/csg-theme';
 
 export default function TabsLayout() {
@@ -8,8 +8,8 @@ export default function TabsLayout() {
       <Tabs.Screen name="index" options={{ title: 'Today', tabBarIcon: ({ color }) => <CalendarDays color={color} size={23} /> }} />
       <Tabs.Screen name="learn" options={{ title: 'Learn', tabBarIcon: ({ color }) => <BookOpen color={color} size={23} /> }} />
       <Tabs.Screen name="messages" options={{ title: 'Messages', tabBarIcon: ({ color }) => <MessagesSquare color={color} size={23} /> }} />
+      <Tabs.Screen name="updates" options={{ title: 'Updates', tabBarIcon: ({ color }) => <Bell color={color} size={23} /> }} />
       <Tabs.Screen name="profile" options={{ title: 'You', tabBarIcon: ({ color }) => <UserRound color={color} size={23} /> }} />
-      <Tabs.Screen name="updates" options={{ href: null }} />
     </Tabs>
   );
 }
