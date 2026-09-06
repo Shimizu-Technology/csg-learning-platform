@@ -39,6 +39,7 @@ class MobilePushTokensTest < ActionDispatch::IntegrationTest
 
   test "user reads and changes the mobile push preference" do
     @user.mobile_push_tokens.create!(token: "ExpoPushToken[preference]", platform: "ios", last_seen_at: Time.current)
+    @user.mobile_push_tokens.create!(token: "ExpoPushToken[preference-failed]", platform: "ios", last_seen_at: Time.current, failed_at: Time.current)
 
     as_user(@user) do
       get "/api/v1/mobile_push_tokens/config", headers: auth_headers

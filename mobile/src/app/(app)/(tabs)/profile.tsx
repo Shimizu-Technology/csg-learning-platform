@@ -62,8 +62,20 @@ export default function ProfileScreen() {
   }, [api, auth.demo, beginRegistration, finishRegistration, registrationIsCurrent]);
   useFocusEffect(useCallback(() => {
     void loadNotificationPreferences();
-    return () => { preferenceLoadGeneration.current += 1; invalidateRegistration(); };
+    return () => {
+      preferenceLoadGeneration.current += 1;
+      invalidateRegistration();
+      setUpdatingPreference(false);
+    };
   }, [invalidateRegistration, loadNotificationPreferences]));
+  const showNotificationSettingsAlert = () => Alert.alert(
+    'Notifications are off',
+    'Allow notifications in your device settings when you are ready.',
+    [
+      { text: 'Not now', style: 'cancel' },
+      { text: 'Open Settings', onPress: () => void Linking.openSettings() },
+    ],
+  );
   const enableDeviceNotifications = async () => {
     const generation = beginRegistration();
     let accountPreferenceEnabled = false;
@@ -75,10 +87,7 @@ export default function ProfileScreen() {
       if (!pushPermissionAllowsDelivery(permission)) {
         if (!auth.demo) await api.updateMobilePushPreference(false);
         setDeviceNotificationsEnabled(false);
-        Alert.alert('Notifications are off', 'Allow notifications in your device settings when you are ready.', [
-          { text: 'Not now', style: 'cancel' },
-          { text: 'Open Settings', onPress: () => void Linking.openSettings() },
-        ]);
+        showNotificationSettingsAlert();
         return;
       }
       if (!auth.demo) {
@@ -120,6 +129,10 @@ export default function ProfileScreen() {
   };
   const toggleDeviceNotifications = (enabled: boolean) => {
     if (enabled) {
+      if (devicePermission === 'denied') {
+        showNotificationSettingsAlert();
+        return;
+      }
       Alert.alert(
         'Turn on device notifications?',
         'Get timely alerts for messages, announcements, grades, submissions, and support updates.',

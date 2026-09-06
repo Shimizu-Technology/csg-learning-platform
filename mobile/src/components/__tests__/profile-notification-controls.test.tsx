@@ -9,6 +9,7 @@ const mockQueryClient = { invalidateQueries: jest.fn().mockResolvedValue(undefin
 const mockUser = { id: 7, full_name: 'Maya Santos', email: 'maya@example.com', role: 'student', is_staff: false, github_username: null, community_policy: null };
 let mockApi: Record<string, jest.Mock>;
 let mockFocusEffectCallback: (() => void | (() => void)) | null = null;
+let mockFocusEffectCleanup: (() => void) | null = null;
 
 jest.mock('expo-application', () => ({ nativeApplicationVersion: '1.0.0' }));
 jest.mock('expo-router', () => {
@@ -17,7 +18,14 @@ jest.mock('expo-router', () => {
     useRouter: () => mockRouter,
     useFocusEffect: (callback: () => void | (() => void)) => {
       mockFocusEffectCallback = callback;
-      React.useEffect(callback, [callback]);
+      React.useEffect(() => {
+        const cleanup = callback();
+        mockFocusEffectCleanup = typeof cleanup === 'function' ? cleanup : null;
+        return () => {
+          if (typeof cleanup === 'function') cleanup();
+          if (mockFocusEffectCleanup === cleanup) mockFocusEffectCleanup = null;
+        };
+      }, [callback]);
     },
   };
 });
@@ -56,6 +64,7 @@ function continueThroughPrimer() {
 beforeEach(() => {
   jest.clearAllMocks();
   mockFocusEffectCallback = null;
+  mockFocusEffectCleanup = null;
   mockApi = {
     profile: jest.fn(),
     mobilePushConfig: jest.fn().mockResolvedValue({ notifications_enabled: false, active_device_count: 0 }),
@@ -97,6 +106,22 @@ describe('ProfileScreen notification controls', () => {
     expect(screen.getByLabelText('Message emails')).toBeTruthy();
   });
 
+  it('opens the settings recovery directly when permission was already denied', async () => {
+    jest.mocked(getPushPermissionStatus).mockResolvedValueOnce('denied');
+    const screen = render(<ProfileScreen />);
+
+    fireEvent(await screen.findByLabelText('Device notifications'), 'valueChange', true);
+
+    expect(Alert.alert).toHaveBeenCalledWith('Notifications are off', expect.any(String), expect.any(Array));
+    const recovery = jest.mocked(Alert.alert).mock.calls.find(([title]) => title === 'Notifications are off');
+    const openSettings = recovery?.[2]?.find((action) => action.text === 'Open Settings');
+    act(() => { openSettings?.onPress?.(); });
+
+    expect(Linking.openSettings).toHaveBeenCalledTimes(1);
+    expect(requestPushPermission).not.toHaveBeenCalled();
+    expect(mockApi.updateMobilePushPreference).not.toHaveBeenCalled();
+  });
+
   it('restores the device control after an enable preference request fails', async () => {
     mockApi.updateMobilePushPreference.mockRejectedValueOnce(new Error('Preference unavailable'));
     const screen = render(<ProfileScreen />);
@@ -107,6 +132,27 @@ describe('ProfileScreen notification controls', () => {
     await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith('Could not turn on device notifications', 'Preference unavailable'));
     expect(screen.getByLabelText('Device notifications').props.value).toBe(false);
     expect(screen.getByLabelText('Message emails')).toBeTruthy();
+  });
+
+  it('restores the device control when an in-flight enable is superseded by navigation', async () => {
+    let resolvePermission!: (status: 'granted') => void;
+    jest.mocked(requestPushPermission).mockReturnValueOnce(new Promise((resolve) => { resolvePermission = resolve; }));
+    const screen = render(<ProfileScreen />);
+
+    fireEvent(await screen.findByLabelText('Device notifications'), 'valueChange', true);
+    continueThroughPrimer();
+    await waitFor(() => expect(screen.queryByLabelText('Device notifications')).toBeNull());
+
+    act(() => { mockFocusEffectCleanup?.(); });
+    await waitFor(() => expect(screen.getByLabelText('Device notifications').props.value).toBe(false));
+
+    act(() => { resolvePermission('granted'); });
+    await waitFor(() => expect(mockApi.updateMobilePushPreference).not.toHaveBeenCalled());
+    expect(attemptPushRegistration).not.toHaveBeenCalled();
+
+    act(() => { mockFocusEffectCallback?.(); });
+    await waitFor(() => expect(mockApi.mobilePushConfig).toHaveBeenCalledTimes(2));
+    expect(screen.getByLabelText('Device notifications').props.value).toBe(false);
   });
 
   it('rolls the account preference back when device registration fails', async () => {
