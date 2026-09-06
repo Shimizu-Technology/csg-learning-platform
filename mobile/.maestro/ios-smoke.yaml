@@ -18,8 +18,7 @@ tags:
 - extendedWaitUntil:
     visible: "Needs attention"
     timeout: 60000
-- tapOn:
-    point: "62%,94%"
+- tapOn: "Messages, tab, 3 of 5"
 - extendedWaitUntil:
     visible: "Messages"
     timeout: 15000
@@ -32,7 +31,6 @@ tags:
 - inputText: "Native E2E draft"
 - assertVisible: ".*Native E2E draft.*"
 - tapOn: "Back"
-- tapOn:
-    point: "87%,94%"
+- tapOn: "You, tab, 5 of 5"
 - assertVisible: "YOUR ACCOUNT"
 - assertVisible: "Leon Shimizu"

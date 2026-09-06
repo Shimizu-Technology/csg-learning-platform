@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Activity, AlertTriangle, ArrowLeft, ArrowRight, BookOpen, CalendarClock, CheckCircle2, ClipboardCheck, ExternalLink, Film, GitBranch, MessageSquare, RotateCcw, UserRound } from 'lucide-react-native';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -11,7 +11,7 @@ import { demoInterventions, demoLessonVideoProgress, demoRecordingProgress, demo
 import { demoDms } from '@/lib/demo-data';
 import { openAuthenticatedWebPage } from '@/lib/external-links';
 import { learningKeys } from '@/lib/learning';
-import type { StaffVideoProgress } from '@/lib/types';
+import type { Intervention, StaffVideoProgress, Submission } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 
@@ -22,6 +22,7 @@ export default function StaffStudentScreen() {
   const router = useRouter();
   const auth = useCsgAuth();
   const { api, user } = useSession();
+  const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: learningKeys.studentDetail(user?.id || 0, studentId, requestedCohortId),
     queryFn: async ({ signal }) => {
@@ -50,6 +51,16 @@ export default function StaffStudentScreen() {
     },
     enabled: Boolean(user?.is_staff && Number.isInteger(studentId) && studentId > 0),
   });
+
+  function openIntervention(intervention: Intervention) {
+    queryClient.setQueryData(learningKeys.intervention(user!.id, intervention.id), { intervention });
+    router.push({ pathname: '/staff/intervention/[id]', params: { id: String(intervention.id) } });
+  }
+
+  function openSubmission(submission: Submission, cohortId: number) {
+    queryClient.setQueryData(learningKeys.submission(user!.id, submission.id), { submission });
+    router.push({ pathname: '/staff/submission/[id]', params: { id: String(submission.id), cohort_id: String(cohortId), student_id: String(studentId) } });
+  }
 
   async function openDirectMessage() {
     const cohortId = query.data?.progress.cohort.id;
@@ -84,9 +95,9 @@ export default function StaffStudentScreen() {
       <LearningCard><View style={styles.progressTop}><View><Text style={styles.progressKicker}>OVERALL PROGRESS</Text><Text style={styles.progressNumber}>{Math.round(data.progress.overall_progress.percentage)}%</Text></View><View style={styles.stepCount}><Text style={styles.stepCountValue}>{data.progress.overall_progress.completed}/{data.progress.overall_progress.total}</Text><Text style={styles.stepCountLabel}>steps complete</Text></View></View><ProgressBar value={data.progress.overall_progress.percentage} label={`${data.progress.user.full_name} progress`} /><Text style={styles.lastSeen}>Last seen {formatRelative(data.progress.user.last_seen_at || data.progress.user.last_sign_in_at)}</Text></LearningCard>
       <View style={styles.signalGrid}><SignalCard icon={ClipboardCheck} value={ungraded.length} label="awaiting review" tone="ruby" /><SignalCard icon={RotateCcw} value={redo.length} label="redo requested" tone="warning" /><SignalCard icon={Film} value={videoProgress.filter((item) => item.completed).length} label="videos complete" tone="success" /></View>
       <View style={styles.quickRow}><Pressable accessibilityRole="button" accessibilityLabel={`Message ${data.progress.user.full_name} in ${data.progress.cohort.name}`} onPress={() => void openDirectMessage()} style={styles.quick}><MessageSquare color={palette.rubySoft} size={18} /><Text style={styles.quickText}>{sharedEvidence ? `Message in ${data.progress.cohort.name}` : 'Message'}</Text></Pressable><Pressable accessibilityRole="button" onPress={() => void openAuthenticatedWebPage(api, `/admin/cohorts/${data.progress.cohort.id}/students/${studentId}/overview`).catch((error) => Alert.alert('Could not open student workspace', (error as Error).message))} style={styles.quick}><ExternalLink color={palette.rubySoft} size={18} /><Text style={styles.quickText}>Full workspace</Text></Pressable></View>
-      {data.intervention && <Pressable accessibilityRole="button" accessibilityLabel={`Open active intervention for ${data.progress.user.full_name}`} onPress={() => router.push({ pathname: '/staff/intervention/[id]', params: { id: String(data.intervention!.id) } })} style={[styles.intervention, data.intervention.follow_up_due && styles.interventionDue]}><CalendarClock color={data.intervention.follow_up_due ? '#FF7187' : palette.rubySoft} size={19} /><View style={styles.flex}><Text style={[styles.interventionTitle, data.intervention.follow_up_due && styles.interventionTitleDue]}>{data.intervention.follow_up_due ? 'Intervention follow-up due' : 'Active intervention'}</Text><Text numberOfLines={2} style={styles.interventionCopy}>{data.intervention.trigger_type.replaceAll('_', ' ')} · {data.intervention.status.replaceAll('_', ' ')} · {data.intervention.owner.full_name}</Text></View><ArrowRight color={palette.quiet} size={17} /></Pressable>}
+      {data.intervention && <Pressable accessibilityRole="button" accessibilityLabel={`Open active intervention for ${data.progress.user.full_name}`} onPress={() => openIntervention(data.intervention!)} style={[styles.intervention, data.intervention.follow_up_due && styles.interventionDue]}><CalendarClock color={data.intervention.follow_up_due ? '#FF7187' : palette.rubySoft} size={19} /><View style={styles.flex}><Text style={[styles.interventionTitle, data.intervention.follow_up_due && styles.interventionTitleDue]}>{data.intervention.follow_up_due ? 'Intervention follow-up due' : 'Active intervention'}</Text><Text numberOfLines={2} style={styles.interventionCopy}>{data.intervention.trigger_type.replaceAll('_', ' ')} · {data.intervention.status.replaceAll('_', ' ')} · {data.intervention.owner.full_name}</Text></View><ArrowRight color={palette.quiet} size={17} /></Pressable>}
 
-      {!!ungraded.length && <View style={styles.section}><SectionHeading eyebrow="Respond now" title="Ready for review" /><View style={styles.stack}>{ungraded.map((submission) => <LearningCard key={submission.id} onPress={() => router.push({ pathname: '/staff/submission/[id]', params: { id: String(submission.id), cohort_id: String(data.progress.cohort.id), student_id: String(studentId) } })} label={`Review ${submission.content_block_title}`}><View style={styles.row}><View style={styles.reviewIcon}><ClipboardCheck color={palette.rubySoft} size={18} /></View><View style={styles.flex}><Text style={styles.cardTitle}>{submission.lesson_title}</Text><Text style={styles.cardMeta}>{submission.content_block_title} · attempt {submission.num_submissions}</Text></View><ArrowRight color={palette.quiet} size={18} /></View></LearningCard>)}</View></View>}
+      {!!ungraded.length && <View style={styles.section}><SectionHeading eyebrow="Respond now" title="Ready for review" /><View style={styles.stack}>{ungraded.map((submission) => <LearningCard key={submission.id} onPress={() => openSubmission(submission, data.progress.cohort.id)} label={`Review ${submission.content_block_title}`}><View style={styles.row}><View style={styles.reviewIcon}><ClipboardCheck color={palette.rubySoft} size={18} /></View><View style={styles.flex}><Text style={styles.cardTitle}>{submission.lesson_title}</Text><Text style={styles.cardMeta}>{submission.content_block_title} · attempt {submission.num_submissions}</Text></View><ArrowRight color={palette.quiet} size={18} /></View></LearningCard>)}</View></View>}
 
       <View style={styles.section}><SectionHeading eyebrow="Curriculum" title="Learning progress" /><View style={styles.stack}>{data.progress.modules.map((mod) => <LearningCard key={mod.id}><View style={styles.moduleTop}><View style={styles.moduleIcon}><BookOpen color={palette.rubySoft} size={18} /></View><View style={styles.flex}><Text style={styles.cardTitle}>{mod.name}</Text><Text style={styles.cardMeta}>{mod.completed_blocks} of {mod.total_blocks} steps · {mod.lessons.filter((lesson) => lesson.completed).length}/{mod.lessons.length} lessons</Text></View><Text style={styles.modulePercent}>{Math.round(mod.progress_percentage)}%</Text></View><View style={styles.moduleBar}><ProgressBar value={mod.progress_percentage} label={`${mod.name} progress`} /></View>{mod.lessons.slice(0, 4).map((lesson) => <View key={lesson.id} style={styles.lessonRow}>{lesson.completed ? <CheckCircle2 color={palette.success} size={15} /> : <Activity color={lesson.available ? palette.warning : palette.quiet} size={15} />}<Text numberOfLines={1} style={styles.lessonTitle}>{lesson.title}</Text><Text style={styles.lessonCount}>{lesson.completed_blocks}/{lesson.total_blocks}</Text></View>)}</LearningCard>)}</View></View>
 

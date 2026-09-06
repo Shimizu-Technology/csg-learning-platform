@@ -1,4 +1,4 @@
-import type { LessonContentBlock, StaffDashboard, StaffStudentSummary, StudentDashboard, StudentProgressDetail, Submission, SubmissionBrief, SubmissionInput } from './types';
+import type { HelpRequest, Intervention, LessonContentBlock, StaffDashboard, StaffStudentSummary, StudentDashboard, StudentProgressDetail, Submission, SubmissionBrief, SubmissionInput, SupportQueue } from './types';
 
 export const learningKeys = {
   dashboard: (userId: number) => ['learning', userId, 'dashboard'] as const,
@@ -17,6 +17,64 @@ export const learningKeys = {
   supportQueue: (userId: number) => ['learning', userId, 'support-queue'] as const,
   intervention: (userId: number, interventionId: number) => ['learning', userId, 'intervention', interventionId] as const,
 };
+
+const activeHelpStatuses: HelpRequest['status'][] = ['open', 'acknowledged'];
+const activeInterventionStatuses: Intervention['status'][] = ['open', 'contacted', 'waiting_on_student', 'monitoring'];
+
+export function updateSupportQueueHelpRequest(queue: SupportQueue, request: HelpRequest): SupportQueue {
+  const helpRequests = [request, ...queue.help_requests.filter((item) => item.id !== request.id)]
+    .filter((item) => activeHelpStatuses.includes(item.status));
+  const recentlyResolved = request.status === 'resolved'
+    ? [request, ...queue.recently_resolved.filter((item) => item.id !== request.id)]
+    : queue.recently_resolved.filter((item) => item.id !== request.id);
+  const students = queue.students.map((student) => {
+    if (!request.student || student.user_id !== request.student.id || student.cohort_id !== request.cohort.id) return student;
+    const studentRequests = helpRequests.filter((item) => item.student?.id === student.user_id && item.cohort.id === student.cohort_id);
+    return {
+      ...student,
+      help_request_count: studentRequests.length,
+      urgent_help_count: studentRequests.filter((item) => item.urgency === 'urgent').length,
+    };
+  });
+
+  return {
+    ...queue,
+    help_requests: helpRequests,
+    recently_resolved: recentlyResolved,
+    students,
+    summary: {
+      ...queue.summary,
+      open_help_count: helpRequests.filter((item) => item.status === 'open').length,
+      acknowledged_help_count: helpRequests.filter((item) => item.status === 'acknowledged').length,
+      urgent_help_count: helpRequests.filter((item) => item.urgency === 'urgent').length,
+    },
+  };
+}
+
+export function updateSupportQueueIntervention(queue: SupportQueue, intervention: Intervention): SupportQueue {
+  const interventions = [intervention, ...queue.interventions.filter((item) => item.id !== intervention.id)]
+    .filter((item) => activeInterventionStatuses.includes(item.status));
+  const active = interventions.find((item) => item.enrollment.id === intervention.enrollment.id);
+  const students = queue.students.map((student) => student.enrollment_id === intervention.enrollment.id
+    ? {
+        ...student,
+        active_intervention_id: active?.id ?? null,
+        intervention_status: active?.status ?? null,
+        follow_up_due: active?.follow_up_due ?? false,
+      }
+    : student);
+
+  return {
+    ...queue,
+    interventions,
+    students,
+    summary: {
+      ...queue.summary,
+      active_intervention_count: interventions.length,
+      due_follow_up_count: interventions.filter((item) => item.follow_up_due).length,
+    },
+  };
+}
 
 export function submissionBelongsToStudentProgress(
   submission: Pick<Submission, 'user_id' | 'content_block_id'>,

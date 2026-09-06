@@ -20,7 +20,7 @@ tags:
     timeout: 60000
 - assertVisible: "Updates, tab, 4 of 5"
 
-- openLink: "csgconnect://learn"
+- openLink: "csgconnect:///learn"
 - tapOn:
     text: "Open"
     optional: true
@@ -28,7 +28,7 @@ tags:
     visible: "Learning operations"
     timeout: 15000
 
-- openLink: "csgconnect://staff/student/18"
+- openLink: "csgconnect:///staff/student/18"
 - tapOn:
     text: "Open"
     optional: true
@@ -41,7 +41,7 @@ tags:
     direction: DOWN
     timeout: 15000
 
-- openLink: "csgconnect://staff/grading"
+- openLink: "csgconnect:///staff/grading"
 - tapOn:
     text: "Open"
     optional: true
@@ -49,7 +49,77 @@ tags:
     visible: "Grading queue"
     timeout: 15000
 
-- openLink: "csgconnect://staff/submission/31"
+- openLink: "csgconnect:///staff/support"
+- tapOn:
+    text: "Open"
+    optional: true
+- extendedWaitUntil:
+    visible: "Help queue"
+    timeout: 15000
+- assertVisible: "open requests"
+- scrollUntilVisible:
+    element:
+      text: "Open Maya Santos's help request"
+    direction: DOWN
+    timeout: 15000
+- tapOn: "Open Maya Santos's help request"
+- assertNotVisible: "Loading help request"
+- extendedWaitUntil:
+    visible: "HELP REQUEST"
+    timeout: 15000
+- tapOn: "Acknowledge"
+- extendedWaitUntil:
+    visible: "ACKNOWLEDGED"
+    timeout: 15000
+- tapOn: "Back"
+- assertNotVisible: "Loading student support"
+- assertVisible: "ACKNOWLEDGED"
+- scrollUntilVisible:
+    element:
+      text: "Open intervention for Maya Santos"
+    direction: UP
+    timeout: 15000
+- tapOn: "Open intervention for Maya Santos"
+- assertNotVisible: "Loading intervention"
+- extendedWaitUntil:
+    visible: "INTERVENTION"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: "Mark contacted"
+    direction: DOWN
+    timeout: 15000
+- tapOn: "Mark contacted"
+- scrollUntilVisible:
+    element:
+      text: "CONTACTED"
+    direction: UP
+    timeout: 15000
+- extendedWaitUntil:
+    visible: "CONTACTED"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: "Resolve with outcome"
+    direction: DOWN
+    timeout: 15000
+- tapOn: "Resolve with outcome"
+- assertVisible: "Resolve intervention"
+- tapOn: "No change"
+- tapOn: "Resolution summary input.*"
+- inputText: "Confirmed the next step and follow-up plan."
+- tapOn: "Confirm resolve intervention"
+- tapOn:
+    text: "OK"
+    optional: true
+- extendedWaitUntil:
+    visible: "OUTCOME · NO CHANGE"
+    timeout: 15000
+- tapOn: "Back"
+- assertNotVisible: "Loading student support"
+- assertVisible: "No active interventions"
+
+- openLink: "csgconnect:///staff/submission/31"
 - tapOn:
     text: "Open"
     optional: true
@@ -61,7 +131,7 @@ tags:
 - assertVisible: "Use CSS Grid."
 - assertNotVisible: "<p>"
 
-- openLink: "csgconnect://recordings"
+- openLink: "csgconnect:///recordings"
 - tapOn:
     text: "Open"
     optional: true
@@ -69,7 +139,7 @@ tags:
     visible: "Pick up where you left off"
     timeout: 15000
 
-- openLink: "csgconnect://recordings/upload"
+- openLink: "csgconnect:///recordings/upload"
 - tapOn:
     text: "Open"
     optional: true
@@ -78,7 +148,7 @@ tags:
     timeout: 15000
 - assertVisible: "Upload directly to CSG"
 
-- openLink: "csgconnect://resources"
+- openLink: "csgconnect:///resources"
 - tapOn:
     text: "Open"
     optional: true
@@ -86,7 +156,7 @@ tags:
     visible: "Everything useful, close at hand."
     timeout: 15000
 
-- openLink: "csgconnect://module/10"
+- openLink: "csgconnect:///module/10"
 - tapOn:
     text: "Open"
     optional: true
@@ -95,7 +165,7 @@ tags:
     timeout: 15000
 - assertVisible: "LESSONS"
 
-- openLink: "csgconnect://lesson/101"
+- openLink: "csgconnect:///lesson/101"
 - tapOn:
     text: "Open"
     optional: true
@@ -103,15 +173,28 @@ tags:
     visible: "Responsive layouts with Grid"
     timeout: 15000
 
-- openLink: "csgconnect://recording/uploaded-2"
+# Restart the development client before mounting the native video view. Repeated
+# Fast Refresh route swaps can invalidate Expo's native view app context.
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Needs attention"
+    timeout: 60000
+- openLink: "csgconnect:///recording/uploaded-2"
 - tapOn:
     text: "Open"
     optional: true
+- runFlow:
+    when:
+      visible: "DEVELOPMENT SERVERS"
+    commands:
+      - tapOn:
+          point: "50%,22%"
 - extendedWaitUntil:
     visible: "APIs, authentication, and deployment"
     timeout: 15000
 
-- openLink: "csgconnect://messages"
+- openLink: "csgconnect:///messages"
 - tapOn:
     text: "Open"
     optional: true
@@ -120,7 +203,7 @@ tags:
     timeout: 15000
 - assertVisible: "Open general"
 
-- openLink: "csgconnect://conversation/channel/12"
+- openLink: "csgconnect:///conversation/channel/12"
 - tapOn:
     text: "Open"
     optional: true
@@ -141,7 +224,7 @@ tags:
 - assertVisible: "Tab completion saves time."
 - assertNotVisible: ".*```.*"
 
-- openLink: "csgconnect://thread/101?kind=channel&conversationId=12&workspaceId=1"
+- openLink: "csgconnect:///thread/101?kind=channel&conversationId=12&workspaceId=1"
 - tapOn:
     text: "Open"
     optional: true
@@ -149,7 +232,7 @@ tags:
     visible: "REPLIES"
     timeout: 15000
 
-- openLink: "csgconnect://compose"
+- openLink: "csgconnect:///compose"
 - tapOn:
     text: "Open"
     optional: true
@@ -157,7 +240,7 @@ tags:
     visible: "Who do you want to message?"
     timeout: 15000
 
-- openLink: "csgconnect://search"
+- openLink: "csgconnect:///search"
 - tapOn:
     text: "Open"
     optional: true
@@ -165,7 +248,7 @@ tags:
     visible: "Search across CSG"
     timeout: 15000
 
-- openLink: "csgconnect://updates"
+- openLink: "csgconnect:///updates"
 - tapOn:
     text: "Open"
     optional: true
@@ -174,10 +257,10 @@ tags:
     timeout: 15000
 - tapOn: "Announcements"
 - assertVisible: "Open announcement: Office hours moved to Thursday"
-- tapOn: "Inbox"
-- assertVisible: "Maya Santos submitted Responsive card grid"
-- assertVisible: "Responsive layouts with Grid · Attempt 2"
-- tapOn: "Maya Santos submitted Responsive card grid"
+- tapOn: "Inbox.*"
+- assertVisible: ".*Maya Santos submitted Responsive card grid.*"
+- assertVisible: ".*Responsive layouts with Grid · Attempt 2.*"
+- tapOn: ".*Maya Santos submitted Responsive card grid.*"
 - extendedWaitUntil:
     visible: "QUICK REVIEW"
     timeout: 15000
@@ -185,14 +268,14 @@ tags:
 - assertVisible: "Message Maya Santos in Web Dev Cohort 4"
 - tapOn: "Back"
 - assertNotVisible: "Loading updates"
-- assertVisible: "Maya Santos submitted Responsive card grid"
-- tapOn: "Maya Santos"
+- assertVisible: ".*Maya Santos submitted Responsive card grid.*"
+- tapOn: ".*Maya Santos.*repo before office hours.*"
 - extendedWaitUntil:
     visible: "Message composer.*"
     timeout: 15000
 - assertVisible: "Can I send you the repo before office hours?"
 
-- openLink: "csgconnect://profile"
+- openLink: "csgconnect:///profile"
 - tapOn:
     text: "Open"
     optional: true
@@ -200,7 +283,7 @@ tags:
     visible: "YOUR ACCOUNT"
     timeout: 15000
 
-- openLink: "csgconnect://manage-communications"
+- openLink: "csgconnect:///manage-communications"
 - tapOn:
     text: "Open"
     optional: true

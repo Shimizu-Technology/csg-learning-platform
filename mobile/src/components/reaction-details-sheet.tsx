@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
   title: { color: palette.text, fontFamily: fonts.extraBold, fontSize: 22, letterSpacing: -0.5, marginTop: 2 },
   close: { width: 44, height: 44, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.panel, borderWidth: 1, borderColor: palette.line },
   tabs: { paddingHorizontal: 20, paddingVertical: 14, gap: 8 },
-  tab: { height: 42, minWidth: 58, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panel, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  tab: { height: 44, minWidth: 58, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panel, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   tabActive: { borderColor: '#6A2A36', backgroundColor: '#2A151B' },
   tabCount: { color: palette.muted, fontFamily: fonts.bold, fontSize: 11 },
   tabCountActive: { color: palette.rubySoft },

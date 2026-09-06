@@ -20,7 +20,7 @@ tags:
     timeout: 60000
 - assertVisible: "Updates, tab, 4 of 5"
 
-- openLink: "csgconnect://updates"
+- openLink: "csgconnect:///updates"
 - tapOn:
     text: "Open"
     optional: true
