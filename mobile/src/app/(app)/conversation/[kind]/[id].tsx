@@ -27,7 +27,7 @@ import { demoChannels, demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { insertMention, mentionSuggestions, mentionTriggerAt, resolveMentionUserIds } from '@/lib/mentions';
 import { clientMessageIdForSend, conversationOperationIdentity, draftAfterSendConfirmation, draftAfterStoredLoad, messageBodyChangeAllowed, messageBodyWithinLimit, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
 import { messagePreview } from '@/lib/message-format';
-import { messagingKeys, type ConversationSnapshot } from '@/lib/messaging-cache';
+import { markInboxConversationRead, messagingKeys, type ConversationSnapshot, type InboxSnapshot } from '@/lib/messaging-cache';
 import { markOptimisticFailed, mergeMessageEvent, mergeOlderMessages, mergePinnedMessageEvent, mergeServerAndFailedMessages, reconcileOptimistic, sortMessages, toggleOwnReaction } from '@/lib/message-state';
 import { REACTION_OPTIONS } from '@/lib/reactions';
 import type { TypingUser } from '@/lib/typing';
@@ -274,6 +274,13 @@ export default function ConversationScreen() {
     if (loadedOperationIdentity !== operationIdentity || !summary) return;
     queryClient.setQueryData<ConversationSnapshot>(conversationCacheKey, { summary, messages, pinnedMessages, meta, mentionUsers });
   }, [conversationCacheKey, loadedOperationIdentity, mentionUsers, messages, meta, operationIdentity, pinnedMessages, queryClient, summary]);
+
+  useEffect(() => {
+    if (!userId || loadedOperationIdentity !== operationIdentity || !summary) return;
+    const readAt = new Date().toISOString();
+    queryClient.setQueryData<InboxSnapshot>(messagingKeys.inbox(userId), (current) => markInboxConversationRead(current, kind, id, readAt));
+    if (summary.unread_count > 0) setSummary((current) => current ? { ...current, unread_count: 0, last_read_at: readAt } : current);
+  }, [id, kind, loadedOperationIdentity, operationIdentity, queryClient, summary, userId]);
 
   useEffect(() => {
     if (!userId || auth.demo || loading || loadedOperationIdentity !== operationIdentity) return;

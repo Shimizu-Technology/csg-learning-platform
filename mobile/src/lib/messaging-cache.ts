@@ -22,3 +22,17 @@ export const messagingKeys = {
   conversation: (userId: number, kind: ConversationKind, id: number) => ['messaging', userId, 'conversation', kind, id] as const,
   thread: (userId: number, rootId: number) => ['messaging', userId, 'thread', rootId] as const,
 };
+
+export function markInboxConversationRead(snapshot: InboxSnapshot | undefined, kind: ConversationKind, id: number, readAt: string): InboxSnapshot | undefined {
+  if (!snapshot) return undefined;
+  if (kind === 'channel') {
+    return {
+      ...snapshot,
+      channels: snapshot.channels.map((channel) => channel.id === id ? { ...channel, unread_count: 0, last_read_at: readAt } : channel),
+    };
+  }
+  return {
+    ...snapshot,
+    dms: snapshot.dms.map((conversation) => conversation.id === id ? { ...conversation, unread_count: 0, last_read_at: readAt } : conversation),
+  };
+}
