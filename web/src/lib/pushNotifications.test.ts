@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from './api'
-import { disablePushNotifications, webPushPreferenceEnabled } from './pushNotifications'
+import { browserPushEnabled, disablePushNotifications, webPushPreferenceEnabled } from './pushNotifications'
 
 vi.mock('./api', () => ({
   api: {
@@ -42,5 +42,20 @@ describe('webPushPreferenceEnabled', () => {
   it('falls back to the legacy preference during a staggered deployment', () => {
     expect(webPushPreferenceEnabled({ notifications_enabled: false })).toBe(false)
     expect(webPushPreferenceEnabled({ notifications_enabled: true })).toBe(true)
+  })
+})
+
+describe('browserPushEnabled', () => {
+  const subscription = {} as PushSubscription
+
+  it('requires a successful configuration response even when this browser has a subscription', () => {
+    expect(browserPushEnabled(null, subscription)).toBe(false)
+    expect(browserPushEnabled(undefined, subscription)).toBe(false)
+  })
+
+  it('requires both the account preference and a browser subscription', () => {
+    expect(browserPushEnabled({ web_push_notifications_enabled: true }, subscription)).toBe(true)
+    expect(browserPushEnabled({ web_push_notifications_enabled: false }, subscription)).toBe(false)
+    expect(browserPushEnabled({ web_push_notifications_enabled: true }, null)).toBe(false)
   })
 })

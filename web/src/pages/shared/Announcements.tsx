@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { Bell, Check, ChevronLeft, ChevronRight, Megaphone, Pin, Send, Sparkles, Trash2 } from 'lucide-react'
 import { api } from '../../lib/api'
-import { disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported, webPushPreferenceEnabled } from '../../lib/pushNotifications'
+import { browserPushEnabled, disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
@@ -154,7 +154,7 @@ export function Announcements() {
       api.getPushConfig(),
       navigator.serviceWorker.ready.then((registration) => registration.pushManager.getSubscription()),
     ])
-      .then(([config, subscription]) => setPushEnabled(Boolean(config.data && webPushPreferenceEnabled(config.data) && subscription)))
+      .then(([config, subscription]) => setPushEnabled(browserPushEnabled(config.data, subscription)))
       .catch(() => setPushEnabled(false))
   }, [])
 

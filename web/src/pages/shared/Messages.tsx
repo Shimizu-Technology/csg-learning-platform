@@ -60,7 +60,7 @@ import {
 import { api } from '../../lib/api'
 import { isMessageTypingEvent, subscribeToUserMessages, type RealtimeSubscription } from '../../lib/realtime'
 import { isVisiblePage, shouldPollMessages } from '../../lib/backgroundActivity'
-import { disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported, webPushPreferenceEnabled } from '../../lib/pushNotifications'
+import { browserPushEnabled, disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
 import { formatFileSize, uploadToS3 } from '../../lib/uploadToS3'
 import { editorJsonToMarkdown, normalizeMessageMarkdown, parseMessageBlocks } from '../../lib/messageFormat'
 import {
@@ -1523,8 +1523,7 @@ export function Messages() {
         : Promise.resolve(null),
     ]).then(([config, subscription]) => {
       if (!active) return
-      const accountAllowsPush = config.data ? webPushPreferenceEnabled(config.data) : true
-      setPushEnabled(accountAllowsPush && Boolean(subscription))
+      setPushEnabled(browserPushEnabled(config.data, subscription))
     }).catch(() => {
       if (active) setPushEnabled(false)
     })

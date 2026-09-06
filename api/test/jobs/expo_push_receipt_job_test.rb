@@ -38,6 +38,27 @@ class ExpoPushReceiptJobTest < ActiveJob::TestCase
     assert receipt.available_at.between?(14.minutes.from_now, 16.minutes.from_now)
   end
 
+  test "duplicate jobs do not bypass the deferred retry time" do
+    receipt = create_receipt("receipt-duplicate")
+    calls = 0
+    service = Object.new
+    service.define_singleton_method(:check) do |requests|
+      calls += 1
+      requests
+    end
+
+    with_receipt_service(service) do
+      ExpoPushReceiptJob.perform_now([ "receipt-duplicate" ])
+      assert_no_enqueued_jobs(only: ExpoPushReceiptJob) do
+        ExpoPushReceiptJob.perform_now([ "receipt-duplicate" ])
+      end
+    end
+
+    assert_equal 1, calls
+    assert_equal 1, receipt.reload.lookup_count
+    assert receipt.available_at.future?
+  end
+
   test "removes a receipt after its second unavailable lookup" do
     create_receipt("receipt-missing", lookup_count: 1)
     service = Object.new

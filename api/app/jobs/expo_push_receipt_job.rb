@@ -48,7 +48,8 @@ class ExpoPushReceiptJob < ApplicationJob
 
   def drain_due(receipt_ids = nil)
     ExpoPushReceipt.where("created_at < ?", MAX_AGE.ago).delete_all
-    scope = receipt_ids ? ExpoPushReceipt.where(receipt_id: receipt_ids) : ExpoPushReceipt.due
+    scope = ExpoPushReceipt.due
+    scope = scope.where(receipt_id: receipt_ids) if receipt_ids
     receipts = scope.order(:available_at, :id).limit(BATCH_SIZE).to_a
     return [] if receipts.empty?
 
