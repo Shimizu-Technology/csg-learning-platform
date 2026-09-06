@@ -12,8 +12,8 @@ import { ContextualHelp } from '@/components/contextual-help';
 import { ProgressBar } from '@/components/learning-ui';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { fonts, palette } from '@/constants/csg-theme';
-import { demoLesson } from '@/lib/demo-learning';
-import { latestSubmission, learningKeys, lessonCompletion } from '@/lib/learning';
+import { demoLessonFor } from '@/lib/demo-learning';
+import { learningKeys, lessonCompletion } from '@/lib/learning';
 import { captureProductEvent } from '@/lib/analytics';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
@@ -24,7 +24,7 @@ export default function LessonScreen() {
   const auth = useCsgAuth();
   const { api, user } = useSession();
   const validId = Number.isInteger(id) && id > 0;
-  const query = useQuery({ queryKey: learningKeys.lesson(user?.id || 0, id), queryFn: ({ signal }) => auth.demo ? Promise.resolve({ lesson: { ...demoLesson, id } }) : api.lesson(id, signal), enabled: Boolean(user && validId) });
+  const query = useQuery({ queryKey: learningKeys.lesson(user?.id || 0, id), queryFn: ({ signal }) => auth.demo ? Promise.resolve({ lesson: demoLessonFor(id) }) : api.lesson(id, signal), enabled: Boolean(user && validId) });
   const lesson = query.data?.lesson;
   const lessonId = lesson?.id;
   const moduleId = lesson?.module_id;
@@ -42,7 +42,7 @@ export default function LessonScreen() {
     {query.isError && <View style={styles.offline}><Text style={styles.offlineText}>Showing the saved lesson. Changes need a connection.</Text></View>}
     <View style={styles.hero}><View style={styles.heroIcon}><BookOpen color={palette.rubySoft} size={21} /></View><Text style={styles.type}>{lesson.lesson_type.toUpperCase()}</Text><Text style={styles.title}>{lesson.title}</Text><View style={styles.progressCopy}><Text style={styles.progressText}>{progress.completed} of {progress.total} steps complete</Text><Text style={styles.percent}>{progress.percentage}%</Text></View><ProgressBar value={progress.percentage} label={`${lesson.title} progress`} />{closed && <View style={styles.window}><Lock color={palette.warning} size={15} /><Text style={styles.windowText}>{lesson.submission_window?.week_number ? `Week ${lesson.submission_window.week_number} submissions are closed` : 'Submissions are closed'} · review remains available</Text></View>}{lesson.cohort_id && <View style={styles.help}><ContextualHelp cohortId={lesson.cohort_id} contextType="lesson" contextId={lesson.id} contextLabel={lesson.title} /></View>}</View>
     <LessonObjectives objectives={lesson.objectives} />
-    <View style={styles.blocks}>{[...lesson.content_blocks].sort((a, b) => a.position - b.position).map((block) => <View key={`${block.id}:${latestSubmission(block.submissions || [])?.id || 'new'}`} style={styles.blockWithHelp}><RubricPanel rubric={block.rubric} /><LessonContentBlockCard block={block} lesson={lesson} />{lesson.cohort_id && ['exercise', 'code_challenge'].includes(block.block_type) && <View style={styles.blockHelp}><ContextualHelp cohortId={lesson.cohort_id} contextType="exercise" contextId={block.id} contextLabel={block.title || lesson.title} /></View>}</View>)}</View>
+    <View style={styles.blocks}>{[...lesson.content_blocks].sort((a, b) => a.position - b.position).map((block) => <View key={block.id} style={styles.blockWithHelp}><RubricPanel rubric={block.rubric} /><LessonContentBlockCard block={block} lesson={lesson} />{lesson.cohort_id && ['exercise', 'code_challenge'].includes(block.block_type) && <View style={styles.blockHelp}><ContextualHelp cohortId={lesson.cohort_id} contextType="exercise" contextId={block.id} contextLabel={block.title || lesson.title} /></View>}</View>)}</View>
     {!lesson.content_blocks.length && <View style={styles.empty}><BookOpen color={palette.rubySoft} size={30} /><Text style={styles.emptyTitle}>This lesson is being prepared</Text></View>}
     <View style={styles.lessonNav}>{lesson.prev_lesson ? <Pressable accessibilityRole="button" accessibilityLabel={`Previous lesson: ${lesson.prev_lesson.title}`} onPress={() => router.replace(`/lesson/${lesson.prev_lesson!.id}`)} style={styles.navButton}><ChevronLeft color={palette.rubySoft} size={18} /><View style={styles.flex}><Text style={styles.navKicker}>PREVIOUS</Text><Text numberOfLines={2} style={styles.navTitle}>{lesson.prev_lesson.title}</Text></View></Pressable> : <View style={styles.navSpacer} />}{lesson.next_lesson ? <Pressable accessibilityRole="button" accessibilityLabel={`Next lesson: ${lesson.next_lesson.title}`} onPress={() => router.replace(`/lesson/${lesson.next_lesson!.id}`)} style={[styles.navButton, styles.navRight]}><View style={styles.flex}><Text style={[styles.navKicker, styles.textRight]}>NEXT</Text><Text numberOfLines={2} style={[styles.navTitle, styles.textRight]}>{lesson.next_lesson.title}</Text></View><ArrowRight color={palette.rubySoft} size={18} /></Pressable> : <View style={styles.navSpacer} />}</View>
   </ScrollView></SafeAreaView>;

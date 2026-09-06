@@ -1,0 +1,97 @@
+appId: com.codeschoolofguam.connect
+name: CSG Connect iOS student journey
+tags:
+  - student
+  - ios
+---
+- launchApp
+- openLink: ${CSG_DEVELOPMENT_URL}
+- tapOn:
+    text: "Open"
+    optional: true
+- runFlow:
+    when:
+      visible: "DEVELOPMENT SERVERS"
+    commands:
+      - tapOn:
+          point: "50%,22%"
+- extendedWaitUntil:
+    visible: "YOUR LEARNING DAY"
+    timeout: 60000
+- assertVisible: ".*Noah.*"
+- assertVisible: "Continue Responsive layouts with Grid"
+
+- openLink: "csgconnect:///lesson/100"
+- tapOn:
+    text: "Open"
+    optional: true
+- extendedWaitUntil:
+    visible: "HTML and semantic structure"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: "Graded · A"
+    direction: DOWN
+    timeout: 15000
+- assertVisible: "Clear structure and thoughtful landmarks."
+
+- openLink: "csgconnect:///lesson/102"
+- tapOn:
+    text: "Open"
+    optional: true
+- extendedWaitUntil:
+    visible: "Accessible forms"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: "Submit your redo"
+    direction: DOWN
+    timeout: 15000
+- tapOn: "Submit your redo"
+- eraseText
+- inputText: "Every field now has an explicit label and its error uses aria-describedby."
+- tapOn: "Submit work"
+- extendedWaitUntil:
+    visible: "Redo submitted."
+    timeout: 15000
+- assertVisible: "Submitted for review"
+
+- openLink: "csgconnect:///staff/grading"
+- tapOn:
+    text: "Open"
+    optional: true
+- extendedWaitUntil:
+    visible: "Staff access only"
+    timeout: 15000
+- assertVisible: "The grading queue is available to instructors and admins."
+- tapOn: "Go to Today"
+- extendedWaitUntil:
+    visible: "YOUR LEARNING DAY"
+    timeout: 15000
+
+- openLink: "csgconnect:///compose"
+- tapOn:
+    text: "Open"
+    optional: true
+- extendedWaitUntil:
+    visible: "Who do you want to message?"
+    timeout: 15000
+- tapOn:
+    point: "75%,42%"
+- assertVisible: "Select Maya Santos"
+- scrollUntilVisible:
+    element:
+      text: "Select Leon Shimizu"
+    direction: UP
+    timeout: 15000
+- assertVisible: "Select Leon Shimizu"
+- assertNotVisible: "Select Noah Cruz"
+
+- openLink: "csgconnect:///profile"
+- tapOn:
+    text: "Open"
+    optional: true
+- extendedWaitUntil:
+    visible: "Noah Cruz"
+    timeout: 15000
+- assertVisible: "STUDENT"

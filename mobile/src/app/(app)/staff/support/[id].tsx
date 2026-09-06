@@ -60,7 +60,8 @@ export default function StaffHelpRequestScreen() {
     }
   }
 
-  if (!user?.is_staff || !Number.isInteger(requestId) || requestId <= 0) return <SafeAreaView style={styles.safe}><ErrorState message="This help request is not available." retry={() => router.replace('/')} /></SafeAreaView>;
+  if (!user?.is_staff) return <SafeAreaView style={styles.safe}><ErrorState title="Staff access only" message="Student help requests are available to instructors and admins." retryLabel="Go to Today" retry={() => router.replace('/')} /></SafeAreaView>;
+  if (!Number.isInteger(requestId) || requestId <= 0) return <SafeAreaView style={styles.safe}><ErrorState message="This help-request link is invalid." retryLabel="Go to support queue" retry={() => router.replace('/staff/support')} /></SafeAreaView>;
   if (query.isPending && !request) return <SafeAreaView style={styles.safe}><LoadingState label="Loading help request" /></SafeAreaView>;
   if (!request) return <SafeAreaView style={styles.safe}><ErrorState message={query.error ? (query.error as Error).message : 'Help request not found.'} retry={() => void query.refetch()} /></SafeAreaView>;
   const active = request.status === 'open' || request.status === 'acknowledged';

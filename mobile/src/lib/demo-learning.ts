@@ -1,4 +1,5 @@
 import type { LessonDetail, RecordingItem, StudentDashboard, WeeklyPlan } from './types';
+import { demoStudentUser } from './demo-data';
 
 export const demoWeeklyPlan: WeeklyPlan = {
   enrolled: true,
@@ -22,7 +23,7 @@ export const demoWeeklyPlan: WeeklyPlan = {
 
 export const demoDashboard: StudentDashboard = {
   enrolled: true,
-  user: { id: 1, full_name: 'Maya Santos', role: 'student' },
+  user: { id: demoStudentUser.id, full_name: demoStudentUser.full_name, role: 'student' },
   cohort: { id: 4, name: 'Web Dev Cohort 4', start_date: '2026-06-01', status: 'active', unread_notifications_count: 2, announcements: [] },
   overall_progress: { completed: 18, total: 36, percentage: 50 },
   continue_lesson: { id: 101, title: 'Responsive layouts with Grid' },
@@ -55,3 +56,27 @@ export const demoLesson: LessonDetail = {
     { id: 203, block_type: 'exercise', position: 3, title: 'Rebuild the card grid', body: 'Explain how your grid changes between mobile and desktop.', video_url: null, filename: 'styles.css', submission_type: 'text_submission', submission_config: {}, metadata: { language: 'css' }, progress: { status: 'in_progress', completed_at: null }, submissions: [] },
   ],
 };
+
+const demoReviewedLesson: LessonDetail = {
+  id: 100, module_id: 10, cohort_id: 4, title: 'HTML and semantic structure', lesson_type: 'lesson', position: 1, release_day: 1, required: true, requires_submission: true, submission_type: 'text_submission', content_blocks_count: 2,
+  submission_window: { submissions_open: true, submissions_closed: false }, prev_lesson: null, next_lesson: { id: 101, title: 'Responsive layouts with Grid' },
+  content_blocks: [
+    { id: 198, block_type: 'text', position: 1, title: 'Use meaningful landmarks', body: 'Semantic HTML communicates the purpose of each page region to browsers, assistive technology, and your teammates.', video_url: null, filename: null, metadata: {}, progress: { status: 'completed', completed_at: '2026-07-20T02:00:00Z' } },
+    { id: 199, block_type: 'exercise', position: 2, title: 'Semantic page exercise', body: 'Describe the landmarks you chose and why they fit the content.', video_url: null, filename: 'index.html', submission_type: 'text_submission', submission_config: {}, metadata: { language: 'html' }, progress: { status: 'completed', completed_at: '2026-07-20T04:00:00Z' }, submissions: [{ id: 8, submission_type: 'text_submission', text: 'I used header, nav, main, section, and footer so each region has a clear purpose.', grade: 'A', feedback: 'Clear structure and thoughtful landmarks.', graded_at: '2026-07-20T05:00:00Z', num_submissions: 1, created_at: '2026-07-20T04:00:00Z', updated_at: '2026-07-20T05:00:00Z' }] },
+  ],
+};
+
+const demoRedoLesson: LessonDetail = {
+  id: 102, module_id: 10, cohort_id: 4, title: 'Accessible forms', lesson_type: 'exercise', position: 3, release_day: 2, required: true, requires_submission: true, submission_type: 'text_submission', content_blocks_count: 2,
+  submission_window: { submissions_open: true, submissions_closed: false }, prev_lesson: { id: 101, title: 'Responsive layouts with Grid' }, next_lesson: { id: 103, title: 'JavaScript interactions' },
+  content_blocks: [
+    { id: 204, block_type: 'text', position: 1, title: 'Make every field understandable', body: 'Labels, instructions, and errors should remain programmatically connected to the field they describe.', video_url: null, filename: null, metadata: {}, progress: { status: 'completed', completed_at: '2026-07-21T02:00:00Z' } },
+    { id: 205, block_type: 'exercise', position: 2, title: 'Contact form exercise', body: 'Explain how your form connects each field with its label and error message.', video_url: null, filename: 'contact.html', submission_type: 'text_submission', submission_config: {}, metadata: { language: 'html' }, progress: { status: 'completed', completed_at: '2026-07-21T03:00:00Z' }, submissions: [{ id: 9, submission_type: 'text_submission', text: 'Each input is next to visible label text and each error is shown below its field.', grade: 'R', feedback: 'Add an explicit label for every field.', graded_at: '2026-07-21T04:00:00Z', num_submissions: 1, created_at: '2026-07-21T03:00:00Z', updated_at: '2026-07-21T04:00:00Z' }] },
+  ],
+};
+
+export function demoLessonFor(id: number): LessonDetail {
+  if (id === demoReviewedLesson.id) return demoReviewedLesson;
+  if (id === demoRedoLesson.id) return demoRedoLesson;
+  return { ...demoLesson, id };
+}

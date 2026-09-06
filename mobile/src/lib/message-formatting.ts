@@ -117,10 +117,16 @@ function lineFormat(value: string, selection: ComposerSelection, action: 'ordere
   const pattern = action === 'orderedList' ? /^\d+\.\s/ : action === 'bulletList' ? /^[-*+]\s/ : /^>\s?/;
   const nonBlankLines = lines.filter((line) => line.trim());
   const remove = nonBlankLines.length > 0 && nonBlankLines.every((line) => pattern.test(line.trimStart()));
+  const collapsedBlankTarget = range.start === range.end && lines.length === 1 && !lines[0].trim();
   const orderedByIndent = new Map<string, number>();
   const transformed = lines.map((line) => {
-    if (!line.trim()) return line;
     const indentation = line.match(/^\s*/)?.[0] || '';
+    if (!line.trim()) {
+      if (!collapsedBlankTarget) return line;
+      if (action === 'orderedList') return `${indentation}1. `;
+      if (action === 'bulletList') return `${indentation}- `;
+      return `${indentation}> `;
+    }
     const content = line.slice(indentation.length);
     if (remove) return `${indentation}${content.replace(pattern, '')}`;
     const withoutOtherList = action === 'orderedList' || action === 'bulletList'

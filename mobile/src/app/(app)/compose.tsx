@@ -6,22 +6,16 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { Avatar } from '@/components/avatar';
 import { EmptyState, LoadingState } from '@/components/screen-states';
 import { fonts, palette } from '@/constants/csg-theme';
-import { demoDms } from '@/lib/demo-data';
+import { demoDms, demoPeople } from '@/lib/demo-data';
 import type { UserSummary } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
-const demoPeople: UserSummary[] = [
-  { id: 18, full_name: 'Maya Santos', email: 'maya@example.com', role: 'student', avatar_url: null, is_admin: false, is_staff: false },
-  { id: 19, full_name: 'Noah Cruz', email: 'noah@example.com', role: 'student', avatar_url: null, is_admin: false, is_staff: false },
-  { id: 20, full_name: 'Kai Perez', email: 'kai@example.com', role: 'student', avatar_url: null, is_admin: false, is_staff: false },
-];
-
 export default function ComposeScreen() {
   const router = useRouter();
   const auth = useCsgAuth();
-  const { api } = useSession();
+  const { api, user: sessionUser } = useSession();
   const { workspaces, activeWorkspaceId: workspaceId, loading: loadingWorkspaces, selectWorkspace } = useWorkspace();
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [selected, setSelected] = useState<number[]>([]);
@@ -37,7 +31,7 @@ export default function ComposeScreen() {
       void (async () => {
         try {
           const available = auth.demo ? demoPeople : (await api.availableUsers(workspaceId)).users;
-          if (!cancelled) setUsers(available);
+          if (!cancelled) setUsers(available.filter((candidate) => candidate.id !== sessionUser?.id));
         } catch (error) {
           if (!cancelled) Alert.alert('Couldn’t load members', (error as Error).message);
         } finally {
@@ -46,7 +40,7 @@ export default function ComposeScreen() {
       })();
     });
     return () => { cancelled = true; cancelAnimationFrame(frame); };
-  }, [api, auth.demo, workspaceId]);
+  }, [api, auth.demo, sessionUser?.id, workspaceId]);
 
   const visible = useMemo(() => {
     const filter = query.trim().toLowerCase();

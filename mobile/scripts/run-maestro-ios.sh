@@ -32,7 +32,12 @@ if ! curl --fail --silent --max-time 2 "http://${metro_host}:${metro_port}/statu
   exit 1
 fi
 
-for flow in .maestro/ios-smoke.yaml .maestro/ios-routes.yaml; do
+flows=(.maestro/ios-smoke.yaml .maestro/ios-routes.yaml)
+if [[ -n "${CSG_MAESTRO_FLOWS:-}" ]]; then
+  read -r -a flows <<< "${CSG_MAESTRO_FLOWS}"
+fi
+
+for flow in "${flows[@]}"; do
   "${maestro_bin}" test \
     "${device_args[@]}" \
     --env "CSG_DEVELOPMENT_URL=${development_url}" \

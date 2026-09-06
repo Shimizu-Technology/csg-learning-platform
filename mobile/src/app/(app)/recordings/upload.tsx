@@ -121,7 +121,7 @@ export default function RecordingUploadScreen() {
     }
   };
 
-  if (!user?.is_staff) return <SafeAreaView style={styles.safe}><ErrorState message="Recording uploads are available to staff." retry={() => router.replace('/recordings')} /></SafeAreaView>;
+  if (!user?.is_staff) return <SafeAreaView style={styles.safe}><ErrorState title="Staff access only" message="Recording uploads are available to instructors and admins." retryLabel="Go to Recordings" retry={() => router.replace('/recordings')} /></SafeAreaView>;
   if (cohortsQuery.isPending) return <SafeAreaView style={styles.safe}><LoadingState label="Loading classes" /></SafeAreaView>;
   if (cohortsQuery.error) return <SafeAreaView style={styles.safe}><ErrorState message={(cohortsQuery.error as Error).message} retry={() => void cohortsQuery.refetch()} /></SafeAreaView>;
 

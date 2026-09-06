@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { Archive, Check, ChevronDown, Edit3, Hash, Plus, Trash2, UserPlus, X } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
@@ -15,6 +16,7 @@ import { useWorkspace } from '@/providers/workspace-provider';
 type Editor = 'workspace' | 'channel' | 'members' | null;
 
 export default function ManageCommunicationsScreen() {
+  const router = useRouter();
   const auth = useCsgAuth();
   const { api, user } = useSession();
   const isStaff = Boolean(user?.is_staff);
@@ -56,7 +58,7 @@ export default function ManageCommunicationsScreen() {
   }, [activeWorkspaceId, api, auth.demo, isStaff]);
   useEffect(() => { const frame = requestAnimationFrame(() => void load()); return () => cancelAnimationFrame(frame); }, [load]);
 
-  if (!isStaff) return <SafeAreaView style={styles.safe}><ErrorState message="Staff access is required to manage communications." retry={() => undefined} /></SafeAreaView>;
+  if (!isStaff) return <SafeAreaView style={styles.safe}><ErrorState title="Staff access only" message="Managing channels and workspace membership is available to instructors and admins." retryLabel="Go to Messages" retry={() => router.replace('/messages')} /></SafeAreaView>;
 
   const archiveChannel = (channel: ChannelSummary) => Alert.alert(`Archive #${channel.name}?`, 'Existing messages remain available to staff, but members can no longer post.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Archive', style: 'destructive', onPress: async () => { try { await api.archiveChannel(channel.id); setChannels((current) => current.filter((item) => item.id !== channel.id)); } catch (requestError) { Alert.alert('Could not archive channel', (requestError as Error).message); } } }]);
   const removeMember = (member: WorkspaceDetail['members'][number]) => { if (!workspace?.can_manage) return; Alert.alert(`Remove ${member.full_name}?`, `They will lose access to ${workspace.name}.`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: async () => { try { const result = await api.removeWorkspaceMember(workspace.id, member.id); setWorkspace(result.workspace); await refreshWorkspaces(); } catch (requestError) { Alert.alert('Could not remove member', (requestError as Error).message); } } }]); };

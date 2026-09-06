@@ -8,7 +8,8 @@ import { openAuthenticatedWebLesson, openExternalPage } from '@/lib/external-lin
 import { buildSubmissionInput, canSubmitWork, isNewSubmissionAttempt, learningKeys, submissionState, submissionTypeFor } from '@/lib/learning';
 import { analyticsAgeBucket, captureProductEvent } from '@/lib/analytics';
 import { clearSubmissionDraft, loadSubmissionDraft, saveSubmissionDraft, submissionDraftMatches, type SubmissionDraft } from '@/lib/submission-storage';
-import type { LessonContentBlock, LessonDetail, SubmissionInput, VideoProgressInput } from '@/lib/types';
+import type { LessonContentBlock, LessonDetail, SessionUser, Submission, SubmissionBrief, SubmissionInput, VideoProgressInput } from '@/lib/types';
+import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 import { LessonMarkdown } from './lesson-markdown';
 import { NativeVideoPlayer } from './native-video-player';
@@ -28,6 +29,7 @@ interface PendingSubmissionDraft {
 }
 
 export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProps) {
+  const auth = useCsgAuth();
   const { api, user } = useSession();
   const studentMode = !user?.is_staff;
   const queryClient = useQueryClient();
@@ -58,6 +60,13 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
   const pendingDraftRef = useRef<PendingSubmissionDraft | null>(null);
   const studentEditedRef = useRef(false);
   const trackedFeedbackRef = useRef<number | null>(null);
+  const lessonQueryKey = useMemo(() => learningKeys.lesson(user?.id || 0, lesson.id), [lesson.id, user?.id]);
+
+  const updateDemoBlock = useCallback((update: (current: LessonContentBlock) => LessonContentBlock) => {
+    queryClient.setQueryData<{ lesson: LessonDetail }>(lessonQueryKey, (current) => current ? {
+      lesson: { ...current.lesson, content_blocks: current.lesson.content_blocks.map((item) => item.id === block.id ? update(item) : item) },
+    } : current);
+  }, [block.id, lessonQueryKey, queryClient]);
 
   useEffect(() => {
     if (!studentMode || submissionType !== 'text_submission' || !user) return;
@@ -117,17 +126,19 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
 
   const refresh = async () => {
     if (!user) return;
+    if (auth.demo) return;
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: learningKeys.lesson(user.id, lesson.id) }),
+      queryClient.invalidateQueries({ queryKey: lessonQueryKey }),
       queryClient.invalidateQueries({ queryKey: learningKeys.dashboard(user.id) }),
     ]);
   };
   const progressMutation = useMutation({
-    mutationFn: (status: string) => api.updateProgress(block.id, status),
+    mutationFn: (status: string) => auth.demo ? Promise.resolve({ progress: { id: block.id, content_block_id: block.id, status, completed_at: status === 'completed' ? new Date().toISOString() : null } }) : api.updateProgress(block.id, status),
     onSuccess: (_result, status) => {
       if (status === 'completed') captureProductEvent('learning_step_completed', {
         module_id: lesson.module_id, lesson_id: lesson.id, content_block_id: block.id, block_type: block.block_type, source: 'manual',
       });
+      if (auth.demo) updateDemoBlock((current) => ({ ...current, progress: { ...current.progress, status, completed_at: status === 'completed' ? new Date().toISOString() : null } }));
       void refresh();
     },
     onError: (error) => Alert.alert('Could not update progress', (error as Error).message),
@@ -152,6 +163,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
   const submissionMutation = useMutation({
     mutationFn: async () => {
       const input = buildSubmissionInput(block.id, submissionType, { text, repoUrl, liveUrl, prUrl, branch, commitSha, notes });
+      if (auth.demo) return { submission: demoSubmission(block, lesson, user, input, latest) };
       if (editable && latest) return api.updateSubmission(latest.id, withoutContentBlock(input));
       return api.createSubmission(input);
     },
@@ -169,6 +181,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
         module_id: lesson.module_id, lesson_id: lesson.id, content_block_id: block.id, block_type: block.block_type, source: 'submission',
       });
       setMessage({ body: editable ? 'Submission updated.' : redo ? 'Redo submitted.' : 'Work submitted.', success: true });
+      if (auth.demo) updateDemoBlock((current) => ({ ...current, progress: { status: 'completed', completed_at: result.submission.created_at }, submissions: [result.submission] }));
       await refresh();
     },
     onError: async (error) => {
@@ -273,6 +286,16 @@ function Field(props: { label: string; value: string; onChangeText: (value: stri
 }
 
 function withoutContentBlock(input: SubmissionInput): Omit<SubmissionInput, 'content_block_id'> { const { content_block_id: _ignored, ...rest } = input; return rest; }
+function demoSubmission(block: LessonContentBlock, lesson: LessonDetail, user: SessionUser | null, input: SubmissionInput, latest: SubmissionBrief | null): Submission {
+  const createdAt = new Date().toISOString();
+  const pendingAttempt = latest && !latest.grade ? latest : null;
+  return {
+    id: pendingAttempt?.id ?? Date.now(), content_block_id: block.id, user_id: user?.id || 0, user_name: user?.full_name || 'Demo student', submission_type: block.submission_type || lesson.submission_type || 'text_submission', text: input.text || null,
+    grade: null, feedback: null, graded_by: null, graded_at: null, github_issue_url: null, github_code_url: null, repo_url: input.repo_url || null, pr_url: input.pr_url || null, live_url: input.live_url || null, branch: input.branch || null, commit_sha: input.commit_sha || null, notes: input.notes || null,
+    num_submissions: pendingAttempt?.num_submissions ?? (latest?.num_submissions || 0) + 1, created_at: pendingAttempt?.created_at ?? createdAt, updated_at: createdAt, content_block_title: block.title || 'Lesson work', content_block_type: block.block_type,
+    lesson_id: lesson.id, lesson_title: lesson.title, module_id: lesson.module_id, cohort_id: lesson.cohort_id || null, filename: block.filename, submission_config: block.submission_config, language_hint: typeof block.metadata.language === 'string' ? block.metadata.language : null,
+  };
+}
 function persistSubmissionDraft(pending: PendingSubmissionDraft) { return pending.changed ? saveSubmissionDraft(pending.userId, pending.contentBlockId, pending.text, pending.baseSubmissionId, pending.baseSubmissionUpdatedAt) : clearSubmissionDraft(pending.userId, pending.contentBlockId); }
 function blockLabel(value: string) { return value === 'text' ? 'Lesson notes' : value === 'checkpoint' ? 'Checkpoint' : value === 'recording' ? 'Class recording' : 'Learning step'; }
 function formatDate(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date); }

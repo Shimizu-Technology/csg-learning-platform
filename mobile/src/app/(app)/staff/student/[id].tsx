@@ -76,7 +76,8 @@ export default function StaffStudentScreen() {
     }
   }
 
-  if (!user?.is_staff || !Number.isInteger(studentId) || studentId <= 0) return <SafeAreaView style={styles.safe}><ErrorState message="This student view is not available." retry={() => router.replace('/')} /></SafeAreaView>;
+  if (!user?.is_staff) return <SafeAreaView style={styles.safe}><ErrorState title="Staff access only" message="Student progress records are available to instructors and admins." retryLabel="Go to Today" retry={() => router.replace('/')} /></SafeAreaView>;
+  if (!Number.isInteger(studentId) || studentId <= 0) return <SafeAreaView style={styles.safe}><ErrorState message="This student link is invalid." retryLabel="Go to Today" retry={() => router.replace('/')} /></SafeAreaView>;
   if (query.isPending && !query.data) return <SafeAreaView style={styles.safe}><LoadingState label="Loading student health" /></SafeAreaView>;
   if (query.error && !query.data) return <SafeAreaView style={styles.safe}><ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /></SafeAreaView>;
   const data = query.data!;
