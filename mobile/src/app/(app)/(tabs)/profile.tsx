@@ -7,6 +7,7 @@ import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, StyleS
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/avatar';
 import { fontScaleLimits, fonts, palette, typography } from '@/constants/csg-theme';
+import { useAsyncOperationGuard } from '@/hooks/use-async-operation-guard';
 import { learningKeys } from '@/lib/learning';
 import { attemptPushRegistration, getPushPermissionStatus, pushPermissionAllowsDelivery, requestPushPermission, type PushPermissionStatus } from '@/lib/push-notifications';
 import { useCsgAuth } from '@/providers/auth-provider';
@@ -24,7 +25,7 @@ export default function ProfileScreen() {
   const [preferenceLoadError, setPreferenceLoadError] = useState<string | null>(null);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
   const preferenceLoadGeneration = useRef(0);
-  const registrationGeneration = useRef(0);
+  const { pending: registrationPending, begin: beginRegistration, finish: finishRegistration, invalidate: invalidateRegistration } = useAsyncOperationGuard();
   const [updatingPreference, setUpdatingPreference] = useState(false);
   const [showBlockedUsers, setShowBlockedUsers] = useState(false);
   const [blockedUsers, setBlockedUsers] = useState<Awaited<ReturnType<typeof api.blockedUsers>>['blocked_users']>([]);
@@ -43,9 +44,9 @@ export default function ProfileScreen() {
       setEmailNotificationsEnabled(emailConfig.notifications_enabled);
       setDevicePermission(permission);
       if (mobileConfig.notifications_enabled && pushPermissionAllowsDelivery(permission)) {
-        const registration = ++registrationGeneration.current;
+        const registration = beginRegistration();
         void attemptPushRegistration(api).then((result) => {
-          if (preferenceLoadGeneration.current === generation && registrationGeneration.current === registration) setRegistrationError(result.ok ? null : result.message);
+          if (preferenceLoadGeneration.current === generation && finishRegistration(registration)) setRegistrationError(result.ok ? null : result.message);
         });
       }
     } catch (requestError) {
@@ -53,13 +54,13 @@ export default function ProfileScreen() {
     } finally {
       if (preferenceLoadGeneration.current === generation) setLoadingPreference(false);
     }
-  }, [api, auth.demo]);
+  }, [api, auth.demo, beginRegistration, finishRegistration]);
   useFocusEffect(useCallback(() => {
     void loadNotificationPreferences();
-    return () => { preferenceLoadGeneration.current += 1; registrationGeneration.current += 1; };
-  }, [loadNotificationPreferences]));
+    return () => { preferenceLoadGeneration.current += 1; invalidateRegistration(); };
+  }, [invalidateRegistration, loadNotificationPreferences]));
   const enableDeviceNotifications = async () => {
-    const generation = ++registrationGeneration.current;
+    const generation = beginRegistration();
     setUpdatingPreference(true);
     try {
       const permission = await requestPushPermission();
@@ -76,7 +77,7 @@ export default function ProfileScreen() {
       if (!auth.demo) {
         await api.updateMobilePushPreference(true);
         const registration = await attemptPushRegistration(api);
-        if (registrationGeneration.current !== generation) return;
+        if (!finishRegistration(generation)) return;
         if (!registration.ok) throw new Error(registration.message);
       }
       setRegistrationError(null);
@@ -90,13 +91,11 @@ export default function ProfileScreen() {
     }
   };
   const retryDeviceRegistration = async () => {
-    const generation = ++registrationGeneration.current;
-    setUpdatingPreference(true);
+    const generation = beginRegistration(true);
     const registration = auth.demo ? { ok: true as const } : await attemptPushRegistration(api);
-    if (registrationGeneration.current !== generation) return;
+    if (!finishRegistration(generation)) return;
     setRegistrationError(registration.ok ? null : registration.message);
     if (!registration.ok) Alert.alert('Could not reconnect notifications', registration.message);
-    setUpdatingPreference(false);
   };
   const toggleDeviceNotifications = (enabled: boolean) => {
     if (enabled) {
@@ -108,7 +107,7 @@ export default function ProfileScreen() {
       return;
     }
     const previous = deviceNotificationsEnabled;
-    registrationGeneration.current += 1;
+    invalidateRegistration();
     setDeviceNotificationsEnabled(false);
     setRegistrationError(null);
     setUpdatingPreference(true);
@@ -161,8 +160,8 @@ export default function ProfileScreen() {
       <Text style={styles.sectionLabel}>PREFERENCES</Text>
       <View style={styles.group}>
         {preferenceLoadError ? <View style={styles.preferenceError}><View style={styles.settingIcon}><Bell color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Notifications unavailable</Text><Text style={styles.settingCopy}>{preferenceLoadError}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Retry notification preferences" onPress={() => void loadNotificationPreferences()} style={styles.retryPreference}><Text style={styles.retryPreferenceText}>Try again</Text></Pressable></View> : <>
-        <View style={styles.setting}><View style={styles.settingIcon}><Bell color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Device notifications</Text><Text style={styles.settingCopy}>{registrationError ? 'On for your account, but this device needs to reconnect.' : devicePermission === 'denied' ? 'Off in device settings. Turn on to open Settings.' : devicePermission === 'provisional' ? 'Delivered quietly until you choose prominent alerts in iOS.' : devicePermission === 'ephemeral' ? 'Temporarily allowed by iOS for this app session.' : 'Messages, announcements, grades, submissions, and support updates.'}</Text></View><View style={styles.switchSlot}>{loadingPreference || updatingPreference ? <ActivityIndicator color={palette.rubySoft} size="small" /> : <Switch accessibilityLabel="Device notifications" value={deviceNotificationsEnabled && pushPermissionAllowsDelivery(devicePermission)} onValueChange={toggleDeviceNotifications} trackColor={{ false: palette.line, true: '#6A2A36' }} thumbColor={deviceNotificationsEnabled && pushPermissionAllowsDelivery(devicePermission) ? palette.rubySoft : palette.muted} style={styles.switch} />}</View></View>
-        {registrationError && <View style={styles.registrationWarning}><RefreshCw color={palette.warning} size={18} /><View style={styles.flex}><Text style={styles.registrationWarningTitle}>Reconnect this device</Text><Text style={styles.registrationWarningCopy}>{registrationError}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Retry device notification registration" disabled={updatingPreference} onPress={() => void retryDeviceRegistration()} style={styles.retryPreference}><Text style={styles.retryPreferenceText}>Retry</Text></Pressable></View>}
+        <View style={styles.setting}><View style={styles.settingIcon}><Bell color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Device notifications</Text><Text style={styles.settingCopy}>{registrationError ? 'On for your account, but this device needs to reconnect.' : devicePermission === 'denied' ? 'Off in device settings. Turn on to open Settings.' : devicePermission === 'provisional' ? 'Delivered quietly until you choose prominent alerts in iOS.' : devicePermission === 'ephemeral' ? 'Temporarily allowed by iOS for this app session.' : 'Messages, announcements, grades, submissions, and support updates.'}</Text></View><View style={styles.switchSlot}>{loadingPreference || updatingPreference || registrationPending ? <ActivityIndicator color={palette.rubySoft} size="small" /> : <Switch accessibilityLabel="Device notifications" value={deviceNotificationsEnabled && pushPermissionAllowsDelivery(devicePermission)} onValueChange={toggleDeviceNotifications} trackColor={{ false: palette.line, true: '#6A2A36' }} thumbColor={deviceNotificationsEnabled && pushPermissionAllowsDelivery(devicePermission) ? palette.rubySoft : palette.muted} style={styles.switch} />}</View></View>
+        {registrationError && <View style={styles.registrationWarning}><RefreshCw color={palette.warning} size={18} /><View style={styles.flex}><Text style={styles.registrationWarningTitle}>Reconnect this device</Text><Text style={styles.registrationWarningCopy}>{registrationError}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Retry device notification registration" disabled={registrationPending} onPress={() => void retryDeviceRegistration()} style={styles.retryPreference}><Text style={styles.retryPreferenceText}>Retry</Text></Pressable></View>}
         <View style={[styles.setting, styles.groupDivider]}><View style={styles.settingIcon}><Mail color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Message emails</Text><Text style={styles.settingCopy}>Email alerts for direct messages and mentions. Conversation mutes still apply.</Text></View><View style={styles.switchSlot}>{loadingPreference ? <ActivityIndicator color={palette.rubySoft} size="small" /> : <Switch accessibilityLabel="Message emails" value={emailNotificationsEnabled} onValueChange={(value) => void toggleEmailNotifications(value)} trackColor={{ false: palette.line, true: '#6A2A36' }} thumbColor={emailNotificationsEnabled ? palette.rubySoft : palette.muted} style={styles.switch} />}</View></View>
         </>}
       </View>
