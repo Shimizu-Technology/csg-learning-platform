@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Alert, ScrollView, useWindowDimensions } from 'react-native';
-import RenderHtml, { isDomElement, type CustomBlockRenderer, type TNode } from 'react-native-render-html';
+import RenderHtml, { defaultSystemFonts, isDomElement, type CustomBlockRenderer, type TNode } from 'react-native-render-html';
 
 import { fonts, palette } from '@/constants/csg-theme';
 import { authoredContentSource } from '@/lib/authored-content';
@@ -57,6 +57,13 @@ const AuthoredPre: CustomBlockRenderer = ({ TDefaultRenderer, ...props }) => {
 };
 
 const AUTHORED_RENDERERS = { pre: AuthoredPre };
+const AUTHORED_SYSTEM_FONTS = [...new Set([
+  ...defaultSystemFonts,
+  fonts.regular,
+  fonts.bold,
+  fonts.extraBold,
+  'Menlo',
+])];
 
 /**
  * Renders the two formats used by CSG course content: legacy Markdown and the
@@ -78,6 +85,7 @@ export function AuthoredContent({ body, compact = false }: AuthoredContentProps)
       ignoreDomNode={(node) => isDomElement(node) && node.name === 'img' && !safeExternalUrl(node.attribs.src)}
       enableCSSInlineProcessing={false}
       renderers={AUTHORED_RENDERERS}
+      systemFonts={AUTHORED_SYSTEM_FONTS}
       renderersProps={{
         a: {
           onPress: (_event, href) => {

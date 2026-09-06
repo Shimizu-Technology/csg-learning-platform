@@ -7,6 +7,7 @@ const mockRenderHtml = jest.fn((_props: unknown) => null);
 jest.mock('react-native-render-html', () => ({
   __esModule: true,
   default: (props: unknown) => mockRenderHtml(props),
+  defaultSystemFonts: ['System'],
   isDomElement: (node: { type?: string }) => node.type === 'tag',
 }));
 
@@ -22,6 +23,7 @@ describe('AuthoredContent', () => {
       enableCSSInlineProcessing: false,
       ignoredDomTags: expect.arrayContaining(['script', 'iframe', 'form', 'svg']),
       renderers: expect.objectContaining({ pre: expect.any(Function) }),
+      systemFonts: expect.arrayContaining(['System', 'Manrope_400Regular', 'Manrope_700Bold', 'Manrope_800ExtraBold', 'Menlo']),
     }));
 
     const { ignoreDomNode } = mockRenderHtml.mock.calls[0][0] as { ignoreDomNode: (node: unknown) => boolean };
