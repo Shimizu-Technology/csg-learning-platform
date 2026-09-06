@@ -9,13 +9,15 @@ interface GradingReviewActionsProps {
   selected: GradingOutcome | null;
   changed: boolean;
   saving: boolean;
+  disabled?: boolean;
   onSelect: (grade: GradingOutcome) => void;
   onSave: () => void;
 }
 
-export function GradingReviewActions({ selected, changed, saving, onSelect, onSave }: GradingReviewActionsProps) {
+export function GradingReviewActions({ selected, changed, saving, disabled = false, onSelect, onSave }: GradingReviewActionsProps) {
   const saveLabel = selected === 'R' ? 'Save redo request' : selected ? `Save grade ${selected}` : 'Save review';
-  const saveDisabled = saving || !changed || !selected;
+  const controlsDisabled = saving || disabled;
+  const saveDisabled = controlsDisabled || !changed || !selected;
 
   return <View style={styles.container}>
     <Text style={styles.label}>GRADE</Text>
@@ -25,10 +27,10 @@ export function GradingReviewActions({ selected, changed, saving, onSelect, onSa
         key={grade}
         accessibilityRole="button"
         accessibilityLabel={`Select grade ${grade}`}
-        accessibilityState={{ selected: selected === grade, disabled: saving }}
-        disabled={saving}
+        accessibilityState={{ selected: selected === grade, disabled: controlsDisabled }}
+        disabled={controlsDisabled}
         onPress={() => onSelect(grade)}
-        style={[styles.gradeButton, selected === grade && styles.gradeButtonActive]}
+        style={[styles.gradeButton, selected === grade && styles.gradeButtonActive, controlsDisabled && styles.disabled]}
       >
         <Check color={selected === grade ? palette.text : palette.success} size={16} />
         <Text style={styles.gradeButtonText}>{grade}</Text>
@@ -37,10 +39,10 @@ export function GradingReviewActions({ selected, changed, saving, onSelect, onSa
     <Pressable
       accessibilityRole="button"
       accessibilityLabel="Request redo"
-      accessibilityState={{ selected: selected === 'R', disabled: saving }}
-      disabled={saving}
+      accessibilityState={{ selected: selected === 'R', disabled: controlsDisabled }}
+      disabled={controlsDisabled}
       onPress={() => onSelect('R')}
-      style={[styles.redoButton, selected === 'R' && styles.redoButtonActive]}
+      style={[styles.redoButton, selected === 'R' && styles.redoButtonActive, controlsDisabled && styles.disabled]}
     >
       <RotateCcw color={palette.warning} size={18} />
       <Text style={styles.redoButtonText}>Request redo</Text>

@@ -105,9 +105,9 @@ export async function loadGradingDraft(userId: number, submissionId: number): Pr
     const draft = JSON.parse(value) as Partial<GradingDraft>;
     const grades = [ 'A', 'B', 'C', 'R', null ];
     const ratings = [ 'exceeds', 'meets', 'developing', 'redo', null ];
-    if (!grades.includes(draft.grade ?? null) || typeof draft.feedback !== 'string' || typeof draft.saved_at !== 'string') throw new Error('Invalid grading draft');
+    if (!Object.prototype.hasOwnProperty.call(draft, 'grade') || !grades.includes(draft.grade as StoredGradingGrade | null) || typeof draft.feedback !== 'string' || typeof draft.saved_at !== 'string') throw new Error('Invalid grading draft');
     if (draft.base_submission_updated_at !== null && typeof draft.base_submission_updated_at !== 'string') throw new Error('Invalid grading draft version');
-    if (!draft.criterion_results || typeof draft.criterion_results !== 'object') throw new Error('Invalid grading criteria');
+    if (!draft.criterion_results || typeof draft.criterion_results !== 'object' || Array.isArray(draft.criterion_results)) throw new Error('Invalid grading criteria');
     for (const result of Object.values(draft.criterion_results)) {
       if (!result || typeof result !== 'object' || !ratings.includes(result.rating) || typeof result.feedback !== 'string') throw new Error('Invalid grading criterion');
     }

@@ -68,6 +68,37 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     assert_not_nil progress.completed_at
   end
 
+  test "staff grading rejects a stale submission version without overwriting it" do
+    opened_at = @submission.updated_at.iso8601(6)
+    @submission.update!(feedback: "A newer review")
+
+    as_user(@admin) do
+      patch "/api/v1/submissions/#{@submission.id}/grade",
+        params: { grade: "A", feedback: "Stale review", base_submission_updated_at: opened_at },
+        headers: auth_headers, as: :json
+    end
+
+    assert_response :conflict
+    assert_equal "stale_submission", response.parsed_body.fetch("code")
+    assert_nil @submission.reload.grade
+    assert_equal "A newer review", @submission.feedback
+    assert_not Progress.exists?(user: @student, content_block: @block)
+  end
+
+  test "staff grading accepts the matching submission version" do
+    opened_at = @submission.updated_at.iso8601(6)
+
+    as_user(@admin) do
+      patch "/api/v1/submissions/#{@submission.id}/grade",
+        params: { grade: "B", feedback: "Current review", base_submission_updated_at: opened_at },
+        headers: auth_headers, as: :json
+    end
+
+    assert_response :success
+    assert_equal "B", @submission.reload.grade
+    assert_equal "Current review", @submission.feedback
+  end
+
   test "staff grade rejects a request from before the enrollment restart" do
     @enrollment.update!(learning_state_reset_at: 1.minute.from_now)
 

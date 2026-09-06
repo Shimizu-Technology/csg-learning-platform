@@ -79,6 +79,16 @@ describe('offline authored storage', () => {
     expect(await AsyncStorage.getItem(gradingDraftKey(7, 91))).toBeNull();
   });
 
+  it.each([
+    { feedback: 'Missing grade', criterion_results: {}, base_submission_updated_at: null, saved_at: new Date().toISOString() },
+    { grade: 'A', feedback: 'Array criteria', criterion_results: [], base_submission_updated_at: null, saved_at: new Date().toISOString() },
+  ])('rejects grading drafts with an unsafe schema', async (draft) => {
+    await AsyncStorage.setItem(gradingDraftKey(7, 91), JSON.stringify(draft));
+
+    expect(await loadGradingDraft(7, 91)).toBeNull();
+    expect(await AsyncStorage.getItem(gradingDraftKey(7, 91))).toBeNull();
+  });
+
   it('persists and clears a versioned text-submission draft', async () => {
     await saveSubmissionDraft(7, 42, 'My offline response', 12, '2026-08-01T00:00:00Z');
 

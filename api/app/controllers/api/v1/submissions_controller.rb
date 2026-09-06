@@ -1,6 +1,8 @@
 module Api
   module V1
     class SubmissionsController < ApplicationController
+      class StaleGradingWrite < StandardError; end
+
       before_action :authenticate_user!
       before_action :set_submission, only: [ :show, :update, :grade, :github_issue ]
       before_action :authorize_submission_read!, only: [ :show ]
@@ -115,6 +117,8 @@ module Api
       def grade
         require_staff!
         return if performed?
+        base_updated_at = requested_grading_base_updated_at
+        return if performed?
 
         rubric = @submission.content_block.rubric
         requested_results = criterion_results_params
@@ -128,6 +132,11 @@ module Api
         enrollment = learning_enrollment_for(@submission.user, @submission.content_block)
         with_learning_write_guard(enrollment) do
           Submission.transaction do
+            @submission.lock!
+            if base_updated_at && @submission.updated_at != base_updated_at
+              raise StaleGradingWrite
+            end
+
             @submission.update!(
               grade: params[:grade],
               feedback: params[:feedback],
@@ -172,6 +181,12 @@ module Api
         end
 
         render json: { submission: submission_json(@submission, include_github_checks: true) }
+      rescue StaleGradingWrite
+        @submission.reload
+        render json: {
+          error: "This submission changed after you opened it. Your draft was kept; review the latest version before saving again.",
+          code: "stale_submission"
+        }, status: :conflict
       rescue ActiveRecord::RecordInvalid => error
         render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
       end
@@ -237,6 +252,16 @@ module Api
       def submission_update_params
         params.permit(:text, :github_issue_url, :github_code_url, :repo_url, :pr_url, :live_url, :branch,
                       :commit_sha, :notes)
+      end
+
+      def requested_grading_base_updated_at
+        value = params[:base_submission_updated_at]
+        return nil if value.blank?
+
+        Time.iso8601(value.to_s)
+      rescue ArgumentError
+        render json: { errors: [ "base_submission_updated_at must be an ISO 8601 timestamp" ] }, status: :unprocessable_entity
+        nil
       end
 
       def submission_json(submission, include_solution: false, include_github_checks: false)

@@ -37,4 +37,17 @@ describe('GradingReviewActions', () => {
     expect(onSave).not.toHaveBeenCalled();
     expect(screen.getByLabelText('Save grade B').props.accessibilityState).toEqual({ disabled: true });
   });
+
+  it('blocks every grading action while a saved draft is restoring', () => {
+    const onSelect = jest.fn();
+    const onSave = jest.fn();
+    const screen = render(<GradingReviewActions selected="A" changed saving={false} disabled onSelect={onSelect} onSave={onSave} />);
+
+    fireEvent.press(screen.getByLabelText('Select grade B'));
+    fireEvent.press(screen.getByLabelText('Save grade A'));
+
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Select grade B').props.accessibilityState).toEqual({ selected: false, disabled: true });
+  });
 });
