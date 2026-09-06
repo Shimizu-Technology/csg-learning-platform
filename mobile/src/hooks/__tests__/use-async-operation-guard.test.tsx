@@ -8,9 +8,11 @@ it('clears a pending retry on blur and ignores its stale completion after refocu
 
   act(() => { staleOperation = result.current.begin(true); });
   expect(result.current.pending).toBe(true);
+  expect(result.current.isCurrent(staleOperation)).toBe(true);
 
   act(() => { result.current.invalidate(); });
   expect(result.current.pending).toBe(false);
+  expect(result.current.isCurrent(staleOperation)).toBe(false);
 
   expect(result.current.finish(staleOperation)).toBe(false);
   expect(result.current.pending).toBe(false);
@@ -18,6 +20,7 @@ it('clears a pending retry on blur and ignores its stale completion after refocu
   let currentOperation = 0;
   act(() => { currentOperation = result.current.begin(true); });
   expect(result.current.pending).toBe(true);
+  expect(result.current.isCurrent(currentOperation)).toBe(true);
 
   act(() => { expect(result.current.finish(currentOperation)).toBe(true); });
   expect(result.current.pending).toBe(false);

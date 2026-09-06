@@ -16,10 +16,12 @@ export function useAsyncOperationGuard() {
     return true;
   }, []);
 
+  const isCurrent = useCallback((operation: number) => generation.current === operation, []);
+
   const invalidate = useCallback(() => {
     generation.current += 1;
     setPending(false);
   }, []);
 
-  return { pending, begin, finish, invalidate };
+  return { pending, begin, finish, isCurrent, invalidate };
 }

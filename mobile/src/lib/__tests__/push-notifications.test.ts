@@ -100,6 +100,28 @@ describe('push registration cleanup', () => {
     expect(api.registerDevice).toHaveBeenCalledTimes(1);
   });
 
+  it('does not register when the operation becomes inactive during token retrieval', async () => {
+    let resolveToken!: (value: { type: 'expo'; data: string }) => void;
+    let markTokenRequested!: () => void;
+    const token = new Promise<{ type: 'expo'; data: string }>((resolve) => { resolveToken = resolve; });
+    const tokenRequested = new Promise<void>((resolve) => { markTokenRequested = resolve; });
+    jest.mocked(Notifications.getExpoPushTokenAsync).mockImplementationOnce(() => {
+      markTokenRequested();
+      return token;
+    });
+    const api = enabledApi();
+    let active = true;
+
+    const registration = attemptPushRegistration(api, () => active);
+    await tokenRequested;
+    active = false;
+    resolveToken({ type: 'expo', data: 'ExpoPushToken[stale]' });
+
+    await expect(registration).resolves.toEqual(expect.objectContaining({ ok: false }));
+    expect(api.registerDevice).not.toHaveBeenCalled();
+    expect(await AsyncStorage.getItem('csg.push.token')).toBeNull();
+  });
+
   it('does nothing when the session is already inactive', async () => {
     const api = enabledApi();
 

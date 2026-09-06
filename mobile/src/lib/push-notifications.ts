@@ -102,9 +102,9 @@ export async function registerPushNotifications(api: CsgApi, isActive: () => boo
   return token;
 }
 
-export async function attemptPushRegistration(api: CsgApi): Promise<PushRegistrationAttempt> {
+export async function attemptPushRegistration(api: CsgApi, isActive: () => boolean = () => true): Promise<PushRegistrationAttempt> {
   try {
-    const token = await registerPushNotifications(api);
+    const token = await registerPushNotifications(api, isActive);
     return token
       ? { ok: true }
       : { ok: false, message: 'This device could not finish notification registration. Check your connection and try again.' };

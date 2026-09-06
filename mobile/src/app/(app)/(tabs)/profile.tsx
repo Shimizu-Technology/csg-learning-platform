@@ -26,8 +26,10 @@ export default function ProfileScreen() {
   const [preferenceLoadError, setPreferenceLoadError] = useState<string | null>(null);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
   const preferenceLoadGeneration = useRef(0);
-  const { pending: registrationPending, begin: beginRegistration, finish: finishRegistration, invalidate: invalidateRegistration } = useAsyncOperationGuard();
+  const { pending: registrationPending, begin: beginRegistration, finish: finishRegistration, isCurrent: registrationIsCurrent, invalidate: invalidateRegistration } = useAsyncOperationGuard();
   const [updatingPreference, setUpdatingPreference] = useState(false);
+  const emailPreferenceUpdatePending = useRef(false);
+  const [updatingEmailPreference, setUpdatingEmailPreference] = useState(false);
   const [showBlockedUsers, setShowBlockedUsers] = useState(false);
   const [blockedUsers, setBlockedUsers] = useState<Awaited<ReturnType<typeof api.blockedUsers>>['blocked_users']>([]);
   const [loadingBlockedUsers, setLoadingBlockedUsers] = useState(false);
@@ -46,7 +48,7 @@ export default function ProfileScreen() {
       setDevicePermission(permission);
       if (mobileConfig.notifications_enabled && pushPermissionAllowsDelivery(permission)) {
         const registration = beginRegistration();
-        void attemptPushRegistration(api).then((result) => {
+        void attemptPushRegistration(api, () => preferenceLoadGeneration.current === generation && registrationIsCurrent(registration)).then((result) => {
           if (preferenceLoadGeneration.current === generation && finishRegistration(registration)) setRegistrationError(result.ok ? null : result.message);
         });
       }
@@ -55,7 +57,7 @@ export default function ProfileScreen() {
     } finally {
       if (preferenceLoadGeneration.current === generation) setLoadingPreference(false);
     }
-  }, [api, auth.demo, beginRegistration, finishRegistration]);
+  }, [api, auth.demo, beginRegistration, finishRegistration, registrationIsCurrent]);
   useFocusEffect(useCallback(() => {
     void loadNotificationPreferences();
     return () => { preferenceLoadGeneration.current += 1; invalidateRegistration(); };
@@ -65,6 +67,7 @@ export default function ProfileScreen() {
     setUpdatingPreference(true);
     try {
       const permission = await requestPushPermission();
+      if (!registrationIsCurrent(generation)) return;
       setDevicePermission(permission);
       if (!pushPermissionAllowsDelivery(permission)) {
         if (!auth.demo) await api.updateMobilePushPreference(false);
@@ -77,7 +80,7 @@ export default function ProfileScreen() {
       }
       if (!auth.demo) {
         await api.updateMobilePushPreference(true);
-        const registration = await attemptPushRegistration(api);
+        const registration = await attemptPushRegistration(api, () => registrationIsCurrent(generation));
         if (!finishRegistration(generation)) return;
         if (!registration.ok) throw new Error(registration.message);
       }
@@ -88,12 +91,12 @@ export default function ProfileScreen() {
       setDeviceNotificationsEnabled(false);
       Alert.alert('Could not turn on device notifications', (requestError as Error).message);
     } finally {
-      setUpdatingPreference(false);
+      if (registrationIsCurrent(generation)) setUpdatingPreference(false);
     }
   };
   const retryDeviceRegistration = async () => {
     const generation = beginRegistration(true);
-    const registration = auth.demo ? { ok: true as const } : await attemptPushRegistration(api);
+    const registration = auth.demo ? { ok: true as const } : await attemptPushRegistration(api, () => registrationIsCurrent(generation));
     if (!finishRegistration(generation)) return;
     setRegistrationError(registration.ok ? null : registration.message);
     if (!registration.ok) Alert.alert('Could not reconnect notifications', registration.message);
@@ -120,10 +123,14 @@ export default function ProfileScreen() {
     });
   };
   const toggleEmailNotifications = async (enabled: boolean) => {
+    if (emailPreferenceUpdatePending.current) return;
+    emailPreferenceUpdatePending.current = true;
+    setUpdatingEmailPreference(true);
     const previous = emailNotificationsEnabled;
     setEmailNotificationsEnabled(enabled);
     try { if (!auth.demo) await api.updateGlobalNotifications(enabled); }
     catch (requestError) { setEmailNotificationsEnabled(previous); Alert.alert('Could not update email notifications', (requestError as Error).message); }
+    finally { emailPreferenceUpdatePending.current = false; setUpdatingEmailPreference(false); }
   };
   const signOut = () => Alert.alert('Sign out?', 'You can sign back in at any time.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Sign out', style: 'destructive', onPress: () => void endSession() }]);
   const policy = user?.community_policy;
@@ -163,7 +170,7 @@ export default function ProfileScreen() {
         {preferenceLoadError ? <View style={styles.preferenceError}><View style={styles.settingIcon}><Bell color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Notifications unavailable</Text><Text style={styles.settingCopy}>{preferenceLoadError}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Retry notification preferences" onPress={() => void loadNotificationPreferences()} style={styles.retryPreference}><Text style={styles.retryPreferenceText}>Try again</Text></Pressable></View> : <>
         <View style={styles.setting}><View style={styles.settingIcon}><Bell color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Device notifications</Text><Text style={styles.settingCopy}>{registrationError ? 'On for your account, but this device needs to reconnect.' : devicePermission === 'denied' ? 'Off in device settings. Turn on to open Settings.' : devicePermission === 'provisional' ? 'Delivered quietly until you choose prominent alerts in iOS.' : devicePermission === 'ephemeral' ? 'Temporarily allowed by iOS for this app session.' : 'Messages, announcements, grades, submissions, and support updates.'}</Text></View><View style={styles.switchSlot}>{loadingPreference || updatingPreference || registrationPending ? <ActivityIndicator color={palette.rubySoft} size="small" /> : <Switch accessibilityLabel="Device notifications" value={deviceNotificationsEnabled && pushPermissionAllowsDelivery(devicePermission)} onValueChange={toggleDeviceNotifications} trackColor={{ false: palette.line, true: '#6A2A36' }} thumbColor={deviceNotificationsEnabled && pushPermissionAllowsDelivery(devicePermission) ? palette.rubySoft : palette.muted} style={styles.switch} />}</View></View>
         {registrationError && <View style={styles.registrationWarning}><RefreshCw color={palette.warning} size={18} /><View style={styles.flex}><Text style={styles.registrationWarningTitle}>Reconnect this device</Text><Text style={styles.registrationWarningCopy}>{registrationError}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Retry device notification registration" disabled={registrationPending} onPress={() => void retryDeviceRegistration()} style={styles.retryPreference}><Text style={styles.retryPreferenceText}>Retry</Text></Pressable></View>}
-        <View style={[styles.setting, styles.groupDivider]}><View style={styles.settingIcon}><Mail color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Message emails</Text><Text style={styles.settingCopy}>Email alerts for direct messages and mentions. Conversation mutes still apply.</Text></View><View style={styles.switchSlot}>{loadingPreference ? <ActivityIndicator color={palette.rubySoft} size="small" /> : <Switch accessibilityLabel="Message emails" value={emailNotificationsEnabled} onValueChange={(value) => void toggleEmailNotifications(value)} trackColor={{ false: palette.line, true: '#6A2A36' }} thumbColor={emailNotificationsEnabled ? palette.rubySoft : palette.muted} style={styles.switch} />}</View></View>
+        <View style={[styles.setting, styles.groupDivider]}><View style={styles.settingIcon}><Mail color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Message emails</Text><Text style={styles.settingCopy}>Email alerts for direct messages and mentions. Conversation mutes still apply.</Text></View><View style={styles.switchSlot}>{loadingPreference || updatingEmailPreference ? <ActivityIndicator color={palette.rubySoft} size="small" /> : <Switch accessibilityLabel="Message emails" value={emailNotificationsEnabled} onValueChange={(value) => void toggleEmailNotifications(value)} trackColor={{ false: palette.line, true: '#6A2A36' }} thumbColor={emailNotificationsEnabled ? palette.rubySoft : palette.muted} style={styles.switch} />}</View></View>
         </>}
       </View>
       {user?.is_staff && <Pressable accessibilityRole="button" accessibilityLabel="Manage communication workspaces" onPress={() => router.push('/manage-communications' as Href)} style={styles.manage}><View style={styles.settingIcon}><Settings2 color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Communication settings</Text><Text style={styles.settingCopy}>Manage workspaces, members, and channels.</Text></View><ChevronRight color={palette.quiet} size={18} /></Pressable>}
