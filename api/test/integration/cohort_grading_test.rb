@@ -96,6 +96,19 @@ class CohortGradingTest < ActionDispatch::IntegrationTest
     assert_equal true, exercise.fetch("submission_window").fetch("submissions_closed")
   end
 
+  test "index exposes the exact submission version required by grading clients" do
+    submission = Submission.create!(user: @student, content_block: @exercise, text: "Ready for review")
+
+    as_user(@admin) do
+      get "/api/v1/cohorts/#{@cohort.id}/modules/#{@mod.id}/submissions",
+        headers: auth_headers, as: :json
+    end
+
+    assert_response :success
+    returned_submission = response.parsed_body.fetch("submissions").sole
+    assert_equal submission.updated_at.iso8601(6), returned_submission.fetch("updated_at")
+  end
+
   private
 
   def auth_headers

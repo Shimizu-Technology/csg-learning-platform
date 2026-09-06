@@ -10,14 +10,15 @@ interface GradingReviewActionsProps {
   changed: boolean;
   saving: boolean;
   disabled?: boolean;
+  saveBlocked?: boolean;
   onSelect: (grade: GradingOutcome) => void;
   onSave: () => void;
 }
 
-export function GradingReviewActions({ selected, changed, saving, disabled = false, onSelect, onSave }: GradingReviewActionsProps) {
+export function GradingReviewActions({ selected, changed, saving, disabled = false, saveBlocked = false, onSelect, onSave }: GradingReviewActionsProps) {
   const saveLabel = selected === 'R' ? 'Save redo request' : selected ? `Save grade ${selected}` : 'Save review';
   const controlsDisabled = saving || disabled;
-  const saveDisabled = controlsDisabled || !changed || !selected;
+  const saveDisabled = controlsDisabled || saveBlocked || !changed || !selected;
 
   return <View style={styles.container}>
     <Text style={styles.label}>GRADE</Text>

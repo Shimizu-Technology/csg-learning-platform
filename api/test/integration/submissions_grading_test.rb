@@ -50,7 +50,7 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     assert_enqueued_with(job: SubmissionNotificationJob, args: expected_job) do
       as_user(@admin) do
         patch "/api/v1/submissions/#{@submission.id}/grade",
-          params: { grade: "A", feedback: "Great work!" },
+          params: grading_params(grade: "A", feedback: "Great work!"),
           headers: auth_headers, as: :json
       end
     end
@@ -85,8 +85,13 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     assert_not Progress.exists?(user: @student, content_block: @block)
   end
 
-  test "staff grading accepts the matching submission version" do
-    opened_at = @submission.updated_at.iso8601(6)
+  test "staff grading accepts the exact version returned by the submission API" do
+    as_user(@admin) do
+      get "/api/v1/submissions/#{@submission.id}", headers: auth_headers
+    end
+    opened_at = response.parsed_body.dig("submission", "updated_at")
+
+    assert_equal @submission.updated_at.iso8601(6), opened_at
 
     as_user(@admin) do
       patch "/api/v1/submissions/#{@submission.id}/grade",
@@ -99,12 +104,24 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     assert_equal "Current review", @submission.feedback
   end
 
+  test "staff grading requires a submission version" do
+    as_user(@admin) do
+      patch "/api/v1/submissions/#{@submission.id}/grade",
+        params: { grade: "A", feedback: "Missing version" },
+        headers: auth_headers, as: :json
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal [ "base_submission_updated_at is required" ], response.parsed_body.fetch("errors")
+    assert_nil @submission.reload.grade
+  end
+
   test "staff grade rejects a request from before the enrollment restart" do
     @enrollment.update!(learning_state_reset_at: 1.minute.from_now)
 
     as_user(@admin) do
       patch "/api/v1/submissions/#{@submission.id}/grade",
-        params: { grade: "A", feedback: "Stale grade" },
+        params: grading_params(grade: "A", feedback: "Stale grade"),
         headers: auth_headers, as: :json
     end
 
@@ -274,7 +291,7 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
   test "instructor can grade a submission" do
     as_user(@instructor) do
       patch "/api/v1/submissions/#{@submission.id}/grade",
-        params: { grade: "B", feedback: "Good" },
+        params: grading_params(grade: "B", feedback: "Good"),
         headers: auth_headers, as: :json
     end
 
@@ -287,7 +304,7 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
   test "R grade does not mark progress as completed" do
     as_user(@admin) do
       patch "/api/v1/submissions/#{@submission.id}/grade",
-        params: { grade: "R", feedback: "Please redo" },
+        params: grading_params(grade: "R", feedback: "Please redo"),
         headers: auth_headers, as: :json
     end
 
@@ -304,7 +321,7 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
   test "grading R then A transitions progress to completed" do
     as_user(@admin) do
       patch "/api/v1/submissions/#{@submission.id}/grade",
-        params: { grade: "R", feedback: "Redo" },
+        params: grading_params(grade: "R", feedback: "Redo"),
         headers: auth_headers, as: :json
     end
 
@@ -318,7 +335,7 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
 
     as_user(@admin) do
       patch "/api/v1/submissions/#{resubmission.id}/grade",
-        params: { grade: "A", feedback: "Fixed!" },
+        params: grading_params(resubmission, grade: "A", feedback: "Fixed!"),
         headers: auth_headers, as: :json
     end
 
@@ -430,6 +447,7 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
         params: {
           grade: "B",
           feedback: "Strong work overall.",
+          base_submission_updated_at: @submission.updated_at.iso8601(6),
           criterion_results: [
             { rubric_criterion_id: correctness.id, rating: "meets", feedback: "Required cases pass." },
             { rubric_criterion_id: clarity.id, rating: "developing", feedback: "Name the intermediate values." }
@@ -460,7 +478,7 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
 
     as_user(@admin) do
       patch "/api/v1/submissions/#{@submission.id}/grade",
-        params: { grade: "A", criterion_results: [ { rubric_criterion_id: criterion.id, rating: "meets" } ] },
+        params: grading_params(grade: "A", criterion_results: [ { rubric_criterion_id: criterion.id, rating: "meets" } ]),
         headers: auth_headers, as: :json
     end
 
@@ -470,6 +488,10 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def grading_params(submission = @submission, **params)
+    { base_submission_updated_at: submission.updated_at.iso8601(6) }.merge(params)
+  end
 
   def auth_headers
     { "Authorization" => "Bearer test_token" }

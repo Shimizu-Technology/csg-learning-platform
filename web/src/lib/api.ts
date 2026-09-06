@@ -634,7 +634,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  gradeSubmission: (id: number, data: { grade: string; feedback?: string; criterion_results?: { rubric_criterion_id: number; rating: import('../types/api').RubricRating; feedback?: string }[] }) =>
+  gradeSubmission: (id: number, data: { grade: string; base_submission_updated_at: string; feedback?: string; criterion_results?: { rubric_criterion_id: number; rating: import('../types/api').RubricRating; feedback?: string }[] }) =>
     fetchApi<SubmissionResponse>(`/api/v1/submissions/${id}/grade`, {
       method: 'PATCH',
       body: JSON.stringify(data),

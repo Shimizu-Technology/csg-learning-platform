@@ -50,4 +50,17 @@ describe('GradingReviewActions', () => {
     expect(onSave).not.toHaveBeenCalled();
     expect(screen.getByLabelText('Select grade B').props.accessibilityState).toEqual({ selected: false, disabled: true });
   });
+
+  it('keeps a stale draft blocked until the latest submission is explicitly accepted', () => {
+    const onSave = jest.fn();
+    const screen = render(<GradingReviewActions selected="A" changed saving={false} saveBlocked onSelect={jest.fn()} onSave={onSave} />);
+
+    fireEvent.press(screen.getByLabelText('Save grade A'));
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Save grade A').props.accessibilityState).toEqual({ disabled: true });
+
+    screen.rerender(<GradingReviewActions selected="A" changed saving={false} saveBlocked={false} onSelect={jest.fn()} onSave={onSave} />);
+    fireEvent.press(screen.getByLabelText('Save grade A'));
+    expect(onSave).toHaveBeenCalledTimes(1);
+  });
 });

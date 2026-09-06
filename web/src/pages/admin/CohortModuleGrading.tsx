@@ -44,6 +44,7 @@ interface SubmissionItem {
   graded_at: string | null
   num_submissions: number
   created_at: string
+  updated_at: string
   content_block_title: string
   content_block_type: string
   lesson_title: string
@@ -256,7 +257,7 @@ export function CohortModuleGrading() {
     if (!selectedSubmission) return
     setGrading(true)
     gradedSubmissionRef.current = selectedSubmission.id
-    const res = await api.gradeSubmission(selectedSubmission.id, { grade, feedback })
+    const res = await api.gradeSubmission(selectedSubmission.id, { grade, feedback, base_submission_updated_at: selectedSubmission.updated_at })
     if (!res.error) {
       setFeedback('')
       await loadData()
@@ -423,7 +424,7 @@ export function CohortModuleGrading() {
   const handleGridGrade = async (grade: string) => {
     if (!gridModalSubmission) return
     setGrading(true)
-    const res = await api.gradeSubmission(gridModalSubmission.id, { grade, feedback: gridFeedback })
+    const res = await api.gradeSubmission(gridModalSubmission.id, { grade, feedback: gridFeedback, base_submission_updated_at: gridModalSubmission.updated_at })
     if (!res.error) {
       setGridFeedback('')
       setGridModalSubmission(null)

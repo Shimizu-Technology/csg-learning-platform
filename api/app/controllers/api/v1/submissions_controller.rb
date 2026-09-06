@@ -133,7 +133,7 @@ module Api
         with_learning_write_guard(enrollment) do
           Submission.transaction do
             @submission.lock!
-            if base_updated_at && @submission.updated_at != base_updated_at
+            if @submission.updated_at != base_updated_at
               raise StaleGradingWrite
             end
 
@@ -256,7 +256,10 @@ module Api
 
       def requested_grading_base_updated_at
         value = params[:base_submission_updated_at]
-        return nil if value.blank?
+        if value.blank?
+          render json: { errors: [ "base_submission_updated_at is required" ] }, status: :unprocessable_entity
+          return nil
+        end
 
         Time.iso8601(value.to_s)
       rescue ArgumentError
@@ -288,7 +291,7 @@ module Api
           notes: submission.notes,
           num_submissions: submission.num_submissions,
           created_at: submission.created_at,
-          updated_at: submission.updated_at,
+          updated_at: submission.updated_at.iso8601(6),
           content_block_title: submission.content_block.title,
           content_block_type: submission.content_block.block_type,
           lesson_id: submission.content_block.lesson_id,
