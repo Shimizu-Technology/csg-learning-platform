@@ -1,3 +1,5 @@
+import type { QueryClient } from '@tanstack/react-query';
+
 import type { ChannelSummary, ConversationKind, DirectConversationSummary, Message, MessageWindowMeta, UserSummary } from './types';
 
 export type InboxSnapshot = { channels: ChannelSummary[]; dms: DirectConversationSummary[] };
@@ -35,4 +37,12 @@ export function markInboxConversationRead(snapshot: InboxSnapshot | undefined, k
     ...snapshot,
     dms: snapshot.dms.map((conversation) => conversation.id === id ? { ...conversation, unread_count: 0, last_read_at: readAt } : conversation),
   };
+}
+
+export function syncThreadSnapshot(queryClient: QueryClient, key: ReturnType<typeof messagingKeys.thread>, root: Message | null, replies: Message[], users: UserSummary[]) {
+  if (!root) {
+    queryClient.removeQueries({ queryKey: key, exact: true });
+    return;
+  }
+  queryClient.setQueryData<ThreadSnapshot>(key, { root, replies, users });
 }

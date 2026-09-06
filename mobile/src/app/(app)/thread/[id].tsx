@@ -20,7 +20,7 @@ import { demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { resolveMentionUserIds } from '@/lib/mentions';
 import { clientMessageIdForSend, draftAfterSendConfirmation, draftAfterStoredLoad, type FailedSendIntent, messageBodyChangeAllowed, messageBodyWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
 import { markOptimisticFailed, mergeMessageEvent, reconcileOptimistic, sortMessages } from '@/lib/message-state';
-import { messagingKeys, type ThreadSnapshot } from '@/lib/messaging-cache';
+import { messagingKeys, syncThreadSnapshot, type ThreadSnapshot } from '@/lib/messaging-cache';
 import { clearThreadDraftAfterSend, loadStoredThreadDraft, saveThreadDraftState } from '@/lib/conversation-storage';
 import type { TypingUser } from '@/lib/typing';
 import type { Message, MessageEvent, MessageTypingEvent, UserSummary } from '@/lib/types';
@@ -210,8 +210,7 @@ export default function ThreadScreen() {
     };
   }, [flushPendingDraft, load]);
   useEffect(() => {
-    if (!root) return;
-    queryClient.setQueryData<ThreadSnapshot>(threadCacheKey, { root, replies, users });
+    syncThreadSnapshot(queryClient, threadCacheKey, root, replies, users);
   }, [queryClient, replies, root, threadCacheKey, users]);
   useEffect(() => {
     if (auth.demo || loading || error) return undefined;

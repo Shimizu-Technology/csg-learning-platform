@@ -33,6 +33,10 @@ describe('mobile message formatting', () => {
     expect(applyMessageFormat('- one\n- two', { start: 0, end: 11 }, 'orderedList').value).toBe('1. one\n2. two');
   });
 
+  it('preserves nesting and restarts numbering at each indentation level', () => {
+    expect(applyMessageFormat('- parent\n  - child\n- next', { start: 0, end: 25 }, 'orderedList').value).toBe('1. parent\n  1. child\n2. next');
+  });
+
   it('toggles quote prefixes across selected lines', () => {
     const quoted = applyMessageFormat('one\ntwo', { start: 0, end: 7 }, 'quote');
     expect(quoted.value).toBe('> one\n> two');
@@ -58,5 +62,18 @@ describe('mobile message formatting', () => {
       value: 'Hello @',
       selection: { start: 7, end: 7 },
     });
+  });
+
+  it.each([
+    ['_', 'italic'],
+    ['`', 'inlineCode'],
+    ['~~', 'strike'],
+    ['++', 'underline'],
+  ] as const)('does not treat a literal %s delimiter as active %s formatting', (value, action) => {
+    expect(messageFormatIsActive(value, { start: 0, end: value.length }, action)).toBe(false);
+  });
+
+  it('recognizes complete selected inline wrappers', () => {
+    expect(messageFormatIsActive('~~done~~', { start: 0, end: 8 }, 'strike')).toBe(true);
   });
 });

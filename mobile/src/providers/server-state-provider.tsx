@@ -1,24 +1,13 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import type { PropsWithChildren } from 'react';
 import { useMemo, useState } from 'react';
 
 import { createLearningPersister } from '@/lib/learning-cache';
+import { createServerStateClient, SERVER_CACHE_MAX_AGE, shouldPersistServerQuery } from '@/lib/server-state';
 import { useSession } from '@/providers/session-provider';
 
 const CACHE_BUSTER = 'csg-learning-v1';
-const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
-
-function client() {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { staleTime: 60_000, gcTime: CACHE_MAX_AGE, retry: 1, networkMode: 'offlineFirst' },
-      mutations: { retry: false, networkMode: 'online' },
-    },
-  });
-  queryClient.setQueryDefaults(['messaging'], { meta: { persist: false } });
-  return queryClient;
-}
 
 export function ServerStateProvider({ children }: PropsWithChildren) {
   const { user } = useSession();
@@ -27,12 +16,12 @@ export function ServerStateProvider({ children }: PropsWithChildren) {
 }
 
 function AnonymousServerState({ children }: PropsWithChildren) {
-  const [queryClient] = useState(client);
+  const [queryClient] = useState(createServerStateClient);
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 }
 
 function UserServerState({ children, userId }: PropsWithChildren<{ userId: number }>) {
-  const [queryClient] = useState(client);
+  const [queryClient] = useState(createServerStateClient);
   const persister = useMemo(() => createLearningPersister(userId), [userId]);
   return (
     <PersistQueryClientProvider
@@ -40,8 +29,8 @@ function UserServerState({ children, userId }: PropsWithChildren<{ userId: numbe
       persistOptions={{
         persister,
         buster: CACHE_BUSTER,
-        maxAge: CACHE_MAX_AGE,
-        dehydrateOptions: { shouldDehydrateQuery: (query) => query.meta?.persist !== false },
+        maxAge: SERVER_CACHE_MAX_AGE,
+        dehydrateOptions: { shouldDehydrateQuery: shouldPersistServerQuery },
       }}
     >
       {children}

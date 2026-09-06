@@ -85,19 +85,25 @@ function lineFormat(value: string, selection: ComposerSelection, action: 'ordere
   const { range, start, end } = selectedLineBounds(split.value, split.selection);
   const segment = split.value.slice(start, end);
   const lines = segment.split('\n');
-  const pattern = action === 'orderedList' ? /^\s*\d+\.\s/ : action === 'bulletList' ? /^\s*[-*+]\s/ : /^\s*>\s?/;
+  const pattern = action === 'orderedList' ? /^\d+\.\s/ : action === 'bulletList' ? /^[-*+]\s/ : /^>\s?/;
   const nonBlankLines = lines.filter((line) => line.trim());
-  const remove = nonBlankLines.length > 0 && nonBlankLines.every((line) => pattern.test(line));
-  let ordered = 0;
+  const remove = nonBlankLines.length > 0 && nonBlankLines.every((line) => pattern.test(line.trimStart()));
+  const orderedByIndent = new Map<string, number>();
   const transformed = lines.map((line) => {
     if (!line.trim()) return line;
-    if (remove) return line.replace(pattern, '');
+    const indentation = line.match(/^\s*/)?.[0] || '';
+    const content = line.slice(indentation.length);
+    if (remove) return `${indentation}${content.replace(pattern, '')}`;
     const withoutOtherList = action === 'orderedList' || action === 'bulletList'
-      ? line.replace(/^\s*(?:\d+\.|[-*+])\s/, '')
-      : line;
-    if (action === 'orderedList') return `${++ordered}. ${withoutOtherList}`;
-    if (action === 'bulletList') return `- ${withoutOtherList}`;
-    return `> ${line}`;
+      ? content.replace(/^(?:\d+\.|[-*+])\s/, '')
+      : content;
+    if (action === 'orderedList') {
+      const ordered = (orderedByIndent.get(indentation) || 0) + 1;
+      orderedByIndent.set(indentation, ordered);
+      return `${indentation}${ordered}. ${withoutOtherList}`;
+    }
+    if (action === 'bulletList') return `${indentation}- ${withoutOtherList}`;
+    return `${indentation}> ${content}`;
   }).join('\n');
   const nextValue = `${split.value.slice(0, start)}${transformed}${split.value.slice(end)}`;
 
@@ -162,8 +168,9 @@ export function messageFormatIsActive(value: string, selection: ComposerSelectio
   const range = clampSelection(value, selection);
   const wrapper = INLINE_WRAPPERS[action];
   if (wrapper) {
-    return value.slice(0, range.start).endsWith(wrapper) && value.slice(range.end).startsWith(wrapper)
-      || value.slice(range.start, range.end).startsWith(wrapper) && value.slice(range.start, range.end).endsWith(wrapper);
+    const selected = value.slice(range.start, range.end);
+    return (value.slice(0, range.start).endsWith(wrapper) && value.slice(range.end).startsWith(wrapper))
+      || (selected.length >= wrapper.length * 2 && selected.startsWith(wrapper) && selected.endsWith(wrapper));
   }
   const { start, end } = selectedLineBounds(value, range);
   const lines = value.slice(start, end).split('\n').filter((line) => line.trim());
