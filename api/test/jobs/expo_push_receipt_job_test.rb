@@ -102,6 +102,29 @@ class ExpoPushReceiptJobTest < ActiveJob::TestCase
     ActiveJob::Base.queue_adapter = original_adapter if original_adapter
   end
 
+  test "inline delivery backs off after a transient receipt lookup failure" do
+    receipt = create_receipt("receipt-inline-retry")
+    calls = 0
+    service = Object.new
+    service.define_singleton_method(:check) do |_requests|
+      calls += 1
+      raise ExpoPushReceiptService::RetryableError, "provider unavailable"
+    end
+    original_adapter = ActiveJob::Base.queue_adapter
+    ActiveJob::Base.queue_adapter = :inline
+
+    with_receipt_service(service) do
+      assert_nothing_raised { ExpoPushReceiptJob.drain_due_inline }
+      assert_nothing_raised { ExpoPushReceiptJob.drain_due_inline }
+    end
+
+    assert_equal 1, calls
+    assert_equal 0, receipt.reload.lookup_count
+    assert receipt.available_at.between?(14.minutes.from_now, 16.minutes.from_now)
+  ensure
+    ActiveJob::Base.queue_adapter = original_adapter if original_adapter
+  end
+
   private
 
   def create_receipt(receipt_id, lookup_count: 0)

@@ -37,8 +37,20 @@ class ExpoPushReceiptJob < ApplicationJob
     return unless ActiveJob::Base.queue_adapter_name == "inline"
 
     new.drain_due
-  rescue ExpoPushReceiptService::RetryableError, ActiveRecord::ActiveRecordError => e
+  rescue ExpoPushReceiptService::RetryableError => e
+    defer_due_inline
     Rails.logger.warn("[ExpoPushReceiptJob] inline receipt check deferred: #{e.message}")
+  rescue ActiveRecord::ActiveRecordError => e
+    Rails.logger.warn("[ExpoPushReceiptJob] inline receipt check deferred: #{e.message}")
+  end
+
+  def self.defer_due_inline
+    ids = ExpoPushReceipt.due.limit(BATCH_SIZE).pluck(:id)
+    return if ids.empty?
+
+    ExpoPushReceipt.where(id: ids).update_all(available_at: Time.current + LOOKUP_DELAY, updated_at: Time.current)
+  rescue ActiveRecord::ActiveRecordError => e
+    Rails.logger.warn("[ExpoPushReceiptJob] inline receipt backoff unavailable: #{e.message}")
   end
 
   def perform(receipt_ids)
