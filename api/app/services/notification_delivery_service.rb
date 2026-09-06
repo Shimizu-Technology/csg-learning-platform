@@ -94,9 +94,9 @@ class NotificationDeliveryService
         staff,
         submission,
         actor: submission.user,
-        title: "New submission ready for review",
-        body: submission.content_block.lesson.title,
-        path: "/admin/grading",
+        title: "#{submission.user.full_name} submitted #{submission.content_block.title}",
+        body: "#{submission.content_block.lesson.title} · Attempt #{submission.num_submissions}",
+        path: staff_submission_path(submission),
         event_at: event_at
       )
       notification if claimed
@@ -106,7 +106,12 @@ class NotificationDeliveryService
   end
 
   def submission_graded(submission, push: true, event_at: submission.graded_at || Time.current)
-    title = submission.grade == "R" ? "Redo requested" : "Submission graded #{submission.grade}"
+    reviewer = submission.grader&.full_name || "CSG staff"
+    title = if submission.grade == "R"
+      "#{reviewer} requested a redo on #{submission.content_block.title}"
+    else
+      "#{reviewer} graded #{submission.content_block.title}: #{submission.grade}"
+    end
     body = submission.feedback.presence || submission.content_block.lesson.title
     notification, claimed = submission_notification_for(
       submission.user,
@@ -127,9 +132,9 @@ class NotificationDeliveryService
         staff,
         help_request,
         actor: help_request.student,
-        title: help_request.urgency_urgent? ? "Urgent student help request" : "Student asked for help",
-        body: "#{help_request.student.full_name} · #{help_request.context_label}",
-        path: "/admin/support"
+        title: help_request.urgency_urgent? ? "#{help_request.student.full_name} needs urgent help" : "#{help_request.student.full_name} asked for help",
+        body: help_request.context_label,
+        path: "/admin/help-requests/#{help_request.id}"
       )
     end
     PushNotificationJob.perform_later("HelpRequest", help_request.id, notifications.map(&:id)) if push && notifications.any?
@@ -161,8 +166,8 @@ class NotificationDeliveryService
   def intervention_assigned(intervention, push: true)
     notification = intervention_notification_for(
       intervention,
-      title: "Student intervention assigned",
-      body: "#{intervention.enrollment.user.full_name} · #{intervention.trigger_type.humanize}",
+      title: "Follow up with #{intervention.enrollment.user.full_name}",
+      body: intervention.trigger_type.humanize,
       actor: intervention.created_by
     )
     PushNotificationJob.perform_later("Intervention", intervention.id, [ notification.id ]) if push
@@ -172,8 +177,8 @@ class NotificationDeliveryService
   def intervention_follow_up_due(intervention, push: true)
     notification = intervention_notification_for(
       intervention,
-      title: "Student follow-up due",
-      body: "#{intervention.enrollment.user.full_name} · #{intervention.trigger_type.humanize}",
+      title: "Follow-up due for #{intervention.enrollment.user.full_name}",
+      body: intervention.trigger_type.humanize,
       actor: nil
     )
     PushNotificationJob.perform_later("Intervention", intervention.id, [ notification.id ]) if push
@@ -297,11 +302,24 @@ class NotificationDeliveryService
   end
 
   def message_notification_title(message, mentioned: false, channel_mention: false)
-    return "#{message.author.full_name} sent you a message" if message.direct_message?
+    return message.author.full_name if message.direct_message?
     return "#{message.author.full_name} mentioned you in ##{message.channel.name}" if mentioned
-    return "##{message.channel.name} has an @everyone message" if channel_mention
+    return "#{message.author.full_name} used @everyone in ##{message.channel.name}" if channel_mention
 
-    "#{message.channel.name} has a new message"
+    "#{message.author.full_name} in ##{message.channel.name}"
+  end
+
+  def staff_submission_path(submission)
+    curriculum_id = submission.content_block.lesson.curriculum_module.curriculum_id
+    enrollment = submission.user.enrollments
+      .joins(:cohort)
+      .where(cohorts: { curriculum_id: curriculum_id })
+      .order(status: :asc, enrolled_at: :desc, id: :desc)
+      .first
+    base_path = "/admin/submissions/#{submission.id}"
+    return base_path unless enrollment
+
+    "#{base_path}?cohort_id=#{enrollment.cohort_id}&student_id=#{submission.user_id}"
   end
 
   def message_notification_body(message, mentioned: false, channel_mention: false)

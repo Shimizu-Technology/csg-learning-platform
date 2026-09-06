@@ -6,10 +6,30 @@ const WEB_SUBMISSION_PATH = /^\/admin\/submissions\/(\d+)$/;
 const WEB_HELP_REQUEST_PATH = /^\/admin\/help-requests\/(\d+)$/;
 const WEB_INTERVENTION_PATH = /^\/admin\/interventions\/(\d+)$/;
 const LEARNING_PATH = /^\/(lesson|module)\/\d+$/;
-const STAFF_PATH = /^\/staff\/(student|submission|support|intervention)\/\d+$/;
+const STAFF_PATH = /^\/staff\/(student|support|intervention)\/\d+$/;
+const STAFF_SUBMISSION_PATH = /^\/staff\/submission\/(\d+)$/;
+
+function submissionPath(value: string, source: RegExp): string | null {
+  const [pathname, query, ...extra] = value.split('?');
+  const match = pathname.match(source);
+  if (!match || extra.length) return null;
+  const base = `/staff/submission/${match[1]}`;
+  if (!query) return base;
+
+  const params = new URLSearchParams(query);
+  const cohortIds = params.getAll('cohort_id');
+  const studentIds = params.getAll('student_id');
+  const onlyContextKeys = Array.from(params.keys()).every((key) => key === 'cohort_id' || key === 'student_id');
+  if (!onlyContextKeys || cohortIds.length !== 1 || studentIds.length !== 1) return base;
+  if (!/^\d+$/.test(cohortIds[0]) || !/^\d+$/.test(studentIds[0])) return base;
+
+  return `${base}?cohort_id=${cohortIds[0]}&student_id=${studentIds[0]}`;
+}
 
 export function isAllowedNotificationPath(value: unknown): value is string {
-  return value === '/' || value === '/learn' || value === '/resources' || value === '/recordings' || value === '/updates' || value === '/staff/grading' || value === '/staff/support' || (typeof value === 'string' && (CONVERSATION_PATH.test(value) || LEARNING_PATH.test(value) || STAFF_PATH.test(value) || /^\/recording\/[A-Za-z0-9-]+$/.test(value)));
+  if (typeof value !== 'string') return false;
+  const staffSubmission = submissionPath(value, STAFF_SUBMISSION_PATH);
+  return value === '/' || value === '/learn' || value === '/resources' || value === '/recordings' || value === '/updates' || value === '/staff/grading' || value === '/staff/support' || staffSubmission === value || CONVERSATION_PATH.test(value) || LEARNING_PATH.test(value) || STAFF_PATH.test(value) || /^\/recording\/[A-Za-z0-9-]+$/.test(value);
 }
 
 export function mobileNotificationPath(value: unknown) {
@@ -20,8 +40,8 @@ export function mobileNotificationPath(value: unknown) {
   const channel = value.match(WEB_CHANNEL_PATH);
   if (channel) return `/conversation/channel/${channel[1]}`;
   if (WEB_ANNOUNCEMENT_PATH.test(value)) return '/updates';
-  const submission = value.match(WEB_SUBMISSION_PATH);
-  if (submission) return `/staff/submission/${submission[1]}`;
+  const submission = submissionPath(value, WEB_SUBMISSION_PATH);
+  if (submission) return submission;
   const helpRequest = value.match(WEB_HELP_REQUEST_PATH);
   if (helpRequest) return `/staff/support/${helpRequest[1]}`;
   const intervention = value.match(WEB_INTERVENTION_PATH);

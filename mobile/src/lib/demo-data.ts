@@ -1,4 +1,4 @@
-import type { Announcement, ChannelSummary, DirectConversationSummary, Message, SessionUser, WorkspaceSummary } from './types';
+import type { Announcement, AppNotification, ChannelSummary, DirectConversationSummary, Message, SessionUser, WorkspaceSummary } from './types';
 
 const now = Date.now();
 const ago = (minutes: number) => new Date(now - minutes * 60_000).toISOString();
@@ -43,4 +43,9 @@ export const demoMessages: Record<string, Message[]> = {
 export const demoAnnouncements: Announcement[] = [
   { id: 8, title: 'Office hours moved to Thursday', body: 'This week only, office hours will run Thursday from 5:30–7:00 PM in the main classroom. Bring a specific blocker and your latest branch.', pinned: true, published_at: ago(180), audience: 'cohort', status: 'published', cohort_id: 4, cohort_name: 'Web Dev Cohort 4', archived_at: null, read_at: null, created_at: ago(200), updated_at: ago(180), author: demoUser },
   { id: 7, title: 'Deployment week checklist', body: 'Production URLs, environment variables, and final QA are due before Friday standup. Pair up for the release walkthrough.', pinned: false, published_at: ago(2_000), audience: 'cohort', status: 'published', cohort_id: 4, cohort_name: 'Web Dev Cohort 4', archived_at: null, read_at: ago(1_800), created_at: ago(2_100), updated_at: ago(2_000), author: demoUser },
+];
+
+export const demoNotifications: AppNotification[] = [
+  { id: 301, notification_type: 'submission', title: 'Maya Santos submitted Responsive card grid', body: 'Responsive layouts with Grid · Attempt 2', path: '/admin/submissions/31?cohort_id=4&student_id=18', read_at: null, created_at: ago(4), actor: { id: 18, full_name: 'Maya Santos', email: 'maya@example.com' }, notifiable: { type: 'Submission', id: 31 } },
+  { id: 302, notification_type: 'direct_message', title: 'Maya Santos', body: 'Can I send you the repo before office hours?', path: '/messages/dm/31', read_at: null, created_at: ago(16), actor: { id: 18, full_name: 'Maya Santos', email: 'maya@example.com' }, notifiable: { type: 'Message', id: 203 } },
 ];

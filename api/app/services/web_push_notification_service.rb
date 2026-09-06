@@ -40,8 +40,8 @@ class WebPushNotificationService
 
   def announcement_published(announcement, notifications)
     payload = {
-      title: "New CSG announcement",
-      body: announcement.title,
+      title: announcement.title,
+      body: "#{announcement.author&.full_name || 'Code School of Guam'} · #{announcement.body}".truncate(180),
       path: "/announcements/#{announcement.id}",
       tag: "announcement-#{announcement.id}"
     }.to_json

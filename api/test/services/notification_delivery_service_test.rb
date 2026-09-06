@@ -3,6 +3,21 @@ require "test_helper"
 class NotificationDeliveryServiceTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
+  test "staff help notifications name the student and open the exact request" do
+    curriculum = Curriculum.create!(name: "Help notifications")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Help cohort", start_date: Date.current, status: :active)
+    student = User.create!(clerk_id: "help_notification_student", email: "help-notification-student@example.com", first_name: "Maya", last_name: "Santos", role: :student)
+    staff = User.create!(clerk_id: "help_notification_staff", email: "help-notification-staff@example.com", role: :instructor)
+    Enrollment.create!(user: student, cohort: cohort, status: :active)
+    help_request = HelpRequest.create!(student: student, cohort: cohort, context_type: :lesson, context_source: :primary, context_id: 42, context_label: "Connected records", context_path: "/lessons/42", category: :concept, urgency: :urgent, message: "Where should I look next?")
+
+    notification = NotificationDeliveryService.help_request_created(help_request, push: false).find { |item| item.user_id == staff.id }
+
+    assert_equal "Maya Santos needs urgent help", notification.title
+    assert_equal "Connected records", notification.body
+    assert_equal "/admin/help-requests/#{help_request.id}", notification.path
+  end
+
   test "attachment only messages get a fallback notification body" do
     curriculum = Curriculum.create!(name: "Bootcamp 2026")
     cohort = Cohort.create!(curriculum: curriculum, name: "Cohort 3", start_date: Date.current, status: :active)
@@ -22,6 +37,7 @@ class NotificationDeliveryServiceTest < ActiveSupport::TestCase
 
     notification = NotificationDeliveryService.message_created(message).find { |item| item.user_id == recipient.id }
 
+    assert_equal "Notify Author in #Class Chat", notification.title
     assert_equal "Sent an attachment", notification.body
   end
 
@@ -66,7 +82,7 @@ class NotificationDeliveryServiceTest < ActiveSupport::TestCase
     NotificationDeliveryService.message_created(message)
 
     notification = Notification.find_by!(notifiable: message, user: recipient)
-    assert_match "@everyone message", notification.title
+    assert_equal "Notify Author used @everyone in #Class Chat", notification.title
     assert_match "@everyone:", notification.body
   end
 

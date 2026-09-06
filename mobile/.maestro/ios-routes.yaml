@@ -18,6 +18,7 @@ tags:
 - extendedWaitUntil:
     visible: "Needs attention"
     timeout: 60000
+- assertVisible: "Updates, tab, 4 of 5"
 
 - openLink: "csgconnect://learn"
 - tapOn:
@@ -171,6 +172,25 @@ tags:
 - extendedWaitUntil:
     visible: "WHAT MATTERS NOW"
     timeout: 15000
+- tapOn: "Announcements"
+- assertVisible: "Open announcement: Office hours moved to Thursday"
+- tapOn: "Inbox"
+- assertVisible: "Maya Santos submitted Responsive card grid"
+- assertVisible: "Responsive layouts with Grid · Attempt 2"
+- tapOn: "Maya Santos submitted Responsive card grid"
+- extendedWaitUntil:
+    visible: "QUICK REVIEW"
+    timeout: 15000
+- assertVisible: "Open Maya Santos's student health"
+- assertVisible: "Message Maya Santos in Web Dev Cohort 4"
+- tapOn: "Back"
+- assertNotVisible: "Loading updates"
+- assertVisible: "Maya Santos submitted Responsive card grid"
+- tapOn: "Maya Santos"
+- extendedWaitUntil:
+    visible: "Message composer.*"
+    timeout: 15000
+- assertVisible: "Can I send you the repo before office hours?"
 
 - openLink: "csgconnect://profile"
 - tapOn:

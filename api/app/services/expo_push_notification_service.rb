@@ -11,8 +11,8 @@ class ExpoPushNotificationService
   def self.announcement_published(announcement, notifications)
     new.deliver_notifications(notifications) do |notification|
       {
-        title: "New CSG announcement",
-        body: announcement.title,
+        title: announcement.title,
+        body: "#{announcement.author&.full_name || 'Code School of Guam'} · #{announcement.body}".truncate(180),
         data: { path: "/updates" },
         sound: "default",
         channelId: "messages"
@@ -36,7 +36,7 @@ class ExpoPushNotificationService
 
   def self.submission_changed(submission, notifications)
     new.deliver_notifications(notifications) do |notification|
-      path = notification.user.staff? ? "/staff/submission/#{submission.id}" : "/lesson/#{submission.content_block.lesson_id}"
+      path = notification.user.staff? ? mobile_staff_submission_path(submission, notification) : "/lesson/#{submission.content_block.lesson_id}"
       {
         title: notification.title,
         body: notification.body,
@@ -76,6 +76,14 @@ class ExpoPushNotificationService
     return "/lesson/#{help_request.context_path.delete_prefix('/lessons/')}" if help_request.context_path.start_with?("/lessons/")
 
     "/recordings"
+  end
+
+  def self.mobile_staff_submission_path(submission, notification)
+    web_prefix = "/admin/submissions/#{submission.id}"
+    suffix = notification.path.delete_prefix(web_prefix)
+    return "/staff/submission/#{submission.id}" unless notification.path.start_with?(web_prefix) && (suffix.empty? || suffix.start_with?("?"))
+
+    "/staff/submission/#{submission.id}#{suffix}"
   end
 
   def deliver_notifications(notifications)

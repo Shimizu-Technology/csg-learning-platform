@@ -23,7 +23,8 @@ class InterventionFollowUpJobTest < ActiveJob::TestCase
     assert_enqueued_with(job: PushNotificationJob) { InterventionFollowUpJob.perform_now }
     notification = Notification.find_by!(notifiable: intervention, user: owner)
     assert_equal "intervention", notification.notification_type
-    assert_equal "Student follow-up due", notification.title
+    assert_equal "Follow-up due for #{student.full_name}", notification.title
+    assert_equal "Inactivity", notification.body
     assert intervention.reload.follow_up_notified_at
 
     assert_no_enqueued_jobs(only: PushNotificationJob) { InterventionFollowUpJob.perform_now }
