@@ -104,22 +104,28 @@ export default function StaffSubmissionScreen() {
   useEffect(() => {
     if (!submissionLoaded || !user?.id) return;
     let active = true;
-    void loadGradingDraft(user.id, submissionId).then((draft) => {
-      if (!active) return;
-      if (draft) {
-        setGradeDraft({ submissionId, value: draft.grade });
-        setFeedbackDraft({ submissionId, value: draft.feedback });
-        setCriterionDraft({ submissionId, values: draft.criterion_results });
-        if (!gradingDraftMatches(draft, submissionUpdatedAt)) {
-          setDraftNotice({ submissionId, value: 'This submission changed after the draft was saved. Recheck the latest work before saving your review.' });
+    void loadGradingDraft(user.id, submissionId)
+      .then((draft) => {
+        if (!active) return;
+        if (draft) {
+          setGradeDraft({ submissionId, value: draft.grade });
+          setFeedbackDraft({ submissionId, value: draft.feedback });
+          setCriterionDraft({ submissionId, values: draft.criterion_results });
+          if (!gradingDraftMatches(draft, submissionUpdatedAt)) {
+            setDraftNotice({ submissionId, value: 'This submission changed after the draft was saved. Recheck the latest work before saving your review.' });
+          } else {
+            setDraftNotice(null);
+          }
         } else {
           setDraftNotice(null);
         }
-      } else {
-        setDraftNotice(null);
-      }
-      setDraftReadyFor(submissionId);
-    });
+        setDraftReadyFor(submissionId);
+      })
+      .catch(() => {
+        if (!active) return;
+        setDraftNotice({ submissionId, value: 'A saved review draft could not be loaded. New changes will retry device storage.' });
+        setDraftReadyFor(submissionId);
+      });
     return () => { active = false; };
   }, [submissionId, submissionLoaded, submissionUpdatedAt, user?.id]);
   useEffect(() => {
