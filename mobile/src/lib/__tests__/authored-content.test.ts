@@ -7,6 +7,12 @@ describe('authored content', () => {
     expect(authoredContentSource(body)).toEqual({ format: 'html', html: body });
   });
 
+  it('preserves an image-only HTML body for the guarded native image renderer', () => {
+    const body = '<img src="https://images.example.com/lesson.png" alt="Lesson diagram">';
+
+    expect(authoredContentSource(body)).toEqual({ format: 'html', html: body });
+  });
+
   it('continues rendering legacy Markdown without allowing raw HTML through that path', () => {
     const result = authoredContentSource('## Instructions\n\n**Build this.**\n\n<img src=x onerror="steal()">');
 

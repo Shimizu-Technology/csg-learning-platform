@@ -134,6 +134,7 @@ tags:
     start: "85%,68%"
     end: "30%,68%"
     duration: 700
+- assertVisible: ".*END-OF-LONG-LINE.*"
 - tapOn: "Copy code"
 - assertVisible: "Code copied"
 - assertVisible: "Tab completion saves time."

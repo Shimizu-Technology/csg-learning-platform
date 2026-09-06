@@ -1,6 +1,6 @@
 import { renderLessonMarkdown } from './lesson-markdown';
 
-const HTML_DOCUMENT_START = /^\s*<(?:!doctype|p|div|h[1-6]|ul|ol|li|pre|blockquote|table|br|hr)(?:\s|>)/i;
+const HTML_DOCUMENT_START = /^\s*<(?:!doctype|p|div|h[1-6]|ul|ol|li|pre|blockquote|table|img|br|hr)(?:\s|>)/i;
 
 export type AuthoredContentFormat = 'html' | 'markdown';
 
