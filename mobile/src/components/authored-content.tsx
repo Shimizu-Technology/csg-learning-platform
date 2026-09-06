@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Alert, ScrollView, useWindowDimensions } from 'react-native';
-import RenderHtml, { isDomElement, type CustomBlockRenderer } from 'react-native-render-html';
+import RenderHtml, { isDomElement, type CustomBlockRenderer, type TNode } from 'react-native-render-html';
 
 import { fonts, palette } from '@/constants/csg-theme';
 import { authoredContentSource } from '@/lib/authored-content';
@@ -18,22 +18,43 @@ const UNSUPPORTED_OR_UNSAFE_TAGS = [
   'video', 'audio', 'source',
 ];
 
+const CODE_CHARACTER_WIDTH = 8;
+const CODE_HORIZONTAL_PADDING = 26;
+
+/** Extracts preformatted text without trusting or re-parsing the source HTML. */
+function authoredPlainText(node: TNode): string {
+  if (node.type === 'text') return node.data;
+  return node.children.map(authoredPlainText).join('');
+}
+
 /** Preserves preformatted lines while making overflow reachable on narrow screens. */
-const AuthoredPre: CustomBlockRenderer = ({ TDefaultRenderer, ...props }) => (
-  <ScrollView
-    accessibilityHint="Drag horizontally to read long lines"
-    accessibilityLabel="Code block"
-    alwaysBounceHorizontal={false}
-    contentContainerStyle={{ flexGrow: 1 }}
-    directionalLockEnabled
-    horizontal
-    nestedScrollEnabled
-    showsHorizontalScrollIndicator
-    testID="authored-code-scroller"
-  >
-    <TDefaultRenderer {...props} />
-  </ScrollView>
-);
+const AuthoredPre: CustomBlockRenderer = ({ TDefaultRenderer, ...props }) => {
+  const longestLine = Math.max(0, ...authoredPlainText(props.tnode).split('\n').map((line) => Array.from(line).length));
+  const intrinsicWidth = longestLine * CODE_CHARACTER_WIDTH + CODE_HORIZONTAL_PADDING;
+
+  return (
+    <ScrollView
+      accessibilityHint="Drag horizontally to read long lines"
+      accessibilityLabel="Code block"
+      alwaysBounceHorizontal={false}
+      contentContainerStyle={{ flexGrow: 1 }}
+      directionalLockEnabled
+      horizontal
+      nestedScrollEnabled
+      showsHorizontalScrollIndicator
+      style={{ maxWidth: '100%' }}
+      testID="authored-code-scroller"
+    >
+      <TDefaultRenderer
+        {...props}
+        viewProps={{
+          ...props.viewProps,
+          style: [props.viewProps.style, { flexGrow: 1, minWidth: intrinsicWidth }],
+        }}
+      />
+    </ScrollView>
+  );
+};
 
 const AUTHORED_RENDERERS = { pre: AuthoredPre };
 

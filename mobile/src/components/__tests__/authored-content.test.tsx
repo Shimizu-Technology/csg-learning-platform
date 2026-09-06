@@ -33,14 +33,24 @@ describe('AuthoredContent', () => {
     render(<AuthoredContent body="<pre><code>const line = 'intentionally very long';</code></pre>" />);
 
     const { renderers } = mockRenderHtml.mock.calls[0][0] as {
-      renderers: { pre: (props: { TDefaultRenderer: () => null }) => React.ReactElement };
+      renderers: { pre: (props: { TDefaultRenderer: () => null; tnode: unknown; viewProps: object }) => React.ReactElement };
     };
     const DefaultRenderer = jest.fn(() => null);
-    const renderedPre = renderers.pre({ TDefaultRenderer: DefaultRenderer });
+    const renderedPre = renderers.pre({
+      TDefaultRenderer: DefaultRenderer,
+      tnode: { type: 'block', children: [{ type: 'text', data: 'const line = intentionally very long;' }] },
+      viewProps: {},
+    });
     const { getByTestId } = render(renderedPre);
 
     expect(getByTestId('authored-code-scroller')).toHaveProp('horizontal', true);
     expect(getByTestId('authored-code-scroller')).toHaveProp('accessibilityHint', 'Drag horizontally to read long lines');
+    expect(getByTestId('authored-code-scroller')).toHaveStyle({ maxWidth: '100%' });
     expect(DefaultRenderer).toHaveBeenCalledTimes(1);
+    expect(DefaultRenderer).toHaveBeenCalledWith(expect.objectContaining({
+      viewProps: expect.objectContaining({ style: expect.arrayContaining([
+        expect.objectContaining({ flexGrow: 1, minWidth: expect.any(Number) }),
+      ]) }),
+    }), undefined);
   });
 });
