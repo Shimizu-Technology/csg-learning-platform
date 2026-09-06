@@ -43,6 +43,10 @@ describe('webPushPreferenceEnabled', () => {
     expect(webPushPreferenceEnabled({ notifications_enabled: false })).toBe(false)
     expect(webPushPreferenceEnabled({ notifications_enabled: true })).toBe(true)
   })
+
+  it('fails closed when a degraded config response contains no preference', () => {
+    expect(webPushPreferenceEnabled({})).toBe(false)
+  })
 })
 
 describe('browserPushEnabled', () => {
@@ -51,6 +55,7 @@ describe('browserPushEnabled', () => {
   it('requires a successful configuration response even when this browser has a subscription', () => {
     expect(browserPushEnabled(null, subscription)).toBe(false)
     expect(browserPushEnabled(undefined, subscription)).toBe(false)
+    expect(browserPushEnabled({}, subscription)).toBe(false)
   })
 
   it('requires both the account preference and a browser subscription', () => {

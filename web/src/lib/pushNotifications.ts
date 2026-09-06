@@ -2,7 +2,7 @@ import { api } from './api'
 import type { PushConfigResponse } from '../types/api'
 
 export function webPushPreferenceEnabled(config: Pick<PushConfigResponse, 'web_push_notifications_enabled' | 'notifications_enabled'>) {
-  return config.web_push_notifications_enabled ?? config.notifications_enabled ?? true
+  return config.web_push_notifications_enabled ?? config.notifications_enabled ?? false
 }
 
 export function browserPushEnabled(
