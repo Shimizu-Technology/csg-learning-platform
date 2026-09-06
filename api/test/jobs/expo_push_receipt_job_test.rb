@@ -178,14 +178,16 @@ class ExpoPushReceiptJobConcurrencyTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
   setup do
-    User.where(clerk_id: "expo_receipt_concurrency_user").destroy_all
-    user = User.create!(clerk_id: "expo_receipt_concurrency_user", email: "expo-receipt-concurrency@example.com", role: :student)
-    token = user.mobile_push_tokens.create!(token: "ExpoPushToken[receipt-concurrency-device]", platform: "ios", last_seen_at: Time.current)
-    ExpoPushReceipt.create!(mobile_push_token: token, receipt_id: "receipt-concurrent", available_at: 1.minute.ago)
+    suffix = SecureRandom.hex(8)
+    @clerk_id = "expo_receipt_concurrency_user_#{suffix}"
+    @receipt_id = "receipt-concurrent-#{suffix}"
+    user = User.create!(clerk_id: @clerk_id, email: "expo-receipt-concurrency-#{suffix}@example.com", role: :student)
+    token = user.mobile_push_tokens.create!(token: "ExpoPushToken[receipt-concurrency-device-#{suffix}]", platform: "ios", last_seen_at: Time.current)
+    ExpoPushReceipt.create!(mobile_push_token: token, receipt_id: @receipt_id, available_at: 1.minute.ago)
   end
 
   teardown do
-    User.where(clerk_id: "expo_receipt_concurrency_user").destroy_all
+    User.where(clerk_id: @clerk_id).destroy_all
   end
 
   test "overlapping workers claim a receipt only once" do
@@ -203,9 +205,9 @@ class ExpoPushReceiptJobConcurrencyTest < ActiveSupport::TestCase
     original_new = ExpoPushReceiptService.method(:new)
     ExpoPushReceiptService.define_singleton_method(:new) { service }
 
-    first = Thread.new { ActiveRecord::Base.connection_pool.with_connection { ExpoPushReceiptJob.new.drain_due([ "receipt-concurrent" ]) } }
+    first = Thread.new { ActiveRecord::Base.connection_pool.with_connection { ExpoPushReceiptJob.new.drain_due([ @receipt_id ]) } }
     started.pop
-    second = Thread.new { ActiveRecord::Base.connection_pool.with_connection { ExpoPushReceiptJob.new.drain_due([ "receipt-concurrent" ]) } }
+    second = Thread.new { ActiveRecord::Base.connection_pool.with_connection { ExpoPushReceiptJob.new.drain_due([ @receipt_id ]) } }
 
     begin
       assert second.join(1), "the second worker waited on a receipt already claimed by the first"
@@ -219,7 +221,7 @@ class ExpoPushReceiptJobConcurrencyTest < ActiveSupport::TestCase
 
     assert_equal 1, calls
     assert_equal [], first.value
-    assert_not ExpoPushReceipt.exists?(receipt_id: "receipt-concurrent")
+    assert_not ExpoPushReceipt.exists?(receipt_id: @receipt_id)
   end
 
   test "an expired worker cannot mutate a receipt reclaimed by a newer worker" do
@@ -244,19 +246,19 @@ class ExpoPushReceiptJobConcurrencyTest < ActiveSupport::TestCase
     original_new = ExpoPushReceiptService.method(:new)
     ExpoPushReceiptService.define_singleton_method(:new) { service }
 
-    first = Thread.new { ActiveRecord::Base.connection_pool.with_connection { ExpoPushReceiptJob.new.drain_due([ "receipt-concurrent" ]) } }
+    first = Thread.new { ActiveRecord::Base.connection_pool.with_connection { ExpoPushReceiptJob.new.drain_due([ @receipt_id ]) } }
     first_started.pop
-    first_token = ExpoPushReceipt.find_by!(receipt_id: "receipt-concurrent").processing_token
-    ExpoPushReceipt.where(receipt_id: "receipt-concurrent").update_all(processing_at: 3.minutes.ago)
-    second = Thread.new { ActiveRecord::Base.connection_pool.with_connection { ExpoPushReceiptJob.new.drain_due([ "receipt-concurrent" ]) } }
+    first_token = ExpoPushReceipt.find_by!(receipt_id: @receipt_id).processing_token
+    ExpoPushReceipt.where(receipt_id: @receipt_id).update_all(processing_at: 3.minutes.ago)
+    second = Thread.new { ActiveRecord::Base.connection_pool.with_connection { ExpoPushReceiptJob.new.drain_due([ @receipt_id ]) } }
     second_started.pop
-    second_token = ExpoPushReceipt.find_by!(receipt_id: "receipt-concurrent").processing_token
+    second_token = ExpoPushReceipt.find_by!(receipt_id: @receipt_id).processing_token
 
     begin
       refute_equal first_token, second_token
       release_first << true
       first.join
-      receipt = ExpoPushReceipt.find_by!(receipt_id: "receipt-concurrent")
+      receipt = ExpoPushReceipt.find_by!(receipt_id: @receipt_id)
       assert_equal second_token, receipt.processing_token
       assert receipt.processing_at.present?
     ensure
@@ -268,6 +270,6 @@ class ExpoPushReceiptJobConcurrencyTest < ActiveSupport::TestCase
     end
 
     assert_equal 2, calls
-    assert_not ExpoPushReceipt.exists?(receipt_id: "receipt-concurrent")
+    assert_not ExpoPushReceipt.exists?(receipt_id: @receipt_id)
   end
 end
