@@ -11,6 +11,7 @@ export const PUSH_TOKEN_KEY = 'csg.push.token';
 const PUSH_UNREGISTER_ATTEMPTS = 3;
 
 export type PushPermissionStatus = 'granted' | 'provisional' | 'ephemeral' | 'denied' | 'undetermined';
+export type PushRegistrationAttempt = { ok: true } | { ok: false; message: string };
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true }),
@@ -99,4 +100,20 @@ export async function registerPushNotifications(api: CsgApi, isActive: () => boo
     return null;
   }
   return token;
+}
+
+export async function attemptPushRegistration(api: CsgApi): Promise<PushRegistrationAttempt> {
+  try {
+    const token = await registerPushNotifications(api);
+    return token
+      ? { ok: true }
+      : { ok: false, message: 'This device could not finish notification registration. Check your connection and try again.' };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error && error.message
+        ? error.message
+        : 'This device could not finish notification registration. Check your connection and try again.',
+    };
+  }
 }

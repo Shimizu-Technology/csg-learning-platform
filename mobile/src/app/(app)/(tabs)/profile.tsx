@@ -1,14 +1,14 @@
 import * as Application from 'expo-application';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
-import { Bell, Check, ChevronRight, FileText, GitBranch, GraduationCap, LogOut, Mail, Save, Settings2, ShieldCheck, Trash2, UserX } from 'lucide-react-native';
+import { Bell, Check, ChevronRight, FileText, GitBranch, GraduationCap, LogOut, Mail, RefreshCw, Save, Settings2, ShieldCheck, Trash2, UserX } from 'lucide-react-native';
 import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/avatar';
 import { fontScaleLimits, fonts, palette, typography } from '@/constants/csg-theme';
 import { learningKeys } from '@/lib/learning';
-import { getPushPermissionStatus, pushPermissionAllowsDelivery, registerPushNotifications, requestPushPermission, type PushPermissionStatus } from '@/lib/push-notifications';
+import { attemptPushRegistration, getPushPermissionStatus, pushPermissionAllowsDelivery, requestPushPermission, type PushPermissionStatus } from '@/lib/push-notifications';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 
@@ -22,7 +22,9 @@ export default function ProfileScreen() {
   const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(true);
   const [loadingPreference, setLoadingPreference] = useState(!auth.demo);
   const [preferenceLoadError, setPreferenceLoadError] = useState<string | null>(null);
+  const [registrationError, setRegistrationError] = useState<string | null>(null);
   const preferenceLoadGeneration = useRef(0);
+  const registrationGeneration = useRef(0);
   const [updatingPreference, setUpdatingPreference] = useState(false);
   const [showBlockedUsers, setShowBlockedUsers] = useState(false);
   const [blockedUsers, setBlockedUsers] = useState<Awaited<ReturnType<typeof api.blockedUsers>>['blocked_users']>([]);
@@ -33,13 +35,19 @@ export default function ProfileScreen() {
     const generation = ++preferenceLoadGeneration.current;
     setLoadingPreference(true);
     setPreferenceLoadError(null);
+    setRegistrationError(null);
     try {
       const [mobileConfig, emailConfig, permission] = await Promise.all([api.mobilePushConfig(), api.pushConfig(), getPushPermissionStatus()]);
       if (preferenceLoadGeneration.current !== generation) return;
       setDeviceNotificationsEnabled(mobileConfig.notifications_enabled);
       setEmailNotificationsEnabled(emailConfig.notifications_enabled);
       setDevicePermission(permission);
-      if (mobileConfig.notifications_enabled && pushPermissionAllowsDelivery(permission)) void registerPushNotifications(api).catch(() => undefined);
+      if (mobileConfig.notifications_enabled && pushPermissionAllowsDelivery(permission)) {
+        const registration = ++registrationGeneration.current;
+        void attemptPushRegistration(api).then((result) => {
+          if (preferenceLoadGeneration.current === generation && registrationGeneration.current === registration) setRegistrationError(result.ok ? null : result.message);
+        });
+      }
     } catch (requestError) {
       if (preferenceLoadGeneration.current === generation) setPreferenceLoadError((requestError as Error).message || 'Could not load notification preferences.');
     } finally {
@@ -48,9 +56,10 @@ export default function ProfileScreen() {
   }, [api, auth.demo]);
   useFocusEffect(useCallback(() => {
     void loadNotificationPreferences();
-    return () => { preferenceLoadGeneration.current += 1; };
+    return () => { preferenceLoadGeneration.current += 1; registrationGeneration.current += 1; };
   }, [loadNotificationPreferences]));
   const enableDeviceNotifications = async () => {
+    const generation = ++registrationGeneration.current;
     setUpdatingPreference(true);
     try {
       const permission = await requestPushPermission();
@@ -66,8 +75,11 @@ export default function ProfileScreen() {
       }
       if (!auth.demo) {
         await api.updateMobilePushPreference(true);
-        await registerPushNotifications(api);
+        const registration = await attemptPushRegistration(api);
+        if (registrationGeneration.current !== generation) return;
+        if (!registration.ok) throw new Error(registration.message);
       }
+      setRegistrationError(null);
       setDeviceNotificationsEnabled(true);
     } catch (requestError) {
       if (!auth.demo) await api.updateMobilePushPreference(false).catch(() => undefined);
@@ -76,6 +88,15 @@ export default function ProfileScreen() {
     } finally {
       setUpdatingPreference(false);
     }
+  };
+  const retryDeviceRegistration = async () => {
+    const generation = ++registrationGeneration.current;
+    setUpdatingPreference(true);
+    const registration = auth.demo ? { ok: true as const } : await attemptPushRegistration(api);
+    if (registrationGeneration.current !== generation) return;
+    setRegistrationError(registration.ok ? null : registration.message);
+    if (!registration.ok) Alert.alert('Could not reconnect notifications', registration.message);
+    setUpdatingPreference(false);
   };
   const toggleDeviceNotifications = (enabled: boolean) => {
     if (enabled) {
@@ -87,7 +108,9 @@ export default function ProfileScreen() {
       return;
     }
     const previous = deviceNotificationsEnabled;
+    registrationGeneration.current += 1;
     setDeviceNotificationsEnabled(false);
+    setRegistrationError(null);
     setUpdatingPreference(true);
     void (auth.demo ? Promise.resolve() : api.updateMobilePushPreference(false))
       .catch((requestError) => {
@@ -138,7 +161,8 @@ export default function ProfileScreen() {
       <Text style={styles.sectionLabel}>PREFERENCES</Text>
       <View style={styles.group}>
         {preferenceLoadError ? <View style={styles.preferenceError}><View style={styles.settingIcon}><Bell color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Notifications unavailable</Text><Text style={styles.settingCopy}>{preferenceLoadError}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Retry notification preferences" onPress={() => void loadNotificationPreferences()} style={styles.retryPreference}><Text style={styles.retryPreferenceText}>Try again</Text></Pressable></View> : <>
-        <View style={styles.setting}><View style={styles.settingIcon}><Bell color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Device notifications</Text><Text style={styles.settingCopy}>{devicePermission === 'denied' ? 'Off in device settings. Turn on to open Settings.' : devicePermission === 'provisional' ? 'Delivered quietly until you choose prominent alerts in iOS.' : devicePermission === 'ephemeral' ? 'Temporarily allowed by iOS for this app session.' : 'Messages, announcements, grades, submissions, and support updates.'}</Text></View><View style={styles.switchSlot}>{loadingPreference || updatingPreference ? <ActivityIndicator color={palette.rubySoft} size="small" /> : <Switch accessibilityLabel="Device notifications" value={deviceNotificationsEnabled && pushPermissionAllowsDelivery(devicePermission)} onValueChange={toggleDeviceNotifications} trackColor={{ false: palette.line, true: '#6A2A36' }} thumbColor={deviceNotificationsEnabled && pushPermissionAllowsDelivery(devicePermission) ? palette.rubySoft : palette.muted} style={styles.switch} />}</View></View>
+        <View style={styles.setting}><View style={styles.settingIcon}><Bell color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Device notifications</Text><Text style={styles.settingCopy}>{registrationError ? 'On for your account, but this device needs to reconnect.' : devicePermission === 'denied' ? 'Off in device settings. Turn on to open Settings.' : devicePermission === 'provisional' ? 'Delivered quietly until you choose prominent alerts in iOS.' : devicePermission === 'ephemeral' ? 'Temporarily allowed by iOS for this app session.' : 'Messages, announcements, grades, submissions, and support updates.'}</Text></View><View style={styles.switchSlot}>{loadingPreference || updatingPreference ? <ActivityIndicator color={palette.rubySoft} size="small" /> : <Switch accessibilityLabel="Device notifications" value={deviceNotificationsEnabled && pushPermissionAllowsDelivery(devicePermission)} onValueChange={toggleDeviceNotifications} trackColor={{ false: palette.line, true: '#6A2A36' }} thumbColor={deviceNotificationsEnabled && pushPermissionAllowsDelivery(devicePermission) ? palette.rubySoft : palette.muted} style={styles.switch} />}</View></View>
+        {registrationError && <View style={styles.registrationWarning}><RefreshCw color={palette.warning} size={18} /><View style={styles.flex}><Text style={styles.registrationWarningTitle}>Reconnect this device</Text><Text style={styles.registrationWarningCopy}>{registrationError}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Retry device notification registration" disabled={updatingPreference} onPress={() => void retryDeviceRegistration()} style={styles.retryPreference}><Text style={styles.retryPreferenceText}>Retry</Text></Pressable></View>}
         <View style={[styles.setting, styles.groupDivider]}><View style={styles.settingIcon}><Mail color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Message emails</Text><Text style={styles.settingCopy}>Email alerts for direct messages and mentions. Conversation mutes still apply.</Text></View><View style={styles.switchSlot}>{loadingPreference ? <ActivityIndicator color={palette.rubySoft} size="small" /> : <Switch accessibilityLabel="Message emails" value={emailNotificationsEnabled} onValueChange={(value) => void toggleEmailNotifications(value)} trackColor={{ false: palette.line, true: '#6A2A36' }} thumbColor={emailNotificationsEnabled ? palette.rubySoft : palette.muted} style={styles.switch} />}</View></View>
         </>}
       </View>
@@ -182,4 +206,5 @@ const styles = StyleSheet.create({
   manage: { minHeight: 76, marginTop: 12, paddingHorizontal: 16, borderRadius: 20, backgroundColor: palette.panel, borderWidth: 1, borderColor: palette.line, flexDirection: 'row', alignItems: 'center', gap: 13 }, flex: { flex: 1, minWidth: 0 }, githubCard: { marginTop: 14, borderRadius: 20, backgroundColor: palette.panel, borderWidth: 1, borderColor: palette.line, padding: 16 }, githubHeader: { flexDirection: 'row', alignItems: 'center', gap: 13 }, githubForm: { flexDirection: 'row', gap: 9, marginTop: 14 }, githubInput: { flex: 1, minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.ink, color: palette.text, fontFamily: fonts.regular, fontSize: 13, paddingHorizontal: 13 }, save: { width: 50, minHeight: 48, borderRadius: 14, backgroundColor: palette.ruby, alignItems: 'center', justifyContent: 'center' }, disabled: { opacity: 0.42 }, enrollment: { minHeight: 76, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 13 }, groupDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.line }, enrollmentStatus: { color: palette.muted, fontFamily: fonts.bold, fontSize: 11, textTransform: 'uppercase' }, enrollmentActive: { color: palette.success },
   policyRow: { minHeight: 82, paddingHorizontal: 16, paddingVertical: 13, flexDirection: 'row', alignItems: 'center', gap: 13 }, destructiveTitle: { color: palette.rubySoft }, modalRoot: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.58)' }, blockedSheet: { maxHeight: '75%', borderTopLeftRadius: 26, borderTopRightRadius: 26, backgroundColor: palette.panel, borderWidth: 1, borderColor: palette.line, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 28 }, sheetHandle: { width: 42, height: 4, borderRadius: 2, alignSelf: 'center', backgroundColor: palette.line, marginBottom: 18 }, sheetTitle: { color: palette.text, fontFamily: fonts.extraBold, fontSize: 20 }, sheetCopy: { color: palette.muted, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, marginTop: 6, marginBottom: 18 }, sheetLoading: { marginVertical: 30 }, blockedRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 11, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.line }, blockedName: { flex: 1, color: palette.text, fontFamily: fonts.semibold, fontSize: 13 }, unblockButton: { minHeight: 44, minWidth: 76, borderRadius: 12, borderWidth: 1, borderColor: '#6A2A36', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 }, unblockText: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 12 }, emptyBlocked: { color: palette.muted, fontFamily: fonts.regular, fontSize: 13, textAlign: 'center', paddingVertical: 30 }, doneButton: { minHeight: 48, borderRadius: 14, backgroundColor: palette.ruby, alignItems: 'center', justifyContent: 'center', marginTop: 14 }, doneText: { color: palette.text, fontFamily: fonts.bold, fontSize: 14 },
   preferenceError: { minHeight: 82, paddingHorizontal: 16, paddingVertical: 13, flexDirection: 'row', alignItems: 'center', gap: 13 }, retryPreference: { minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: '#6A2A36', justifyContent: 'center', paddingHorizontal: 12 }, retryPreferenceText: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 12 },
+  registrationWarning: { minHeight: 72, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#5B4720', backgroundColor: '#211A10', flexDirection: 'row', alignItems: 'center', gap: 12 }, registrationWarningTitle: { color: palette.warning, fontFamily: fonts.bold, fontSize: 12 }, registrationWarningCopy: { color: palette.muted, fontFamily: fonts.regular, fontSize: 11, lineHeight: 16, marginTop: 2 },
 });

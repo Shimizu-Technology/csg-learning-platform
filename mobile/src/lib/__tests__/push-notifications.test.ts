@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 
 import type { CsgApi } from '../api';
-import { getPushPermissionStatus, registerPushNotifications, requestPushPermission } from '../push-notifications';
+import { attemptPushRegistration, getPushPermissionStatus, registerPushNotifications, requestPushPermission } from '../push-notifications';
 
 jest.mock('@react-native-async-storage/async-storage', () => jest.requireActual('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 jest.mock('expo-application', () => ({
@@ -86,6 +86,20 @@ describe('push permission intent', () => {
 });
 
 describe('push registration cleanup', () => {
+  it('reports a recoverable failure when server registration rejects', async () => {
+    const api = enabledApi({ registerDevice: jest.fn().mockRejectedValue(new Error('registration unavailable')) } as Partial<CsgApi>);
+
+    await expect(attemptPushRegistration(api)).resolves.toEqual({ ok: false, message: 'registration unavailable' });
+    expect(await AsyncStorage.getItem('csg.push.token')).toBe('ExpoPushToken[test]');
+  });
+
+  it('reports success only after the server accepts the device token', async () => {
+    const api = enabledApi();
+
+    await expect(attemptPushRegistration(api)).resolves.toEqual({ ok: true });
+    expect(api.registerDevice).toHaveBeenCalledTimes(1);
+  });
+
   it('does nothing when the session is already inactive', async () => {
     const api = enabledApi();
 
