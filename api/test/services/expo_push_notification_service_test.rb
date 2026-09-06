@@ -16,6 +16,7 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
       assert_equal "Office hours moved", payload.fetch("title")
       assert_equal "Maya Santos · Meet in the main classroom at 5:30 PM.", payload.fetch("body")
       assert_equal "/updates", payload.dig("data", "path")
+      assert_equal "announcements", payload.fetch("channelId")
     end
   end
 
@@ -123,6 +124,21 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
     end
   end
 
+  test "mobile push preference suppresses delivery without disabling message email" do
+    user = User.create!(clerk_id: "expo_mobile_opted_out", email: "expo-mobile-opted-out@example.com", role: :student, mobile_push_notifications_enabled: false, message_email_notifications_enabled: true)
+    user.mobile_push_tokens.create!(token: "ExpoPushToken[mobile-opted-out]", platform: "ios", last_seen_at: Time.current)
+    notification = Notification.create!(user: user, notification_type: :announcement, title: "Test", body: "Test", path: "/updates", notifiable: user)
+    response = Net::HTTPOK.new("1.1", "200", "OK")
+    response.instance_variable_set(:@read, true)
+    response.body = { data: [] }.to_json
+
+    with_http_response(response) do |connection|
+      delivered = ExpoPushNotificationService.new.deliver_notifications([ notification ]) { { title: "Test", body: "Test" } }
+      assert_equal false, delivered
+      assert_nil connection.request_received
+    end
+  end
+
   test "submission pushes use native staff and student destinations" do
     student = User.create!(clerk_id: "expo_submission_student", email: "expo-submission-student@example.com", role: :student)
     staff = User.create!(clerk_id: "expo_submission_staff", email: "expo-submission-staff@example.com", role: :instructor)
@@ -148,6 +164,7 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
       paths = JSON.parse(connection.request_received.body).map { |payload| payload.dig("data", "path") }
       assert_includes paths, "/lesson/#{lesson.id}"
       assert_includes paths, "/staff/submission/#{submission.id}?cohort_id=#{cohort.id}&student_id=#{student.id}"
+      assert JSON.parse(connection.request_received.body).all? { |payload| payload.fetch("channelId") == "learning" }
     end
   end
 
@@ -183,6 +200,7 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
       paths = JSON.parse(connection.request_received.body).map { |payload| payload.dig("data", "path") }
       assert_includes paths, "/lesson/42"
       assert_includes paths, "/staff/support/#{help_request.id}"
+      assert JSON.parse(connection.request_received.body).all? { |payload| payload.fetch("channelId") == "learning" }
     end
   end
 

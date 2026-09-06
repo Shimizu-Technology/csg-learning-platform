@@ -238,6 +238,11 @@ export interface PushConfig {
   active_subscription_count: number;
 }
 
+export interface MobilePushConfig {
+  notifications_enabled: boolean;
+  active_device_count: number;
+}
+
 export interface MessageEvent {
   event: 'created' | 'updated' | 'deleted';
   channel_id: number | null;

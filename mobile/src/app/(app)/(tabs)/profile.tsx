@@ -1,13 +1,14 @@
 import * as Application from 'expo-application';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRouter, type Href } from 'expo-router';
-import { BellRing, Check, ChevronRight, FileText, GitBranch, GraduationCap, LogOut, Save, Settings2, ShieldCheck, Trash2, UserX } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useFocusEffect, useRouter, type Href } from 'expo-router';
+import { Bell, Check, ChevronRight, FileText, GitBranch, GraduationCap, LogOut, Mail, Save, Settings2, ShieldCheck, Trash2, UserX } from 'lucide-react-native';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/avatar';
 import { fontScaleLimits, fonts, palette, typography } from '@/constants/csg-theme';
 import { learningKeys } from '@/lib/learning';
+import { getPushPermissionStatus, registerPushNotifications, requestPushPermission, type PushPermissionStatus } from '@/lib/push-notifications';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 
@@ -16,14 +17,82 @@ export default function ProfileScreen() {
   const auth = useCsgAuth();
   const { api, user, refresh, signOut: endSession } = useSession();
   const profileQuery = useQuery({ queryKey: learningKeys.profile(user?.id || 0), queryFn: ({ signal }) => api.profile(signal), enabled: Boolean(user && !auth.demo) });
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [deviceNotificationsEnabled, setDeviceNotificationsEnabled] = useState(auth.demo);
+  const [devicePermission, setDevicePermission] = useState<PushPermissionStatus>(auth.demo ? 'granted' : 'undetermined');
+  const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(true);
   const [loadingPreference, setLoadingPreference] = useState(!auth.demo);
+  const [updatingPreference, setUpdatingPreference] = useState(false);
   const [showBlockedUsers, setShowBlockedUsers] = useState(false);
   const [blockedUsers, setBlockedUsers] = useState<Awaited<ReturnType<typeof api.blockedUsers>>['blocked_users']>([]);
   const [loadingBlockedUsers, setLoadingBlockedUsers] = useState(false);
   const [deletionRequested, setDeletionRequested] = useState(false);
-  useEffect(() => { if (auth.demo) return; void api.pushConfig().then((value) => setNotificationsEnabled(value.notifications_enabled)).catch(() => undefined).finally(() => setLoadingPreference(false)); }, [api, auth.demo]);
-  const toggleNotifications = async (enabled: boolean) => { const previous = notificationsEnabled; setNotificationsEnabled(enabled); try { if (!auth.demo) await api.updateGlobalNotifications(enabled); } catch (requestError) { setNotificationsEnabled(previous); Alert.alert('Could not update notifications', (requestError as Error).message); } };
+  useFocusEffect(useCallback(() => {
+    if (auth.demo) return undefined;
+    let active = true;
+    void Promise.all([api.mobilePushConfig(), api.pushConfig(), getPushPermissionStatus()])
+      .then(([mobileConfig, emailConfig, permission]) => {
+        if (!active) return;
+        setDeviceNotificationsEnabled(mobileConfig.notifications_enabled);
+        setEmailNotificationsEnabled(emailConfig.notifications_enabled);
+        setDevicePermission(permission);
+        if (mobileConfig.notifications_enabled && permission === 'granted') void registerPushNotifications(api).catch(() => undefined);
+      })
+      .catch(() => undefined)
+      .finally(() => { if (active) setLoadingPreference(false); });
+    return () => { active = false; };
+  }, [api, auth.demo]));
+  const enableDeviceNotifications = async () => {
+    setUpdatingPreference(true);
+    try {
+      const permission = await requestPushPermission();
+      setDevicePermission(permission);
+      if (permission !== 'granted') {
+        if (!auth.demo) await api.updateMobilePushPreference(false);
+        setDeviceNotificationsEnabled(false);
+        Alert.alert('Notifications are off', 'Allow notifications in your device settings when you are ready.', [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => void Linking.openSettings() },
+        ]);
+        return;
+      }
+      if (!auth.demo) {
+        await api.updateMobilePushPreference(true);
+        await registerPushNotifications(api);
+      }
+      setDeviceNotificationsEnabled(true);
+    } catch (requestError) {
+      if (!auth.demo) await api.updateMobilePushPreference(false).catch(() => undefined);
+      setDeviceNotificationsEnabled(false);
+      Alert.alert('Could not turn on device notifications', (requestError as Error).message);
+    } finally {
+      setUpdatingPreference(false);
+    }
+  };
+  const toggleDeviceNotifications = (enabled: boolean) => {
+    if (enabled) {
+      Alert.alert(
+        'Turn on device notifications?',
+        'Get timely alerts for messages, announcements, grades, submissions, and support updates.',
+        [{ text: 'Cancel', style: 'cancel' }, { text: 'Continue', onPress: () => void enableDeviceNotifications() }],
+      );
+      return;
+    }
+    const previous = deviceNotificationsEnabled;
+    setDeviceNotificationsEnabled(false);
+    setUpdatingPreference(true);
+    void (auth.demo ? Promise.resolve() : api.updateMobilePushPreference(false))
+      .catch((requestError) => {
+        setDeviceNotificationsEnabled(previous);
+        Alert.alert('Could not update device notifications', (requestError as Error).message);
+      })
+      .finally(() => setUpdatingPreference(false));
+  };
+  const toggleEmailNotifications = async (enabled: boolean) => {
+    const previous = emailNotificationsEnabled;
+    setEmailNotificationsEnabled(enabled);
+    try { if (!auth.demo) await api.updateGlobalNotifications(enabled); }
+    catch (requestError) { setEmailNotificationsEnabled(previous); Alert.alert('Could not update email notifications', (requestError as Error).message); }
+  };
   const signOut = () => Alert.alert('Sign out?', 'You can sign back in at any time.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Sign out', style: 'destructive', onPress: () => void endSession() }]);
   const policy = user?.community_policy;
   const openPolicy = (url: string) => void Linking.openURL(url).catch(() => Alert.alert('Could not open link', 'Please try again later.'));
@@ -58,7 +127,10 @@ export default function ProfileScreen() {
       {!auth.demo && <GithubEditor initialValue={profileQuery.data?.user.github_username || user?.github_username || ''} api={api} userId={user?.id || 0} afterSave={refresh} />}
       {!!profileQuery.data?.enrollments.length && <><Text style={styles.sectionLabel}>ENROLLMENTS</Text><View style={styles.group}>{profileQuery.data.enrollments.map((enrollment, index) => <View key={enrollment.id} style={[styles.enrollment, index > 0 && styles.groupDivider]}><View style={styles.settingIcon}><GraduationCap color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>{enrollment.cohort_name}</Text><Text style={styles.settingCopy}>{enrollment.curriculum_name}</Text></View><Text style={[styles.enrollmentStatus, enrollment.status === 'active' && styles.enrollmentActive]}>{enrollment.status}</Text></View>)}</View></>}
       <Text style={styles.sectionLabel}>PREFERENCES</Text>
-      <View style={styles.group}><View style={styles.setting}><View style={styles.settingIcon}><BellRing color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Message notifications</Text><Text style={styles.settingCopy}>Email and device alerts. Conversation mutes still take priority.</Text></View><View style={styles.switchSlot}>{loadingPreference ? <ActivityIndicator color={palette.rubySoft} size="small" /> : <Switch accessibilityLabel="Message notifications" value={notificationsEnabled} onValueChange={(value) => void toggleNotifications(value)} trackColor={{ false: palette.line, true: '#6A2A36' }} thumbColor={notificationsEnabled ? palette.rubySoft : palette.muted} style={styles.switch} />}</View></View></View>
+      <View style={styles.group}>
+        <View style={styles.setting}><View style={styles.settingIcon}><Bell color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Device notifications</Text><Text style={styles.settingCopy}>{devicePermission === 'denied' ? 'Off in device settings. Turn on to open Settings.' : 'Messages, announcements, grades, submissions, and support updates.'}</Text></View><View style={styles.switchSlot}>{loadingPreference || updatingPreference ? <ActivityIndicator color={palette.rubySoft} size="small" /> : <Switch accessibilityLabel="Device notifications" value={deviceNotificationsEnabled && devicePermission === 'granted'} onValueChange={toggleDeviceNotifications} trackColor={{ false: palette.line, true: '#6A2A36' }} thumbColor={deviceNotificationsEnabled && devicePermission === 'granted' ? palette.rubySoft : palette.muted} style={styles.switch} />}</View></View>
+        <View style={[styles.setting, styles.groupDivider]}><View style={styles.settingIcon}><Mail color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Message emails</Text><Text style={styles.settingCopy}>Email alerts for direct messages and mentions. Conversation mutes still apply.</Text></View><View style={styles.switchSlot}>{loadingPreference ? <ActivityIndicator color={palette.rubySoft} size="small" /> : <Switch accessibilityLabel="Message emails" value={emailNotificationsEnabled} onValueChange={(value) => void toggleEmailNotifications(value)} trackColor={{ false: palette.line, true: '#6A2A36' }} thumbColor={emailNotificationsEnabled ? palette.rubySoft : palette.muted} style={styles.switch} />}</View></View>
+      </View>
       {user?.is_staff && <Pressable accessibilityRole="button" accessibilityLabel="Manage communication workspaces" onPress={() => router.push('/manage-communications' as Href)} style={styles.manage}><View style={styles.settingIcon}><Settings2 color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Communication settings</Text><Text style={styles.settingCopy}>Manage workspaces, members, and channels.</Text></View><ChevronRight color={palette.quiet} size={18} /></Pressable>}
       <Text style={styles.sectionLabel}>PRIVACY & SAFETY</Text>
       <View style={styles.group}>

@@ -37,6 +37,32 @@ class MobilePushTokensTest < ActionDispatch::IntegrationTest
     assert_equal @user, MobilePushToken.find_by!(token: "ExpoPushToken[device-2]").user
   end
 
+  test "user reads and changes the mobile push preference" do
+    @user.mobile_push_tokens.create!(token: "ExpoPushToken[preference]", platform: "ios", last_seen_at: Time.current)
+
+    as_user(@user) do
+      get "/api/v1/mobile_push_tokens/config", headers: auth_headers
+    end
+    assert_response :success
+    assert_equal true, response.parsed_body["notifications_enabled"]
+    assert_equal 1, response.parsed_body["active_device_count"]
+
+    as_user(@user) do
+      patch "/api/v1/mobile_push_tokens/preferences", params: { notifications_enabled: false }, headers: auth_headers, as: :json
+    end
+    assert_response :success
+    assert_equal false, response.parsed_body["notifications_enabled"]
+    refute @user.reload.mobile_push_notifications_enabled?
+  end
+
+  test "mobile push preference requires authentication" do
+    get "/api/v1/mobile_push_tokens/config"
+    assert_response :unauthorized
+
+    patch "/api/v1/mobile_push_tokens/preferences", params: { notifications_enabled: false }, as: :json
+    assert_response :unauthorized
+  end
+
   private
 
   def auth_headers
