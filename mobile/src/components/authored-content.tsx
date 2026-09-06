@@ -59,6 +59,7 @@ export function AuthoredContent({ body, compact = false }: AuthoredContentProps)
         blockquote: { borderLeftWidth: 3, borderLeftColor: palette.ruby, backgroundColor: '#211319', paddingHorizontal: 13, paddingVertical: 10, marginVertical: 10 },
         pre: { backgroundColor: '#080A0E', borderWidth: 1, borderColor: palette.line, borderRadius: 12, color: '#E5E7EB', padding: 13, marginVertical: 10 },
         code: { color: '#F5A3AF', fontFamily: 'Menlo', fontSize: 13, backgroundColor: '#20151A' },
+        img: { borderRadius: 12, marginVertical: 8 },
         table: { borderWidth: 1, borderColor: palette.line, marginVertical: 10 },
         th: { color: palette.text, fontFamily: fonts.bold, backgroundColor: palette.panelRaised, padding: 8 },
         td: { color: palette.muted, padding: 8, borderTopWidth: 1, borderColor: palette.line },
