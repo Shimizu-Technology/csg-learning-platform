@@ -8,6 +8,7 @@ import type {
   Message,
   MessageEvent,
   MessageSearchResult,
+  MobilePushConfig,
   PaginationMeta,
   ProfilePayload,
   LearningResource,
@@ -243,6 +244,8 @@ export class CsgApi {
   cableToken = () => this.request<{ token: string; expires_in: number }>('/api/v1/cable_token', { method: 'POST' });
   registerDevice = (token: string, platform: string, deviceId: string | null, appVersion: string | null) => this.request('/api/v1/mobile_push_tokens', { method: 'POST', body: JSON.stringify({ token, platform, device_id: deviceId, app_version: appVersion }) });
   unregisterDevice = (token: string) => this.request(`/api/v1/mobile_push_tokens?token=${encodeURIComponent(token)}`, { method: 'DELETE' });
+  mobilePushConfig = () => this.request<MobilePushConfig>('/api/v1/mobile_push_tokens/config');
+  updateMobilePushPreference = (enabled: boolean) => this.request<MobilePushConfig>('/api/v1/mobile_push_tokens/preferences', { method: 'PATCH', body: JSON.stringify({ notifications_enabled: enabled }) });
   search = (query: string) => this.request<{ results: MessageSearchResult[] }>(`/api/v1/messages/search?q=${encodeURIComponent(query)}&limit=30`);
 }
 

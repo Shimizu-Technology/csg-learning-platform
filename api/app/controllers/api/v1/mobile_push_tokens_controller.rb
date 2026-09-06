@@ -3,6 +3,19 @@ module Api
     class MobilePushTokensController < ApplicationController
       before_action :authenticate_user!
 
+      # GET /api/v1/mobile_push_tokens/config
+      def show_config
+        render json: mobile_push_config
+      end
+
+      # PATCH /api/v1/mobile_push_tokens/preferences
+      def update_preferences
+        enabled = ActiveModel::Type::Boolean.new.cast(params.require(:notifications_enabled))
+        current_user.update!(mobile_push_notifications_enabled: enabled)
+
+        render json: mobile_push_config
+      end
+
       # POST /api/v1/mobile_push_tokens
       def create
         existing_token = MobilePushToken.find_by(token: token_params[:token])
@@ -35,6 +48,13 @@ module Api
       end
 
       private
+
+      def mobile_push_config
+        {
+          notifications_enabled: current_user.mobile_push_notifications_enabled?,
+          active_device_count: current_user.mobile_push_tokens.active.count
+        }
+      end
 
       def token_params
         params.permit(:token, :platform, :device_id, :app_version)

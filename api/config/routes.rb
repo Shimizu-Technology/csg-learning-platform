@@ -54,6 +54,8 @@ Rails.application.routes.draw do
       delete "push_subscriptions", to: "push_subscriptions#destroy"
       post "mobile_push_tokens", to: "mobile_push_tokens#create"
       delete "mobile_push_tokens", to: "mobile_push_tokens#destroy"
+      get "mobile_push_tokens/config", to: "mobile_push_tokens#show_config"
+      patch "mobile_push_tokens/preferences", to: "mobile_push_tokens#update_preferences"
       post "message_attachments/presign", to: "message_attachments#presign"
       post "transcriptions", to: "transcriptions#create"
       patch "message_preferences", to: "message_preferences#update"
