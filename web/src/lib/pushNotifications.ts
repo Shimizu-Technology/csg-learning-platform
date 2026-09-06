@@ -1,4 +1,16 @@
 import { api } from './api'
+import type { PushConfigResponse } from '../types/api'
+
+export function webPushPreferenceEnabled(config: Pick<PushConfigResponse, 'web_push_notifications_enabled' | 'notifications_enabled'>) {
+  return config.web_push_notifications_enabled ?? config.notifications_enabled ?? false
+}
+
+export function browserPushEnabled(
+  config: Pick<PushConfigResponse, 'web_push_notifications_enabled' | 'notifications_enabled'> | null | undefined,
+  subscription: PushSubscription | null | undefined,
+) {
+  return Boolean(config && webPushPreferenceEnabled(config) && subscription)
+}
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)

@@ -49,3 +49,28 @@ describe('message API wire format', () => {
     ])
   })
 })
+
+describe('browser push preference API', () => {
+  it('patches the account browser preference and returns its delivery state', async () => {
+    const response = {
+      web_push_notifications_enabled: false,
+      active_subscription_count: 2,
+    }
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify(response),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await api.updateWebPushNotifications(false)
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/api\/v1\/push_subscriptions\/web_preferences$/)
+    expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({
+      method: 'PATCH',
+      body: JSON.stringify({ notifications_enabled: false }),
+    }))
+    expect(result).toEqual({ data: response, error: null, status: 200 })
+  })
+})

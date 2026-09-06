@@ -44,4 +44,17 @@ class WebPushNotificationServiceTest < ActiveSupport::TestCase
 
     assert_equal "Sent an attachment", payload.fetch("body")
   end
+
+  test "does not deliver to a user who disabled browser push" do
+    user = User.create!(clerk_id: "web_push_disabled", email: "web-push-disabled@example.com", web_push_notifications_enabled: false)
+    subscription = user.push_subscriptions.create!(endpoint: "https://push.example/disabled", p256dh: "public-key", auth: "auth-secret")
+    deliveries = []
+    service = WebPushNotificationService.new
+    service.define_singleton_method(:deliver) { |item, _payload| deliveries << item.id }
+
+    service.send(:deliver_to_user, user.id, "{}")
+
+    assert_empty deliveries
+    assert_nil subscription.reload.failed_at
+  end
 end

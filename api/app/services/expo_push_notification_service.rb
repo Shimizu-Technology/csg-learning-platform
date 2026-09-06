@@ -97,12 +97,16 @@ class ExpoPushNotificationService
       end
     end
 
-    return false if entries.empty?
+    if entries.empty?
+      ExpoPushReceiptJob.drain_due_inline
+      return false
+    end
 
     connection = build_connection
     connection.start do |http|
       entries.each_slice(BATCH_SIZE) { |batch| deliver_batch(batch, http) }
     end
+    ExpoPushReceiptJob.drain_due_inline
     true
   rescue OpenSSL::SSL::SSLError, SocketError, SystemCallError, Timeout::Error => e
     Rails.logger.warn("[ExpoPush] delivery failed: #{e.class} #{e.message}")
@@ -119,13 +123,17 @@ class ExpoPushNotificationService
     end
 
     receipts = Array(JSON.parse(response.body)["data"])
+    receipt_requests = []
     entries.zip(receipts).each do |(token, _payload), receipt|
       if receipt&.dig("status") == "error" && receipt.dig("details", "error") == "DeviceNotRegistered"
         token.mark_failed!
       elsif receipt&.dig("status") == "ok"
         token.mark_seen!
+        receipt_id = receipt["id"].to_s
+        receipt_requests << { "receipt_id" => receipt_id, "mobile_push_token_id" => token.id } if receipt_id.present?
       end
     end
+    ExpoPushReceiptJob.track(receipt_requests)
   rescue JSON::ParserError => e
     Rails.logger.warn("[ExpoPush] delivery failed: #{e.class} #{e.message}")
   end
@@ -140,6 +148,7 @@ class ExpoPushNotificationService
 
   def post(body, connection)
     request = Net::HTTP::Post.new(ENDPOINT.request_uri, "Content-Type" => "application/json", "Accept" => "application/json")
+    request["Authorization"] = "Bearer #{ENV.fetch('EXPO_ACCESS_TOKEN')}" if ENV["EXPO_ACCESS_TOKEN"].present?
     request.body = body
     connection.request(request)
   end

@@ -1,6 +1,8 @@
 require "test_helper"
 
 class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   test "announcement pushes identify the author and include the announcement details" do
     author = User.create!(clerk_id: "expo_announcement_author", email: "expo-announcement-author@example.com", first_name: "Maya", last_name: "Santos", role: :instructor)
     author.mobile_push_tokens.create!(token: "ExpoPushToken[announcement]", platform: "ios", last_seen_at: Time.current)
@@ -22,7 +24,7 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
 
   test "sends one personalized payload for each active device" do
     user = User.create!(clerk_id: "expo_recipient", email: "expo-recipient@example.com", role: :student)
-    user.mobile_push_tokens.create!(token: "ExpoPushToken[device-1]", platform: "ios", last_seen_at: 1.day.ago)
+    token = user.mobile_push_tokens.create!(token: "ExpoPushToken[device-1]", platform: "ios", last_seen_at: 1.day.ago)
     announcement = Announcement.create!(title: "Test announcement", body: "Test", author: user, audience: :global, status: :published)
     notification = user.notifications.create!(notifiable: announcement, notification_type: :message, title: "New message", body: "Can you review this?", path: "/messages/1")
     request_payload = nil
@@ -30,20 +32,26 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
     response.instance_variable_set(:@read, true)
     response.body = { data: [ { status: "ok", id: "receipt-1" } ] }.to_json
 
-    with_http_response(response) do |connection|
-      delivered = ExpoPushNotificationService.new.deliver_notifications([ notification ]) do |item|
-        { title: item.title, body: item.body, data: { path: item.path } }
+    assert_difference("ExpoPushReceipt.count", 1) do
+      assert_enqueued_with(job: ExpoPushReceiptJob, args: [ [ "receipt-1" ] ], at: ->(time) { time.between?(14.minutes.from_now, 16.minutes.from_now) }) do
+        with_http_response(response) do |connection|
+          delivered = ExpoPushNotificationService.new.deliver_notifications([ notification ]) do |item|
+            { title: item.title, body: item.body, data: { path: item.path } }
+          end
+          assert delivered
+          request_payload = JSON.parse(connection.request_received.body)
+          assert connection.use_ssl
+          assert_equal ExpoPushNotificationService::OPEN_TIMEOUT, connection.open_timeout
+          assert_equal ExpoPushNotificationService::READ_TIMEOUT, connection.read_timeout
+        end
       end
-      assert delivered
-      request_payload = JSON.parse(connection.request_received.body)
-      assert connection.use_ssl
-      assert_equal ExpoPushNotificationService::OPEN_TIMEOUT, connection.open_timeout
-      assert_equal ExpoPushNotificationService::READ_TIMEOUT, connection.read_timeout
     end
 
     assert_equal "ExpoPushToken[device-1]", request_payload.first.fetch("to")
     assert_equal "Can you review this?", request_payload.first.fetch("body")
     assert user.mobile_push_tokens.first.last_seen_at > 1.hour.ago
+    assert_equal "receipt-1", ExpoPushReceipt.last.receipt_id
+    assert_equal token.id, ExpoPushReceipt.last.mobile_push_token_id
   end
 
   test "marks an unregistered device as failed" do
@@ -137,6 +145,39 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
       assert_equal false, delivered
       assert_nil connection.request_received
     end
+  end
+
+  test "inline delivery sends the current push before draining due receipts" do
+    user = User.create!(clerk_id: "expo_inline_receipt", email: "expo-inline-receipt@example.com", role: :student)
+    token = user.mobile_push_tokens.create!(token: "ExpoPushToken[inline-receipt]", platform: "ios", last_seen_at: Time.current)
+    ExpoPushReceipt.create!(mobile_push_token: token, receipt_id: "receipt-inline-failed", available_at: 1.minute.ago)
+    notification = Notification.create!(user: user, notification_type: :announcement, title: "Test", body: "Test", path: "/updates", notifiable: user)
+    send_response = Net::HTTPOK.new("1.1", "200", "OK")
+    send_response.instance_variable_set(:@read, true)
+    send_response.body = { data: [ { status: "ok" } ] }.to_json
+    receipt_response = Net::HTTPOK.new("1.1", "200", "OK")
+    receipt_response.instance_variable_set(:@read, true)
+    receipt_response.body = { data: { "receipt-inline-failed" => { status: "error", details: { error: "DeviceNotRegistered" } } } }.to_json
+    original_adapter = ActiveJob::Base.queue_adapter
+    ActiveJob::Base.queue_adapter = :inline
+
+    with_http_response(send_response) do |connection|
+      request_paths = []
+      connection.define_singleton_method(:request) do |request|
+        self.request_received = request
+        self.request_count = request_count.to_i + 1
+        request_paths << request.path
+        request.path == ExpoPushReceiptService::ENDPOINT.request_uri ? receipt_response : send_response
+      end
+      delivered = ExpoPushNotificationService.new.deliver_notifications([ notification ]) { { title: "Test", body: "Test" } }
+      assert delivered
+      assert_equal [ ExpoPushNotificationService::ENDPOINT.request_uri, ExpoPushReceiptService::ENDPOINT.request_uri ], request_paths
+    end
+
+    assert token.reload.failed_at.present?
+    assert_not ExpoPushReceipt.exists?(receipt_id: "receipt-inline-failed")
+  ensure
+    ActiveJob::Base.queue_adapter = original_adapter if original_adapter
   end
 
   test "submission pushes use native staff and student destinations" do

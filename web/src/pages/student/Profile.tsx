@@ -194,7 +194,7 @@ export function Profile() {
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-700"><Mail className="h-5 w-5" /></span>
             <div>
               <p className="text-sm font-extrabold text-slate-950">Direct-message emails</p>
-              <p className="mt-1 max-w-md text-xs leading-5 text-slate-500">Receive an email when someone sends you a direct message. Browser push settings are managed separately on each device.</p>
+              <p className="mt-1 max-w-md text-xs leading-5 text-slate-500">Receive an email when someone sends you a direct message. Browser alerts are controlled separately from Messages or Updates.</p>
             </div>
           </div>
           {emailNotificationsEnabled === null ? (

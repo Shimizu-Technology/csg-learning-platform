@@ -47,6 +47,7 @@ import type {
   MarkAllNotificationsReadResponse,
   MessageNotificationPreferenceResponse,
   PushConfigResponse,
+  WebPushNotificationPreferenceResponse,
   PushSubscriptionResponse,
   CableTokenResponse,
   WorkspacesResponse,
@@ -423,6 +424,11 @@ export const api = {
     fetchApi<PushConfigResponse>('/api/v1/push_subscriptions/config'),
   updateMessageNotifications: (notificationsEnabled: boolean) =>
     fetchApi<MessageNotificationPreferenceResponse>('/api/v1/push_subscriptions/preferences', {
+      method: 'PATCH',
+      body: JSON.stringify({ notifications_enabled: notificationsEnabled }),
+    }),
+  updateWebPushNotifications: (notificationsEnabled: boolean) =>
+    fetchApi<WebPushNotificationPreferenceResponse>('/api/v1/push_subscriptions/web_preferences', {
       method: 'PATCH',
       body: JSON.stringify({ notifications_enabled: notificationsEnabled }),
     }),

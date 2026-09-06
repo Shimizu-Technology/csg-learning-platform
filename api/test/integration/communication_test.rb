@@ -316,6 +316,8 @@ class CommunicationTest < ActionDispatch::IntegrationTest
   end
 
   test "same user can refresh push subscription by endpoint" do
+    @student.update!(message_email_notifications_enabled: false, web_push_notifications_enabled: false)
+
     as_user(@student) do
       post "/api/v1/push_subscriptions",
         params: {
@@ -331,7 +333,8 @@ class CommunicationTest < ActionDispatch::IntegrationTest
 
     assert_response :created
     assert_equal 1, @student.push_subscriptions.count
-    assert @student.reload.message_email_notifications_enabled?
+    assert @student.reload.web_push_notifications_enabled?
+    refute @student.message_email_notifications_enabled?
 
     as_user(@student) do
       post "/api/v1/push_subscriptions",
@@ -364,11 +367,40 @@ class CommunicationTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     refute @student.reload.message_email_notifications_enabled?
+    assert @student.web_push_notifications_enabled?
     assert_equal false, response.parsed_body.fetch("notifications_enabled")
   end
 
-  test "global push disable removes subscriptions and disables message emails" do
-    @student.update!(message_email_notifications_enabled: true)
+  test "push config reports email and browser preferences independently" do
+    @student.update!(message_email_notifications_enabled: false, web_push_notifications_enabled: true)
+
+    as_user(@student) do
+      get "/api/v1/push_subscriptions/config", headers: auth_headers, as: :json
+    end
+
+    assert_response :success
+    assert_equal false, response.parsed_body.fetch("notifications_enabled")
+    assert_equal true, response.parsed_body.fetch("web_push_notifications_enabled")
+  end
+
+  test "browser push preference can be changed without changing message emails" do
+    @student.update!(message_email_notifications_enabled: false, web_push_notifications_enabled: true)
+
+    as_user(@student) do
+      patch "/api/v1/push_subscriptions/web_preferences",
+        params: { notifications_enabled: false },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :success
+    refute @student.reload.web_push_notifications_enabled?
+    refute @student.message_email_notifications_enabled?
+    assert_equal false, response.parsed_body.fetch("web_push_notifications_enabled")
+  end
+
+  test "global push disable removes subscriptions without disabling message emails" do
+    @student.update!(message_email_notifications_enabled: true, web_push_notifications_enabled: true)
     @student.push_subscriptions.create!(
       endpoint: "https://push.example/subscription-1",
       p256dh: "public-key",
@@ -389,11 +421,12 @@ class CommunicationTest < ActionDispatch::IntegrationTest
 
     assert_response :no_content
     assert_equal 0, @student.push_subscriptions.count
-    refute @student.reload.message_email_notifications_enabled?
+    refute @student.reload.web_push_notifications_enabled?
+    assert @student.message_email_notifications_enabled?
   end
 
   test "bare push subscription delete does not globally disable notifications" do
-    @student.update!(message_email_notifications_enabled: true)
+    @student.update!(message_email_notifications_enabled: true, web_push_notifications_enabled: true)
     @student.push_subscriptions.create!(
       endpoint: "https://push.example/subscription-1",
       p256dh: "public-key",
@@ -407,10 +440,11 @@ class CommunicationTest < ActionDispatch::IntegrationTest
     assert_response :no_content
     assert_equal 1, @student.push_subscriptions.count
     assert @student.reload.message_email_notifications_enabled?
+    assert @student.web_push_notifications_enabled?
   end
 
   test "endpoint push subscription delete preserves message email notifications" do
-    @student.update!(message_email_notifications_enabled: true)
+    @student.update!(message_email_notifications_enabled: true, web_push_notifications_enabled: true)
     @student.push_subscriptions.create!(
       endpoint: "https://push.example/subscription-1",
       p256dh: "public-key",
@@ -427,6 +461,7 @@ class CommunicationTest < ActionDispatch::IntegrationTest
     assert_response :no_content
     assert_equal 0, @student.push_subscriptions.count
     assert @student.reload.message_email_notifications_enabled?
+    assert @student.web_push_notifications_enabled?
   end
 
   test "push subscription cannot be claimed by a different user" do

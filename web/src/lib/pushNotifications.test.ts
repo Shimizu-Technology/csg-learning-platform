@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from './api'
-import { disablePushNotifications } from './pushNotifications'
+import { browserPushEnabled, disablePushNotifications, webPushPreferenceEnabled } from './pushNotifications'
 
 vi.mock('./api', () => ({
   api: {
@@ -14,7 +14,7 @@ describe('disablePushNotifications', () => {
     vi.unstubAllGlobals()
   })
 
-  it('globally disables email and every browser subscription from a non-push client', async () => {
+  it('disables browser push across the account from a non-push client', async () => {
     vi.stubGlobal('navigator', {})
     vi.stubGlobal('window', {})
     vi.mocked(api.deletePushSubscription).mockResolvedValue({ data: null, error: null })
@@ -31,5 +31,36 @@ describe('disablePushNotifications', () => {
     vi.mocked(api.deletePushSubscription).mockResolvedValue({ data: null, error: 'Could not disable notifications.' })
 
     await expect(disablePushNotifications()).rejects.toThrow('Could not disable notifications.')
+  })
+})
+
+describe('webPushPreferenceEnabled', () => {
+  it('uses the dedicated browser preference when available', () => {
+    expect(webPushPreferenceEnabled({ web_push_notifications_enabled: false, notifications_enabled: true })).toBe(false)
+  })
+
+  it('falls back to the legacy preference during a staggered deployment', () => {
+    expect(webPushPreferenceEnabled({ notifications_enabled: false })).toBe(false)
+    expect(webPushPreferenceEnabled({ notifications_enabled: true })).toBe(true)
+  })
+
+  it('fails closed when a degraded config response contains no preference', () => {
+    expect(webPushPreferenceEnabled({})).toBe(false)
+  })
+})
+
+describe('browserPushEnabled', () => {
+  const subscription = {} as PushSubscription
+
+  it('requires a successful configuration response even when this browser has a subscription', () => {
+    expect(browserPushEnabled(null, subscription)).toBe(false)
+    expect(browserPushEnabled(undefined, subscription)).toBe(false)
+    expect(browserPushEnabled({}, subscription)).toBe(false)
+  })
+
+  it('requires both the account preference and a browser subscription', () => {
+    expect(browserPushEnabled({ web_push_notifications_enabled: true }, subscription)).toBe(true)
+    expect(browserPushEnabled({ web_push_notifications_enabled: false }, subscription)).toBe(false)
+    expect(browserPushEnabled({ web_push_notifications_enabled: true }, null)).toBe(false)
   })
 })

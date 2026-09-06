@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_06_010000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_06_021000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -253,6 +253,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_06_010000) do
     t.index ["cohort_id"], name: "index_enrollments_on_cohort_id"
     t.index ["user_id", "cohort_id"], name: "index_enrollments_on_user_id_and_cohort_id", unique: true
     t.index ["user_id"], name: "index_enrollments_on_user_id"
+  end
+
+  create_table "expo_push_receipts", force: :cascade do |t|
+    t.datetime "available_at", null: false
+    t.datetime "created_at", null: false
+    t.integer "lookup_count", default: 0, null: false
+    t.bigint "mobile_push_token_id", null: false
+    t.datetime "processing_at"
+    t.string "processing_token"
+    t.string "receipt_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["available_at"], name: "index_expo_push_receipts_on_available_at"
+    t.index ["mobile_push_token_id"], name: "index_expo_push_receipts_on_mobile_push_token_id"
+    t.index ["receipt_id"], name: "index_expo_push_receipts_on_receipt_id", unique: true
   end
 
   create_table "feedback_snippets", force: :cascade do |t|
@@ -900,6 +914,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_06_010000) do
     t.boolean "mobile_push_notifications_enabled", default: true, null: false
     t.integer "role", default: 0, null: false
     t.datetime "updated_at", null: false
+    t.boolean "web_push_notifications_enabled", default: true, null: false
     t.index ["archived_at"], name: "index_users_on_archived_at"
     t.index ["clerk_id"], name: "index_users_on_clerk_id", unique: true
     t.index ["email"], name: "index_users_on_email", unique: true
@@ -981,6 +996,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_06_010000) do
   add_foreign_key "enrollment_restarts", "users", column: "student_id"
   add_foreign_key "enrollments", "cohorts"
   add_foreign_key "enrollments", "users"
+  add_foreign_key "expo_push_receipts", "mobile_push_tokens", on_delete: :cascade
   add_foreign_key "feedback_snippets", "users", column: "created_by_id"
   add_foreign_key "github_check_runs", "submissions"
   add_foreign_key "help_requests", "cohorts"
