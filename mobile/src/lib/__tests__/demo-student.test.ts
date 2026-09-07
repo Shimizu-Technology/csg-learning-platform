@@ -19,6 +19,11 @@ describe('student simulator walkthrough data', () => {
     expect(data.demoPeople.filter((user) => user.id === data.demoUser.id)).toHaveLength(1);
     expect(data.demoNotifications[0]).toMatchObject({ path: '/lessons/100', notifiable: { type: 'Submission', id: 8 } });
     expect(data.demoNotifications[1]).toMatchObject({ path: '/messages/dm/31', notifiable: { type: 'Message', id: data.demoDms[0].latest_message?.id } });
+    expect(data.demoMessages['dm:32'].at(-1)).toMatchObject({
+      id: data.demoDms[1].latest_message?.id,
+      body: data.demoDms[1].latest_message?.body,
+      author: { full_name: data.demoDms[1].latest_message?.author_name },
+    });
   });
 
   it('opens the lesson that matches each student dashboard action', () => {
@@ -33,5 +38,8 @@ describe('student simulator walkthrough data', () => {
     expect(demoLessonFor(demoDashboard.action_items![0].lesson_id).title).toBe(demoDashboard.action_items![0].lesson_title);
     expect(demoLessonFor(100).content_blocks[1].submissions?.[0]).toMatchObject({ grade: 'A', feedback: 'Clear structure and thoughtful landmarks.' });
     expect(demoLessonFor(102).content_blocks[1].submissions?.[0]).toMatchObject({ grade: 'R', feedback: 'Add an explicit label for every field.' });
+    expect(demoLessonFor(103).title).toBe('JavaScript interactions');
+    expect(demoLessonFor(104).title).toBe('Container query stretch');
+    expect(() => demoLessonFor(999)).toThrow('Sample lesson 999 is not available.');
   });
 });

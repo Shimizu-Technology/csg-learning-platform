@@ -69,6 +69,45 @@ tags:
     visible: "YOUR LEARNING DAY"
     timeout: 15000
 
+- openLink: "csgconnect:///manage-communications"
+- tapOn:
+    text: "Open"
+    optional: true
+- extendedWaitUntil:
+    visible: "Staff access only"
+    timeout: 15000
+- assertVisible: "Managing channels and workspace membership is available to instructors and admins."
+- tapOn: "Go to Messages"
+- extendedWaitUntil:
+    visible: "Open Leon Shimizu"
+    timeout: 15000
+
+- openLink: "csgconnect:///recordings/upload"
+- tapOn:
+    text: "Open"
+    optional: true
+- extendedWaitUntil:
+    visible: "Staff access only"
+    timeout: 15000
+- assertVisible: "Recording uploads are available to instructors and admins."
+- tapOn: "Go to Recordings"
+- extendedWaitUntil:
+    visible: "Pick up where you left off"
+    timeout: 15000
+
+- openLink: "csgconnect:///staff/intervention/not-a-number"
+- tapOn:
+    text: "Open"
+    optional: true
+- extendedWaitUntil:
+    visible: "Staff access only"
+    timeout: 15000
+- assertVisible: "Student interventions are available to instructors and admins."
+- tapOn: "Go to Today"
+- extendedWaitUntil:
+    visible: "YOUR LEARNING DAY"
+    timeout: 15000
+
 - openLink: "csgconnect:///compose"
 - tapOn:
     text: "Open"
@@ -86,6 +125,18 @@ tags:
     timeout: 15000
 - assertVisible: "Select Leon Shimizu"
 - assertNotVisible: "Select Noah Cruz"
+- tapOn: "Select Leon Shimizu"
+- scrollUntilVisible:
+    element:
+      text: "Select Kai Perez"
+    direction: DOWN
+    timeout: 15000
+- tapOn: "Select Kai Perez"
+- tapOn: "Start group message (2)"
+- extendedWaitUntil:
+    visible: "Message composer Message Leon, Kai"
+    timeout: 15000
+- assertVisible: "Thursday after class works for both of us."
 
 - openLink: "csgconnect:///profile"
 - tapOn:

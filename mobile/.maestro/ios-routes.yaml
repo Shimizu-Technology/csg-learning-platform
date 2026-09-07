@@ -49,6 +49,18 @@ tags:
     visible: "Grading queue"
     timeout: 15000
 
+- openLink: "csgconnect:///staff/intervention/not-a-number"
+- tapOn:
+    text: "Open"
+    optional: true
+- extendedWaitUntil:
+    visible: "This intervention link is invalid."
+    timeout: 15000
+- tapOn: "Go to support queue"
+- extendedWaitUntil:
+    visible: "Help queue"
+    timeout: 15000
+
 - openLink: "csgconnect:///staff/support"
 - tapOn:
     text: "Open"

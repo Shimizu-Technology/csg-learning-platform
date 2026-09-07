@@ -48,7 +48,10 @@ export const demoMessages: Record<string, Message[]> = {
     { id: 201, channel_id: null, direct_conversation_id: 31, parent_message_id: null, body: demoUser.is_staff ? 'Your component structure is solid. The redirect loop is probably in the layout guard.' : 'Can I send you the repo before office hours?', mention_user_ids: [], edited_at: null, deleted_at: null, pinned_at: null, created_at: ago(40), updated_at: ago(40), mine: true, reactions: [], attachments: [], author: demoUser },
     { id: 203, channel_id: null, direct_conversation_id: 31, parent_message_id: null, body: demoUser.is_staff ? 'Can I send you the repo before office hours?' : 'Your component structure is solid. The redirect loop is probably in the layout guard.', mention_user_ids: [], edited_at: null, deleted_at: null, pinned_at: null, created_at: ago(16), updated_at: ago(16), mine: false, reactions: [], attachments: [], author: demoDmPartner },
   ],
-  'dm:32': [],
+  'dm:32': [
+    { id: 204, channel_id: null, direct_conversation_id: 32, parent_message_id: null, body: 'Would Thursday after class work for a quick project check-in?', mention_user_ids: [], edited_at: null, deleted_at: null, pinned_at: null, created_at: ago(52), updated_at: ago(52), mine: true, reactions: [], attachments: [], author: demoUser },
+    { id: 205, channel_id: null, direct_conversation_id: 32, parent_message_id: null, body: 'Thursday after class works for both of us.', mention_user_ids: [], edited_at: null, deleted_at: null, pinned_at: null, created_at: ago(46), updated_at: ago(46), mine: false, reactions: [], attachments: [], author: demoKai },
+  ],
 };
 
 export const demoAnnouncements: Announcement[] = [

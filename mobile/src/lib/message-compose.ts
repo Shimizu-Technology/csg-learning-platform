@@ -4,6 +4,12 @@ export function conversationOperationIdentity(userId: number | null, kind: 'chan
   return `${userId ?? 'signed-out'}:${kind}:${id}`;
 }
 
+export function conversationHasParticipants(users: { id: number }[], participantIds: number[]) {
+  if (users.length !== participantIds.length) return false;
+  const expected = new Set(participantIds);
+  return expected.size === participantIds.length && users.every((user) => expected.has(user.id));
+}
+
 export interface FailedSendIntent {
   body: string;
   clientMessageId: string;

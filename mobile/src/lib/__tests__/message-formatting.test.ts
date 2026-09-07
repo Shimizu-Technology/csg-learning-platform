@@ -33,6 +33,13 @@ describe('mobile message formatting', () => {
     });
   });
 
+  it.each([0, 2])('places the cursor after a list marker on an indented blank line from position %s', (position) => {
+    expect(applyMessageFormat('    ', { start: position, end: position }, 'bulletList')).toEqual({
+      value: '    - ',
+      selection: { start: 6, end: 6 },
+    });
+  });
+
   it.each([
     ['bulletList', '- '],
     ['orderedList', '1. '],

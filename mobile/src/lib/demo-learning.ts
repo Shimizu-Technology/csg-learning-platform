@@ -75,8 +75,48 @@ const demoRedoLesson: LessonDetail = {
   ],
 };
 
+const demoInteractionsLesson: LessonDetail = {
+  ...demoLesson,
+  id: 103,
+  title: 'JavaScript interactions',
+  position: 4,
+  release_day: 6,
+  requires_submission: false,
+  submission_type: undefined,
+  content_blocks_count: 2,
+  submission_window: { submissions_open: false, submissions_closed: false },
+  prev_lesson: { id: 102, title: 'Accessible forms' },
+  next_lesson: { id: 104, title: 'Container query stretch' },
+  content_blocks: [
+    { id: 206, block_type: 'text', position: 1, title: 'Connect behavior to intent', body: 'Use event listeners to make an interface respond while keeping state changes predictable and accessible.', video_url: null, filename: null, metadata: {}, progress: { status: 'not_started', completed_at: null } },
+    { id: 207, block_type: 'checkpoint', position: 2, title: 'Interaction checklist', body: '- Support keyboard input\n- Keep visible focus\n- Announce meaningful state changes', video_url: null, filename: null, metadata: {}, progress: { status: 'not_started', completed_at: null } },
+  ],
+};
+
+const demoContainerQueryLesson: LessonDetail = {
+  ...demoLesson,
+  id: 104,
+  title: 'Container query stretch',
+  position: 5,
+  release_day: 5,
+  required: false,
+  requires_submission: false,
+  submission_type: undefined,
+  content_blocks_count: 2,
+  submission_window: { submissions_open: false, submissions_closed: false },
+  prev_lesson: { id: 103, title: 'JavaScript interactions' },
+  next_lesson: null,
+  content_blocks: [
+    { id: 208, block_type: 'text', position: 1, title: 'Respond to the component', body: 'Container queries let a component adapt to the space its parent provides instead of the entire viewport.', video_url: null, filename: null, metadata: {}, progress: { status: 'not_started', completed_at: null } },
+    { id: 209, block_type: 'checkpoint', position: 2, title: 'Stretch goal', body: 'Convert one responsive card from a viewport query to a container query and compare the behavior.', video_url: null, filename: null, metadata: {}, progress: { status: 'not_started', completed_at: null } },
+  ],
+};
+
 export function demoLessonFor(id: number): LessonDetail {
   if (id === demoReviewedLesson.id) return demoReviewedLesson;
+  if (id === demoLesson.id) return demoLesson;
   if (id === demoRedoLesson.id) return demoRedoLesson;
-  return { ...demoLesson, id };
+  if (id === demoInteractionsLesson.id) return demoInteractionsLesson;
+  if (id === demoContainerQueryLesson.id) return demoContainerQueryLesson;
+  throw new Error(`Sample lesson ${id} is not available.`);
 }

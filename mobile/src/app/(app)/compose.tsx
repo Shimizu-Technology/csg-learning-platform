@@ -7,6 +7,7 @@ import { Avatar } from '@/components/avatar';
 import { EmptyState, LoadingState } from '@/components/screen-states';
 import { fonts, palette } from '@/constants/csg-theme';
 import { demoDms, demoPeople } from '@/lib/demo-data';
+import { conversationHasParticipants } from '@/lib/message-compose';
 import type { UserSummary } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
@@ -52,7 +53,10 @@ export default function ComposeScreen() {
     setCreating(true);
     try {
       if (auth.demo) {
-        const existing = demoDms.find((dm) => dm.users.some((member) => selected.includes(member.id))) || demoDms[0];
+        if (!sessionUser) throw new Error('Your sample account is still loading. Please try again.');
+        const participantIds = [sessionUser.id, ...selected];
+        const existing = demoDms.find((dm) => dm.workspace_id === workspaceId && conversationHasParticipants(dm.users, participantIds));
+        if (!existing) throw new Error('That sample conversation is not available yet. Choose a different set of people.');
         router.replace({ pathname: '/conversation/[kind]/[id]', params: { kind: 'dm', id: String(existing.id) } });
       } else {
         const result = await api.createDm(workspaceId, selected);
