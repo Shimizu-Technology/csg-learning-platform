@@ -1,4 +1,5 @@
 import type { LessonDetail, RecordingItem, StudentDashboard, WeeklyPlan } from './types';
+import { demoStudentUser } from './demo-data';
 
 export const demoWeeklyPlan: WeeklyPlan = {
   enrolled: true,
@@ -22,7 +23,7 @@ export const demoWeeklyPlan: WeeklyPlan = {
 
 export const demoDashboard: StudentDashboard = {
   enrolled: true,
-  user: { id: 1, full_name: 'Maya Santos', role: 'student' },
+  user: { id: demoStudentUser.id, full_name: demoStudentUser.full_name, role: 'student' },
   cohort: { id: 4, name: 'Web Dev Cohort 4', start_date: '2026-06-01', status: 'active', unread_notifications_count: 2, announcements: [] },
   overall_progress: { completed: 18, total: 36, percentage: 50 },
   continue_lesson: { id: 101, title: 'Responsive layouts with Grid' },
@@ -55,3 +56,68 @@ export const demoLesson: LessonDetail = {
     { id: 203, block_type: 'exercise', position: 3, title: 'Rebuild the card grid', body: 'Explain how your grid changes between mobile and desktop.', video_url: null, filename: 'styles.css', submission_type: 'text_submission', submission_config: {}, metadata: { language: 'css' }, progress: { status: 'in_progress', completed_at: null }, submissions: [] },
   ],
 };
+
+const demoReviewedLesson: LessonDetail = {
+  id: 100, module_id: 10, cohort_id: 4, title: 'HTML and semantic structure', lesson_type: 'lesson', position: 1, release_day: 1, required: true, requires_submission: true, submission_type: 'text_submission', content_blocks_count: 2,
+  submission_window: { submissions_open: true, submissions_closed: false }, prev_lesson: null, next_lesson: { id: 101, title: 'Responsive layouts with Grid' },
+  content_blocks: [
+    { id: 198, block_type: 'text', position: 1, title: 'Use meaningful landmarks', body: 'Semantic HTML communicates the purpose of each page region to browsers, assistive technology, and your teammates.', video_url: null, filename: null, metadata: {}, progress: { status: 'completed', completed_at: '2026-07-20T02:00:00Z' } },
+    { id: 199, block_type: 'exercise', position: 2, title: 'Semantic page exercise', body: 'Describe the landmarks you chose and why they fit the content.', video_url: null, filename: 'index.html', submission_type: 'text_submission', submission_config: {}, metadata: { language: 'html' }, progress: { status: 'completed', completed_at: '2026-07-20T04:00:00Z' }, submissions: [{ id: 8, submission_type: 'text_submission', text: 'I used header, nav, main, section, and footer so each region has a clear purpose.', grade: 'A', feedback: 'Clear structure and thoughtful landmarks.', graded_at: '2026-07-20T05:00:00Z', num_submissions: 1, created_at: '2026-07-20T04:00:00Z', updated_at: '2026-07-20T05:00:00Z' }] },
+  ],
+};
+
+const demoRedoLesson: LessonDetail = {
+  id: 102, module_id: 10, cohort_id: 4, title: 'Accessible forms', lesson_type: 'exercise', position: 3, release_day: 2, required: true, requires_submission: true, submission_type: 'text_submission', content_blocks_count: 2,
+  submission_window: { submissions_open: true, submissions_closed: false }, prev_lesson: { id: 101, title: 'Responsive layouts with Grid' }, next_lesson: { id: 103, title: 'JavaScript interactions' },
+  content_blocks: [
+    { id: 204, block_type: 'text', position: 1, title: 'Make every field understandable', body: 'Labels, instructions, and errors should remain programmatically connected to the field they describe.', video_url: null, filename: null, metadata: {}, progress: { status: 'completed', completed_at: '2026-07-21T02:00:00Z' } },
+    { id: 205, block_type: 'exercise', position: 2, title: 'Contact form exercise', body: 'Explain how your form connects each field with its label and error message.', video_url: null, filename: 'contact.html', submission_type: 'text_submission', submission_config: {}, metadata: { language: 'html' }, progress: { status: 'completed', completed_at: '2026-07-21T03:00:00Z' }, submissions: [{ id: 9, submission_type: 'text_submission', text: 'Each input is next to visible label text and each error is shown below its field.', grade: 'R', feedback: 'Add an explicit label for every field.', graded_at: '2026-07-21T04:00:00Z', num_submissions: 1, created_at: '2026-07-21T03:00:00Z', updated_at: '2026-07-21T04:00:00Z' }] },
+  ],
+};
+
+const demoInteractionsLesson: LessonDetail = {
+  ...demoLesson,
+  id: 103,
+  title: 'JavaScript interactions',
+  position: 4,
+  release_day: 6,
+  requires_submission: false,
+  submission_type: undefined,
+  content_blocks_count: 2,
+  submission_window: { submissions_open: false, submissions_closed: false },
+  prev_lesson: { id: 102, title: 'Accessible forms' },
+  next_lesson: { id: 104, title: 'Container query stretch' },
+  content_blocks: [
+    { id: 206, block_type: 'text', position: 1, title: 'Connect behavior to intent', body: 'Use event listeners to make an interface respond while keeping state changes predictable and accessible.', video_url: null, filename: null, metadata: {}, progress: { status: 'not_started', completed_at: null } },
+    { id: 207, block_type: 'checkpoint', position: 2, title: 'Interaction checklist', body: '- Support keyboard input\n- Keep visible focus\n- Announce meaningful state changes', video_url: null, filename: null, metadata: {}, progress: { status: 'not_started', completed_at: null } },
+  ],
+};
+
+const demoContainerQueryLesson: LessonDetail = {
+  ...demoLesson,
+  id: 104,
+  title: 'Container query stretch',
+  lesson_type: 'exercise',
+  position: 5,
+  release_day: 5,
+  required: false,
+  requires_submission: false,
+  submission_type: undefined,
+  content_blocks_count: 2,
+  submission_window: { submissions_open: false, submissions_closed: false },
+  prev_lesson: { id: 103, title: 'JavaScript interactions' },
+  next_lesson: null,
+  content_blocks: [
+    { id: 208, block_type: 'text', position: 1, title: 'Respond to the component', body: 'Container queries let a component adapt to the space its parent provides instead of the entire viewport.', video_url: null, filename: null, metadata: {}, progress: { status: 'not_started', completed_at: null } },
+    { id: 209, block_type: 'checkpoint', position: 2, title: 'Stretch goal', body: 'Convert one responsive card from a viewport query to a container query and compare the behavior.', video_url: null, filename: null, metadata: {}, progress: { status: 'not_started', completed_at: null } },
+  ],
+};
+
+export function demoLessonFor(id: number): LessonDetail {
+  if (id === demoReviewedLesson.id) return demoReviewedLesson;
+  if (id === demoLesson.id) return demoLesson;
+  if (id === demoRedoLesson.id) return demoRedoLesson;
+  if (id === demoInteractionsLesson.id) return demoInteractionsLesson;
+  if (id === demoContainerQueryLesson.id) return demoContainerQueryLesson;
+  throw new Error(`Sample lesson ${id} is not available.`);
+}

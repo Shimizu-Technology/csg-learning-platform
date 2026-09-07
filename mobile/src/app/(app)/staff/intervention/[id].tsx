@@ -91,7 +91,8 @@ export default function StaffInterventionScreen() {
     });
   }
 
-  if (!user?.is_staff || !Number.isInteger(interventionId) || interventionId <= 0) return <SafeAreaView style={styles.safe}><ErrorState message="This intervention is not available." retry={() => router.replace('/')} /></SafeAreaView>;
+  if (!user?.is_staff) return <SafeAreaView style={styles.safe}><ErrorState title="Staff access only" message="Student interventions are available to instructors and admins." retryLabel="Go to Today" retry={() => router.replace('/')} /></SafeAreaView>;
+  if (!Number.isInteger(interventionId) || interventionId <= 0) return <SafeAreaView style={styles.safe}><ErrorState message="This intervention link is invalid." retryLabel="Go to support queue" retry={() => router.replace('/staff/support')} /></SafeAreaView>;
   if (query.isPending && !intervention) return <SafeAreaView style={styles.safe}><LoadingState label="Loading intervention" /></SafeAreaView>;
   if (!intervention) return <SafeAreaView style={styles.safe}><ErrorState message={query.error ? (query.error as Error).message : 'Intervention not found.'} retry={() => void query.refetch()} /></SafeAreaView>;
   const active = !['resolved', 'canceled'].includes(intervention.status);

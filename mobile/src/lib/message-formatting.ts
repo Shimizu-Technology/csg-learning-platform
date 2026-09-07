@@ -103,6 +103,9 @@ function splitAtCollapsedCursor(value: string, selection: ComposerSelection) {
   const range = clampSelection(value, selection);
   if (range.start !== range.end) return { value, selection: range };
   const lineStart = value.lastIndexOf('\n', Math.max(0, range.start - 1)) + 1;
+  const nextBreak = value.indexOf('\n', range.start);
+  const lineEnd = nextBreak === -1 ? value.length : nextBreak;
+  if (!value.slice(lineStart, lineEnd).trim()) return { value, selection: range };
   if (range.start === lineStart) return { value, selection: range };
   const nextValue = `${value.slice(0, range.start)}\n${value.slice(range.start)}`;
   const cursor = range.start + 1;
@@ -117,10 +120,16 @@ function lineFormat(value: string, selection: ComposerSelection, action: 'ordere
   const pattern = action === 'orderedList' ? /^\d+\.\s/ : action === 'bulletList' ? /^[-*+]\s/ : /^>\s?/;
   const nonBlankLines = lines.filter((line) => line.trim());
   const remove = nonBlankLines.length > 0 && nonBlankLines.every((line) => pattern.test(line.trimStart()));
+  const collapsedBlankTarget = range.start === range.end && lines.length === 1 && !lines[0].trim();
   const orderedByIndent = new Map<string, number>();
   const transformed = lines.map((line) => {
-    if (!line.trim()) return line;
     const indentation = line.match(/^\s*/)?.[0] || '';
+    if (!line.trim()) {
+      if (!collapsedBlankTarget) return line;
+      if (action === 'orderedList') return `${indentation}1. `;
+      if (action === 'bulletList') return `${indentation}- `;
+      return `${indentation}> `;
+    }
     const content = line.slice(indentation.length);
     if (remove) return `${indentation}${content.replace(pattern, '')}`;
     const withoutOtherList = action === 'orderedList' || action === 'bulletList'
@@ -140,7 +149,7 @@ function lineFormat(value: string, selection: ComposerSelection, action: 'ordere
     const firstLine = lines[0] || '';
     const firstTransformed = transformed.split('\n')[0] || '';
     const delta = firstTransformed.length - firstLine.length;
-    const cursor = Math.max(start, range.start + delta);
+    const cursor = collapsedBlankTarget ? start + firstTransformed.length : Math.max(start, range.start + delta);
     return { value: nextValue, selection: { start: cursor, end: cursor } };
   }
 

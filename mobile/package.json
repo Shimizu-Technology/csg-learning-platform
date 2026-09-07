@@ -70,6 +70,7 @@
     "lint": "expo lint",
     "audit:dependencies": "node ../.github/scripts/npm-audit.mjs npm-audit-exceptions.json",
     "test:e2e:ios": "./scripts/run-maestro-ios.sh",
+    "test:e2e:ios:student": "CSG_MAESTRO_FLOWS=.maestro/ios-student.yaml ./scripts/run-maestro-ios.sh",
     "typecheck": "tsc --noEmit",
     "test": "jest --runInBand",
     "check": "npm run typecheck && npm run lint && npm test"

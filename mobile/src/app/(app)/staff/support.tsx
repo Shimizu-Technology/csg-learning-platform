@@ -95,7 +95,7 @@ export default function StaffSupportScreen() {
     router.push({ pathname: '/staff/intervention/[id]', params: { id: String(intervention.id) } });
   }
 
-  if (!user?.is_staff) return <SafeAreaView style={styles.safe}><ErrorState message="Student support is available to instructors and admins." /></SafeAreaView>;
+  if (!user?.is_staff) return <SafeAreaView style={styles.safe}><ErrorState title="Staff access only" message="The student support queue is available to instructors and admins." retryLabel="Go to Today" retry={() => router.replace('/')} /></SafeAreaView>;
   if (query.isPending && !queue) return <SafeAreaView style={styles.safe}><LoadingState label="Loading student support" /></SafeAreaView>;
   if (!queue) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={palette.text} size={22} /></Pressable></View><ErrorState message={query.error ? (query.error as Error).message : 'The support queue is unavailable.'} retry={() => void query.refetch()} /></SafeAreaView>;
 

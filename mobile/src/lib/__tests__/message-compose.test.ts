@@ -1,9 +1,21 @@
-import { clientMessageIdForSend, conversationOperationIdentity, createClientMessageId, draftAfterSendConfirmation, draftAfterStoredLoad, messageBodyChangeAllowed, messageBodyLength, messageBodyWithinLimit, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '../message-compose';
+import { clientMessageIdForSend, conversationHasParticipants, conversationOperationIdentity, createClientMessageId, draftAfterSendConfirmation, draftAfterStoredLoad, messageBodyChangeAllowed, messageBodyLength, messageBodyWithinLimit, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '../message-compose';
 
 describe('message compose contract', () => {
   it('changes the operation identity across conversation and account transitions', () => {
     expect(conversationOperationIdentity(7, 'channel', 11)).not.toBe(conversationOperationIdentity(7, 'channel', 12));
     expect(conversationOperationIdentity(7, 'channel', 11)).not.toBe(conversationOperationIdentity(8, 'channel', 11));
+  });
+
+  it('matches a direct conversation only when every participant is the same', () => {
+    const twoPersonDm = [{ id: 23 }, { id: 7 }];
+    const groupDm = [{ id: 23 }, { id: 7 }, { id: 15 }];
+
+    expect(conversationHasParticipants(twoPersonDm, [7, 23])).toBe(true);
+    expect(conversationHasParticipants(twoPersonDm, [23, 7, 15])).toBe(false);
+    expect(conversationHasParticipants(groupDm, [23, 7, 15])).toBe(true);
+    expect(conversationHasParticipants(groupDm, [23, 7, 99])).toBe(false);
+    expect(conversationHasParticipants(groupDm, [23, 7, 7])).toBe(false);
+    expect(conversationHasParticipants([{ id: 23 }, { id: 23 }], [23, 7])).toBe(false);
   });
 
   it('does not overwrite text entered while a stored draft is loading', () => {

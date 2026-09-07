@@ -6,22 +6,17 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { Avatar } from '@/components/avatar';
 import { EmptyState, LoadingState } from '@/components/screen-states';
 import { fonts, palette } from '@/constants/csg-theme';
-import { demoDms } from '@/lib/demo-data';
+import { demoDms, demoPeople } from '@/lib/demo-data';
+import { conversationHasParticipants } from '@/lib/message-compose';
 import type { UserSummary } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
-const demoPeople: UserSummary[] = [
-  { id: 18, full_name: 'Maya Santos', email: 'maya@example.com', role: 'student', avatar_url: null, is_admin: false, is_staff: false },
-  { id: 19, full_name: 'Noah Cruz', email: 'noah@example.com', role: 'student', avatar_url: null, is_admin: false, is_staff: false },
-  { id: 20, full_name: 'Kai Perez', email: 'kai@example.com', role: 'student', avatar_url: null, is_admin: false, is_staff: false },
-];
-
 export default function ComposeScreen() {
   const router = useRouter();
   const auth = useCsgAuth();
-  const { api } = useSession();
+  const { api, user: sessionUser } = useSession();
   const { workspaces, activeWorkspaceId: workspaceId, loading: loadingWorkspaces, selectWorkspace } = useWorkspace();
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [selected, setSelected] = useState<number[]>([]);
@@ -37,7 +32,7 @@ export default function ComposeScreen() {
       void (async () => {
         try {
           const available = auth.demo ? demoPeople : (await api.availableUsers(workspaceId)).users;
-          if (!cancelled) setUsers(available);
+          if (!cancelled) setUsers(available.filter((candidate) => candidate.id !== sessionUser?.id));
         } catch (error) {
           if (!cancelled) Alert.alert('Couldn’t load members', (error as Error).message);
         } finally {
@@ -46,7 +41,7 @@ export default function ComposeScreen() {
       })();
     });
     return () => { cancelled = true; cancelAnimationFrame(frame); };
-  }, [api, auth.demo, workspaceId]);
+  }, [api, auth.demo, sessionUser?.id, workspaceId]);
 
   const visible = useMemo(() => {
     const filter = query.trim().toLowerCase();
@@ -58,7 +53,10 @@ export default function ComposeScreen() {
     setCreating(true);
     try {
       if (auth.demo) {
-        const existing = demoDms.find((dm) => dm.users.some((member) => selected.includes(member.id))) || demoDms[0];
+        if (!sessionUser) throw new Error('Your sample account is still loading. Please try again.');
+        const participantIds = [sessionUser.id, ...selected];
+        const existing = demoDms.find((dm) => dm.workspace_id === workspaceId && conversationHasParticipants(dm.users, participantIds));
+        if (!existing) throw new Error('That sample conversation is not available yet. Choose a different set of people.');
         router.replace({ pathname: '/conversation/[kind]/[id]', params: { kind: 'dm', id: String(existing.id) } });
       } else {
         const result = await api.createDm(workspaceId, selected);

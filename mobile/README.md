@@ -85,6 +85,10 @@ For deterministic visual QA without using a real account, start a development bu
 EXPO_PUBLIC_DEMO_MODE=true npx expo start --dev-client --clear
 ```
 
+Set `EXPO_PUBLIC_DEMO_ROLE=student` alongside demo mode to load the student
+persona and role-specific learning, message, and notification fixtures. Omitting
+it keeps the staff/admin walkthrough.
+
 Demo mode only activates when React Native's `__DEV__` flag is true. Production builds cannot enter it from this environment variable alone. Prefer the one-command override above instead of saving demo mode in `.env`, so the next normal launch returns to real account data. It exercises navigation, filtering, composition, message sending, unread states, updates, profile, and empty states against local sample data. API contracts and native push delivery are covered separately by mobile and Rails tests.
 
 ### Native iOS smoke test
@@ -97,6 +101,14 @@ demo mode, and run the flows against a booted simulator:
 ```bash
 EXPO_PUBLIC_DEMO_MODE=true npx expo start --dev-client --host lan --clear
 CSG_METRO_HOST="$(ipconfig getifaddr en0)" npm run test:e2e:ios
+```
+
+For the student journey, restart Metro with the student persona and run its
+dedicated flow:
+
+```bash
+EXPO_PUBLIC_DEMO_MODE=true EXPO_PUBLIC_DEMO_ROLE=student npx expo start --dev-client --host lan --clear
+CSG_METRO_HOST="$(ipconfig getifaddr en0)" npm run test:e2e:ios:student
 ```
 
 If more than one simulator is booted, set `CSG_IOS_DEVICE` to the desired

@@ -22,6 +22,36 @@ describe('mobile message formatting', () => {
     });
   });
 
+  it.each([
+    ['bulletList', '- '],
+    ['orderedList', '1. '],
+    ['quote', '> '],
+  ] as const)('starts %s formatting in an empty composer', (action, marker) => {
+    expect(applyMessageFormat('', { start: 0, end: 0 }, action)).toEqual({
+      value: marker,
+      selection: { start: marker.length, end: marker.length },
+    });
+  });
+
+  it.each([0, 2])('places the cursor after a list marker on an indented blank line from position %s', (position) => {
+    expect(applyMessageFormat('    ', { start: position, end: position }, 'bulletList')).toEqual({
+      value: '    - ',
+      selection: { start: 6, end: 6 },
+    });
+  });
+
+  it.each([
+    ['bulletList', '- '],
+    ['orderedList', '1. '],
+    ['quote', '> '],
+  ] as const)('starts %s formatting on a new line at the end of existing text', (action, marker) => {
+    const value = 'existing text';
+    expect(applyMessageFormat(value, { start: value.length, end: value.length }, action)).toEqual({
+      value: `${value}\n${marker}`,
+      selection: { start: value.length + marker.length + 1, end: value.length + marker.length + 1 },
+    });
+  });
+
   it('formats only the selected lines and creates ordered numbering', () => {
     expect(applyMessageFormat('before\none\ntwo\nafter', { start: 7, end: 14 }, 'orderedList')).toEqual({
       value: 'before\n1. one\n2. two\nafter',

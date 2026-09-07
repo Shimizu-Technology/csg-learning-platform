@@ -30,7 +30,7 @@ export default function StaffGradingScreen() {
     router.push({ pathname: '/staff/submission/[id]', params: { id: String(submission.id), ...(submission.cohort_id ? { cohort_id: String(submission.cohort_id), student_id: String(submission.user_id) } : {}) } });
   }
 
-  if (!user?.is_staff) return <SafeAreaView style={styles.safe}><ErrorState message="Staff access is required." retry={() => router.replace('/')} /></SafeAreaView>;
+  if (!user?.is_staff) return <SafeAreaView style={styles.safe}><ErrorState title="Staff access only" message="The grading queue is available to instructors and admins." retryLabel="Go to Today" retry={() => router.replace('/')} /></SafeAreaView>;
   const submissions = query.data?.submissions || [];
   return <SafeAreaView edges={['top']} style={styles.safe}>
     <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={palette.text} size={22} /></Pressable><View style={styles.headerCopy}><Text style={styles.kicker}>STAFF WORKFLOW</Text><Text style={styles.headerTitle}>Grading queue</Text></View><View style={styles.count}><Text style={styles.countText}>{submissions.length}</Text></View></View>
