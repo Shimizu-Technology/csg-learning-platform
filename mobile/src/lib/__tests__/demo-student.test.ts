@@ -39,7 +39,7 @@ describe('student simulator walkthrough data', () => {
     expect(demoLessonFor(100).content_blocks[1].submissions?.[0]).toMatchObject({ grade: 'A', feedback: 'Clear structure and thoughtful landmarks.' });
     expect(demoLessonFor(102).content_blocks[1].submissions?.[0]).toMatchObject({ grade: 'R', feedback: 'Add an explicit label for every field.' });
     expect(demoLessonFor(103).title).toBe('JavaScript interactions');
-    expect(demoLessonFor(104).title).toBe('Container query stretch');
+    expect(demoLessonFor(104)).toMatchObject({ title: 'Container query stretch', lesson_type: 'exercise' });
     expect(() => demoLessonFor(999)).toThrow('Sample lesson 999 is not available.');
   });
 });

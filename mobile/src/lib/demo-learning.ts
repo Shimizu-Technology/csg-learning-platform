@@ -97,6 +97,7 @@ const demoContainerQueryLesson: LessonDetail = {
   ...demoLesson,
   id: 104,
   title: 'Container query stretch',
+  lesson_type: 'exercise',
   position: 5,
   release_day: 5,
   required: false,

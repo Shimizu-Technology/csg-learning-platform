@@ -15,6 +15,7 @@ describe('message compose contract', () => {
     expect(conversationHasParticipants(groupDm, [23, 7, 15])).toBe(true);
     expect(conversationHasParticipants(groupDm, [23, 7, 99])).toBe(false);
     expect(conversationHasParticipants(groupDm, [23, 7, 7])).toBe(false);
+    expect(conversationHasParticipants([{ id: 23 }, { id: 23 }], [23, 7])).toBe(false);
   });
 
   it('does not overwrite text entered while a stored draft is loading', () => {
