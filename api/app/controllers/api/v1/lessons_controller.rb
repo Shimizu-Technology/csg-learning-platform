@@ -175,6 +175,7 @@ module Api
           update_editor_exercise!
           update_editor_retrieval_check!
           replace_editor_objective_alignments!
+          @lesson.touch
         end
 
         if old_s3_key.present? && old_s3_key != new_s3_key

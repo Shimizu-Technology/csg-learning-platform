@@ -514,6 +514,42 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert_equal "Newer editor title", @lesson.reload.title
   end
 
+  test "content-only editor saves advance the version used by other open editors" do
+    shared_version = @lesson.updated_at.iso8601(6)
+
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor",
+            params: {
+              editor: {
+                base_updated_at: shared_version,
+                title: @lesson.title,
+                video: { id: @video_block.id, title: "Updated video title" },
+                alignments: []
+              }
+            },
+            headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal "Updated video title", @video_block.reload.title
+    refute_equal shared_version, JSON.parse(response.body).dig("lesson", "updated_at")
+
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor",
+            params: {
+              editor: {
+                base_updated_at: shared_version,
+                title: "Overwritten from stale editor",
+                alignments: []
+              }
+            },
+            headers: auth_headers
+    end
+
+    assert_response :conflict
+    assert_equal "Lesson 1", @lesson.reload.title
+  end
+
   test "editor requires a lesson version" do
     as_user(@admin) do
       patch "/api/v1/lessons/#{@lesson.id}/editor",
