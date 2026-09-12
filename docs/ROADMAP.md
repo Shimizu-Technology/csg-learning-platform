@@ -1,6 +1,6 @@
 # CSG Learning Platform — Roadmap
 
-**Last updated:** 2026-08-15
+**Last updated:** 2026-09-13
 **Status:** Active execution roadmap  
 **Companion docs:** `docs/PRODUCT_VISION.md`, `docs/PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md`, `docs/CONNECTED_EXPERIENCE_PLAN.md`, `docs/DEPLOYMENT.md`, `docs/API_REFERENCE.md`
 
@@ -71,6 +71,8 @@ Release update (2026-08-02): production EAS analytics configuration is complete,
 Stabilization update (2026-08-03): PR #91 fixed the TestFlight voice configuration failure, serialized recorder teardown, extended the safety limit to five minutes, improved retry/UI states, and added native crash reporting. Greptile and CI passed cleanly. Build `1.0.0 (11)` (`b4365b22-a4b9-4dbf-a74e-c16ded4f0f7e`) was archived from merged commit `26677b9` and submission `25e0ae4d-028f-4965-9b80-a075fb9e9739` uploaded successfully. Apple processing and physical acceptance remain pending.
 
 Connected-experience release update (2026-08-15): PRs #97–#101 are merged with clean CI and final Greptile reviews. EAS archived `1.0.0 (13)` as build `03fd9ec4-22a6-4933-80e8-ed0e440d8f2a` from exact merged-main commit `388ef91`; submission `dd49f5ae-1851-4ed2-ac27-7933e1dfff82` uploaded successfully. App Store Connect reports the build `VALID` and `IN_BETA_TESTING`. Physical TestFlight acceptance remains an operational gate; public App Review remains intentionally separate.
+
+Curriculum-authoring release update (2026-09-13): PRs #124–#131 are merged. Native staff can search and inspect curriculum, author modules and lessons, safely preview device drafts, edit learning design, replace hosted video, configure browser runners, and create rich student instructions. The consolidated release gate passes 583 Rails tests, 90 web tests, 355 mobile tests, static analysis, dependency/security checks, Expo Doctor 21/21, iOS/Android production exports, and hands-on iOS simulator QA. Build `1.0.0 (20)` remains the latest verified internal TestFlight binary; build 21 is the pending curriculum-authoring candidate. Public App Review remains intentionally separate from this internal TestFlight release.
 
 Strategic Phase 0–1 code completion, evidence, operational gates, and later-phase boundaries are summarized in `docs/PHASE_0_1_COMPLETION.md`.
 

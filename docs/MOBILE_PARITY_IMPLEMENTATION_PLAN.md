@@ -7,7 +7,7 @@ Product: CSG Connect
 Platforms: iOS and Android through Expo / React Native
 
 Backend: existing Rails `/api/v1` API
-Status: daily-use phases 1–4 and strategic phases 0–1 are merged; the 2026-09 curriculum-authoring parity extension is implemented through its final phase and is awaiting the next TestFlight release gate
+Status: daily-use phases 1–4 and strategic phases 0–1 are merged; the 2026-09 curriculum-authoring parity extension is implemented through its final phase, has passed consolidated release validation, and is awaiting the build 21 archive and TestFlight upload
 
 ## 1. Outcome
 
@@ -15,7 +15,7 @@ CSG Connect will become the everyday mobile interface for Code School of Guam. A
 
 The target is **useful mobile parity**: routine student and staff work plus curriculum review and authoring should be native, while bulk enrollment, team administration, repository inspection, and dense matrices remain deliberate authenticated web handoffs. Literal duplication of desktop-shaped screens is not the goal.
 
-The curriculum-authoring extension has shipped safety and API hardening (PR #124), staff library browsing (PR #125), guarded lesson drafts and preview (PR #126), module/lesson management (PR #127), objectives/rubrics/retrieval checks (PR #128), hosted lesson-video replacement (PR #129), and browser-runner configuration (PR #130). The final phase adds a touch-first rich instruction editor for both new and existing lessons, including legacy Markdown conversion, existing HTML preservation, formatting, safe links, lists, quotes, code, paste sanitization, dynamic sizing, device-draft continuity, and exact student preview. The remaining work is the consolidated release audit and TestFlight build.
+The curriculum-authoring extension has shipped safety and API hardening (PR #124), staff library browsing (PR #125), guarded lesson drafts and preview (PR #126), module/lesson management (PR #127), objectives/rubrics/retrieval checks (PR #128), hosted lesson-video replacement (PR #129), browser-runner configuration (PR #130), and touch-first rich instruction authoring (PR #131). Existing HTML and legacy Markdown, formatting, safe links, lists, quotes, code, paste sanitization, Dynamic Type, device-draft continuity, and exact student preview are covered. The consolidated code, security, dependency, export, and iOS simulator release gate passes; only the build 21 archive, upload, Apple processing verification, and physical-device acceptance remain.
 
 ## 2. Product principles
 

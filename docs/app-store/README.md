@@ -1,6 +1,6 @@
 # CSG Connect App Store Release Record
 
-Last updated: 2026-08-15 (Pacific/Guam)
+Last updated: 2026-09-13 (Pacific/Guam)
 
 This directory is the durable source record for the App Store presentation of the completed mobile-parity program. It records what was uploaded, how the images were produced, and what remains before public App Review.
 
@@ -9,13 +9,12 @@ This directory is the durable source record for the App Store presentation of th
 | Item | State |
 | --- | --- |
 | Marketing version | `1.0.0` |
-| Latest submitted internal TestFlight build | `1.0.0 (13)` |
-| Connected-experience EAS build ID | `03fd9ec4-22a6-4933-80e8-ed0e440d8f2a` |
-| Connected-experience source commit | `388ef91` (`main`) |
-| Connected-experience EAS submission ID | `dd49f5ae-1851-4ed2-ac27-7933e1dfff82` |
-| Connected-experience EAS build state | Finished successfully |
-| Connected-experience EAS submission state | Finished successfully; binary uploaded to App Store Connect |
-| Apple processing / installability | `VALID` and `IN_BETA_TESTING`; physical TestFlight installation remains the next acceptance step |
+| Latest submitted internal TestFlight build | `1.0.0 (20)` |
+| Latest verified EAS build ID | `09092544-ff98-4b03-92c5-5e389bfca7c6` |
+| Latest verified source commit | `c7f4d425991bad180fc753d1db4cebfbabee7fa7` (`main`) |
+| Latest verified EAS submission ID | `933037b9-7432-4aba-9d16-aad2d1b4fc06` |
+| Latest verified App Store Connect state | Internal `IN_BETA_TESTING`; external beta ready for submission |
+| Next release candidate | `1.0.0 (21)`, pending archive and upload from the merged curriculum-authoring release commit |
 | Phase 0–1 release candidate | `1.0.0 (9)` |
 | App Store version | `1.0`, Prepare for Submission |
 | Internal group | `CSG Internal` |
@@ -32,6 +31,10 @@ Build 12 is the corrective candidate from merged PR #93 after build 11 physical 
 
 Build 13 is the connected-experience candidate from merged PRs #97–#101. It adds cohort-scoped student workspaces, reciprocal submission/help/message navigation, cohort workspaces and discovery, durable interventions and recovery plans, and focused native GitHub-check evidence. EAS archived the exact merged `main` commit `388ef91` with production demo mode disabled. The first signing preflight stopped before upload because the prior distribution certificate and provisioning profile had expired; both were replaced through the existing Apple account, with the new certificate/profile expiring on 2027-08-16. Remote versioning was restored to 12 after that no-build attempt so the successful archive retained the intended build number 13. Submission `dd49f5ae-1851-4ed2-ac27-7933e1dfff82` uploaded the binary successfully; App Store Connect reports it `VALID` and `IN_BETA_TESTING`.
 
+Build 20 is the latest verified internal candidate before the curriculum-authoring release. EAS submission status confirms that build `09092544-ff98-4b03-92c5-5e389bfca7c6`, sourced from merged-main commit `c7f4d425991bad180fc753d1db4cebfbabee7fa7`, was uploaded through submission `933037b9-7432-4aba-9d16-aad2d1b4fc06` and is `IN_BETA_TESTING` for internal testers.
+
+Build 21 is the planned curriculum-authoring candidate. Merged PRs #124–#131 add fail-closed preview protection, the native staff curriculum library, guarded lesson drafts and exact student preview, module and lesson structure management, objectives/rubrics/retrieval checks, hosted lesson-video replacement, browser-runner configuration, and rich lesson-instruction authoring. Archive and submission identifiers are recorded here only after EAS and App Store Connect verify them.
+
 Verified EAS production history:
 
 | Build | EAS build ID | EAS submission ID | EAS submission state |
@@ -45,8 +48,9 @@ Verified EAS production history:
 | `11` | `b4365b22-a4b9-4dbf-a74e-c16ded4f0f7e` | `25e0ae4d-028f-4965-9b80-a075fb9e9739` | Finished; uploaded successfully and awaiting Apple processing confirmation |
 | `12` | `ab7ff733-b074-48dd-a6bc-af1df24d2565` | `e49f93e6-08c1-4aa5-a8d6-eb13d3f487cd` | Finished; uploaded successfully and awaiting Apple processing confirmation |
 | `13` | `03fd9ec4-22a6-4933-80e8-ed0e440d8f2a` | `dd49f5ae-1851-4ed2-ac27-7933e1dfff82` | Finished; `VALID` and `IN_BETA_TESTING` in App Store Connect |
+| `20` | `09092544-ff98-4b03-92c5-5e389bfca7c6` | `933037b9-7432-4aba-9d16-aad2d1b4fc06` | Finished; internal `IN_BETA_TESTING`, external beta ready for submission |
 
-These are EAS states plus an App Store Connect status check. Builds 9, 10, and 13 are `VALID` and `IN_BETA_TESTING`; builds 11 and 12 remain awaiting Apple processing confirmation. Build 13 still needs the physical acceptance matrix below; public App Review remains separate.
+These are EAS states plus App Store Connect status checks. Build 20 is the current verified internal TestFlight build. Build 21 remains pending until its archive, upload, and Apple processing state are recorded. Public App Review remains separate.
 
 Build 9 is the Phase 0–1 TestFlight candidate. It includes the reviewed voice-draft client, Phase 0 readability work, weekly plan, contextual help, privacy-safe analytics, and offline continuity. Its production EAS environment points to the CSG API with demo mode disabled and includes the `csg-learning-platform` PostHog project configuration. Do not enable the voice production endpoint or submit this binary for public App Review until the temporary transcription-provider processing is accurately disclosed, the production OpenAI data controls are approved, and the voice-specific physical-device checks below pass.
 
@@ -122,9 +126,19 @@ Phase 2 candidate preflight recorded on 2026-08-02:
 - EAS build `2f310674-05f7-4eca-b97d-ff7590e58eeb` completed with SDK 57, build number 10, production signing, and source commit `690a84d`.
 - Submission `69a8a286-8c5a-4ba1-9f0a-45fcc30788e1` uploaded successfully and Apple processed the binary. EAS reported an error only after Fastlane tried to assign `CSG Internal`; Apple's tester email independently confirms build 10 is available in TestFlight.
 
+Curriculum-authoring candidate preflight recorded on 2026-09-13:
+
+- Merged PRs #124–#131 cover the complete planned native curriculum-authoring sequence. Each phase passed CI and an automated review loop before merge; the final review stopped at the documented diminishing-return boundary only after all actionable findings were fixed and resolved.
+- Rails passes 583 tests / 2,172 assertions, RuboCop across 354 files, Brakeman with zero active warnings, and bundler-audit with no vulnerabilities.
+- Web strict TypeScript, ESLint, 25 suites / 90 tests, Netlify routing checks, dependency policy, and the production build pass.
+- Mobile strict TypeScript, Expo lint, 63 suites / 355 tests, Expo Doctor 21/21, dependency policy, and iOS/Android Hermes production exports pass.
+- Hands-on iOS simulator QA passes for the staff Today dashboard, curriculum search, lesson preview, full lesson editing, device-draft preview and clean restoration, messaging, announcements, and account/settings surfaces.
+- EAS remote versioning reports build 20, so the production profile's `autoIncrement` will assign build 21. The production profile does not request the manual TestFlight group assignment that caused build 10's post-upload error.
+- The concise internal-testing script for build 21 is in [`WHAT_TO_TEST_1.0.0_21.md`](./WHAT_TO_TEST_1.0.0_21.md).
+
 ## Physical TestFlight acceptance
 
-The invited tester must update to connected-experience candidate build 13 in TestFlight and complete this final acceptance pass with real authorized accounts:
+The invited tester must update to curriculum-authoring candidate build 21 in TestFlight and complete this final acceptance pass with real authorized accounts:
 
 - sign in with Google and confirm unauthorized accounts receive the explicit no-access state;
 - verify student, instructor, and admin role scoping where test accounts are available;
@@ -138,6 +152,8 @@ The invited tester must update to connected-experience candidate build 13 in Tes
 - interrupt recording and transcription with existing class-recording playback, calls, route changes, and app background/foreground transitions; confirm playback and the audio session recover predictably;
 - open a push notification from foreground, background, and terminated states and verify its deep link;
 - open a lesson, submit or update eligible work, and confirm progress/feedback convergence with web;
+- as staff, search the curriculum library, preview an existing lesson, edit its details and rich instructions, preview the device draft, save it, and confirm the same canonical content appears on web;
+- create/reorder/archive a test module or lesson where authorized; configure objectives, rubric, retrieval check, hosted video, and browser runner, then confirm student preview remains read-only and matches the saved lesson;
 - drag a long lesson/message code block horizontally with one finger and confirm its full contents remain reachable without using page controls;
 - open a Phase 2 lesson and confirm objectives/success criteria appear before work, rubric criteria appear before submission, and criterion ratings/feedback appear after grading;
 - answer a retrieval check incorrectly and correctly, confirm immediate explanation/retry state, and confirm only the correct attempt completes the checkpoint;
