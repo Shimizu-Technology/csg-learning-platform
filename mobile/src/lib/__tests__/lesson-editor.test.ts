@@ -47,6 +47,22 @@ describe('lesson editor helpers', () => {
     expect(lessonEditorValidation(fields)).toBeNull();
   });
 
+  it('treats structural rich-text markup as blank in validation, preview, and payloads', () => {
+    const fields = { ...fieldsForLesson(lesson), instructions: '<p><br></p><div>&nbsp;</div>', filename: '', solution: 'Answer' };
+
+    expect(lessonEditorValidation(fields)).toMatch(/instructions/i);
+    expect(lessonEditorInput(lesson, { ...fields, solution: '' }, lesson.updated_at!).exercise?.body).toBeNull();
+    expect(lessonPreviewForFields(lesson, { ...fields, solution: '' }).content_blocks.find((block) => block.id === 203)?.body).toBeNull();
+  });
+
+  it('sanitizes an unedited hostile HTML import before previewing or saving it', () => {
+    const fields = { ...fieldsForLesson(lesson), instructions: '<p onclick="steal()">Safe <strong style="color:red">lesson</strong></p><script>steal()</script>' };
+    const expected = '<p>Safe <strong>lesson</strong></p>';
+
+    expect(lessonEditorInput(lesson, fields, lesson.updated_at!).exercise?.body).toBe(expected);
+    expect(lessonPreviewForFields(lesson, fields).content_blocks.find((block) => block.id === 203)?.body).toBe(expected);
+  });
+
   it('requires an exercise before attaching a rubric', () => {
     const fields = { ...fieldsForLesson({ ...lesson, content_blocks: lesson.content_blocks.filter((block) => block.id !== 203) }), rubric_id: 12 };
 

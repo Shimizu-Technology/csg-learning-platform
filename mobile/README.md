@@ -14,6 +14,7 @@ native push notifications.
 - Rails REST API for history and mutations
 - Action Cable for live conversation events
 - Expo Notifications for iOS and Android push delivery
+- React Native WebView for the isolated, touch-first curriculum rich-text editor
 - PostHog manual product events with autocapture and session replay disabled
 - Expo Audio for reviewed, foreground-only voice-to-text message drafts
 - Manrope and Lucide React Native for the CSG design system
@@ -45,6 +46,8 @@ the student's email and retains a recovery snapshot without removing the
 account, messages, or other curricula.
 
 The mobile package pins Node 22.22.3 independently from the web package because Expo SDK 57 dependencies require a newer Node runtime.
+
+Curriculum instructions share one canonical HTML contract with the web app. The native staff editor visually opens both existing HTML and legacy Markdown, emits sanitized semantic HTML after an edit, and keeps links, lists, quotes, inline code, code blocks, preview, and device drafts interoperable with the web editor. Its local WebView blocks navigation and active/embed content; student rendering still uses native React Native views. Adding or upgrading the WebView dependency requires a new native development or store build before JavaScript QA.
 
 Required environment variables:
 

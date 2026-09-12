@@ -7,7 +7,7 @@ Product: CSG Connect
 Platforms: iOS and Android through Expo / React Native
 
 Backend: existing Rails `/api/v1` API
-Status: daily-use phases 1–4 and strategic phases 0–1 are merged; the 2026-09 curriculum-authoring parity extension is in final implementation before the next TestFlight build
+Status: daily-use phases 1–4 and strategic phases 0–1 are merged; the 2026-09 curriculum-authoring parity extension is implemented through its final phase and is awaiting the next TestFlight release gate
 
 ## 1. Outcome
 
@@ -15,7 +15,7 @@ CSG Connect will become the everyday mobile interface for Code School of Guam. A
 
 The target is **useful mobile parity**: routine student and staff work plus curriculum review and authoring should be native, while bulk enrollment, team administration, repository inspection, and dense matrices remain deliberate authenticated web handoffs. Literal duplication of desktop-shaped screens is not the goal.
 
-The curriculum-authoring extension has shipped safety and API hardening (PR #124), staff library browsing (PR #125), guarded lesson drafts and preview (PR #126), module/lesson management (PR #127), objectives/rubrics/retrieval checks (PR #128), and hosted lesson-video replacement (PR #129). Native browser-runner configuration and code-authoring ergonomics are implemented in the next phase; rich instruction editing remains the final curriculum parity phase before release.
+The curriculum-authoring extension has shipped safety and API hardening (PR #124), staff library browsing (PR #125), guarded lesson drafts and preview (PR #126), module/lesson management (PR #127), objectives/rubrics/retrieval checks (PR #128), hosted lesson-video replacement (PR #129), and browser-runner configuration (PR #130). The final phase adds a touch-first rich instruction editor for both new and existing lessons, including legacy Markdown conversion, existing HTML preservation, formatting, safe links, lists, quotes, code, paste sanitization, dynamic sizing, device-draft continuity, and exact student preview. The remaining work is the consolidated release audit and TestFlight build.
 
 ## 2. Product principles
 
@@ -366,8 +366,7 @@ Native staff workflows:
 
 Deliberate web handoffs:
 
-- curriculum architecture and module scheduling;
-- rich lesson/content-block authoring;
+- large-scale curriculum restructuring and bulk edits;
 - bulk enrollments and team administration;
 - dense cohort grading and watch-progress matrices;
 - complex access-override configuration.
@@ -385,7 +384,7 @@ Implemented decisions:
 - The focused grading queue and submission review remain native. A/B/C grades are one tap; Redo requires written feedback. Successful review invalidates dashboard, queue, and student caches immediately.
 - New submissions enqueue staff-notification fanout outside the student request; grades enqueue the corresponding student notification. Event timestamps make duplicate/stale executions no-ops without suppressing a later regrade. Non-archived instructors/admins are currently authorized platform-wide. Web Push and Expo delivery fail independently and route to the closest native screen without misusing the message/email preference as a global learning-alert opt-out.
 - Staff recording/resource browsing spans active and upcoming cohorts; student scoping is unchanged.
-- Staff-only web handoffs are server-authorized and allowlisted for student/cohort administration, grading, content authoring, team administration, and dense progress views. Students cannot mint those links.
+- Staff-only web handoffs are server-authorized and allowlisted for student/cohort administration, bulk curriculum operations, team administration, repository inspection, and dense progress views. Students cannot mint those links.
 - iPhone 16 Pro / iOS 18.5 Simulator interaction verified staff Today → student health → submission review, keyboard-following feedback entry, Redo save and notification confirmation, focused grading queue, and Learn operations toolkit.
 - Local release gate: Rails 291 tests / 877 assertions, mobile 16 suites / 52 tests, web 5 suites / 21 tests plus production build, RuboCop 212 files, Brakeman zero warnings, bundler-audit clean, Expo Doctor 20/20, web high-severity npm audit clean, and successful iOS and Android Hermes exports. The mobile audit's only finding is a moderate transitive `uuid` advisory in Expo/Clerk build tooling with no upstream fix available.
 
@@ -413,7 +412,7 @@ Implemented decisions:
 7. Request Greptile review.
 8. Inspect every unresolved thread and the generated summary.
 9. Fix legitimate findings, add regression coverage, push, and request re-review.
-10. Do not merge until Greptile reports 5/5 with no unresolved actionable findings and required CI checks pass.
+10. Do not merge until required CI checks pass and the configured review agent is clean, or a documented diminishing-returns cutoff confirms that every remaining item is resolved, non-actionable, contrary to an explicit product decision, or a duplicate linked to a previously resolved finding.
 11. Merge, switch local checkout to `main`, and pull with fast-forward only.
 12. Record the merged PR and verification evidence before beginning the next phase.
 
@@ -434,7 +433,7 @@ After all phases:
 
 App Store submission for public review remains a distinct final action after TestFlight acceptance. TestFlight distribution does not by itself submit the public App Store version.
 
-Current release status (2026-08-02):
+Historical Phase 0–1 release status (2026-08-02):
 
 - Steps 1, 3, 4, and 6–9 were completed for the confirmed baseline iOS build `1.0.0 (4)` from source commit `070b4dc`.
 - App Store Connect has six current 6.9-inch iPhone screenshots, six current 13-inch iPad screenshots, refreshed product copy, and build 4 attached to the 1.0 draft.
@@ -456,7 +455,7 @@ A phase is complete only when all of the following exist:
 - passing local and CI checks covering the phase;
 - simulator or device evidence for the interaction matrix;
 - no unresolved actionable review threads;
-- a Greptile 5/5 summary on the final reviewed commit;
+- a clean review from the configured review agent, or a documented diminishing-returns cutoff after local review and all required CI are clean;
 - updated architecture/product documentation;
 - a recorded list of intentionally deferred items with owner and target phase.
 

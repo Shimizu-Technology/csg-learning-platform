@@ -1,5 +1,6 @@
 import type { LearningObjective, LessonContentBlock, LessonDetail, LessonEditorInput, LessonObjective, LessonSubmissionType, Rubric } from './types';
 import { codeRunnerLanguageForFilename, normalizeCodeRunnerConfig, submissionConfigWithRunner, type CodeRunnerConfig } from './code-runner';
+import { richTextHtmlHasVisibleContent, sanitizedStoredRichTextValue } from './rich-text-editor';
 
 export interface ObjectiveAlignmentField {
   learning_objective_id: number;
@@ -58,6 +59,11 @@ function normalizedObjectiveAlignments(fields: LessonEditorFields) {
     : { ...alignment });
 }
 
+function normalizedInstructions(value: string) {
+  const sanitized = sanitizedStoredRichTextValue(value);
+  return richTextHtmlHasVisibleContent(sanitized) ? sanitized : '';
+}
+
 export function fieldsForLesson(lesson: LessonDetail): LessonEditorFields {
   const video = editorBlock(lesson, ['video', 'recording']);
   const exercise = editorBlock(lesson, ['exercise', 'code_challenge']);
@@ -112,6 +118,7 @@ export function lessonEditorFieldsMatch(left: LessonEditorFields, right: LessonE
 }
 
 export function lessonEditorValidation(fields: LessonEditorFields) {
+  const instructions = normalizedInstructions(fields.instructions);
   if (!fields.title.trim()) return 'Add a lesson title before saving.';
   if (fields.video_url.trim()) {
     try {
@@ -121,8 +128,8 @@ export function lessonEditorValidation(fields: LessonEditorFields) {
       return 'Video link must be a valid http or https URL.';
     }
   }
-  if (fields.solution.trim() && !fields.instructions.trim() && !fields.filename.trim()) return 'Add instructions or a filename before adding an instructor solution.';
-  if (fields.rubric_id && !fields.instructions.trim() && !fields.filename.trim()) return 'Add exercise instructions or a filename before attaching a rubric.';
+  if (fields.solution.trim() && !instructions && !fields.filename.trim()) return 'Add instructions or a filename before adding an instructor solution.';
+  if (fields.rubric_id && !instructions && !fields.filename.trim()) return 'Add exercise instructions or a filename before attaching a rubric.';
   if (fields.retrieval_check.enabled) {
     const check = fields.retrieval_check;
     const options = check.options.map((option) => option.trim());
@@ -136,11 +143,12 @@ export function lessonEditorValidation(fields: LessonEditorFields) {
 
 export function lessonEditorInput(lesson: LessonDetail, fields: LessonEditorFields, baseUpdatedAt: string): LessonEditorInput {
   const title = fields.title.trim();
+  const instructions = normalizedInstructions(fields.instructions);
   const video = editorBlock(lesson, ['video', 'recording']);
   const exercise = editorBlock(lesson, ['exercise', 'code_challenge']);
   const check = fields.retrieval_check;
   const includeVideo = Boolean(video || fields.video_url.trim() || fields.s3_video_key);
-  const includeExercise = Boolean(exercise || fields.instructions.trim() || fields.filename.trim());
+  const includeExercise = Boolean(exercise || instructions || fields.filename.trim());
   return {
     base_updated_at: baseUpdatedAt,
     title,
@@ -157,7 +165,7 @@ export function lessonEditorInput(lesson: LessonDetail, fields: LessonEditorFiel
     ...(includeExercise ? { exercise: {
       ...(exercise ? { id: exercise.id } : {}),
       title,
-      body: fields.instructions.trim() || null,
+      body: instructions || null,
       solution: fields.solution.trim() || null,
       filename: fields.filename.trim() || null,
       submission_type: fields.submission_type,
@@ -224,6 +232,7 @@ function previewObjectives(lesson: LessonDetail, fields: LessonEditorFields, obj
 }
 
 export function lessonPreviewForFields(lesson: LessonDetail, fields: LessonEditorFields, objectiveCatalog: LearningObjective[] = [], rubricCatalog: Rubric[] = []): LessonDetail {
+  const instructions = normalizedInstructions(fields.instructions);
   const rubric = resolveRubric(lesson, fields.rubric_id, rubricCatalog);
   const video = editorBlock(lesson, ['video', 'recording']);
   const exercise = editorBlock(lesson, ['exercise', 'code_challenge']);
@@ -235,12 +244,12 @@ export function lessonPreviewForFields(lesson: LessonDetail, fields: LessonEdito
         const stagedUpload = Boolean(fields.s3_video_key && fields.s3_video_key !== video.s3_video_key);
         return { ...block, title: fields.title.trim(), video_url: fields.video_url.trim() || null, s3_video_key: fields.s3_video_key, s3_video_content_type: fields.s3_video_content_type, s3_video_size: fields.s3_video_size, has_s3_video: Boolean(fields.s3_video_key) && !stagedUpload, metadata: { ...block.metadata, staged_video_upload: stagedUpload } };
       }
-      if (block.id === exercise?.id) return { ...block, title: fields.title.trim(), body: fields.instructions.trim() || null, solution: fields.solution.trim() || null, filename: fields.filename.trim() || null, submission_type: fields.submission_type, submission_type_explicit: fields.submission_type, submission_config: submissionConfigWithRunner(block.submission_config, fields.runner, fields.submission_type === 'text_submission'), rubric };
+      if (block.id === exercise?.id) return { ...block, title: fields.title.trim(), body: instructions || null, solution: fields.solution.trim() || null, filename: fields.filename.trim() || null, submission_type: fields.submission_type, submission_type_explicit: fields.submission_type, submission_config: submissionConfigWithRunner(block.submission_config, fields.runner, fields.submission_type === 'text_submission'), rubric };
       if (block.knowledge_check) return checkPreviewBlock(block, fields.retrieval_check);
       return block;
     });
   if (!video && (fields.video_url.trim() || fields.s3_video_key)) blocks.push({ id: -1, block_type: 'video', position: blocks.length + 1, title: fields.title.trim(), body: null, video_url: fields.video_url.trim() || null, s3_video_key: fields.s3_video_key, s3_video_content_type: fields.s3_video_content_type, s3_video_size: fields.s3_video_size, has_s3_video: false, filename: null, metadata: { staged_video_upload: Boolean(fields.s3_video_key) } });
-  if (!exercise && (fields.instructions.trim() || fields.filename.trim())) blocks.push({ id: -2, block_type: 'exercise', position: blocks.length + 1, title: fields.title.trim(), body: fields.instructions.trim() || null, solution: fields.solution.trim() || null, video_url: null, filename: fields.filename.trim() || null, submission_type: fields.submission_type, submission_type_explicit: fields.submission_type, submission_config: submissionConfigWithRunner(undefined, fields.runner, fields.submission_type === 'text_submission'), rubric, metadata: {} });
+  if (!exercise && (instructions || fields.filename.trim())) blocks.push({ id: -2, block_type: 'exercise', position: blocks.length + 1, title: fields.title.trim(), body: instructions || null, solution: fields.solution.trim() || null, video_url: null, filename: fields.filename.trim() || null, submission_type: fields.submission_type, submission_type_explicit: fields.submission_type, submission_config: submissionConfigWithRunner(undefined, fields.runner, fields.submission_type === 'text_submission'), rubric, metadata: {} });
   if (!existingCheck && fields.retrieval_check.enabled) blocks.push(checkPreviewBlock({ id: -3, block_type: 'checkpoint', position: blocks.length + 1, title: 'Quick check', body: null, video_url: null, filename: null, metadata: {} }, fields.retrieval_check));
   return { ...lesson, title: fields.title.trim() || 'Untitled lesson', required: fields.required, requires_submission: fields.submission_type !== 'manual_complete', submission_type: fields.submission_type, objectives: previewObjectives(lesson, fields, objectiveCatalog, video?.id, exercise?.id), content_blocks_count: blocks.length, content_blocks: blocks };
 }

@@ -1,6 +1,6 @@
 # CSG Connect: Native Brand and Feature-Parity Research
 
-> **2026-08-01 status:** The native app has now shipped the student learning core, recordings, submissions, staff attention/student-health views, focused grading, recording upload, and deliberate web handoffs described as future phases in this original research. Use `PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md` for the current parity boundary and next priorities. The immediate native release blocker is reliable horizontal navigation for long message code blocks, followed by semantic type/contrast and Dynamic Type quality. Reviewed voice-to-text drafts are the next planned native composer capability; see `VOICE_TO_TEXT_PLAN.md`.
+> **2026-09-13 Pacific/Guam status:** The native app now covers the daily student and staff loop plus touch-first curriculum browsing and authoring: module/lesson scheduling, guarded drafts, exact student preview, objectives, rubrics, retrieval checks, hosted video replacement, browser-runner configuration, and rich lesson instructions. Long-code navigation, semantic type/contrast, Dynamic Type, and reviewed voice-to-text drafts have also shipped. The remaining gate is consolidated release validation and the next TestFlight build. Use `MOBILE_PARITY_IMPLEMENTATION_PLAN.md` for the current boundary and evidence.
 
 Status: research complete. The four-phase parity program described here has shipped to `main`; the release and TestFlight evidence is tracked in [`app-store/README.md`](./app-store/README.md).
 
@@ -10,7 +10,7 @@ The execution scope, phase acceptance criteria, review gates, and final TestFlig
 
 Build toward **task parity**, not literal screen parity.
 
-Students should be able to complete every common, time-sensitive Code School task from a phone. Staff should be able to monitor, communicate, and handle quick interventions. Dense curriculum authoring, cohort configuration, bulk enrollment, and grading matrices should remain web-first, with responsive web handoffs from the app where necessary.
+Students should be able to complete every common, time-sensitive Code School task from a phone. Staff should be able to monitor, communicate, handle quick interventions, and make ordinary curriculum changes. Bulk enrollment, team administration, repository inspection, and dense cross-student matrices should remain web-first, with responsive web handoffs from the app where necessary.
 
 This produces a more useful mobile product sooner and avoids recreating desktop-shaped interfaces on a small screen.
 
@@ -134,7 +134,7 @@ Staff mobile value is in quick decisions, not desktop administration:
 - recording/resource publishing from the device where practical;
 - push alerts for blocked students, new submissions, and urgent messages.
 
-Dense grading matrices, bulk enrollment, curriculum scheduling, and rich lesson authoring should open the responsive web admin unless mobile demand proves strong.
+Dense grading matrices, bulk enrollment, team administration, repository inspection, and large-scale curriculum restructuring should open the responsive web admin. Focused module, lesson, schedule, content, media, objective, rubric, recall, and submission-setting changes are now native because instructors benefit from making them away from a desk.
 
 ## Foundation work before adding major surfaces
 
@@ -183,4 +183,4 @@ Choose one target:
 
 The first option protects quality, reaches students sooner, and still makes the app a complete everyday product.
 
-That recommended decision is now adopted: CSG Connect targets **mobile task parity**, while curriculum authoring, bulk enrollment/team operations, repository comparison, and dense matrices remain secure web handoffs.
+That recommended decision is now adopted: CSG Connect targets **mobile task parity**, including routine curriculum review and authoring. Bulk enrollment/team operations, repository inspection, dense matrices, and large-scale restructuring remain secure web handoffs.
