@@ -60,7 +60,7 @@ Curriculum, routine authoring, lesson progress, resources, submissions, office h
 - Phase 4 gives staff a ranked cross-cohort attention queue, student health and progress drill-downs, a focused grading queue, native A/B/C/Redo reviews, concise feedback, and direct submission push routes.
 - Staff can browse active and upcoming cohort recordings and resources without pretending to be enrolled in those cohorts.
 - Staff curriculum search, preview, module/lesson management, and routine lesson authoring are native. Large-scale curriculum restructuring, bulk enrollment/team operations, dense grading/watch-progress matrices, and repository inspection retain labeled one-time authenticated web handoffs because they are desktop-shaped workflows.
-- App Store Connect product copy and the complete 6.9-inch iPhone / 13-inch iPad screenshot sets describe the parity release. Build `1.0.0 (20)` is the latest verified internal TestFlight binary; build 21 is the pending curriculum-authoring candidate. Public review waits for physical-device acceptance.
+- App Store Connect product copy and the complete 6.9-inch iPhone / 13-inch iPad screenshot sets describe the parity release. Curriculum-authoring build `1.0.0 (21)` is available to internal TestFlight testers. Public review waits for physical-device acceptance.
 
 The Rails API remains the single product backend, so every native phase is additive rather than a fork of web behavior.
 
