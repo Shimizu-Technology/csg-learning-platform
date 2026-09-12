@@ -189,7 +189,7 @@ The platform now supports direct video uploads to a private S3 bucket:
 
 - Presigned S3 uploads and presigned streaming URLs
 - Granular watch-time tracking (percentage watched, resume position)
-- Staff upload interface in cohort management
+- Staff upload interfaces for cohort recordings and reusable lesson videos on web and native mobile
 - Student recording library with S3 uploads and legacy YouTube links side by side
 - Admin watch-progress matrix by cohort and recording
 - Direct MP4 playback for Guam-scale traffic

@@ -182,6 +182,21 @@ describe('CsgApi', () => {
     expect(fetchMock.mock.calls[5][1]).toEqual(expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ base_updated_at: '2026-09-12T01:02:05.123456Z' }) }));
   });
 
+  it('presigns normal and multipart lesson video uploads against the exact block', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ upload_url: 'https://storage.example', fields: {}, s3_key: 'content_videos/video.mp4', upload_id: 'upload-1' }), { status: 200 }));
+    const api = new CsgApi(async () => 'session-token');
+
+    await api.presignContentVideoUpload(42, 'lesson.mp4', 'video/mp4');
+    await api.presignContentVideoUpload(undefined, 'new-lesson.mp4', 'video/mp4');
+    await api.initiateContentVideoMultipartUpload(42, 'large.mov', 'video/quicktime', 200_000_000);
+
+    expect(fetchMock.mock.calls[0][0]).toContain('/api/v1/content_blocks/42/video_presign');
+    expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({ method: 'POST', body: JSON.stringify({ filename: 'lesson.mp4', content_type: 'video/mp4' }) }));
+    expect(fetchMock.mock.calls[1][0]).toContain('/api/v1/video_presign');
+    expect(fetchMock.mock.calls[2][0]).toContain('/api/v1/uploads/multipart/initiate');
+    expect(fetchMock.mock.calls[2][1]).toEqual(expect.objectContaining({ method: 'POST', body: JSON.stringify({ content_block_id: 42, filename: 'large.mov', content_type: 'video/quicktime', file_size: 200_000_000 }) }));
+  });
+
   it('loads and creates reusable learning-design resources', async () => {
     const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async () => new Response('{}', { status: 200 }));
     const api = new CsgApi(async () => 'session-token');

@@ -180,6 +180,7 @@ module Api
       def update_editor
         old_s3_key = nil
         new_s3_key = nil
+        return unless prepare_editor_video_metadata!
 
         ActiveRecord::Base.transaction do
           @lesson.lock!
@@ -239,7 +240,7 @@ module Api
           :required,
           :requires_submission,
           :base_updated_at,
-          video: [ :id, :title, :video_url, :s3_video_key ],
+          video: [ :id, :title, :video_url, :s3_video_key, :s3_video_content_type, :s3_video_size ],
           exercise: [ :id, :title, :body, :solution, :filename, :submission_type, :rubric_id, { submission_config: {} } ],
           retrieval_check: [ :enabled, :content_block_id, :title, :prompt, :correct_option, :explanation, :learning_objective_id, { options: [] } ],
           alignments: [ :learning_objective_id, :content_block_id ]
@@ -278,7 +279,11 @@ module Api
 
         old_s3_key = block.s3_video_key
         attributes = payload.slice(:title, :video_url)
-        attributes[:s3_video_key] = payload[:s3_video_key] if payload.key?(:s3_video_key)
+        if payload.key?(:s3_video_key) && payload[:s3_video_key] != old_s3_key
+          attributes[:s3_video_key] = payload[:s3_video_key]
+          attributes[:s3_video_content_type] = payload[:s3_video_key].present? ? @editor_video_content_type : nil
+          attributes[:s3_video_size] = payload[:s3_video_key].present? ? @editor_video_size : nil
+        end
         block.assign_attributes(attributes)
 
         if block.s3_video_key != old_s3_key
@@ -305,6 +310,45 @@ module Api
         end
 
         [ old_s3_key, block.s3_video_key ]
+      end
+
+      def prepare_editor_video_metadata!
+        payload = editor_params[:video]
+        return true if payload.blank?
+
+        @editor_video_content_type = nil
+        @editor_video_size = nil
+        return true unless editor_video_key_changes?(payload)
+        return true if payload[:s3_video_key].blank?
+
+        if payload[:s3_video_content_type].blank? || payload[:s3_video_size].blank?
+          render json: { error: "Hosted video uploads require s3_video_content_type and s3_video_size" }, status: :unprocessable_entity
+          return false
+        end
+        if payload[:s3_video_content_type].present?
+          @editor_video_content_type = validated_video_content_type(payload[:s3_video_content_type])
+          return false if performed?
+        end
+        if payload[:s3_video_size].present?
+          @editor_video_size = Integer(payload[:s3_video_size].to_s, 10)
+          unless @editor_video_size.between?(1, S3Service::MAX_UPLOAD_SIZE)
+            render json: { error: "s3_video_size must be between 1 byte and 5 GB" }, status: :unprocessable_entity
+            return false
+          end
+        end
+
+        true
+      rescue ArgumentError, TypeError
+        render json: { error: "s3_video_size must be a whole number" }, status: :unprocessable_entity
+        false
+      end
+
+      def editor_video_key_changes?(payload)
+        return false unless payload.key?(:s3_video_key)
+        return payload[:s3_video_key].present? if payload[:id].blank?
+
+        block = @lesson.content_blocks.where(block_type: %i[video recording]).find_by(id: payload[:id])
+        block.nil? || block.s3_video_key != payload[:s3_video_key]
       end
 
       def update_editor_exercise!

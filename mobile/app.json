@@ -65,7 +65,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "CSG Connect uses selected photos only when you choose to share them in a conversation.",
+          "photosPermission": "CSG Connect uses only the photos or videos you select for conversations, recordings, or curriculum.",
           "cameraPermission": false
         }
       ],

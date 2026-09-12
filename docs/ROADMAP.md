@@ -305,11 +305,12 @@ Phase 3 was intentionally skipped for now. The team pulled Phase 4 forward and b
 - Cached inbox fallback for intermittent mobile connectivity
 - Native Today and Learn surfaces with lessons, progress, resources, office hours, and submissions
 - Native recordings with resume/progress plus instructor recording upload
+- Native curriculum studio with full-library search, schedule-aware module/lesson management, guarded lesson drafts, student preview, learning objectives, rubrics, retrieval checks, and self-hosted lesson-video replacement
 - Staff attention queue, student health, focused grading, and submission push routes
 - Secure web handoffs for authoring, bulk operations, repository inspection, and dense matrices
 - Native unit checks, Expo Doctor validation, iOS bundle export, and simulator walkthrough
 
-Curriculum authoring, bulk enrollment/team operations, repository inspection, and dense grading/watch matrices remain deliberate responsive-web workflows. Routine student learning, submissions, recordings, communication, and focused staff intervention are native.
+Bulk enrollment/team operations, repository inspection, and dense grading/watch matrices remain deliberate responsive-web workflows. Routine student learning, submissions, recordings, communication, focused staff intervention, and the curriculum changes instructors need away from a desk are native.
 
 ### Overall Definition of Done
 > CSG can run class communication from the platform: announcements, unread notification state, cohort messages, DMs, and PWA push notifications replace the daily Slack loop for active cohorts.

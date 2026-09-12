@@ -581,7 +581,13 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
                   base_updated_at: @lesson.reload.updated_at.iso8601(6),
                   title: "Saved despite cleanup",
                   requires_submission: false,
-                  video: { id: @video_block.id, title: "Saved video", s3_video_key: replacement_key },
+                  video: {
+                    id: @video_block.id,
+                    title: "Saved video",
+                    s3_video_key: replacement_key,
+                    s3_video_content_type: "video/mp4",
+                    s3_video_size: 1.megabyte
+                  },
                   alignments: []
                 }
               },
@@ -608,7 +614,13 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
                   base_updated_at: @lesson.reload.updated_at.iso8601(6),
                   title: "Replace editor video",
                   requires_submission: false,
-                  video: { id: @video_block.id, title: "Replacement", s3_video_key: new_key },
+                  video: {
+                    id: @video_block.id,
+                    title: "Replacement",
+                    s3_video_key: new_key,
+                    s3_video_content_type: "video/quicktime",
+                    s3_video_size: 12.megabytes
+                  },
                   alignments: []
                 }
               },
@@ -617,8 +629,176 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
-    assert_equal new_key, @video_block.reload.s3_video_key
+    @video_block.reload
+    assert_equal new_key, @video_block.s3_video_key
+    assert_equal "video/quicktime", @video_block.s3_video_content_type
+    assert_equal 12.megabytes, @video_block.s3_video_size
     assert_equal [ old_key ], deleted_keys
+  end
+
+  test "editor rejects invalid hosted video metadata without changing the lesson" do
+    original_updated_at = @lesson.updated_at
+
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor",
+            params: {
+              editor: {
+                base_updated_at: @lesson.updated_at.iso8601(6),
+                title: "Unsafe upload",
+                video: {
+                  id: @video_block.id,
+                  title: "Unsafe upload",
+                  s3_video_key: "content_videos/#{SecureRandom.uuid}/payload.mp4",
+                  s3_video_content_type: "text/html",
+                  s3_video_size: 123
+                },
+                alignments: []
+              }
+            },
+            headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "content_type must be a video/* MIME type", JSON.parse(response.body).fetch("error")
+    assert_equal "Lesson 1", @lesson.reload.title
+    assert_equal original_updated_at, @lesson.updated_at
+  end
+
+  test "editor rejects a hosted video key without its exact metadata" do
+    old_key = "content_videos/block_#{@video_block.id}/20260831010330_old.mp4"
+    new_key = "content_videos/#{SecureRandom.uuid}/missing-metadata.mp4"
+    @video_block.update_columns(s3_video_key: old_key, s3_video_content_type: "video/mp4", s3_video_size: 456)
+    original_updated_at = @lesson.updated_at
+
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor",
+            params: {
+              editor: {
+                base_updated_at: @lesson.updated_at.iso8601(6),
+                title: "Incomplete upload",
+                video: { id: @video_block.id, title: "Incomplete upload", s3_video_key: new_key },
+                alignments: []
+              }
+            },
+            headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "Hosted video uploads require s3_video_content_type and s3_video_size", JSON.parse(response.body).fetch("error")
+    assert_equal "Lesson 1", @lesson.reload.title
+    assert_equal old_key, @video_block.reload.s3_video_key
+    assert_equal "video/mp4", @video_block.s3_video_content_type
+    assert_equal 456, @video_block.s3_video_size
+    assert_equal original_updated_at, @lesson.updated_at
+  end
+
+  test "editor allows unrelated changes when an unchanged legacy video has no metadata" do
+    legacy_key = "content_videos/block_#{@video_block.id}/20260831010340_legacy.mp4"
+    @video_block.update_columns(s3_video_key: legacy_key, s3_video_content_type: nil, s3_video_size: nil)
+
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor",
+            params: {
+              editor: {
+                base_updated_at: @lesson.reload.updated_at.iso8601(6),
+                title: "Legacy lesson updated",
+                video: { id: @video_block.id, title: "Legacy video", s3_video_key: legacy_key, s3_video_content_type: "video/webm", s3_video_size: 999 },
+                alignments: []
+              }
+            },
+            headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal "Legacy lesson updated", @lesson.reload.title
+    assert_equal legacy_key, @video_block.reload.s3_video_key
+    assert_nil @video_block.s3_video_content_type
+    assert_nil @video_block.s3_video_size
+  end
+
+  test "editor clears hosted video metadata when removing its key" do
+    old_key = "content_videos/block_#{@video_block.id}/20260831010345_removed.mp4"
+    @video_block.update_columns(s3_video_key: old_key, s3_video_content_type: "video/mp4", s3_video_size: 789)
+    deleted_keys = []
+
+    with_s3_delete_capture(deleted_keys) do
+      as_user(@admin) do
+        patch "/api/v1/lessons/#{@lesson.id}/editor",
+              params: {
+                editor: {
+                  base_updated_at: @lesson.reload.updated_at.iso8601(6),
+                  title: @lesson.title,
+                  video: { id: @video_block.id, title: @video_block.title, s3_video_key: nil },
+                  alignments: []
+                }
+              },
+              headers: auth_headers
+      end
+    end
+
+    assert_response :success
+    @video_block.reload
+    assert_nil @video_block.s3_video_key
+    assert_nil @video_block.s3_video_content_type
+    assert_nil @video_block.s3_video_size
+    assert_equal [ old_key ], deleted_keys
+  end
+
+  test "editor rejects hosted videos larger than the upload limit" do
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor",
+            params: {
+              editor: {
+                base_updated_at: @lesson.updated_at.iso8601(6),
+                title: @lesson.title,
+                video: {
+                  id: @video_block.id,
+                  title: "Oversized upload",
+                  s3_video_key: "content_videos/#{SecureRandom.uuid}/large.mp4",
+                  s3_video_content_type: "video/mp4",
+                  s3_video_size: 6.gigabytes
+                },
+                alignments: []
+              }
+            },
+            headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "s3_video_size must be between 1 byte and 5 GB", JSON.parse(response.body).fetch("error")
+    assert_equal "Lesson 1", @lesson.reload.title
+  end
+
+  test "editor rejects non-numeric and zero hosted video sizes without changing state" do
+    [ [ "invalid", "s3_video_size must be a whole number" ], [ 0, "s3_video_size must be between 1 byte and 5 GB" ] ].each do |size, expected_error|
+      original_updated_at = @lesson.reload.updated_at
+      original_video = @video_block.reload.attributes.slice("s3_video_key", "s3_video_content_type", "s3_video_size")
+
+      as_user(@admin) do
+        patch "/api/v1/lessons/#{@lesson.id}/editor",
+              params: {
+                editor: {
+                  base_updated_at: original_updated_at.iso8601(6),
+                  title: "Invalid video size",
+                  video: {
+                    id: @video_block.id,
+                    title: "Invalid video size",
+                    s3_video_key: "content_videos/#{SecureRandom.uuid}/invalid.mp4",
+                    s3_video_content_type: "video/mp4",
+                    s3_video_size: size
+                  },
+                  alignments: []
+                }
+              },
+              headers: auth_headers
+      end
+
+      assert_response :unprocessable_entity
+      assert_equal expected_error, JSON.parse(response.body).fetch("error")
+      assert_equal "Lesson 1", @lesson.reload.title
+      assert_equal original_updated_at, @lesson.updated_at
+      assert_equal original_video, @video_block.reload.attributes.slice("s3_video_key", "s3_video_content_type", "s3_video_size")
+    end
   end
 
   test "admin authors an objective-aligned retrieval check and students receive immediate evidence" do
