@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { fonts, palette } from '@/constants/csg-theme';
-import { openAuthenticatedWebLesson, openExternalPage } from '@/lib/external-links';
+import { openAuthenticatedWebLesson } from '@/lib/external-links';
 import { buildSubmissionInput, canSubmitWork, isNewSubmissionAttempt, learningKeys, submissionState, submissionTypeFor } from '@/lib/learning';
 import { analyticsAgeBucket, captureProductEvent } from '@/lib/analytics';
 import { clearSubmissionDraft, loadSubmissionDraft, saveSubmissionDraft, submissionDraftMatches, type SubmissionDraft } from '@/lib/submission-storage';
@@ -12,6 +12,7 @@ import type { LessonContentBlock, LessonDetail, SessionUser, Submission, Submiss
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 import { LessonMarkdown } from './lesson-markdown';
+import { InAppMediaPlayer } from './in-app-media-player';
 import { NativeVideoPlayer } from './native-video-player';
 
 interface LessonContentBlockProps {
@@ -277,7 +278,7 @@ function LessonVideo({ block, lesson }: { block: LessonContentBlock; lesson: Les
   if (block.metadata?.staged_video_upload) return <View style={styles.stagedVideo}><Film color={palette.rubySoft} size={18} /><View style={styles.flex}><Text style={styles.stagedVideoTitle}>Hosted video ready to save</Text><Text style={styles.stagedVideoCopy}>Playback becomes available as soon as this lesson draft is saved.</Text></View></View>;
   if (block.has_s3_video) return <View style={styles.nativeVideo}><NativeVideoPlayer fetchStream={fetchStream} initialPosition={block.progress?.video_last_position || 0} initialTotalWatched={block.progress?.video_total_watched || 0} saveProgress={saveProgress} title={block.title || lesson.title} trackProgress={!user?.is_staff} /></View>;
   if (!block.video_url) return user?.is_staff ? <View style={styles.stagedVideo}><Film color={palette.quiet} size={18} /><View style={styles.flex}><Text style={styles.stagedVideoTitle}>No video source attached</Text><Text style={styles.stagedVideoCopy}>Add a link or hosted file in the editor.</Text></View></View> : null;
-  return <Pressable accessibilityRole="button" accessibilityLabel={`Play ${block.title || 'video'}`} onPress={() => void openExternalPage(block.video_url).catch((error) => Alert.alert('Video unavailable', (error as Error).message))} style={styles.outlineButton}><Play color={palette.rubySoft} size={17} /><Text style={styles.outlineText}>Open video</Text><ExternalLink color={palette.quiet} size={15} /></Pressable>;
+  return <View style={styles.nativeVideo}><InAppMediaPlayer title={block.title || lesson.title} url={block.video_url} /></View>;
 }
 
 function SubmissionStatus({ submission, redo }: { submission: NonNullable<LessonContentBlock['submissions']>[number]; redo: boolean }) {
