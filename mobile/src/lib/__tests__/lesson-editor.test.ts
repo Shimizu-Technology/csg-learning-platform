@@ -5,7 +5,7 @@ import type { LessonDetail } from '../types';
 const lesson: LessonDetail = {
   ...demoLesson,
   objectives: [{ alignment_id: 4, id: 9, code: 'CSS-1', title: 'Build layouts', description: null, success_criteria: 'Uses Grid', active: true, content_block_id: 203, content_block_title: 'Rebuild the card grid' }],
-  content_blocks: demoLesson.content_blocks.map((block) => block.id === 203 ? { ...block, submission_type_explicit: 'text_submission', submission_config: { runner: { enabled: true } }, rubric: { id: 12, title: 'Layout rubric', description: null, criteria: [] } } : block).concat({ id: 204, block_type: 'video', position: 0, title: 'Responsive layouts with Grid', body: null, video_url: 'https://video.example.com/grid', s3_video_key: 'content_videos/grid.mp4', s3_video_content_type: 'video/mp4', s3_video_size: 4096, filename: null, metadata: {} }),
+  content_blocks: demoLesson.content_blocks.map((block) => block.id === 203 ? { ...block, submission_type_explicit: 'text_submission', submission_config: { review: { mode: 'guided' }, runner: { enabled: true, language: 'javascript' } }, rubric: { id: 12, title: 'Layout rubric', description: null, criteria: [] } } : block).concat({ id: 204, block_type: 'video', position: 0, title: 'Responsive layouts with Grid', body: null, video_url: 'https://video.example.com/grid', s3_video_key: 'content_videos/grid.mp4', s3_video_content_type: 'video/mp4', s3_video_size: 4096, filename: null, metadata: {} }),
 };
 
 describe('lesson editor helpers', () => {
@@ -19,9 +19,24 @@ describe('lesson editor helpers', () => {
       required: true,
       requires_submission: true,
       video: { id: 204, s3_video_key: 'content_videos/grid.mp4', s3_video_content_type: 'video/mp4', s3_video_size: 4096 },
-      exercise: { id: 203, body: 'Build a responsive grid.', solution: 'Use minmax().', submission_config: { runner: { enabled: true } }, rubric_id: 12 },
+      exercise: { id: 203, body: 'Build a responsive grid.', solution: 'Use minmax().', submission_config: { review: { mode: 'guided' }, runner: { enabled: true, language: 'javascript' } }, rubric_id: 12 },
       alignments: [{ learning_objective_id: 9, content_block_id: 203 }],
     });
+  });
+
+  it('previews and saves runner settings while preserving unrelated submission configuration', () => {
+    const fields = { ...fieldsForLesson(lesson), runner: { enabled: true, language: 'ruby' as const } };
+    const previewExercise = lessonPreviewForFields(lesson, fields).content_blocks.find((block) => block.id === 203);
+    const input = lessonEditorInput(lesson, fields, lesson.updated_at!);
+
+    expect(previewExercise?.submission_config).toEqual({ review: { mode: 'guided' }, runner: { enabled: true, language: 'ruby' } });
+    expect(input.exercise?.submission_config).toEqual({ review: { mode: 'guided' }, runner: { enabled: true, language: 'ruby' } });
+  });
+
+  it('turns off the runner when the submission type no longer supports browser execution', () => {
+    const fields = { ...fieldsForLesson(lesson), submission_type: 'repo_url_submission' as const, runner: { enabled: true, language: 'javascript' as const } };
+
+    expect(lessonEditorInput(lesson, fields, lesson.updated_at!).exercise?.submission_config).toMatchObject({ runner: { enabled: false, language: 'javascript' } });
   });
 
   it('validates title, video URL, and orphaned solutions before a request', () => {

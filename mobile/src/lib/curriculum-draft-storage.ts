@@ -5,7 +5,7 @@ import { beginUserStorageCleanup, userStorageCleanupIsCurrent, userStorageGenera
 const curriculumDraftWrites = new Map<string, Promise<void>>();
 const submissionTypes = new Set(['manual_complete', 'text_submission', 'prework_github_sync', 'repo_url_submission', 'repo_and_live_url_submission']);
 
-type OptionalDraftFields = 'objective_alignments' | 'rubric_id' | 'retrieval_check' | 's3_video_key' | 's3_video_content_type' | 's3_video_size';
+type OptionalDraftFields = 'objective_alignments' | 'rubric_id' | 'retrieval_check' | 's3_video_key' | 's3_video_content_type' | 's3_video_size' | 'runner';
 
 export type LessonEditorDraft = Omit<LessonEditorFields, OptionalDraftFields> & Partial<Pick<LessonEditorFields, OptionalDraftFields>> & {
   base_updated_at: string;
@@ -43,6 +43,7 @@ export async function loadLessonEditorDraft(userId: number, lessonId: number) {
     if (draft.s3_video_key !== undefined && !(draft.s3_video_key === null || typeof draft.s3_video_key === 'string')) throw new Error('Invalid lesson draft video');
     if (draft.s3_video_content_type !== undefined && !(draft.s3_video_content_type === null || typeof draft.s3_video_content_type === 'string')) throw new Error('Invalid lesson draft video type');
     if (draft.s3_video_size !== undefined && !(draft.s3_video_size === null || (Number.isInteger(draft.s3_video_size) && draft.s3_video_size > 0))) throw new Error('Invalid lesson draft video size');
+    if (draft.runner !== undefined && !(draft.runner !== null && typeof draft.runner === 'object' && typeof draft.runner.enabled === 'boolean' && ['ruby', 'javascript'].includes(draft.runner.language))) throw new Error('Invalid lesson draft runner');
     if (draft.objective_alignments !== undefined && (!Array.isArray(draft.objective_alignments) || draft.objective_alignments.some((alignment) => !Number.isInteger(alignment?.learning_objective_id) || !(alignment?.content_block_id === null || Number.isInteger(alignment?.content_block_id))))) throw new Error('Invalid lesson draft objectives');
     if (draft.rubric_id !== undefined && !(draft.rubric_id === null || Number.isInteger(draft.rubric_id))) throw new Error('Invalid lesson draft rubric');
     if (draft.retrieval_check !== undefined) {
