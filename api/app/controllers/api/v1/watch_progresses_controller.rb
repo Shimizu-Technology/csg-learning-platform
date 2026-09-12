@@ -2,17 +2,14 @@ module Api
   module V1
     class WatchProgressesController < ApplicationController
       before_action :authenticate_user!
+      before_action :require_student!, only: [ :update ]
 
       # PATCH /api/v1/watch_progress
       def update
         recording = Recording.find(params[:recording_id])
-        enrollment = nil
+        enrollment = current_user.enrollments.find_by(cohort: recording.cohort, status: :active)
 
-        unless current_user.staff?
-          enrollment = current_user.enrollments.find_by(cohort: recording.cohort, status: :active)
-        end
-
-        unless current_user.staff? || (enrollment && recording.published?)
+        unless enrollment && recording.published?
           render_forbidden("Recording is not available")
           return
         end

@@ -193,6 +193,7 @@ export interface LessonDetail {
   submission_type?: string;
   content_blocks_count: number;
   archived_at: string | null;
+  updated_at: string;
   objectives: LessonObjective[];
   submission_window?: SubmissionWindowStatus;
   content_blocks: ContentBlockSummary[];

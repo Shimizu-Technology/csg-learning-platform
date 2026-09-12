@@ -51,6 +51,7 @@ interface Lesson {
   requires_submission?: boolean
   submission_type?: string
   archived_at: string | null
+  updated_at: string
   content_blocks: ContentBlock[]
   objectives: LessonObjective[]
 }
@@ -251,6 +252,7 @@ export function LessonEditor() {
       } : undefined
 
       const response = await api.updateLessonEditor(lesson.id, {
+        base_updated_at: lesson.updated_at,
         title: title.trim(),
         required,
         requires_submission: submissionType !== 'manual_complete',

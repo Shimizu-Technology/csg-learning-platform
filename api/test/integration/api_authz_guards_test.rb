@@ -159,6 +159,34 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
     refute first_block.key?("solution")
   end
 
+  test "student cannot enumerate curriculum modules through the staff index" do
+    as_user(@student_one) do
+      get "/api/v1/curricula/#{@curriculum.id}/modules", headers: auth_headers
+    end
+
+    assert_response :forbidden
+  end
+
+  test "student cannot enumerate module lessons through the staff index" do
+    as_user(@student_one) do
+      get "/api/v1/modules/#{@module.id}/lessons", headers: auth_headers
+    end
+
+    assert_response :forbidden
+  end
+
+  test "staff can use curriculum module and lesson indexes" do
+    as_user(@instructor) do
+      get "/api/v1/curricula/#{@curriculum.id}/modules", headers: auth_headers
+    end
+    assert_response :success
+
+    as_user(@instructor) do
+      get "/api/v1/modules/#{@module.id}/lessons", headers: auth_headers
+    end
+    assert_response :success
+  end
+
   test "student cannot access unassigned module" do
     as_user(@student_one) do
       get "/api/v1/modules/#{@locked_module.id}", headers: auth_headers
@@ -196,6 +224,18 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
+  end
+
+  test "staff preview cannot create student learning progress" do
+    as_user(@admin) do
+      patch "/api/v1/progress",
+        params: { content_block_id: @content_block.id, status: "completed" },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :forbidden
+    assert_not Progress.exists?(user: @admin, content_block: @content_block)
   end
 
   test "unenrolled student cannot update progress" do

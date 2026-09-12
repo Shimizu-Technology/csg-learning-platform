@@ -165,6 +165,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
   }, [block.id])
 
   const markVideoCompleted = useCallback(async () => {
+    if (isStaff) return
     if (isCompletedRef.current) return
     const res = await api.updateProgress(block.id, 'completed')
     if (!res.error) {
@@ -178,7 +179,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
       })
       onProgressUpdate?.()
     }
-  }, [analyticsContext, block.block_type, block.id, onProgressUpdate])
+  }, [analyticsContext, block.block_type, block.id, isStaff, onProgressUpdate])
 
   // Vimeo completion tracking
   useEffect(() => {
@@ -266,6 +267,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
   }
 
   const handleToggleComplete = async () => {
+    if (isStaff) return
     if (workLocked && !isCompleted) {
       toast.error(`${lockCopy}. You can still review the lesson, but new work cannot be marked complete.`)
       return
@@ -312,6 +314,8 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
   }, [])
 
   const handleSubmit = async () => {
+    if (isStaff) return
+
     setSubmissionError(null)
     setSubmissionSuccess(null)
 
@@ -501,7 +505,9 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
           </span>
         )}
         <div className="ml-auto">
-          {usesManualExerciseCompletion ? (
+          {isStaff ? (
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Preview</span>
+          ) : usesManualExerciseCompletion ? (
             <button
               onClick={handleToggleComplete}
               disabled={workLocked && !isCompleted}
@@ -554,6 +560,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
             fetchStreamUrl={fetchBlockStreamUrl}
             onSaveProgress={saveBlockProgress}
             onCompleted={handleBlockCompleted}
+            trackProgress={!isStaff}
           />
         )}
 
@@ -645,7 +652,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
           </div>
         )}
 
-        {usesManualExerciseCompletion && (
+        {!isStaff && usesManualExerciseCompletion && (
           <div className={`mt-4 rounded-xl border px-4 py-3 ${isCompleted ? 'border-success-200 bg-success-50' : 'border-slate-200 bg-slate-50'}`}>
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -683,7 +690,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
           </div>
         )}
 
-        {(block.block_type === 'exercise' || block.block_type === 'code_challenge') && submissionType !== 'manual_complete' && (
+        {!isStaff && (block.block_type === 'exercise' || block.block_type === 'code_challenge') && submissionType !== 'manual_complete' && (
           <div className="mt-4 space-y-3">
             {workLocked && (
               <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">

@@ -148,6 +148,19 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     assert_not_nil progress.completed_at
   end
 
+  test "staff preview cannot create submissions or learning progress" do
+    assert_no_difference -> { Submission.count } do
+      as_user(@admin) do
+        post "/api/v1/submissions",
+          params: { content_block_id: @repo_only_block.id, repo_url: "https://github.com/example/project" },
+          headers: auth_headers, as: :json
+      end
+    end
+
+    assert_response :forbidden
+    assert_not Progress.exists?(user: @admin, content_block: @repo_only_block)
+  end
+
   test "submission records expose stable lesson and module relationships" do
     as_user(@admin) do
       get "/api/v1/submissions/#{@submission.id}", headers: auth_headers

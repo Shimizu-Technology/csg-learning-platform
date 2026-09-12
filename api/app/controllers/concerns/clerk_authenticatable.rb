@@ -71,6 +71,13 @@ module ClerkAuthenticatable
     render_forbidden("Staff access required") unless @current_user&.staff?
   end
 
+  def require_student!
+    authenticate_user! unless @current_user
+    return if performed?
+
+    render_forbidden("Student access required") unless @current_user&.student?
+  end
+
   def resolve_known_clerk_user(issuer:, clerk_id:)
     identity = ClerkIdentity.includes(:user).find_by(issuer: issuer, clerk_user_id: clerk_id)
     if identity

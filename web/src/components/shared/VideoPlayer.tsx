@@ -14,11 +14,12 @@ interface VideoPlayerProps {
   fetchStreamUrl: () => Promise<string | null>
   onSaveProgress: (data: VideoProgressData, ended: boolean) => void
   onCompleted?: () => void
+  trackProgress?: boolean
 }
 
 const URL_REFRESH_MS = 90 * 60 * 1000
 
-export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStreamUrl, onSaveProgress, onCompleted }: VideoPlayerProps) {
+export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStreamUrl, onSaveProgress, onCompleted, trackProgress = true }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const totalWatchedRef = useRef(initialTotalWatched)
@@ -91,6 +92,7 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
   }, [loadUrl])
 
   const sendProgress = useCallback((ended: boolean) => {
+    if (!trackProgress) return
     const video = videoRef.current
     if (!video || !video.duration) return
 
@@ -107,7 +109,7 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
       total_watched_seconds: Math.floor(watched),
       duration_seconds: Math.floor(video.duration),
     }, ended)
-  }, [onSaveProgress])
+  }, [onSaveProgress, trackProgress])
 
   useEffect(() => {
     const video = videoRef.current
@@ -173,7 +175,7 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
     const handleEnded = () => {
       setPlaying(false)
       sendProgress(true)
-      onCompleted?.()
+      if (trackProgress) onCompleted?.()
     }
     const handleProgress = () => {
       try {
@@ -223,7 +225,7 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
       video.removeEventListener('seeked', handleSeeked)
       video.removeEventListener('canplay', handleCanPlay)
     }
-  }, [streamUrl, initialPosition, sendProgress, onCompleted, showBufferingSoon, hideBuffering])
+  }, [streamUrl, initialPosition, sendProgress, onCompleted, showBufferingSoon, hideBuffering, trackProgress])
 
   useEffect(() => {
     return () => {

@@ -98,6 +98,30 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert_equal 123, block["s3_video_size"]
     assert_equal @admin.full_name, block["s3_video_uploaded_by"]
     assert block["s3_video_uploaded_at"].present?
+    assert_equal @lesson.reload.updated_at.iso8601(6), JSON.parse(response.body).dig("lesson", "updated_at")
+  end
+
+  test "staff video preview streams without returning or writing progress" do
+    Progress.create!(user: @admin, content_block: @video_block, status: :in_progress, video_last_position: 12)
+
+    with_s3_stream_url("https://signed.example/lesson.mp4") do
+      as_user(@admin) do
+        get "/api/v1/content_blocks/#{@video_block.id}/video_stream", headers: auth_headers
+      end
+    end
+
+    assert_response :success
+    assert_nil JSON.parse(response.body)["video_progress"]
+
+    as_user(@admin) do
+      patch "/api/v1/content_blocks/#{@video_block.id}/video_progress",
+            params: { last_position_seconds: 20, total_watched_seconds: 20, duration_seconds: 100 },
+            headers: auth_headers,
+            as: :json
+    end
+
+    assert_response :forbidden
+    assert_equal 12, Progress.find_by!(user: @admin, content_block: @video_block).video_last_position
   end
 
   test "staff content block update stamps self-hosted video upload metadata" do
@@ -270,6 +294,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
       patch "/api/v1/lessons/#{@lesson.id}/editor",
             params: {
               editor: {
+                base_updated_at: @lesson.reload.updated_at.iso8601(6),
                 title: @lesson.title,
                 required: false,
                 requires_submission: false,
@@ -415,6 +440,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
       patch "/api/v1/lessons/#{@lesson.id}/editor",
             params: {
               editor: {
+                base_updated_at: @lesson.reload.updated_at.iso8601(6),
                 title: "Changed title",
                 requires_submission: false,
                 video: { id: @video_block.id, title: "Changed video", video_url: "https://example.com/video" },
@@ -443,6 +469,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
       patch "/api/v1/lessons/#{@lesson.id}/editor",
             params: {
               editor: {
+                base_updated_at: @lesson.reload.updated_at.iso8601(6),
                 title: "Terminal practice",
                 requires_submission: true,
                 video: { id: @video_block.id, title: "Terminal practice", video_url: "https://example.com/video" },
@@ -466,6 +493,75 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert_equal [ objective.id ], @lesson.objective_alignments.pluck(:learning_objective_id)
   end
 
+  test "editor rejects a stale lesson version without overwriting newer work" do
+    stale_version = @lesson.updated_at.iso8601(6)
+    @lesson.update!(title: "Newer editor title")
+
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor",
+            params: {
+              editor: {
+                base_updated_at: stale_version,
+                title: "Stale editor title",
+                alignments: []
+              }
+            },
+            headers: auth_headers
+    end
+
+    assert_response :conflict
+    assert_equal "stale_editor", JSON.parse(response.body).fetch("code")
+    assert_equal "Newer editor title", @lesson.reload.title
+  end
+
+  test "content-only editor saves advance the version used by other open editors" do
+    shared_version = @lesson.updated_at.iso8601(6)
+
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor",
+            params: {
+              editor: {
+                base_updated_at: shared_version,
+                title: @lesson.title,
+                video: { id: @video_block.id, title: "Updated video title" },
+                alignments: []
+              }
+            },
+            headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal "Updated video title", @video_block.reload.title
+    refute_equal shared_version, JSON.parse(response.body).dig("lesson", "updated_at")
+
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor",
+            params: {
+              editor: {
+                base_updated_at: shared_version,
+                title: "Overwritten from stale editor",
+                alignments: []
+              }
+            },
+            headers: auth_headers
+    end
+
+    assert_response :conflict
+    assert_equal "Lesson 1", @lesson.reload.title
+  end
+
+  test "editor requires a lesson version" do
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor",
+            params: { editor: { title: "Unversioned edit", alignments: [] } },
+            headers: auth_headers
+    end
+
+    assert_response :conflict
+    assert_equal "Lesson changed after this editor was opened. Reload the latest version before saving.", JSON.parse(response.body).fetch("error")
+    assert_equal "Lesson 1", @lesson.reload.title
+  end
+
   test "editor save remains successful when post-commit S3 cleanup fails" do
     @video_block.update_columns(
       s3_video_key: "content_videos/block_#{@video_block.id}/20260831010245_failing.mp4"
@@ -476,6 +572,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
         patch "/api/v1/lessons/#{@lesson.id}/editor",
               params: {
                 editor: {
+                  base_updated_at: @lesson.reload.updated_at.iso8601(6),
                   title: "Saved despite cleanup",
                   requires_submission: false,
                   video: { id: @video_block.id, title: "Saved video", s3_video_key: replacement_key },
@@ -502,6 +599,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
         patch "/api/v1/lessons/#{@lesson.id}/editor",
               params: {
                 editor: {
+                  base_updated_at: @lesson.reload.updated_at.iso8601(6),
                   title: "Replace editor video",
                   requires_submission: false,
                   video: { id: @video_block.id, title: "Replacement", s3_video_key: new_key },
@@ -529,6 +627,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
       patch "/api/v1/lessons/#{@lesson.id}/editor",
             params: {
               editor: {
+                base_updated_at: @lesson.reload.updated_at.iso8601(6),
                 title: @lesson.title,
                 retrieval_check: {
                   enabled: true,
@@ -617,6 +716,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
       patch "/api/v1/lessons/#{@lesson.id}/editor",
             params: {
               editor: {
+                base_updated_at: @lesson.reload.updated_at.iso8601(6),
                 title: "Should roll back",
                 retrieval_check: {
                   enabled: true,

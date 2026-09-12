@@ -272,7 +272,7 @@ function LessonVideo({ block, lesson }: { block: LessonContentBlock; lesson: Les
     if (response.video_progress.completed) void queryClient.invalidateQueries({ queryKey: learningKeys.dashboard(userId) });
   }, [api, block.block_type, block.id, lesson.id, lesson.module_id, queryClient, userId]);
 
-  if (block.has_s3_video) return <View style={styles.nativeVideo}><NativeVideoPlayer fetchStream={fetchStream} initialPosition={block.progress?.video_last_position || 0} initialTotalWatched={block.progress?.video_total_watched || 0} saveProgress={saveProgress} title={block.title || lesson.title} /></View>;
+  if (block.has_s3_video) return <View style={styles.nativeVideo}><NativeVideoPlayer fetchStream={fetchStream} initialPosition={block.progress?.video_last_position || 0} initialTotalWatched={block.progress?.video_total_watched || 0} saveProgress={saveProgress} title={block.title || lesson.title} trackProgress={!user?.is_staff} /></View>;
   return <Pressable accessibilityRole="button" accessibilityLabel={`Play ${block.title || 'video'}`} onPress={() => void openExternalPage(block.video_url).catch((error) => Alert.alert('Video unavailable', (error as Error).message))} style={styles.outlineButton}><Play color={palette.rubySoft} size={17} /><Text style={styles.outlineText}>Open video</Text><ExternalLink color={palette.quiet} size={15} /></Pressable>;
 }
 

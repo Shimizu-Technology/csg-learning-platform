@@ -320,6 +320,11 @@ function shouldCacheResponse<T>(endpoint: string, data: T) {
     return Array.isArray(response.recordings) || Array.isArray(response.s3_recordings);
   }
 
+  if (/^\/api\/v1\/lessons\/\d+$/.test(endpoint)) {
+    const updatedAt = (data as { lesson?: { updated_at?: unknown } }).lesson?.updated_at;
+    return typeof updatedAt === 'string' && updatedAt.length > 0;
+  }
+
   return true;
 }
 
@@ -822,6 +827,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
   updateLessonEditor: (id: number, data: {
+    base_updated_at: string;
     title: string;
     required: boolean;
     requires_submission: boolean;

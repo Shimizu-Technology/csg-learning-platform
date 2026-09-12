@@ -3,6 +3,7 @@ module Api
     class ContentBlocksController < ApplicationController
       before_action :authenticate_user!
       before_action :require_staff!, except: [ :video_stream, :video_progress ]
+      before_action :require_student!, only: [ :video_progress ]
       before_action :require_admin!, only: [ :destroy ]
       before_action :set_lesson, only: [ :index, :create ]
       before_action :set_content_block, only: [ :show, :update, :destroy, :video_presign, :video_stream, :video_progress ]
@@ -160,7 +161,7 @@ module Api
 
         expires_at = S3Service::VIDEO_STREAM_EXPIRY.seconds.from_now
         url = S3Service.generate_presigned_url(@content_block.s3_video_key, expires_in: S3Service::VIDEO_STREAM_EXPIRY)
-        progress = current_user.progresses.find_by(content_block: @content_block)
+        progress = current_user.progresses.find_by(content_block: @content_block) unless current_user.staff?
 
         render json: {
           stream_url: url,
@@ -306,8 +307,6 @@ module Api
       # they got to). So we only require active enrollment in the curriculum
       # here, not module/lesson availability.
       def authorize_video_progress!
-        return if current_user.staff?
-
         lesson = @content_block.lesson
         @learning_write_enrollment = current_user.enrollments
           .active
