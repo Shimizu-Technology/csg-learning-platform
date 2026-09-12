@@ -7,6 +7,11 @@ jest.mock('lucide-react-native', () => {
   const Icon = () => null;
   return { AlertCircle: Icon, Archive: Icon, CalendarDays: Icon, Check: Icon, Plus: Icon, RotateCcw: Icon, Save: Icon, X: Icon };
 });
+jest.mock('../staff-rich-text-editor', () => {
+  const React = jest.requireActual('react');
+  const { TextInput } = jest.requireActual('react-native');
+  return { StaffRichTextEditor: ({ value, onChange, accessibilityLabel }: { value: string; onChange: (value: string) => void; accessibilityLabel: string }) => React.createElement(TextInput, { accessibilityLabel, value, onChangeText: onChange }) };
+});
 
 // Native dependencies must be mocked before loading the component.
 // eslint-disable-next-line import/first
@@ -25,6 +30,18 @@ describe('staff curriculum management', () => {
     fireEvent.press(screen.getByLabelText('Create and continue'));
 
     await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ title: 'CSS layout lab', instructions: 'Build a responsive card layout.', release_day: 9, required: true, submission_type: 'manual_complete' })));
+  });
+
+  it('rejects structural rich-text markup that has no student-visible content', async () => {
+    const onSave = jest.fn(async () => undefined);
+    const screen = render(<ExerciseEditorModal visible module={module} defaultWeek={2} onClose={jest.fn()} onSave={onSave} />);
+
+    fireEvent.changeText(screen.getByLabelText('New lesson title'), 'Empty lesson');
+    fireEvent.changeText(screen.getByLabelText('New lesson instructions'), '<p><br></p><div>&nbsp;</div>');
+    fireEvent.press(screen.getByLabelText('Create and continue'));
+
+    expect(await screen.findByText('Add a starting prompt so the new lesson is useful immediately.')).toBeTruthy();
+    expect(onSave).not.toHaveBeenCalled();
   });
 
   it('preserves module metadata and carries its version on edit', async () => {

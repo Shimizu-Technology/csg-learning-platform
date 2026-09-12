@@ -22,6 +22,11 @@ jest.mock('lucide-react-native', () => {
 jest.mock('../lesson-content-block', () => ({ LessonContentBlockCard: () => null }));
 jest.mock('../lesson-objectives', () => ({ LessonObjectives: () => null }));
 jest.mock('../rubric-panel', () => ({ RubricPanel: () => null }));
+jest.mock('../staff-rich-text-editor', () => {
+  const React = jest.requireActual('react');
+  const { TextInput } = jest.requireActual('react-native');
+  return { StaffRichTextEditor: ({ value, onChange, accessibilityLabel = 'Exercise instructions' }: { value: string; onChange: (value: string) => void; accessibilityLabel?: string }) => React.createElement(TextInput, { accessibilityLabel, value, onChangeText: onChange }) };
+});
 jest.mock('../staff-video-source-editor', () => ({ StaffVideoSourceEditor: (props: { onBusyChange?: (busy: boolean) => void }) => { mockVideoBusyChange = props.onBusyChange; return null; } }));
 
 // Native dependencies must be mocked before loading the component.
