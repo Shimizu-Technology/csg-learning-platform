@@ -2,6 +2,7 @@ module Api
   module V1
     class ProgressController < ApplicationController
       before_action :authenticate_user!
+      before_action :require_student!, only: [ :update ]
 
       # PATCH /api/v1/progress
       def update

@@ -331,6 +331,25 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     assert progress.completed?
   end
 
+  test "staff recording preview cannot create watch progress" do
+    recording = create_recording!(duration_seconds: 100)
+
+    as_user(@admin) do
+      patch "/api/v1/watch_progress",
+        params: {
+          recording_id: recording.id,
+          last_position_seconds: 25,
+          total_watched_seconds: 25,
+          duration_seconds: 100
+        },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :forbidden
+    assert_not WatchProgress.exists?(user: @admin, recording: recording)
+  end
+
   test "watch progress rejects a request from before the enrollment reset" do
     recording = create_recording!(duration_seconds: 100)
     @enrollment.update!(learning_state_reset_at: 1.minute.from_now)

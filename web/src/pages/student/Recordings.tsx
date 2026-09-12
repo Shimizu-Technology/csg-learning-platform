@@ -7,6 +7,7 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { VideoPlayer } from '../../components/shared/VideoPlayer'
 import { ContextualHelp } from '../../components/student/ContextualHelp'
+import { useAuthContext } from '../../contexts/AuthContext'
 import type { RecordingEntry, RecordingItem as ApiRecordingItem, S3Recording as ApiS3Recording } from '../../types/api'
 
 interface LegacyRecording {
@@ -95,6 +96,8 @@ function normalizeUploadedRecording(recording: ApiS3Recording | ApiRecordingItem
 }
 
 export function Recordings() {
+  const { user } = useAuthContext()
+  const isStaff = Boolean(user?.is_staff)
   const [legacyRecordings, setLegacyRecordings] = useState<LegacyRecording[]>([])
   const [s3Recordings, setS3Recordings] = useState<S3Recording[]>([])
   const [loading, setLoading] = useState(true)
@@ -271,6 +274,7 @@ export function Recordings() {
                 initialTotalWatched={(selectedItem as S3Recording | null)?.watch_progress?.total_watched_seconds || 0}
                 fetchStreamUrl={fetchSelectedStreamUrl}
                 onSaveProgress={saveSelectedProgress}
+                trackProgress={!isStaff}
               />
               <div className="rounded-2xl border border-slate-200 bg-white p-5">
                 <div className="flex items-start justify-between gap-3">

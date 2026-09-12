@@ -19,11 +19,12 @@ interface NativeVideoPlayerProps {
   fetchStream: () => Promise<StreamResponse>;
   saveProgress: (progress: VideoProgressInput) => Promise<void>;
   onProgressSaved?: (progress: VideoProgressInput) => void;
+  trackProgress?: boolean;
 }
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
 
-export function NativeVideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStream, saveProgress, onProgressSaved }: NativeVideoPlayerProps) {
+export function NativeVideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStream, saveProgress, onProgressSaved, trackProgress = true }: NativeVideoPlayerProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState(false);
@@ -85,11 +86,12 @@ export function NativeVideoPlayer({ title, initialPosition = 0, initialTotalWatc
   }, []);
 
   const enqueueProgress = useCallback((ended = false) => {
+    if (!trackProgress) return;
     const payload = normalizedProgress(currentTimeRef.current, totalWatchedRef.current, durationRef.current, ended);
     if (!payload) return;
     pendingSaveRef.current = payload;
     void drainSaves();
-  }, [drainSaves]);
+  }, [drainSaves, trackProgress]);
 
   const loadSource = useCallback(async (options?: { position?: number; shouldPlay?: boolean }) => {
     const position = options?.position ?? (durationRef.current > 0 ? currentTimeRef.current : initialPositionRef.current);
@@ -167,7 +169,7 @@ export function NativeVideoPlayer({ title, initialPosition = 0, initialTotalWatc
   });
 
   useEventListener(player, 'playToEnd', () => {
-    setCompleted(true);
+    if (trackProgress) setCompleted(true);
     enqueueProgress(true);
   });
 
@@ -198,10 +200,10 @@ export function NativeVideoPlayer({ title, initialPosition = 0, initialTotalWatc
     return () => {
       mountedRef.current = false;
       const payload = normalizedProgress(currentTimeRef.current, totalWatchedRef.current, durationRef.current);
-      if (payload) void saveProgressRef.current(payload).catch(() => undefined);
+      if (trackProgress && payload) void saveProgressRef.current(payload).catch(() => undefined);
       void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => undefined);
     };
-  }, [player]);
+  }, [player, trackProgress]);
 
   const changeRate = (nextRate: number) => {
     player.playbackRate = nextRate;
@@ -228,7 +230,7 @@ export function NativeVideoPlayer({ title, initialPosition = 0, initialTotalWatc
       {loading && <View style={styles.overlay}><RefreshCw color={palette.rubySoft} size={24} /><Text style={styles.overlayText}>Preparing secure playback…</Text></View>}
       {error && !loading && <View style={styles.overlay}><AlertCircle color={palette.rubySoft} size={26} /><Text style={styles.errorTitle}>Playback needs a reconnect</Text><Text numberOfLines={3} style={styles.errorCopy}>{error}</Text><Pressable accessibilityRole="button" accessibilityLabel="Retry playback" onPress={() => void loadSource()} style={styles.retry}><RefreshCw color={palette.text} size={16} /><Text style={styles.retryText}>Retry</Text></Pressable></View>}
     </View>
-    <View style={styles.statusRow}><Text style={styles.time}>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</Text>{completed ? <View style={styles.synced}><Check color={palette.success} size={13} /><Text style={styles.completeText}>Watched</Text></View> : <Text style={[styles.sync, syncError && styles.syncError]}>{syncError ? 'Progress will retry' : playing ? 'Watching' : 'Progress saved'}</Text>}</View>
+    <View style={styles.statusRow}><Text style={styles.time}>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</Text>{!trackProgress ? <Text style={styles.sync}>Preview mode</Text> : completed ? <View style={styles.synced}><Check color={palette.success} size={13} /><Text style={styles.completeText}>Watched</Text></View> : <Text style={[styles.sync, syncError && styles.syncError]}>{syncError ? 'Progress will retry' : playing ? 'Watching' : 'Progress saved'}</Text>}</View>
     <View accessibilityRole="radiogroup" accessibilityLabel="Playback speed" style={styles.speedRow}>{SPEEDS.map((speed) => <Pressable key={speed} accessibilityRole="radio" accessibilityState={{ checked: rate === speed }} accessibilityLabel={`Play at ${speed} times speed`} onPress={() => changeRate(speed)} style={[styles.speed, rate === speed && styles.speedActive]}><Text style={[styles.speedText, rate === speed && styles.speedTextActive]}>{speed}×</Text></Pressable>)}</View>
   </View>;
 }

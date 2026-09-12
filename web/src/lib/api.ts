@@ -822,6 +822,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
   updateLessonEditor: (id: number, data: {
+    base_updated_at: string;
     title: string;
     required: boolean;
     requires_submission: boolean;

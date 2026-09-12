@@ -2,7 +2,7 @@ module Api
   module V1
     class LessonsController < ApplicationController
       before_action :authenticate_user!
-      before_action :require_staff!, only: [ :create, :create_exercise, :update, :update_editor, :archive, :restore ]
+      before_action :require_staff!, only: [ :index, :create, :create_exercise, :update, :update_editor, :archive, :restore ]
       before_action :require_admin!, only: [ :destroy ]
       before_action :set_module, only: [ :index, :create, :create_exercise ]
       before_action :set_lesson, only: [ :show, :update, :update_editor, :archive, :restore, :destroy ]
@@ -168,6 +168,8 @@ module Api
         new_s3_key = nil
 
         ActiveRecord::Base.transaction do
+          @lesson.lock!
+          require_current_editor_version!
           @lesson.update!(editor_lesson_params)
           old_s3_key, new_s3_key = update_editor_video!
           update_editor_exercise!
@@ -181,6 +183,11 @@ module Api
 
         @lesson.reload
         render json: { lesson: lesson_json(@lesson, include_content: true) }
+      rescue ActiveRecord::StaleObjectError
+        render json: {
+          error: "Lesson changed after this editor was opened. Reload the latest version before saving.",
+          code: "stale_editor"
+        }, status: :conflict
       rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed, ActiveRecord::RecordNotFound, KeyError => error
         render json: { errors: [ error.message ] }, status: :unprocessable_entity
       end
@@ -216,6 +223,7 @@ module Api
           :title,
           :required,
           :requires_submission,
+          :base_updated_at,
           video: [ :id, :title, :video_url, :s3_video_key ],
           exercise: [ :id, :title, :body, :solution, :filename, :submission_type, :rubric_id, { submission_config: {} } ],
           retrieval_check: [ :enabled, :content_block_id, :title, :prompt, :correct_option, :explanation, :learning_objective_id, { options: [] } ],
@@ -225,6 +233,20 @@ module Api
 
       def editor_lesson_params
         editor_params.slice(:title, :required, :requires_submission)
+      end
+
+      def require_current_editor_version!
+        base_updated_at = editor_params[:base_updated_at].presence
+        unless base_updated_at
+          raise ActiveRecord::StaleObjectError.new(@lesson, "update")
+        end
+
+        parsed_version = Time.iso8601(base_updated_at)
+        return if parsed_version == @lesson.updated_at
+
+        raise ActiveRecord::StaleObjectError.new(@lesson, "update")
+      rescue ArgumentError
+        raise ActiveRecord::StaleObjectError.new(@lesson, "update")
       end
 
       def update_editor_video!
@@ -383,6 +405,7 @@ module Api
           release_day: lesson.release_day,
           required: lesson.required,
           archived_at: lesson.archived_at,
+          updated_at: lesson.updated_at.iso8601(6),
           content_blocks_count: lesson.content_blocks.size
         }
 
