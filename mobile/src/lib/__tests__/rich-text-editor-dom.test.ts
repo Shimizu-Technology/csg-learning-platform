@@ -39,7 +39,7 @@ describe('rich text editor browser bridge', () => {
     Object.defineProperty(paste, 'clipboardData', {
       value: {
         getData: (type: string) => type === 'text/html'
-          ? '<img src="javascript:alert(1)" onerror="steal()"><a href="javascript:steal()">Bad</a><strong style="color:red">Good</strong><iframe src="https://example.com"></iframe>'
+          ? '<img src="http://example.com/insecure.png" onerror="steal()"><a href="javascript:steal()">Bad</a><strong style="color:red">Good</strong><iframe src="https://example.com"></iframe>'
           : '',
       },
     });

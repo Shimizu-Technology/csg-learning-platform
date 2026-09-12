@@ -412,7 +412,7 @@ Implemented decisions:
 7. Request Greptile review.
 8. Inspect every unresolved thread and the generated summary.
 9. Fix legitimate findings, add regression coverage, push, and request re-review.
-10. Do not merge until required CI checks pass and the configured review agent is clean, or a documented diminishing-returns cutoff confirms that every remaining item is resolved, repeated, non-actionable, or contrary to an explicit product decision.
+10. Do not merge until required CI checks pass and the configured review agent is clean, or a documented diminishing-returns cutoff confirms that every remaining item is resolved, non-actionable, contrary to an explicit product decision, or a duplicate linked to a previously resolved finding.
 11. Merge, switch local checkout to `main`, and pull with fast-forward only.
 12. Record the merged PR and verification evidence before beginning the next phase.
 
@@ -433,7 +433,7 @@ After all phases:
 
 App Store submission for public review remains a distinct final action after TestFlight acceptance. TestFlight distribution does not by itself submit the public App Store version.
 
-Current release status (2026-08-02):
+Historical Phase 0–1 release status (2026-08-02):
 
 - Steps 1, 3, 4, and 6–9 were completed for the confirmed baseline iOS build `1.0.0 (4)` from source commit `070b4dc`.
 - App Store Connect has six current 6.9-inch iPhone screenshots, six current 13-inch iPad screenshots, refreshed product copy, and build 4 attached to the 1.0 draft.

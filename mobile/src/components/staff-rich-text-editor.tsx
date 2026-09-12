@@ -11,6 +11,7 @@ import {
   richTextEditorCommandScript,
   richTextEditorContentScript,
   richTextEditorDocument,
+  richTextEditorFontSize,
   safeRichTextLink,
   type RichTextEditorCommand,
   type RichTextEditorState,
@@ -63,7 +64,13 @@ export function StaffRichTextEditor({
     webViewRef.current?.injectJavaScript(richTextEditorContentScript(value));
   }, [normalizedValue, ready, value]);
 
+  useEffect(() => {
+    if (!ready) return;
+    webViewRef.current?.injectJavaScript(richTextEditorCommandScript('setFontSize', String(richTextEditorFontSize(fontScale))));
+  }, [fontScale, ready]);
+
   const command = (name: RichTextEditorCommand, commandValue?: string) => {
+    if (!ready) return;
     webViewRef.current?.injectJavaScript(richTextEditorCommandScript(name, commandValue));
   };
 
@@ -117,17 +124,17 @@ export function StaffRichTextEditor({
 
   return <View style={styles.container}>
     <ScrollView horizontal keyboardShouldPersistTaps="always" showsHorizontalScrollIndicator={false} style={styles.toolbar} contentContainerStyle={styles.toolbarContent}>
-      <ToolbarButton label="Bold" active={selection.bold} icon={Bold} onPress={() => command('bold')} />
-      <ToolbarButton label="Italic" active={selection.italic} icon={Italic} onPress={() => command('italic')} />
-      <ToolbarButton label="Link" active={selection.link} icon={Link} onPress={openLink} />
-      <ToolbarButton label="Quote" active={selection.blockquote} icon={Quote} onPress={() => command('blockquote')} />
-      <ToolbarButton label="Inline code" active={selection.inlineCode} icon={Code2} onPress={() => command('inlineCode')} />
-      <ToolbarButton label="Code block" active={selection.codeBlock} icon={Code2} onPress={() => command('codeBlock')} />
-      <ToolbarButton label="Bullet list" active={selection.bulletList} icon={List} onPress={() => command('bulletList')} />
-      <ToolbarButton label="Numbered list" active={selection.orderedList} icon={ListOrdered} onPress={() => command('orderedList')} />
+      <ToolbarButton label="Bold" active={selection.bold} disabled={!ready} icon={Bold} onPress={() => command('bold')} />
+      <ToolbarButton label="Italic" active={selection.italic} disabled={!ready} icon={Italic} onPress={() => command('italic')} />
+      <ToolbarButton label="Link" active={selection.link} disabled={!ready} icon={Link} onPress={openLink} />
+      <ToolbarButton label="Quote" active={selection.blockquote} disabled={!ready} icon={Quote} onPress={() => command('blockquote')} />
+      <ToolbarButton label="Inline code" active={selection.inlineCode} disabled={!ready} icon={Code2} onPress={() => command('inlineCode')} />
+      <ToolbarButton label="Code block" active={selection.codeBlock} disabled={!ready} icon={Code2} onPress={() => command('codeBlock')} />
+      <ToolbarButton label="Bullet list" active={selection.bulletList} disabled={!ready} icon={List} onPress={() => command('bulletList')} />
+      <ToolbarButton label="Numbered list" active={selection.orderedList} disabled={!ready} icon={ListOrdered} onPress={() => command('orderedList')} />
       <View style={styles.divider} />
-      <ToolbarButton label="Undo" disabled={!selection.canUndo} icon={Undo2} onPress={() => command('undo')} />
-      <ToolbarButton label="Redo" disabled={!selection.canRedo} icon={Redo2} onPress={() => command('redo')} />
+      <ToolbarButton label="Undo" disabled={!ready || !selection.canUndo} icon={Undo2} onPress={() => command('undo')} />
+      <ToolbarButton label="Redo" disabled={!ready || !selection.canRedo} icon={Redo2} onPress={() => command('redo')} />
     </ScrollView>
     {linkOpen && <View style={styles.linkPanel}>
       <Text style={styles.linkLabel}>LINK URL</Text>

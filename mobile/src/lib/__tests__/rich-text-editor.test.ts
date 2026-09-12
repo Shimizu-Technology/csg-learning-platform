@@ -7,8 +7,10 @@ import {
   richTextEditorCommandScript,
   richTextEditorContentScript,
   richTextEditorDocument,
+  richTextEditorFontSize,
   sanitizedStoredRichTextValue,
   sanitizeRichTextHtml,
+  safeRichTextImage,
   safeRichTextLink,
 } from '../rich-text-editor';
 
@@ -25,6 +27,8 @@ describe('rich text editor bridge', () => {
     expect(safeRichTextLink('javascript:alert(1)')).toBeNull();
     expect(safeRichTextLink('/relative')).toBeNull();
     expect(safeRichTextLink('')).toBe('');
+    expect(safeRichTextImage('https://codeschoolofguam.com/lesson.png')).toContain('https://');
+    expect(safeRichTextImage('http://codeschoolofguam.com/lesson.png')).toBeNull();
   });
 
   it('parses only known, correctly shaped bridge messages', () => {
@@ -42,6 +46,8 @@ describe('rich text editor bridge', () => {
     expect(richTextHtmlHasVisibleContent('<p><br></p><hr><div><br></div>')).toBe(true);
     expect(richTextHtmlHasVisibleContent('<img src="https://example.com/lesson.png">')).toBe(true);
     expect(richTextHtmlHasVisibleContent('<!-- <img src="https://example.com/hidden.png"> -->')).toBe(false);
+    expect(richTextHtmlHasVisibleContent('<table><tbody><tr><td><br></td></tr></tbody></table>')).toBe(false);
+    expect(richTextHtmlHasVisibleContent('<table><tbody><tr><td>Useful</td></tr></tbody></table>')).toBe(true);
   });
 
   it('sanitizes active markup while preserving semantic HTML and untouched legacy Markdown', () => {
@@ -49,6 +55,7 @@ describe('rich text editor bridge', () => {
       .toBe('<p>Keep <strong>this</strong>.</p><a>Bad link</a>');
     expect(sanitizedStoredRichTextValue('Use **Grid**.')).toBe('Use **Grid**.');
     expect(sanitizedStoredRichTextValue('<p onclick="steal()">Safe</p><iframe src="https://example.com"></iframe>')).toBe('<p>Safe</p>');
+    expect(sanitizeRichTextHtml('<img src="http://example.com/insecure.png">')).toBe('');
   });
 
   it('builds an isolated editor that sanitizes imported and pasted markup', () => {
@@ -72,6 +79,7 @@ describe('rich text editor bridge', () => {
 
     expect(document).toContain('font-size: 36px');
     expect(document).not.toContain('maximum-scale');
+    expect(richTextEditorFontSize(2.25)).toBe(36);
   });
 
   it('escapes content and command values before injecting them into the editor', () => {

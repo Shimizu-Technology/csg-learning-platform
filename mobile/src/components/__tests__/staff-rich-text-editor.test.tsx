@@ -1,6 +1,7 @@
 import { fireEvent, render } from '@testing-library/react-native';
 
 const mockInjectJavaScript = jest.fn();
+const mockUseWindowDimensions = jest.fn(() => ({ fontScale: 1, height: 844, scale: 3, width: 390 }));
 
 jest.mock('lucide-react-native', () => {
   const Icon = () => null;
@@ -16,12 +17,19 @@ jest.mock('react-native-webview', () => {
   MockWebView.displayName = 'MockWebView';
   return { WebView: MockWebView };
 });
+jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
+  __esModule: true,
+  default: () => mockUseWindowDimensions(),
+}));
 
 // Native dependencies must be mocked before loading the component.
 // eslint-disable-next-line import/first
 import { StaffRichTextEditor } from '../staff-rich-text-editor';
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockUseWindowDimensions.mockReturnValue({ fontScale: 1, height: 844, scale: 3, width: 390 });
+});
 
 describe('native staff rich text editor', () => {
   it('loads existing HTML visually and returns edited semantic HTML', () => {
@@ -38,6 +46,10 @@ describe('native staff rich text editor', () => {
   it('sends formatting commands and reflects the current selection', () => {
     const screen = render(<StaffRichTextEditor value="Build it" onChange={jest.fn()} />);
     const webview = screen.getByTestId('rich-text-webview');
+    expect(screen.getByRole('button', { name: 'Bold' }).props.accessibilityState).toMatchObject({ disabled: true });
+    fireEvent.press(screen.getByRole('button', { name: 'Bold' }));
+    expect(mockInjectJavaScript).not.toHaveBeenCalled();
+    fireEvent(webview, 'message', { nativeEvent: { data: '{"type":"ready"}' } });
     fireEvent(webview, 'message', { nativeEvent: { data: '{"type":"selection","state":{"bold":true,"italic":false,"link":false,"blockquote":false,"inlineCode":false,"codeBlock":false,"bulletList":false,"orderedList":false,"canUndo":true,"canRedo":false}}' } });
 
     expect(screen.getByRole('button', { name: 'Bold' }).props.accessibilityState).toMatchObject({ selected: true, disabled: false });
@@ -47,6 +59,7 @@ describe('native staff rich text editor', () => {
 
   it('validates links before applying them to the saved web selection', () => {
     const screen = render(<StaffRichTextEditor value="Read this" onChange={jest.fn()} />);
+    fireEvent(screen.getByTestId('rich-text-webview'), 'message', { nativeEvent: { data: '{"type":"ready"}' } });
     fireEvent.press(screen.getByRole('button', { name: 'Link' }));
     expect(mockInjectJavaScript).toHaveBeenCalledWith(expect.stringContaining('"prepareLink"'));
 
@@ -85,5 +98,18 @@ describe('native staff rich text editor', () => {
     fireEvent.press(screen.getByText('Retry formatting editor'));
 
     expect(screen.getByTestId('rich-text-webview').props.source.html).toContain('Latest safe value');
+  });
+
+  it('applies a Dynamic Type change without replacing the current editor document', () => {
+    const screen = render(<StaffRichTextEditor value="<p>Keep my edit</p>" onChange={jest.fn()} />);
+    const originalDocument = screen.getByTestId('rich-text-webview').props.source.html;
+    fireEvent(screen.getByTestId('rich-text-webview'), 'message', { nativeEvent: { data: '{"type":"ready"}' } });
+    mockInjectJavaScript.mockClear();
+
+    mockUseWindowDimensions.mockReturnValue({ fontScale: 2, height: 844, scale: 3, width: 390 });
+    screen.rerender(<StaffRichTextEditor value="<p>Keep my edit</p>" onChange={jest.fn()} />);
+
+    expect(screen.getByTestId('rich-text-webview').props.source.html).toBe(originalDocument);
+    expect(mockInjectJavaScript).toHaveBeenCalledWith(expect.stringContaining('"setFontSize", "32"'));
   });
 });

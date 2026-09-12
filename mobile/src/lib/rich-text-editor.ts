@@ -13,7 +13,8 @@ export type RichTextEditorCommand =
   | 'undo'
   | 'redo'
   | 'prepareLink'
-  | 'setLink';
+  | 'setLink'
+  | 'setFontSize';
 
 export interface RichTextEditorState {
   bold: boolean;
@@ -64,9 +65,24 @@ export function safeRichTextLink(value: string) {
   }
 }
 
+export function safeRichTextImage(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === 'https:' && Boolean(url.hostname) ? trimmed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function richTextEditorFontSize(fontScale: number) {
+  return Math.round(16 * Math.max(1, fontScale));
+}
+
 export function richTextHtmlHasVisibleContent(value: string) {
   const uncommented = value.replace(/<!--[\s\S]*?-->/g, '');
-  if (/<(?:img|hr|table)\b/i.test(uncommented)) return true;
+  if (/<(?:img|hr)\b/i.test(uncommented)) return true;
   return uncommented
     .replace(/<[^>]*>/g, '')
     .replace(/(?:&nbsp;|&#160;|&#x0*a0;)/gi, ' ')
@@ -101,8 +117,8 @@ export function sanitizeRichTextHtml(value: string) {
         delete node.attribs.href;
       }
       if (tagName === 'img') {
-        const src = safeRichTextLink(node.attribs.src || '');
-        if (src && !src.startsWith('mailto:')) node.attribs.src = src;
+        const src = safeRichTextImage(node.attribs.src || '');
+        if (src) node.attribs.src = src;
         else {
           DomUtils.removeElement(node);
           return;
@@ -142,7 +158,7 @@ export function richTextEditorContentScript(value: string) {
 export function richTextEditorDocument(value: string, placeholder: string, fontScale = 1) {
   const initialHtml = safeJson(normalizedRichTextValue(value));
   const safePlaceholder = escapeHtml(placeholder);
-  const editorFontSize = Math.round(16 * Math.max(1, fontScale));
+  const editorFontSize = richTextEditorFontSize(fontScale);
   const blockedSelector = safeJson(Array.from(BLOCKED_RICH_TEXT_TAGS).join(','));
   const blockedAttributes = JSON.stringify(Array.from(BLOCKED_RICH_TEXT_ATTRIBUTES));
 
@@ -193,6 +209,13 @@ export function richTextEditorDocument(value: string, placeholder: string, fontS
         } catch {}
         return '';
       };
+      const safeImageUrl = (value) => {
+        try {
+          const parsed = new URL(value);
+          return parsed.protocol === 'https:' && parsed.hostname ? value : '';
+        } catch {}
+        return '';
+      };
       const clean = (html) => {
         const template = document.createElement('template');
         template.innerHTML = html || '';
@@ -208,7 +231,7 @@ export function richTextEditorDocument(value: string, placeholder: string, fontS
             node.removeAttribute('target');
           } else if (node.hasAttribute('href')) node.removeAttribute('href');
           if (node.tagName === 'IMG') {
-            const src = safeUrl(node.getAttribute('src') || '');
+            const src = safeImageUrl(node.getAttribute('src') || '');
             if (src) node.setAttribute('src', src); else node.remove();
           } else if (node.hasAttribute('src')) node.removeAttribute('src');
         });
@@ -219,7 +242,7 @@ export function richTextEditorDocument(value: string, placeholder: string, fontS
         const template = document.createElement('template');
         template.innerHTML = html;
         const visibleText = (template.content.textContent || '').replace(/[\u00a0\u200B-\u200D\uFEFF]/g, '').trim();
-        const meaningfulMedia = template.content.querySelector('img,hr,table');
+        const meaningfulMedia = template.content.querySelector('img,hr');
         return visibleText || meaningfulMedia ? html : '';
       };
       const notifyHeight = () => {
@@ -300,6 +323,15 @@ export function richTextEditorDocument(value: string, placeholder: string, fontS
             return;
           }
           restoreSelection();
+          if (command === 'setFontSize') {
+            const fontSize = Number(value);
+            if (Number.isFinite(fontSize) && fontSize >= 16) {
+              document.documentElement.style.fontSize = fontSize + 'px';
+              document.body.style.fontSize = fontSize + 'px';
+              notifyHeight();
+            }
+            return;
+          }
           if (command === 'bold' || command === 'italic' || command === 'undo' || command === 'redo') document.execCommand(command);
           if (command === 'bulletList') document.execCommand('insertUnorderedList');
           if (command === 'orderedList') document.execCommand('insertOrderedList');
