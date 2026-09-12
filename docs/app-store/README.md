@@ -9,12 +9,12 @@ This directory is the durable source record for the App Store presentation of th
 | Item | State |
 | --- | --- |
 | Marketing version | `1.0.0` |
-| Latest submitted internal TestFlight build | `1.0.0 (20)` |
-| Latest verified EAS build ID | `09092544-ff98-4b03-92c5-5e389bfca7c6` |
-| Latest verified source commit | `c7f4d425991bad180fc753d1db4cebfbabee7fa7` (`main`) |
-| Latest verified EAS submission ID | `933037b9-7432-4aba-9d16-aad2d1b4fc06` |
+| Latest submitted internal TestFlight build | `1.0.0 (21)` |
+| Latest verified EAS build ID | Not applicable — build 21 was signed locally after the monthly cloud-build allowance was exhausted |
+| Latest verified source commit | `f5f28d94a81b549c7c4c3facc3766afabfcd4c27` (`main`) |
+| Latest verified EAS submission ID | `4289d148-914b-4f5c-b587-779f72266422` |
 | Latest verified App Store Connect state | Internal `IN_BETA_TESTING`; external beta ready for submission |
-| Next release candidate | `1.0.0 (21)`, pending archive and upload from the merged curriculum-authoring release commit |
+| Release artifact fingerprint | Expo fingerprint `1840d049f7d4f97c119f425d6dc5fbb8f09174c8`; IPA SHA-256 `b4c3b16b094f03677a4aebf9ecc66ef41592a40130d8fb7d38c4e41cf3d89307` |
 | Phase 0–1 release candidate | `1.0.0 (9)` |
 | App Store version | `1.0`, Prepare for Submission |
 | Internal group | `CSG Internal` |
@@ -33,7 +33,7 @@ Build 13 is the connected-experience candidate from merged PRs #97–#101. It ad
 
 Build 20 is the latest verified internal candidate before the curriculum-authoring release. EAS submission status confirms that build `09092544-ff98-4b03-92c5-5e389bfca7c6`, sourced from merged-main commit `c7f4d425991bad180fc753d1db4cebfbabee7fa7`, was uploaded through submission `933037b9-7432-4aba-9d16-aad2d1b4fc06` and is `IN_BETA_TESTING` for internal testers.
 
-Build 21 is the planned curriculum-authoring candidate. Merged PRs #124–#131 add fail-closed preview protection, the native staff curriculum library, guarded lesson drafts and exact student preview, module and lesson structure management, objectives/rubrics/retrieval checks, hosted lesson-video replacement, browser-runner configuration, and rich lesson-instruction authoring. Archive and submission identifiers are recorded here only after EAS and App Store Connect verify them.
+Build 21 is the curriculum-authoring candidate from merged PRs #124–#131 and release-preflight PR #132. It adds fail-closed preview protection, the native staff curriculum library, guarded lesson drafts and exact student preview, module and lesson structure management, objectives/rubrics/retrieval checks, hosted lesson-video replacement, browser-runner configuration, and rich lesson-instruction authoring. The archive was built and signed locally from exact merged-main commit `f5f28d94a81b549c7c4c3facc3766afabfcd4c27` because the monthly EAS cloud-build allowance was exhausted; no cloud EAS build ID exists. The package identifies itself as `com.codeschoolofguam.connect` version `1.0.0 (21)`, uses a production App Store profile valid through 2027-08-15, and passed code-signature verification. EAS submission `4289d148-914b-4f5c-b587-779f72266422` finished successfully, and App Store Connect reports internal `IN_BETA_TESTING` with external beta ready for submission. Focused tester instructions are in [`WHAT_TO_TEST_1.0.0_21.md`](WHAT_TO_TEST_1.0.0_21.md); EAS's automated changelog field was unavailable on the current plan, but that did not affect the binary upload or internal TestFlight availability.
 
 Verified EAS production history:
 
@@ -49,8 +49,9 @@ Verified EAS production history:
 | `12` | `ab7ff733-b074-48dd-a6bc-af1df24d2565` | `e49f93e6-08c1-4aa5-a8d6-eb13d3f487cd` | Finished; uploaded successfully and awaiting Apple processing confirmation |
 | `13` | `03fd9ec4-22a6-4933-80e8-ed0e440d8f2a` | `dd49f5ae-1851-4ed2-ac27-7933e1dfff82` | Finished; `VALID` and `IN_BETA_TESTING` in App Store Connect |
 | `20` | `09092544-ff98-4b03-92c5-5e389bfca7c6` | `933037b9-7432-4aba-9d16-aad2d1b4fc06` | Finished; internal `IN_BETA_TESTING`, external beta ready for submission |
+| `21` | Local signed archive; no cloud EAS build ID | `4289d148-914b-4f5c-b587-779f72266422` | Finished; internal `IN_BETA_TESTING`, external beta ready for submission |
 
-These are EAS states plus App Store Connect status checks. Build 20 is the current verified internal TestFlight build. Build 21 remains pending until its archive, upload, and Apple processing state are recorded. Public App Review remains separate.
+These are EAS states plus App Store Connect status checks. Build 21 is the current verified internal TestFlight build. Public App Review remains separate.
 
 Build 9 is the Phase 0–1 TestFlight candidate. It includes the reviewed voice-draft client, Phase 0 readability work, weekly plan, contextual help, privacy-safe analytics, and offline continuity. Its production EAS environment points to the CSG API with demo mode disabled and includes the `csg-learning-platform` PostHog project configuration. Do not enable the voice production endpoint or submit this binary for public App Review until the temporary transcription-provider processing is accurately disclosed, the production OpenAI data controls are approved, and the voice-specific physical-device checks below pass.
 
