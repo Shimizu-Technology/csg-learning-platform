@@ -821,7 +821,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  updateLesson: (id: number, data: { title?: string; required?: boolean; requires_submission?: boolean; release_day?: number }) =>
+  updateLesson: (id: number, data: { base_updated_at: string; title?: string; required?: boolean; requires_submission?: boolean; release_day?: number }) =>
     fetchApi<LessonResponse>(`/api/v1/lessons/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -840,10 +840,10 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ editor: data }),
     }),
-  archiveLesson: (id: number) =>
-    fetchApi<LessonResponse>(`/api/v1/lessons/${id}/archive`, { method: 'PATCH' }),
-  restoreLesson: (id: number) =>
-    fetchApi<LessonResponse>(`/api/v1/lessons/${id}/restore`, { method: 'PATCH' }),
+  archiveLesson: (id: number, baseUpdatedAt: string) =>
+    fetchApi<LessonResponse>(`/api/v1/lessons/${id}/archive`, { method: 'PATCH', body: JSON.stringify({ base_updated_at: baseUpdatedAt }) }),
+  restoreLesson: (id: number, baseUpdatedAt: string) =>
+    fetchApi<LessonResponse>(`/api/v1/lessons/${id}/restore`, { method: 'PATCH', body: JSON.stringify({ base_updated_at: baseUpdatedAt }) }),
   deleteLesson: (id: number) =>
     fetchApi<void>(`/api/v1/lessons/${id}`, { method: 'DELETE' }),
   getLearningObjectives: (curriculumId: number) =>
@@ -882,7 +882,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  updateModule: (id: number, data: { name?: string; module_type?: string; description?: string; position?: number; total_days?: number; day_offset?: number; schedule_days?: string }) =>
+  updateModule: (id: number, data: { base_updated_at: string; name?: string; module_type?: string; description?: string; position?: number; total_days?: number; day_offset?: number; schedule_days?: string }) =>
     fetchApi<ModuleResponse>(`/api/v1/modules/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),

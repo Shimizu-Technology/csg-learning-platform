@@ -137,25 +137,39 @@ module Api
 
       # PATCH /api/v1/lessons/:id
       def update
-        if @lesson.update(lesson_params)
-          render json: { lesson: lesson_json(@lesson) }
-        else
-          render json: { errors: @lesson.errors.full_messages }, status: :unprocessable_entity
+        @lesson.with_lock do
+          require_current_resource_version!(@lesson)
+          @lesson.update!(lesson_params)
         end
+        render json: { lesson: lesson_json(@lesson, include_content: true) }
+      rescue ActiveRecord::StaleObjectError
+        render_stale_resource("Lesson")
+      rescue ActiveRecord::RecordInvalid => error
+        render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
       end
 
       # PATCH /api/v1/lessons/:id/archive
       def archive
-        @lesson.archive!
+        @lesson.with_lock do
+          require_current_resource_version!(@lesson)
+          @lesson.archive!
+        end
         render json: { lesson: lesson_json(@lesson, include_content: true) }
+      rescue ActiveRecord::StaleObjectError
+        render_stale_resource("Lesson")
       rescue ActiveRecord::RecordInvalid => error
         render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
       end
 
       # PATCH /api/v1/lessons/:id/restore
       def restore
-        @lesson.restore!
+        @lesson.with_lock do
+          require_current_resource_version!(@lesson)
+          @lesson.restore!
+        end
         render json: { lesson: lesson_json(@lesson, include_content: true) }
+      rescue ActiveRecord::StaleObjectError
+        render_stale_resource("Lesson")
       rescue ActiveRecord::RecordInvalid => error
         render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
       end

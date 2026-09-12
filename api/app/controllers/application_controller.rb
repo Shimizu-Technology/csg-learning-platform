@@ -19,6 +19,21 @@ class ApplicationController < ActionController::API
     @learning_request_started_at = Time.current
   end
 
+  def require_current_resource_version!(record, parameter: :base_updated_at)
+    requested = params[parameter].presence
+    raise ActiveRecord::StaleObjectError.new(record, "update") if requested.blank?
+    raise ActiveRecord::StaleObjectError.new(record, "update") unless Time.iso8601(requested) == record.updated_at
+  rescue ArgumentError
+    raise ActiveRecord::StaleObjectError.new(record, "update")
+  end
+
+  def render_stale_resource(label)
+    render json: {
+      error: "#{label} changed after this screen was opened. Refresh the latest version before saving.",
+      code: "stale_resource"
+    }, status: :conflict
+  end
+
   def require_community_terms!
     return if CommunityPolicy.accepted?(current_user)
 

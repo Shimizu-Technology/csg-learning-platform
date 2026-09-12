@@ -698,6 +698,7 @@ export interface StaffLessonSummary {
   release_day: number;
   required: boolean;
   archived_at: string | null;
+  updated_at: string;
   requires_submission: boolean;
   submission_type: string;
   content_blocks_count: number;
@@ -713,6 +714,7 @@ export interface StaffCurriculumModule {
   total_days: number;
   day_offset: number;
   schedule_days: string;
+  updated_at: string;
   scheduled_day_names: string[];
   week_count: number;
   lessons_count: number;
@@ -726,6 +728,7 @@ export interface StaffCurriculumSummary {
   description: string | null;
   total_weeks: number;
   status: string;
+  updated_at: string;
   modules_count: number;
 }
 
@@ -841,6 +844,25 @@ export interface LessonEditorInput {
     rubric_id: number | null;
   };
   alignments: { learning_objective_id: number; content_block_id?: number | null }[];
+}
+
+export interface ExerciseCreateInput {
+  title: string;
+  release_day: number;
+  required: boolean;
+  instructions: string;
+  submission_type: LessonSubmissionType;
+}
+
+export interface CurriculumModuleInput {
+  name: string;
+  module_type: string;
+  description?: string;
+  position: number;
+  total_days: number;
+  day_offset: number;
+  schedule_days: string;
+  base_updated_at?: string;
 }
 
 export interface Submission {

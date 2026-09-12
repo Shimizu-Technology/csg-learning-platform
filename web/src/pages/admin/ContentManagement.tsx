@@ -31,6 +31,7 @@ interface Lesson {
   submission_type?: string
   content_blocks_count: number
   archived_at: string | null
+  updated_at: string
 }
 
 interface Module {
@@ -42,6 +43,7 @@ interface Module {
   schedule_days: string
   scheduled_day_names: string[]
   week_count: number
+  updated_at: string
   lessons: Lesson[]
 }
 
@@ -158,7 +160,7 @@ export function ContentManagement() {
     if (mod.schedule_days === scheduleDays) return
 
     setScheduleSavingId(mod.id)
-    const res = await api.updateModule(mod.id, { schedule_days: scheduleDays })
+    const res = await api.updateModule(mod.id, { schedule_days: scheduleDays, base_updated_at: mod.updated_at })
     if (res.error) {
       toast.error(res.error)
       setScheduleSavingId(null)
@@ -171,6 +173,7 @@ export function ContentManagement() {
         ? {
           ...item,
           schedule_days: res.data?.module.schedule_days ?? scheduleDays,
+          updated_at: res.data?.module.updated_at ?? item.updated_at,
           scheduled_day_names: res.data?.module.scheduled_day_names ?? item.scheduled_day_names,
           week_count: res.data?.module.week_count ?? item.week_count,
         }
@@ -182,7 +185,7 @@ export function ContentManagement() {
 
   const restoreLesson = async (lesson: Lesson) => {
     setRestoringLessonId(lesson.id)
-    const res = await api.restoreLesson(lesson.id)
+    const res = await api.restoreLesson(lesson.id, lesson.updated_at)
     if (res.error) {
       toast.error(res.error)
     } else {

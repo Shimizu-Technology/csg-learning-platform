@@ -153,6 +153,35 @@ describe('CsgApi', () => {
     }));
   });
 
+  it('uses versioned curriculum structure mutations', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ module: { id: 12 } }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ module: { id: 12 } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ lesson: { id: 101 } }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ lesson: { id: 101 } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ lesson: { id: 101 } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ lesson: { id: 101 } }), { status: 200 }));
+    const api = new CsgApi(async () => 'session-token');
+    const moduleInput = { name: 'Live Class', module_type: 'live_class', description: '', position: 0, total_days: 0, day_offset: 0, schedule_days: 'weekdays', base_updated_at: '2026-09-12T01:02:03.123456Z' };
+    const exerciseInput = { title: 'Grid', release_day: 9, required: true, instructions: 'Build it.', submission_type: 'manual_complete' as const };
+
+    await api.createCurriculumModule(3, moduleInput);
+    await api.updateCurriculumModule(12, moduleInput);
+    await api.createExercise(12, exerciseInput);
+    await api.updateLessonSchedule(101, 9, '2026-09-12T01:02:03.123456Z');
+    await api.archiveLesson(101, '2026-09-12T01:02:04.123456Z');
+    await api.restoreLesson(101, '2026-09-12T01:02:05.123456Z');
+
+    expect(fetchMock.mock.calls[0][0]).toContain('/api/v1/curricula/3/modules');
+    expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({ method: 'POST', body: JSON.stringify(moduleInput) }));
+    expect(fetchMock.mock.calls[1][1]).toEqual(expect.objectContaining({ method: 'PATCH', body: JSON.stringify(moduleInput) }));
+    expect(fetchMock.mock.calls[2][1]).toEqual(expect.objectContaining({ method: 'POST', body: JSON.stringify(exerciseInput) }));
+    expect(fetchMock.mock.calls[3][1]).toEqual(expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ release_day: 9, base_updated_at: '2026-09-12T01:02:03.123456Z' }) }));
+    expect(fetchMock.mock.calls[4][1]).toEqual(expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ base_updated_at: '2026-09-12T01:02:04.123456Z' }) }));
+    expect(fetchMock.mock.calls[5][0]).toContain('/api/v1/lessons/101/restore');
+    expect(fetchMock.mock.calls[5][1]).toEqual(expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ base_updated_at: '2026-09-12T01:02:05.123456Z' }) }));
+  });
+
   it('loads a stable help request record', async () => {
     const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ help_request: { id: 12 } }), { status: 200 }));
     await new CsgApi(async () => 'session-token').helpRequest(12);
