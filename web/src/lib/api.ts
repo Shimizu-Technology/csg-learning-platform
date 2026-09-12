@@ -816,13 +816,14 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  updateLesson: (id: number, data: { title?: string; requires_submission?: boolean; release_day?: number }) =>
+  updateLesson: (id: number, data: { title?: string; required?: boolean; requires_submission?: boolean; release_day?: number }) =>
     fetchApi<LessonResponse>(`/api/v1/lessons/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
   updateLessonEditor: (id: number, data: {
     title: string;
+    required: boolean;
     requires_submission: boolean;
     video?: { id?: number; title: string; video_url: string | null; s3_video_key?: string | null };
     exercise?: { id?: number; title: string; body: string | null; solution: string | null; filename: string | null; submission_type: string; submission_config: Record<string, unknown>; rubric_id: number | null };
@@ -865,7 +866,7 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ alignments }),
     }),
-  createExercise: (moduleId: number, data: { title: string; release_day: number; video_url?: string; instructions?: string; solution?: string; filename?: string; requires_submission?: boolean; submission_type?: string; submission_config?: Record<string, unknown>; s3_video_key?: string; s3_video_content_type?: string; s3_video_size?: number; video_upload_pending?: boolean }) =>
+  createExercise: (moduleId: number, data: { title: string; release_day: number; required?: boolean; video_url?: string; instructions?: string; solution?: string; filename?: string; requires_submission?: boolean; submission_type?: string; submission_config?: Record<string, unknown>; s3_video_key?: string; s3_video_content_type?: string; s3_video_size?: number; video_upload_pending?: boolean }) =>
     fetchApi<LessonResponse>(`/api/v1/modules/${moduleId}/exercises`, {
       method: 'POST',
       body: JSON.stringify(data),

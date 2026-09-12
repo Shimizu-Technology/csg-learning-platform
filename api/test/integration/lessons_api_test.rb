@@ -228,6 +228,62 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "staff can create optional exercises without changing the required default" do
+    optional_lesson = nil
+    default_lesson = nil
+
+    as_user(@instructor) do
+      post "/api/v1/modules/#{@curriculum_module.id}/exercises",
+           params: {
+             title: "Optional association review",
+             release_day: 2,
+             instructions: "Review the association recording.",
+             submission_type: "manual_complete",
+             required: false
+           },
+           headers: auth_headers,
+           as: :json
+      assert_response :created
+      optional_lesson = Lesson.find(JSON.parse(response.body).dig("lesson", "id"))
+
+      post "/api/v1/modules/#{@curriculum_module.id}/exercises",
+           params: {
+             title: "Required serializer work",
+             release_day: 3,
+             instructions: "Add serializers.",
+             submission_type: "repo_url_submission"
+           },
+           headers: auth_headers,
+           as: :json
+      assert_response :created
+      default_lesson = Lesson.find(JSON.parse(response.body).dig("lesson", "id"))
+    end
+
+    assert_equal false, optional_lesson.required
+    assert_equal true, default_lesson.required
+  end
+
+  test "staff can change whether an exercise is required through the editor" do
+    assert_equal true, @lesson.required
+
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor",
+            params: {
+              editor: {
+                title: @lesson.title,
+                required: false,
+                requires_submission: false,
+                alignments: []
+              }
+            },
+            headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal false, @lesson.reload.required
+    assert_equal false, JSON.parse(response.body).dig("lesson", "required")
+  end
+
   test "instructor can read reusable curriculum resources but cannot permanently delete exercise content" do
     objective = LearningObjective.create!(
       curriculum: @curriculum,

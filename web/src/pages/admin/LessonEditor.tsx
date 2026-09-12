@@ -47,6 +47,7 @@ interface Lesson {
   module_id: number
   lesson_type?: string
   release_day: number
+  required: boolean
   requires_submission?: boolean
   submission_type?: string
   archived_at: string | null
@@ -92,6 +93,7 @@ export function LessonEditor() {
   const [instructions, setInstructions] = useState('')
   const [solution, setSolution] = useState('')
   const [submissionType, setSubmissionType] = useState('manual_complete')
+  const [required, setRequired] = useState(true)
   const [runnerConfig, setRunnerConfig] = useState<CodeRunnerConfig>({
     enabled: false,
     language: 'ruby',
@@ -140,6 +142,7 @@ export function LessonEditor() {
           if (rubricRes.data) setRubricCatalog(rubricRes.data.rubrics)
         })
         setTitle(l.title || '')
+        setRequired(l.required !== false)
         const videoBlock = l.content_blocks.find(b => b.block_type === 'video' || b.block_type === 'recording')
         if (videoBlock) {
           setVideoUrl(videoBlock.video_url || '')
@@ -249,6 +252,7 @@ export function LessonEditor() {
 
       const response = await api.updateLessonEditor(lesson.id, {
         title: title.trim(),
+        required,
         requires_submission: submissionType !== 'manual_complete',
         video,
         exercise,
@@ -647,6 +651,25 @@ export function LessonEditor() {
                 className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
             </div>
+
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <input
+                type="checkbox"
+                checked={required}
+                onChange={e => setRequired(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+              />
+              <span>
+                <span className="block text-sm font-semibold text-slate-800">
+                  {required ? 'Required lesson' : 'Optional stretch'}
+                </span>
+                <span className="mt-0.5 block text-xs leading-5 text-slate-500">
+                  {required
+                    ? 'Counts toward the student’s required weekly work.'
+                    : 'Remains visible without counting toward required completion.'}
+                </span>
+              </span>
+            </label>
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.95fr)]">
               <div>

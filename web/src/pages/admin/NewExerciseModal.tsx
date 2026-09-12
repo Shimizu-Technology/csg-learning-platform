@@ -24,6 +24,7 @@ interface Props {
   onCreate: (data: {
     title: string
     release_day: number
+    required: boolean
     video_url?: string
     instructions?: string
     solution?: string
@@ -59,6 +60,7 @@ export function NewExerciseModal({
   const [uploadId, setUploadId] = useState<string | null>(null)
   const [filename, setFilename] = useState('')
   const [submissionType, setSubmissionType] = useState('manual_complete')
+  const [required, setRequired] = useState(true)
   const [runnerConfig, setRunnerConfig] = useState<CodeRunnerConfig>({
     enabled: false,
     language: 'ruby',
@@ -99,6 +101,7 @@ export function NewExerciseModal({
     await onCreate({
       title: title.trim(),
       release_day: releaseDay,
+      required,
       video_url: videoUrl.trim() || undefined,
       instructions: instructions.trim() || undefined,
       solution: solution.trim() || undefined,
@@ -221,6 +224,25 @@ export function NewExerciseModal({
             {submissionType === 'repo_url_submission' && 'Students submit a repository URL and optional notes. Extra Git details stay available only when needed.'}
             {submissionType === 'repo_and_live_url_submission' && 'Students submit a repository URL and a deployed live URL. Notes stay optional.'}
           </div>
+
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+            <input
+              type="checkbox"
+              checked={required}
+              onChange={e => setRequired(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+            />
+            <span>
+              <span className="block text-sm font-semibold text-slate-800">
+                {required ? 'Required lesson' : 'Optional stretch'}
+              </span>
+              <span className="mt-0.5 block text-xs leading-5 text-slate-500">
+                {required
+                  ? 'Counts toward the student’s required weekly work.'
+                  : 'Remains available to the student without counting toward required completion.'}
+              </span>
+            </span>
+          </label>
 
           {/* Row 3: Video */}
           <VideoUploadField
