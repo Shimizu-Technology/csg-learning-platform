@@ -162,10 +162,17 @@ Returns one normalized `items` list. Students receive recordings across their ac
 | `PATCH` | `/api/v1/watch_progress` | Staff or active cohort member | Saves monotonic watch time and resume position; completes at 90% |
 | `GET` | `/api/v1/content_blocks/:id/video_stream` | Authorized lesson viewer | Returns a two-hour lesson-video `stream_url`, `expires_at`, and current progress |
 | `PATCH` | `/api/v1/content_blocks/:id/video_progress` | Authorized lesson viewer | Saves authoritative lesson-video progress |
+| `POST` | `/api/v1/content_blocks/:id/video_presign` | Staff | Presigns a normal upload for an existing lesson video block |
+| `POST` | `/api/v1/video_presign` | Staff | Presigns a normal upload before a lesson video block exists |
+| `POST` | `/api/v1/uploads/multipart/initiate` | Staff | Starts a large recording or lesson-video upload using `cohort_id` or `content_block_id` |
+| `POST` | `/api/v1/uploads/multipart/part_url` | Staff | Presigns one validated multipart upload part |
+| `POST` | `/api/v1/uploads/multipart/complete` | Staff | Completes a multipart upload from ordered part ETags |
+| `DELETE` | `/api/v1/uploads/multipart/abort` | Staff | Aborts an unfinished multipart upload |
+| `DELETE` | `/api/v1/uploads/abandon` | Staff | Deletes an unreferenced managed upload after an editor or create failure |
 | `GET` | `/api/v1/watch_progress/student/:user_id` | Staff | Returns recording progress for the student's active enrollments, or the exact enrolled cohort when `cohort_id` is provided |
 | `GET` | `/api/v1/watch_progress/student/:user_id/lesson_videos` | Staff | Returns curriculum lesson-video progress for active enrollments, or the exact enrolled cohort when `cohort_id` is provided |
 
-Signed URLs are temporary secrets. Clients should renew before `expires_at`, avoid logging or persisting them, and retain playback position across source replacement.
+Signed URLs are temporary secrets. Clients should renew before `expires_at`, avoid logging or persisting them, and retain playback position when renewing a URL for the same source. Replacing the hosted video resets watch progress for the new file.
 
 ### `GET /api/v1/resources`
 
@@ -218,10 +225,10 @@ Archived users are hidden from default user lists, team management, active cohor
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `GET` | `/api/v1/curricula/:curriculum_id/modules` | Staff | List modules in curriculum |
-| `POST` | `/api/v1/curricula/:curriculum_id/modules` | Staff | Create module |
+| `POST` | `/api/v1/curricula/:curriculum_id/modules` | Admin | Create module |
 | `GET` | `/api/v1/modules/:id` | Authenticated | Show module with lessons |
-| `PATCH` | `/api/v1/modules/:id` | Staff | Update module |
-| `DELETE` | `/api/v1/modules/:id` | Staff | Delete module |
+| `PATCH` | `/api/v1/modules/:id` | Admin | Update module |
+| `DELETE` | `/api/v1/modules/:id` | Admin | Delete module |
 
 **Create/Update body:**
 ```json
@@ -249,7 +256,8 @@ Archived users are hidden from default user lists, team management, active cohor
 | `POST` | `/api/v1/modules/:module_id/exercises` | Staff | Create exercise lesson (shorthand) |
 | `GET` | `/api/v1/lessons/:id` | Authenticated | Show lesson with content blocks |
 | `PATCH` | `/api/v1/lessons/:id` | Staff | Update lesson |
-| `DELETE` | `/api/v1/lessons/:id` | Staff | Delete lesson |
+| `PATCH` | `/api/v1/lessons/:id/editor` | Staff | Atomically update lesson details, video/exercise blocks, learning design, and hosted-video metadata using `base_updated_at` |
+| `DELETE` | `/api/v1/lessons/:id` | Admin | Delete lesson |
 
 **Create body:**
 ```json
@@ -275,7 +283,7 @@ Archived users are hidden from default user lists, team management, active cohor
 | `POST` | `/api/v1/lessons/:lesson_id/content_blocks` | Staff | Create content block |
 | `GET` | `/api/v1/content_blocks/:id` | Authenticated | Show block |
 | `PATCH` | `/api/v1/content_blocks/:id` | Staff | Update block |
-| `DELETE` | `/api/v1/content_blocks/:id` | Staff | Delete block |
+| `DELETE` | `/api/v1/content_blocks/:id` | Admin | Delete block |
 
 **Create body:**
 ```json
@@ -306,7 +314,7 @@ Archived users are hidden from default user lists, team management, active cohor
 | `PATCH` / `DELETE` | `/api/v1/rubrics/:id` | Admin | Update or remove a rubric while preserving submitted evidence |
 | `POST` | `/api/v1/knowledge_checks/:knowledge_check_id/attempts` | Student | Record one answer and return immediate result/explanation evidence |
 
-The atomic lesson editor accepts a `retrieval_check` object for its checkpoint. A check has 2–6 options, one server-held correct option, an explanation, and an optional objective from the same curriculum. Students do not receive the answer or explanation before an attempt. Correct attempts complete the checkpoint; the generic progress endpoint cannot bypass this evidence. Attempted checks are immutable, and enrollment restart snapshots and removes the student's attempts for that curriculum.
+The atomic lesson editor accepts a `retrieval_check` object for its checkpoint. A check has 2–6 options, one server-held correct option, an explanation, and an optional objective from the same curriculum. Students do not receive the answer or explanation before an attempt. Correct attempts complete the checkpoint; the generic progress endpoint cannot bypass this evidence. Attempted checks are immutable, and enrollment restart snapshots and removes the student's attempts for that curriculum. Its optional `video` object accepts `s3_video_key`, `s3_video_content_type`, and `s3_video_size`; a new or replacement hosted key requires both exact metadata fields. MIME and size are revalidated before the managed object is attached, and replacing the key resets student watch progress for the new file.
 
 ---
 

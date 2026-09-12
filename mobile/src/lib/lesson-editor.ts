@@ -21,6 +21,9 @@ export interface LessonEditorFields {
   title: string;
   required: boolean;
   video_url: string;
+  s3_video_key: string | null;
+  s3_video_content_type: string | null;
+  s3_video_size: number | null;
   filename: string;
   instructions: string;
   solution: string;
@@ -63,6 +66,9 @@ export function fieldsForLesson(lesson: LessonDetail): LessonEditorFields {
     title: lesson.title || '',
     required: lesson.required !== false,
     video_url: video?.video_url || '',
+    s3_video_key: video?.s3_video_key || null,
+    s3_video_content_type: video?.s3_video_content_type || null,
+    s3_video_size: video?.s3_video_size || null,
     filename: exercise?.filename || '',
     instructions: exercise?.body || '',
     solution: exercise?.solution || '',
@@ -87,6 +93,9 @@ export function lessonEditorFieldsMatch(left: LessonEditorFields, right: LessonE
   return left.title === right.title
     && left.required === right.required
     && left.video_url === right.video_url
+    && left.s3_video_key === right.s3_video_key
+    && left.s3_video_content_type === right.s3_video_content_type
+    && left.s3_video_size === right.s3_video_size
     && left.filename === right.filename
     && left.instructions === right.instructions
     && left.solution === right.solution
@@ -124,7 +133,7 @@ export function lessonEditorInput(lesson: LessonDetail, fields: LessonEditorFiel
   const video = editorBlock(lesson, ['video', 'recording']);
   const exercise = editorBlock(lesson, ['exercise', 'code_challenge']);
   const check = fields.retrieval_check;
-  const includeVideo = Boolean(video || fields.video_url.trim());
+  const includeVideo = Boolean(video || fields.video_url.trim() || fields.s3_video_key);
   const includeExercise = Boolean(exercise || fields.instructions.trim() || fields.filename.trim());
   return {
     base_updated_at: baseUpdatedAt,
@@ -135,7 +144,9 @@ export function lessonEditorInput(lesson: LessonDetail, fields: LessonEditorFiel
       ...(video ? { id: video.id } : {}),
       title,
       video_url: fields.video_url.trim() || null,
-      ...(video?.s3_video_key !== undefined ? { s3_video_key: video.s3_video_key } : {}),
+      s3_video_key: fields.s3_video_key,
+      s3_video_content_type: fields.s3_video_content_type,
+      s3_video_size: fields.s3_video_size,
     } } : {}),
     ...(includeExercise ? { exercise: {
       ...(exercise ? { id: exercise.id } : {}),
@@ -214,12 +225,15 @@ export function lessonPreviewForFields(lesson: LessonDetail, fields: LessonEdito
   const blocks = lesson.content_blocks
     .filter((block) => !(block.knowledge_check && !fields.retrieval_check.enabled))
     .map((block) => {
-      if (block.id === video?.id) return { ...block, title: fields.title.trim(), video_url: fields.video_url.trim() || null };
+      if (block.id === video?.id) {
+        const stagedUpload = Boolean(fields.s3_video_key && fields.s3_video_key !== video.s3_video_key);
+        return { ...block, title: fields.title.trim(), video_url: fields.video_url.trim() || null, s3_video_key: fields.s3_video_key, s3_video_content_type: fields.s3_video_content_type, s3_video_size: fields.s3_video_size, has_s3_video: Boolean(fields.s3_video_key) && !stagedUpload, metadata: { ...block.metadata, staged_video_upload: stagedUpload } };
+      }
       if (block.id === exercise?.id) return { ...block, title: fields.title.trim(), body: fields.instructions.trim() || null, solution: fields.solution.trim() || null, filename: fields.filename.trim() || null, submission_type: fields.submission_type, submission_type_explicit: fields.submission_type, rubric };
       if (block.knowledge_check) return checkPreviewBlock(block, fields.retrieval_check);
       return block;
     });
-  if (!video && fields.video_url.trim()) blocks.push({ id: -1, block_type: 'video', position: blocks.length + 1, title: fields.title.trim(), body: null, video_url: fields.video_url.trim(), filename: null, metadata: {} });
+  if (!video && (fields.video_url.trim() || fields.s3_video_key)) blocks.push({ id: -1, block_type: 'video', position: blocks.length + 1, title: fields.title.trim(), body: null, video_url: fields.video_url.trim() || null, s3_video_key: fields.s3_video_key, s3_video_content_type: fields.s3_video_content_type, s3_video_size: fields.s3_video_size, has_s3_video: false, filename: null, metadata: { staged_video_upload: Boolean(fields.s3_video_key) } });
   if (!exercise && (fields.instructions.trim() || fields.filename.trim())) blocks.push({ id: -2, block_type: 'exercise', position: blocks.length + 1, title: fields.title.trim(), body: fields.instructions.trim() || null, solution: fields.solution.trim() || null, video_url: null, filename: fields.filename.trim() || null, submission_type: fields.submission_type, submission_type_explicit: fields.submission_type, rubric, metadata: {} });
   if (!existingCheck && fields.retrieval_check.enabled) blocks.push(checkPreviewBlock({ id: -3, block_type: 'checkpoint', position: blocks.length + 1, title: 'Quick check', body: null, video_url: null, filename: null, metadata: {} }, fields.retrieval_check));
   return { ...lesson, title: fields.title.trim() || 'Untitled lesson', required: fields.required, requires_submission: fields.submission_type !== 'manual_complete', submission_type: fields.submission_type, objectives: previewObjectives(lesson, fields, objectiveCatalog, video?.id, exercise?.id), content_blocks_count: blocks.length, content_blocks: blocks };
@@ -232,6 +246,9 @@ export function lessonForEditorInput(lesson: LessonDetail, input: LessonEditorIn
     title: input.title,
     required: input.required,
     video_url: input.video ? input.video.video_url || '' : current.video_url,
+    s3_video_key: input.video && input.video.s3_video_key !== undefined ? input.video.s3_video_key : current.s3_video_key,
+    s3_video_content_type: input.video && input.video.s3_video_content_type !== undefined ? input.video.s3_video_content_type : current.s3_video_content_type,
+    s3_video_size: input.video && input.video.s3_video_size !== undefined ? input.video.s3_video_size : current.s3_video_size,
     filename: input.exercise ? input.exercise.filename || '' : current.filename,
     instructions: input.exercise ? input.exercise.body || '' : current.instructions,
     solution: input.exercise ? input.exercise.solution || '' : current.solution,
@@ -246,5 +263,15 @@ export function lessonForEditorInput(lesson: LessonDetail, input: LessonEditorIn
       attempt_count: current.retrieval_check.attempt_count,
     } : current.retrieval_check,
   };
-  return { ...lessonPreviewForFields(lesson, fields, objectiveCatalog, rubricCatalog), updated_at: updatedAt };
+  const saved = lessonPreviewForFields(lesson, fields, objectiveCatalog, rubricCatalog);
+  const savedVideoId = input.video?.id ?? (input.video ? -1 : null);
+  return {
+    ...saved,
+    updated_at: updatedAt,
+    content_blocks: saved.content_blocks.map((block) => {
+      if (block.id !== savedVideoId) return block;
+      const { staged_video_upload: _stagedVideoUpload, ...metadata } = block.metadata || {};
+      return { ...block, has_s3_video: Boolean(block.s3_video_key), metadata };
+    }),
+  };
 }

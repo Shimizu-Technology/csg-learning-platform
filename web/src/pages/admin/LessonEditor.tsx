@@ -12,6 +12,7 @@ import { CodeRunnerSettings } from '../../components/admin/CodeRunnerSettings'
 import { useUpload } from '../../contexts/UploadContext'
 import { useToast } from '../../contexts/ToastContext'
 import { useAuthContext } from '../../contexts/AuthContext'
+import { resolveEditorVideoSource } from '../../lib/editorVideoSource'
 import {
   buildSubmissionConfigWithRunner,
   codeRunnerLanguageFromEditor,
@@ -34,6 +35,8 @@ interface ContentBlock {
   solution: string | null
   metadata: Record<string, unknown>
   s3_video_key?: string | null
+  s3_video_content_type?: string | null
+  s3_video_size?: number | null
   s3_video_uploaded_at?: string | null
   s3_video_uploaded_by?: string | null
   rubric?: Rubric | null
@@ -100,6 +103,8 @@ export function LessonEditor() {
     language: 'ruby',
   })
   const [s3VideoKey, setS3VideoKey] = useState<string | null>(null)
+  const [s3VideoContentType, setS3VideoContentType] = useState<string | null>(null)
+  const [s3VideoSize, setS3VideoSize] = useState<number | null>(null)
   const [s3VideoUploadedAt, setS3VideoUploadedAt] = useState<string | null>(null)
   const [s3VideoUploadedBy, setS3VideoUploadedBy] = useState<string | null>(null)
   const [videoBlockId, setVideoBlockId] = useState<number | null>(null)
@@ -121,16 +126,6 @@ export function LessonEditor() {
   const uploadsRef = useRef(uploads)
   uploadsRef.current = uploads
 
-  // Helper: returns the s3_key from the API response, but falls back to any in-flight
-  // upload's s3_key for the same content block (handles the case where the user navigates
-  // away and back while an upload is still in progress and hasn't yet PATCHed the block).
-  const resolveS3Key = useCallback((blockId: number, fetchedKey: string | null): string | null => {
-    const live = uploadsRef.current.find(u => u.contentBlockId === blockId && u.deferPersistence && u.s3Key && u.status !== 'error')
-    if (live?.s3Key) return live.s3Key
-    if (fetchedKey) return fetchedKey
-    return live?.s3Key || null
-  }, [])
-
   useEffect(() => {
     if (!id) return
     api.getLesson(Number(id)).then((res) => {
@@ -151,11 +146,27 @@ export function LessonEditor() {
         setRequired(l.required !== false)
         const videoBlock = l.content_blocks.find(b => b.block_type === 'video' || b.block_type === 'recording')
         if (videoBlock) {
+          const videoSource = resolveEditorVideoSource(videoBlock.id, {
+            s3Key: videoBlock.s3_video_key ?? null,
+            contentType: videoBlock.s3_video_content_type ?? null,
+            fileSize: videoBlock.s3_video_size ?? null,
+          }, uploadsRef.current)
           setVideoUrl(videoBlock.video_url || '')
           setVideoBlockId(videoBlock.id)
-          setS3VideoKey(resolveS3Key(videoBlock.id, videoBlock.s3_video_key ?? null))
+          setS3VideoKey(videoSource.s3Key)
+          setS3VideoContentType(videoSource.contentType)
+          setS3VideoSize(videoSource.fileSize)
           setS3VideoUploadedAt(videoBlock.s3_video_uploaded_at ?? null)
           setS3VideoUploadedBy(videoBlock.s3_video_uploaded_by ?? null)
+        } else {
+          setVideoUrl('')
+          setVideoBlockId(null)
+          setS3VideoKey(null)
+          setS3VideoContentType(null)
+          setS3VideoSize(null)
+          setS3VideoUploadedAt(null)
+          setS3VideoUploadedBy(null)
+          setPendingVideoUploadId(null)
         }
 
         const exerciseBlock = l.content_blocks.find(b => b.block_type === 'exercise' || b.block_type === 'code_challenge')
@@ -185,12 +196,14 @@ export function LessonEditor() {
       }
       setLoading(false)
     })
-  }, [id, resolveS3Key])
+  }, [id])
 
   // Stable callbacks so VideoUploadField's effect deps don't churn every render.
   const handleS3VideoUploaded = useCallback(
-    (data: { s3_video_key: string }) => {
+    (data: { s3_video_key: string; s3_video_content_type: string; s3_video_size: number }) => {
       setS3VideoKey(data.s3_video_key)
+      setS3VideoContentType(data.s3_video_content_type)
+      setS3VideoSize(data.s3_video_size)
       setS3VideoUploadedAt(null)
       setS3VideoUploadedBy(null)
     },
@@ -198,6 +211,8 @@ export function LessonEditor() {
   )
   const handleS3VideoRemoved = useCallback(() => {
     setS3VideoKey(null)
+    setS3VideoContentType(null)
+    setS3VideoSize(null)
     setS3VideoUploadedAt(null)
     setS3VideoUploadedBy(null)
     setPendingVideoUploadId(null)
@@ -243,7 +258,7 @@ export function LessonEditor() {
         ...(videoBlock ? { id: videoBlock.id } : {}),
         title: title.trim(),
         video_url: videoUrl.trim() || null,
-        ...(!inFlightVideo ? { s3_video_key: s3VideoKey } : {}),
+        ...(!inFlightVideo ? { s3_video_key: s3VideoKey, s3_video_content_type: s3VideoContentType, s3_video_size: s3VideoSize } : {}),
       } : undefined
       const exercise = exerciseBlock || instructions.trim() || filename.trim() ? {
         ...(exerciseBlock ? { id: exerciseBlock.id } : {}),
@@ -288,10 +303,26 @@ export function LessonEditor() {
         setObjectiveAlignments((data.lesson.objectives || []).map((objective) => ({ learning_objective_id: objective.id, content_block_id: objective.content_block_id })))
         const refreshedVideo = data.lesson.content_blocks.find(b => b.block_type === 'video' || b.block_type === 'recording')
         if (refreshedVideo) {
+          const videoSource = resolveEditorVideoSource(refreshedVideo.id, {
+            s3Key: refreshedVideo.s3_video_key ?? null,
+            contentType: refreshedVideo.s3_video_content_type ?? null,
+            fileSize: refreshedVideo.s3_video_size ?? null,
+          }, uploadsRef.current)
           setVideoBlockId(refreshedVideo.id)
-          setS3VideoKey(resolveS3Key(refreshedVideo.id, refreshedVideo.s3_video_key ?? null))
+          setS3VideoKey(videoSource.s3Key)
+          setS3VideoContentType(videoSource.contentType)
+          setS3VideoSize(videoSource.fileSize)
           setS3VideoUploadedAt(refreshedVideo.s3_video_uploaded_at ?? null)
           setS3VideoUploadedBy(refreshedVideo.s3_video_uploaded_by ?? null)
+        } else {
+          setVideoUrl('')
+          setVideoBlockId(null)
+          setS3VideoKey(null)
+          setS3VideoContentType(null)
+          setS3VideoSize(null)
+          setS3VideoUploadedAt(null)
+          setS3VideoUploadedBy(null)
+          setPendingVideoUploadId(null)
         }
         const refreshedExercise = data.lesson.content_blocks.find(b => b.block_type === 'exercise' || b.block_type === 'code_challenge')
         if (refreshedExercise?.submission_type) setSubmissionType(refreshedExercise.submission_type)

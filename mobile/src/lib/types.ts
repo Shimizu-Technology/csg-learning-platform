@@ -675,6 +675,10 @@ export interface LessonContentBlock {
   body: string | null;
   video_url: string | null;
   s3_video_key?: string | null;
+  s3_video_content_type?: string | null;
+  s3_video_size?: number | null;
+  s3_video_uploaded_at?: string | null;
+  s3_video_uploaded_by?: string | null;
   has_s3_video?: boolean;
   completion_required?: boolean;
   filename: string | null;
@@ -848,6 +852,8 @@ export interface LessonEditorInput {
     title: string;
     video_url: string | null;
     s3_video_key?: string | null;
+    s3_video_content_type?: string | null;
+    s3_video_size?: number | null;
   };
   exercise?: {
     id?: number;

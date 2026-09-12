@@ -5,7 +5,7 @@ import type { LessonDetail } from '../types';
 const lesson: LessonDetail = {
   ...demoLesson,
   objectives: [{ alignment_id: 4, id: 9, code: 'CSS-1', title: 'Build layouts', description: null, success_criteria: 'Uses Grid', active: true, content_block_id: 203, content_block_title: 'Rebuild the card grid' }],
-  content_blocks: demoLesson.content_blocks.map((block) => block.id === 203 ? { ...block, submission_type_explicit: 'text_submission', submission_config: { runner: { enabled: true } }, rubric: { id: 12, title: 'Layout rubric', description: null, criteria: [] } } : block).concat({ id: 204, block_type: 'video', position: 0, title: 'Responsive layouts with Grid', body: null, video_url: 'https://video.example.com/grid', s3_video_key: 'lessons/grid.mp4', filename: null, metadata: {} }),
+  content_blocks: demoLesson.content_blocks.map((block) => block.id === 203 ? { ...block, submission_type_explicit: 'text_submission', submission_config: { runner: { enabled: true } }, rubric: { id: 12, title: 'Layout rubric', description: null, criteria: [] } } : block).concat({ id: 204, block_type: 'video', position: 0, title: 'Responsive layouts with Grid', body: null, video_url: 'https://video.example.com/grid', s3_video_key: 'content_videos/grid.mp4', s3_video_content_type: 'video/mp4', s3_video_size: 4096, filename: null, metadata: {} }),
 };
 
 describe('lesson editor helpers', () => {
@@ -18,7 +18,7 @@ describe('lesson editor helpers', () => {
       title: 'Responsive Grid',
       required: true,
       requires_submission: true,
-      video: { id: 204, s3_video_key: 'lessons/grid.mp4' },
+      video: { id: 204, s3_video_key: 'content_videos/grid.mp4', s3_video_content_type: 'video/mp4', s3_video_size: 4096 },
       exercise: { id: 203, body: 'Build a responsive grid.', solution: 'Use minmax().', submission_config: { runner: { enabled: true } }, rubric_id: 12 },
       alignments: [{ learning_objective_id: 9, content_block_id: 203 }],
     });
@@ -48,6 +48,17 @@ describe('lesson editor helpers', () => {
     expect(fieldsForLesson(saved)).toEqual(fields);
     expect(lessonEditorFieldsMatch(fieldsForLesson(saved), fields)).toBe(true);
     expect(saved.updated_at).toBe('2026-09-12T02:00:00Z');
+  });
+
+  it('stages a replacement upload without pretending the unsaved file can stream', () => {
+    const fields = { ...fieldsForLesson(lesson), video_url: '', s3_video_key: 'content_videos/new-grid.mov', s3_video_content_type: 'video/quicktime', s3_video_size: 8192 };
+    const preview = lessonPreviewForFields(lesson, fields);
+    const video = preview.content_blocks.find((block) => block.id === 204);
+
+    expect(video).toMatchObject({ s3_video_key: 'content_videos/new-grid.mov', s3_video_content_type: 'video/quicktime', s3_video_size: 8192, has_s3_video: false, metadata: { staged_video_upload: true } });
+    const saved = lessonForEditorInput(lesson, lessonEditorInput(lesson, fields, lesson.updated_at!));
+    expect(fieldsForLesson(saved)).toEqual(fields);
+    expect(saved.content_blocks.find((block) => block.id === 204)).toMatchObject({ has_s3_video: true, metadata: {} });
   });
 
   it('edits only the selected exercise when a lesson has multiple exercise blocks', () => {

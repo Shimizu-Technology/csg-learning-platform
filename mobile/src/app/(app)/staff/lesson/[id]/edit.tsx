@@ -1,16 +1,19 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
+import { useEffect } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StaffLessonEditor } from '@/components/staff-lesson-editor';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { palette } from '@/constants/csg-theme';
+import { queueContentVideoCleanup, retryContentVideoCleanups } from '@/lib/content-video-cleanup';
 import { demoLearningObjectives, demoLessonFor, demoRubrics } from '@/lib/demo-learning';
 import { appendCatalogItem, learningKeys } from '@/lib/learning';
 import { lessonForEditorInput } from '@/lib/lesson-editor';
 import type { LearningObjective, LessonDetail, LessonEditorInput, Rubric } from '@/lib/types';
+import { uploadVideoToStorage, type VideoUploadAsset } from '@/lib/video-upload';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 
@@ -31,6 +34,11 @@ export default function StaffLessonEditorScreen() {
   const rubricQuery = useQuery({ queryKey: rubricKey, queryFn: ({ signal }) => auth.demo ? Promise.resolve({ rubrics: demoRubrics }) : api.rubrics(curriculumId, signal), enabled: Boolean(user?.is_staff && curriculumId) });
   const objectiveCatalog = objectiveQuery.data?.learning_objectives || [];
   const rubricCatalog = rubricQuery.data?.rubrics || [];
+
+  useEffect(() => {
+    if (!user?.id || auth.demo) return;
+    void retryContentVideoCleanups(user.id, (s3Key) => api.abandonUpload(s3Key)).catch(() => undefined);
+  }, [api, auth.demo, user?.id]);
 
   const cacheLesson = (next: LessonDetail) => {
     queryClient.setQueryData(queryKey, { lesson: next });
@@ -65,10 +73,33 @@ export default function StaffLessonEditorScreen() {
 
   const retryCatalogs = () => { void Promise.all([objectiveQuery.refetch(), rubricQuery.refetch()]); };
 
+  const uploadVideo = async (asset: VideoUploadAsset, contentBlockId: number | undefined, onProgress: (percent: number, label: string) => void) => {
+    if (auth.demo) {
+      onProgress(12, 'Preparing secure upload…');
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      onProgress(72, 'Uploading video…');
+      await new Promise((resolve) => setTimeout(resolve, 180));
+      return { s3_video_key: `content_videos/demo/${Date.now()}_${asset.name}`, s3_video_content_type: asset.mimeType, s3_video_size: asset.size };
+    }
+    const s3Key = await uploadVideoToStorage({ api, asset, target: { kind: 'lesson', contentBlockId }, onProgress });
+    return { s3_video_key: s3Key, s3_video_content_type: asset.mimeType, s3_video_size: asset.size };
+  };
+
+  const abandonVideo = async (s3Key: string) => {
+    if (!auth.demo) await api.abandonUpload(s3Key);
+  };
+
+  const scheduleVideoCleanup = async (s3Key: string) => {
+    if (auth.demo) return;
+    await queueContentVideoCleanup(user!.id, s3Key);
+  };
+
+  const retryVideoCleanups = () => auth.demo ? Promise.resolve() : retryContentVideoCleanups(user!.id, (queuedKey) => api.abandonUpload(queuedKey));
+
   if (!validId || !user?.is_staff) return <ScreenError message={!validId ? 'This lesson link is invalid.' : 'Staff access is required to edit curriculum.'} onBack={() => router.back()} />;
   if (query.isPending && !lesson) return <SafeAreaView style={styles.safe}><LoadingState label="Opening lesson editor" /></SafeAreaView>;
   if (!lesson) return <ScreenError message={query.error ? (query.error as Error).message : 'This lesson is unavailable.'} onBack={() => router.back()} retry={() => void query.refetch()} />;
-  return <StaffLessonEditor lesson={lesson} userId={user.id} onBack={() => router.back()} onSave={save} onReload={reload} objectiveCatalog={objectiveCatalog} rubricCatalog={rubricCatalog} catalogLoading={objectiveQuery.isPending || rubricQuery.isPending} catalogError={objectiveQuery.isError || rubricQuery.isError} canCreateResources={Boolean(user.is_admin)} onRetryCatalogs={retryCatalogs} onCreateObjective={createObjective} onCreateRubric={createRubric} />;
+  return <StaffLessonEditor lesson={lesson} userId={user.id} onBack={() => router.back()} onSave={save} onReload={reload} objectiveCatalog={objectiveCatalog} rubricCatalog={rubricCatalog} catalogLoading={objectiveQuery.isPending || rubricQuery.isPending} catalogError={objectiveQuery.isError || rubricQuery.isError} canCreateResources={Boolean(user.is_admin)} onRetryCatalogs={retryCatalogs} onCreateObjective={createObjective} onCreateRubric={createRubric} onUploadVideo={uploadVideo} onAbandonVideo={abandonVideo} onScheduleVideoCleanup={scheduleVideoCleanup} onRetryVideoCleanups={retryVideoCleanups} />;
 }
 
 function ScreenError({ message, onBack, retry }: { message: string; onBack: () => void; retry?: () => void }) {
