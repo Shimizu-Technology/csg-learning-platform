@@ -53,7 +53,7 @@ export const demoLesson: LessonDetail = {
   content_blocks: [
     { id: 201, block_type: 'text', position: 1, title: 'Build flexible page systems', body: 'CSS Grid gives you **two-dimensional control** over rows and columns.\n\nUse a mobile-first layout, then add columns when the content has room.', video_url: null, filename: null, metadata: {}, progress: { status: 'completed', completed_at: '2026-07-20T02:00:00Z' } },
     { id: 202, block_type: 'checkpoint', position: 2, title: 'Layout checklist', body: '- Start with one column\n- Use `minmax()` for flexible tracks\n- Test keyboard and zoom behavior', video_url: null, filename: null, metadata: {}, progress: { status: 'not_started', completed_at: null } },
-    { id: 203, block_type: 'exercise', position: 3, title: 'Rebuild the card grid', body: 'Explain how your grid changes between mobile and desktop.', video_url: null, filename: 'styles.css', submission_type: 'text_submission', submission_config: {}, metadata: { language: 'css' }, progress: { status: 'in_progress', completed_at: null }, submissions: [] },
+    { id: 203, block_type: 'exercise', position: 3, title: 'Rebuild the card grid', body: 'Explain how your grid changes between mobile and desktop.', solution: 'Use `repeat(auto-fit, minmax(16rem, 1fr))` so the grid responds to its available width.', video_url: null, filename: 'styles.css', submission_type: 'text_submission', submission_config: {}, metadata: { language: 'css' }, progress: { status: 'in_progress', completed_at: null }, submissions: [] },
   ],
 };
 

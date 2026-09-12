@@ -1,4 +1,4 @@
-import type { HelpRequest, Intervention, StaffDashboard, StaffVideoProgress, StudentProgressDetail, Submission, SupportQueue } from './types';
+import type { HelpRequest, Intervention, StaffCurriculum, StaffCurriculumSummary, StaffDashboard, StaffVideoProgress, StudentProgressDetail, Submission, SupportQueue } from './types';
 
 const now = Date.now();
 const ago = (days: number) => new Date(now - days * 86_400_000).toISOString();
@@ -15,6 +15,64 @@ export const demoStaffDashboard: StaffDashboard = {
     ],
   }],
 };
+
+export const demoStaffCurriculum: StaffCurriculum = {
+  id: 3,
+  name: 'CSG Full-Stack Bootcamp 2026',
+  description: 'The complete learning path for prework and live class.',
+  total_weeks: 14,
+  status: 'active',
+  modules_count: 2,
+  modules: [
+    {
+      id: 10,
+      curriculum_id: 3,
+      name: 'Live Class',
+      module_type: 'live_class',
+      description: 'Instructor-led lessons, exercises, and class projects.',
+      position: 0,
+      total_days: 70,
+      day_offset: 0,
+      schedule_days: 'weekdays',
+      scheduled_day_names: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+      week_count: 2,
+      lessons_count: 5,
+      archived_lessons_count: 0,
+      lessons: [
+        { id: 100, title: 'HTML and semantic structure', lesson_type: 'lesson', position: 1, release_day: 0, required: true, archived_at: null, requires_submission: true, submission_type: 'text_submission', content_blocks_count: 2 },
+        { id: 101, title: 'Responsive layouts with Grid', lesson_type: 'lesson', position: 2, release_day: 1, required: true, archived_at: null, requires_submission: true, submission_type: 'text_submission', content_blocks_count: 3 },
+        { id: 102, title: 'Accessible forms', lesson_type: 'exercise', position: 3, release_day: 2, required: true, archived_at: null, requires_submission: true, submission_type: 'text_submission', content_blocks_count: 2 },
+        { id: 103, title: 'JavaScript interactions', lesson_type: 'lesson', position: 4, release_day: 3, required: true, archived_at: null, requires_submission: false, submission_type: 'manual_complete', content_blocks_count: 2 },
+        { id: 104, title: 'Container query stretch', lesson_type: 'exercise', position: 5, release_day: 7, required: false, archived_at: null, requires_submission: false, submission_type: 'manual_complete', content_blocks_count: 2 },
+      ],
+    },
+    {
+      id: 11,
+      curriculum_id: 3,
+      name: 'Prework',
+      module_type: 'prework',
+      description: 'Self-paced foundations completed before live class.',
+      position: 1,
+      total_days: 35,
+      day_offset: 0,
+      schedule_days: 'weekdays_sat',
+      scheduled_day_names: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+      week_count: 5,
+      lessons_count: 0,
+      archived_lessons_count: 3,
+      lessons: [],
+    },
+  ],
+};
+
+export const demoStaffCurricula: StaffCurriculumSummary[] = [{
+  id: demoStaffCurriculum.id,
+  name: demoStaffCurriculum.name,
+  description: demoStaffCurriculum.description,
+  total_weeks: demoStaffCurriculum.total_weeks,
+  status: demoStaffCurriculum.status,
+  modules_count: demoStaffCurriculum.modules_count,
+}];
 
 export const demoStudentProgress: StudentProgressDetail = {
   enrollment: { id: 1, status: 'active' },

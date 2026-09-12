@@ -687,6 +687,50 @@ export interface LessonContentBlock {
   knowledge_check?: KnowledgeCheck | null;
   progress?: { status: string; completed_at: string | null; video_last_position?: number; video_total_watched?: number };
   submissions?: SubmissionBrief[];
+  solution?: string | null;
+}
+
+export interface StaffLessonSummary {
+  id: number;
+  title: string;
+  lesson_type: string;
+  position: number;
+  release_day: number;
+  required: boolean;
+  archived_at: string | null;
+  requires_submission: boolean;
+  submission_type: string;
+  content_blocks_count: number;
+}
+
+export interface StaffCurriculumModule {
+  id: number;
+  curriculum_id: number;
+  name: string;
+  module_type: string;
+  description: string | null;
+  position: number;
+  total_days: number;
+  day_offset: number;
+  schedule_days: string;
+  scheduled_day_names: string[];
+  week_count: number;
+  lessons_count: number;
+  archived_lessons_count: number;
+  lessons: StaffLessonSummary[];
+}
+
+export interface StaffCurriculumSummary {
+  id: number;
+  name: string;
+  description: string | null;
+  total_weeks: number;
+  status: string;
+  modules_count: number;
+}
+
+export interface StaffCurriculum extends StaffCurriculumSummary {
+  modules: StaffCurriculumModule[];
 }
 
 export type RubricRating = 'exceeds' | 'meets' | 'developing' | 'redo';
@@ -759,6 +803,8 @@ export interface LessonDetail {
   position: number;
   release_day: number;
   required: boolean;
+  archived_at?: string | null;
+  updated_at?: string;
   requires_submission: boolean;
   requires_github?: boolean;
   repository_name?: string | null;

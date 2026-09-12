@@ -121,6 +121,19 @@ describe('CsgApi', () => {
     expect(fetchMock.mock.calls[3][1]).toEqual(expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ grade: 'A', feedback: 'Clear work', base_submission_updated_at: '2026-09-06T01:02:03.000Z' }) }));
   });
 
+  it('loads the staff curriculum library and one detailed curriculum', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ curricula: [{ id: 3 }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ curriculum: { id: 3, modules: [] } }), { status: 200 }));
+    const api = new CsgApi(async () => 'session-token');
+
+    await api.curricula();
+    await api.curriculum(3);
+
+    expect(fetchMock.mock.calls[0][0]).toContain('/api/v1/curricula');
+    expect(fetchMock.mock.calls[1][0]).toContain('/api/v1/curricula/3');
+  });
+
   it('loads a stable help request record', async () => {
     const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ help_request: { id: 12 } }), { status: 200 }));
     await new CsgApi(async () => 'session-token').helpRequest(12);
