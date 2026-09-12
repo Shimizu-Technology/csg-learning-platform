@@ -32,6 +32,12 @@ describe('lesson editor helpers', () => {
     expect(lessonEditorValidation(fields)).toBeNull();
   });
 
+  it('requires an exercise before attaching a rubric', () => {
+    const fields = { ...fieldsForLesson({ ...lesson, content_blocks: lesson.content_blocks.filter((block) => block.id !== 203) }), rubric_id: 12 };
+
+    expect(lessonEditorValidation(fields)).toMatch(/exercise/i);
+  });
+
   it('previews unsaved fields and applies a saved editor response locally', () => {
     const fields = { ...fieldsForLesson(lesson), title: 'Grid systems', required: false, instructions: 'Build two layouts.' };
     const preview = lessonPreviewForFields(lesson, fields);
@@ -42,5 +48,35 @@ describe('lesson editor helpers', () => {
     expect(fieldsForLesson(saved)).toEqual(fields);
     expect(lessonEditorFieldsMatch(fieldsForLesson(saved), fields)).toBe(true);
     expect(saved.updated_at).toBe('2026-09-12T02:00:00Z');
+  });
+
+  it('edits only the selected exercise when a lesson has multiple exercise blocks', () => {
+    const secondExercise = { ...lesson.content_blocks.find((block) => block.id === 203)!, id: 205, position: 4, title: 'Second exercise', body: 'Keep this body.', submission_type: 'manual_complete' as const, submission_type_explicit: 'manual_complete' as const };
+    const multiExerciseLesson: LessonDetail = { ...lesson, objectives: [...lesson.objectives!, { ...lesson.objectives![0], alignment_id: 5, content_block_id: 205, content_block_title: 'Second exercise' }], content_blocks: [...lesson.content_blocks, secondExercise] };
+    const fields = { ...fieldsForLesson(multiExerciseLesson), title: 'Edited lesson', instructions: 'Edit only the primary exercise.', submission_type: 'repo_url_submission' as const };
+
+    const preview = lessonPreviewForFields(multiExerciseLesson, fields);
+
+    expect(preview.content_blocks.find((block) => block.id === 203)).toMatchObject({ title: 'Edited lesson', body: 'Edit only the primary exercise.', submission_type: 'repo_url_submission', submission_type_explicit: 'repo_url_submission' });
+    expect(preview.content_blocks.find((block) => block.id === 205)).toMatchObject({ title: 'Second exercise', body: 'Keep this body.', submission_type: 'manual_complete', submission_type_explicit: 'manual_complete' });
+    expect(preview.objectives?.find((objective) => objective.content_block_id === 205)?.content_block_title).toBe('Second exercise');
+  });
+
+  it('keeps an objective at lesson level when its retrieval-check target is disabled', () => {
+    const checkObjectiveLesson: LessonDetail = { ...lesson, objectives: [{ ...lesson.objectives![0], content_block_id: 202, content_block_title: 'Quick layout recall' }] };
+    const fields = fieldsForLesson(checkObjectiveLesson);
+    fields.objective_alignments = [{ learning_objective_id: 9, content_block_id: 202 }];
+    fields.retrieval_check = { ...fields.retrieval_check, enabled: false };
+
+    expect(lessonEditorInput(checkObjectiveLesson, fields, checkObjectiveLesson.updated_at!).alignments).toEqual([{ learning_objective_id: 9, content_block_id: null }]);
+    expect(lessonPreviewForFields(checkObjectiveLesson, fields).objectives).toEqual([expect.objectContaining({ id: 9, content_block_id: null, content_block_title: null })]);
+  });
+
+  it('omits an immutable attempted check when saving other lesson changes', () => {
+    const fields = fieldsForLesson(lesson);
+    fields.title = 'Updated lesson title';
+    fields.retrieval_check = { ...fields.retrieval_check, attempt_count: 3 };
+
+    expect(lessonEditorInput(lesson, fields, lesson.updated_at!)).not.toHaveProperty('retrieval_check');
   });
 });

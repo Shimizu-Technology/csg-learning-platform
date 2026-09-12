@@ -5,10 +5,10 @@ import { beginUserStorageCleanup, userStorageCleanupIsCurrent, userStorageGenera
 const curriculumDraftWrites = new Map<string, Promise<void>>();
 const submissionTypes = new Set(['manual_complete', 'text_submission', 'prework_github_sync', 'repo_url_submission', 'repo_and_live_url_submission']);
 
-export interface LessonEditorDraft extends LessonEditorFields {
+export type LessonEditorDraft = Omit<LessonEditorFields, 'objective_alignments' | 'rubric_id' | 'retrieval_check'> & Partial<Pick<LessonEditorFields, 'objective_alignments' | 'rubric_id' | 'retrieval_check'>> & {
   base_updated_at: string;
   saved_at: string;
-}
+};
 
 export function lessonEditorDraftKey(userId: number, lessonId: number) {
   return `csg.lesson-editor-draft.${userId}.${lessonId}`;
@@ -38,6 +38,12 @@ export async function loadLessonEditorDraft(userId: number, lessonId: number) {
   try {
     const draft = JSON.parse(value) as Partial<LessonEditorDraft>;
     if (typeof draft.title !== 'string' || typeof draft.required !== 'boolean' || typeof draft.video_url !== 'string' || typeof draft.filename !== 'string' || typeof draft.instructions !== 'string' || typeof draft.solution !== 'string' || typeof draft.submission_type !== 'string' || !submissionTypes.has(draft.submission_type) || typeof draft.base_updated_at !== 'string' || typeof draft.saved_at !== 'string') throw new Error('Invalid lesson draft');
+    if (draft.objective_alignments !== undefined && (!Array.isArray(draft.objective_alignments) || draft.objective_alignments.some((alignment) => !Number.isInteger(alignment?.learning_objective_id) || !(alignment?.content_block_id === null || Number.isInteger(alignment?.content_block_id))))) throw new Error('Invalid lesson draft objectives');
+    if (draft.rubric_id !== undefined && !(draft.rubric_id === null || Number.isInteger(draft.rubric_id))) throw new Error('Invalid lesson draft rubric');
+    if (draft.retrieval_check !== undefined) {
+      const check = draft.retrieval_check;
+      if (typeof check.enabled !== 'boolean' || typeof check.title !== 'string' || typeof check.prompt !== 'string' || !Array.isArray(check.options) || check.options.some((option) => typeof option !== 'string') || !Number.isInteger(check.correct_option) || typeof check.explanation !== 'string' || !(check.learning_objective_id === null || Number.isInteger(check.learning_objective_id)) || !(check.content_block_id === undefined || Number.isInteger(check.content_block_id)) || !Number.isInteger(check.attempt_count)) throw new Error('Invalid lesson draft check');
+    }
     return draft as LessonEditorDraft;
   } catch {
     await enqueueDraftWrite(userId, key, async () => {

@@ -182,6 +182,23 @@ describe('CsgApi', () => {
     expect(fetchMock.mock.calls[5][1]).toEqual(expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ base_updated_at: '2026-09-12T01:02:05.123456Z' }) }));
   });
 
+  it('loads and creates reusable learning-design resources', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async () => new Response('{}', { status: 200 }));
+    const api = new CsgApi(async () => 'session-token');
+    const objective = { curriculum_id: 3, code: 'CSS.4', title: 'Build layouts', description: 'Responsive systems', success_criteria: 'I can build a flexible layout.', position: 2 };
+    const rubric = { curriculum_id: 3, title: 'Project quality', description: 'Shared expectations', criteria: [{ title: 'Responsive', description: 'Reflows cleanly.' }] };
+
+    await api.learningObjectives(3);
+    await api.createLearningObjective(objective);
+    await api.rubrics(3);
+    await api.createRubric(rubric);
+
+    expect(fetchMock.mock.calls[0][0]).toContain('/api/v1/learning_objectives?curriculum_id=3');
+    expect(fetchMock.mock.calls[1][1]).toEqual(expect.objectContaining({ method: 'POST', body: JSON.stringify({ learning_objective: objective }) }));
+    expect(fetchMock.mock.calls[2][0]).toContain('/api/v1/rubrics?curriculum_id=3');
+    expect(fetchMock.mock.calls[3][1]).toEqual(expect.objectContaining({ method: 'POST', body: JSON.stringify({ rubric }) }));
+  });
+
   it('loads a stable help request record', async () => {
     const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ help_request: { id: 12 } }), { status: 200 }));
     await new CsgApi(async () => 'session-token').helpRequest(12);

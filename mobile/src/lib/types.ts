@@ -742,6 +742,8 @@ export interface RubricCriterion {
   id: number;
   title: string;
   description: string;
+  position?: number;
+  learning_objective_id?: number | null;
   objective_code?: string | null;
   rating?: RubricRating | null;
   feedback?: string | null;
@@ -749,9 +751,23 @@ export interface RubricCriterion {
 
 export interface Rubric {
   id: number;
+  curriculum_id?: number;
   title: string;
   description: string | null;
+  active?: boolean;
   criteria: RubricCriterion[];
+}
+
+export interface LearningObjective {
+  id: number;
+  curriculum_id: number;
+  code: string;
+  title: string;
+  description: string | null;
+  success_criteria: string;
+  position: number;
+  active: boolean;
+  alignment_count?: number;
 }
 
 export interface FeedbackSnippet {
@@ -843,7 +859,33 @@ export interface LessonEditorInput {
     submission_config: Record<string, unknown>;
     rubric_id: number | null;
   };
+  retrieval_check?: {
+    enabled: boolean;
+    content_block_id?: number;
+    title: string;
+    prompt: string;
+    options: string[];
+    correct_option: number;
+    explanation: string;
+    learning_objective_id: number | null;
+  };
   alignments: { learning_objective_id: number; content_block_id?: number | null }[];
+}
+
+export interface LearningObjectiveCreateInput {
+  curriculum_id: number;
+  code: string;
+  title: string;
+  description?: string;
+  success_criteria: string;
+  position: number;
+}
+
+export interface RubricCreateInput {
+  curriculum_id: number;
+  title: string;
+  description?: string;
+  criteria: { title: string; description: string; learning_objective_id?: number | null }[];
 }
 
 export interface ExerciseCreateInput {

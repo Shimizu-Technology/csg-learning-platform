@@ -6,6 +6,8 @@ export const learningKeys = {
   lesson: (userId: number, lessonId: number) => ['learning', userId, 'lesson', lessonId] as const,
   curricula: (userId: number) => ['learning', userId, 'staff-curricula'] as const,
   curriculum: (userId: number, curriculumId: number) => ['learning', userId, 'staff-curriculum', curriculumId] as const,
+  learningObjectives: (userId: number, curriculumId: number) => ['learning', userId, 'learning-objectives', curriculumId] as const,
+  rubrics: (userId: number, curriculumId: number) => ['learning', userId, 'rubrics', curriculumId] as const,
   resources: (userId: number) => ['learning', userId, 'resources'] as const,
   recordings: (userId: number) => ['learning', userId, 'recordings'] as const,
   profile: (userId: number) => ['learning', userId, 'profile'] as const,
@@ -19,6 +21,13 @@ export const learningKeys = {
   supportQueue: (userId: number) => ['learning', userId, 'support-queue'] as const,
   intervention: (userId: number, interventionId: number) => ['learning', userId, 'intervention', interventionId] as const,
 };
+
+export function appendCatalogItem<T extends { id: number }>(items: T[] | undefined, item: T) {
+  const current = items || [];
+  return current.some((candidate) => candidate.id === item.id)
+    ? current.map((candidate) => candidate.id === item.id ? item : candidate)
+    : [...current, item];
+}
 
 const activeHelpStatuses: HelpRequest['status'][] = ['open', 'acknowledged'];
 const activeInterventionStatuses: Intervention['status'][] = ['open', 'contacted', 'waiting_on_student', 'monitoring'];

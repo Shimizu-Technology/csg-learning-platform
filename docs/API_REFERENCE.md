@@ -297,10 +297,12 @@ Archived users are hidden from default user lists, team management, active cohor
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` / `POST` | `/api/v1/learning_objectives?curriculum_id=:id` | Admin | List or create ordered curriculum objectives and success criteria |
+| `GET` | `/api/v1/learning_objectives?curriculum_id=:id` | Staff | List ordered curriculum objectives and success criteria |
+| `POST` | `/api/v1/learning_objectives` | Admin | Create a reusable curriculum objective and success criteria |
 | `PATCH` / `DELETE` | `/api/v1/learning_objectives/:id` | Admin | Update or remove an unused objective |
 | `PATCH` | `/api/v1/lessons/:lesson_id/objective_alignments` | Admin | Atomically replace the lesson's ordered objective alignments |
-| `GET` / `POST` | `/api/v1/rubrics?curriculum_id=:id` | Admin | List or create reusable curriculum rubrics and ordered criteria |
+| `GET` | `/api/v1/rubrics?curriculum_id=:id` | Staff | List reusable curriculum rubrics and ordered criteria |
+| `POST` | `/api/v1/rubrics` | Admin | Create a reusable curriculum rubric and ordered criteria |
 | `PATCH` / `DELETE` | `/api/v1/rubrics/:id` | Admin | Update or remove a rubric while preserving submitted evidence |
 | `POST` | `/api/v1/knowledge_checks/:knowledge_check_id/attempts` | Student | Record one answer and return immediate result/explanation evidence |
 
