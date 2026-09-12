@@ -1,7 +1,7 @@
 # CSG Learning Platform — Connected Experience Plan
 
-- **Last reviewed:** 2026-08-15
-- **Status:** Approved implementation direction
+- **Last reviewed:** 2026-09-13
+- **Status:** Implemented through Connected Experience Phase 5; retained as the product and relationship contract
 - **Scope:** Rails API, React web app, Expo mobile app, staff operations, student navigation, privacy, and delivery sequencing
 
 ## 1. Executive decision
@@ -160,9 +160,9 @@ The native product should continue to own quick, time-sensitive work:
 - acknowledge/respond to support;
 - move to the next urgent record.
 
-Dense matrices, bulk administration, curriculum authoring, and advanced access controls remain responsive-web handoffs.
+Dense matrices, bulk administration, large-scale curriculum restructuring, repository inspection, and advanced access controls remain responsive-web handoffs. Routine curriculum browsing and lesson authoring are native; both clients use the same server-authorized records.
 
-Native gaps to close:
+Native navigation delivered by the connected-experience phases:
 
 - cohort-aware full-profile handoff;
 - exact DM handoff;

@@ -2,7 +2,7 @@
 
 ## Product boundary
 
-CSG Connect is the native companion to the learning platform. Its first complete product slice solves the highest-frequency mobile job—staying connected to class—against the exact same Rails records and authorization rules as the web app. The longer-term parity program is defined in [MOBILE_PARITY_IMPLEMENTATION_PLAN.md](MOBILE_PARITY_IMPLEMENTATION_PLAN.md).
+CSG Connect is the native companion to the learning platform. It handles the common student and staff work that benefits from a phone, against the exact same Rails records and authorization rules as the web app. The parity program and its deliberate web boundaries are defined in [MOBILE_PARITY_IMPLEMENTATION_PLAN.md](MOBILE_PARITY_IMPLEMENTATION_PLAN.md).
 
 Included now:
 
@@ -23,8 +23,11 @@ Included now:
 - Native notification registration and deep links
 - Encrypted Clerk session persistence
 - A cached inbox fallback through local persisted state
+- Staff curriculum search and exact read-only student preview
+- Native module and lesson management with guarded device drafts
+- Lesson details, rich instructions, objectives, rubrics, retrieval checks, hosted video, and browser-runner authoring
 
-Curriculum, lesson progress, resources, submissions, office hours, class recordings, staff attention triage, student health, and quick grading are now native. Dense authoring, bulk operations, and comparison matrices remain deliberate authenticated handoffs to the responsive web app.
+Curriculum, routine authoring, lesson progress, resources, submissions, office hours, class recordings, staff attention triage, student health, and quick grading are now native. Large-scale restructuring, bulk operations, repository inspection, and comparison matrices remain deliberate authenticated handoffs to the responsive web app.
 
 ## Runtime flow
 
@@ -53,11 +56,11 @@ Curriculum, lesson progress, resources, submissions, office hours, class recordi
 - Managed offline recording downloads remain deferred until retention, device-storage, privacy, and logout-deletion policy is approved. The player does not cache signed media URLs.
 - Today includes the shared **This Week** plan: required and optional lessons, carried-forward work, close times, redos, live classes/office hours, upcoming unlocks, and recording catch-up. Its query is retained by the existing seven-day user-scoped SQLite cache alongside the separately encrypted session and is removed at sign-out.
 - Text submissions autosave a version-aware device draft, older drafts require intentional restore after a server-side change, and only server acknowledgment produces success. Channel, DM, and thread drafts restore during network failures; sign-out removes authored drafts and failed-message retry copies. The detailed contract is in `OFFLINE_CONTINUITY.md`.
-- Students can ask for contextual help from a lesson, individual exercise, or recording and see open, acknowledged, resolved, and canceled state plus the instructor response. Staff have a native urgent-action support queue with direct requests and explainable current learning signals; dense case history remains web-first until the Phase 3 intervention model exists.
+- Students can ask for contextual help from a lesson, individual exercise, or recording and see open, acknowledged, resolved, and canceled state plus the instructor response. Staff have a native urgent-action support queue with direct requests, explainable learning signals, intervention context, and recovery plans; dense longitudinal comparison remains web-first.
 - Phase 4 gives staff a ranked cross-cohort attention queue, student health and progress drill-downs, a focused grading queue, native A/B/C/Redo reviews, concise feedback, and direct submission push routes.
 - Staff can browse active and upcoming cohort recordings and resources without pretending to be enrolled in those cohorts.
-- Curriculum authoring, bulk enrollment/team operations, dense grading/watch-progress matrices, and repository inspection retain labeled one-time authenticated web handoffs because they are desktop-shaped workflows.
-- App Store Connect product copy and the complete 6.9-inch iPhone / 13-inch iPad screenshot sets describe the parity release. Phase 0–1 candidate build `1.0.0 (9)` completed its EAS build/submission and is available to the invited `CSG Internal` tester. Public review waits for physical-device acceptance.
+- Staff curriculum search, preview, module/lesson management, and routine lesson authoring are native. Large-scale curriculum restructuring, bulk enrollment/team operations, dense grading/watch-progress matrices, and repository inspection retain labeled one-time authenticated web handoffs because they are desktop-shaped workflows.
+- App Store Connect product copy and the complete 6.9-inch iPhone / 13-inch iPad screenshot sets describe the parity release. Build `1.0.0 (20)` is the latest verified internal TestFlight binary; build 21 is the pending curriculum-authoring candidate. Public review waits for physical-device acceptance.
 
 The Rails API remains the single product backend, so every native phase is additive rather than a fork of web behavior.
 

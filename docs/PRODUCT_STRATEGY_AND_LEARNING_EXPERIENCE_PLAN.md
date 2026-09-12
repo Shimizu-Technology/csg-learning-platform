@@ -1,6 +1,6 @@
 # CSG Learning Platform — Product Strategy and Learning Experience Plan
 
-**Last reviewed:** 2026-08-01
+**Last reviewed:** 2026-09-13
 **Status:** Active product strategy; use this document to choose and sequence new product work
 **Scope:** Rails API, React web app, Expo mobile app, Code School of Guam cohort operations, learning design, accessibility, analytics, and platform comparisons
 
@@ -8,16 +8,16 @@
 
 CSG already has a strong learning operating system. It does not need a generic LMS redesign or literal mobile/web parity. The next product chapter should make the existing system better at producing learning, closing feedback loops, and helping staff intervene at the right moment.
 
-The immediate priority order is:
+The priority sequence and current state are:
 
-1. Fix native code-block navigation and complete the mobile readability/accessibility pass.
-2. Add reviewed voice-to-text drafts so mobile questions and feedback are easier to capture without sacrificing accuracy or consent.
-3. Instrument the learning and support funnels so future decisions use evidence.
-4. Give students a clear **This Week** plan and a first-class way to say **I’m stuck**.
-5. Turn the existing attention signals into an owned intervention workflow.
-6. Add reusable learning objectives, rubrics, and small formative checks.
-7. Add captions, transcripts, and searchable chapters to recordings.
-8. Build mastery views, GitHub test feedback, recovery plans, and richer cohort analytics on those foundations.
+1. **Complete:** native code-block navigation and the mobile readability/accessibility pass.
+2. **Implemented; public release gated:** reviewed voice-to-text drafts for mobile questions and feedback.
+3. **Foundation complete:** privacy-safe learning and support instrumentation; the teaching-week baseline remains time-gated.
+4. **Complete:** a shared **This Week** plan and first-class **I’m stuck** workflow.
+5. **Complete:** owned interventions with follow-ups, notes, outcomes, and recovery plans.
+6. **Complete:** reusable learning objectives, rubrics, feedback snippets, and formative checks.
+7. **Next learning-accessibility gap:** captions, transcripts, and searchable recording chapters.
+8. **Partially complete:** objective evidence, GitHub test feedback, recovery plans, and source-linked cohort patterns are implemented; richer longitudinal analytics still needs production evidence.
 
 The product should remain deliberately opinionated:
 
@@ -25,7 +25,7 @@ The product should remain deliberately opinionated:
 - Students need a clear next action, fast feedback, practice, and human support.
 - Instructors need a small number of high-signal queues and explicit ownership.
 - Mobile owns routine daily work and urgent interventions.
-- Web owns authoring, bulk administration, dense comparison, and repository-heavy work.
+- Web owns bulk administration, large-scale curriculum restructuring, dense comparison, and repository-heavy work. Routine curriculum authoring is native and web.
 - Completion and watch time are useful signals, but they are not proof of understanding.
 
 ## 2. Evidence reviewed
@@ -79,36 +79,36 @@ The database can answer:
 - the latest grade and feedback;
 - whether a redo is open;
 - when they were last active;
-- whether staff or peers communicated with them.
+- whether staff or peers communicated with them;
+- which learning objective a configured task assesses and what success criteria apply;
+- what rubric criteria and criterion-level feedback explain a grade;
+- whether a configured retrieval check was answered correctly;
+- whether a student asked for help, who owns the response, and how it was resolved;
+- what intervention or recovery plan applies and when staff should follow up.
 
 It cannot yet answer directly:
 
-- which skill or learning objective a task assesses;
-- what criteria made a submission strong or incomplete;
-- whether a student retained or can independently apply a concept;
-- which hint or support step helped;
-- whether a student is currently stuck and who owns the response;
-- what intervention occurred and whether it worked;
-- what recovery plan applies after a restart or extended absence;
+- whether a student retained or can independently apply a concept beyond the configured evidence;
+- which specific hint or support step caused an improvement;
 - attendance and live participation history;
 - whether a recording is captioned, transcribed, chaptered, or searchable.
 
-That is the central strategic gap: the product is excellent at organizing learning activity and increasingly strong at communication, but it is not yet a full learning-feedback system.
+The core learning-feedback records now exist. The remaining strategic gap is longitudinal evidence: retention beyond a single check, support effectiveness, attendance, recording accessibility, and enough production history to distinguish durable patterns from one-off activity.
 
-## 4. What was missed in the first audit
+## 4. What the 2026-08 audit found
 
-The second pass found additional opportunities:
+The second pass found the following opportunities. Items 1–6 and 8–10 are now implemented; recording captions and searchable transcripts remain open.
 
-1. **Intervention ownership is missing.** Risk can be detected, but there is no durable state for owner, outreach, next follow-up, resolution, or outcome.
-2. **The curriculum authoring model lacks explicit outcomes and success criteria.** Objectives currently live in lesson prose or instructor knowledge.
-3. **Native submission parity is stronger than the roadmap says.** Students can already submit text/repository work, redo, watch video, and mark work complete. Several older mobile documents still describe these as future work.
-4. **The web/mobile planning gap is partly an API-shape gap.** Web derives the next submission deadline from module data; native Today does not present it as a weekly plan.
-5. **There is no product event taxonomy.** PostHog receives web identity, pageviews, and render exceptions, but no meaningful learning-flow events and no native product analytics.
-6. **Current progress percentages can imply more certainty than the data supports.** A completed block or watched recording does not necessarily mean the learner can retrieve or apply the skill.
-7. **Recording accessibility is a product gap, not only a compliance task.** Captions and searchable transcripts also make review, catch-up, and finding code explanations substantially better.
-8. **The student reset feature needs a pedagogical companion.** The technical reset is safe, but a restart should create a visible recovery plan rather than silently returning a student to week one.
-9. **Instructor feedback will become repetitive without reusable criteria and snippets.** The existing concise native grading flow is a good base for a feedback library and rubric-assisted review.
-10. **The native design system needs semantic type roles.** One-off small sizes make it difficult to improve readability safely across the app.
+1. **Intervention ownership was missing.** Risk could be detected, but there was no durable state for owner, outreach, next follow-up, resolution, or outcome.
+2. **The curriculum model lacked explicit outcomes and success criteria.** Objectives lived in lesson prose or instructor knowledge.
+3. **Native submission parity was stronger than the roadmap said.** Students could already submit text/repository work, redo, watch video, and mark work complete while several older documents still described those as future work.
+4. **The web/mobile planning gap was partly an API-shape gap.** Web derived the next submission deadline from module data; native Today did not present it as a weekly plan.
+5. **There was no product event taxonomy.** PostHog received web identity, pageviews, and render exceptions, but no meaningful learning-flow events or native product analytics.
+6. **Progress percentages implied more certainty than the data supported.** A completed block or watched recording did not necessarily mean the learner could retrieve or apply the skill.
+7. **Recording accessibility remains a product gap, not only a compliance task.** Captions and searchable transcripts also make review, catch-up, and finding code explanations substantially better.
+8. **The student reset feature needed a pedagogical companion.** The technical reset was safe, but a restart needed a visible recovery plan rather than silently returning a student to week one.
+9. **Instructor feedback would become repetitive without reusable criteria and snippets.** The existing concise native grading flow provided the base for a feedback library and rubric-assisted review.
+10. **The native design system needed semantic type roles.** One-off small sizes made it difficult to improve readability safely across the app.
 
 ## 5. Native code-block overflow: root cause and required fix
 
@@ -237,7 +237,7 @@ The public web experience is already premium. The strongest next improvements ar
 - give instructors a clear queue state: new, contacted, waiting on student, follow-up due, resolved;
 - expose the student’s recent feedback, help requests, and recovery plan beside their progress;
 - add transcript search that jumps directly to a recording timestamp;
-- keep content authoring web-first and add reusable templates rather than building a native editor.
+- keep bulk content operations and large-scale restructuring web-first while supporting routine lesson authoring natively.
 
 The public homepage should remain focused. It does not need a generic feature grid expansion; it can eventually add one authentic cohort outcome or student story once CSG has permission and reliable evidence.
 
@@ -254,7 +254,7 @@ Parity means completing the job, not duplicating every screen.
 | Receive and act on feedback | Primary | Full | Rubric summary native; full history web |
 | Grade a focused submission | Primary for common cases | Full | Native concise; web for comparisons/bulk |
 | Student intervention | Primary for urgent action | Full | Native acknowledge/message; web full case history |
-| Curriculum authoring | Secure handoff | Primary | Keep web-only |
+| Curriculum authoring | Primary for routine edits | Full | Native browse, preview, and lesson authoring; web for bulk restructuring and dense operations |
 | Cohort/enrollment bulk management | Secure handoff | Primary | Keep web-only |
 | Dense grading/watch matrices | Summary/handoff | Primary | Keep web-only |
 | Analytics | Glanceable alerts | Primary | Mobile exceptions; web exploration |
@@ -349,7 +349,7 @@ Collect events tied to explicit product and teaching decisions. Avoid keystroke 
 - a full SIS or transcript-gradebook system;
 - LTI, SCORM, or enterprise LMS interoperability;
 - a Zoom clone or custom media transport;
-- native curriculum authoring or bulk administration;
+- native bulk curriculum restructuring or bulk administration;
 - a generic AI tutor that gives answers before retrieval and feedback foundations exist;
 - persistent voice messages, live voice rooms, background recording, or automatic sending of transcribed drafts;
 - points, streaks, badges, or leaderboards as primary motivation;
