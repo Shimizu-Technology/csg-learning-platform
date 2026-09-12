@@ -2,7 +2,7 @@ import { fireEvent, render, waitFor } from '@testing-library/react-native';
 
 import { demoLesson } from '@/lib/demo-learning';
 import { ApiError } from '@/lib/api';
-import { lessonForEditorInput } from '@/lib/lesson-editor';
+import { fieldsForLesson, lessonForEditorInput } from '@/lib/lesson-editor';
 
 const mockLoadDraft = jest.fn();
 const mockSaveDraft = jest.fn();
@@ -15,7 +15,7 @@ jest.mock('@/lib/curriculum-draft-storage', () => ({
 }));
 jest.mock('lucide-react-native', () => {
   const Icon = () => null;
-  return { AlertCircle: Icon, ArrowLeft: Icon, Check: Icon, Cloud: Icon, Eye: Icon, FileCode2: Icon, Film: Icon, Pencil: Icon, RefreshCw: Icon, Save: Icon, ShieldCheck: Icon, Trash2: Icon };
+  return { AlertCircle: Icon, ArrowLeft: Icon, Check: Icon, ClipboardCheck: Icon, Cloud: Icon, Eye: Icon, FileCode2: Icon, Film: Icon, Lightbulb: Icon, Pencil: Icon, Plus: Icon, RefreshCw: Icon, RotateCcw: Icon, Save: Icon, ShieldCheck: Icon, Target: Icon, Trash2: Icon, X: Icon };
 });
 jest.mock('../lesson-content-block', () => ({ LessonContentBlockCard: () => null }));
 jest.mock('../lesson-objectives', () => ({ LessonObjectives: () => null }));
@@ -49,7 +49,8 @@ describe('native staff lesson editor', () => {
       base_updated_at: '2026-09-12T01:02:03.123456Z',
       title: 'Grid systems',
       exercise: expect.objectContaining({ id: 203, body: 'Build a resilient grid.', solution: expect.stringContaining('auto-fit') }),
-      alignments: [],
+      alignments: [{ learning_objective_id: 301, content_block_id: 203 }],
+      retrieval_check: expect.objectContaining({ enabled: true, content_block_id: 202, correct_option: 1 }),
     })));
     await waitFor(() => expect(screen.getByText('Lesson saved. The student preview now uses this version.')).toBeTruthy());
     expect(mockClearDraft).toHaveBeenCalledWith(7, 101);
@@ -66,6 +67,30 @@ describe('native staff lesson editor', () => {
     fireEvent.press(screen.getByText('Preview draft'));
     expect(screen.getAllByText('Recovered grid lesson').length).toBeGreaterThan(0);
     expect(screen.getByText('Unsaved student preview')).toBeTruthy();
+  });
+
+  it('preserves current attempt evidence instead of restoring editable stale check data', async () => {
+    const attemptedLesson = { ...lesson, content_blocks: lesson.content_blocks.map((block) => block.id === 202 && block.knowledge_check ? { ...block, knowledge_check: { ...block.knowledge_check, attempt_count: 2 } } : block) };
+    const staleFields = fieldsForLesson(lesson);
+    mockLoadDraft.mockResolvedValue({ ...staleFields, title: 'Recovered lesson title', retrieval_check: { ...staleFields.retrieval_check, prompt: 'Unsafe stale question', attempt_count: 0 }, base_updated_at: lesson.updated_at, saved_at: '2026-09-12T01:30:00Z' });
+
+    const screen = render(<StaffLessonEditor lesson={attemptedLesson} userId={7} onBack={jest.fn()} onSave={jest.fn()} onReload={async () => attemptedLesson} />);
+
+    expect(await screen.findByDisplayValue('Recovered lesson title')).toBeTruthy();
+    expect(screen.getByDisplayValue('Which function sets a flexible minimum and maximum track size?')).toBeTruthy();
+    expect(screen.queryByDisplayValue('Unsafe stale question')).toBeNull();
+    expect(screen.getByLabelText('Include quick recall check').props.disabled).toBe(true);
+  });
+
+  it('keeps the current check when a recovered draft references a replaced checkpoint', async () => {
+    const staleFields = fieldsForLesson(lesson);
+    mockLoadDraft.mockResolvedValue({ ...staleFields, title: 'Recovered lesson title', retrieval_check: { ...staleFields.retrieval_check, content_block_id: 999, prompt: 'Question from removed checkpoint' }, base_updated_at: lesson.updated_at, saved_at: '2026-09-12T01:30:00Z' });
+
+    const screen = render(<StaffLessonEditor lesson={lesson} userId={7} onBack={jest.fn()} onSave={jest.fn()} onReload={async () => lesson} />);
+
+    expect(await screen.findByDisplayValue('Recovered lesson title')).toBeTruthy();
+    expect(screen.getByDisplayValue('Which function sets a flexible minimum and maximum track size?')).toBeTruthy();
+    expect(screen.queryByDisplayValue('Question from removed checkpoint')).toBeNull();
   });
 
   it('keeps edits safe through a stale-version conflict and rebases on demand', async () => {

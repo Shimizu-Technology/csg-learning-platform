@@ -49,6 +49,10 @@ import type {
   CurriculumModuleInput,
   ExerciseCreateInput,
   StaffCurriculumModule,
+  LearningObjective,
+  LearningObjectiveCreateInput,
+  Rubric,
+  RubricCreateInput,
 } from './types';
 import { fetch as expoFetch } from 'expo/fetch';
 import { File } from 'expo-file-system';
@@ -180,6 +184,10 @@ export class CsgApi {
   restoreLesson = (id: number, baseUpdatedAt: string) => this.request<{ lesson: LessonDetail }>(`/api/v1/lessons/${id}/restore`, { method: 'PATCH', body: JSON.stringify({ base_updated_at: baseUpdatedAt }) });
   createCurriculumModule = (curriculumId: number, input: CurriculumModuleInput) => this.request<{ module: StaffCurriculumModule }>(`/api/v1/curricula/${curriculumId}/modules`, { method: 'POST', body: JSON.stringify(input) });
   updateCurriculumModule = (id: number, input: CurriculumModuleInput) => this.request<{ module: StaffCurriculumModule }>(`/api/v1/modules/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+  learningObjectives = (curriculumId: number, signal?: AbortSignal) => this.request<{ learning_objectives: LearningObjective[] }>(`/api/v1/learning_objectives?curriculum_id=${curriculumId}`, { signal });
+  createLearningObjective = (input: LearningObjectiveCreateInput) => this.request<{ learning_objective: LearningObjective }>('/api/v1/learning_objectives', { method: 'POST', body: JSON.stringify({ learning_objective: input }) });
+  rubrics = (curriculumId: number, signal?: AbortSignal) => this.request<{ rubrics: Rubric[] }>(`/api/v1/rubrics?curriculum_id=${curriculumId}`, { signal });
+  createRubric = (input: RubricCreateInput) => this.request<{ rubric: Rubric }>('/api/v1/rubrics', { method: 'POST', body: JSON.stringify({ rubric: input }) });
   helpRequests = (params: { cohort_id?: number; status?: string; context_type?: HelpContextType } = {}, signal?: AbortSignal) => this.request<{ help_requests: HelpRequest[] }>(`/api/v1/help_requests${queryString(params)}`, { signal });
   helpRequest = (id: number, signal?: AbortSignal) => this.request<{ help_request: HelpRequest }>(`/api/v1/help_requests/${id}`, { signal });
   createHelpRequest = (input: { cohort_id: number; context_type: HelpContextType; context_source?: HelpContextSource; context_id: number; category: HelpCategory; urgency: HelpUrgency; message: string }) => this.request<{ help_request: HelpRequest; created: boolean }>('/api/v1/help_requests', { method: 'POST', body: JSON.stringify({ help_request: input }) });

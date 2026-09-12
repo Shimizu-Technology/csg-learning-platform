@@ -187,8 +187,8 @@ module Api
           @lesson.update!(editor_lesson_params)
           old_s3_key, new_s3_key = update_editor_video!
           update_editor_exercise!
-          update_editor_retrieval_check!
-          replace_editor_objective_alignments!
+          removed_check_block_id = update_editor_retrieval_check!
+          replace_editor_objective_alignments!(removed_check_block_id: removed_check_block_id)
           @lesson.touch
         end
 
@@ -328,12 +328,13 @@ module Api
         block = if payload[:content_block_id].present?
           @lesson.content_blocks.where(block_type: :checkpoint).find(payload[:content_block_id])
         else
-          @lesson.content_blocks.find_by(block_type: :checkpoint)
+          @lesson.content_blocks.find { |candidate| candidate.checkpoint? && candidate.knowledge_check.present? }
         end
 
         unless ActiveModel::Type::Boolean.new.cast(payload[:enabled])
+          removed_block_id = block&.id
           block&.destroy!
-          return
+          return removed_block_id
         end
 
         block ||= @lesson.content_blocks.create!(
@@ -350,9 +351,10 @@ module Api
           explanation: payload[:explanation],
           learning_objective_id: payload[:learning_objective_id].presence
         )
+        nil
       end
 
-      def replace_editor_objective_alignments!
+      def replace_editor_objective_alignments!(removed_check_block_id: nil)
         requested = editor_params[:alignments] || []
         if requested.length > ObjectiveAlignmentsController::MAX_ALIGNMENTS
           @lesson.errors.add(:objectives, "can have at most #{ObjectiveAlignmentsController::MAX_ALIGNMENTS} alignments")
@@ -362,7 +364,8 @@ module Api
         @lesson.objective_alignments.destroy_all
         requested.each_with_index do |alignment, position|
           objective = LearningObjective.find(alignment.fetch(:learning_objective_id))
-          content_block = alignment[:content_block_id].present? ? @lesson.content_blocks.find(alignment[:content_block_id]) : nil
+          content_block_id = alignment[:content_block_id].presence
+          content_block = content_block_id && content_block_id.to_i != removed_check_block_id ? @lesson.content_blocks.find(content_block_id) : nil
           @lesson.objective_alignments.create!(
             learning_objective: objective,
             content_block: content_block,

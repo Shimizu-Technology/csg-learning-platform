@@ -1,4 +1,4 @@
-import type { LessonDetail, RecordingItem, StudentDashboard, WeeklyPlan } from './types';
+import type { LearningObjective, LessonDetail, RecordingItem, Rubric, StudentDashboard, WeeklyPlan } from './types';
 import { demoStudentUser } from './demo-data';
 
 export const demoWeeklyPlan: WeeklyPlan = {
@@ -47,13 +47,25 @@ export const demoRecordings: RecordingItem[] = [
   { id: 2, item_key: 'uploaded-2', cohort_id: 4, cohort_name: 'Web Dev Cohort 4', title: 'APIs, authentication, and deployment', description: 'Secure API integration and production deployment walkthrough.', recorded_date: '2026-07-15', duration_seconds: 5420, duration_display: '1:30:20', source: 'uploaded', watch_progress: { last_position_seconds: 1580, total_watched_seconds: 1520, progress_percentage: 28, completed: false, last_watched_at: '2026-07-20T10:00:00Z' } },
 ];
 
+export const demoLearningObjectives: LearningObjective[] = [
+  { id: 301, curriculum_id: 3, code: 'CSS.4', title: 'Build responsive layouts', description: 'Create layouts that adapt to available space.', success_criteria: 'I can use Grid and flexible tracks to build a layout that works from phone to desktop.', position: 0, active: true, alignment_count: 1 },
+  { id: 302, curriculum_id: 3, code: 'A11Y.2', title: 'Preserve readable interfaces', description: 'Keep content usable across viewport and text sizes.', success_criteria: 'I can verify readable order, zoom behavior, and keyboard access at each breakpoint.', position: 1, active: true, alignment_count: 0 },
+];
+
+export const demoRubrics: Rubric[] = [
+  { id: 401, curriculum_id: 3, title: 'Responsive implementation', description: 'How the submitted layout adapts and communicates intent.', active: true, criteria: [
+    { id: 411, title: 'Adaptive layout', description: 'Content reflows without clipping or unreadable widths.', position: 0 },
+    { id: 412, title: 'Clear reasoning', description: 'The explanation connects layout choices to the content.', position: 1 },
+  ] },
+];
+
 export const demoLesson: LessonDetail = {
-  id: 101, curriculum_id: 3, module_id: 10, title: 'Responsive layouts with Grid', lesson_type: 'lesson', position: 2, release_day: 3, required: true, requires_submission: true, submission_type: 'text_submission', content_blocks_count: 3, updated_at: '2026-07-20T05:00:00.000000Z', objectives: [],
+  id: 101, curriculum_id: 3, module_id: 10, title: 'Responsive layouts with Grid', lesson_type: 'lesson', position: 2, release_day: 3, required: true, requires_submission: true, submission_type: 'text_submission', content_blocks_count: 3, updated_at: '2026-07-20T05:00:00.000000Z', objectives: [{ alignment_id: 501, ...demoLearningObjectives[0], content_block_id: 203, content_block_title: 'Rebuild the card grid' }],
   submission_window: { submissions_open: true, submissions_closed: false }, prev_lesson: { id: 100, title: 'HTML and semantic structure' }, next_lesson: { id: 102, title: 'Accessible forms' },
   content_blocks: [
     { id: 201, block_type: 'text', position: 1, title: 'Build flexible page systems', body: 'CSS Grid gives you **two-dimensional control** over rows and columns.\n\nUse a mobile-first layout, then add columns when the content has room.', video_url: null, filename: null, metadata: {}, progress: { status: 'completed', completed_at: '2026-07-20T02:00:00Z' } },
-    { id: 202, block_type: 'checkpoint', position: 2, title: 'Layout checklist', body: '- Start with one column\n- Use `minmax()` for flexible tracks\n- Test keyboard and zoom behavior', video_url: null, filename: null, metadata: {}, progress: { status: 'not_started', completed_at: null } },
-    { id: 203, block_type: 'exercise', position: 3, title: 'Rebuild the card grid', body: 'Explain how your grid changes between mobile and desktop.', solution: 'Use `repeat(auto-fit, minmax(16rem, 1fr))` so the grid responds to its available width.', video_url: null, filename: 'styles.css', submission_type: 'text_submission', submission_config: {}, metadata: { language: 'css' }, progress: { status: 'in_progress', completed_at: null }, submissions: [] },
+    { id: 202, block_type: 'checkpoint', position: 2, title: 'Quick layout recall', body: null, video_url: null, filename: null, metadata: {}, knowledge_check: { id: 601, prompt: 'Which function sets a flexible minimum and maximum track size?', options: ['clamp()', 'minmax()', 'calc()'], objective_code: 'CSS.4', learning_objective_id: 301, attempt_count: 0, latest_attempt: null, correct_option: 1, explanation: 'minmax() defines the smallest and largest size a grid track may use.' }, progress: { status: 'not_started', completed_at: null } },
+    { id: 203, block_type: 'exercise', position: 3, title: 'Rebuild the card grid', body: 'Explain how your grid changes between mobile and desktop.', solution: 'Use `repeat(auto-fit, minmax(16rem, 1fr))` so the grid responds to its available width.', video_url: null, filename: 'styles.css', submission_type: 'text_submission', submission_config: {}, rubric: demoRubrics[0], metadata: { language: 'css' }, progress: { status: 'in_progress', completed_at: null }, submissions: [] },
   ],
 };
 
@@ -84,6 +96,7 @@ const demoInteractionsLesson: LessonDetail = {
   requires_submission: false,
   submission_type: undefined,
   content_blocks_count: 2,
+  objectives: [],
   submission_window: { submissions_open: false, submissions_closed: false },
   prev_lesson: { id: 102, title: 'Accessible forms' },
   next_lesson: { id: 104, title: 'Container query stretch' },
@@ -104,6 +117,7 @@ const demoContainerQueryLesson: LessonDetail = {
   requires_submission: false,
   submission_type: undefined,
   content_blocks_count: 2,
+  objectives: [],
   submission_window: { submissions_open: false, submissions_closed: false },
   prev_lesson: { id: 103, title: 'JavaScript interactions' },
   next_lesson: null,

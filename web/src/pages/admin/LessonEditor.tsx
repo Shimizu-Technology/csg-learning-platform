@@ -104,6 +104,11 @@ export function LessonEditor() {
   const [s3VideoUploadedBy, setS3VideoUploadedBy] = useState<string | null>(null)
   const [videoBlockId, setVideoBlockId] = useState<number | null>(null)
   const [pendingVideoUploadId, setPendingVideoUploadId] = useState<string | null>(null)
+  const normalizedObjectiveAlignments = useMemo(() => objectiveAlignments.map((alignment) => (
+    !checkEnabled && checkBlockId && alignment.content_block_id === checkBlockId
+      ? { ...alignment, content_block_id: null }
+      : alignment
+  )), [checkBlockId, checkEnabled, objectiveAlignments])
 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -258,7 +263,7 @@ export function LessonEditor() {
         requires_submission: submissionType !== 'manual_complete',
         video,
         exercise,
-        ...(checkEnabled || checkBlockId ? { retrieval_check: {
+        ...(checkAttemptCount === 0 && (checkEnabled || checkBlockId) ? { retrieval_check: {
           enabled: checkEnabled,
           ...(checkBlockId ? { content_block_id: checkBlockId } : {}),
           title: checkTitle.trim() || 'Quick check',
@@ -268,7 +273,7 @@ export function LessonEditor() {
           explanation: checkExplanation.trim(),
           learning_objective_id: checkObjectiveId,
         } } : {}),
-        alignments: objectiveAlignments,
+        alignments: normalizedObjectiveAlignments,
       })
       if (response.error || !response.data) {
         const message = response.error || 'Exercise could not be saved.'
@@ -430,7 +435,7 @@ export function LessonEditor() {
     }
   }
 
-  const previewObjectives: LessonObjective[] = objectiveAlignments.flatMap((alignment, index) => {
+  const previewObjectives: LessonObjective[] = normalizedObjectiveAlignments.flatMap((alignment, index) => {
     const objective = objectiveCatalog.find((item) => item.id === alignment.learning_objective_id)
     if (!objective) return []
     const block = lesson?.content_blocks.find((item) => item.id === alignment.content_block_id)

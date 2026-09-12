@@ -1,5 +1,5 @@
 import { demoHelpRequests, demoInterventions, demoSupportQueue } from '../demo-staff';
-import { buildSubmissionInput, canSubmitWork, isNewSubmissionAttempt, lessonCompletion, safeExternalUrl, staffAttentionRank, submissionBelongsToStudentProgress, submissionState, submissionTypeFor, updateSupportQueueHelpRequest, updateSupportQueueIntervention } from '../learning';
+import { appendCatalogItem, buildSubmissionInput, canSubmitWork, isNewSubmissionAttempt, lessonCompletion, safeExternalUrl, staffAttentionRank, submissionBelongsToStudentProgress, submissionState, submissionTypeFor, updateSupportQueueHelpRequest, updateSupportQueueIntervention } from '../learning';
 import type { LessonContentBlock, StaffStudentSummary, Submission } from '../types';
 
 const block = (id: number, status: string): LessonContentBlock => ({ id, block_type: 'checkpoint', position: id, title: null, body: null, video_url: null, filename: null, metadata: {}, progress: { status, completed_at: null } });
@@ -7,6 +7,12 @@ const block = (id: number, status: string): LessonContentBlock => ({ id, block_t
 describe('learning helpers', () => {
   it('calculates completion from completable blocks', () => {
     expect(lessonCompletion([block(1, 'completed'), block(2, 'in_progress')])).toEqual({ completed: 1, total: 2, percentage: 50 });
+  });
+
+  it('preserves refetched catalog entries when a create request completes', () => {
+    const refetched = [{ id: 1, title: 'Existing' }, { id: 2, title: 'Refetched while creating' }];
+
+    expect(appendCatalogItem(refetched, { id: 3, title: 'Created' })).toEqual([...refetched, { id: 3, title: 'Created' }]);
   });
 
   it('matches the server completion driver when a lesson mixes reference and actionable blocks', () => {

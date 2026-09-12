@@ -683,6 +683,74 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert @student.progresses.find_by!(content_block: check.content_block).completed?
   end
 
+  test "editor creates a retrieval check without repurposing a narrative checkpoint" do
+    narrative = @lesson.content_blocks.create!(
+      block_type: :checkpoint,
+      position: 2,
+      title: "Pause and reflect",
+      body: "Write down one question before continuing."
+    )
+
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor",
+            params: {
+              editor: {
+                base_updated_at: @lesson.reload.updated_at.iso8601(6),
+                title: @lesson.title,
+                retrieval_check: {
+                  enabled: true,
+                  title: "Recall the command",
+                  prompt: "Which command prints the current folder?",
+                  options: [ "cd", "pwd" ],
+                  correct_option: 1,
+                  explanation: "pwd means print working directory."
+                },
+                alignments: []
+              }
+            },
+            headers: auth_headers
+    end
+
+    assert_response :success
+    assert_equal "Pause and reflect", narrative.reload.title
+    assert_equal "Write down one question before continuing.", narrative.body
+    assert_nil narrative.knowledge_check
+
+    check_blocks = @lesson.reload.content_blocks.select { |block| block.knowledge_check.present? }
+    assert_equal 1, check_blocks.length
+    assert_not_equal narrative.id, check_blocks.first.id
+  end
+
+  test "disabling a retrieval check keeps its objective aligned at lesson level" do
+    objective = LearningObjective.create!(
+      curriculum: @curriculum,
+      code: "TERM.4",
+      title: "Recall a terminal command",
+      success_criteria: "I can select the command that prints my current folder."
+    )
+    block = @lesson.content_blocks.create!(block_type: :checkpoint, position: 2, title: "Recall the command")
+    block.create_knowledge_check!(prompt: "Which command?", options: [ "cd", "pwd" ], correct_option: 1, explanation: "pwd is correct.", learning_objective: objective)
+    @lesson.objective_alignments.create!(learning_objective: objective, content_block: block, position: 0)
+
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor",
+            params: {
+              editor: {
+                base_updated_at: @lesson.reload.updated_at.iso8601(6),
+                title: @lesson.title,
+                retrieval_check: { enabled: false, content_block_id: block.id },
+                alignments: [ { learning_objective_id: objective.id, content_block_id: block.id } ]
+              }
+            },
+            headers: auth_headers
+    end
+
+    assert_response :success
+    assert_not ContentBlock.exists?(block.id)
+    alignment = @lesson.reload.objective_alignments.find_by!(learning_objective: objective)
+    assert_nil alignment.content_block_id
+  end
+
   test "student cannot bypass a retrieval check through generic progress" do
     block = @lesson.content_blocks.create!(block_type: :checkpoint, position: 2)
     check = KnowledgeCheck.create!(

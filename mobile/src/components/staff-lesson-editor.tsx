@@ -6,11 +6,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LessonContentBlockCard } from '@/components/lesson-content-block';
 import { LessonObjectives } from '@/components/lesson-objectives';
 import { RubricPanel } from '@/components/rubric-panel';
+import { StaffLearningDesignEditor } from '@/components/staff-learning-design-editor';
 import { fonts, palette } from '@/constants/csg-theme';
 import { ApiError } from '@/lib/api';
 import { clearLessonEditorDraft, loadLessonEditorDraft, saveLessonEditorDraft } from '@/lib/curriculum-draft-storage';
 import { fieldsForLesson, lessonEditorFieldsMatch, lessonEditorInput, lessonEditorValidation, lessonPreviewForFields, lessonSubmissionOptions, type LessonEditorFields } from '@/lib/lesson-editor';
-import type { LessonDetail, LessonEditorInput } from '@/lib/types';
+import type { LearningObjective, LessonDetail, LessonEditorInput, Rubric } from '@/lib/types';
 
 interface StaffLessonEditorProps {
   lesson: LessonDetail;
@@ -18,11 +19,24 @@ interface StaffLessonEditorProps {
   onBack: () => void;
   onSave: (input: LessonEditorInput) => Promise<LessonDetail>;
   onReload: () => Promise<LessonDetail>;
+  objectiveCatalog?: LearningObjective[];
+  rubricCatalog?: Rubric[];
+  catalogLoading?: boolean;
+  catalogError?: boolean;
+  canCreateResources?: boolean;
+  onRetryCatalogs?: () => void;
+  onCreateObjective?: (input: { code: string; title: string; description?: string; success_criteria: string }) => Promise<LearningObjective>;
+  onCreateRubric?: (input: { title: string; description?: string; criteria: { title: string; description: string }[] }) => Promise<Rubric>;
 }
 
 type DraftStatus = 'loading' | 'saved' | 'saving' | 'error';
 
-export function StaffLessonEditor({ lesson, userId, onBack, onSave, onReload }: StaffLessonEditorProps) {
+function retrievalCheckForDraft(server: LessonEditorFields['retrieval_check'], draft?: LessonEditorFields['retrieval_check']) {
+  if (!draft || draft.content_block_id !== server.content_block_id || server.attempt_count > 0) return server;
+  return { ...draft, content_block_id: server.content_block_id, attempt_count: server.attempt_count };
+}
+
+export function StaffLessonEditor({ lesson, userId, onBack, onSave, onReload, objectiveCatalog = [], rubricCatalog = [], catalogLoading = false, catalogError = false, canCreateResources = false, onRetryCatalogs = () => undefined, onCreateObjective, onCreateRubric }: StaffLessonEditorProps) {
   const [initialLesson] = useState(lesson);
   const initialFields = useMemo(() => fieldsForLesson(initialLesson), [initialLesson]);
   const [sourceLesson, setSourceLesson] = useState(initialLesson);
@@ -40,7 +54,7 @@ export function StaffLessonEditor({ lesson, userId, onBack, onSave, onReload }: 
   const scrollRef = useRef<ScrollView>(null);
   const serverFields = useMemo(() => fieldsForLesson(sourceLesson), [sourceLesson]);
   const dirty = !lessonEditorFieldsMatch(fields, serverFields);
-  const previewLesson = useMemo(() => lessonPreviewForFields(sourceLesson, fields), [fields, sourceLesson]);
+  const previewLesson = useMemo(() => lessonPreviewForFields(sourceLesson, fields, objectiveCatalog, rubricCatalog), [fields, objectiveCatalog, rubricCatalog, sourceLesson]);
   const videoBlock = sourceLesson.content_blocks.find((block) => ['video', 'recording'].includes(block.block_type));
   const selectedSubmission = lessonSubmissionOptions.find((option) => option.value === fields.submission_type)!;
 
@@ -48,8 +62,21 @@ export function StaffLessonEditor({ lesson, userId, onBack, onSave, onReload }: 
     let active = true;
     void loadLessonEditorDraft(userId, initialLesson.id).then(async (draft) => {
       if (!active) return;
-      if (draft && !lessonEditorFieldsMatch(draft, initialFields)) {
-        setFields({ title: draft.title, required: draft.required, video_url: draft.video_url, filename: draft.filename, instructions: draft.instructions, solution: draft.solution, submission_type: draft.submission_type });
+      const restoredFields = draft ? {
+          ...initialFields,
+          title: draft.title,
+          required: draft.required,
+          video_url: draft.video_url,
+          filename: draft.filename,
+          instructions: draft.instructions,
+          solution: draft.solution,
+          submission_type: draft.submission_type,
+          ...(draft.objective_alignments ? { objective_alignments: draft.objective_alignments } : {}),
+          ...(draft.rubric_id !== undefined ? { rubric_id: draft.rubric_id } : {}),
+          retrieval_check: retrievalCheckForDraft(initialFields.retrieval_check, draft.retrieval_check),
+        } : null;
+      if (draft && restoredFields && !lessonEditorFieldsMatch(restoredFields, initialFields)) {
+        setFields(restoredFields);
         setBaseUpdatedAt(draft.base_updated_at);
         setRecovered(true);
         setStaleDraft(Boolean(initialLesson.updated_at && draft.base_updated_at !== initialLesson.updated_at));
@@ -182,6 +209,25 @@ export function StaffLessonEditor({ lesson, userId, onBack, onSave, onReload }: 
           <Field label="SUBMISSION"><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>{lessonSubmissionOptions.map((option) => <Pressable key={option.value} accessibilityRole="button" accessibilityState={{ selected: fields.submission_type === option.value }} onPress={() => update('submission_type', option.value)} style={[styles.chip, fields.submission_type === option.value && styles.chipActive]}><Text style={[styles.chipText, fields.submission_type === option.value && styles.chipTextActive]}>{option.label}</Text></Pressable>)}</ScrollView><Text style={styles.helper}>{selectedSubmission.description}</Text></Field>
           <Field label="INSTRUCTOR SOLUTION"><TextInput accessibilityLabel="Instructor solution" multiline textAlignVertical="top" value={fields.solution} onChangeText={(value) => update('solution', value)} placeholder="Reference answer, walkthrough, or grading notes…" placeholderTextColor={palette.quiet} style={[styles.input, styles.solution]} /><Text style={styles.privateCopy}>Staff only. Students never receive this content.</Text></Field>
         </EditorSection>
+        <StaffLearningDesignEditor
+          lesson={sourceLesson}
+          fields={fields}
+          objectives={objectiveCatalog}
+          rubrics={rubricCatalog}
+          catalogLoading={catalogLoading}
+          catalogError={catalogError}
+          canCreateResources={canCreateResources}
+          onRetryCatalogs={onRetryCatalogs}
+          onChange={(next) => { setFields(next); setError(null); setNotice(null); }}
+          onCreateObjective={async (input) => {
+            if (!onCreateObjective) throw new Error('Only admins can create curriculum objectives.');
+            return onCreateObjective(input);
+          }}
+          onCreateRubric={async (input) => {
+            if (!onCreateRubric) throw new Error('Only admins can create curriculum rubrics.');
+            return onCreateRubric(input);
+          }}
+        />
         <View style={styles.actions}><Pressable accessibilityRole="button" accessibilityLabel="Save lesson changes" disabled={!dirty || saving || !draftReady} onPress={() => void save()} style={[styles.primary, (!dirty || saving || !draftReady) && styles.disabled]}><Save color={palette.text} size={19} /><Text style={styles.primaryText}>{saving ? 'Saving lesson…' : dirty ? 'Save lesson changes' : 'Everything is saved'}</Text></Pressable>{dirty && <Pressable accessibilityRole="button" disabled={saving} onPress={discard} style={styles.discard}><Trash2 color={palette.muted} size={17} /><Text style={styles.discardText}>Discard device draft</Text></Pressable>}</View>
       </>}
     </ScrollView>
