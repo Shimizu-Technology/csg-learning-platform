@@ -1,4 +1,5 @@
 import type { LearningObjective, LessonContentBlock, LessonDetail, LessonEditorInput, LessonObjective, LessonSubmissionType, Rubric } from './types';
+import { codeRunnerLanguageForFilename, normalizeCodeRunnerConfig, submissionConfigWithRunner, type CodeRunnerConfig } from './code-runner';
 
 export interface ObjectiveAlignmentField {
   learning_objective_id: number;
@@ -28,6 +29,7 @@ export interface LessonEditorFields {
   instructions: string;
   solution: string;
   submission_type: LessonSubmissionType;
+  runner: CodeRunnerConfig;
   objective_alignments: ObjectiveAlignmentField[];
   rubric_id: number | null;
   retrieval_check: RetrievalCheckEditorFields;
@@ -62,6 +64,7 @@ export function fieldsForLesson(lesson: LessonDetail): LessonEditorFields {
   const checkBlock = lesson.content_blocks.find((block) => block.knowledge_check);
   const check = checkBlock?.knowledge_check;
   const submissionType = exercise?.submission_type_explicit || exercise?.submission_type || lesson.submission_type || (lesson.requires_submission ? 'text_submission' : 'manual_complete');
+  const filename = exercise?.filename || '';
   return {
     title: lesson.title || '',
     required: lesson.required !== false,
@@ -69,10 +72,11 @@ export function fieldsForLesson(lesson: LessonDetail): LessonEditorFields {
     s3_video_key: video?.s3_video_key || null,
     s3_video_content_type: video?.s3_video_content_type || null,
     s3_video_size: video?.s3_video_size || null,
-    filename: exercise?.filename || '',
+    filename,
     instructions: exercise?.body || '',
     solution: exercise?.solution || '',
     submission_type: lessonSubmissionOptions.some((option) => option.value === submissionType) ? submissionType as LessonSubmissionType : 'manual_complete',
+    runner: normalizeCodeRunnerConfig(exercise?.submission_config, codeRunnerLanguageForFilename(filename)),
     objective_alignments: (lesson.objectives || []).map((objective) => ({ learning_objective_id: objective.id, content_block_id: objective.content_block_id })),
     rubric_id: exercise?.rubric?.id || null,
     retrieval_check: check ? {
@@ -100,6 +104,8 @@ export function lessonEditorFieldsMatch(left: LessonEditorFields, right: LessonE
     && left.instructions === right.instructions
     && left.solution === right.solution
     && left.submission_type === right.submission_type
+    && left.runner.enabled === right.runner.enabled
+    && left.runner.language === right.runner.language
     && left.rubric_id === right.rubric_id
     && JSON.stringify(left.objective_alignments) === JSON.stringify(right.objective_alignments)
     && JSON.stringify(left.retrieval_check) === JSON.stringify(right.retrieval_check);
@@ -155,7 +161,7 @@ export function lessonEditorInput(lesson: LessonDetail, fields: LessonEditorFiel
       solution: fields.solution.trim() || null,
       filename: fields.filename.trim() || null,
       submission_type: fields.submission_type,
-      submission_config: exercise?.submission_config || {},
+      submission_config: submissionConfigWithRunner(exercise?.submission_config, fields.runner, fields.submission_type === 'text_submission'),
       rubric_id: fields.rubric_id,
     } } : {}),
     ...(check.attempt_count === 0 && (check.enabled || check.content_block_id) ? { retrieval_check: {
@@ -229,12 +235,12 @@ export function lessonPreviewForFields(lesson: LessonDetail, fields: LessonEdito
         const stagedUpload = Boolean(fields.s3_video_key && fields.s3_video_key !== video.s3_video_key);
         return { ...block, title: fields.title.trim(), video_url: fields.video_url.trim() || null, s3_video_key: fields.s3_video_key, s3_video_content_type: fields.s3_video_content_type, s3_video_size: fields.s3_video_size, has_s3_video: Boolean(fields.s3_video_key) && !stagedUpload, metadata: { ...block.metadata, staged_video_upload: stagedUpload } };
       }
-      if (block.id === exercise?.id) return { ...block, title: fields.title.trim(), body: fields.instructions.trim() || null, solution: fields.solution.trim() || null, filename: fields.filename.trim() || null, submission_type: fields.submission_type, submission_type_explicit: fields.submission_type, rubric };
+      if (block.id === exercise?.id) return { ...block, title: fields.title.trim(), body: fields.instructions.trim() || null, solution: fields.solution.trim() || null, filename: fields.filename.trim() || null, submission_type: fields.submission_type, submission_type_explicit: fields.submission_type, submission_config: submissionConfigWithRunner(block.submission_config, fields.runner, fields.submission_type === 'text_submission'), rubric };
       if (block.knowledge_check) return checkPreviewBlock(block, fields.retrieval_check);
       return block;
     });
   if (!video && (fields.video_url.trim() || fields.s3_video_key)) blocks.push({ id: -1, block_type: 'video', position: blocks.length + 1, title: fields.title.trim(), body: null, video_url: fields.video_url.trim() || null, s3_video_key: fields.s3_video_key, s3_video_content_type: fields.s3_video_content_type, s3_video_size: fields.s3_video_size, has_s3_video: false, filename: null, metadata: { staged_video_upload: Boolean(fields.s3_video_key) } });
-  if (!exercise && (fields.instructions.trim() || fields.filename.trim())) blocks.push({ id: -2, block_type: 'exercise', position: blocks.length + 1, title: fields.title.trim(), body: fields.instructions.trim() || null, solution: fields.solution.trim() || null, video_url: null, filename: fields.filename.trim() || null, submission_type: fields.submission_type, submission_type_explicit: fields.submission_type, rubric, metadata: {} });
+  if (!exercise && (fields.instructions.trim() || fields.filename.trim())) blocks.push({ id: -2, block_type: 'exercise', position: blocks.length + 1, title: fields.title.trim(), body: fields.instructions.trim() || null, solution: fields.solution.trim() || null, video_url: null, filename: fields.filename.trim() || null, submission_type: fields.submission_type, submission_type_explicit: fields.submission_type, submission_config: submissionConfigWithRunner(undefined, fields.runner, fields.submission_type === 'text_submission'), rubric, metadata: {} });
   if (!existingCheck && fields.retrieval_check.enabled) blocks.push(checkPreviewBlock({ id: -3, block_type: 'checkpoint', position: blocks.length + 1, title: 'Quick check', body: null, video_url: null, filename: null, metadata: {} }, fields.retrieval_check));
   return { ...lesson, title: fields.title.trim() || 'Untitled lesson', required: fields.required, requires_submission: fields.submission_type !== 'manual_complete', submission_type: fields.submission_type, objectives: previewObjectives(lesson, fields, objectiveCatalog, video?.id, exercise?.id), content_blocks_count: blocks.length, content_blocks: blocks };
 }
@@ -253,6 +259,7 @@ export function lessonForEditorInput(lesson: LessonDetail, input: LessonEditorIn
     instructions: input.exercise ? input.exercise.body || '' : current.instructions,
     solution: input.exercise ? input.exercise.solution || '' : current.solution,
     submission_type: input.exercise?.submission_type || current.submission_type,
+    runner: input.exercise ? normalizeCodeRunnerConfig(input.exercise.submission_config, current.runner.language) : current.runner,
     rubric_id: input.exercise ? input.exercise.rubric_id : current.rubric_id,
     objective_alignments: input.alignments.map((alignment) => ({ learning_objective_id: alignment.learning_objective_id, content_block_id: alignment.content_block_id || null })),
     retrieval_check: input.retrieval_check ? {

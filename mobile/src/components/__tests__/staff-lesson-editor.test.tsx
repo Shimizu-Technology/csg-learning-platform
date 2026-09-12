@@ -17,7 +17,7 @@ jest.mock('@/lib/curriculum-draft-storage', () => ({
 }));
 jest.mock('lucide-react-native', () => {
   const Icon = () => null;
-  return { AlertCircle: Icon, ArrowLeft: Icon, Check: Icon, ClipboardCheck: Icon, Cloud: Icon, Eye: Icon, FileCode2: Icon, Film: Icon, Lightbulb: Icon, Pencil: Icon, Plus: Icon, RefreshCw: Icon, RotateCcw: Icon, Save: Icon, ShieldCheck: Icon, Target: Icon, Trash2: Icon, X: Icon };
+  return { AlertCircle: Icon, ArrowLeft: Icon, Braces: Icon, Check: Icon, ClipboardCheck: Icon, Cloud: Icon, Eye: Icon, FileCode2: Icon, Film: Icon, Gem: Icon, Lightbulb: Icon, Pencil: Icon, Plus: Icon, RefreshCw: Icon, RotateCcw: Icon, Save: Icon, ShieldCheck: Icon, Target: Icon, Trash2: Icon, X: Icon };
 });
 jest.mock('../lesson-content-block', () => ({ LessonContentBlockCard: () => null }));
 jest.mock('../lesson-objectives', () => ({ LessonObjectives: () => null }));
@@ -72,6 +72,21 @@ describe('native staff lesson editor', () => {
     fireEvent.press(screen.getByText('Preview draft'));
     expect(screen.getAllByText('Recovered grid lesson').length).toBeGreaterThan(0);
     expect(screen.getByText('Unsaved student preview')).toBeTruthy();
+  });
+
+  it('edits browser runner settings as part of the guarded lesson save', async () => {
+    const runnerLesson = { ...lesson, content_blocks: lesson.content_blocks.map((block) => block.id === 203 ? { ...block, submission_config: { runner: { enabled: false, language: 'ruby' } } } : block) };
+    const onSave = jest.fn(async (input) => lessonForEditorInput(runnerLesson, input, '2026-09-12T02:00:00.000000Z'));
+    const screen = render(<StaffLessonEditor {...uploadProps} lesson={runnerLesson} userId={7} onBack={jest.fn()} onSave={onSave} onReload={async () => runnerLesson} />);
+
+    await waitFor(() => expect(screen.getByLabelText('Enable browser code runner')).toBeTruthy());
+    fireEvent(screen.getByLabelText('Enable browser code runner'), 'valueChange', true);
+    fireEvent.press(screen.getByRole('radio', { name: 'JavaScript' }));
+    fireEvent.press(screen.getByLabelText('Save lesson'));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      exercise: expect.objectContaining({ submission_config: { runner: { enabled: true, language: 'javascript' } } }),
+    })));
   });
 
   it('preserves current attempt evidence instead of restoring editable stale check data', async () => {

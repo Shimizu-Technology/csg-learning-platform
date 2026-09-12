@@ -7,13 +7,15 @@ Product: CSG Connect
 Platforms: iOS and Android through Expo / React Native
 
 Backend: existing Rails `/api/v1` API
-Status: phases 1–4 and strategic phases 0–1 implemented and merged; build 9 available to the invited internal TestFlight tester
+Status: daily-use phases 1–4 and strategic phases 0–1 are merged; the 2026-09 curriculum-authoring parity extension is in final implementation before the next TestFlight build
 
 ## 1. Outcome
 
 CSG Connect will become the everyday mobile interface for Code School of Guam. A student should be able to communicate, understand what needs attention, learn, submit work, review feedback, and watch class recordings without needing a laptop. An instructor should be able to communicate, monitor progress, and perform quick interventions from a phone.
 
-The target is **mobile task parity** with deliberate authenticated web handoffs for desktop-shaped administrative work. Literal duplication of every web screen is not the goal.
+The target is **useful mobile parity**: routine student and staff work plus curriculum review and authoring should be native, while bulk enrollment, team administration, repository inspection, and dense matrices remain deliberate authenticated web handoffs. Literal duplication of desktop-shaped screens is not the goal.
+
+The curriculum-authoring extension has shipped safety and API hardening (PR #124), staff library browsing (PR #125), guarded lesson drafts and preview (PR #126), module/lesson management (PR #127), objectives/rubrics/retrieval checks (PR #128), and hosted lesson-video replacement (PR #129). Native browser-runner configuration and code-authoring ergonomics are implemented in the next phase; rich instruction editing remains the final curriculum parity phase before release.
 
 ## 2. Product principles
 
@@ -22,7 +24,7 @@ The target is **mobile task parity** with deliberate authenticated web handoffs 
 3. A failed or queued mutation must never look successfully synchronized.
 4. Each surface is designed for touch, keyboard avoidance, dynamic type, safe areas, interruption, and unreliable mobile networks.
 5. Shared state such as unread counts, enrollment scope, progress, submissions, and notification preferences must converge across web and native.
-6. Dense authoring and bulk operations get an explicit authenticated web handoff until a native workflow demonstrably improves them.
+6. Curriculum authoring is native where a touch-first workflow is clear; bulk operations and dense cross-student administration retain explicit authenticated web handoffs.
 7. Every phase is independently releasable and must pass its release gate before the next phase begins.
 
 ## 3. Target information architecture

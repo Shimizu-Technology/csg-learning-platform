@@ -6,7 +6,7 @@ import { activateUserStorage } from '../user-storage-lifecycle';
 
 jest.mock('@react-native-async-storage/async-storage', () => jest.requireActual('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 
-const fields: LessonEditorFields = { title: 'Grid systems', required: true, video_url: '', s3_video_key: 'content_videos/example/grid.mp4', s3_video_content_type: 'video/mp4', s3_video_size: 1234, filename: 'styles.css', instructions: 'Build it.', solution: 'Use Grid.', submission_type: 'text_submission', objective_alignments: [{ learning_objective_id: 9, content_block_id: 203 }], rubric_id: 12, retrieval_check: emptyRetrievalCheck() };
+const fields: LessonEditorFields = { title: 'Grid systems', required: true, video_url: '', s3_video_key: 'content_videos/example/grid.mp4', s3_video_content_type: 'video/mp4', s3_video_size: 1234, filename: 'styles.css', instructions: 'Build it.', solution: 'Use Grid.', submission_type: 'text_submission', runner: { enabled: true, language: 'javascript' }, objective_alignments: [{ learning_objective_id: 9, content_block_id: 203 }], rubric_id: 12, retrieval_check: emptyRetrievalCheck() };
 
 beforeEach(async () => {
   activateUserStorage(7);
@@ -31,7 +31,7 @@ describe('curriculum editor draft storage', () => {
 
   it('keeps pre-learning-design drafts readable without inventing advanced changes', async () => {
     const key = lessonEditorDraftKey(7, 101);
-    const { objective_alignments: _objectives, rubric_id: _rubric, retrieval_check: _check, s3_video_key: _videoKey, s3_video_content_type: _videoType, s3_video_size: _videoSize, ...legacyFields } = fields;
+    const { objective_alignments: _objectives, rubric_id: _rubric, retrieval_check: _check, s3_video_key: _videoKey, s3_video_content_type: _videoType, s3_video_size: _videoSize, runner: _runner, ...legacyFields } = fields;
     await AsyncStorage.setItem(key, JSON.stringify({ ...legacyFields, base_updated_at: 'v1', saved_at: new Date().toISOString() }));
 
     const restored = await loadLessonEditorDraft(7, 101);
@@ -40,6 +40,7 @@ describe('curriculum editor draft storage', () => {
     expect(restored).not.toHaveProperty('rubric_id');
     expect(restored).not.toHaveProperty('retrieval_check');
     expect(restored).not.toHaveProperty('s3_video_key');
+    expect(restored).not.toHaveProperty('runner');
   });
 
   it('clears only the signed-out staff member’s lesson drafts', async () => {
