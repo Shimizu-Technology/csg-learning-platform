@@ -58,7 +58,6 @@ export function InAppMediaPlayer({ initialPosition = 0, initialTotalWatched = 0,
         onLoadStart={() => { setLoading(true); setError(false); }}
         onShouldStartLoadWithRequest={(request) => isAllowedMediaNavigation(request.url)}
         originWhitelist={['https://*', 'about:blank']}
-        setSupportMultipleWindows={false}
         source={{ html, baseUrl: 'https://learn.codeschoolofguam.com' }}
         style={styles.web}
       />
