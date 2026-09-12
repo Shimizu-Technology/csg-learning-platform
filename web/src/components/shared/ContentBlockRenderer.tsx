@@ -314,6 +314,8 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
   }, [])
 
   const handleSubmit = async () => {
+    if (isStaff) return
+
     setSubmissionError(null)
     setSubmissionSuccess(null)
 
@@ -650,7 +652,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
           </div>
         )}
 
-        {usesManualExerciseCompletion && (
+        {!isStaff && usesManualExerciseCompletion && (
           <div className={`mt-4 rounded-xl border px-4 py-3 ${isCompleted ? 'border-success-200 bg-success-50' : 'border-slate-200 bg-slate-50'}`}>
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -688,7 +690,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
           </div>
         )}
 
-        {(block.block_type === 'exercise' || block.block_type === 'code_challenge') && submissionType !== 'manual_complete' && (
+        {!isStaff && (block.block_type === 'exercise' || block.block_type === 'code_challenge') && submissionType !== 'manual_complete' && (
           <div className="mt-4 space-y-3">
             {workLocked && (
               <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">

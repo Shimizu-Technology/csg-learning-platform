@@ -4,6 +4,7 @@ module Api
       class StaleGradingWrite < StandardError; end
 
       before_action :authenticate_user!
+      before_action :require_student!, only: [ :create ]
       before_action :set_submission, only: [ :show, :update, :grade, :github_issue ]
       before_action :authorize_submission_read!, only: [ :show ]
 
