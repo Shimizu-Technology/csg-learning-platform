@@ -1,5 +1,6 @@
-import { curriculumDayFor, curriculumWeekFor, curriculumWeeks, lessonsForWeek, searchStaffCurricula } from '../curriculum';
-import type { StaffCurriculum, StaffCurriculumModule } from '../types';
+import { curriculumDayFor, curriculumWeekFor, curriculumWeeks, lessonsForWeek, loadStaffCurriculumDetails, searchStaffCurricula } from '../curriculum';
+import { demoStaffCurriculum } from '../demo-staff';
+import type { StaffCurriculum, StaffCurriculumModule, StaffCurriculumSummary } from '../types';
 
 const module: StaffCurriculumModule = {
   id: 10,
@@ -33,6 +34,10 @@ const curriculum: StaffCurriculum = {
 };
 
 describe('staff curriculum organization', () => {
+  it('keeps demo module durations aligned with their displayed week counts', () => {
+    for (const item of demoStaffCurriculum.modules) expect(item.total_days).toBe(item.week_count * 7);
+  });
+
   it('groups active lessons by their release week and day', () => {
     expect(curriculumWeeks(module)).toEqual([1, 2]);
     expect(lessonsForWeek(module, 2).map((lesson) => lesson.id)).toEqual([2]);
@@ -44,5 +49,40 @@ describe('staff curriculum organization', () => {
     expect(searchStaffCurricula([curriculum], 'grid').map((result) => result.lesson.id)).toEqual([2]);
     expect(searchStaffCurricula([curriculum], 'live class')).toHaveLength(3);
     expect(searchStaffCurricula([curriculum], 'repo')).toHaveLength(0);
+  });
+
+  it('bounds detail requests and preserves curricula that load successfully', async () => {
+    const summaries: StaffCurriculumSummary[] = [1, 2, 3, 4].map((id) => ({ ...curriculum, id }));
+    let active = 0;
+    let highestConcurrency = 0;
+
+    const result = await loadStaffCurriculumDetails(summaries, async (id) => {
+      active += 1;
+      highestConcurrency = Math.max(highestConcurrency, active);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      active -= 1;
+      if (id === 2) throw new Error('Curriculum unavailable');
+      return { ...curriculum, id };
+    }, 2);
+
+    expect(highestConcurrency).toBeLessThanOrEqual(2);
+    expect(result.curricula.map((item) => item.id)).toEqual([1, 3, 4]);
+    expect(result.failedCount).toBe(1);
+  });
+
+  it('fails the library when no curriculum details can be loaded', async () => {
+    const summaries: StaffCurriculumSummary[] = [{ ...curriculum, id: 1 }];
+    await expect(loadStaffCurriculumDetails(summaries, async () => {
+      throw new Error('Curriculum unavailable');
+    })).rejects.toThrow('Curriculum unavailable');
+  });
+
+  it('propagates cancellation instead of presenting an incomplete library', async () => {
+    const summaries: StaffCurriculumSummary[] = [{ ...curriculum, id: 1 }];
+    const cancellation = new Error('Cancelled');
+    cancellation.name = 'AbortError';
+    await expect(loadStaffCurriculumDetails(summaries, async () => {
+      throw cancellation;
+    })).rejects.toBe(cancellation);
   });
 });

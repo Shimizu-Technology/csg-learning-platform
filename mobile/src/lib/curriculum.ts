@@ -1,4 +1,4 @@
-import type { StaffCurriculum, StaffCurriculumModule, StaffLessonSummary } from './types';
+import type { StaffCurriculum, StaffCurriculumModule, StaffCurriculumSummary, StaffLessonSummary } from './types';
 
 export const curriculumDayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -54,4 +54,38 @@ export function searchStaffCurricula(curricula: StaffCurriculum[], query: string
     || a.module.name.localeCompare(b.module.name)
     || a.lesson.release_day - b.lesson.release_day
     || a.lesson.position - b.lesson.position);
+}
+
+export async function loadStaffCurriculumDetails(
+  summaries: StaffCurriculumSummary[],
+  loadCurriculum: (id: number) => Promise<StaffCurriculum>,
+  concurrency = 3,
+) {
+  const curricula = new Array<StaffCurriculum | undefined>(summaries.length);
+  const failures: unknown[] = [];
+  let cursor = 0;
+
+  const worker = async () => {
+    while (cursor < summaries.length) {
+      const index = cursor;
+      cursor += 1;
+      try {
+        curricula[index] = await loadCurriculum(summaries[index].id);
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') throw error;
+        failures.push(error);
+      }
+    }
+  };
+
+  const workerCount = Math.min(summaries.length, Math.max(1, Math.floor(concurrency)));
+  await Promise.all(Array.from({ length: workerCount }, worker));
+
+  const loaded = curricula.filter((curriculum): curriculum is StaffCurriculum => Boolean(curriculum));
+  if (!loaded.length && failures.length) {
+    const firstFailure = failures[0];
+    throw firstFailure instanceof Error ? firstFailure : new Error('Could not load curriculum details');
+  }
+
+  return { curricula: loaded, failedCount: failures.length };
 }

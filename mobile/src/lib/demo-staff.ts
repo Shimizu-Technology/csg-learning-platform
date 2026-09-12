@@ -31,7 +31,7 @@ export const demoStaffCurriculum: StaffCurriculum = {
       module_type: 'live_class',
       description: 'Instructor-led lessons, exercises, and class projects.',
       position: 0,
-      total_days: 70,
+      total_days: 14,
       day_offset: 0,
       schedule_days: 'weekdays',
       scheduled_day_names: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],

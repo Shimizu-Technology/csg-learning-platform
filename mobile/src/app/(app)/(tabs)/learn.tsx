@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useRouter, type Href } from 'expo-router';
-import { ArrowRight, BookMarked, ClipboardCheck, ExternalLink, Film, FolderOpen, Lock, Search } from 'lucide-react-native';
+import { AlertTriangle, ArrowRight, BookMarked, ClipboardCheck, ExternalLink, Film, FolderOpen, Lock, Search } from 'lucide-react-native';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,6 +11,7 @@ import { StaffCurriculumLibrary } from '@/components/staff-curriculum';
 import { fontScaleLimits, fonts, palette, typography } from '@/constants/csg-theme';
 import { demoDashboard } from '@/lib/demo-learning';
 import { demoStaffCurriculum } from '@/lib/demo-staff';
+import { loadStaffCurriculumDetails } from '@/lib/curriculum';
 import { openAuthenticatedWebPage } from '@/lib/external-links';
 import { isStudentDashboard, learningKeys } from '@/lib/learning';
 import { useCsgAuth } from '@/providers/auth-provider';
@@ -30,10 +31,12 @@ export default function LearnScreen() {
   const curriculumQuery = useQuery({
     queryKey: learningKeys.curricula(user?.id || 0),
     queryFn: async ({ signal }) => {
-      if (auth.demo) return { curricula: [demoStaffCurriculum] };
+      if (auth.demo) return { curricula: [demoStaffCurriculum], failedCount: 0 };
       const summaries = await api.curricula(signal);
-      const curricula = await Promise.all(summaries.curricula.map(async (curriculum) => (await api.curriculum(curriculum.id, signal)).curriculum));
-      return { curricula };
+      return loadStaffCurriculumDetails(
+        summaries.curricula,
+        async (id) => (await api.curriculum(id, signal)).curriculum,
+      );
     },
     enabled: Boolean(user && isStaff),
   });
@@ -52,6 +55,7 @@ export default function LearnScreen() {
     <Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.title}>Learn</Text>
     <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.subtitle}>{isStaff ? 'Review what students see, wherever you are' : student?.cohort?.name || 'Lessons, resources, and progress'}</Text>
     {isStaff ? <>
+      {Boolean(curriculumQuery.data?.failedCount) && <View accessibilityRole="alert" style={styles.partialWarning}><AlertTriangle color={palette.warning} size={19} /><Text style={styles.partialWarningText}>Some curricula could not be refreshed. Everything that loaded is still available below.</Text></View>}
       <StaffCurriculumLibrary curricula={curriculumQuery.data?.curricula || []} filter={filter} onFilterChange={setFilter} onOpenCurriculum={(id) => router.push(`/staff/curriculum/${id}` as Href)} onOpenLesson={(id) => router.push(`/lesson/${id}`)} />
       <SectionHeading eyebrow="Class operations" title="More learning tools" />
       <View style={styles.libraryStack}>
@@ -85,4 +89,5 @@ const styles = StyleSheet.create({
   search: { minHeight: 50, borderRadius: 16, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panel, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }, input: { flex: 1, color: palette.text, fontFamily: fonts.regular, fontSize: 13, paddingVertical: 12 }, stack: { gap: 10 },
   moduleTop: { flexDirection: 'row', alignItems: 'center', gap: 11 }, moduleIcon: { width: 42, height: 42, borderRadius: 13, backgroundColor: '#2A151B', alignItems: 'center', justifyContent: 'center' }, moduleIconLocked: { backgroundColor: '#232833' }, flex: { flex: 1, minWidth: 0 }, moduleType: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase' }, moduleName: { color: palette.text, fontFamily: fonts.bold, fontSize: 15, marginTop: 2 }, moduleMeta: { color: palette.subtle, fontFamily: fonts.regular, fontSize: 11, marginTop: 3 }, progress: { marginTop: 14 }, noResults: { color: palette.muted, fontFamily: fonts.regular, fontSize: 13, textAlign: 'center', paddingVertical: 25 },
   resourceButton: { minHeight: 72, borderRadius: 19, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panel, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 11, marginTop: 6 }, resourceIcon: { width: 42, height: 42, borderRadius: 13, backgroundColor: '#2A151B', alignItems: 'center', justifyContent: 'center' }, resourceTitle: { color: palette.text, fontFamily: fonts.bold, fontSize: 14 }, resourceCopy: { color: palette.subtle, fontFamily: fonts.regular, fontSize: 11, marginTop: 3 }, libraryStack: { gap: 4 }, staffTitle: { color: palette.text, fontFamily: fonts.bold, fontSize: 17, marginTop: 15 }, staffCopy: { color: palette.muted, fontFamily: fonts.regular, fontSize: 12, lineHeight: 19, marginTop: 6 },
+  partialWarning: { minHeight: 58, borderRadius: 16, borderWidth: 1, borderColor: '#5A4520', backgroundColor: '#282013', paddingHorizontal: 14, paddingVertical: 11, flexDirection: 'row', alignItems: 'center', gap: 10 }, partialWarningText: { flex: 1, color: palette.warning, fontFamily: fonts.medium, fontSize: 12, lineHeight: 18 },
 });
