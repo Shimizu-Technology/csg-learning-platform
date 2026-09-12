@@ -88,7 +88,7 @@ module Api
             lesson_type: :exercise,
             position: position,
             release_day: params[:release_day].to_i,
-            required: true,
+            required: params.key?(:required) ? ActiveModel::Type::Boolean.new.cast(params[:required]) : true,
             requires_submission: requires_submission
           )
 
@@ -214,6 +214,7 @@ module Api
       def editor_params
         params.require(:editor).permit(
           :title,
+          :required,
           :requires_submission,
           video: [ :id, :title, :video_url, :s3_video_key ],
           exercise: [ :id, :title, :body, :solution, :filename, :submission_type, :rubric_id, { submission_config: {} } ],
@@ -223,7 +224,7 @@ module Api
       end
 
       def editor_lesson_params
-        editor_params.slice(:title, :requires_submission)
+        editor_params.slice(:title, :required, :requires_submission)
       end
 
       def update_editor_video!
