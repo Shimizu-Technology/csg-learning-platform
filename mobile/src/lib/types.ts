@@ -817,6 +817,32 @@ export interface LessonDetail {
   next_lesson: { id: number; title: string } | null;
 }
 
+export type LessonSubmissionType = 'manual_complete' | 'text_submission' | 'prework_github_sync' | 'repo_url_submission' | 'repo_and_live_url_submission';
+
+export interface LessonEditorInput {
+  base_updated_at: string;
+  title: string;
+  required: boolean;
+  requires_submission: boolean;
+  video?: {
+    id?: number;
+    title: string;
+    video_url: string | null;
+    s3_video_key?: string | null;
+  };
+  exercise?: {
+    id?: number;
+    title: string;
+    body: string | null;
+    solution: string | null;
+    filename: string | null;
+    submission_type: LessonSubmissionType;
+    submission_config: Record<string, unknown>;
+    rubric_id: number | null;
+  };
+  alignments: { learning_objective_id: number; content_block_id?: number | null }[];
+}
+
 export interface Submission {
   id: number;
   content_block_id: number;

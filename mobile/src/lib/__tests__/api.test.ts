@@ -134,6 +134,25 @@ describe('CsgApi', () => {
     expect(fetchMock.mock.calls[1][0]).toContain('/api/v1/curricula/3');
   });
 
+  it('saves the atomic lesson editor contract with its concurrency version', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ lesson: { id: 101 } }), { status: 200 }));
+    const input = {
+      base_updated_at: '2026-09-12T01:02:03.123456Z',
+      title: 'Responsive Grid',
+      required: true,
+      requires_submission: true,
+      exercise: { id: 203, title: 'Responsive Grid', body: 'Build it.', solution: 'Use Grid.', filename: 'styles.css', submission_type: 'text_submission' as const, submission_config: {}, rubric_id: null },
+      alignments: [{ learning_objective_id: 9, content_block_id: 203 }],
+    };
+
+    await new CsgApi(async () => 'session-token').updateLessonEditor(101, input);
+
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/v1/lessons/101/editor'), expect.objectContaining({
+      method: 'PATCH',
+      body: JSON.stringify({ editor: input }),
+    }));
+  });
+
   it('loads a stable help request record', async () => {
     const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ help_request: { id: 12 } }), { status: 200 }));
     await new CsgApi(async () => 'session-token').helpRequest(12);

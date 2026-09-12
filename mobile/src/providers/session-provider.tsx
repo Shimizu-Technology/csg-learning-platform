@@ -8,6 +8,7 @@ import { clearLearningCache } from '@/lib/learning-cache';
 import { activateUserConversationStorage, clearUserConversationStorage } from '@/lib/conversation-storage';
 import { canUseCachedSession, isSessionAccessDenied, parseCachedSessionUser, serializeCachedSessionUser } from '@/lib/session-access';
 import { clearUserSubmissionDrafts } from '@/lib/submission-storage';
+import { clearUserLessonEditorDrafts } from '@/lib/curriculum-draft-storage';
 import { beginUserStorageCleanup } from '@/lib/user-storage-lifecycle';
 import type { SessionUser } from '@/lib/types';
 import { useCsgAuth } from './auth-provider';
@@ -102,6 +103,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
             clearLearningCache(cleanupUserId, cleanup),
             clearUserConversationStorage(cleanupUserId, cleanup),
             clearUserSubmissionDrafts(cleanupUserId, cleanup),
+            clearUserLessonEditorDrafts(cleanupUserId, cleanup),
           ].map((operation) => operation.catch(() => undefined)));
         }
         if (!isCurrentRefresh()) return;
@@ -159,6 +161,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
           clearLearningCache(cleanupUserId, cleanup),
           clearUserConversationStorage(cleanupUserId, cleanup),
           clearUserSubmissionDrafts(cleanupUserId, cleanup),
+          clearUserLessonEditorDrafts(cleanupUserId, cleanup),
         ].map((operation) => operation.catch(() => undefined)));
       }
       await AsyncStorage.multiRemove(keys).catch(() => undefined);
