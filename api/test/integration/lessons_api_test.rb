@@ -242,12 +242,18 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert_equal "content_videos/block_#{video_block_id}/20260831010200_async.mp4", ContentBlock.find(video_block_id).s3_video_key
 
     as_user(@instructor) do
-      patch "/api/v1/lessons/#{created_lesson_id}/archive", headers: auth_headers
+      patch "/api/v1/lessons/#{created_lesson_id}/archive",
+            params: { base_updated_at: Lesson.find(created_lesson_id).updated_at.iso8601(6) },
+            headers: auth_headers,
+            as: :json
     end
     assert_response :success
 
     as_user(@instructor) do
-      patch "/api/v1/lessons/#{created_lesson_id}/restore", headers: auth_headers
+      patch "/api/v1/lessons/#{created_lesson_id}/restore",
+            params: { base_updated_at: Lesson.find(created_lesson_id).updated_at.iso8601(6) },
+            headers: auth_headers,
+            as: :json
     end
     assert_response :success
   end
@@ -755,7 +761,10 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     Progress.create!(user: @student, content_block: @video_block, status: :in_progress)
 
     as_user(@admin) do
-      patch "/api/v1/lessons/#{@lesson.id}/archive", headers: auth_headers
+      patch "/api/v1/lessons/#{@lesson.id}/archive",
+            params: { base_updated_at: @lesson.reload.updated_at.iso8601(6) },
+            headers: auth_headers,
+            as: :json
     end
 
     assert_response :success
@@ -770,7 +779,10 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
 
     as_user(@admin) do
-      patch "/api/v1/lessons/#{@lesson.id}/restore", headers: auth_headers
+      patch "/api/v1/lessons/#{@lesson.id}/restore",
+            params: { base_updated_at: @lesson.reload.updated_at.iso8601(6) },
+            headers: auth_headers,
+            as: :json
     end
 
     assert_response :success

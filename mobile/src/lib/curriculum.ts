@@ -1,6 +1,31 @@
 import type { StaffCurriculum, StaffCurriculumModule, StaffCurriculumSummary, StaffLessonSummary } from './types';
 
-export const curriculumDayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+export const curriculumDayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
+
+export const curriculumSchedulePatterns = [
+  { value: 'weekdays', label: 'Mon–Fri', days: [0, 1, 2, 3, 4] },
+  { value: 'weekdays_sat', label: 'Mon–Sat', days: [0, 1, 2, 3, 4, 5] },
+  { value: 'mwf', label: 'Mon / Wed / Fri', days: [0, 2, 4] },
+  { value: 'tth', label: 'Tue / Thu', days: [1, 3] },
+  { value: 'daily', label: 'Every day', days: [0, 1, 2, 3, 4, 5, 6] },
+] as const;
+
+export const curriculumModuleTypes = [
+  { value: 'prework', label: 'Prework' },
+  { value: 'live_class', label: 'Live Class' },
+  { value: 'capstone', label: 'Capstone' },
+  { value: 'advanced', label: 'Advanced' },
+  { value: 'workshop', label: 'Workshop' },
+  { value: 'recording', label: 'Recording' },
+] as const;
+
+export function scheduledDayIndices(scheduleDays: string): readonly number[] {
+  return curriculumSchedulePatterns.find((pattern) => pattern.value === scheduleDays)?.days || curriculumSchedulePatterns[0].days;
+}
+
+export function curriculumReleaseDay(week: number, weekdayIndex: number) {
+  return (Math.max(1, Math.floor(week)) - 1) * 7 + weekdayIndex;
+}
 
 export function curriculumWeekFor(lesson: Pick<StaffLessonSummary, 'release_day'>) {
   return Math.floor(Math.max(0, lesson.release_day) / 7) + 1;

@@ -12,8 +12,10 @@ jest.mock('lucide-react-native', () => {
     ChevronDown: Icon,
     ChevronUp: Icon,
     CircleDot: Icon,
+    Plus: Icon,
     Lock: Icon,
     Search: Icon,
+    Settings2: Icon,
   };
 });
 
@@ -45,5 +47,20 @@ describe('staff curriculum browsing', () => {
     fireEvent.press(screen.getByText('Week 2'));
     expect(screen.getByText('Container query stretch')).toBeTruthy();
     expect(screen.getByText('OPTIONAL')).toBeTruthy();
+  });
+
+  it('exposes lesson creation to staff and module settings only to admins', () => {
+    const addLesson = jest.fn();
+    const editModule = jest.fn();
+    const screen = render(<StaffCurriculumDetailView curriculum={demoStaffCurriculum} filter="" onFilterChange={jest.fn()} onOpenLesson={jest.fn()} onAddLesson={addLesson} onEditModule={editModule} />);
+
+    fireEvent.press(screen.getByLabelText('Add lesson to Live Class'));
+    expect(addLesson).toHaveBeenCalledWith(demoStaffCurriculum.modules[0], 1);
+    expect(screen.queryByLabelText('Edit Live Class settings')).toBeNull();
+
+    screen.rerender(<StaffCurriculumDetailView curriculum={demoStaffCurriculum} filter="" onFilterChange={jest.fn()} onOpenLesson={jest.fn()} canManageModules onAddLesson={addLesson} onEditModule={editModule} onAddModule={jest.fn()} />);
+    fireEvent.press(screen.getByLabelText('Edit Live Class settings'));
+    expect(editModule).toHaveBeenCalledWith(demoStaffCurriculum.modules[0]);
+    expect(screen.getByLabelText('Create module')).toBeTruthy();
   });
 });

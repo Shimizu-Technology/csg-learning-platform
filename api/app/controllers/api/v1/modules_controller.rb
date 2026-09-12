@@ -35,11 +35,15 @@ module Api
 
       # PATCH /api/v1/modules/:id
       def update
-        if @module.update(module_params)
-          render json: { module: module_json(@module) }
-        else
-          render json: { errors: @module.errors.full_messages }, status: :unprocessable_entity
+        @module.with_lock do
+          require_current_resource_version!(@module)
+          @module.update!(module_params)
         end
+        render json: { module: module_json(@module) }
+      rescue ActiveRecord::StaleObjectError
+        render_stale_resource("Module")
+      rescue ActiveRecord::RecordInvalid => error
+        render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
       end
 
       # DELETE /api/v1/modules/:id
@@ -107,6 +111,7 @@ module Api
           total_days: mod.total_days,
           day_offset: mod.day_offset,
           schedule_days: mod.schedule_days,
+          updated_at: mod.updated_at.iso8601(6),
           scheduled_day_names: mod.scheduled_day_names,
           week_count: mod.week_count,
           lessons_count: lessons.count { |lesson| !lesson.archived? }
@@ -125,6 +130,7 @@ module Api
               release_day: l.release_day,
               required: l.required,
               archived_at: l.archived_at,
+              updated_at: l.updated_at.iso8601(6),
               requires_submission: exercise_block ? exercise_block.review_required? : l.requires_submission,
               submission_type: exercise_block&.effective_submission_type || "manual_complete",
               content_blocks: l.content_blocks.map { |cb|

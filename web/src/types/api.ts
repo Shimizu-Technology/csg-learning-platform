@@ -177,6 +177,7 @@ export interface LessonSummary {
   submission_type?: string;
   content_blocks_count: number;
   archived_at: string | null;
+  updated_at: string;
 }
 
 export interface LessonDetail {
@@ -344,6 +345,7 @@ export interface ModuleSummary {
   total_days: number | null;
   day_offset: number;
   schedule_days: string;
+  updated_at: string;
   scheduled_day_names: string[];
   week_count: number;
   lessons_count: number;
@@ -368,6 +370,7 @@ export interface CurriculumSummary {
   description: string | null;
   total_weeks: number | null;
   status: string;
+  updated_at: string;
   modules_count: number;
 }
 
@@ -382,6 +385,7 @@ export interface CurriculumDetail extends CurriculumSummary {
     total_days: number | null;
     day_offset: number;
     schedule_days: string;
+    updated_at: string;
     scheduled_day_names: string[];
     week_count: number;
     lessons_count: number;

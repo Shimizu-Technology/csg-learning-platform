@@ -46,6 +46,9 @@ import type {
   CommunityPolicy,
   ContentReport,
   DataDeletionRequest,
+  CurriculumModuleInput,
+  ExerciseCreateInput,
+  StaffCurriculumModule,
 } from './types';
 import { fetch as expoFetch } from 'expo/fetch';
 import { File } from 'expo-file-system';
@@ -171,6 +174,12 @@ export class CsgApi {
   curriculum = (id: number, signal?: AbortSignal) => this.request<{ curriculum: StaffCurriculum }>(`/api/v1/curricula/${id}`, { signal });
   lesson = (id: number, signal?: AbortSignal) => this.request<{ lesson: LessonDetail }>(`/api/v1/lessons/${id}`, { signal });
   updateLessonEditor = (id: number, input: LessonEditorInput) => this.request<{ lesson: LessonDetail }>(`/api/v1/lessons/${id}/editor`, { method: 'PATCH', body: JSON.stringify({ editor: input }) });
+  createExercise = (moduleId: number, input: ExerciseCreateInput) => this.request<{ lesson: LessonDetail }>(`/api/v1/modules/${moduleId}/exercises`, { method: 'POST', body: JSON.stringify(input) });
+  updateLessonSchedule = (id: number, releaseDay: number, baseUpdatedAt: string) => this.request<{ lesson: LessonDetail }>(`/api/v1/lessons/${id}`, { method: 'PATCH', body: JSON.stringify({ release_day: releaseDay, base_updated_at: baseUpdatedAt }) });
+  archiveLesson = (id: number, baseUpdatedAt: string) => this.request<{ lesson: LessonDetail }>(`/api/v1/lessons/${id}/archive`, { method: 'PATCH', body: JSON.stringify({ base_updated_at: baseUpdatedAt }) });
+  restoreLesson = (id: number, baseUpdatedAt: string) => this.request<{ lesson: LessonDetail }>(`/api/v1/lessons/${id}/restore`, { method: 'PATCH', body: JSON.stringify({ base_updated_at: baseUpdatedAt }) });
+  createCurriculumModule = (curriculumId: number, input: CurriculumModuleInput) => this.request<{ module: StaffCurriculumModule }>(`/api/v1/curricula/${curriculumId}/modules`, { method: 'POST', body: JSON.stringify(input) });
+  updateCurriculumModule = (id: number, input: CurriculumModuleInput) => this.request<{ module: StaffCurriculumModule }>(`/api/v1/modules/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
   helpRequests = (params: { cohort_id?: number; status?: string; context_type?: HelpContextType } = {}, signal?: AbortSignal) => this.request<{ help_requests: HelpRequest[] }>(`/api/v1/help_requests${queryString(params)}`, { signal });
   helpRequest = (id: number, signal?: AbortSignal) => this.request<{ help_request: HelpRequest }>(`/api/v1/help_requests/${id}`, { signal });
   createHelpRequest = (input: { cohort_id: number; context_type: HelpContextType; context_source?: HelpContextSource; context_id: number; category: HelpCategory; urgency: HelpUrgency; message: string }) => this.request<{ help_request: HelpRequest; created: boolean }>('/api/v1/help_requests', { method: 'POST', body: JSON.stringify({ help_request: input }) });

@@ -22,6 +22,7 @@ export const demoStaffCurriculum: StaffCurriculum = {
   description: 'The complete learning path for prework and live class.',
   total_weeks: 14,
   status: 'active',
+  updated_at: '2026-09-01T00:00:00.000000Z',
   modules_count: 2,
   modules: [
     {
@@ -34,16 +35,17 @@ export const demoStaffCurriculum: StaffCurriculum = {
       total_days: 14,
       day_offset: 0,
       schedule_days: 'weekdays',
+      updated_at: '2026-09-01T00:00:00.000000Z',
       scheduled_day_names: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
       week_count: 2,
       lessons_count: 5,
       archived_lessons_count: 0,
       lessons: [
-        { id: 100, title: 'HTML and semantic structure', lesson_type: 'lesson', position: 1, release_day: 0, required: true, archived_at: null, requires_submission: true, submission_type: 'text_submission', content_blocks_count: 2 },
-        { id: 101, title: 'Responsive layouts with Grid', lesson_type: 'lesson', position: 2, release_day: 1, required: true, archived_at: null, requires_submission: true, submission_type: 'text_submission', content_blocks_count: 3 },
-        { id: 102, title: 'Accessible forms', lesson_type: 'exercise', position: 3, release_day: 2, required: true, archived_at: null, requires_submission: true, submission_type: 'text_submission', content_blocks_count: 2 },
-        { id: 103, title: 'JavaScript interactions', lesson_type: 'lesson', position: 4, release_day: 3, required: true, archived_at: null, requires_submission: false, submission_type: 'manual_complete', content_blocks_count: 2 },
-        { id: 104, title: 'Container query stretch', lesson_type: 'exercise', position: 5, release_day: 7, required: false, archived_at: null, requires_submission: false, submission_type: 'manual_complete', content_blocks_count: 2 },
+        { id: 100, title: 'HTML and semantic structure', lesson_type: 'lesson', position: 1, release_day: 0, required: true, archived_at: null, updated_at: '2026-09-01T00:00:00.000000Z', requires_submission: true, submission_type: 'text_submission', content_blocks_count: 2 },
+        { id: 101, title: 'Responsive layouts with Grid', lesson_type: 'lesson', position: 2, release_day: 1, required: true, archived_at: null, updated_at: '2026-09-01T00:00:00.000000Z', requires_submission: true, submission_type: 'text_submission', content_blocks_count: 3 },
+        { id: 102, title: 'Accessible forms', lesson_type: 'exercise', position: 3, release_day: 2, required: true, archived_at: null, updated_at: '2026-09-01T00:00:00.000000Z', requires_submission: true, submission_type: 'text_submission', content_blocks_count: 2 },
+        { id: 103, title: 'JavaScript interactions', lesson_type: 'lesson', position: 4, release_day: 3, required: true, archived_at: null, updated_at: '2026-09-01T00:00:00.000000Z', requires_submission: false, submission_type: 'manual_complete', content_blocks_count: 2 },
+        { id: 104, title: 'Container query stretch', lesson_type: 'exercise', position: 5, release_day: 7, required: false, archived_at: null, updated_at: '2026-09-01T00:00:00.000000Z', requires_submission: false, submission_type: 'manual_complete', content_blocks_count: 2 },
       ],
     },
     {
@@ -56,6 +58,7 @@ export const demoStaffCurriculum: StaffCurriculum = {
       total_days: 35,
       day_offset: 0,
       schedule_days: 'weekdays_sat',
+      updated_at: '2026-09-01T00:00:00.000000Z',
       scheduled_day_names: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
       week_count: 5,
       lessons_count: 0,
@@ -71,6 +74,7 @@ export const demoStaffCurricula: StaffCurriculumSummary[] = [{
   description: demoStaffCurriculum.description,
   total_weeks: demoStaffCurriculum.total_weeks,
   status: demoStaffCurriculum.status,
+  updated_at: demoStaffCurriculum.updated_at,
   modules_count: demoStaffCurriculum.modules_count,
 }];
 

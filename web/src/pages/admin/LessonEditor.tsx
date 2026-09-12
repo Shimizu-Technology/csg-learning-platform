@@ -333,7 +333,7 @@ export function LessonEditor() {
   const handleArchive = async () => {
     if (!lesson) return
     setArchiveSaving(true)
-    const res = await api.archiveLesson(lesson.id)
+    const res = await api.archiveLesson(lesson.id, lesson.updated_at)
     if (res.error) {
       setSaveError(res.error)
       toast.error(res.error)
@@ -349,7 +349,7 @@ export function LessonEditor() {
   const handleRestore = async () => {
     if (!lesson) return
     setArchiveSaving(true)
-    const res = await api.restoreLesson(lesson.id)
+    const res = await api.restoreLesson(lesson.id, lesson.updated_at)
     if (res.error) {
       setSaveError(res.error)
       toast.error(res.error)

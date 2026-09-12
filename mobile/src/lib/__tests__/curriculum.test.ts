@@ -1,4 +1,4 @@
-import { curriculumDayFor, curriculumWeekFor, curriculumWeeks, lessonsForWeek, loadStaffCurriculumDetails, searchStaffCurricula } from '../curriculum';
+import { curriculumDayFor, curriculumReleaseDay, curriculumWeekFor, curriculumWeeks, lessonsForWeek, loadStaffCurriculumDetails, scheduledDayIndices, searchStaffCurricula } from '../curriculum';
 import { demoStaffCurriculum } from '../demo-staff';
 import type { StaffCurriculum, StaffCurriculumModule, StaffCurriculumSummary } from '../types';
 
@@ -16,10 +16,11 @@ const module: StaffCurriculumModule = {
   week_count: 2,
   lessons_count: 3,
   archived_lessons_count: 1,
+  updated_at: '2026-09-01T00:00:00.000000Z',
   lessons: [
-    { id: 1, title: 'HTML foundations', lesson_type: 'exercise', position: 1, release_day: 0, required: true, archived_at: null, requires_submission: true, submission_type: 'text_submission', content_blocks_count: 2 },
-    { id: 2, title: 'CSS Grid', lesson_type: 'exercise', position: 1, release_day: 7, required: true, archived_at: null, requires_submission: false, submission_type: 'manual_complete', content_blocks_count: 3 },
-    { id: 3, title: 'Old exercise', lesson_type: 'exercise', position: 2, release_day: 8, required: false, archived_at: '2026-09-01T00:00:00Z', requires_submission: false, submission_type: 'manual_complete', content_blocks_count: 1 },
+    { id: 1, title: 'HTML foundations', lesson_type: 'exercise', position: 1, release_day: 0, required: true, archived_at: null, updated_at: '2026-09-01T00:00:00.000000Z', requires_submission: true, submission_type: 'text_submission', content_blocks_count: 2 },
+    { id: 2, title: 'CSS Grid', lesson_type: 'exercise', position: 1, release_day: 7, required: true, archived_at: null, updated_at: '2026-09-01T00:00:00.000000Z', requires_submission: false, submission_type: 'manual_complete', content_blocks_count: 3 },
+    { id: 3, title: 'Old exercise', lesson_type: 'exercise', position: 2, release_day: 8, required: false, archived_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00.000000Z', requires_submission: false, submission_type: 'manual_complete', content_blocks_count: 1 },
   ],
 };
 
@@ -29,11 +30,17 @@ const curriculum: StaffCurriculum = {
   description: null,
   total_weeks: 14,
   status: 'active',
+  updated_at: '2026-09-01T00:00:00.000000Z',
   modules_count: 1,
   modules: [module],
 };
 
 describe('staff curriculum organization', () => {
+  it('maps schedule patterns to calendar placement without compressing off days', () => {
+    expect(scheduledDayIndices('mwf')).toEqual([0, 2, 4]);
+    expect(scheduledDayIndices('unknown')).toEqual([0, 1, 2, 3, 4]);
+    expect(curriculumReleaseDay(2, 2)).toBe(9);
+  });
   it('keeps demo module durations aligned with their displayed week counts', () => {
     for (const item of demoStaffCurriculum.modules) expect(item.total_days).toBe(item.week_count * 7);
   });

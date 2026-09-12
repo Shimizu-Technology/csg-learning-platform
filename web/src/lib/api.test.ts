@@ -96,3 +96,29 @@ describe('submission grading API', () => {
     }))
   })
 })
+
+describe('curriculum structure API', () => {
+  it('sends the exact resource version with every structure update', async () => {
+    const fetchMock = successfulFetch()
+    vi.stubGlobal('fetch', fetchMock)
+    const version = '2026-09-12T01:02:03.123456Z'
+
+    await api.updateLesson(21, { release_day: 9, base_updated_at: version })
+    await api.archiveLesson(21, version)
+    await api.restoreLesson(21, version)
+    await api.updateModule(7, { schedule_days: 'mwf', base_updated_at: version })
+
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      expect.stringMatching(/\/api\/v1\/lessons\/21$/),
+      expect.stringMatching(/\/api\/v1\/lessons\/21\/archive$/),
+      expect.stringMatching(/\/api\/v1\/lessons\/21\/restore$/),
+      expect.stringMatching(/\/api\/v1\/modules\/7$/),
+    ])
+    expect(fetchMock.mock.calls.map(([, options]) => options)).toEqual([
+      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ release_day: 9, base_updated_at: version }) }),
+      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ base_updated_at: version }) }),
+      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ base_updated_at: version }) }),
+      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ schedule_days: 'mwf', base_updated_at: version }) }),
+    ])
+  })
+})

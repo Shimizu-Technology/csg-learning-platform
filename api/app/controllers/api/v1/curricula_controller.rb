@@ -33,11 +33,15 @@ module Api
 
       # PATCH /api/v1/curricula/:id
       def update
-        if @curriculum.update(curriculum_params)
-          render json: { curriculum: curriculum_json(@curriculum) }
-        else
-          render json: { errors: @curriculum.errors.full_messages }, status: :unprocessable_entity
+        @curriculum.with_lock do
+          require_current_resource_version!(@curriculum)
+          @curriculum.update!(curriculum_params)
         end
+        render json: { curriculum: curriculum_json(@curriculum) }
+      rescue ActiveRecord::StaleObjectError
+        render_stale_resource("Curriculum")
+      rescue ActiveRecord::RecordInvalid => error
+        render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
       end
 
       # DELETE /api/v1/curricula/:id
@@ -68,6 +72,7 @@ module Api
           description: curriculum.description,
           total_weeks: curriculum.total_weeks,
           status: curriculum.status,
+          updated_at: curriculum.updated_at.iso8601(6),
           modules_count: curriculum.modules.size
         }
 
@@ -84,6 +89,7 @@ module Api
               total_days: m.total_days,
               day_offset: m.day_offset,
               schedule_days: m.schedule_days,
+              updated_at: m.updated_at.iso8601(6),
               scheduled_day_names: m.scheduled_day_names,
               week_count: m.week_count,
               lessons_count: lessons.count { |lesson| !lesson.archived? },
@@ -98,6 +104,7 @@ module Api
                   release_day: l.release_day,
                   required: l.required,
                   archived_at: l.archived_at,
+                  updated_at: l.updated_at.iso8601(6),
                   requires_submission: exercise_block ? exercise_block.review_required? : l.requires_submission,
                   submission_type: exercise_block&.effective_submission_type || "manual_complete",
                   content_blocks_count: l.content_blocks.size
