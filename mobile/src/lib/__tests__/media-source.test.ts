@@ -49,7 +49,18 @@ describe('embeddedMediaHtml', () => {
     expect(html).toContain('youtube.com/iframe_api');
     expect(html).toContain('ReactNativeWebView.postMessage');
     expect(html).toContain('window.csgSeekTo');
+    expect(html).toContain('pendingSeek');
+    expect(html).toContain('if(applySeek(pendingSeek))pendingSeek=null');
     expect(html).not.toContain('javascript:');
+  });
+
+  it('queues Vimeo section jumps until its player is ready', () => {
+    const source = resolveMediaSource('https://vimeo.com/123456789');
+    if (!source) throw new Error('expected source');
+    const html = embeddedMediaHtml(source);
+    expect(html).toContain('pendingSeek');
+    expect(html).toContain('player.ready().then');
+    expect(html).toContain('if(applySeek(pendingSeek))pendingSeek=null');
   });
 
   it('uses synchronized progress as the resume point', () => {

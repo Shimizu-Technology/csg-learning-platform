@@ -16,8 +16,8 @@ export function normalizeVideoSegments(metadata: Record<string, unknown> | null 
     const label = typeof value.label === 'string' ? value.label.trim() : '';
     const start = Number(value.start_seconds);
     const end = Number(value.end_seconds);
-    if (!label || !Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start) return [];
-    return [{ label, start_seconds: Math.floor(start), end_seconds: Math.floor(end), required: value.required !== false }];
+    if (!label || !Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end <= start) return [];
+    return [{ label, start_seconds: start, end_seconds: end, required: value.required !== false }];
   }).sort((left, right) => left.start_seconds - right.start_seconds);
 }
 

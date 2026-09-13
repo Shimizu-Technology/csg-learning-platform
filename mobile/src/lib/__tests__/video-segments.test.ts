@@ -11,6 +11,12 @@ describe('video segments', () => {
     expect(firstCoreSegmentStart(segments)).toBe(30);
   });
 
+  it('rejects fractional ranges instead of collapsing them into invalid whole-second ranges', () => {
+    expect(normalizeVideoSegments({ video_segments: [
+      { label: 'Too short', start_seconds: 0.1, end_seconds: 0.9, required: true },
+    ] })).toEqual([]);
+  });
+
   it('prefers saved progress and formats exact times', () => {
     expect(segmentPlaybackStart(segments, 42)).toBe(42);
     expect(segmentPlaybackStart(segments)).toBe(30);

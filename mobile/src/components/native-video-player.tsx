@@ -45,6 +45,7 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
   const lastTickAtRef = useRef(0);
   const lastSavedAtRef = useRef(0);
   const pendingRestoreRef = useRef<{ position: number; shouldPlay: boolean } | null>(null);
+  const pendingSeekRef = useRef<{ position: number; shouldPlay: boolean } | null>(null);
   const pendingSaveRef = useRef<VideoProgressInput | null>(null);
   const savingRef = useRef(false);
   const mountedRef = useRef(true);
@@ -126,13 +127,14 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
   useEventListener(player, 'sourceLoad', ({ duration: loadedDuration }) => {
     setDuration(loadedDuration);
     durationRef.current = loadedDuration;
-    const restore = pendingRestoreRef.current;
+    const restore = pendingSeekRef.current || pendingRestoreRef.current;
     const position = resumePosition(restore?.position ?? initialPositionRef.current, loadedDuration);
     player.currentTime = position;
     currentTimeRef.current = position;
     lastTimeRef.current = position;
     lastTickAtRef.current = Date.now();
     pendingRestoreRef.current = null;
+    pendingSeekRef.current = null;
     if (restore?.shouldPlay) player.play();
   });
 
@@ -214,8 +216,13 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
 
   useImperativeHandle(ref, () => ({
     seekTo(seconds: number, shouldPlay = true) {
-      const maximum = durationRef.current > 0 ? durationRef.current : seconds;
-      const target = Math.max(0, Math.min(maximum, seconds));
+      const requested = Math.max(0, Math.floor(seconds));
+      if (durationRef.current <= 0) {
+        pendingSeekRef.current = { position: requested, shouldPlay };
+        setCurrentTime(requested);
+        return;
+      }
+      const target = Math.max(0, Math.min(durationRef.current, requested));
       player.currentTime = target;
       currentTimeRef.current = target;
       lastTimeRef.current = target;

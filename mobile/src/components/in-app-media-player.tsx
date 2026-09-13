@@ -40,6 +40,7 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
   const saveProgressRef = useRef(saveProgress);
   const webViewRef = useRef<WebView>(null);
   const nativeVideoRef = useRef<NativeVideoPlayerHandle>(null);
+  const pendingWebSeekRef = useRef<{ seconds: number; play: boolean } | null>(null);
   const openOriginal = useCallback(() => void openExternalPage(source?.originalUrl).catch(() => undefined), [source?.originalUrl]);
 
   useEffect(() => { saveProgressRef.current = saveProgress; }, [saveProgress]);
@@ -111,10 +112,16 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
 
   useImperativeHandle(ref, () => ({
     seekTo(seconds: number, play = true) {
-      nativeVideoRef.current?.seekTo(seconds, play);
-      webViewRef.current?.injectJavaScript(`window.csgSeekTo && window.csgSeekTo(${Math.max(0, Math.floor(seconds))}, ${play ? 'true' : 'false'}); true;`);
+      const requested = Math.max(0, Math.floor(seconds));
+      if (source?.type === 'direct') {
+        nativeVideoRef.current?.seekTo(requested, play);
+        return;
+      }
+      if (source?.type !== 'embed') return;
+      pendingWebSeekRef.current = { seconds: requested, play };
+      webViewRef.current?.injectJavaScript(`window.csgSeekTo && window.csgSeekTo(${requested}, ${play ? 'true' : 'false'}); true;`);
     },
-  }), []);
+  }), [source?.type]);
 
   if (!source) return <UnsupportedMedia title={title} url={url} />;
   if (source.type === 'direct' && source.playbackUrl) {
@@ -148,7 +155,13 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
         mediaPlaybackRequiresUserAction
         onError={() => { setLoading(false); setError(true); }}
         onHttpError={() => { setLoading(false); setError(true); }}
-        onLoadEnd={() => setLoading(false)}
+        onLoadEnd={() => {
+          setLoading(false);
+          const pending = pendingWebSeekRef.current;
+          if (!pending) return;
+          webViewRef.current?.injectJavaScript(`window.csgSeekTo && window.csgSeekTo(${pending.seconds}, ${pending.play ? 'true' : 'false'}); true;`);
+          pendingWebSeekRef.current = null;
+        }}
         onLoadStart={() => { setLoading(true); setError(false); }}
         onMessage={handleMessage}
         onShouldStartLoadWithRequest={(request) => isAllowedMediaNavigation(request.url)}

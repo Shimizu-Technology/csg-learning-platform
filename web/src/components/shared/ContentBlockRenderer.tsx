@@ -135,10 +135,11 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
   const hasUngradedSubmission = submissions.length > 0 && !hasRedoRequest && !hasPassingGrade
   const videoSegments = useMemo(() => normalizeVideoSegments(block.metadata), [block.metadata])
   const deepLinkedPosition = useMemo(() => {
-    if (typeof window === 'undefined') return 0
+    if (typeof window === 'undefined') return null
     const raw = new URLSearchParams(window.location.search).get('t')
+    if (raw === null || raw.trim() === '') return null
     const parsed = Number(raw)
-    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null
   }, [block.id])
   const initialVideoPosition = playbackStart(videoSegments, block.progress?.video_last_position || 0, deepLinkedPosition)
 

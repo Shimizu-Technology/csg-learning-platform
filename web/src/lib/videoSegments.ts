@@ -17,11 +17,11 @@ export function normalizeVideoSegments(metadata: Record<string, unknown> | null 
     const label = typeof value.label === 'string' ? value.label.trim() : ''
     const start = Number(value.start_seconds)
     const end = Number(value.end_seconds)
-    if (!label || !Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start) return []
+    if (!label || !Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end <= start) return []
     return [{
       label,
-      start_seconds: Math.floor(start),
-      end_seconds: Math.floor(end),
+      start_seconds: start,
+      end_seconds: end,
       required: value.required !== false,
     }]
   }).sort((left, right) => left.start_seconds - right.start_seconds)
@@ -41,8 +41,8 @@ export function formatVideoTimestamp(seconds: number) {
     : `${minutes}:${String(remaining).padStart(2, '0')}`
 }
 
-export function playbackStart(segments: VideoSegment[], savedPosition = 0, deepLinkedPosition = 0) {
-  if (deepLinkedPosition > 0) return Math.floor(deepLinkedPosition)
+export function playbackStart(segments: VideoSegment[], savedPosition = 0, deepLinkedPosition: number | null = null) {
+  if (deepLinkedPosition !== null && Number.isFinite(deepLinkedPosition) && deepLinkedPosition >= 0) return Math.floor(deepLinkedPosition)
   if (savedPosition > 0) return Math.floor(savedPosition)
   return firstRequiredSegmentStart(segments)
 }
