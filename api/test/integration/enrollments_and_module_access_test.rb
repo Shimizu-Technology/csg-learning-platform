@@ -42,6 +42,89 @@ class EnrollmentsAndModuleAccessTest < ActionDispatch::IntegrationTest
     assert enrollment.module_assignments.exists?(module_id: @mod2.id)
   end
 
+  test "alumni enrollment unlocks every curriculum module" do
+    @cohort.update!(cohort_type: :alumni)
+
+    as_user(@admin) do
+      post "/api/v1/cohorts/#{@cohort.id}/enrollments",
+        params: { user_id: @student.id },
+        headers: auth_headers, as: :json
+    end
+
+    assert_response :created
+    assert_equal 2, Enrollment.find_by!(user: @student, cohort: @cohort).module_assignments.where(unlocked: true).count
+  end
+
+  test "new curriculum modules are assigned to active alumni" do
+    @cohort.update!(cohort_type: :alumni)
+    enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+
+    new_module = CurriculumModule.create!(
+      curriculum: @curriculum,
+      name: "New alumni workshop",
+      position: 2,
+      schedule_days: "weekdays"
+    )
+
+    assignment = enrollment.module_assignments.find_by!(module_id: new_module.id)
+    assert assignment.unlocked?
+  end
+
+  test "reactivating alumni restores missing curriculum modules" do
+    @cohort.update!(cohort_type: :alumni)
+    enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :paused)
+
+    enrollment.update!(status: :active)
+
+    assert_equal 2, enrollment.module_assignments.where(unlocked: true).count
+  end
+
+  test "converting an existing cohort to alumni completes its active enrollments" do
+    enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+    ModuleAssignment.create!(enrollment: enrollment, curriculum_module: @mod1, unlocked: false)
+
+    @cohort.update!(cohort_type: :alumni)
+
+    assert_equal 2, enrollment.module_assignments.where(unlocked: true).count
+  end
+
+  test "alumni modules cannot be removed from the cohort" do
+    @cohort.update!(cohort_type: :alumni)
+    enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+
+    as_user(@admin) do
+      patch "/api/v1/cohorts/#{@cohort.id}/module_access",
+        params: { module_id: @mod1.id, assigned: false },
+        headers: auth_headers, as: :json
+    end
+
+    assert_response :unprocessable_entity
+    assert enrollment.module_assignments.exists?(module_id: @mod1.id)
+  end
+
+  test "an individual alumni module assignment cannot be locked or deleted" do
+    @cohort.update!(cohort_type: :alumni)
+    enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+    assignment = enrollment.module_assignments.find_by!(module_id: @mod1.id)
+
+    as_user(@admin) do
+      patch "/api/v1/module_assignments/#{assignment.id}",
+        params: { unlocked: false, unlock_date_override: 1.month.from_now.to_date },
+        headers: auth_headers, as: :json
+    end
+
+    assert_response :success
+    assert assignment.reload.unlocked?
+    assert_nil assignment.unlock_date_override
+
+    as_user(@admin) do
+      delete "/api/v1/module_assignments/#{assignment.id}", headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert ModuleAssignment.exists?(assignment.id)
+  end
+
   test "enrollment sets enrolled_at timestamp" do
     as_user(@admin) do
       post "/api/v1/cohorts/#{@cohort.id}/enrollments",

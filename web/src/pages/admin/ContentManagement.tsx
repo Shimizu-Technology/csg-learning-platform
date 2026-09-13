@@ -16,6 +16,7 @@ import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { NewExerciseModal } from './NewExerciseModal'
 import { NewModuleModal } from './NewModuleModal'
+import { NewCurriculumModal } from './NewCurriculumModal'
 import { ALL_DAY_NAMES, SCHEDULE_DAY_INDICES } from '../../lib/scheduleConstants'
 import { useUpload } from '../../contexts/UploadContext'
 import { useToast } from '../../contexts/ToastContext'
@@ -91,12 +92,15 @@ export function ContentManagement() {
     defaultDayIndex: number
   } | null>(null)
   const [newModuleModal, setNewModuleModal] = useState<{ curriculumId: number; moduleCount: number } | null>(null)
+  const [showNewCurriculum, setShowNewCurriculum] = useState(false)
   const [exerciseSaving, setExerciseSaving] = useState(false)
   const [moduleSaving, setModuleSaving] = useState(false)
+  const [curriculumSaving, setCurriculumSaving] = useState(false)
   const [scheduleSavingId, setScheduleSavingId] = useState<number | null>(null)
   const [restoringLessonId, setRestoringLessonId] = useState<number | null>(null)
   const [exerciseCreateError, setExerciseCreateError] = useState('')
   const [moduleCreateError, setModuleCreateError] = useState('')
+  const [curriculumCreateError, setCurriculumCreateError] = useState('')
   const [extraWeeks, setExtraWeeks] = useState<Record<number, number>>({})
 
   const loadCurricula = async () => {
@@ -199,14 +203,19 @@ export function ContentManagement() {
 
   return (
     <div className="app-page-wide">
-      <header>
-        <Link to="/admin" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900">
-          <ArrowLeft className="h-4 w-4" />
-          Staff home
-        </Link>
-        <p className="app-eyebrow">Curriculum studio</p>
-        <h1 className="app-title mt-2">Content</h1>
-        <p className="app-description mt-2">Shape reusable modules and lessons before assigning them to a cohort.</p>
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <Link to="/admin" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900">
+            <ArrowLeft className="h-4 w-4" />
+            Staff home
+          </Link>
+          <p className="app-eyebrow">Curriculum studio</p>
+          <h1 className="app-title mt-2">Content</h1>
+          <p className="app-description mt-2">Shape reusable modules and lessons before assigning them to a cohort.</p>
+        </div>
+        {canManageModules && <button type="button" onClick={() => { setCurriculumCreateError(''); setShowNewCurriculum(true) }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-extrabold text-white transition-colors hover:bg-primary-700">
+          <Plus className="h-4 w-4" /> New curriculum
+        </button>}
       </header>
 
       {curricula.map((curriculum) => (
@@ -331,6 +340,32 @@ export function ContentManagement() {
             setModuleSaving(false)
             setNewModuleModal(null)
             toast.success(`Created module "${data.name}"`)
+          }}
+        />
+      )}
+
+      {showNewCurriculum && (
+        <NewCurriculumModal
+          saving={curriculumSaving}
+          error={curriculumCreateError}
+          onClose={() => {
+            setCurriculumCreateError('')
+            setShowNewCurriculum(false)
+          }}
+          onCreate={async (data) => {
+            setCurriculumSaving(true)
+            setCurriculumCreateError('')
+            const res = await api.createCurriculum(data)
+            if (res.error) {
+              setCurriculumCreateError(res.error)
+              toast.error(res.error)
+              setCurriculumSaving(false)
+              return
+            }
+            await loadCurricula()
+            setCurriculumSaving(false)
+            setShowNewCurriculum(false)
+            toast.success(`Created curriculum "${data.name}"`)
           }}
         />
       )}

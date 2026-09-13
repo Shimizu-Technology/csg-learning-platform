@@ -36,4 +36,22 @@ describe('WeeklyPlanCard', () => {
     expect(html).toContain('href="/lessons/1"')
     expect(html).toContain('does not count against your required week')
   })
+
+  it('presents alumni enrollment as an open library without weekly requirements', () => {
+    const html = renderToStaticMarkup(<MemoryRouter><WeeklyPlanCard plan={{
+      enrolled: true,
+      mode: 'library',
+      cohort: { id: 9, name: 'CSG Alumni' },
+      timezone: 'Pacific/Guam',
+      library_summary: { module_count: 9, lesson_count: 79, recording_count: 79 },
+      events: [],
+      recording_catch_up: [],
+    }} /></MemoryRouter>)
+
+    expect(html).toContain('Alumni Learning Library')
+    expect(html).toContain('79')
+    expect(html).toContain('href="/materials"')
+    expect(html).not.toContain('Required work')
+    expect(html).not.toContain('This Week')
+  })
 })

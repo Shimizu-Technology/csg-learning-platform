@@ -22,6 +22,9 @@ class WeeklyPlanProjection
     @lesson_assignments = enrollment.lesson_assignments.index_by(&:lesson_id)
     @modules = assigned_modules
     @lessons = @modules.flat_map { |mod| mod.lessons.map { |lesson| [ mod, lesson ] } }
+
+    return library_plan if @cohort.alumni?
+
     @completed_block_ids = completed_block_ids
     @latest_submissions = latest_submissions
 
@@ -48,6 +51,23 @@ class WeeklyPlanProjection
   end
 
   private
+
+  def library_plan
+    {
+      enrolled: true,
+      mode: "library",
+      cohort: { id: @cohort.id, name: @cohort.name },
+      timezone: TIMEZONE,
+      generated_at: @now,
+      library_summary: {
+        module_count: @modules.size,
+        lesson_count: @lessons.size,
+        recording_count: @cohort.recordings.count(&:published?)
+      },
+      events: event_items,
+      recording_catch_up: recording_items
+    }
+  end
 
   def active_enrollment
     @user.enrollments.active.includes(

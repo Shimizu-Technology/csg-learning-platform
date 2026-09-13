@@ -980,7 +980,11 @@ export function CohortDetail() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    {!mod.assigned ? (
+                    {cohort.cohort_type === 'alumni' ? (
+                      <span className="inline-flex min-h-8 items-center rounded-lg bg-green-50 px-3 py-1.5 text-xs font-bold text-green-700">
+                        Always available
+                      </span>
+                    ) : !mod.assigned ? (
                       <button
                         onClick={() => assignModuleToCohort(mod.id)}
                         disabled={saving}

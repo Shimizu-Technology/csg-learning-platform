@@ -714,6 +714,11 @@ export const api = {
     fetchApi<CurriculaListResponse>('/api/v1/curricula'),
   getCurriculum: (id: number) =>
     fetchApi<CurriculumResponse>(`/api/v1/curricula/${id}`),
+  createCurriculum: (data: { name: string; description?: string; total_weeks?: number; status?: string }) =>
+    fetchApi<CurriculumResponse>('/api/v1/curricula', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 
   // Admin — Cohorts
   getCohorts: () =>

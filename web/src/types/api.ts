@@ -811,6 +811,7 @@ export interface WeeklyPlanLessonItem {
 
 export interface WeeklyPlan {
   enrolled: boolean;
+  mode?: 'weekly' | 'library';
   cohort?: { id: number; name: string };
   week_number?: number;
   starts_on?: string;
@@ -818,6 +819,7 @@ export interface WeeklyPlan {
   timezone: string;
   generated_at?: string;
   summary?: { required_count: number; required_completed_count: number; open_redo_count: number; optional_count: number };
+  library_summary?: { module_count: number; lesson_count: number; recording_count: number };
   required?: WeeklyPlanLessonItem[];
   optional?: WeeklyPlanLessonItem[];
   redos?: Array<{ id: string; kind: 'redo'; submission_id: number; lesson_id: number; title: string; lesson_title: string; feedback: string | null; state: 'open' | 'closed'; submission_close_at: string | null }>;

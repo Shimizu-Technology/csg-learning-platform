@@ -27,8 +27,10 @@ module Api
         user.with_lock do
           enrollment = @cohort.enrollments.new(user: user)
           if enrollment.save
-            @cohort.curriculum.modules.each do |mod|
-              ModuleAssignment.create!(enrollment: enrollment, curriculum_module: mod)
+            unless @cohort.alumni?
+              @cohort.curriculum.modules.each do |mod|
+                ModuleAssignment.create!(enrollment: enrollment, curriculum_module: mod)
+              end
             end
           end
         end

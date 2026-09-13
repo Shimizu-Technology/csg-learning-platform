@@ -70,6 +70,10 @@ module Api
         lesson_ids = curriculum_module.lessons.map(&:id)
         module_start_date = normalized_module_start_date
         return if performed?
+        if @cohort.alumni? && assigned == false
+          render json: { errors: [ "Alumni cohorts always include every curriculum module" ] }, status: :unprocessable_entity
+          return
+        end
         if assigned.nil? && !module_already_assigned
           render json: { errors: [ "Module must be assigned before it can be updated" ] }, status: :unprocessable_entity
           return
@@ -85,7 +89,12 @@ module Api
               end
 
               assignment = enrollment.module_assignments.find_or_initialize_by(module_id: curriculum_module.id)
-              assignment.unlocked = module_access_params[:unlocked] unless module_access_params[:unlocked].nil?
+              if @cohort.alumni?
+                assignment.unlocked = true
+                assignment.unlock_date_override = nil
+              else
+                assignment.unlocked = module_access_params[:unlocked] unless module_access_params[:unlocked].nil?
+              end
               assignment.save!
             end
           end

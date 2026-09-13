@@ -13,6 +13,8 @@ class Enrollment < ApplicationRecord
   validates :user_id, uniqueness: { scope: :cohort_id }
 
   before_create :set_enrolled_at
+  after_create :assign_alumni_curriculum_modules, if: :active_alumni_enrollment?
+  after_update :assign_alumni_curriculum_modules, if: :reactivated_alumni_enrollment?
 
   def with_learning_write_guard(request_started_at:)
     with_lock do
@@ -24,9 +26,32 @@ class Enrollment < ApplicationRecord
     end
   end
 
+  def ensure_alumni_curriculum_modules!
+    return unless active? && cohort.alumni?
+
+    cohort.curriculum.modules.find_each do |curriculum_module|
+      assignment = module_assignments.find_or_initialize_by(curriculum_module: curriculum_module)
+      assignment.unlocked = true
+      assignment.unlock_date_override = nil
+      assignment.save!
+    end
+  end
+
   private
 
   def set_enrolled_at
     self.enrolled_at ||= Time.current
+  end
+
+  def active_alumni_enrollment?
+    active? && cohort.alumni?
+  end
+
+  def reactivated_alumni_enrollment?
+    saved_change_to_status? && active_alumni_enrollment?
+  end
+
+  def assign_alumni_curriculum_modules
+    ensure_alumni_curriculum_modules!
   end
 end
