@@ -320,14 +320,15 @@ Implemented evidence:
 
 ## 7. Phase 3 — Native recordings
 
-Implementation status: merged through PR #64 after a clean final Greptile review.
+Implementation status: the original native-recordings phase merged in PR #64; secure hosted-media playback and the unified recording library were completed in PRs #134–#135, released through PR #136, and are available in internal TestFlight build `1.0.0 (22)`.
 
 Deliverables:
 
-- recording library grouped by cohort and date;
+- one first-class recording library for uploaded and hosted media, grouped by cohort and date;
 - signed stream URL acquisition and renewal;
-- native playback for S3 recordings;
-- YouTube fallback;
+- native playback for uploaded and direct-video recordings;
+- secure in-app playback for supported YouTube, Vimeo, and Loom recordings, with an explicit original-link fallback;
+- touch-first staff add, draft, publish, edit, and delete workflows;
 - resume position and periodic watch-progress synchronization;
 - playback speed, orientation, interruption, route-change, and audio-session handling;
 - picture-in-picture decision and implementation where supported;
@@ -343,6 +344,9 @@ Release gate:
 Implemented decisions:
 
 - `expo-video` supplies the native AVPlayer/ExoPlayer surface, system controls, fullscreen playback, and PiP.
+- An allowlisted in-app web player supports YouTube, Vimeo, and Loom without exposing arbitrary browsing; blocked or unsupported embeds retain **Open original** as a deliberate fallback.
+- Existing hosted recording links are promoted into canonical `Recording` rows without duplicates, so web and mobile use the same visibility, metadata, help-context, and progress contracts.
+- YouTube and Vimeo player events bridge into the same conservative watch-progress policy as uploaded and direct media.
 - The app remains portrait-locked during ordinary navigation and unlocks orientation only while the native player is fullscreen.
 - Progress credits plausible media-clock movement at the selected playback rate, rejects seek jumps, saves every ten seconds plus pause/background/route-end, and coalesces overlapping writes.
 - Signed URLs carry an explicit server expiry, renew ten minutes early, and recover from playback errors by replacing the source at the prior position.
@@ -350,6 +354,7 @@ Implemented decisions:
 - Offline downloads and automatic media caching are deliberately disabled pending an approved storage, retention, privacy, and logout-removal policy.
 - iPhone 16 Pro / iOS 18.5 Simulator interaction verified Learn → Recordings → secure CSG video, HLS source load, resume clamping, native completion, fullscreen landscape rotation, portrait restoration, and route cleanup without a native-object teardown error.
 - Local release gate: Rails 274 tests / 815 assertions, mobile 16 suites / 50 tests, web 5 suites / 21 tests, RuboCop 209 files, Brakeman zero warnings, bundler-audit clean, Expo Doctor 20/20, dependency validation clean, and successful iOS and Android Hermes exports.
+- Build 22 release gate: Rails 591 tests / 2,205 assertions, web 25 suites / 90 tests, mobile 64 suites / 378 tests, RuboCop 356 files, Brakeman zero warnings, dependency policy clean, Expo Doctor 21/21, iOS/Android production exports, and hands-on iOS hosted-link authoring and playback QA.
 
 ## 8. Phase 4 — Staff intervention tools
 
