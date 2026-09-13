@@ -48,6 +48,7 @@ describe('embeddedMediaHtml', () => {
     expect(html).toContain('allowfullscreen');
     expect(html).toContain('youtube.com/iframe_api');
     expect(html).toContain('ReactNativeWebView.postMessage');
+    expect(html).toContain('window.csgSeekTo');
     expect(html).not.toContain('javascript:');
   });
 

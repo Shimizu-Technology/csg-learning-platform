@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, useCallback } from 'react'
 import { Play, Pause, Maximize, Volume2, VolumeX, RotateCcw, Loader2 } from 'lucide-react'
 
 export interface VideoProgressData {
@@ -17,9 +17,13 @@ interface VideoPlayerProps {
   trackProgress?: boolean
 }
 
+export interface VideoPlayerHandle {
+  seekTo: (seconds: number, play?: boolean) => void
+}
+
 const URL_REFRESH_MS = 90 * 60 * 1000
 
-export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStreamUrl, onSaveProgress, onCompleted, trackProgress = true }: VideoPlayerProps) {
+export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStreamUrl, onSaveProgress, onCompleted, trackProgress = true }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const totalWatchedRef = useRef(initialTotalWatched)
@@ -272,6 +276,21 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
     else container.requestFullscreen()
   }
 
+  useImperativeHandle(ref, () => ({
+    seekTo(seconds: number, play = true) {
+      const video = videoRef.current
+      if (!video) return
+      const maximum = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : seconds
+      const target = Math.max(0, Math.min(maximum, seconds))
+      video.currentTime = target
+      setCurrentTime(target)
+      lastTimeRef.current = target
+      lastTickAtRef.current = performance.now()
+      showBufferingSoon()
+      if (play) void video.play()
+    },
+  }), [showBufferingSoon])
+
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
     const video = videoRef.current
     if (!video || !duration) return
@@ -403,4 +422,4 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
       </div>
     </div>
   )
-}
+})

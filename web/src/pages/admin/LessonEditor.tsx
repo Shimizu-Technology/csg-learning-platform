@@ -8,6 +8,7 @@ import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
 import { ContentBlockRenderer } from '../../components/shared/ContentBlockRenderer'
 import { VideoUploadField } from '../../components/admin/VideoUploadField'
 import { AdminVideoPreview } from '../../components/admin/AdminVideoPreview'
+import { VideoSegmentEditor } from '../../components/admin/VideoSegmentEditor'
 import { CodeRunnerSettings } from '../../components/admin/CodeRunnerSettings'
 import { useUpload } from '../../contexts/UploadContext'
 import { useToast } from '../../contexts/ToastContext'
@@ -21,6 +22,7 @@ import {
 } from '../../lib/codeRunner'
 import { LearningObjectivesPanel } from '../../components/shared/LearningObjectivesPanel'
 import type { LearningObjective, LessonObjective, Rubric } from '../../types/api'
+import { normalizeVideoSegments, type VideoSegment } from '../../lib/videoSegments'
 
 interface ContentBlock {
   id: number
@@ -108,6 +110,7 @@ export function LessonEditor() {
   const [s3VideoUploadedAt, setS3VideoUploadedAt] = useState<string | null>(null)
   const [s3VideoUploadedBy, setS3VideoUploadedBy] = useState<string | null>(null)
   const [videoBlockId, setVideoBlockId] = useState<number | null>(null)
+  const [videoSegments, setVideoSegments] = useState<VideoSegment[]>([])
   const [pendingVideoUploadId, setPendingVideoUploadId] = useState<string | null>(null)
   const normalizedObjectiveAlignments = useMemo(() => objectiveAlignments.map((alignment) => (
     !checkEnabled && checkBlockId && alignment.content_block_id === checkBlockId
@@ -153,6 +156,7 @@ export function LessonEditor() {
           }, uploadsRef.current)
           setVideoUrl(videoBlock.video_url || '')
           setVideoBlockId(videoBlock.id)
+          setVideoSegments(normalizeVideoSegments(videoBlock.metadata))
           setS3VideoKey(videoSource.s3Key)
           setS3VideoContentType(videoSource.contentType)
           setS3VideoSize(videoSource.fileSize)
@@ -161,6 +165,7 @@ export function LessonEditor() {
         } else {
           setVideoUrl('')
           setVideoBlockId(null)
+          setVideoSegments([])
           setS3VideoKey(null)
           setS3VideoContentType(null)
           setS3VideoSize(null)
@@ -259,6 +264,7 @@ export function LessonEditor() {
         title: title.trim(),
         video_url: videoUrl.trim() || null,
         ...(!inFlightVideo ? { s3_video_key: s3VideoKey, s3_video_content_type: s3VideoContentType, s3_video_size: s3VideoSize } : {}),
+        video_segments: videoSegments,
       } : undefined
       const exercise = exerciseBlock || instructions.trim() || filename.trim() ? {
         ...(exerciseBlock ? { id: exerciseBlock.id } : {}),
@@ -309,6 +315,7 @@ export function LessonEditor() {
             fileSize: refreshedVideo.s3_video_size ?? null,
           }, uploadsRef.current)
           setVideoBlockId(refreshedVideo.id)
+          setVideoSegments(normalizeVideoSegments(refreshedVideo.metadata))
           setS3VideoKey(videoSource.s3Key)
           setS3VideoContentType(videoSource.contentType)
           setS3VideoSize(videoSource.fileSize)
@@ -317,6 +324,7 @@ export function LessonEditor() {
         } else {
           setVideoUrl('')
           setVideoBlockId(null)
+          setVideoSegments([])
           setS3VideoKey(null)
           setS3VideoContentType(null)
           setS3VideoSize(null)
@@ -497,7 +505,7 @@ export function LessonEditor() {
         video_url: videoUrl.trim() || null,
         filename: null,
         solution: null,
-        metadata: {},
+        metadata: { video_segments: videoSegments },
         ...(s3VideoKey ? { s3_video_key: s3VideoKey } : {}),
       } as ContentBlock)
     }
@@ -544,7 +552,7 @@ export function LessonEditor() {
       })
     }
     return blocks
-  }, [title, videoUrl, instructions, filename, s3VideoKey, videoBlockId, submissionType, runnerConfig, checkEnabled, checkPrompt, checkTitle, checkOptions, checkCorrectOption, checkExplanation, checkObjectiveId, objectiveCatalog])
+  }, [title, videoUrl, videoSegments, instructions, filename, s3VideoKey, videoBlockId, submissionType, runnerConfig, checkEnabled, checkPrompt, checkTitle, checkOptions, checkCorrectOption, checkExplanation, checkObjectiveId, objectiveCatalog])
 
   if (loading) return <LoadingSpinner message="Loading exercise..." />
   if (error) {
@@ -779,6 +787,7 @@ export function LessonEditor() {
               videoUrl={videoUrl}
               title={title}
             />
+            <VideoSegmentEditor value={videoSegments} onChange={setVideoSegments} />
           </div>
 
 

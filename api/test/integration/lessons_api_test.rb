@@ -315,6 +315,68 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert_equal false, JSON.parse(response.body).dig("lesson", "required")
   end
 
+  test "staff can author exact recording sections without replacing other metadata" do
+    @video_block.update!(metadata: { "archive_role" => "current" })
+
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor",
+            params: {
+              editor: {
+                base_updated_at: @lesson.reload.updated_at.iso8601(6),
+                title: @lesson.title,
+                required: true,
+                requires_submission: false,
+                video: {
+                  id: @video_block.id,
+                  title: @video_block.title,
+                  video_url: nil,
+                  video_segments: [
+                    { label: "Optional Q&A", start_seconds: 120, end_seconds: 180, required: false },
+                    { label: "Schema planning", start_seconds: 12, end_seconds: 95, required: true }
+                  ]
+                },
+                alignments: []
+              }
+            },
+            headers: auth_headers,
+            as: :json
+    end
+
+    assert_response :success
+    metadata = @video_block.reload.metadata
+    assert_equal "current", metadata.fetch("archive_role")
+    assert_equal 1, metadata.fetch("video_segments_version")
+    assert_equal [ "Schema planning", "Optional Q&A" ], metadata.fetch("video_segments").pluck("label")
+  end
+
+  test "editor rejects a recording section that ends before it starts" do
+    original_metadata = @video_block.metadata
+
+    as_user(@admin) do
+      patch "/api/v1/lessons/#{@lesson.id}/editor",
+            params: {
+              editor: {
+                base_updated_at: @lesson.reload.updated_at.iso8601(6),
+                title: @lesson.title,
+                required: true,
+                requires_submission: false,
+                video: {
+                  id: @video_block.id,
+                  title: @video_block.title,
+                  video_url: nil,
+                  video_segments: [ { label: "Broken", start_seconds: 20, end_seconds: 10, required: true } ]
+                },
+                alignments: []
+              }
+            },
+            headers: auth_headers,
+            as: :json
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal original_metadata, @video_block.reload.metadata
+  end
+
   test "instructor can read reusable curriculum resources but cannot permanently delete exercise content" do
     objective = LearningObjective.create!(
       curriculum: @curriculum,

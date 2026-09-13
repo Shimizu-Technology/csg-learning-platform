@@ -1,5 +1,5 @@
 import { AlertCircle, ExternalLink, RefreshCw } from 'lucide-react-native';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 
@@ -8,7 +8,7 @@ import { openExternalPage } from '@/lib/external-links';
 import { embeddedMediaHtml, isAllowedMediaNavigation, resolveMediaSource } from '@/lib/media-source';
 import type { VideoProgressInput } from '@/lib/types';
 import { creditedPlaybackSeconds, normalizedProgress, PROGRESS_SAVE_INTERVAL_MS } from '@/lib/video-progress';
-import { NativeVideoPlayer } from './native-video-player';
+import { NativeVideoPlayer, type NativeVideoPlayerHandle } from './native-video-player';
 
 interface InAppMediaPlayerProps {
   initialPosition?: number;
@@ -19,7 +19,9 @@ interface InAppMediaPlayerProps {
   url: string;
 }
 
-export function InAppMediaPlayer({ initialPosition = 0, initialTotalWatched = 0, saveProgress, title, trackProgress = false, url }: InAppMediaPlayerProps) {
+export interface InAppMediaPlayerHandle { seekTo: (seconds: number, play?: boolean) => void }
+
+export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPlayerProps>(function InAppMediaPlayer({ initialPosition = 0, initialTotalWatched = 0, saveProgress, title, trackProgress = false, url }, ref) {
   const source = useMemo(() => resolveMediaSource(url), [url]);
   const [reloadKey, setReloadKey] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -36,6 +38,8 @@ export function InAppMediaPlayer({ initialPosition = 0, initialTotalWatched = 0,
   const pendingSaveRef = useRef<VideoProgressInput | null>(null);
   const savingRef = useRef(false);
   const saveProgressRef = useRef(saveProgress);
+  const webViewRef = useRef<WebView>(null);
+  const nativeVideoRef = useRef<NativeVideoPlayerHandle>(null);
   const openOriginal = useCallback(() => void openExternalPage(source?.originalUrl).catch(() => undefined), [source?.originalUrl]);
 
   useEffect(() => { saveProgressRef.current = saveProgress; }, [saveProgress]);
@@ -105,11 +109,19 @@ export function InAppMediaPlayer({ initialPosition = 0, initialTotalWatched = 0,
     if (trackProgress && pending && saveProgressRef.current) void saveProgressRef.current(pending).catch(() => undefined);
   }, [trackProgress]);
 
+  useImperativeHandle(ref, () => ({
+    seekTo(seconds: number, play = true) {
+      nativeVideoRef.current?.seekTo(seconds, play);
+      webViewRef.current?.injectJavaScript(`window.csgSeekTo && window.csgSeekTo(${Math.max(0, Math.floor(seconds))}, ${play ? 'true' : 'false'}); true;`);
+    },
+  }), []);
+
   if (!source) return <UnsupportedMedia title={title} url={url} />;
   if (source.type === 'direct' && source.playbackUrl) {
     const playbackUrl = source.playbackUrl;
     return <View style={styles.stack}>
       <NativeVideoPlayer
+        ref={nativeVideoRef}
         fetchStream={() => Promise.resolve({ stream_url: playbackUrl, expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() })}
         initialPosition={initialPosition || source.startSeconds}
         initialTotalWatched={initialTotalWatched}
@@ -127,6 +139,7 @@ export function InAppMediaPlayer({ initialPosition = 0, initialTotalWatched = 0,
   return <View style={styles.shell}>
     <View style={styles.webWrap}>
       <WebView
+        ref={webViewRef}
         key={reloadKey}
         accessibilityLabel={`${title} ${source.providerLabel} player`}
         allowsFullscreenVideo
@@ -148,7 +161,7 @@ export function InAppMediaPlayer({ initialPosition = 0, initialTotalWatched = 0,
     </View>
     <View style={styles.footer}><View><Text style={styles.provider}>{source.providerLabel.toUpperCase()}</Text><Text style={[styles.inline, syncError && styles.syncError]}>{!trackProgress || !supportsProgress ? 'Plays securely inside the app' : syncError ? 'Progress will retry' : completed ? 'Watched' : playing ? 'Watching' : 'Progress saved'}</Text></View><OriginalLink label="Open original" onPress={openOriginal} /></View>
   </View>;
-}
+});
 
 function UnsupportedMedia({ title, url }: { title: string; url: string }) {
   const source = resolveMediaSource(url);
