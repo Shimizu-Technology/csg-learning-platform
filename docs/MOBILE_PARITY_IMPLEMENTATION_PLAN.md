@@ -7,7 +7,7 @@ Product: CSG Connect
 Platforms: iOS and Android through Expo / React Native
 
 Backend: existing Rails `/api/v1` API
-Status: daily-use phases 1–4 and strategic phases 0–1 are merged; the 2026-09 curriculum-authoring parity extension is implemented, validated, and available as internal TestFlight build `1.0.0 (21)`
+Status: daily-use phases 1–4 and strategic phases 0–1 are merged; the 2026-09 curriculum-authoring and unified recording-library extensions are implemented, validated, and available as internal TestFlight build `1.0.0 (22)`
 
 ## 1. Outcome
 
@@ -15,7 +15,7 @@ CSG Connect will become the everyday mobile interface for Code School of Guam. A
 
 The target is **useful mobile parity**: routine student and staff work plus curriculum review and authoring should be native, while bulk enrollment, team administration, repository inspection, and dense matrices remain deliberate authenticated web handoffs. Literal duplication of desktop-shaped screens is not the goal.
 
-The curriculum-authoring extension has shipped safety and API hardening (PR #124), staff library browsing (PR #125), guarded lesson drafts and preview (PR #126), module/lesson management (PR #127), objectives/rubrics/retrieval checks (PR #128), hosted lesson-video replacement (PR #129), browser-runner configuration (PR #130), touch-first rich instruction authoring (PR #131), and consolidated release preflight (PR #132). Existing HTML and legacy Markdown, formatting, safe links, lists, quotes, code, paste sanitization, Dynamic Type, device-draft continuity, and exact student preview are covered. Build `1.0.0 (21)` passed the consolidated code, security, dependency, export, signing, and iOS simulator release gate and is `IN_BETA_TESTING`; physical-device acceptance remains.
+The curriculum-authoring extension has shipped safety and API hardening (PR #124), staff library browsing (PR #125), guarded lesson drafts and preview (PR #126), module/lesson management (PR #127), objectives/rubrics/retrieval checks (PR #128), hosted lesson-video replacement (PR #129), browser-runner configuration (PR #130), touch-first rich instruction authoring (PR #131), and consolidated release preflight (PR #132). Existing HTML and legacy Markdown, formatting, safe links, lists, quotes, code, paste sanitization, Dynamic Type, device-draft continuity, and exact student preview are covered. PRs #134–#135 add secure in-app hosted-media playback and one first-class recording library across web and mobile, with release preflight in PR #136. Build `1.0.0 (22)` passed the code, security, dependency, export, signing, and iOS simulator release gates and is `IN_BETA_TESTING`; physical-device acceptance remains.
 
 ## 2. Product principles
 
@@ -320,14 +320,15 @@ Implemented evidence:
 
 ## 7. Phase 3 — Native recordings
 
-Implementation status: merged through PR #64 after a clean final Greptile review.
+Implementation status: the original native-recordings phase merged in PR #64; secure hosted-media playback and the unified recording library were completed in PRs #134–#135, released through PR #136, and are available in internal TestFlight build `1.0.0 (22)`.
 
 Deliverables:
 
-- recording library grouped by cohort and date;
+- one first-class recording library for uploaded and hosted media, grouped by cohort and date;
 - signed stream URL acquisition and renewal;
-- native playback for S3 recordings;
-- YouTube fallback;
+- native playback for uploaded and direct-video recordings;
+- secure in-app playback for supported YouTube, Vimeo, and Loom recordings, with an explicit original-link fallback;
+- touch-first staff add, draft, publish, edit, and delete workflows;
 - resume position and periodic watch-progress synchronization;
 - playback speed, orientation, interruption, route-change, and audio-session handling;
 - picture-in-picture decision and implementation where supported;
@@ -343,6 +344,9 @@ Release gate:
 Implemented decisions:
 
 - `expo-video` supplies the native AVPlayer/ExoPlayer surface, system controls, fullscreen playback, and PiP.
+- An allowlisted in-app web player supports YouTube, Vimeo, and Loom without exposing arbitrary browsing; blocked or unsupported embeds retain **Open original** as a deliberate fallback.
+- Existing hosted recording links are promoted into canonical `Recording` rows without duplicates, so web and mobile use the same visibility, metadata, help-context, and progress contracts.
+- YouTube and Vimeo player events bridge into the same conservative watch-progress policy as uploaded and direct media.
 - The app remains portrait-locked during ordinary navigation and unlocks orientation only while the native player is fullscreen.
 - Progress credits plausible media-clock movement at the selected playback rate, rejects seek jumps, saves every ten seconds plus pause/background/route-end, and coalesces overlapping writes.
 - Signed URLs carry an explicit server expiry, renew ten minutes early, and recover from playback errors by replacing the source at the prior position.
@@ -350,6 +354,7 @@ Implemented decisions:
 - Offline downloads and automatic media caching are deliberately disabled pending an approved storage, retention, privacy, and logout-removal policy.
 - iPhone 16 Pro / iOS 18.5 Simulator interaction verified Learn → Recordings → secure CSG video, HLS source load, resume clamping, native completion, fullscreen landscape rotation, portrait restoration, and route cleanup without a native-object teardown error.
 - Local release gate: Rails 274 tests / 815 assertions, mobile 16 suites / 50 tests, web 5 suites / 21 tests, RuboCop 209 files, Brakeman zero warnings, bundler-audit clean, Expo Doctor 20/20, dependency validation clean, and successful iOS and Android Hermes exports.
+- Build 22 release gate: Rails 591 tests / 2,205 assertions, web 25 suites / 90 tests, mobile 64 suites / 378 tests, RuboCop 356 files, Brakeman zero warnings, dependency policy clean, Expo Doctor 21/21, iOS/Android production exports, and hands-on iOS hosted-link authoring and playback QA.
 
 ## 8. Phase 4 — Staff intervention tools
 
@@ -444,6 +449,7 @@ Historical Phase 0–1 release status (2026-08-02):
 - The production access-denied entry flow was rechecked locally against `https://csg-learn-api.onrender.com` without demo mode.
 - Apple confirmed build 9 availability to the invited internal tester at 11:59 AM Pacific/Guam on 2026-08-02. Installation, authenticated role smoke testing, and step 10 remain physical TestFlight acceptance work. No local simulator credential was retained or manufactured for that check.
 - Curriculum-authoring build `1.0.0 (21)` was signed from merged-main commit `f5f28d94a81b549c7c4c3facc3766afabfcd4c27`, uploaded through EAS submission `4289d148-914b-4f5c-b587-779f72266422`, processed by Apple, and is `IN_BETA_TESTING`. Its focused physical-device checks are recorded in `app-store/WHAT_TO_TEST_1.0.0_21.md`.
+- Recording-library build `1.0.0 (22)` was signed from merged-main commit `11b825c8b50b4a3b56f70a43c8ffebaef0e29911`, uploaded through EAS submission `ab62f5fc-5a90-44b8-884a-7d3d9e6425fe`, processed by Apple, and is `IN_BETA_TESTING`. Its focused physical-device checks are recorded in `app-store/WHAT_TO_TEST_1.0.0_22.md`.
 - Public App Store review has intentionally not been submitted; it follows physical-device acceptance.
 
 The exact release record, screenshot inventory, and physical-device checklist are in [`app-store/README.md`](./app-store/README.md).
