@@ -78,6 +78,22 @@ class WeeklyPlanProjectionTest < ActiveSupport::TestCase
     assert_empty plan[:recording_catch_up]
   end
 
+  test "projects alumni enrollment as an open learning library instead of weekly assignments" do
+    @cohort.update!(cohort_type: :alumni)
+
+    plan = WeeklyPlanProjection.new(@student, now: @now).call
+
+    assert plan[:enrolled]
+    assert_equal "library", plan[:mode]
+    assert_equal({ module_count: 1, lesson_count: 4, recording_count: 1 }, plan[:library_summary])
+    assert_nil plan[:week_number]
+    assert_nil plan[:summary]
+    assert_nil plan[:required]
+    assert_nil plan[:optional]
+    assert_equal "live_class", plan[:events].first[:kind]
+    assert_equal @recording.id, plan[:recording_catch_up].first[:recording_id]
+  end
+
   private
 
   def create_lesson(title, release_day, required:)

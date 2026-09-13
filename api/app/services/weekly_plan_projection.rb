@@ -25,6 +25,8 @@ class WeeklyPlanProjection
     @completed_block_ids = completed_block_ids
     @latest_submissions = latest_submissions
 
+    return library_plan if @cohort.alumni?
+
     lesson_items = @lessons.filter_map { |mod, lesson| lesson_item(mod, lesson) }
     required = sort_lesson_items(lesson_items.select { |item| item[:required] })
     optional = sort_lesson_items(lesson_items.reject { |item| item[:required] })
@@ -48,6 +50,23 @@ class WeeklyPlanProjection
   end
 
   private
+
+  def library_plan
+    {
+      enrolled: true,
+      mode: "library",
+      cohort: { id: @cohort.id, name: @cohort.name },
+      timezone: TIMEZONE,
+      generated_at: @now,
+      library_summary: {
+        module_count: @modules.size,
+        lesson_count: @lessons.size,
+        recording_count: @cohort.recordings.count(&:published?)
+      },
+      events: event_items,
+      recording_catch_up: recording_items
+    }
+  end
 
   def active_enrollment
     @user.enrollments.active.includes(

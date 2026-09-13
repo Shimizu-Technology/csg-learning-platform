@@ -18,7 +18,8 @@ interface CreateCohortForm {
 const COHORT_TYPES = [
   { value: 'bootcamp', label: 'Bootcamp' },
   { value: 'workshop', label: 'Workshop' },
-  { value: 'self_paced', label: 'Self-Paced' },
+  { value: 'alumni', label: 'Alumni' },
+  { value: 'custom', label: 'Custom' },
 ]
 
 function StatusBadge({ status }: { status: string }) {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, CalendarClock, Check, CircleAlert, Clock3, Film, LockKeyhole, RotateCcw, Sparkles } from 'lucide-react'
+import { ArrowRight, BookOpen, CalendarClock, Check, CircleAlert, Clock3, Film, LockKeyhole, RotateCcw, Sparkles } from 'lucide-react'
 
 import { captureProductEvent } from '../../lib/analytics'
 import { formatShortDateTime } from '../../lib/format'
@@ -25,7 +25,9 @@ export function WeeklyPlanCard({ plan }: { plan: WeeklyPlan }) {
     })
   }, [key, plan.cohort, plan.enrolled, plan.week_number, summary])
 
-  if (!plan.enrolled || !summary) return null
+  if (!plan.enrolled) return null
+  if (plan.mode === 'library' && plan.library_summary) return <LibraryPlan plan={plan} />
+  if (!summary) return null
   const completion = summary.required_count ? Math.round((summary.required_completed_count / summary.required_count) * 100) : 100
 
   return (
@@ -71,6 +73,36 @@ export function WeeklyPlanCard({ plan }: { plan: WeeklyPlan }) {
       </div>
     </section>
   )
+}
+
+function LibraryPlan({ plan }: { plan: WeeklyPlan }) {
+  const library = plan.library_summary!
+
+  return (
+    <section aria-labelledby="learning-library-title" className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
+      <div className="bg-slate-950 px-5 py-6 text-white sm:px-6">
+        <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-primary-300">Keep learning at your pace</p>
+        <h2 id="learning-library-title" className="mt-1 text-2xl font-extrabold tracking-tight">Alumni Learning Library</h2>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Revisit every CSG topic, watch current and past class recordings, and use the optional exercises and reference projects whenever they help.</p>
+        <Link to="/materials" className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-extrabold text-white transition-colors hover:bg-primary-500">
+          <BookOpen className="h-4 w-4" /> Browse the library <ArrowRight className="h-4 w-4" />
+        </Link>
+      </div>
+      <div className="grid gap-px bg-slate-200 sm:grid-cols-3">
+        <LibraryStat value={library.module_count} label="learning modules" />
+        <LibraryStat value={library.lesson_count} label="available lessons" />
+        <LibraryStat value={library.recording_count} label="class recordings" />
+      </div>
+      {((plan.events || []).length > 0 || (plan.recording_catch_up || []).length > 0) && <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-2">
+        {(plan.events || []).length > 0 && <SideSection title="Upcoming sessions" icon={CalendarClock}>{(plan.events || []).map((event) => <a key={event.id} href={sanitizeUrl(event.meeting_url)} target="_blank" rel="noopener noreferrer" className="block border-b border-slate-200 py-3 first:pt-1 last:border-0"><span className="text-[10px] font-extrabold uppercase tracking-wider text-primary-700">{event.kind === 'live_class' ? 'Live class' : 'Office hours'}</span><span className="mt-1 block text-sm font-bold text-slate-950">{event.title}</span><span className="mt-0.5 block text-xs leading-5 text-slate-500">{formatShortDateTime(event.starts_at, 'Time pending', event.timezone)}</span></a>)}</SideSection>}
+        {(plan.recording_catch_up || []).length > 0 && <SideSection title="Continue watching" icon={Film}>{(plan.recording_catch_up || []).map((recording) => <Link key={recording.id} to="/recordings" className="flex items-center gap-3 border-b border-slate-200 py-3 first:pt-1 last:border-0"><span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold text-slate-950">{recording.title}</span><span className="mt-0.5 block text-xs text-slate-500">{Math.round(recording.progress_percentage)}% watched</span></span><ArrowRight className="h-4 w-4 text-slate-400" /></Link>)}</SideSection>}
+      </div>}
+    </section>
+  )
+}
+
+function LibraryStat({ value, label }: { value: number; label: string }) {
+  return <div className="bg-white px-5 py-4 sm:px-6"><p className="text-2xl font-extrabold text-slate-950">{value}</p><p className="mt-0.5 text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p></div>
 }
 
 function LessonGroups({ items }: { items: WeeklyPlanLessonItem[] }) {

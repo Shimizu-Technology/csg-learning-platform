@@ -7,6 +7,7 @@ jest.mock('lucide-react-native', () => {
   const Icon = () => null;
   return {
     ArrowRight: Icon,
+    BookOpen: Icon,
     CalendarClock: Icon,
     Check: Icon,
     CircleAlert: Icon,
@@ -41,5 +42,22 @@ describe('WeeklyPlanCard', () => {
     expect(screen.getByText('Required work')).toBeTruthy();
     expect(screen.getByText('Optional stretch')).toBeTruthy();
     expect(screen.getByLabelText('Open Required lesson')).toBeTruthy();
+  });
+
+  it('presents alumni enrollment as an open library without weekly requirements', () => {
+    const screen = render(<WeeklyPlanCard plan={{
+      enrolled: true,
+      mode: 'library',
+      cohort: { id: 9, name: 'CSG Alumni' },
+      timezone: 'Pacific/Guam',
+      library_summary: { module_count: 9, lesson_count: 79, recording_count: 79 },
+      events: [],
+      recording_catch_up: [],
+    }} />);
+
+    expect(screen.getByText('Alumni Learning Library')).toBeTruthy();
+    expect(screen.getByLabelText('Browse the alumni learning library')).toBeTruthy();
+    expect(screen.queryByText('Required work')).toBeNull();
+    expect(screen.queryByText('This Week')).toBeNull();
   });
 });
