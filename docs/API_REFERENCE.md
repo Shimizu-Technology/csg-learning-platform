@@ -154,11 +154,14 @@ States are `open`, `acknowledged`, `resolved`, and `canceled`. Terminal records 
 
 ### `GET /api/v1/recordings`
 
-Returns one normalized `items` list. Students receive recordings across their active cohort enrollments; staff receive recordings across all active and upcoming cohorts. Each item includes `item_key`, `cohort_id`, `cohort_name`, `source` (`uploaded`, `youtube`, or `external`), recording date, media metadata, and the current student's watch progress when available.
+Returns one normalized `items` list. Students receive published recordings across their active cohort enrollments; staff receive draft and published recordings across all active and upcoming cohorts. Each first-class item has a numeric `id`, stable `item_key`, cohort, status, recording date, media metadata, and `source` (`uploaded`, `youtube`, `vimeo`, `loom`, `direct`, or `external`). Students also receive their watch progress for every first-class source. Unmigrated settings links may temporarily appear with a synthetic string ID and do not support progress.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/api/v1/cohorts/:cohort_id/recordings/:id/stream_url` | Staff or active cohort member | Returns a two-hour `stream_url` and ISO 8601 `expires_at` |
+| `POST` | `/api/v1/cohorts/:cohort_id/recordings` | Staff | Creates an uploaded recording from managed-upload metadata, or a hosted recording from an HTTPS `source_url` |
+| `PATCH` | `/api/v1/cohorts/:cohort_id/recordings/:id` | Staff | Updates recording details, status, and the URL/provider of a hosted recording |
+| `DELETE` | `/api/v1/cohorts/:cohort_id/recordings/:id` | Staff | Deletes a recording; managed uploaded media is cleaned up asynchronously |
+| `GET` | `/api/v1/cohorts/:cohort_id/recordings/:id/stream_url` | Staff or active cohort member | Returns a two-hour `stream_url` and ISO 8601 `expires_at` for uploaded media; hosted recordings return `422` |
 | `PATCH` | `/api/v1/watch_progress` | Staff or active cohort member | Saves monotonic watch time and resume position; completes at 90% |
 | `GET` | `/api/v1/content_blocks/:id/video_stream` | Authorized lesson viewer | Returns a two-hour lesson-video `stream_url`, `expires_at`, and current progress |
 | `PATCH` | `/api/v1/content_blocks/:id/video_progress` | Authorized lesson viewer | Saves authoritative lesson-video progress |

@@ -4,8 +4,8 @@ module Api
       before_action :authenticate_user!
 
       # GET /api/v1/recordings
-      # Returns both legacy (YouTube/URL-based from cohort settings) and
-      # S3-backed recordings across all of the student's active cohorts.
+      # Returns the first-class recording library plus any unmigrated links
+      # across all of the student's active cohorts.
       def index
         cohorts = if current_user.staff?
           Cohort.where(status: %i[active upcoming]).order(start_date: :desc).to_a
@@ -17,8 +17,11 @@ module Api
           return
         end
 
+        migrated_keys = Recording.where(cohort_id: cohorts.map(&:id)).where.not(legacy_key: nil).pluck(:cohort_id, :legacy_key).to_set
         legacy = cohorts.flat_map do |cohort|
           Array((cohort.settings || {})["recordings"]).map.with_index do |r, i|
+            next if migrated_keys.include?([ cohort.id, "settings-#{i + 1}" ])
+
             {
               # Legacy recordings don't have DB ids. Use an explicit synthetic
               # string id so merged multi-cohort playlists never depend on a
@@ -33,21 +36,21 @@ module Api
               recorded_date: r["date"],
               source: recording_source_for(r["url"])
             }
-          end
+          end.compact
         end
 
-        s3_recordings = Recording.where(cohort_id: cohorts.map(&:id))
-        s3_recordings = s3_recordings.student_visible unless current_user.staff?
-        s3_recordings = s3_recordings.includes(:cohort).order(:cohort_id, :position)
+        library_recordings = Recording.where(cohort_id: cohorts.map(&:id))
+        library_recordings = library_recordings.student_visible unless current_user.staff?
+        library_recordings = library_recordings.includes(:cohort).order(:cohort_id, :position)
         progress_map = if current_user.staff?
           {}
         else
           current_user.watch_progresses
-            .where(recording_id: s3_recordings.map(&:id))
+            .where(recording_id: library_recordings.map(&:id))
             .index_by(&:recording_id)
         end
 
-        s3_list = s3_recordings.map do |r|
+        library_list = library_recordings.map do |r|
           wp = progress_map[r.id]
           {
             id: r.id,
@@ -60,7 +63,8 @@ module Api
             file_size_display: r.file_size_display,
             recorded_date: r.recorded_date&.strftime("%Y-%m-%d"),
             created_at: r.created_at,
-            source: "uploaded",
+            source: r.source_kind,
+            url: r.source_url,
             status: r.status,
             watch_progress: wp ? {
               last_position_seconds: wp.last_position_seconds,
@@ -74,18 +78,17 @@ module Api
 
         render json: {
           recordings: legacy,
-          s3_recordings: s3_list,
-          items: normalized_recording_items(s3_list, legacy)
+          s3_recordings: library_list.select { |recording| recording[:source] == "uploaded" },
+          items: normalized_recording_items(library_list, legacy)
         }
       end
 
       private
 
-      def normalized_recording_items(uploaded, external)
-        uploaded_items = uploaded.map do |recording|
+      def normalized_recording_items(library, external)
+        library_items = library.map do |recording|
           recording.merge(
-            item_key: "uploaded-#{recording[:id]}",
-            source: "uploaded"
+            item_key: "recording-#{recording[:id]}"
           )
         end
 
@@ -96,16 +99,11 @@ module Api
           )
         end
 
-        uploaded_items + external_items
+        library_items + external_items
       end
 
       def recording_source_for(url)
-        host = URI.parse(url.to_s).host.to_s.downcase
-        return "youtube" if host.include?("youtube.com") || host.include?("youtu.be")
-      rescue URI::InvalidURIError
-        "external"
-      else
-        "external"
+        Recording.source_kind_for(url)
       end
     end
   end

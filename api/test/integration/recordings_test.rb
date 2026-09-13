@@ -120,6 +120,73 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     assert Recording.find_by!(title: "Ready for students").published?
   end
 
+  test "staff can add a hosted recording without S3" do
+    original_configured = S3Service.method(:configured?)
+    S3Service.define_singleton_method(:configured?) { false }
+
+    as_user(@instructor) do
+      post "/api/v1/cohorts/#{@cohort.id}/recordings",
+        params: {
+          title: "Week 1 replay",
+          description: "HTML and CSS foundations",
+          source_url: "https://www.youtube.com/watch?v=abc123def45",
+          recorded_date: "2026-09-12",
+          publish_immediately: true
+        },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :created
+    recording = Recording.find_by!(title: "Week 1 replay")
+    assert_equal "youtube", recording.source_kind
+    assert_equal "https://www.youtube.com/watch?v=abc123def45", recording.source_url
+    assert_nil recording.s3_key
+    assert recording.published?
+    assert_equal "youtube", JSON.parse(response.body).dig("recording", "source")
+  ensure
+    S3Service.define_singleton_method(:configured?, original_configured) if original_configured
+  end
+
+  test "hosted recordings require a secure valid URL" do
+    as_user(@admin) do
+      post "/api/v1/cohorts/#{@cohort.id}/recordings",
+        params: { title: "Unsafe replay", source_url: "http://example.com/replay.mp4" },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :unprocessable_entity
+    assert_includes JSON.parse(response.body).fetch("errors"), "Source url must be a valid HTTPS URL"
+    assert_not Recording.exists?(title: "Unsafe replay")
+  end
+
+  test "staff can edit a hosted recording and its provider is recalculated" do
+    recording = create_external_recording!(source_url: "https://vimeo.com/12345678", source_kind: "vimeo")
+
+    as_user(@admin) do
+      patch "/api/v1/cohorts/#{@cohort.id}/recordings/#{recording.id}",
+        params: { source_url: "https://www.loom.com/share/abcdef123456", title: "Updated replay" },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :success
+    assert_equal "loom", recording.reload.source_kind
+    assert_equal "Updated replay", recording.title
+  end
+
+  test "hosted recordings do not request an S3 stream URL" do
+    recording = create_external_recording!
+
+    as_user(@student) do
+      get "/api/v1/cohorts/#{@cohort.id}/recordings/#{recording.id}/stream_url", headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "External recordings use their original host", JSON.parse(response.body).fetch("error")
+  end
+
   test "staff can publish a draft and return it to draft" do
     recording = create_recording!(status: :draft)
 
@@ -259,7 +326,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     items = JSON.parse(response.body).fetch("items")
-    assert_equal [ "uploaded", "youtube", "external" ], items.map { |item| item.fetch("source") }
+    assert_equal [ "uploaded", "youtube", "vimeo" ], items.map { |item| item.fetch("source") }
     assert_equal [ "Uploaded Class", "YouTube Class", "External Replay" ], items.map { |item| item.fetch("title") }
     assert_equal [ @cohort.name ], items.map { |item| item.fetch("cohort_name") }.uniq
     assert items.all? { |item| item.fetch("item_key").present? }
@@ -281,6 +348,33 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     item = JSON.parse(response.body).fetch("s3_recordings").sole
     assert_equal draft.id, item.fetch("id")
     assert_equal "draft", item.fetch("status")
+  end
+
+  test "first class hosted recording appears once and shares watch progress" do
+    recording = create_external_recording!(
+      title: "Hosted class",
+      source_url: "https://player.vimeo.com/video/12345678",
+      source_kind: "vimeo",
+      legacy_key: "settings-1",
+      duration_seconds: 100
+    )
+    @cohort.update!(settings: { "recordings" => [ { "title" => "Hosted class", "url" => recording.source_url } ] })
+
+    as_user(@student) do
+      patch "/api/v1/watch_progress",
+        params: { recording_id: recording.id, last_position_seconds: 30, total_watched_seconds: 30, duration_seconds: 100 },
+        headers: auth_headers,
+        as: :json
+      get "/api/v1/recordings", headers: auth_headers
+    end
+
+    assert_response :success
+    items = JSON.parse(response.body).fetch("items")
+    assert_equal 1, items.count { |item| item.fetch("title") == "Hosted class" }
+    item = items.find { |candidate| candidate.fetch("id") == recording.id }
+    assert_equal "vimeo", item.fetch("source")
+    assert_equal "recording-#{recording.id}", item.fetch("item_key")
+    assert_equal 30.0, item.dig("watch_progress", "progress_percentage")
   end
 
   test "staff recordings endpoint spans active cohorts without requiring enrollment" do
@@ -476,6 +570,20 @@ class RecordingsTest < ActionDispatch::IntegrationTest
       duration_seconds: duration_seconds,
       status: status,
       position: position
+    )
+  end
+
+  def create_external_recording!(title: "Hosted class", source_url: "https://www.youtube.com/watch?v=abc123def45", source_kind: "youtube", legacy_key: nil, duration_seconds: nil, status: :published)
+    Recording.create!(
+      cohort: @cohort,
+      uploaded_by: @admin,
+      title: title,
+      source_url: source_url,
+      source_kind: source_kind,
+      legacy_key: legacy_key,
+      duration_seconds: duration_seconds,
+      status: status,
+      position: @cohort.recordings.maximum(:position).to_i + 1
     )
   end
 

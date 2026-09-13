@@ -46,7 +46,15 @@ describe('embeddedMediaHtml', () => {
     expect(html).toContain('Content-Security-Policy');
     expect(html).toContain('youtube-nocookie.com/embed/dQw4w9WgXcQ?playsinline=1&amp;rel=0&amp;enablejsapi=1&amp;start=30');
     expect(html).toContain('allowfullscreen');
+    expect(html).toContain('youtube.com/iframe_api');
+    expect(html).toContain('ReactNativeWebView.postMessage');
     expect(html).not.toContain('javascript:');
+  });
+
+  it('uses synchronized progress as the resume point', () => {
+    const source = resolveMediaSource('https://youtube.com/watch?v=dQw4w9WgXcQ&t=30');
+    if (!source) throw new Error('expected source');
+    expect(embeddedMediaHtml(source, 95)).toContain('start=95');
   });
 
   it('refuses non-embed sources', () => {

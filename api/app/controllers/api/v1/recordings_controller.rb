@@ -71,6 +71,11 @@ module Api
 
       # POST /api/v1/cohorts/:cohort_id/recordings
       def create
+        if params.key?(:source_url)
+          create_external_recording
+          return
+        end
+
         unless S3Service.configured?
           render json: { error: "S3 not configured" }, status: :service_unavailable
           return
@@ -108,6 +113,7 @@ module Api
             duration_seconds: params[:duration_seconds],
             recorded_date: params[:recorded_date],
             uploaded_by: current_user,
+            source_kind: "uploaded",
             status: publish_immediately? ? :published : :draft,
             position: next_position
           )
@@ -127,7 +133,14 @@ module Api
         # cohort list under a lock. Allowing arbitrary per-row `position` here
         # would bypass those guarantees and let a forged PATCH create duplicate
         # slots or partial reorder states.
-        permitted = params.permit(:title, :description, :duration_seconds, :recorded_date, :status)
+        permitted = params.permit(:title, :description, :duration_seconds, :recorded_date, :status, :source_url)
+        if permitted.key?(:source_url)
+          if @recording.uploaded?
+            render json: { error: "Uploaded recordings cannot be changed to external links" }, status: :unprocessable_entity
+            return
+          end
+          permitted[:source_kind] = Recording.source_kind_for(permitted[:source_url])
+        end
 
         if @recording.update(permitted)
           render json: { recording: recording_json(@recording, staff: true) }
@@ -148,6 +161,11 @@ module Api
       def stream_url
         unless recording_available_to_current_user?
           render_forbidden("Recording is not available")
+          return
+        end
+
+        unless @recording.uploaded?
+          render json: { error: "External recordings use their original host" }, status: :unprocessable_entity
           return
         end
 
@@ -238,6 +256,8 @@ module Api
           cohort_id: recording.cohort_id,
           title: recording.title,
           description: recording.description,
+          source: recording.source_kind,
+          url: recording.source_url,
           content_type: recording.content_type,
           file_size: recording.file_size,
           file_size_display: recording.file_size_display,
@@ -286,6 +306,30 @@ module Api
         return nil if uploaded_content_type == content_type
 
         "Uploaded video content type does not match"
+      end
+
+      def create_external_recording
+        recording = nil
+        Cohort.transaction do
+          locked_cohort = Cohort.lock.find(@cohort.id)
+          recording = locked_cohort.recordings.new(
+            title: params[:title],
+            description: params[:description],
+            source_kind: Recording.source_kind_for(params[:source_url]),
+            source_url: params[:source_url],
+            recorded_date: params[:recorded_date],
+            uploaded_by: current_user,
+            status: publish_immediately? ? :published : :draft,
+            position: locked_cohort.recordings.maximum(:position).to_i + 1
+          )
+          recording.save
+        end
+
+        if recording.persisted?
+          render json: { recording: recording_json(recording, staff: true) }, status: :created
+        else
+          render json: { errors: recording.errors.full_messages }, status: :unprocessable_entity
+        end
       end
     end
   end

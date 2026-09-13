@@ -37,10 +37,13 @@ npx expo start --dev-client --clear
 
 The inbox loads its workspace list from Rails. Staff can switch among every active cohort and community workspace; students see only active cohort enrollments and explicit community memberships. Channels, DMs, unread counts, and member pickers are filtered to the selected workspace without weakening the API authorization boundary.
 
-Staff can publish a class recording from **Learn → Class recordings → Upload**.
-Videos below 100 MB use a presigned form upload; larger videos use retryable
-multipart upload through 5 GB. Keep the upload screen open until publishing
-finishes. Admins can restart one student's live-class progress from the student
+Staff can publish a class recording from **Learn → Class recordings** by uploading
+a video or adding an HTTPS YouTube, Vimeo, Loom, or direct-media link. Supported
+hosted videos play inside the app, with an explicit original-link fallback. Both
+hosted and uploaded recordings use the same draft/publish and student-progress
+workflow. Videos below 100 MB use a presigned form upload; larger videos use
+retryable multipart upload through 5 GB. Keep the upload screen open until
+publishing finishes. Admins can restart one student's live-class progress from the student
 health screen through the authenticated web handoff; the action requires typing
 the student's email and retains a recovery snapshot without removing the
 account, messages, or other curricula.

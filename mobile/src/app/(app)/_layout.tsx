@@ -36,6 +36,7 @@ export default function AppLayout() {
       <Stack.Screen name="lesson/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="resources" options={{ headerShown: false }} />
       <Stack.Screen name="recordings" options={{ headerShown: false }} />
+      <Stack.Screen name="recordings/link" options={{ headerShown: false }} />
       <Stack.Screen name="recording/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="staff/student/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="staff/submission/[id]" options={{ headerShown: false }} />

@@ -998,7 +998,7 @@ export interface CohortStudentView {
       id: number | string;
       title: string;
       description: string | null;
-      source: 'uploaded' | 'youtube' | 'external';
+      source: 'uploaded' | 'youtube' | 'vimeo' | 'loom' | 'direct' | 'external';
       url?: string;
       date?: string | null;
       recorded_date?: string | null;
@@ -1148,7 +1148,7 @@ export interface RecordingEntry {
   date: string | null;
   recorded_date?: string | null;
   description: string | null;
-  source?: 'youtube' | 'external';
+  source?: 'youtube' | 'vimeo' | 'loom' | 'direct' | 'external';
 }
 
 export interface RecordingItem {
@@ -1157,7 +1157,7 @@ export interface RecordingItem {
   cohort_id?: number;
   title: string;
   description: string | null;
-  source: 'uploaded' | 'youtube' | 'external';
+  source: 'uploaded' | 'youtube' | 'vimeo' | 'loom' | 'direct' | 'external';
   status?: 'draft' | 'published';
   url?: string;
   date?: string | null;
@@ -1177,7 +1177,7 @@ export interface ResourceEntry {
   description: string | null;
 }
 
-// S3-backed recordings (returned by /api/v1/cohorts/:id/recordings)
+// First-class recording library entries (returned by /api/v1/cohorts/:id/recordings)
 export interface S3RecordingWatchProgress {
   last_position_seconds: number;
   total_watched_seconds: number;
@@ -1191,9 +1191,11 @@ export interface S3Recording {
   cohort_id?: number;
   title: string;
   description: string | null;
-  content_type: string;
-  file_size: number;
-  file_size_display: string;
+  source: 'uploaded' | 'youtube' | 'vimeo' | 'loom' | 'direct' | 'external';
+  url?: string | null;
+  content_type: string | null;
+  file_size: number | null;
+  file_size_display: string | null;
   duration_seconds: number | null;
   duration_display: string | null;
   status: 'draft' | 'published';
