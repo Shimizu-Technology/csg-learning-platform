@@ -33,6 +33,8 @@ class CurriculumModule < ApplicationRecord
   validates :schedule_days, inclusion: { in: SCHEDULE_PATTERNS.keys }
   validate :schedule_change_preserves_lesson_release_days
 
+  after_create :assign_to_active_alumni_enrollments
+
   scope :ordered, -> { order(:position) }
 
   def scheduled_weekday_indices
@@ -91,6 +93,15 @@ class CurriculumModule < ApplicationRecord
   end
 
   private
+
+  def assign_to_active_alumni_enrollments
+    Enrollment.active
+      .joins(:cohort)
+      .where(cohorts: { curriculum_id: curriculum_id, cohort_type: Cohort.cohort_types.fetch("alumni") })
+      .find_each do |enrollment|
+        enrollment.module_assignments.create!(curriculum_module: self, unlocked: true)
+      end
+  end
 
   def schedule_change_preserves_lesson_release_days
     return unless will_save_change_to_schedule_days?

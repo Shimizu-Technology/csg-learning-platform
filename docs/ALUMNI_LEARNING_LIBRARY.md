@@ -62,6 +62,8 @@ All recordings can remain accessible. Classification controls prominence, not ac
 
 The weekly-plan API returns `mode: library` for alumni cohorts. Web and mobile clients present an Alumni Learning Library card instead of week numbers, required progress, carried-forward assignments, or overdue language.
 
+Every curriculum module is assigned and force-unlocked when an alumnus enrolls. Modules created later are added automatically to every active alumni enrollment, and reactivating a paused enrollment restores any missing modules. Staff cannot remove a module from an alumni cohort.
+
 Alumni lessons should use video, recording, reading, and text blocks. Optional practice belongs in a text block unless a future practice-only block is introduced. Do not configure GitHub synchronization, repository submissions, rubrics, submission windows, or grading for the alumni curriculum.
 
 ## Rollout and quality gate
