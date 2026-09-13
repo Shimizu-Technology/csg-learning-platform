@@ -22,10 +22,11 @@ class WeeklyPlanProjection
     @lesson_assignments = enrollment.lesson_assignments.index_by(&:lesson_id)
     @modules = assigned_modules
     @lessons = @modules.flat_map { |mod| mod.lessons.map { |lesson| [ mod, lesson ] } }
-    @completed_block_ids = completed_block_ids
-    @latest_submissions = latest_submissions
 
     return library_plan if @cohort.alumni?
+
+    @completed_block_ids = completed_block_ids
+    @latest_submissions = latest_submissions
 
     lesson_items = @lessons.filter_map { |mod, lesson| lesson_item(mod, lesson) }
     required = sort_lesson_items(lesson_items.select { |item| item[:required] })
