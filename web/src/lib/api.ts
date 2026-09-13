@@ -836,7 +836,7 @@ export const api = {
     title: string;
     required: boolean;
     requires_submission: boolean;
-    video?: { id?: number; title: string; video_url: string | null; s3_video_key?: string | null; s3_video_content_type?: string | null; s3_video_size?: number | null };
+    video?: { id?: number; title: string; video_url: string | null; s3_video_key?: string | null; s3_video_content_type?: string | null; s3_video_size?: number | null; video_segments?: { label: string; start_seconds: number; end_seconds: number; required: boolean }[] };
     exercise?: { id?: number; title: string; body: string | null; solution: string | null; filename: string | null; submission_type: string; submission_config: Record<string, unknown>; rubric_id: number | null };
     retrieval_check?: { enabled: boolean; content_block_id?: number; title: string; prompt: string; options: string[]; correct_option: number; explanation: string; learning_objective_id: number | null };
     alignments: { learning_objective_id: number; content_block_id?: number | null }[];

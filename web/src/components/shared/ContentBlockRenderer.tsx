@@ -1,17 +1,19 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import Player, { type VimeoUrl } from '@vimeo/player'
 import { Play, FileText, Code, CheckCircle2, Circle, ChevronDown, ChevronUp, Send, BadgeCheck, RotateCcw, ExternalLink, Globe, GitBranch, Lock } from 'lucide-react'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { GradeDisplay } from './GradeDisplay'
 import { CodeEditor, detectLanguage } from './CodeEditor'
 import { CodeRunner } from './CodeRunner'
-import { VideoPlayer } from './VideoPlayer'
+import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
+import { VideoSegmentControls } from './VideoSegmentControls'
 import { api } from '../../lib/api'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { CODE_RUNNER_TIMEOUT_MS, codeRunnerLanguageFromEditor, normalizeCodeRunnerConfig } from '../../lib/codeRunner'
 import { formatShortDateTime } from '../../lib/format'
 import { useToast } from '../../contexts/ToastContext'
 import { analyticsAgeBucket, captureProductEvent } from '../../lib/analytics'
+import { normalizeVideoSegments, playbackStart, type VideoSegment } from '../../lib/videoSegments'
 
 interface ContentBlock {
   id: number
@@ -98,7 +100,9 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
   const [checkingAnswer, setCheckingAnswer] = useState(false)
   const [checkError, setCheckError] = useState<string | null>(null)
   const vimeoContainerRef = useRef<HTMLDivElement>(null)
+  const vimeoPlayerRef = useRef<Player | null>(null)
   const ytIframeRef = useRef<HTMLIFrameElement>(null)
+  const s3VideoRef = useRef<VideoPlayerHandle>(null)
   const isCompletedRef = useRef(isCompleted)
   const trackedFeedbackRef = useRef<number | null>(null)
   useEffect(() => { isCompletedRef.current = isCompleted }, [isCompleted])
@@ -129,6 +133,15 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
   const workLocked = submissionsLocked && (isExerciseType || (block.block_type === 'checkpoint' && !knowledgeCheck))
   const lockCopy = submissionWeekNumber ? `Week ${submissionWeekNumber} submissions are closed` : 'Submissions are closed'
   const hasUngradedSubmission = submissions.length > 0 && !hasRedoRequest && !hasPassingGrade
+  const videoSegments = useMemo(() => normalizeVideoSegments(block.metadata), [block.metadata])
+  const deepLinkedPosition = useMemo(() => {
+    if (typeof window === 'undefined') return null
+    const raw = new URLSearchParams(window.location.search).get('t')
+    if (raw === null || raw.trim() === '') return null
+    const parsed = Number(raw)
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null
+  }, [block.id])
+  const initialVideoPosition = playbackStart(videoSegments, block.progress?.video_last_position || 0, deepLinkedPosition)
 
   const handleDraftChange = useCallback((updater: () => void) => {
     setHasEditedSubmissionDraft(true)
@@ -200,14 +213,19 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
       width: 640,
       responsive: true,
     })
+    vimeoPlayerRef.current = player
 
     player.on('ended', markVideoCompleted)
+    if (initialVideoPosition > 0) {
+      void player.ready().then(() => player.setCurrentTime(initialVideoPosition)).catch(() => undefined)
+    }
 
     return () => {
+      vimeoPlayerRef.current = null
       player.destroy()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [block.id, block.block_type, block.video_url, markVideoCompleted])
+  }, [block.id, block.block_type, block.video_url, initialVideoPosition, markVideoCompleted])
 
   // YouTube completion tracking via iframe API postMessage
   useEffect(() => {
@@ -312,6 +330,34 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
   const handleBlockCompleted = useCallback(() => {
     setIsCompleted(true)
   }, [])
+
+  const handleVideoSegmentSelect = useCallback((segment: VideoSegment) => {
+    const seconds = segment.start_seconds
+    if (typeof window !== 'undefined') {
+      const nextUrl = new URL(window.location.href)
+      nextUrl.searchParams.set('t', String(seconds))
+      window.history.replaceState(window.history.state, '', nextUrl)
+    }
+
+    if (block.s3_video_key) {
+      s3VideoRef.current?.seekTo(seconds, true)
+      return
+    }
+    if (block.video_url && getYouTubeId(block.video_url)) {
+      ytIframeRef.current?.contentWindow?.postMessage(
+        JSON.stringify({ event: 'command', func: 'seekTo', args: [seconds, true] }),
+        'https://www.youtube.com'
+      )
+      ytIframeRef.current?.contentWindow?.postMessage(
+        JSON.stringify({ event: 'command', func: 'playVideo', args: [] }),
+        'https://www.youtube.com'
+      )
+      return
+    }
+    if (vimeoPlayerRef.current) {
+      void vimeoPlayerRef.current.setCurrentTime(seconds).then(() => vimeoPlayerRef.current?.play()).catch(() => undefined)
+    }
+  }, [block.s3_video_key, block.video_url])
 
   const handleSubmit = async () => {
     if (isStaff) return
@@ -553,9 +599,10 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
       <div className="p-4 lg:p-6">
         {(block.block_type === 'video' || block.block_type === 'recording') && block.s3_video_key && (
           <VideoPlayer
+            ref={s3VideoRef}
             key={`s3-${block.id}`}
             title={block.title || 'Video'}
-            initialPosition={block.progress?.video_last_position || 0}
+            initialPosition={initialVideoPosition}
             initialTotalWatched={block.progress?.video_total_watched || 0}
             fetchStreamUrl={fetchBlockStreamUrl}
             onSaveProgress={saveBlockProgress}
@@ -572,7 +619,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                 return (
                   <iframe
                     ref={ytIframeRef}
-                    src={`https://www.youtube.com/embed/${ytId}?enablejsapi=1&origin=${window.location.origin}`}
+                    src={`https://www.youtube.com/embed/${ytId}?enablejsapi=1&origin=${typeof window === 'undefined' ? '' : window.location.origin}&start=${initialVideoPosition}`}
                     className="w-full h-full"
                     allowFullScreen
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -602,7 +649,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
                 return (
                   <iframe
                     ref={ytIframeRef}
-                    src={`https://www.youtube.com/embed/${ytId}?enablejsapi=1&origin=${window.location.origin}`}
+                    src={`https://www.youtube.com/embed/${ytId}?enablejsapi=1&origin=${typeof window === 'undefined' ? '' : window.location.origin}&start=${initialVideoPosition}`}
                     className="w-full h-full"
                     allowFullScreen
                   />
@@ -615,6 +662,10 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
               return null
             })()}
           </div>
+        )}
+
+        {(block.block_type === 'video' || block.block_type === 'recording') && (
+          <VideoSegmentControls segments={videoSegments} onSelect={handleVideoSegmentSelect} />
         )}
 
         {block.body && (

@@ -204,7 +204,7 @@ module Api
           error: "Lesson changed after this editor was opened. Reload the latest version before saving.",
           code: "stale_editor"
         }, status: :conflict
-      rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed, ActiveRecord::RecordNotFound, KeyError => error
+      rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed, ActiveRecord::RecordNotFound, KeyError, ArgumentError => error
         render json: { errors: [ error.message ] }, status: :unprocessable_entity
       end
 
@@ -240,7 +240,7 @@ module Api
           :required,
           :requires_submission,
           :base_updated_at,
-          video: [ :id, :title, :video_url, :s3_video_key, :s3_video_content_type, :s3_video_size ],
+          video: [ :id, :title, :video_url, :s3_video_key, :s3_video_content_type, :s3_video_size, { video_segments: [ :label, :start_seconds, :end_seconds, :required ] } ],
           exercise: [ :id, :title, :body, :solution, :filename, :submission_type, :rubric_id, { submission_config: {} } ],
           retrieval_check: [ :enabled, :content_block_id, :title, :prompt, :correct_option, :explanation, :learning_objective_id, { options: [] } ],
           alignments: [ :learning_objective_id, :content_block_id ]
@@ -279,6 +279,12 @@ module Api
 
         old_s3_key = block.s3_video_key
         attributes = payload.slice(:title, :video_url)
+        if payload.key?(:video_segments)
+          attributes[:metadata] = (block.metadata || {}).merge(
+            "video_segments" => VideoSegmentSet.normalize(payload[:video_segments]),
+            "video_segments_version" => 1
+          )
+        end
         if payload.key?(:s3_video_key) && payload[:s3_video_key] != old_s3_key
           attributes[:s3_video_key] = payload[:s3_video_key]
           attributes[:s3_video_content_type] = payload[:s3_video_key].present? ? @editor_video_content_type : nil

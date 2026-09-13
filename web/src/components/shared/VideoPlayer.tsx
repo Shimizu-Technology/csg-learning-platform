@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, useCallback } from 'react'
 import { Play, Pause, Maximize, Volume2, VolumeX, RotateCcw, Loader2 } from 'lucide-react'
 
 export interface VideoProgressData {
@@ -17,9 +17,13 @@ interface VideoPlayerProps {
   trackProgress?: boolean
 }
 
+export interface VideoPlayerHandle {
+  seekTo: (seconds: number, play?: boolean) => void
+}
+
 const URL_REFRESH_MS = 90 * 60 * 1000
 
-export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStreamUrl, onSaveProgress, onCompleted, trackProgress = true }: VideoPlayerProps) {
+export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStreamUrl, onSaveProgress, onCompleted, trackProgress = true }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const totalWatchedRef = useRef(initialTotalWatched)
@@ -30,6 +34,7 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
   const lastTimeRef = useRef(0)
   const lastTickAtRef = useRef<number | null>(null)
   const hasRestoredInitialPosition = useRef(false)
+  const pendingSeekRef = useRef<{ seconds: number; play: boolean } | null>(null)
 
   const [streamUrl, setStreamUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -117,14 +122,23 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
 
     const handleLoaded = () => {
       setDuration(video.duration)
-      if (!hasRestoredInitialPosition.current && initialPosition > 0) {
-        video.currentTime = initialPosition
+      const pendingSeek = pendingSeekRef.current
+      if (pendingSeek) {
+        const maximum = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : pendingSeek.seconds
+        video.currentTime = Math.max(0, Math.min(maximum, pendingSeek.seconds))
+        pendingSeekRef.current = null
+        hasRestoredInitialPosition.current = true
+      } else if (!hasRestoredInitialPosition.current) {
+        const maximum = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : initialPosition
+        video.currentTime = Math.max(0, Math.min(maximum, initialPosition))
         hasRestoredInitialPosition.current = true
       }
       // Initialize the delta tracker to wherever we landed (resumed position
       // or 0) so the first timeupdate doesn't book a giant fake forward jump.
       lastTimeRef.current = video.currentTime
       lastTickAtRef.current = performance.now()
+      setCurrentTime(video.currentTime)
+      if (pendingSeek?.play) void video.play()
     }
     const handleTimeUpdate = () => {
       const now = video.currentTime
@@ -272,6 +286,26 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
     else container.requestFullscreen()
   }
 
+  useImperativeHandle(ref, () => ({
+    seekTo(seconds: number, play = true) {
+      const video = videoRef.current
+      const requested = Math.max(0, Math.floor(seconds))
+      if (!video || video.readyState < HTMLMediaElement.HAVE_METADATA) {
+        pendingSeekRef.current = { seconds: requested, play }
+        setCurrentTime(requested)
+        return
+      }
+      const maximum = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : seconds
+      const target = Math.max(0, Math.min(maximum, requested))
+      video.currentTime = target
+      setCurrentTime(target)
+      lastTimeRef.current = target
+      lastTickAtRef.current = performance.now()
+      showBufferingSoon()
+      if (play) void video.play()
+    },
+  }), [showBufferingSoon])
+
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
     const video = videoRef.current
     if (!video || !duration) return
@@ -403,4 +437,4 @@ export function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 
       </div>
     </div>
   )
-}
+})

@@ -1,9 +1,8 @@
-/* eslint-disable react-hooks/immutability -- expo-video's documented control API uses mutable player properties. */
 import { useEventListener } from 'expo';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { AlertCircle, Check, RefreshCw } from 'lucide-react-native';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { fonts, palette } from '@/constants/csg-theme';
@@ -24,7 +23,9 @@ interface NativeVideoPlayerProps {
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
 
-export function NativeVideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStream, saveProgress, onProgressSaved, trackProgress = true }: NativeVideoPlayerProps) {
+export interface NativeVideoPlayerHandle { seekTo: (seconds: number, play?: boolean) => void }
+
+export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideoPlayerProps>(function NativeVideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStream, saveProgress, onProgressSaved, trackProgress = true }, ref) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState(false);
@@ -44,6 +45,7 @@ export function NativeVideoPlayer({ title, initialPosition = 0, initialTotalWatc
   const lastTickAtRef = useRef(0);
   const lastSavedAtRef = useRef(0);
   const pendingRestoreRef = useRef<{ position: number; shouldPlay: boolean } | null>(null);
+  const pendingSeekRef = useRef<{ position: number; shouldPlay: boolean } | null>(null);
   const pendingSaveRef = useRef<VideoProgressInput | null>(null);
   const savingRef = useRef(false);
   const mountedRef = useRef(true);
@@ -125,13 +127,14 @@ export function NativeVideoPlayer({ title, initialPosition = 0, initialTotalWatc
   useEventListener(player, 'sourceLoad', ({ duration: loadedDuration }) => {
     setDuration(loadedDuration);
     durationRef.current = loadedDuration;
-    const restore = pendingRestoreRef.current;
+    const restore = pendingSeekRef.current || pendingRestoreRef.current;
     const position = resumePosition(restore?.position ?? initialPositionRef.current, loadedDuration);
     player.currentTime = position;
     currentTimeRef.current = position;
     lastTimeRef.current = position;
     lastTickAtRef.current = Date.now();
     pendingRestoreRef.current = null;
+    pendingSeekRef.current = null;
     if (restore?.shouldPlay) player.play();
   });
 
@@ -211,6 +214,24 @@ export function NativeVideoPlayer({ title, initialPosition = 0, initialTotalWatc
     setRate(nextRate);
   };
 
+  useImperativeHandle(ref, () => ({
+    seekTo(seconds: number, shouldPlay = true) {
+      const requested = Math.max(0, Math.floor(seconds));
+      if (durationRef.current <= 0) {
+        pendingSeekRef.current = { position: requested, shouldPlay };
+        setCurrentTime(requested);
+        return;
+      }
+      const target = Math.max(0, Math.min(durationRef.current, requested));
+      player.currentTime = target;
+      currentTimeRef.current = target;
+      lastTimeRef.current = target;
+      lastTickAtRef.current = Date.now();
+      setCurrentTime(target);
+      if (shouldPlay) player.play();
+    },
+  }), [player]);
+
   return <View style={styles.shell}>
     <View style={styles.videoWrap}>
       <VideoView
@@ -233,7 +254,7 @@ export function NativeVideoPlayer({ title, initialPosition = 0, initialTotalWatc
     <View style={styles.statusRow}><Text style={styles.time}>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</Text>{!trackProgress ? <Text style={styles.sync}>Preview mode</Text> : completed ? <View style={styles.synced}><Check color={palette.success} size={13} /><Text style={styles.completeText}>Watched</Text></View> : <Text style={[styles.sync, syncError && styles.syncError]}>{syncError ? 'Progress will retry' : playing ? 'Watching' : 'Progress saved'}</Text>}</View>
     <View accessibilityRole="radiogroup" accessibilityLabel="Playback speed" style={styles.speedRow}>{SPEEDS.map((speed) => <Pressable key={speed} accessibilityRole="radio" accessibilityState={{ checked: rate === speed }} accessibilityLabel={`Play at ${speed} times speed`} onPress={() => changeRate(speed)} style={[styles.speed, rate === speed && styles.speedActive]}><Text style={[styles.speedText, rate === speed && styles.speedTextActive]}>{speed}×</Text></Pressable>)}</View>
   </View>;
-}
+});
 
 const styles = StyleSheet.create({
   shell: { borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panelRaised },

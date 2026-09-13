@@ -856,6 +856,7 @@ export interface LessonEditorInput {
     s3_video_key?: string | null;
     s3_video_content_type?: string | null;
     s3_video_size?: number | null;
+    video_segments?: { label: string; start_seconds: number; end_seconds: number; required: boolean }[];
   };
   exercise?: {
     id?: number;
