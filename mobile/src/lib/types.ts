@@ -310,7 +310,7 @@ export interface RecordingItem {
   recorded_date: string | null;
   date?: string | null;
   url?: string | null;
-  source: 'uploaded' | 'youtube' | 'external';
+  source: 'uploaded' | 'youtube' | 'vimeo' | 'loom' | 'direct' | 'external';
   status?: 'draft' | 'published';
   duration_seconds?: number | null;
   duration_display?: string | null;

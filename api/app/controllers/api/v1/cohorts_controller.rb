@@ -318,8 +318,9 @@ module Api
           resources: resources,
           office_hours: office_hours,
           recordings: {
-            uploaded_count: cohort.recordings.count,
-            legacy_count: Array((cohort.settings || {})["recordings"]).size,
+            uploaded_count: cohort.recordings.where(source_kind: "uploaded").count,
+            hosted_count: cohort.recordings.where.not(source_kind: "uploaded").count,
+            legacy_count: unmigrated_legacy_recordings(cohort).size,
             items: cohort_student_view_recordings(cohort)
           }
         }
@@ -501,28 +502,39 @@ module Api
       end
 
       def cohort_student_view_recordings(cohort)
-        uploaded = cohort.recordings.student_visible.order(:position, :recorded_date, :created_at).limit(6).map do |recording|
+        library = cohort.recordings.student_visible.order(:position, :recorded_date, :created_at).limit(8).map do |recording|
           {
             id: recording.id,
             title: recording.title,
             description: recording.description,
-            source: "uploaded",
+            source: recording.source_kind,
+            url: recording.source_url,
             recorded_date: recording.recorded_date,
             duration_display: recording.duration_display
           }
         end
-        legacy = Array((cohort.settings || {})["recordings"]).first(6).map.with_index do |recording, index|
+        legacy = unmigrated_legacy_recordings(cohort).first(8).map do |entry|
+          recording = entry.fetch(:recording)
           {
-            id: "legacy-#{index}",
+            id: "legacy-#{entry.fetch(:index)}",
             title: recording["title"],
             description: recording["description"],
-            source: recording["url"].to_s.include?("youtube") ? "youtube" : "external",
+            source: Recording.source_kind_for(recording["url"]),
             url: recording["url"],
             date: recording["date"]
           }
         end
 
-        (uploaded + legacy).first(8)
+        (library + legacy).first(8)
+      end
+
+      def unmigrated_legacy_recordings(cohort)
+        migrated_keys = cohort.recordings.where.not(legacy_key: nil).pluck(:legacy_key).to_set
+        Array((cohort.settings || {})["recordings"]).map.with_index.filter_map do |recording, index|
+          next if migrated_keys.include?("settings-#{index + 1}")
+
+          { recording: recording, index: index }
+        end
       end
 
       def cohort_json(cohort, include_students: false, include_modules: false)
@@ -550,7 +562,10 @@ module Api
           office_hour_occurrences: office_hours_payload[:upcoming]
         }
 
-        json[:uploaded_recordings_count] = cohort.recordings.count if include_students
+        if include_students
+          json[:recording_library_count] = cohort.recordings.count
+          json[:uploaded_recordings_count] = cohort.recordings.where(source_kind: "uploaded").count
+        end
 
         if include_students
           json[:students] = cohort.enrollments.joins(:user).includes(:user, module_assignments: :curriculum_module).merge(User.not_archived).map { |e|

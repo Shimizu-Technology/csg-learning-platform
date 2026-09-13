@@ -80,11 +80,25 @@ export function isAllowedMediaNavigation(value: string) {
   }
 }
 
-export function embeddedMediaHtml(source: MediaSource) {
+export function embeddedMediaHtml(source: MediaSource, initialPosition = source.startSeconds) {
   if (source.type !== 'embed' || !source.playbackUrl) throw new Error('An embeddable media source is required.');
-  const frameSource = escapeHtmlAttribute(source.playbackUrl);
+  const playbackUrl = new URL(source.playbackUrl);
+  const resumeAt = Math.max(0, Math.floor(initialPosition));
+  if (source.provider === 'youtube') {
+    playbackUrl.searchParams.set('origin', 'https://learn.codeschoolofguam.com');
+    if (resumeAt > 0) playbackUrl.searchParams.set('start', String(resumeAt));
+  } else if (source.provider === 'vimeo' && resumeAt > 0) {
+    playbackUrl.hash = `t=${resumeAt}s`;
+  }
+
+  const frameSource = escapeHtmlAttribute(playbackUrl.toString());
   const title = escapeHtmlAttribute(`${source.providerLabel} video player`);
-  return `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://www.loom.com; style-src 'unsafe-inline'"><style>html,body,iframe{width:100%;height:100%;margin:0;padding:0;border:0;background:#030408;overflow:hidden}</style></head><body><iframe src="${frameSource}" title="${title}" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></body></html>`;
+  const bridge = source.provider === 'youtube'
+    ? `<script nonce="csg-player" src="https://www.youtube.com/iframe_api"></script><script nonce="csg-player">var timer=null;function emit(player,ended){try{var position=player.getCurrentTime()||0;var duration=player.getDuration()||0;window.ReactNativeWebView.postMessage(JSON.stringify({type:'progress',position:position,duration:duration,playing:player.getPlayerState()===1,ended:!!ended}));}catch(e){}}function onYouTubeIframeAPIReady(){var player=new YT.Player('player-frame',{events:{onReady:function(){emit(player,false);},onStateChange:function(event){var ended=event.data===YT.PlayerState.ENDED;emit(player,ended);if(event.data===YT.PlayerState.PLAYING&&!timer){timer=setInterval(function(){emit(player,false);},1000);}if(event.data!==YT.PlayerState.PLAYING&&timer){clearInterval(timer);timer=null;}}}});}</script>`
+    : source.provider === 'vimeo'
+      ? `<script nonce="csg-player" src="https://player.vimeo.com/api/player.js"></script><script nonce="csg-player">var player=new Vimeo.Player(document.getElementById('player-frame'));function emit(data,playing,ended){window.ReactNativeWebView.postMessage(JSON.stringify({type:'progress',position:data.seconds||0,duration:data.duration||0,playing:playing,ended:!!ended}));}player.on('timeupdate',function(data){emit(data,true,false);});player.on('pause',function(data){emit(data,false,false);});player.on('ended',function(data){emit(data,false,true);});</script>`
+      : '';
+  return `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://www.loom.com; script-src 'nonce-csg-player' https://www.youtube.com https://player.vimeo.com; style-src 'unsafe-inline'"><style>html,body,iframe{width:100%;height:100%;margin:0;padding:0;border:0;background:#030408;overflow:hidden}</style></head><body><iframe id="player-frame" src="${frameSource}" title="${title}" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>${bridge}</body></html>`;
 }
 
 function normalizedHost(value: string) {

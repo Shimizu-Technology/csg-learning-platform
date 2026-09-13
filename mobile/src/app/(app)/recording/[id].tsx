@@ -20,7 +20,7 @@ type RecordingsPayload = { recordings: RecordingItem[]; s3_recordings: Recording
 
 function updateProgress(payload: RecordingsPayload | undefined, itemKey: string, progress: WatchProgress) {
   if (!payload) return payload;
-  const update = (item: RecordingItem) => item.item_key === itemKey || (item.source === 'uploaded' && item.id === progress.recording_id) ? { ...item, watch_progress: progress } : item;
+  const update = (item: RecordingItem) => item.item_key === itemKey || (typeof item.id === 'number' && item.id === progress.recording_id) ? { ...item, watch_progress: progress } : item;
   return { ...payload, items: payload.items.map(update), s3_recordings: payload.s3_recordings.map(update), recordings: payload.recordings.map(update) };
 }
 
@@ -33,12 +33,12 @@ export default function RecordingDetailScreen() {
   const key = learningKeys.recordings(user?.id ?? 0);
   const query = useQuery({ queryKey: key, queryFn: ({ signal }) => auth.demo ? Promise.resolve({ recordings: [], s3_recordings: [], items: demoRecordings }) : api.recordings(signal), enabled: Boolean(user) });
   const item = useMemo(() => query.data?.items.find((recording) => recording.item_key === id || String(recording.id) === id), [id, query.data?.items]);
-  const recordingId = item?.source === 'uploaded' && typeof item.id === 'number' ? item.id : null;
+  const recordingId = typeof item?.id === 'number' ? item.id : null;
   const cohortId = item?.cohort_id ?? null;
   const itemKey = item?.item_key ?? '';
   const helpContext = useMemo(() => {
     if (!item) return null;
-    if (item.source === 'uploaded' && typeof item.id === 'number') return { source: 'primary' as const, id: item.id };
+    if (typeof item.id === 'number') return { source: 'primary' as const, id: item.id };
     const ordinal = Number(item.item_key.split('-').at(-1));
     return Number.isInteger(ordinal) && ordinal >= 1 ? { source: 'legacy' as const, id: ordinal - 1 } : null;
   }, [item]);
@@ -62,10 +62,10 @@ export default function RecordingDetailScreen() {
 
   return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={palette.text} size={22} /></Pressable><View style={styles.flex}><Text style={styles.kicker}>CLASS RECORDING</Text><Text numberOfLines={1} style={styles.headerTitle}>{item.cohort_name}</Text></View></View><ScrollView contentContainerStyle={styles.content}>
     <View><Text style={styles.source}>{item.source === 'uploaded' ? 'SECURE CSG VIDEO' : item.source.toUpperCase()}</Text><Text style={styles.title}>{item.title}</Text><View style={styles.meta}><CalendarDays color={palette.quiet} size={14} /><Text style={styles.metaText}>{item.recorded_date || 'Recording date not set'}{item.duration_display ? ` · ${item.duration_display}` : ''}</Text></View></View>
-    {item.source === 'uploaded' ? <NativeVideoPlayer fetchStream={fetchStream} initialPosition={item.watch_progress?.last_position_seconds || 0} initialTotalWatched={item.watch_progress?.total_watched_seconds || 0} saveProgress={saveProgress} title={item.title} trackProgress={!user?.is_staff} /> : item.url ? <InAppMediaPlayer title={item.title} url={item.url} /> : null}
+    {item.source === 'uploaded' ? <NativeVideoPlayer fetchStream={fetchStream} initialPosition={item.watch_progress?.last_position_seconds || 0} initialTotalWatched={item.watch_progress?.total_watched_seconds || 0} saveProgress={saveProgress} title={item.title} trackProgress={!user?.is_staff} /> : item.url ? <InAppMediaPlayer initialPosition={item.watch_progress?.last_position_seconds || 0} initialTotalWatched={item.watch_progress?.total_watched_seconds || 0} saveProgress={saveProgress} title={item.title} trackProgress={!user?.is_staff && recordingId !== null} url={item.url} /> : null}
     {item.description && <View style={styles.description}><Text style={styles.sectionKicker}>ABOUT THIS CLASS</Text><Text style={styles.descriptionText}>{item.description}</Text></View>}
     {helpContext && <View style={styles.help}><ContextualHelp cohortId={item.cohort_id} contextType="recording" contextSource={helpContext.source} contextId={helpContext.id} contextLabel={item.title} /></View>}
-    <View style={styles.security}><ShieldCheck color={palette.success} size={19} /><View style={styles.flex}><Text style={styles.securityTitle}>Private cohort access</Text><Text style={styles.securityCopy}>{item.source === 'uploaded' ? user?.is_staff ? 'Playback links expire automatically. Staff preview is read-only and never changes student learning records.' : 'Playback links expire automatically. Viewing progress is saved to the same record used by the web learning platform.' : 'The official hosted player stays inside the app. This legacy recording will gain synchronized watch progress after it is migrated into the CSG library.'}</Text></View></View>
+    <View style={styles.security}><ShieldCheck color={palette.success} size={19} /><View style={styles.flex}><Text style={styles.securityTitle}>Private cohort access</Text><Text style={styles.securityCopy}>{user?.is_staff ? 'Staff preview is read-only and never changes student learning records.' : recordingId !== null ? 'Your place and watch progress sync to the same class record used by the web learning platform.' : 'This older link plays in the official hosted player when the provider supports it.'}</Text></View></View>
   </ScrollView></SafeAreaView>;
 }
 

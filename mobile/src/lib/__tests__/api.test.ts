@@ -102,6 +102,19 @@ describe('CsgApi', () => {
     expect(fetchMock.mock.calls[3][0]).toContain('/api/v1/content_blocks/9/video_progress');
   });
 
+  it('creates a first-class hosted recording', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ recording: { id: 12 } }), { status: 201 }));
+    const api = new CsgApi(async () => 'session-token');
+    const input = { title: 'Week 1 replay', source_url: 'https://youtu.be/abc123def45', publish_immediately: false };
+
+    await api.createExternalRecording(4, input);
+
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/v1/cohorts/4/recordings'), expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify(input),
+    }));
+  });
+
   it('uses staff-scoped progress, submission, and grading endpoints', async () => {
     const fetchMock = jest.spyOn(global, 'fetch')
       .mockResolvedValueOnce(new Response(JSON.stringify({ overall_progress: { percentage: 40 } }), { status: 200 }))

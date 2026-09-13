@@ -227,6 +227,7 @@ export class CsgApi {
   abortMultipartUpload = (s3Key: string, uploadId: string) => this.request<void>('/api/v1/uploads/multipart/abort', { method: 'DELETE', body: JSON.stringify({ s3_key: s3Key, upload_id: uploadId }) });
   abandonUpload = (s3Key: string) => this.request<void>(`/api/v1/uploads/abandon?s3_key=${encodeURIComponent(s3Key)}`, { method: 'DELETE' });
   createRecording = (cohortId: number, input: { title: string; description?: string; recorded_date?: string; s3_key: string; content_type: string; file_size: number; publish_immediately?: boolean }) => this.request<{ recording: RecordingItem }>(`/api/v1/cohorts/${cohortId}/recordings`, { method: 'POST', body: JSON.stringify(input) });
+  createExternalRecording = (cohortId: number, input: { title: string; source_url: string; description?: string; recorded_date?: string; publish_immediately?: boolean }) => this.request<{ recording: RecordingItem }>(`/api/v1/cohorts/${cohortId}/recordings`, { method: 'POST', body: JSON.stringify(input) });
   recordingStream = (cohortId: number, recordingId: number, signal?: AbortSignal) => this.request<{ stream_url: string; expires_at: string }>(`/api/v1/cohorts/${cohortId}/recordings/${recordingId}/stream_url`, { signal });
   updateWatchProgress = (recordingId: number, input: VideoProgressInput) => this.request<{ watch_progress: WatchProgress }>('/api/v1/watch_progress', { method: 'PATCH', body: JSON.stringify({ recording_id: recordingId, ...input }) });
   workspaces = () => this.request<{ workspaces: WorkspaceSummary[] }>('/api/v1/workspaces');

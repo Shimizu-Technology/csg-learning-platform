@@ -11,13 +11,14 @@ import { useAuthContext } from '../../contexts/AuthContext'
 import type { RecordingEntry, RecordingItem as ApiRecordingItem, S3Recording as ApiS3Recording } from '../../types/api'
 
 interface LegacyRecording {
-  id: string
+  id: number | string
   cohort_id?: number
   title: string
   url: string
   date: string | null
   description: string | null
-  source: 'youtube' | 'external'
+  source: 'youtube' | 'vimeo' | 'loom' | 'direct' | 'external'
+  watch_progress: S3Recording['watch_progress']
 }
 
 interface S3Recording {
@@ -65,17 +66,18 @@ function extractYouTubeId(url: string): string | null {
 
 function normalizeLegacyRecording(recording: RecordingEntry | ApiRecordingItem): LegacyRecording {
   const url = 'url' in recording ? recording.url || '' : ''
-  const source = recording.source === 'youtube' || recording.source === 'external'
+  const source = recording.source && recording.source !== 'uploaded'
     ? recording.source
     : extractYouTubeId(url) ? 'youtube' : 'external'
   return {
-    id: String(recording.id),
+    id: typeof recording.id === 'number' ? recording.id : String(recording.id),
     cohort_id: recording.cohort_id,
     title: recording.title,
     url,
     date: recording.date ?? recording.recorded_date ?? null,
     description: recording.description,
     source,
+    watch_progress: 'watch_progress' in recording ? recording.watch_progress ?? null : null,
   }
 }
 
@@ -163,12 +165,14 @@ export function Recordings() {
   }, [allRecordings, query])
 
   const handleProgressUpdate = useCallback((data: Partial<NonNullable<S3Recording['watch_progress']>>) => {
-    if (!selectedItem || selectedItem.source !== 'uploaded') return
-    setS3Recordings(prev => prev.map(r => {
+    if (!selectedItem || typeof selectedItem.id !== 'number') return
+    const update = <T extends RecordingItem>(r: T): T => {
       if (r.id !== selectedItem.id) return r
       const base = r.watch_progress || { last_position_seconds: 0, total_watched_seconds: 0, progress_percentage: 0, completed: false, last_watched_at: null }
       return { ...r, watch_progress: { ...base, ...data } }
-    }))
+    }
+    if (selectedItem.source === 'uploaded') setS3Recordings(prev => prev.map(update) as S3Recording[])
+    else setLegacyRecordings(prev => prev.map(update) as LegacyRecording[])
   }, [selectedItem])
 
   const liveSelectedItem = useMemo<RecordingItem | null>(() => {
@@ -176,14 +180,14 @@ export function Recordings() {
     if (selectedItem.source === 'uploaded') {
       return s3Recordings.find(r => r.id === selectedItem.id) || selectedItem
     }
-    return selectedItem
-  }, [selectedItem, s3Recordings])
+    return legacyRecordings.find(r => r.id === selectedItem.id) || selectedItem
+  }, [legacyRecordings, selectedItem, s3Recordings])
 
-  const selectedId = liveSelectedItem?.source === 'uploaded' ? liveSelectedItem.id : null
+  const selectedId = typeof liveSelectedItem?.id === 'number' ? liveSelectedItem.id : null
   const selectedCohortId = liveSelectedItem?.cohort_id ?? null
   const selectedHelpContext = useMemo(() => {
     if (!liveSelectedItem || !selectedCohortId) return null
-    if (liveSelectedItem.source === 'uploaded') return { source: 'primary' as const, id: liveSelectedItem.id }
+    if (typeof liveSelectedItem.id === 'number') return { source: 'primary' as const, id: liveSelectedItem.id }
     const ordinal = Number(String(liveSelectedItem.id).split('-').at(-1))
     if (!Number.isInteger(ordinal) || ordinal < 1) return null
     return { source: 'legacy' as const, id: ordinal - 1 }
@@ -258,7 +262,7 @@ export function Recordings() {
         <h1 className="app-title mt-2">Class recordings</h1>
         <p className="app-description mt-2">
           {totalCount} recording{totalCount !== 1 ? 's' : ''} available
-          {s3Recordings.length > 0 && ` · ${s3Recordings.filter(r => r.watch_progress?.completed).length} watched`}
+          {` · ${[...s3Recordings, ...legacyRecordings].filter(r => r.watch_progress?.completed).length} watched`}
         </p>
       </header>
 
@@ -394,6 +398,7 @@ export function Recordings() {
                       const isActive = selectedItem?.id === recording.id && selectedItem?.source === recording.source
                       const isS3 = recording.source === 'uploaded'
                       const s3Rec = isS3 ? recording as S3Recording : null
+                      const progress = recording.watch_progress
                       return (
                         <button
                           key={`${recording.source}-${recording.id}`}
@@ -425,17 +430,17 @@ export function Recordings() {
                                 {!isS3 && (
                                   <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
                                     <ExternalLink className="h-2.5 w-2.5" />
-                                    {recording.source === 'youtube' ? 'YouTube' : 'External'}
+                                    {recording.source === 'youtube' ? 'YouTube' : recording.source === 'direct' ? 'Direct video' : recording.source === 'external' ? 'External' : recording.source[0].toUpperCase() + recording.source.slice(1)}
                                   </span>
                                 )}
                               </div>
-                              {isS3 && s3Rec?.watch_progress && !s3Rec.watch_progress.completed && s3Rec.watch_progress.progress_percentage > 0 && (
+                              {progress && !progress.completed && progress.progress_percentage > 0 && (
                                 <div className="mt-1.5 h-1 bg-slate-100 rounded-full overflow-hidden">
-                                  <div className="h-full bg-primary-400 rounded-full" style={{ width: `${s3Rec.watch_progress.progress_percentage}%` }} />
+                                  <div className="h-full bg-primary-400 rounded-full" style={{ width: `${progress.progress_percentage}%` }} />
                                 </div>
                               )}
                             </div>
-                            {isS3 && s3Rec?.watch_progress?.completed ? (
+                            {progress?.completed ? (
                               <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
                             ) : isActive ? (
                               <PlayCircle className="h-4 w-4 text-primary-500 shrink-0 mt-0.5" />
@@ -527,6 +532,6 @@ function LegacyPlayer({ recording }: { recording: LegacyRecording }) {
 function allRecordingsForTab(tab: RecordingTab, uploaded: S3Recording[], legacy: LegacyRecording[]): RecordingItem[] {
   if (tab === 'uploaded') return uploaded
   if (tab === 'youtube') return legacy.filter((recording) => recording.source === 'youtube')
-  if (tab === 'external') return legacy.filter((recording) => recording.source === 'external')
+  if (tab === 'external') return legacy.filter((recording) => recording.source !== 'youtube')
   return [...uploaded, ...legacy]
 }

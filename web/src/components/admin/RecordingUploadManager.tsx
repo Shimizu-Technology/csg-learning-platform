@@ -14,9 +14,11 @@ interface S3Recording {
   title: string
   description: string | null
   s3_key?: string
-  content_type: string
-  file_size: number
-  file_size_display: string
+  source: 'uploaded' | 'youtube' | 'vimeo' | 'loom' | 'direct' | 'external'
+  url?: string | null
+  content_type: string | null
+  file_size: number | null
+  file_size_display: string | null
   duration_seconds: number | null
   duration_display: string | null
   status: 'draft' | 'published'
@@ -36,26 +38,19 @@ interface RecordingDraft {
   warning?: string
 }
 
-interface ExternalRecording {
-  title: string
-  url: string
-  date?: string
-  description?: string
-}
-
 interface RecordingUploadManagerProps {
   cohortId: number
-  externalRecordings?: ExternalRecording[]
   onRecordingsChange?: () => void
 }
 
-export function RecordingUploadManager({ cohortId, externalRecordings = [], onRecordingsChange }: RecordingUploadManagerProps) {
+export function RecordingUploadManager({ cohortId, onRecordingsChange }: RecordingUploadManagerProps) {
   const { startVideoUpload, uploads, cancelUpload } = useUpload()
   const toast = useToast()
   const confirmAction = useConfirm()
   const [recordings, setRecordings] = useState<S3Recording[]>([])
   const [loading, setLoading] = useState(true)
   const [showUploadForm, setShowUploadForm] = useState(false)
+  const [showLinkForm, setShowLinkForm] = useState(false)
   const [uploadDrafts, setUploadDrafts] = useState<RecordingDraft[]>([])
   const [publishImmediately, setPublishImmediately] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -66,6 +61,13 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
   const [editTitle, setEditTitle] = useState('')
   const [editDescription, setEditDescription] = useState('')
   const [editDate, setEditDate] = useState('')
+  const [editUrl, setEditUrl] = useState('')
+  const [linkTitle, setLinkTitle] = useState('')
+  const [linkUrl, setLinkUrl] = useState('')
+  const [linkDescription, setLinkDescription] = useState('')
+  const [linkDate, setLinkDate] = useState('')
+  const [linkPublishImmediately, setLinkPublishImmediately] = useState(false)
+  const [savingLink, setSavingLink] = useState(false)
   const [previewRecording, setPreviewRecording] = useState<S3Recording | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const mountedRef = useRef(false)
@@ -247,6 +249,7 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
     setEditTitle(rec.title)
     setEditDescription(rec.description || '')
     setEditDate(rec.recorded_date ? rec.recorded_date.split('T')[0] : '')
+    setEditUrl(rec.url || '')
   }
 
   const saveEdit = async () => {
@@ -258,6 +261,7 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
         title: editTitle.trim(),
         description: editDescription.trim(),
         recorded_date: editDate || null,
+        ...(recordings.find((recording) => recording.id === editingId)?.source !== 'uploaded' ? { source_url: editUrl.trim() } : {}),
       })
       if (res.error) {
         setError(res.error)
@@ -269,6 +273,37 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
       void fetchRecordings()
     } finally {
       setSavingEdit(false)
+    }
+  }
+
+  const saveLink = async () => {
+    if (!linkTitle.trim() || !linkUrl.trim() || savingLink) return
+    setSavingLink(true)
+    setError(null)
+    try {
+      const res = await api.createRecording(cohortId, {
+        title: linkTitle.trim(),
+        source_url: linkUrl.trim(),
+        description: linkDescription.trim() || undefined,
+        recorded_date: linkDate || undefined,
+        publish_immediately: linkPublishImmediately,
+      })
+      if (res.error) {
+        setError(res.error)
+        toast.error(res.error)
+        return
+      }
+      setShowLinkForm(false)
+      setLinkTitle('')
+      setLinkUrl('')
+      setLinkDescription('')
+      setLinkDate('')
+      setLinkPublishImmediately(false)
+      toast.success(linkPublishImmediately ? 'Recording link published' : 'Recording link saved as a draft')
+      void fetchRecordings()
+      onRecordingsChange?.()
+    } finally {
+      setSavingLink(false)
     }
   }
 
@@ -311,7 +346,7 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
   }
 
   const formatUploadedAt = (value?: string | null) => {
-    if (!value) return 'Upload time unknown'
+    if (!value) return 'time unknown'
     return new Date(value).toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -328,35 +363,23 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
   ))
 
   const fetchPreviewStreamUrl = useCallback(async () => {
-    if (!previewRecording) return null
+    if (!previewRecording || previewRecording.source !== 'uploaded') return null
     const res = await api.getRecordingStreamUrl(cohortId, previewRecording.id)
     return res.data?.stream_url || null
   }, [cohortId, previewRecording])
 
   const publishedRecordings = recordings.filter((recording) => recording.status === 'published')
   const draftCount = recordings.length - publishedRecordings.length
-  const libraryItems = [
-    ...publishedRecordings.map((recording) => ({
-      key: `uploaded-${recording.id}`,
+  const libraryItems = publishedRecordings.map((recording) => ({
+      key: `recording-${recording.id}`,
       title: recording.title,
       description: recording.description,
-      source: 'Uploaded' as const,
+      source: sourceLabel(recording.source),
       date: recording.recorded_date,
       meta: [recording.duration_display, recording.file_size_display].filter(Boolean).join(' · '),
-      recording,
-      url: null,
-    })),
-    ...externalRecordings.map((recording, index) => ({
-      key: `external-${index}`,
-      title: recording.title || 'Untitled recording',
-      description: recording.description || null,
-      source: externalRecordingSource(recording.url),
-      date: recording.date || null,
-      meta: recording.url,
-      recording: null,
-      url: recording.url,
-    })),
-  ]
+      recording: recording.source === 'uploaded' ? recording : null,
+      url: recording.url || null,
+    }))
 
   if (loading) {
     return (
@@ -377,23 +400,40 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
         onChange={handleFileSelect}
       />
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <Film className="h-5 w-5 text-primary-500" />
-          <h3 className="text-sm font-semibold text-slate-900">Uploaded Recordings</h3>
+          <h3 className="text-sm font-semibold text-slate-900">Recording library</h3>
           <span className="text-xs text-slate-400">({publishedRecordings.length} published{draftCount > 0 ? ` · ${draftCount} draft${draftCount === 1 ? '' : 's'}` : ''})</span>
         </div>
-        <button
+        <div className="flex gap-2"><button
+          onClick={() => setShowLinkForm((current) => !current)}
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          <Link2 className="h-3.5 w-3.5 text-primary-500" />
+          Add link
+        </button><button
           onClick={() => {
             setShowUploadForm(true)
             fileInputRef.current?.click()
           }}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-primary-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-600 transition-colors"
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-primary-500 px-3 text-xs font-semibold text-white hover:bg-primary-600 transition-colors"
         >
           <Plus className="h-3.5 w-3.5" />
           {showUploadForm ? 'Add files' : 'Upload'}
-        </button>
+        </button></div>
       </div>
+
+      {showLinkForm && (
+        <div className="space-y-3 rounded-2xl border border-primary-200 bg-primary-50/50 p-4">
+          <div className="flex items-start justify-between gap-3"><div><h4 className="text-sm font-semibold text-slate-900">Add a hosted recording</h4><p className="mt-1 text-xs text-slate-500">YouTube, Vimeo, Loom, direct video, or another secure link.</p></div><button type="button" onClick={() => setShowLinkForm(false)} className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-white" aria-label="Close link form"><X className="h-4 w-4" /></button></div>
+          <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-medium text-slate-700">Title *<input value={linkTitle} onChange={(event) => setLinkTitle(event.target.value)} placeholder="Week 1 class replay" className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" /></label><label className="text-xs font-medium text-slate-700">Date recorded<input type="date" value={linkDate} onChange={(event) => setLinkDate(event.target.value)} className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" /></label></div>
+          <label className="block text-xs font-medium text-slate-700">Secure video link *<input type="url" value={linkUrl} onChange={(event) => setLinkUrl(event.target.value)} placeholder="https://youtube.com/watch?v=..." className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" /></label>
+          <label className="block text-xs font-medium text-slate-700">Description<input value={linkDescription} onChange={(event) => setLinkDescription(event.target.value)} placeholder="Topics covered in this class" className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" /></label>
+          <label className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5"><input type="checkbox" checked={linkPublishImmediately} onChange={(event) => setLinkPublishImmediately(event.target.checked)} className="h-5 w-5 rounded border-slate-300 text-primary-600 focus:ring-primary-500" /><span><span className="block text-sm font-semibold text-slate-900">Publish immediately</span><span className="block text-xs text-slate-500">Leave off to review the link privately first.</span></span></label>
+          <div className="flex justify-end"><button type="button" onClick={() => void saveLink()} disabled={savingLink || !linkTitle.trim() || !linkUrl.trim()} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white hover:bg-primary-600 disabled:opacity-50">{savingLink && <Loader2 className="h-4 w-4 animate-spin" />}{savingLink ? 'Saving…' : linkPublishImmediately ? 'Add and publish' : 'Save as draft'}</button></div>
+        </div>
+      )}
 
       {showUploadForm && (
         <div className="rounded-xl border border-primary-200 bg-primary-50/50 p-4 space-y-3">
@@ -588,7 +628,7 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
           <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold text-slate-900">Student recording library</p>
-              <p className="text-xs text-slate-500">Only published uploads appear here. Drafts remain in the staff list below.</p>
+              <p className="text-xs text-slate-500">This is exactly what students can access. Drafts remain in the staff list below.</p>
             </div>
             <span className="text-xs font-medium text-slate-500">
               {libraryItems.length} recording{libraryItems.length !== 1 ? 's' : ''}
@@ -615,7 +655,7 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
                       type="button"
                       onClick={() => setPreviewRecording(item.recording)}
                       className="rounded-lg p-1.5 text-slate-400 hover:bg-primary-50 hover:text-primary-600"
-                      title="Preview uploaded recording"
+                      title="Preview recording"
                     >
                       <Eye className="h-4 w-4" />
                     </button>
@@ -664,7 +704,7 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
 
       {recordings.length === 0 ? (
         <div className="text-center py-6 text-xs text-slate-400">
-          No uploaded recordings yet. Click "Upload" to add one.
+          No recordings yet. Upload a video or add a hosted link.
         </div>
       ) : (
         <div className="space-y-2">
@@ -681,6 +721,7 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
                     onChange={(e) => setEditTitle(e.target.value)}
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
+                  {rec.source !== 'uploaded' && <input type="url" value={editUrl} onChange={(event) => setEditUrl(event.target.value)} placeholder="https://youtube.com/watch?v=..." className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <input
                       type="date"
@@ -737,8 +778,8 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
                           {rec.duration_display}
                         </span>
                       )}
-                      <span>{rec.file_size_display}</span>
-                      <span className="text-slate-400">Uploaded {formatUploadedAt(rec.created_at)}</span>
+                      {rec.file_size_display && <span>{rec.file_size_display}</span>}
+                      <span className="text-slate-400">{sourceLabel(rec.source)} · added {formatUploadedAt(rec.created_at)}</span>
                       <span className="text-slate-400">by {rec.uploaded_by || 'Unknown'}</span>
                     </div>
                     {rec.description && (
@@ -759,14 +800,14 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
                           : <Globe2 className="h-3.5 w-3.5" />}
                       {rec.status === 'published' ? 'Return to draft' : 'Publish'}
                     </button>
-                    <button
+                    {rec.source === 'uploaded' ? <button
                       type="button"
                       onClick={() => setPreviewRecording(rec)}
-                      className="rounded-lg p-1.5 text-slate-400 hover:bg-primary-50 hover:text-primary-600 transition-colors"
+                      className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-primary-50 hover:text-primary-600 transition-colors"
                       title="Preview"
                     >
                       <Eye className="h-4 w-4" />
-                    </button>
+                    </button> : rec.url ? <a href={sanitizeUrl(rec.url)} target="_blank" rel="noopener noreferrer" className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-primary-50 hover:text-primary-600" aria-label={`Open ${rec.title}`}><ExternalLink className="h-4 w-4" /></a> : null}
                     <button
                       onClick={() => startEdit(rec)}
                       className="rounded-lg p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
@@ -792,17 +833,16 @@ export function RecordingUploadManager({ cohortId, externalRecordings = [], onRe
   )
 }
 
-function externalRecordingSource(url: string): 'YouTube' | 'External' {
-  try {
-    const host = new URL(url).hostname.toLowerCase()
-    if (host.includes('youtube.com') || host.includes('youtu.be')) return 'YouTube'
-  } catch {
-    // Fall through to External for malformed or draft URLs.
-  }
+function sourceLabel(source: S3Recording['source']): 'Uploaded' | 'YouTube' | 'Vimeo' | 'Loom' | 'Direct video' | 'External' {
+  if (source === 'uploaded') return 'Uploaded'
+  if (source === 'youtube') return 'YouTube'
+  if (source === 'vimeo') return 'Vimeo'
+  if (source === 'loom') return 'Loom'
+  if (source === 'direct') return 'Direct video'
   return 'External'
 }
 
-function sourceBadgeClass(source: 'Uploaded' | 'YouTube' | 'External') {
+function sourceBadgeClass(source: ReturnType<typeof sourceLabel>) {
   if (source === 'Uploaded') return 'border-primary-200 bg-primary-50 text-primary-700'
   if (source === 'YouTube') return 'border-red-200 bg-red-50 text-red-700'
   return 'border-slate-200 bg-slate-50 text-slate-600'

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_06_021000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_13_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -645,18 +645,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_06_021000) do
 
   create_table "recordings", force: :cascade do |t|
     t.bigint "cohort_id", null: false
-    t.string "content_type", null: false
+    t.string "content_type"
     t.datetime "created_at", null: false
     t.text "description"
     t.integer "duration_seconds"
-    t.bigint "file_size", null: false
+    t.bigint "file_size"
+    t.string "legacy_key"
     t.integer "position", default: 0, null: false
     t.datetime "recorded_date"
-    t.string "s3_key", null: false
+    t.string "s3_key"
+    t.string "source_kind", default: "uploaded", null: false
+    t.text "source_url"
     t.integer "status", default: 0, null: false
     t.string "title", null: false
     t.datetime "updated_at", null: false
     t.bigint "uploaded_by_id"
+    t.index ["cohort_id", "legacy_key"], name: "index_recordings_on_cohort_id_and_legacy_key", unique: true, where: "(legacy_key IS NOT NULL)"
     t.index ["cohort_id", "position"], name: "index_recordings_on_cohort_id_and_position"
     t.index ["cohort_id", "status", "position"], name: "index_recordings_on_cohort_id_and_status_and_position"
     t.index ["cohort_id"], name: "index_recordings_on_cohort_id"
