@@ -7,7 +7,7 @@ Product: CSG Connect
 Platforms: iOS and Android through Expo / React Native
 
 Backend: existing Rails `/api/v1` API
-Status: daily-use phases 1–4 and strategic phases 0–1 are merged; the 2026-09 curriculum-authoring parity extension is implemented, validated, and available as internal TestFlight build `1.0.0 (21)`
+Status: daily-use phases 1–4 and strategic phases 0–1 are merged; the 2026-09 curriculum-authoring and unified recording-library extensions are implemented, validated, and available as internal TestFlight build `1.0.0 (22)`
 
 ## 1. Outcome
 
@@ -15,7 +15,7 @@ CSG Connect will become the everyday mobile interface for Code School of Guam. A
 
 The target is **useful mobile parity**: routine student and staff work plus curriculum review and authoring should be native, while bulk enrollment, team administration, repository inspection, and dense matrices remain deliberate authenticated web handoffs. Literal duplication of desktop-shaped screens is not the goal.
 
-The curriculum-authoring extension has shipped safety and API hardening (PR #124), staff library browsing (PR #125), guarded lesson drafts and preview (PR #126), module/lesson management (PR #127), objectives/rubrics/retrieval checks (PR #128), hosted lesson-video replacement (PR #129), browser-runner configuration (PR #130), touch-first rich instruction authoring (PR #131), and consolidated release preflight (PR #132). Existing HTML and legacy Markdown, formatting, safe links, lists, quotes, code, paste sanitization, Dynamic Type, device-draft continuity, and exact student preview are covered. Build `1.0.0 (21)` passed the consolidated code, security, dependency, export, signing, and iOS simulator release gate and is `IN_BETA_TESTING`; physical-device acceptance remains.
+The curriculum-authoring extension has shipped safety and API hardening (PR #124), staff library browsing (PR #125), guarded lesson drafts and preview (PR #126), module/lesson management (PR #127), objectives/rubrics/retrieval checks (PR #128), hosted lesson-video replacement (PR #129), browser-runner configuration (PR #130), touch-first rich instruction authoring (PR #131), and consolidated release preflight (PR #132). Existing HTML and legacy Markdown, formatting, safe links, lists, quotes, code, paste sanitization, Dynamic Type, device-draft continuity, and exact student preview are covered. PRs #134–#135 add secure in-app hosted-media playback and one first-class recording library across web and mobile, with release preflight in PR #136. Build `1.0.0 (22)` passed the code, security, dependency, export, signing, and iOS simulator release gates and is `IN_BETA_TESTING`; physical-device acceptance remains.
 
 ## 2. Product principles
 
@@ -444,6 +444,7 @@ Historical Phase 0–1 release status (2026-08-02):
 - The production access-denied entry flow was rechecked locally against `https://csg-learn-api.onrender.com` without demo mode.
 - Apple confirmed build 9 availability to the invited internal tester at 11:59 AM Pacific/Guam on 2026-08-02. Installation, authenticated role smoke testing, and step 10 remain physical TestFlight acceptance work. No local simulator credential was retained or manufactured for that check.
 - Curriculum-authoring build `1.0.0 (21)` was signed from merged-main commit `f5f28d94a81b549c7c4c3facc3766afabfcd4c27`, uploaded through EAS submission `4289d148-914b-4f5c-b587-779f72266422`, processed by Apple, and is `IN_BETA_TESTING`. Its focused physical-device checks are recorded in `app-store/WHAT_TO_TEST_1.0.0_21.md`.
+- Recording-library build `1.0.0 (22)` was signed from merged-main commit `11b825c8b50b4a3b56f70a43c8ffebaef0e29911`, uploaded through EAS submission `ab62f5fc-5a90-44b8-884a-7d3d9e6425fe`, processed by Apple, and is `IN_BETA_TESTING`. Its focused physical-device checks are recorded in `app-store/WHAT_TO_TEST_1.0.0_22.md`.
 - Public App Store review has intentionally not been submitted; it follows physical-device acceptance.
 
 The exact release record, screenshot inventory, and physical-device checklist are in [`app-store/README.md`](./app-store/README.md).

@@ -9,13 +9,13 @@ This directory is the durable source record for the App Store presentation of th
 | Item | State |
 | --- | --- |
 | Marketing version | `1.0.0` |
-| Latest submitted internal TestFlight build | `1.0.0 (21)` |
-| Latest verified EAS build ID | Not applicable — build 21 was signed locally after the monthly cloud-build allowance was exhausted |
-| Latest verified source commit | `f5f28d94a81b549c7c4c3facc3766afabfcd4c27` (`main`) |
-| Latest verified EAS submission ID | `4289d148-914b-4f5c-b587-779f72266422` |
+| Latest submitted internal TestFlight build | `1.0.0 (22)` |
+| Latest verified EAS build ID | Not applicable — build 22 was signed locally after the monthly cloud-build allowance was exhausted |
+| Latest verified source commit | `11b825c8b50b4a3b56f70a43c8ffebaef0e29911` (`main`) |
+| Latest verified EAS submission ID | `ab62f5fc-5a90-44b8-884a-7d3d9e6425fe` |
 | Latest verified App Store Connect state | Internal `IN_BETA_TESTING`; external beta ready for submission |
-| Next release candidate | `1.0.0 (22)`, pending archive and upload from the merged recording-library release commit |
-| Release artifact fingerprint | Expo fingerprint `1840d049f7d4f97c119f425d6dc5fbb8f09174c8`; IPA SHA-256 `b4c3b16b094f03677a4aebf9ecc66ef41592a40130d8fb7d38c4e41cf3d89307` |
+| Next release candidate | None currently planned |
+| Release artifact fingerprint | Expo fingerprint `1840d049f7d4f97c119f425d6dc5fbb8f09174c8`; IPA SHA-256 `328025d4b7316adae8e409db92f9647991e1df4a765aa4f1f646913f0922fa36` |
 | Phase 0–1 release candidate | `1.0.0 (9)` |
 | App Store version | `1.0`, Prepare for Submission |
 | Internal group | `CSG Internal` |
@@ -36,7 +36,7 @@ Build 20 is the latest verified internal candidate before the curriculum-authori
 
 Build 21 is the curriculum-authoring candidate from merged PRs #124–#131 and release-preflight PR #132. It adds fail-closed preview protection, the native staff curriculum library, guarded lesson drafts and exact student preview, module and lesson structure management, objectives/rubrics/retrieval checks, hosted lesson-video replacement, browser-runner configuration, and rich lesson-instruction authoring. The archive was built and signed locally from exact merged-main commit `f5f28d94a81b549c7c4c3facc3766afabfcd4c27` because the monthly EAS cloud-build allowance was exhausted; no cloud EAS build ID exists. The package identifies itself as `com.codeschoolofguam.connect` version `1.0.0 (21)`, uses a production App Store profile valid through 2027-08-15, and passed code-signature verification. EAS submission `4289d148-914b-4f5c-b587-779f72266422` finished successfully, and App Store Connect reports internal `IN_BETA_TESTING` with external beta ready for submission. Focused tester instructions are in [`WHAT_TO_TEST_1.0.0_21.md`](WHAT_TO_TEST_1.0.0_21.md); EAS's automated changelog field was unavailable on the current plan, but that did not affect the binary upload or internal TestFlight availability.
 
-Build 22 is the planned recording-library candidate from merged PRs #134–#135. It adds secure in-app playback for supported YouTube, Vimeo, Loom, and direct-video links; promotes existing hosted links into the same first-class library as uploaded recordings; and gives staff native add, draft, publish, edit, delete, help-context, and cross-platform progress workflows. Archive and submission identifiers are recorded here only after signing, upload, and App Store Connect processing are verified. Focused tester instructions are in [`WHAT_TO_TEST_1.0.0_22.md`](WHAT_TO_TEST_1.0.0_22.md).
+Build 22 is the recording-library candidate from merged PRs #134–#135 and release-preflight PR #136. It adds secure in-app playback for supported YouTube, Vimeo, Loom, and direct-video links; promotes existing hosted links into the same first-class library as uploaded recordings; and gives staff native add, draft, publish, edit, delete, help-context, and cross-platform progress workflows. The archive was built and signed locally from exact merged-main commit `11b825c8b50b4a3b56f70a43c8ffebaef0e29911` because the monthly EAS cloud-build allowance was exhausted; no cloud EAS build ID exists. The package identifies itself as `com.codeschoolofguam.connect` version `1.0.0 (22)`, uses App Store provisioning profile `c8de0f63-fa95-410b-8f3e-cfa655ae605f` for team `4T358A5S74` through 2027-08-16, and passed code-signature verification. EAS submission `ab62f5fc-5a90-44b8-884a-7d3d9e6425fe` finished successfully, and App Store Connect reports internal `IN_BETA_TESTING` with external beta ready for submission. Focused tester instructions are in [`WHAT_TO_TEST_1.0.0_22.md`](WHAT_TO_TEST_1.0.0_22.md).
 
 Verified EAS production history:
 
@@ -53,8 +53,9 @@ Verified EAS production history:
 | `13` | `03fd9ec4-22a6-4933-80e8-ed0e440d8f2a` | `dd49f5ae-1851-4ed2-ac27-7933e1dfff82` | Finished; `VALID` and `IN_BETA_TESTING` in App Store Connect |
 | `20` | `09092544-ff98-4b03-92c5-5e389bfca7c6` | `933037b9-7432-4aba-9d16-aad2d1b4fc06` | Finished; internal `IN_BETA_TESTING`, external beta ready for submission |
 | `21` | Local signed archive; no cloud EAS build ID | `4289d148-914b-4f5c-b587-779f72266422` | Finished; internal `IN_BETA_TESTING`, external beta ready for submission |
+| `22` | Local signed archive; no cloud EAS build ID | `ab62f5fc-5a90-44b8-884a-7d3d9e6425fe` | Finished; internal `IN_BETA_TESTING`, external beta ready for submission |
 
-These are EAS states plus App Store Connect status checks. Build 21 is the current verified internal TestFlight build. Public App Review remains separate.
+These are EAS states plus App Store Connect status checks. Build 22 is the current verified internal TestFlight build. Public App Review remains separate.
 
 Build 9 is the Phase 0–1 TestFlight candidate. It includes the reviewed voice-draft client, Phase 0 readability work, weekly plan, contextual help, privacy-safe analytics, and offline continuity. Its production EAS environment points to the CSG API with demo mode disabled and includes the `csg-learning-platform` PostHog project configuration. Do not enable the voice production endpoint or submit this binary for public App Review until the temporary transcription-provider processing is accurately disclosed, the production OpenAI data controls are approved, and the voice-specific physical-device checks below pass.
 
@@ -147,12 +148,14 @@ Recording-library candidate preflight recorded on 2026-09-13:
 - Web strict TypeScript, ESLint, 25 suites / 90 tests, Netlify checks, dependency policy, and the production build pass.
 - Mobile strict TypeScript, Expo lint, 64 suites / 378 tests, dependency policy, and CI iOS/Android production exports pass.
 - Hands-on iOS simulator QA passes for staff hosted-link creation and draft handling, student in-app YouTube playback, progress state, help context, original-link fallback, and touch layout.
-- The production profile uses remote auto-increment and does not request manual TestFlight group assignment. The next archive is expected to receive build 22.
+- The production profile uses remote auto-increment and does not request manual TestFlight group assignment. EAS assigned build 22 as expected.
 - The concise internal-testing script for build 22 is in [`WHAT_TO_TEST_1.0.0_22.md`](./WHAT_TO_TEST_1.0.0_22.md).
+- A local EAS production archive completed from exact merged-main commit `11b825c8b50b4a3b56f70a43c8ffebaef0e29911`. Expo Doctor passed 21/21; the signed IPA passed package-identity, App Store provisioning, and code-signature checks.
+- The IPA is 31,851,826 bytes with SHA-256 `328025d4b7316adae8e409db92f9647991e1df4a765aa4f1f646913f0922fa36`. EAS submission `ab62f5fc-5a90-44b8-884a-7d3d9e6425fe` finished successfully; App Store Connect reports internal `IN_BETA_TESTING` and external beta ready for submission.
 
 ## Physical TestFlight acceptance
 
-The invited tester must update to curriculum-authoring candidate build 21 in TestFlight and complete this final acceptance pass with real authorized accounts:
+The invited tester must update to recording-library candidate build 22 in TestFlight and complete this final acceptance pass with real authorized accounts:
 
 - sign in with Google and confirm unauthorized accounts receive the explicit no-access state;
 - verify student, instructor, and admin role scoping where test accounts are available;

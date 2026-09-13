@@ -52,7 +52,7 @@ Curriculum, routine authoring, lesson progress, resources, submissions, office h
 ## Parity status
 
 - Curriculum, lesson delivery, progress, resources, and submissions are native as of Phase 2.
-- The Phase 3 recording library and S3/lesson-video player add native resume, progress sync, signed-URL renewal, speed control, fullscreen rotation, interruptions, and PiP. Legacy YouTube/external recordings use a safe system handoff.
+- The Phase 3 recording library and lesson-video player provide native resume and progress sync for uploaded and direct media, plus in-app YouTube, Vimeo, and Loom playback with a clearly labeled original-link fallback. Uploaded media retains signed-URL renewal, speed control, fullscreen rotation, interruption handling, and PiP.
 - Managed offline recording downloads remain deferred until retention, device-storage, privacy, and logout-deletion policy is approved. The player does not cache signed media URLs.
 - Today includes the shared **This Week** plan: required and optional lessons, carried-forward work, close times, redos, live classes/office hours, upcoming unlocks, and recording catch-up. Its query is retained by the existing seven-day user-scoped SQLite cache alongside the separately encrypted session and is removed at sign-out.
 - Text submissions autosave a version-aware device draft, older drafts require intentional restore after a server-side change, and only server acknowledgment produces success. Channel, DM, and thread drafts restore during network failures; sign-out removes authored drafts and failed-message retry copies. The detailed contract is in `OFFLINE_CONTINUITY.md`.
@@ -60,7 +60,7 @@ Curriculum, routine authoring, lesson progress, resources, submissions, office h
 - Phase 4 gives staff a ranked cross-cohort attention queue, student health and progress drill-downs, a focused grading queue, native A/B/C/Redo reviews, concise feedback, and direct submission push routes.
 - Staff can browse active and upcoming cohort recordings and resources without pretending to be enrolled in those cohorts.
 - Staff curriculum search, preview, module/lesson management, and routine lesson authoring are native. Large-scale curriculum restructuring, bulk enrollment/team operations, dense grading/watch-progress matrices, and repository inspection retain labeled one-time authenticated web handoffs because they are desktop-shaped workflows.
-- App Store Connect product copy and the complete 6.9-inch iPhone / 13-inch iPad screenshot sets describe the parity release. Curriculum-authoring build `1.0.0 (21)` is available to internal TestFlight testers. Public review waits for physical-device acceptance.
+- App Store Connect product copy and the complete 6.9-inch iPhone / 13-inch iPad screenshot sets describe the parity release. Recording-library build `1.0.0 (22)` is available to internal TestFlight testers. Public review waits for physical-device acceptance.
 
 The Rails API remains the single product backend, so every native phase is additive rather than a fork of web behavior.
 
