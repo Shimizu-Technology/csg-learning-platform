@@ -19,6 +19,7 @@ class Cohort < ApplicationRecord
   validates :start_date, presence: true
 
   after_create :provision_workspace
+  after_update :complete_alumni_enrollments, if: :became_alumni?
 
   def module_schedule_for(curriculum_module)
     if cohort_module_schedules.loaded?
@@ -40,5 +41,13 @@ class Cohort < ApplicationRecord
 
   def provision_workspace
     Workspace.find_or_create_for_cohort!(self)
+  end
+
+  def became_alumni?
+    saved_change_to_cohort_type? && alumni?
+  end
+
+  def complete_alumni_enrollments
+    enrollments.active.find_each(&:ensure_alumni_curriculum_modules!)
   end
 end

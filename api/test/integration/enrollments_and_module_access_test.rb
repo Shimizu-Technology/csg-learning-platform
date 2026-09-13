@@ -79,6 +79,15 @@ class EnrollmentsAndModuleAccessTest < ActionDispatch::IntegrationTest
     assert_equal 2, enrollment.module_assignments.where(unlocked: true).count
   end
 
+  test "converting an existing cohort to alumni completes its active enrollments" do
+    enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+    ModuleAssignment.create!(enrollment: enrollment, curriculum_module: @mod1, unlocked: false)
+
+    @cohort.update!(cohort_type: :alumni)
+
+    assert_equal 2, enrollment.module_assignments.where(unlocked: true).count
+  end
+
   test "alumni modules cannot be removed from the cohort" do
     @cohort.update!(cohort_type: :alumni)
     enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)

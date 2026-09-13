@@ -26,6 +26,17 @@ class Enrollment < ApplicationRecord
     end
   end
 
+  def ensure_alumni_curriculum_modules!
+    return unless active? && cohort.alumni?
+
+    cohort.curriculum.modules.find_each do |curriculum_module|
+      assignment = module_assignments.find_or_initialize_by(curriculum_module: curriculum_module)
+      assignment.unlocked = true
+      assignment.unlock_date_override = nil
+      assignment.save!
+    end
+  end
+
   private
 
   def set_enrolled_at
@@ -41,11 +52,6 @@ class Enrollment < ApplicationRecord
   end
 
   def assign_alumni_curriculum_modules
-    cohort.curriculum.modules.find_each do |curriculum_module|
-      assignment = module_assignments.find_or_initialize_by(curriculum_module: curriculum_module)
-      assignment.unlocked = true
-      assignment.unlock_date_override = nil
-      assignment.save!
-    end
+    ensure_alumni_curriculum_modules!
   end
 end
