@@ -13,7 +13,7 @@ class VideoSegmentSetTest < ActiveSupport::TestCase
 
   test "rejects invalid recording sections" do
     error = assert_raises(ArgumentError) do
-      VideoSegmentSet.normalize([{ label: "Broken", start_seconds: 10, end_seconds: 10 }])
+      VideoSegmentSet.normalize([ { label: "Broken", start_seconds: 10, end_seconds: 10 } ])
     end
 
     assert_equal "Recording section 1 must end after it starts", error.message
