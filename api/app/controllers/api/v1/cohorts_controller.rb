@@ -305,6 +305,7 @@ module Api
           cohort: {
             id: cohort.id,
             name: cohort.name,
+            cohort_type: cohort.cohort_type,
             status: cohort.status,
             start_date: cohort.start_date,
             end_date: cohort.end_date,
@@ -323,6 +324,7 @@ module Api
           },
           modules: module_data,
           dashboard: dashboard,
+          weekly_plan: cohort.alumni? ? cohort_student_library_plan_preview_json(cohort, module_data) : nil,
           announcements: announcements,
           resources: resources,
           office_hours: office_hours,
@@ -332,6 +334,23 @@ module Api
             legacy_count: unmigrated_legacy_recordings(cohort).size,
             items: cohort_student_view_recordings(cohort)
           }
+        }
+      end
+
+      def cohort_student_library_plan_preview_json(cohort, module_data)
+        {
+          enrolled: true,
+          mode: "library",
+          cohort: { id: cohort.id, name: cohort.name },
+          timezone: LearningCalendar::TIMEZONE,
+          generated_at: Time.current.iso8601,
+          library_summary: {
+            module_count: module_data.size,
+            lesson_count: module_data.sum { |mod| mod[:lessons_count] },
+            recording_count: cohort.recordings.count(&:published?)
+          },
+          events: [],
+          recording_catch_up: []
         }
       end
 
@@ -391,7 +410,7 @@ module Api
       end
 
       def cohort_student_view_module_json(cohort, mod, schedule, assignments, module_github_config)
-        assigned = schedule.present? || assignments.any?
+        assigned = cohort.alumni? || schedule.present? || assignments.any?
         start_date = cohort_student_view_module_start_date(cohort, mod, schedule, assignments, assigned)
         module_available = assigned && cohort_student_view_module_available?(cohort, assignments, start_date)
         requires_github = module_github_config["requires_github"] || false
@@ -417,6 +436,7 @@ module Api
       end
 
       def cohort_student_view_module_start_date(cohort, mod, schedule, assignments, assigned)
+        return cohort.start_date.to_date if cohort.alumni?
         return schedule.start_date if schedule.present?
 
         assignment_start_date = assignments.filter_map { |assignment| assignment.effective_start_date(cohort) }.min
@@ -425,7 +445,8 @@ module Api
         assigned ? mod.legacy_start_date_for(cohort) : nil
       end
 
-      def cohort_student_view_module_available?(_cohort, assignments, start_date)
+      def cohort_student_view_module_available?(cohort, assignments, start_date)
+        return true if cohort.alumni?
         return false unless start_date.present?
         return true if assignments.any?(&:unlocked?)
 
@@ -434,7 +455,7 @@ module Api
 
       def cohort_student_view_lesson_json(cohort, mod, lesson, module_start_date, module_available, requires_github)
         unlock_date = module_start_date.present? ? module_start_date + mod.calendar_offset_for(lesson.release_day) : nil
-        available = module_available && unlock_date.present? && LearningCalendar.today >= unlock_date
+        available = cohort.alumni? || (module_available && unlock_date.present? && LearningCalendar.today >= unlock_date)
 
         {
           id: lesson.id,
