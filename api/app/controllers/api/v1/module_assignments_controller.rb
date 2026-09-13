@@ -23,7 +23,7 @@ module Api
       def create
         with_learning_write_guard(@enrollment) do
           assignment = @enrollment.module_assignments.find_or_initialize_by(module_id: module_assignment_params[:module_id])
-          assignment.assign_attributes(module_assignment_params)
+          assignment.assign_attributes(normalized_assignment_params(@enrollment))
 
           if assignment.save
             render json: { module_assignment: module_assignment_json(assignment) }, status: :created
@@ -36,7 +36,7 @@ module Api
       # PATCH /api/v1/module_assignments/:id
       def update
         with_learning_write_guard(@module_assignment.enrollment) do
-          if @module_assignment.update(module_assignment_params)
+          if @module_assignment.update(normalized_assignment_params(@module_assignment.enrollment))
             render json: { module_assignment: module_assignment_json(@module_assignment) }
           else
             render json: { errors: @module_assignment.errors.full_messages }, status: :unprocessable_entity
@@ -46,6 +46,11 @@ module Api
 
       # DELETE /api/v1/module_assignments/:id
       def destroy
+        if @module_assignment.enrollment.cohort.alumni?
+          render json: { errors: [ "Alumni enrollments always include every curriculum module" ] }, status: :unprocessable_entity
+          return
+        end
+
         with_learning_write_guard(@module_assignment.enrollment) do
           @module_assignment.destroy
           head :no_content
@@ -64,6 +69,13 @@ module Api
 
       def module_assignment_params
         params.permit(:module_id, :unlocked, :unlock_date_override)
+      end
+
+      def normalized_assignment_params(enrollment)
+        permitted = module_assignment_params
+        return permitted unless enrollment.cohort.alumni?
+
+        permitted.merge(unlocked: true, unlock_date_override: nil)
       end
 
       def module_assignment_json(assignment)

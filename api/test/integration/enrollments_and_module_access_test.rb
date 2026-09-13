@@ -102,6 +102,29 @@ class EnrollmentsAndModuleAccessTest < ActionDispatch::IntegrationTest
     assert enrollment.module_assignments.exists?(module_id: @mod1.id)
   end
 
+  test "an individual alumni module assignment cannot be locked or deleted" do
+    @cohort.update!(cohort_type: :alumni)
+    enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+    assignment = enrollment.module_assignments.find_by!(module_id: @mod1.id)
+
+    as_user(@admin) do
+      patch "/api/v1/module_assignments/#{assignment.id}",
+        params: { unlocked: false, unlock_date_override: 1.month.from_now.to_date },
+        headers: auth_headers, as: :json
+    end
+
+    assert_response :success
+    assert assignment.reload.unlocked?
+    assert_nil assignment.unlock_date_override
+
+    as_user(@admin) do
+      delete "/api/v1/module_assignments/#{assignment.id}", headers: auth_headers
+    end
+
+    assert_response :unprocessable_entity
+    assert ModuleAssignment.exists?(assignment.id)
+  end
+
   test "enrollment sets enrolled_at timestamp" do
     as_user(@admin) do
       post "/api/v1/cohorts/#{@cohort.id}/enrollments",

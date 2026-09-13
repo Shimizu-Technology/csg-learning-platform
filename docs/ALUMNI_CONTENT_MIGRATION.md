@@ -14,13 +14,14 @@ Use sources in this order when building a lesson:
 
 Do not copy the Resources guide tree into a cohort or example repository. Link to the canonical repository instead.
 
-## Local evidence
+## Evidence and reproducible sources
 
-- Cohort 2 recordings: `~/Desktop/CSG/CSG-Live-July-2025 - Spam Bots/Recordings`
-- Pilot recordings: `~/Desktop/CSG/CSG-PilotClass/Recordings`
-- Recording/curriculum map: `Brain-Dump/code-school/csg-cohort-2-recording-curriculum-map.md`
-- Reviewed accelerated path: `Brain-Dump/code-school/lance-complete-curriculum.md`
-- Drive backup: `Brain-Dump/code-school/From-Google-Drive/Shimizu Technology, LLC-20251216T100426Z-3-001.zip`
+- Shared recording source: [Cohort 2 YouTube playlist](https://www.youtube.com/playlist?list=PLRpfxQ4ZG69WvQfcv9I-F5LtsQ3nwfj-f).
+- Shared current guides: [Code-School-of-Guam-Alumni/Resources](https://github.com/Code-School-of-Guam-Alumni/Resources).
+- Shared class code: the Code School of Guam cohort organizations on GitHub, linked to immutable commits from each lesson.
+- Local-only video backup: `CSG/CSG-Live-July-2025 - Spam Bots/Recordings` and `CSG/CSG-PilotClass/Recordings` in Leon's synchronized CSG archive. Reproduce the review without that archive from the YouTube playlist.
+- Local-only planning notes: `code-school/csg-cohort-2-recording-curriculum-map.md` and `code-school/lance-complete-curriculum.md` in Leon's synchronized Brain Dump. Published lesson metadata and this migration document are the portable result of that review.
+- Local-only Drive export: `code-school/From-Google-Drive/Shimizu Technology, LLC-20251216T100426Z-3-001.zip` in Leon's synchronized Brain Dump. The original source is the Code School of Guam Google Drive curriculum folder; use the dated ZIP only as a frozen comparison copy.
 
 The local Cohort 2 folder contains 72 live/final recordings, while the playlist contains 79. Reconcile those sets before calling the archive complete. The Drive backup also lacks top-level Week 6 and Week 12 plans, so those weeks require direct recording and repository review.
 

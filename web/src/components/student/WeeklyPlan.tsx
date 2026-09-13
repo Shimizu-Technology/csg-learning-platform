@@ -79,7 +79,7 @@ function LibraryPlan({ plan }: { plan: WeeklyPlan }) {
   const library = plan.library_summary!
 
   return (
-    <section aria-labelledby="learning-library-title" className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
+    <section aria-labelledby="learning-library-title" className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
       <div className="bg-slate-950 px-5 py-6 text-white sm:px-6">
         <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-primary-300">Keep learning at your pace</p>
         <h2 id="learning-library-title" className="mt-1 text-2xl font-extrabold tracking-tight">Alumni Learning Library</h2>
