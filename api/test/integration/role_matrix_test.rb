@@ -367,6 +367,28 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
     assert_equal false, available
   end
 
+  test "alumni cohort template previews the permanent learning library without enrollments" do
+    @cohort.update!(cohort_type: :alumni)
+    Lesson.create!(curriculum_module: @mod, title: "Alumni lesson", position: 0, release_day: 0)
+
+    as_user(@instructor) do
+      get "/api/v1/cohorts/#{@cohort.id}/student_view", headers: auth_headers
+    end
+
+    assert_response :success
+    data = JSON.parse(response.body).fetch("student_view")
+    mod = data.fetch("modules").first
+
+    assert_equal "alumni", data.dig("cohort", "cohort_type")
+    assert_equal true, mod.fetch("assigned")
+    assert_equal true, mod.fetch("available")
+    assert_equal true, mod.fetch("lessons").first.fetch("available")
+    assert_equal "library", data.dig("weekly_plan", "mode")
+    assert_equal 1, data.dig("weekly_plan", "library_summary", "module_count")
+    assert_equal 1, data.dig("weekly_plan", "library_summary", "lesson_count")
+    assert_equal "Alumni lesson", data.dig("dashboard", "continue_lesson", "title")
+  end
+
   # --- Curricula (staff for read, admin for write) ---
 
   test "student cannot list curricula" do

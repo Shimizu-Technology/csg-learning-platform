@@ -285,6 +285,7 @@ function PreviewContent({ data, activeSection }: { data: CohortStudentViewData; 
     return (
       <Dashboard
         previewData={data.dashboard}
+        previewWeeklyPlan={data.weekly_plan}
         disableStaffRedirect
       />
     )

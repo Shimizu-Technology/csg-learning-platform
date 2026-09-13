@@ -19,18 +19,19 @@ function formatDate(dateStr: string | null | undefined): string {
 
 interface DashboardProps {
   previewData?: DashboardData
+  previewWeeklyPlan?: WeeklyPlan | null
   previewBanner?: ReactNode
   disableStaffRedirect?: boolean
 }
 
-export function Dashboard({ previewData, previewBanner, disableStaffRedirect = false }: DashboardProps = {}) {
+export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disableStaffRedirect = false }: DashboardProps = {}) {
   const { user } = useAuthContext()
   const navigate = useNavigate()
   const [data, setData] = useState<DashboardData | null>(previewData || null)
   const [loading, setLoading] = useState(!previewData)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showingSavedData, setShowingSavedData] = useState(false)
-  const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan | null>(null)
+  const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan | null>(previewWeeklyPlan || null)
   const [weeklyPlanLoaded, setWeeklyPlanLoaded] = useState(Boolean(previewData))
 
   const announcementTimestamp = (dateStr?: string | null) => {

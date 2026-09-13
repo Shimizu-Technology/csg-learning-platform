@@ -972,6 +972,7 @@ export interface CohortStudentView {
   cohort: {
     id: number;
     name: string;
+    cohort_type: string;
     status: string;
     start_date: string;
     end_date: string | null;
@@ -990,6 +991,7 @@ export interface CohortStudentView {
   };
   modules: CohortStudentViewModule[];
   dashboard: DashboardData;
+  weekly_plan?: WeeklyPlan | null;
   announcements: Announcement[];
   resources: Array<{ id: number; title: string; url: string; category: string; description: string | null }>;
   office_hours?: OfficeHourOccurrence[];
