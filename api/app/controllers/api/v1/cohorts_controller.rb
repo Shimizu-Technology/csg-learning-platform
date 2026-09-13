@@ -436,12 +436,11 @@ module Api
       end
 
       def cohort_student_view_module_start_date(cohort, mod, schedule, assignments, assigned)
+        return cohort.start_date.to_date if cohort.alumni?
         return schedule.start_date if schedule.present?
 
         assignment_start_date = assignments.filter_map { |assignment| assignment.effective_start_date(cohort) }.min
         return assignment_start_date if assignment_start_date.present?
-
-        return cohort.start_date.to_date if cohort.alumni?
 
         assigned ? mod.legacy_start_date_for(cohort) : nil
       end

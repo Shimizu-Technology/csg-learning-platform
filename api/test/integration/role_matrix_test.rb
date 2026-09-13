@@ -370,6 +370,11 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
   test "alumni cohort template previews the permanent learning library without enrollments" do
     @cohort.update!(cohort_type: :alumni)
     Lesson.create!(curriculum_module: @mod, title: "Alumni lesson", position: 0, release_day: 0)
+    CohortModuleSchedule.create!(
+      cohort: @cohort,
+      curriculum_module: @mod,
+      start_date: @mod.next_start_date_on_or_after(@cohort.start_date.to_date + 7.days)
+    )
 
     as_user(@instructor) do
       get "/api/v1/cohorts/#{@cohort.id}/student_view", headers: auth_headers
@@ -382,6 +387,8 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
     assert_equal "alumni", data.dig("cohort", "cohort_type")
     assert_equal true, mod.fetch("assigned")
     assert_equal true, mod.fetch("available")
+    assert_equal @cohort.start_date.to_date.iso8601, mod.fetch("module_start_date")
+    assert_equal @cohort.start_date.to_date.iso8601, mod.fetch("lessons").first.fetch("unlock_date")
     assert_equal true, mod.fetch("lessons").first.fetch("available")
     assert_equal "library", data.dig("weekly_plan", "mode")
     assert_equal 1, data.dig("weekly_plan", "library_summary", "module_count")

@@ -34,6 +34,12 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
   const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan | null>(previewWeeklyPlan || null)
   const [weeklyPlanLoaded, setWeeklyPlanLoaded] = useState(Boolean(previewData))
 
+  useEffect(() => {
+    if (!previewData) return
+    setWeeklyPlan(previewWeeklyPlan ?? null)
+    setWeeklyPlanLoaded(true)
+  }, [previewData, previewWeeklyPlan])
+
   const announcementTimestamp = (dateStr?: string | null) => {
     if (!dateStr) return 0
     return new Date(dateStr).getTime()

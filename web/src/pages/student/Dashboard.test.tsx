@@ -1,6 +1,10 @@
+// @vitest-environment jsdom
+
+import { act } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import type { DashboardData, WeeklyPlan } from '../../types/api'
 import { Dashboard } from './Dashboard'
@@ -50,6 +54,20 @@ const previewWeeklyPlan: WeeklyPlan = {
 }
 
 describe('Dashboard alumni preview', () => {
+  let container: HTMLDivElement
+  let root: Root
+
+  beforeEach(() => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+  })
+
   it('renders the alumni library card and an available lesson', () => {
     const html = renderToStaticMarkup(
       <MemoryRouter>
@@ -60,5 +78,37 @@ describe('Dashboard alumni preview', () => {
     expect(html).toContain('Alumni Learning Library')
     expect(html).toContain('Model One-to-Many Relationships in Rails')
     expect(html).not.toContain('fully caught up')
+  })
+
+  it('replaces the alumni library summary when preview props change', async () => {
+    await act(async () => {
+      root.render(
+        <MemoryRouter>
+          <Dashboard previewData={previewData} previewWeeklyPlan={previewWeeklyPlan} disableStaffRedirect />
+        </MemoryRouter>,
+      )
+    })
+
+    expect(container.textContent).toContain('5available lessons')
+
+    const updatedPlan: WeeklyPlan = {
+      ...previewWeeklyPlan,
+      library_summary: { module_count: 10, lesson_count: 9, recording_count: 0 },
+    }
+    const updatedData: DashboardData = {
+      ...previewData,
+      user: { ...previewData.user, full_name: 'Another Alumni' },
+    }
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter>
+          <Dashboard previewData={updatedData} previewWeeklyPlan={updatedPlan} disableStaffRedirect />
+        </MemoryRouter>,
+      )
+    })
+
+    expect(container.textContent).toContain('9available lessons')
+    expect(container.textContent).not.toContain('5available lessons')
   })
 })
