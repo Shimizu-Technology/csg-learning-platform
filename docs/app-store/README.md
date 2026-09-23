@@ -1,6 +1,6 @@
 # CSG Connect App Store Release Record
 
-Last updated: 2026-09-13 (Pacific/Guam)
+Last updated: 2026-09-24 (Pacific/Guam)
 
 This directory is the durable source record for the App Store presentation of the completed mobile-parity program. It records what was uploaded, how the images were produced, and what remains before public App Review.
 
@@ -9,13 +9,13 @@ This directory is the durable source record for the App Store presentation of th
 | Item | State |
 | --- | --- |
 | Marketing version | `1.0.0` |
-| Latest submitted internal TestFlight build | `1.0.0 (22)` |
-| Latest verified EAS build ID | Not applicable — build 22 was signed locally after the monthly cloud-build allowance was exhausted |
-| Latest verified source commit | `11b825c8b50b4a3b56f70a43c8ffebaef0e29911` (`main`) |
-| Latest verified EAS submission ID | `ab62f5fc-5a90-44b8-884a-7d3d9e6425fe` |
-| Latest verified App Store Connect state | Internal `IN_BETA_TESTING`; external beta ready for submission |
+| Latest submitted internal TestFlight build | `1.0.0 (23)` |
+| Latest verified EAS build ID | Not applicable — build 23 was signed locally after the monthly cloud-build allowance was exhausted |
+| Latest verified source commit | `942a1286f694e4b2ff7a13471640c4004605fc50` (`main`) |
+| Latest release delivery | Apple Transporter delivery `a5e16a46-2b3c-4c41-972d-73aae8b08b82`; queued EAS submission `8cd1a88c-7598-4377-920d-588215d77fc9` was canceled before upload |
+| Latest verified App Store Connect state | `VALID`; internal `IN_BETA_TESTING`; external beta ready for submission |
 | Next release candidate | None currently planned |
-| Release artifact fingerprint | Expo fingerprint `1840d049f7d4f97c119f425d6dc5fbb8f09174c8`; IPA SHA-256 `328025d4b7316adae8e409db92f9647991e1df4a765aa4f1f646913f0922fa36` |
+| Release artifact fingerprint | IPA SHA-256 `9aabf9378e73c207cf6ea2f2ca00cecb5102ad216382d2be3d3e4951679eaf05` |
 | Phase 0–1 release candidate | `1.0.0 (9)` |
 | App Store version | `1.0`, Prepare for Submission |
 | Internal group | `CSG Internal` |
@@ -38,9 +38,11 @@ Build 21 is the curriculum-authoring candidate from merged PRs #124–#131 and r
 
 Build 22 is the recording-library candidate from merged PRs #134–#135 and release-preflight PR #136. It adds secure in-app playback for supported YouTube, Vimeo, Loom, and direct-video links; promotes existing hosted links into the same first-class library as uploaded recordings; and gives staff native add, draft, publish, edit, delete, help-context, and cross-platform progress workflows. The archive was built and signed locally from exact merged-main commit `11b825c8b50b4a3b56f70a43c8ffebaef0e29911` because the monthly EAS cloud-build allowance was exhausted; no cloud EAS build ID exists. The package identifies itself as `com.codeschoolofguam.connect` version `1.0.0 (22)`, uses App Store provisioning profile `c8de0f63-fa95-410b-8f3e-cfa655ae605f` for team `4T358A5S74` through 2027-08-16, and passed code-signature verification. EAS submission `ab62f5fc-5a90-44b8-884a-7d3d9e6425fe` finished successfully, and App Store Connect reports internal `IN_BETA_TESTING` with external beta ready for submission. Focused tester instructions are in [`WHAT_TO_TEST_1.0.0_22.md`](WHAT_TO_TEST_1.0.0_22.md).
 
-Verified EAS production history:
+Build 23 is the messaging-smoothness candidate from merged PR #141. It reduces waits when opening and switching web conversations, adds older-message pagination across Rails, web, and iOS, shows native messages before attachment upload completes, and supports independent consecutive sends with progress and retry. The app source is merged-main commit `942a1286f694e4b2ff7a13471640c4004605fc50`. EAS remote versioning was already at 23 after the cloud-build allowance rejected an earlier attempt, so the local archive used a temporary `autoIncrement: false` build-profile override; the repository profile was restored immediately afterward. The signed IPA identifies itself as `com.codeschoolofguam.connect` version `1.0.0 (23)`, uses App Store provisioning profile `c8de0f63-fa95-410b-8f3e-cfa655ae605f` for team `4T358A5S74` through 2027-08-15 UTC, and passed code-signature verification. Its SHA-256 is `9aabf9378e73c207cf6ea2f2ca00cecb5102ad216382d2be3d3e4951679eaf05`. The EAS submission remained queued and was canceled before upload; Apple's direct validator and transporter accepted the same IPA as delivery `a5e16a46-2b3c-4c41-972d-73aae8b08b82`. App Store Connect now reports `VALID` and internal `IN_BETA_TESTING`. Its English “What to Test” note is saved in App Store Connect, and the full tester script is in [`WHAT_TO_TEST_1.0.0_23.md`](WHAT_TO_TEST_1.0.0_23.md).
 
-| Build | EAS build ID | EAS submission ID | EAS submission state |
+Verified iOS production history:
+
+| Build | EAS build ID | Submission or delivery ID | Submission and Apple state |
 | --- | --- | --- | --- |
 | `5` | `9424b028-d108-43b4-a3e1-4f683819cac5` | `1b501c6e-7ad2-42c3-853e-1cbb7f377f94` | Finished |
 | `6` | `db32728f-d7b0-4a0d-ae6f-4083f5f96d62` | `b57fad17-4ea8-4305-9097-aca29f32636c` | Finished |
@@ -54,8 +56,9 @@ Verified EAS production history:
 | `20` | `09092544-ff98-4b03-92c5-5e389bfca7c6` | `933037b9-7432-4aba-9d16-aad2d1b4fc06` | Finished; internal `IN_BETA_TESTING`, external beta ready for submission |
 | `21` | Local signed archive; no cloud EAS build ID | `4289d148-914b-4f5c-b587-779f72266422` | Finished; internal `IN_BETA_TESTING`, external beta ready for submission |
 | `22` | Local signed archive; no cloud EAS build ID | `ab62f5fc-5a90-44b8-884a-7d3d9e6425fe` | Finished; internal `IN_BETA_TESTING`, external beta ready for submission |
+| `23` | Local signed archive; no cloud EAS build ID | Apple delivery `a5e16a46-2b3c-4c41-972d-73aae8b08b82` | Direct upload succeeded; `VALID` and internal `IN_BETA_TESTING`. EAS job `8cd1a88c-7598-4377-920d-588215d77fc9` was canceled while queued. |
 
-These are EAS states plus App Store Connect status checks. Build 22 is the current verified internal TestFlight build. Public App Review remains separate.
+These are EAS or Apple delivery states plus App Store Connect status checks. Build 23 is the current verified internal TestFlight build. Public App Review remains separate.
 
 Build 9 is the Phase 0–1 TestFlight candidate. It includes the reviewed voice-draft client, Phase 0 readability work, weekly plan, contextual help, privacy-safe analytics, and offline continuity. Its production EAS environment points to the CSG API with demo mode disabled and includes the `csg-learning-platform` PostHog project configuration. Do not enable the voice production endpoint or submit this binary for public App Review until the temporary transcription-provider processing is accurately disclosed, the production OpenAI data controls are approved, and the voice-specific physical-device checks below pass.
 
@@ -153,9 +156,17 @@ Recording-library candidate preflight recorded on 2026-09-13:
 - A local EAS production archive completed from exact merged-main commit `11b825c8b50b4a3b56f70a43c8ffebaef0e29911`. Expo Doctor passed 21/21; the signed IPA passed package-identity, App Store provisioning, and code-signature checks.
 - The IPA is 31,851,826 bytes with SHA-256 `328025d4b7316adae8e409db92f9647991e1df4a765aa4f1f646913f0922fa36`. EAS submission `ab62f5fc-5a90-44b8-884a-7d3d9e6425fe` finished successfully; App Store Connect reports internal `IN_BETA_TESTING` and external beta ready for submission.
 
+Messaging-smoothness candidate preflight recorded on 2026-09-24:
+
+- PR #141 passed its required CI checks. Four CodeRabbit findings were fixed and resolved; its current-head review was rate limited. iOS simulator QA covered navigation and two consecutive demo sends. Signed-in web messaging still needs an authorized account check.
+- EAS production environment was checked before archiving: the live API URL and Clerk configuration are present, and `EXPO_PUBLIC_DEMO_MODE=false`.
+- The local production archive used remote build number 23 without advancing it again. The package identity, App Store provisioning, team, production API bundle, and code signature were verified from the finished IPA. Its SHA-256 is `9aabf9378e73c207cf6ea2f2ca00cecb5102ad216382d2be3d3e4951679eaf05`.
+- Apple validated and uploaded the IPA without error after the queued EAS submission was canceled. App Store Connect reports processing state `VALID` and internal build state `IN_BETA_TESTING`; the English “What to Test” note was saved and read back through its API.
+- The focused physical-device and web checks are in [`WHAT_TO_TEST_1.0.0_23.md`](./WHAT_TO_TEST_1.0.0_23.md).
+
 ## Physical TestFlight acceptance
 
-The invited tester must update to recording-library candidate build 22 in TestFlight and complete this final acceptance pass with real authorized accounts:
+The invited tester must update to messaging candidate build 23 in TestFlight and complete this final acceptance pass with real authorized accounts:
 
 - sign in with Google and confirm unauthorized accounts receive the explicit no-access state;
 - verify student, instructor, and admin role scoping where test accounts are available;

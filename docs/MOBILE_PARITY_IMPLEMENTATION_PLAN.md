@@ -450,6 +450,7 @@ Historical Phase 0–1 release status (2026-08-02):
 - Apple confirmed build 9 availability to the invited internal tester at 11:59 AM Pacific/Guam on 2026-08-02. Installation, authenticated role smoke testing, and step 10 remain physical TestFlight acceptance work. No local simulator credential was retained or manufactured for that check.
 - Curriculum-authoring build `1.0.0 (21)` was signed from merged-main commit `f5f28d94a81b549c7c4c3facc3766afabfcd4c27`, uploaded through EAS submission `4289d148-914b-4f5c-b587-779f72266422`, processed by Apple, and is `IN_BETA_TESTING`. Its focused physical-device checks are recorded in `app-store/WHAT_TO_TEST_1.0.0_21.md`.
 - Recording-library build `1.0.0 (22)` was signed from merged-main commit `11b825c8b50b4a3b56f70a43c8ffebaef0e29911`, uploaded through EAS submission `ab62f5fc-5a90-44b8-884a-7d3d9e6425fe`, processed by Apple, and is `IN_BETA_TESTING`. Its focused physical-device checks are recorded in `app-store/WHAT_TO_TEST_1.0.0_22.md`.
+- Messaging build `1.0.0 (23)` was signed from merged-main commit `942a1286f694e4b2ff7a13471640c4004605fc50`, uploaded directly through Apple delivery `a5e16a46-2b3c-4c41-972d-73aae8b08b82`, processed by Apple, and is `IN_BETA_TESTING`. Its focused physical-device and web checks are recorded in `app-store/WHAT_TO_TEST_1.0.0_23.md`.
 - Public App Store review has intentionally not been submitted; it follows physical-device acceptance.
 
 The exact release record, screenshot inventory, and physical-device checklist are in [`app-store/README.md`](./app-store/README.md).
