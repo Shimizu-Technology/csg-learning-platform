@@ -154,6 +154,21 @@ function cacheConversationView(cache: Map<string, ConversationViewSnapshot>, tar
   if (cache.size > MAX_CACHED_CONVERSATIONS) cache.delete(cache.keys().next().value!)
 }
 
+export function cachedWindowIsContiguous(snapshot: ConversationViewSnapshot, incoming: ChannelMessage[], meta: MessageWindowMeta | null) {
+  return incoming.length > 0 && (!meta?.has_older || Boolean(snapshot.meta?.newest_message_id && incoming.some((message) => message.id === snapshot.meta?.newest_message_id)))
+}
+
+export function restoreFailedSends(snapshot: ConversationViewSnapshot, failures: LocalMessage[]): ConversationViewSnapshot {
+  const failedClientIds = new Set(failures.map((message) => message.client_message_id).filter(Boolean))
+  return {
+    ...snapshot,
+    messages: sortChronologicalMessages([
+      ...snapshot.messages.filter((message) => !message.client_message_id || !failedClientIds.has(message.client_message_id)),
+      ...failures,
+    ]),
+  }
+}
+
 function targetMatches(left: Target | null, right: Target) {
   return left?.type === right.type && left.id === right.id
 }
@@ -1409,24 +1424,26 @@ export function Messages() {
       }
 
       const serverMessages = sortChronologicalMessages(res.data.messages || [])
+      const contiguous = Boolean(cachedView && cachedWindowIsContiguous(cachedView, serverMessages, res.data.meta || null))
+      const cachedMessages = contiguous ? restoreFailedSends(cachedView!, storedFailureMessages(target)).messages : storedFailureMessages(target)
       serverMessages.forEach((message) => {
         if (message.client_message_id) removeStoredFailure(target, message.client_message_id)
       })
       setMessages((current) => mergeMessageWindow(
-        options.background || cachedView ? current.filter((message) => messageBelongsToTarget(message, target)) : storedFailureMessages(target),
+        options.background ? current.filter((message) => messageBelongsToTarget(message, target)) : cachedMessages,
         serverMessages,
-        Boolean(options.background || cachedView),
+        Boolean(options.background || contiguous),
       ))
       setPinnedMessages(sortPinnedMessages(res.data.pinned_messages || []))
-      setMessageWindowMeta((current) => (options.background || cachedView) && current && res.data?.meta ? {
+      setMessageWindowMeta((current) => (options.background || contiguous) && current && res.data?.meta ? {
         ...res.data.meta,
         oldest_message_id: current.oldest_message_id,
         has_older: current.has_older,
       } : res.data?.meta || null)
-      if (!options.background) cacheConversationView(conversationViewsRef.current, target, {
-        messages: mergeMessageWindow(cachedView?.messages ?? storedFailureMessages(target), serverMessages, Boolean(cachedView)),
+      if (!options.background && !options.aroundMessageId) cacheConversationView(conversationViewsRef.current, target, {
+        messages: mergeMessageWindow(cachedMessages, serverMessages, contiguous),
         pinnedMessages: sortPinnedMessages(res.data.pinned_messages || []),
-        meta: cachedView?.meta && res.data.meta ? { ...res.data.meta, oldest_message_id: cachedView.meta.oldest_message_id, has_older: cachedView.meta.has_older } : res.data.meta || null,
+        meta: contiguous && cachedView?.meta && res.data.meta ? { ...res.data.meta, oldest_message_id: cachedView.meta.oldest_message_id, has_older: cachedView.meta.has_older } : res.data.meta || null,
       })
       setChannels((prev) => prev.map((channel) => channel.id === target.id ? res.data!.channel : channel))
       setHighlightedMessageId(options.highlightedMessageId || null)
@@ -1448,24 +1465,26 @@ export function Messages() {
     }
 
     const serverMessages = sortChronologicalMessages(res.data.messages || [])
+    const contiguous = Boolean(cachedView && cachedWindowIsContiguous(cachedView, serverMessages, res.data.meta || null))
+    const cachedMessages = contiguous ? restoreFailedSends(cachedView!, storedFailureMessages(target)).messages : storedFailureMessages(target)
     serverMessages.forEach((message) => {
       if (message.client_message_id) removeStoredFailure(target, message.client_message_id)
     })
     setMessages((current) => mergeMessageWindow(
-      options.background || cachedView ? current.filter((message) => messageBelongsToTarget(message, target)) : storedFailureMessages(target),
+      options.background ? current.filter((message) => messageBelongsToTarget(message, target)) : cachedMessages,
       serverMessages,
-      Boolean(options.background || cachedView),
+      Boolean(options.background || contiguous),
     ))
     setPinnedMessages(sortPinnedMessages(res.data.pinned_messages || []))
-    setMessageWindowMeta((current) => (options.background || cachedView) && current && res.data?.meta ? {
+    setMessageWindowMeta((current) => (options.background || contiguous) && current && res.data?.meta ? {
       ...res.data.meta,
       oldest_message_id: current.oldest_message_id,
       has_older: current.has_older,
     } : res.data?.meta || null)
-    if (!options.background) cacheConversationView(conversationViewsRef.current, target, {
-      messages: mergeMessageWindow(cachedView?.messages ?? storedFailureMessages(target), serverMessages, Boolean(cachedView)),
+    if (!options.background && !options.aroundMessageId) cacheConversationView(conversationViewsRef.current, target, {
+      messages: mergeMessageWindow(cachedMessages, serverMessages, contiguous),
       pinnedMessages: sortPinnedMessages(res.data.pinned_messages || []),
-      meta: cachedView?.meta && res.data.meta ? { ...res.data.meta, oldest_message_id: cachedView.meta.oldest_message_id, has_older: cachedView.meta.has_older } : res.data.meta || null,
+      meta: contiguous && cachedView?.meta && res.data.meta ? { ...res.data.meta, oldest_message_id: cachedView.meta.oldest_message_id, has_older: cachedView.meta.has_older } : res.data.meta || null,
     })
     setDirectConversations((prev) => prev.map((conversation) => conversation.id === target.id ? res.data!.direct_conversation : conversation))
     setHighlightedMessageId(options.highlightedMessageId || null)
@@ -1599,13 +1618,15 @@ export function Messages() {
       targetLoadOptionsRef.current = {}
       void loadTarget(target, canAutoMarkRead(true), options)
     } else {
-      const cachedView = options.aroundMessageId ? null : conversationViewsRef.current.get(targetKey(target))
+      const rawCachedView = options.aroundMessageId ? null : conversationViewsRef.current.get(targetKey(target))
+      const cachedView = rawCachedView ? restoreFailedSends(rawCachedView, storedFailureMessages(target)) : null
       targetRequestRef.current += 1
       targetLoadOptionsRef.current = options
       setMessages(cachedView?.messages ?? [])
       setPinnedMessages(cachedView?.pinnedMessages ?? [])
       setMessageWindowMeta(cachedView?.meta ?? null)
       setTargetLoading(!cachedView)
+      setLoadingNewer(false)
       setSelectedTarget(target)
     }
     routeTargetInitializedRef.current = true
@@ -2136,8 +2157,9 @@ export function Messages() {
     const currentElement = messageScrollRef.current
     const currentTarget = selectedTargetRef.current
     if (currentElement && currentTarget) saveConversationScroll(user?.id, currentTarget, currentElement)
-    if (currentTarget && !loadingTargetRef.current) cacheConversationView(conversationViewsRef.current, currentTarget, { messages, pinnedMessages, meta: messageWindowMeta })
-    const cachedView = options.aroundMessageId ? null : conversationViewsRef.current.get(targetKey(target))
+    if (currentTarget && !loadingTargetRef.current && !messageWindowMeta?.has_newer) cacheConversationView(conversationViewsRef.current, currentTarget, { messages, pinnedMessages, meta: messageWindowMeta })
+    const rawCachedView = options.aroundMessageId ? null : conversationViewsRef.current.get(targetKey(target))
+    const cachedView = rawCachedView ? restoreFailedSends(rawCachedView, storedFailureMessages(target)) : null
     targetRequestRef.current += 1
 
     window.history.replaceState(null, '', target.type === 'channel' ? `/messages/${target.id}` : `/messages/dm/${target.id}`)

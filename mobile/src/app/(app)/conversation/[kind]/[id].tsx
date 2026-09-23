@@ -451,6 +451,8 @@ export default function ConversationScreen() {
 
   const jumpToLatest = async () => {
     if (meta.has_newer && !auth.demo) {
+      loadNewerRequestRef.current += 1;
+      setLoadingNewer(false);
       try {
         const result = kind === 'channel'
           ? await api.channel(id, { message_limit: 80 })
