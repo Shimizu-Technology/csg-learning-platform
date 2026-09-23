@@ -474,7 +474,7 @@ export const api = {
     }),
   getChannels: () =>
     fetchApi<ChannelsResponse>('/api/v1/channels'),
-  getChannel: (id: number, params?: { message_limit?: number; around_message_id?: number; before_message_id?: number }) =>
+  getChannel: (id: number, params?: { message_limit?: number; around_message_id?: number; before_message_id?: number; after_message_id?: number }) =>
     fetchApi<ChannelResponse>(`/api/v1/channels/${id}${queryString(params)}`),
   createChannel: (data: { workspace_id?: number; cohort_id?: number; name: string; description?: string; visibility?: string }) =>
     fetchApi<ChannelResponse>('/api/v1/channels', {
@@ -492,7 +492,7 @@ export const api = {
     fetchApi<DirectConversationsResponse>('/api/v1/direct_conversations'),
   getAvailableDirectUsers: (workspaceId: number) =>
     fetchApi<AvailableDirectUsersResponse>(`/api/v1/direct_conversations/available_users?workspace_id=${workspaceId}`),
-  getDirectConversation: (id: number, params?: { message_limit?: number; around_message_id?: number; before_message_id?: number }) =>
+  getDirectConversation: (id: number, params?: { message_limit?: number; around_message_id?: number; before_message_id?: number; after_message_id?: number }) =>
     fetchApi<DirectConversationResponse>(`/api/v1/direct_conversations/${id}${queryString(params)}`),
   createDirectConversation: (data: { workspace_id?: number; cohort_id?: number; user_ids: number[] }) =>
     fetchApi<DirectConversationResponse>('/api/v1/direct_conversations', {

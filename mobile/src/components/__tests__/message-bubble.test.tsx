@@ -86,6 +86,21 @@ describe('MessageBubble', () => {
     expect(onOpenImage).toHaveBeenCalledWith(message.attachments[0], message.attachments);
   });
 
+  it('keeps an uploading attachment visible with progress and an inline retry after failure', () => {
+    const uploading = { ...message, mine: true, client_status: 'sending' as const, client_upload_progress: 0.5 };
+    const onRetry = jest.fn();
+    const screen = render(<MessageBubble message={uploading} showAuthor mentionUsers={[]} onRetry={onRetry} />);
+
+    expect(screen.getByText('Uploading 50%')).toBeTruthy();
+    expect(screen.getByLabelText('Preview layout.png')).toBeTruthy();
+
+    const failed = { ...uploading, client_status: 'failed' as const, client_error: 'Upload interrupted' };
+    screen.rerender(<MessageBubble message={failed} showAuthor mentionUsers={[]} onRetry={onRetry} />);
+    expect(screen.getByText('Not sent')).toBeTruthy();
+    fireEvent.press(screen.getByLabelText('Retry message'));
+    expect(onRetry).toHaveBeenCalledWith(failed);
+  });
+
   it('does not render blocked message content, attachments, or reactions', () => {
     const blocked = { ...message, blocked: true, body: '', attachments: [], reactions: [] };
     const screen = render(<MessageBubble message={blocked} showAuthor mentionUsers={[]} />);

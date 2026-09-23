@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { FormattedMessage, MessageEditSurface, mergeMessageWindow, typingIndicatorLabel } from './Messages'
+import { cachedWindowIsContiguous, FormattedMessage, MessageEditSurface, mergeMessageWindow, restoreFailedSends, typingIndicatorLabel } from './Messages'
 import type { ChannelMessage } from '../../types/api'
 
 function message(overrides: Partial<ChannelMessage>): ChannelMessage {
@@ -73,6 +73,24 @@ describe('MessageEditSurface', () => {
 })
 
 describe('message window reconciliation', () => {
+  it('drops cached history when a later server page does not overlap it', () => {
+    const meta = { oldest_message_id: 1, newest_message_id: 2, has_older: false, has_newer: false }
+    const snapshot = { messages: [message({ id: 1 }), message({ id: 2 })], pinnedMessages: [], meta }
+    const incoming = [message({ id: 100 }), message({ id: 101 })]
+
+    expect(cachedWindowIsContiguous(snapshot, incoming, { ...meta, oldest_message_id: 100, newest_message_id: 101, has_older: true })).toBe(false)
+    expect(cachedWindowIsContiguous(snapshot, [message({ id: 2 }), ...incoming], { ...meta, has_older: true })).toBe(true)
+    expect(cachedWindowIsContiguous(snapshot, incoming, { ...meta, has_older: false })).toBe(true)
+  })
+
+  it('replaces a stale pending cached bubble with its stored failed send', () => {
+    const pending = { ...message({ id: -1, client_message_id: 'client-1' }), pending: true }
+    const failed = { ...pending, pending: false, failed: true }
+    const snapshot = { messages: [pending], pinnedMessages: [], meta: null }
+
+    expect(restoreFailedSends(snapshot, [failed]).messages).toEqual([failed])
+  })
+
   it('replaces an optimistic message with its idempotent server response', () => {
     const optimistic = { ...message({ id: -1, client_message_id: 'client-1' }), pending: true }
     const delivered = message({ id: 20, client_message_id: 'client-1' })

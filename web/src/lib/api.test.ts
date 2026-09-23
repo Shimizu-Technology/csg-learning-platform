@@ -21,14 +21,18 @@ describe('message API wire format', () => {
 
     await api.getChannel(12)
     await api.getChannel(12, { before_message_id: 90 })
+    await api.getChannel(12, { after_message_id: 91 })
     await api.getDirectConversation(34)
     await api.getDirectConversation(34, { before_message_id: 80 })
+    await api.getDirectConversation(34, { after_message_id: 81 })
 
     expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
       expect.stringMatching(/\/api\/v1\/channels\/12$/),
       expect.stringMatching(/\/api\/v1\/channels\/12\?before_message_id=90$/),
+      expect.stringMatching(/\/api\/v1\/channels\/12\?after_message_id=91$/),
       expect.stringMatching(/\/api\/v1\/direct_conversations\/34$/),
       expect.stringMatching(/\/api\/v1\/direct_conversations\/34\?before_message_id=80$/),
+      expect.stringMatching(/\/api\/v1\/direct_conversations\/34\?after_message_id=81$/),
     ])
   })
 

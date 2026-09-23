@@ -80,6 +80,7 @@ type ConversationOptions = {
   message_limit?: number;
   around_message_id?: number;
   before_message_id?: number;
+  after_message_id?: number;
 };
 
 function queryString(values: Record<string, string | number | boolean | null | undefined>) {
