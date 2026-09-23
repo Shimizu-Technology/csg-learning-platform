@@ -135,6 +135,8 @@ export interface Message {
   client_status?: 'sending' | 'failed';
   client_error?: string;
   client_uploads?: UploadAttachmentInput[];
+  client_pending_attachments?: PendingAttachment[];
+  client_upload_progress?: number;
   reply_count?: number;
   author: Pick<UserSummary, 'id' | 'full_name' | 'email' | 'role' | 'avatar_url'>;
 }

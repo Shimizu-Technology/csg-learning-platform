@@ -391,6 +391,24 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert body.fetch("meta").fetch("has_newer")
   end
 
+  test "channel show pages newer messages after an anchor without overlap" do
+    messages = 5.times.map do |index|
+      Message.create!(channel: @channel, author: @admin, body: "Forward channel message #{index}", created_at: (5 - index).minutes.ago)
+    end
+
+    as_user(@student) do
+      get "/api/v1/channels/#{@channel.id}",
+        params: { message_limit: 2, after_message_id: messages[1].id },
+        headers: auth_headers
+    end
+
+    assert_response :success
+    body = JSON.parse(response.body)
+    assert_equal [ messages[2].id, messages[3].id ], body.fetch("messages").map { |message| message.fetch("id") }
+    assert body.fetch("meta").fetch("has_older")
+    assert body.fetch("meta").fetch("has_newer")
+  end
+
   test "direct conversation show returns a window around a searched message" do
     conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @student, @admin ])
     messages = 5.times.map do |index|

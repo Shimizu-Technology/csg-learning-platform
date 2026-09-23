@@ -28,6 +28,19 @@ describe('CsgApi', () => {
     }));
   });
 
+  it('requests newer conversation pages after the supplied message', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ messages: [] }), { status: 200 }));
+    const api = new CsgApi(async () => 'session-token');
+
+    await api.channel(12, { after_message_id: 90 });
+    await api.directConversation(34, { after_message_id: 80 });
+
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      expect.stringMatching(/\/api\/v1\/channels\/12\?after_message_id=90$/),
+      expect.stringMatching(/\/api\/v1\/direct_conversations\/34\?after_message_id=80$/),
+    ]);
+  });
+
   it('refreshes the token once after an unauthorized response', async () => {
     const getToken = jest.fn(async ({ skipCache }: { skipCache?: boolean } = {}) => skipCache ? 'fresh-token' : 'old-token');
     jest.spyOn(global, 'fetch')

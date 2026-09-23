@@ -117,6 +117,8 @@ type RetrySend = {
   uploadedAttachments: UploadedMessageAttachment[]
 }
 type LocalMessage = ChannelMessage & { pending?: boolean; failed?: boolean; failureError?: string; retrySend?: RetrySend }
+type ConversationViewSnapshot = { messages: LocalMessage[]; pinnedMessages: LocalMessage[]; meta: MessageWindowMeta | null }
+const MAX_CACHED_CONVERSATIONS = 12
 type MentionSuggestion = {
   id: string
   label: string
@@ -143,6 +145,13 @@ type TypingUser = MessageTypingEvent['user']
 
 function targetKey(target: Target) {
   return `${target.type}:${target.id}`
+}
+
+function cacheConversationView(cache: Map<string, ConversationViewSnapshot>, target: Target, snapshot: ConversationViewSnapshot) {
+  const key = targetKey(target)
+  cache.delete(key)
+  cache.set(key, snapshot)
+  if (cache.size > MAX_CACHED_CONVERSATIONS) cache.delete(cache.keys().next().value!)
 }
 
 function targetMatches(left: Target | null, right: Target) {
@@ -803,6 +812,7 @@ export function Messages() {
   const [pinnedMessages, setPinnedMessages] = useState<LocalMessage[]>([])
   const [messageWindowMeta, setMessageWindowMeta] = useState<MessageWindowMeta | null>(null)
   const [loadingOlder, setLoadingOlder] = useState(false)
+  const [loadingNewer, setLoadingNewer] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadingTarget, setLoadingTarget] = useState(false)
   const [sending, setSending] = useState(false)
@@ -873,6 +883,7 @@ export function Messages() {
   const optimisticAttachmentUrls = useRef(new Map<number, string[]>())
   const tempMessageIdRef = useRef(0)
   const targetRequestRef = useRef(0)
+  const conversationViewsRef = useRef(new Map<string, ConversationViewSnapshot>())
   const targetLoadOptionsRef = useRef<TargetLoadOptions>({})
   const routeTargetInitializedRef = useRef(false)
   const loadingTargetRef = useRef(false)
@@ -1375,7 +1386,8 @@ export function Messages() {
   const loadTarget = async (target: Target, markRead = false, options: TargetLoadOptions = {}) => {
     const requestId = targetRequestRef.current + 1
     targetRequestRef.current = requestId
-    const showTargetLoader = !options.background
+    const cachedView = options.aroundMessageId ? null : conversationViewsRef.current.get(targetKey(target))
+    const showTargetLoader = !options.background && !cachedView
 
     if (showTargetLoader) {
       setTargetLoading(true)
@@ -1401,16 +1413,21 @@ export function Messages() {
         if (message.client_message_id) removeStoredFailure(target, message.client_message_id)
       })
       setMessages((current) => mergeMessageWindow(
-        options.background ? current.filter((message) => messageBelongsToTarget(message, target)) : storedFailureMessages(target),
+        options.background || cachedView ? current.filter((message) => messageBelongsToTarget(message, target)) : storedFailureMessages(target),
         serverMessages,
-        options.background,
+        Boolean(options.background || cachedView),
       ))
       setPinnedMessages(sortPinnedMessages(res.data.pinned_messages || []))
-      setMessageWindowMeta((current) => options.background && current && res.data?.meta ? {
+      setMessageWindowMeta((current) => (options.background || cachedView) && current && res.data?.meta ? {
         ...res.data.meta,
         oldest_message_id: current.oldest_message_id,
         has_older: current.has_older,
       } : res.data?.meta || null)
+      if (!options.background) cacheConversationView(conversationViewsRef.current, target, {
+        messages: mergeMessageWindow(cachedView?.messages ?? storedFailureMessages(target), serverMessages, Boolean(cachedView)),
+        pinnedMessages: sortPinnedMessages(res.data.pinned_messages || []),
+        meta: cachedView?.meta && res.data.meta ? { ...res.data.meta, oldest_message_id: cachedView.meta.oldest_message_id, has_older: cachedView.meta.has_older } : res.data.meta || null,
+      })
       setChannels((prev) => prev.map((channel) => channel.id === target.id ? res.data!.channel : channel))
       setHighlightedMessageId(options.highlightedMessageId || null)
       if (markRead && channelNeedsRead(res.data.channel)) {
@@ -1435,16 +1452,21 @@ export function Messages() {
       if (message.client_message_id) removeStoredFailure(target, message.client_message_id)
     })
     setMessages((current) => mergeMessageWindow(
-      options.background ? current.filter((message) => messageBelongsToTarget(message, target)) : storedFailureMessages(target),
+      options.background || cachedView ? current.filter((message) => messageBelongsToTarget(message, target)) : storedFailureMessages(target),
       serverMessages,
-      options.background,
+      Boolean(options.background || cachedView),
     ))
     setPinnedMessages(sortPinnedMessages(res.data.pinned_messages || []))
-    setMessageWindowMeta((current) => options.background && current && res.data?.meta ? {
+    setMessageWindowMeta((current) => (options.background || cachedView) && current && res.data?.meta ? {
       ...res.data.meta,
       oldest_message_id: current.oldest_message_id,
       has_older: current.has_older,
     } : res.data?.meta || null)
+    if (!options.background) cacheConversationView(conversationViewsRef.current, target, {
+      messages: mergeMessageWindow(cachedView?.messages ?? storedFailureMessages(target), serverMessages, Boolean(cachedView)),
+      pinnedMessages: sortPinnedMessages(res.data.pinned_messages || []),
+      meta: cachedView?.meta && res.data.meta ? { ...res.data.meta, oldest_message_id: cachedView.meta.oldest_message_id, has_older: cachedView.meta.has_older } : res.data.meta || null,
+    })
     setDirectConversations((prev) => prev.map((conversation) => conversation.id === target.id ? res.data!.direct_conversation : conversation))
     setHighlightedMessageId(options.highlightedMessageId || null)
     if (markRead && dmNeedsRead(res.data.direct_conversation)) {
@@ -1489,6 +1511,39 @@ export function Messages() {
     }
 
     setLoadingOlder(false)
+  }
+
+  const loadNewerMessages = async () => {
+    if (!selectedTarget || !messageWindowMeta?.has_newer || !messageWindowMeta.newest_message_id || loadingNewer) return
+    const target = selectedTarget
+    setLoadingNewer(true)
+    try {
+      const params = { after_message_id: messageWindowMeta.newest_message_id }
+      const res = target.type === 'channel'
+        ? await api.getChannel(target.id, params)
+        : await api.getDirectConversation(target.id, params)
+      if (!targetMatches(selectedTargetRef.current, target)) return
+      if (!res.data) {
+        toast.error(res.error || 'Could not load newer messages.')
+        return
+      }
+      setMessages((current) => sortChronologicalMessages([
+        ...current,
+        ...(res.data!.messages || []).filter((incoming) => !current.some((message) => message.id === incoming.id || (
+          incoming.client_message_id && message.client_message_id === incoming.client_message_id
+        ))),
+      ]))
+      setMessageWindowMeta((current) => ({
+        oldest_message_id: current?.oldest_message_id ?? res.data?.meta?.oldest_message_id ?? null,
+        newest_message_id: res.data?.meta?.newest_message_id ?? current?.newest_message_id ?? null,
+        has_older: current?.has_older ?? res.data?.meta?.has_older ?? false,
+        has_newer: res.data?.meta?.has_newer ?? false,
+      }))
+    } catch {
+      if (targetMatches(selectedTargetRef.current, target)) toast.error('Could not load newer messages.')
+    } finally {
+      if (targetMatches(selectedTargetRef.current, target)) setLoadingNewer(false)
+    }
   }
 
   useEffect(() => {
@@ -1544,7 +1599,13 @@ export function Messages() {
       targetLoadOptionsRef.current = {}
       void loadTarget(target, canAutoMarkRead(true), options)
     } else {
+      const cachedView = options.aroundMessageId ? null : conversationViewsRef.current.get(targetKey(target))
+      targetRequestRef.current += 1
       targetLoadOptionsRef.current = options
+      setMessages(cachedView?.messages ?? [])
+      setPinnedMessages(cachedView?.pinnedMessages ?? [])
+      setMessageWindowMeta(cachedView?.meta ?? null)
+      setTargetLoading(!cachedView)
       setSelectedTarget(target)
     }
     routeTargetInitializedRef.current = true
@@ -2019,7 +2080,11 @@ export function Messages() {
     }, behavior === 'smooth' ? 650 : 100)
   }
 
-  const scrollToLatestMessage = () => {
+  const scrollToLatestMessage = async () => {
+    if (selectedTarget && messageWindowMeta?.has_newer) {
+      conversationViewsRef.current.delete(targetKey(selectedTarget))
+      await loadTarget(selectedTarget, canAutoMarkRead(true))
+    }
     setHasUnreadBelow(false)
     scrollToBottom('smooth')
     if (selectedTarget && canAutoMarkRead(true)) {
@@ -2071,14 +2136,21 @@ export function Messages() {
     const currentElement = messageScrollRef.current
     const currentTarget = selectedTargetRef.current
     if (currentElement && currentTarget) saveConversationScroll(user?.id, currentTarget, currentElement)
+    if (currentTarget && !loadingTargetRef.current) cacheConversationView(conversationViewsRef.current, currentTarget, { messages, pinnedMessages, meta: messageWindowMeta })
+    const cachedView = options.aroundMessageId ? null : conversationViewsRef.current.get(targetKey(target))
+    targetRequestRef.current += 1
 
     window.history.replaceState(null, '', target.type === 'channel' ? `/messages/${target.id}` : `/messages/dm/${target.id}`)
     setSourceContextHidden(true)
     targetLoadOptionsRef.current = options
-    setTargetLoading(true)
+    setTargetLoading(!cachedView)
+    setLoadingNewer(false)
     shouldStickToBottomRef.current = !options.aroundMessageId
     startNavigationTransition(() => {
       setSelectedTarget(target)
+      setMessages(cachedView?.messages ?? [])
+      setPinnedMessages(cachedView?.pinnedMessages ?? [])
+      setMessageWindowMeta(cachedView?.meta ?? null)
       setActiveThreadRootId(null)
       setEditing(null)
       setConversationView('messages')
@@ -3536,11 +3608,19 @@ export function Messages() {
                       </div>
                     )
                   })}
+                  {!activeThreadRoot && conversationView === 'messages' && messageWindowMeta?.has_newer && (
+                    <div className="flex justify-center py-3">
+                      <button type="button" onClick={() => void loadNewerMessages()} disabled={loadingNewer} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 shadow-sm transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-wait disabled:opacity-60">
+                        <RefreshCw className={`h-4 w-4 ${loadingNewer ? 'animate-spin' : ''}`} />
+                        {loadingNewer ? 'Loading newer messages…' : 'Load newer messages'}
+                      </button>
+                    </div>
+                  )}
                   </div>
                   {showScrollToLatest && conversationView === 'messages' && (
                     <button
                       type="button"
-                      onClick={scrollToLatestMessage}
+                      onClick={() => void scrollToLatestMessage()}
                       className="absolute bottom-3 left-1/2 z-20 inline-flex min-h-10 -translate-x-1/2 items-center gap-2 rounded-full border border-primary-100 bg-white px-3.5 py-2 text-xs font-semibold text-primary-700 shadow-lg shadow-slate-900/10 transition hover:-translate-y-0.5 hover:border-primary-200 hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
                       aria-label={hasUnreadBelow ? 'Jump to new messages' : 'Jump to latest message'}
                     >

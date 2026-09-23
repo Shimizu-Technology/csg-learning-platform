@@ -8,6 +8,18 @@ module MessageWindowing
   end
 
   def windowed_messages(scope)
+    if params[:after_message_id].present?
+      anchor = scope.find_by(id: params[:after_message_id])
+      return latest_messages(scope) unless anchor
+
+      messages = scope
+        .where("messages.created_at > ? OR (messages.created_at = ? AND messages.id > ?)", anchor.created_at, anchor.created_at, anchor.id)
+        .order(created_at: :asc, id: :asc)
+        .limit(message_limit)
+        .to_a
+      return preload_message_window(messages)
+    end
+
     if params[:before_message_id].present?
       anchor = scope.find_by(id: params[:before_message_id])
       return latest_messages(scope) unless anchor
