@@ -1,6 +1,6 @@
 # CSG Connect App Store Release Record
 
-Last updated: 2026-09-13 (Pacific/Guam)
+Last updated: 2026-09-24 (Pacific/Guam)
 
 This directory is the durable source record for the App Store presentation of the completed mobile-parity program. It records what was uploaded, how the images were produced, and what remains before public App Review.
 
@@ -14,7 +14,7 @@ This directory is the durable source record for the App Store presentation of th
 | Latest verified source commit | `11b825c8b50b4a3b56f70a43c8ffebaef0e29911` (`main`) |
 | Latest verified EAS submission ID | `ab62f5fc-5a90-44b8-884a-7d3d9e6425fe` |
 | Latest verified App Store Connect state | Internal `IN_BETA_TESTING`; external beta ready for submission |
-| Next release candidate | None currently planned |
+| Next release candidate | `1.0.0 (23)` signed locally; EAS submission `8cd1a88c-7598-4377-920d-588215d77fc9` in progress |
 | Release artifact fingerprint | Expo fingerprint `1840d049f7d4f97c119f425d6dc5fbb8f09174c8`; IPA SHA-256 `328025d4b7316adae8e409db92f9647991e1df4a765aa4f1f646913f0922fa36` |
 | Phase 0–1 release candidate | `1.0.0 (9)` |
 | App Store version | `1.0`, Prepare for Submission |
@@ -37,6 +37,8 @@ Build 20 is the latest verified internal candidate before the curriculum-authori
 Build 21 is the curriculum-authoring candidate from merged PRs #124–#131 and release-preflight PR #132. It adds fail-closed preview protection, the native staff curriculum library, guarded lesson drafts and exact student preview, module and lesson structure management, objectives/rubrics/retrieval checks, hosted lesson-video replacement, browser-runner configuration, and rich lesson-instruction authoring. The archive was built and signed locally from exact merged-main commit `f5f28d94a81b549c7c4c3facc3766afabfcd4c27` because the monthly EAS cloud-build allowance was exhausted; no cloud EAS build ID exists. The package identifies itself as `com.codeschoolofguam.connect` version `1.0.0 (21)`, uses a production App Store profile valid through 2027-08-15, and passed code-signature verification. EAS submission `4289d148-914b-4f5c-b587-779f72266422` finished successfully, and App Store Connect reports internal `IN_BETA_TESTING` with external beta ready for submission. Focused tester instructions are in [`WHAT_TO_TEST_1.0.0_21.md`](WHAT_TO_TEST_1.0.0_21.md); EAS's automated changelog field was unavailable on the current plan, but that did not affect the binary upload or internal TestFlight availability.
 
 Build 22 is the recording-library candidate from merged PRs #134–#135 and release-preflight PR #136. It adds secure in-app playback for supported YouTube, Vimeo, Loom, and direct-video links; promotes existing hosted links into the same first-class library as uploaded recordings; and gives staff native add, draft, publish, edit, delete, help-context, and cross-platform progress workflows. The archive was built and signed locally from exact merged-main commit `11b825c8b50b4a3b56f70a43c8ffebaef0e29911` because the monthly EAS cloud-build allowance was exhausted; no cloud EAS build ID exists. The package identifies itself as `com.codeschoolofguam.connect` version `1.0.0 (22)`, uses App Store provisioning profile `c8de0f63-fa95-410b-8f3e-cfa655ae605f` for team `4T358A5S74` through 2027-08-16, and passed code-signature verification. EAS submission `ab62f5fc-5a90-44b8-884a-7d3d9e6425fe` finished successfully, and App Store Connect reports internal `IN_BETA_TESTING` with external beta ready for submission. Focused tester instructions are in [`WHAT_TO_TEST_1.0.0_22.md`](WHAT_TO_TEST_1.0.0_22.md).
+
+Build 23 is the messaging-smoothness candidate from merged PR #141. It reduces waits when opening and switching web conversations, adds older-message pagination across Rails, web, and iOS, shows native messages before attachment upload completes, and supports independent consecutive sends with progress and retry. The app source is merged-main commit `942a1286f694e4b2ff7a13471640c4004605fc50`. EAS remote versioning was already at 23 after the cloud-build allowance rejected an earlier attempt, so the local archive used a temporary `autoIncrement: false` build-profile override; the repository profile was restored immediately afterward. The signed IPA identifies itself as `com.codeschoolofguam.connect` version `1.0.0 (23)`, uses App Store provisioning profile `c8de0f63-fa95-410b-8f3e-cfa655ae605f` for team `4T358A5S74` through 2027-08-15 UTC, and passed code-signature verification. Its SHA-256 is `9aabf9378e73c207cf6ea2f2ca00cecb5102ad216382d2be3d3e4951679eaf05`. Focused tester instructions are in [`WHAT_TO_TEST_1.0.0_23.md`](WHAT_TO_TEST_1.0.0_23.md).
 
 Verified EAS production history:
 
@@ -152,6 +154,13 @@ Recording-library candidate preflight recorded on 2026-09-13:
 - The concise internal-testing script for build 22 is in [`WHAT_TO_TEST_1.0.0_22.md`](./WHAT_TO_TEST_1.0.0_22.md).
 - A local EAS production archive completed from exact merged-main commit `11b825c8b50b4a3b56f70a43c8ffebaef0e29911`. Expo Doctor passed 21/21; the signed IPA passed package-identity, App Store provisioning, and code-signature checks.
 - The IPA is 31,851,826 bytes with SHA-256 `328025d4b7316adae8e409db92f9647991e1df4a765aa4f1f646913f0922fa36`. EAS submission `ab62f5fc-5a90-44b8-884a-7d3d9e6425fe` finished successfully; App Store Connect reports internal `IN_BETA_TESTING` and external beta ready for submission.
+
+Messaging-smoothness candidate preflight recorded on 2026-09-24:
+
+- PR #141 passed its required CI checks. Four CodeRabbit findings were fixed and resolved; its current-head review was rate limited. iOS simulator QA covered navigation and two consecutive demo sends. Signed-in web messaging still needs an authorized account check.
+- EAS production environment was checked before archiving: the live API URL and Clerk configuration are present, and `EXPO_PUBLIC_DEMO_MODE=false`.
+- The local production archive used remote build number 23 without advancing it again. The package identity, App Store provisioning, team, production API bundle, and code signature were verified from the finished IPA. Its SHA-256 is `9aabf9378e73c207cf6ea2f2ca00cecb5102ad216382d2be3d3e4951679eaf05`.
+- The focused physical-device and web checks are in [`WHAT_TO_TEST_1.0.0_23.md`](./WHAT_TO_TEST_1.0.0_23.md).
 
 ## Physical TestFlight acceptance
 
