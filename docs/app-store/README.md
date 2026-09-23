@@ -40,7 +40,7 @@ Build 22 is the recording-library candidate from merged PRs #134–#135 and rele
 
 Build 23 is the messaging-smoothness candidate from merged PR #141. It reduces waits when opening and switching web conversations, adds older-message pagination across Rails, web, and iOS, shows native messages before attachment upload completes, and supports independent consecutive sends with progress and retry. The app source is merged-main commit `942a1286f694e4b2ff7a13471640c4004605fc50`. EAS remote versioning was already at 23 after the cloud-build allowance rejected an earlier attempt, so the local archive used a temporary `autoIncrement: false` build-profile override; the repository profile was restored immediately afterward. The signed IPA identifies itself as `com.codeschoolofguam.connect` version `1.0.0 (23)`, uses App Store provisioning profile `c8de0f63-fa95-410b-8f3e-cfa655ae605f` for team `4T358A5S74` through 2027-08-15 UTC, and passed code-signature verification. Its SHA-256 is `9aabf9378e73c207cf6ea2f2ca00cecb5102ad216382d2be3d3e4951679eaf05`. The EAS submission remained queued and was canceled before upload; Apple's direct validator and transporter accepted the same IPA as delivery `a5e16a46-2b3c-4c41-972d-73aae8b08b82`. App Store Connect now reports `VALID` and internal `IN_BETA_TESTING`. Its English “What to Test” note is saved in App Store Connect, and the full tester script is in [`WHAT_TO_TEST_1.0.0_23.md`](WHAT_TO_TEST_1.0.0_23.md).
 
-Verified EAS production history:
+Verified iOS production history:
 
 | Build | EAS build ID | Submission or delivery ID | Submission and Apple state |
 | --- | --- | --- | --- |
