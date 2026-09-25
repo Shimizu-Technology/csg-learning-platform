@@ -331,11 +331,19 @@ class PrivateMeetingsTest < ActionDispatch::IntegrationTest
   test "booking and learner changes close at the configured cutoff" do
     first = publish_slot(@start_time)
     second = publish_slot(@start_time + 2.hours)
+    third = publish_slot(@start_time + 4.hours)
     as_user(@student) do
       post "/api/v1/private_meetings", params: { slot_id: first.id }, headers: auth_headers, as: :json
     end
     assert_response :created
     booking_id = JSON.parse(response.body).dig("booking", "id")
+
+    travel_to(first.starts_at - 25.hours) do
+      as_user(@other_student) do
+        post "/api/v1/private_meetings", params: { slot_id: third.id }, headers: auth_headers, as: :json
+      end
+      assert_response :created
+    end
 
     travel_to(first.starts_at - 21.hours) do
       as_user(@student) do
@@ -358,6 +366,24 @@ class PrivateMeetingsTest < ActionDispatch::IntegrationTest
       end
       assert_response :success
     end
+  end
+
+  test "a learner can reschedule before the cutoff" do
+    first = publish_slot(@start_time)
+    second = publish_slot(@start_time + 2.hours)
+    as_user(@student) do
+      post "/api/v1/private_meetings", params: { slot_id: first.id }, headers: auth_headers, as: :json
+    end
+    assert_response :created
+    booking_id = JSON.parse(response.body).dig("booking", "id")
+
+    travel_to(first.starts_at - 25.hours) do
+      as_user(@student) do
+        patch "/api/v1/private_meetings/#{booking_id}", params: { slot_id: second.id }, headers: auth_headers, as: :json
+      end
+      assert_response :success
+    end
+    assert_equal second.id, PrivateMeetingBooking.find(booking_id).private_meeting_slot_id
   end
 
   private
