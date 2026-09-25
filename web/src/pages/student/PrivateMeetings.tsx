@@ -107,6 +107,7 @@ export function PrivateMeetings() {
               const changing = booking?.id === changingBookingId
               const beforeCutoff = booking && Date.parse(booking.starts_at) > Date.now() + cutoff
               const canReschedule = beforeCutoff && booking.reschedule_count < cohort.max_student_changes
+              const canBook = cohort.bookable_week_numbers.includes(week)
               return (
                 <article key={week} className={`min-w-0 rounded-2xl border bg-white p-5 ${booking ? 'border-primary-200 shadow-sm shadow-primary-950/5' : 'border-slate-200'}`}>
                   <div className="flex items-center justify-between gap-3">
@@ -135,8 +136,8 @@ export function PrivateMeetings() {
 
                   {(!booking || changing) && (
                     <div className="mt-5">
-                      <p className="mb-3 text-sm font-semibold text-slate-700">{changing ? 'Choose a new time' : 'Available times'}</p>
-                      {available.length === 0 ? <p className="text-sm leading-relaxed text-slate-600">No times are open for this week yet. Message your instructor if you need help.</p> : (
+                      <p className="mb-3 text-sm font-semibold text-slate-700">{changing ? 'Choose a new time' : canBook ? 'Available times' : 'Scheduling help'}</p>
+                      {!booking && !canBook ? <p className="text-sm leading-relaxed text-slate-600">You have used your schedule change for this week. Message your instructor to arrange another time.</p> : available.length === 0 ? <p className="text-sm leading-relaxed text-slate-600">No times are open for this week yet. Message your instructor if you need help.</p> : (
                         <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
                           {available.map((slot) => (
                             <button key={slot.id} type="button" disabled={busyId !== null} onClick={() => void selectSlot(slot, changing ? booking?.id : undefined)} className="flex min-h-12 w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left text-sm font-medium text-slate-800 transition hover:border-primary-400 hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 disabled:opacity-50">
