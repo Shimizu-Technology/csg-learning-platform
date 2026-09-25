@@ -1724,11 +1724,12 @@ export interface PrivateMeetingCohort {
   weeks: number;
   reschedule_cutoff_hours: number;
   max_student_changes: number;
+  bookable_week_numbers: number[];
   bookings: PrivateMeetingBooking[];
   slots: PrivateMeetingSlot[];
 }
 
-export interface StaffPrivateMeetingCohort extends PrivateMeetingCohort {
+export interface StaffPrivateMeetingCohort extends Omit<PrivateMeetingCohort, 'bookable_week_numbers'> {
   instructor_id: number;
 }
 

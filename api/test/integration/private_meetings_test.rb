@@ -38,6 +38,7 @@ class PrivateMeetingsTest < ActionDispatch::IntegrationTest
     assert_equal 24, cohort.fetch("reschedule_cutoff_hours")
     assert_equal 1, cohort.fetch("max_student_changes")
     assert_equal true, cohort.fetch("slots").first.fetch("available")
+    assert_equal [ 1, 2, 3 ], cohort.fetch("bookable_week_numbers")
     refute cohort.fetch("slots").first.key?("zoom_url")
 
     as_user(@student) do
@@ -62,6 +63,8 @@ class PrivateMeetingsTest < ActionDispatch::IntegrationTest
     end
     assert_response :not_found
     assert_equal 1, PrivateMeetingBooking.confirmed.count
+    as_user(@student) { get "/api/v1/private_meetings", headers: auth_headers }
+    assert_equal [ 2, 3 ], JSON.parse(response.body).dig("cohorts", 0, "bookable_week_numbers")
   end
 
   test "booking conflicts, one weekly entitlement, and instructor ownership are enforced" do
@@ -194,6 +197,9 @@ class PrivateMeetingsTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert PrivateMeetingBooking.find(new_booking_id).canceled?
 
+    as_user(@student) { get "/api/v1/private_meetings", headers: auth_headers }
+    assert_equal [ 2, 3 ], JSON.parse(response.body).dig("cohorts", 0, "bookable_week_numbers")
+
     as_user(@student) do
       post "/api/v1/private_meetings", params: { slot_id: first.id }, headers: auth_headers, as: :json
     end
@@ -236,6 +242,9 @@ class PrivateMeetingsTest < ActionDispatch::IntegrationTest
       patch "/api/v1/staff/private_meetings/#{second_booking_id}", params: { status: "canceled" }, headers: auth_headers, as: :json
     end
     assert_response :success
+
+    as_user(@student) { get "/api/v1/private_meetings", headers: auth_headers }
+    assert_includes JSON.parse(response.body).dig("cohorts", 0, "bookable_week_numbers"), 1
 
     as_user(@student) do
       post "/api/v1/private_meetings", params: { slot_id: third.id }, headers: auth_headers, as: :json
@@ -282,6 +291,99 @@ class PrivateMeetingsTest < ActionDispatch::IntegrationTest
       post "/api/v1/private_meetings", params: { slot_id: second.id }, headers: auth_headers, as: :json
     end
     assert_response :unprocessable_entity
+  end
+
+  test "a learner does not see a conflicting meeting in another course as available" do
+    first = publish_slot(@start_time)
+    other_cohort = Cohort.create!(
+      curriculum: @cohort.curriculum,
+      name: "Other pilot",
+      cohort_type: :workshop,
+      status: :upcoming,
+      start_date: @cohort.start_date,
+      end_date: @cohort.end_date
+    )
+    Enrollment.create!(user: @student, cohort: other_cohort)
+    as_user(@admin) do
+      post "/api/v1/staff/private_meeting_configs", params: { cohort_id: other_cohort.id, instructor_id: @other_instructor.id }, headers: auth_headers, as: :json
+    end
+    assert_response :created
+    as_user(@other_instructor) do
+      post "/api/v1/staff/private_meeting_slots", params: { cohort_id: other_cohort.id, starts_at: @start_time.iso8601 }, headers: auth_headers, as: :json
+    end
+    assert_response :created
+    other_slot_id = JSON.parse(response.body).dig("slots", 0, "id")
+
+    as_user(@student) do
+      post "/api/v1/private_meetings", params: { slot_id: first.id }, headers: auth_headers, as: :json
+      get "/api/v1/private_meetings", headers: auth_headers
+    end
+    assert_response :success
+    other_view = JSON.parse(response.body).fetch("cohorts").find { |cohort| cohort.fetch("id") == other_cohort.id }
+    assert_equal false, other_view.fetch("slots").find { |slot| slot.fetch("id") == other_slot_id }.fetch("available")
+
+    as_user(@student) do
+      post "/api/v1/private_meetings", params: { slot_id: other_slot_id }, headers: auth_headers, as: :json
+    end
+    assert_response :conflict
+  end
+
+  test "booking and learner changes close at the configured cutoff" do
+    first = publish_slot(@start_time)
+    second = publish_slot(@start_time + 2.hours)
+    third = publish_slot(@start_time + 4.hours)
+    as_user(@student) do
+      post "/api/v1/private_meetings", params: { slot_id: first.id }, headers: auth_headers, as: :json
+    end
+    assert_response :created
+    booking_id = JSON.parse(response.body).dig("booking", "id")
+
+    travel_to(first.starts_at - 25.hours) do
+      as_user(@other_student) do
+        post "/api/v1/private_meetings", params: { slot_id: third.id }, headers: auth_headers, as: :json
+      end
+      assert_response :created
+    end
+
+    travel_to(first.starts_at - 21.hours) do
+      as_user(@student) do
+        patch "/api/v1/private_meetings/#{booking_id}", params: { slot_id: second.id }, headers: auth_headers, as: :json
+      end
+      assert_response :unprocessable_entity
+
+      as_user(@student) do
+        delete "/api/v1/private_meetings/#{booking_id}", headers: auth_headers
+      end
+      assert_response :unprocessable_entity
+
+      as_user(@other_student) do
+        post "/api/v1/private_meetings", params: { slot_id: second.id }, headers: auth_headers, as: :json
+      end
+      assert_response :unprocessable_entity
+
+      as_user(@instructor) do
+        patch "/api/v1/staff/private_meetings/#{booking_id}", params: { slot_id: second.id }, headers: auth_headers, as: :json
+      end
+      assert_response :success
+    end
+  end
+
+  test "a learner can reschedule before the cutoff" do
+    first = publish_slot(@start_time)
+    second = publish_slot(@start_time + 2.hours)
+    as_user(@student) do
+      post "/api/v1/private_meetings", params: { slot_id: first.id }, headers: auth_headers, as: :json
+    end
+    assert_response :created
+    booking_id = JSON.parse(response.body).dig("booking", "id")
+
+    travel_to(first.starts_at - 25.hours) do
+      as_user(@student) do
+        patch "/api/v1/private_meetings/#{booking_id}", params: { slot_id: second.id }, headers: auth_headers, as: :json
+      end
+      assert_response :success
+    end
+    assert_equal second.id, PrivateMeetingBooking.find(booking_id).private_meeting_slot_id
   end
 
   private

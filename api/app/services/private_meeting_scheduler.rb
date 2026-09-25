@@ -4,6 +4,23 @@ class PrivateMeetingScheduler
 
   BUFFER = 15.minutes
 
+  # This is a display hint only. book! repeats the checks under the instructor
+  # lock so a stale page cannot claim a time that was taken meanwhile.
+  def self.student_can_book_week?(bookings:, week:, max_student_changes:)
+    weekly = bookings.select { |booking| booking.week_number == week }
+    return false if weekly.any?(&:confirmed?)
+
+    latest = weekly.max_by { |booking| [ booking.created_at, booking.id ] }
+    return true unless latest&.canceled?
+
+    cancellation = latest.private_meeting_booking_events
+      .select { |event| event.action == "canceled" }
+      .max_by(&:id)
+    return true if cancellation&.actor&.staff?
+
+    weekly.map(&:student_change_count).max.to_i < max_student_changes
+  end
+
   def self.book!(student:, slot:)
     config = slot.private_meeting_config
     enrollment = student.enrollments.active.find_by(cohort_id: config.cohort_id)
