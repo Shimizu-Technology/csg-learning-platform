@@ -216,6 +216,34 @@ class PrivateMeetingsTest < ActionDispatch::IntegrationTest
     assert_equal 1, PrivateMeetingBookingEvent.where(private_meeting_booking_id: booking_id).count
   end
 
+  test "staff cancellation restores booking even after the learner used a change" do
+    first = publish_slot(@start_time)
+    second = publish_slot(@start_time + 2.hours)
+    third = publish_slot(@start_time + 4.hours)
+    as_user(@student) do
+      post "/api/v1/private_meetings", params: { slot_id: first.id }, headers: auth_headers, as: :json
+    end
+    first_booking_id = JSON.parse(response.body).dig("booking", "id")
+    as_user(@student) do
+      delete "/api/v1/private_meetings/#{first_booking_id}", headers: auth_headers
+      post "/api/v1/private_meetings", params: { slot_id: second.id }, headers: auth_headers, as: :json
+    end
+    assert_response :created
+    second_booking_id = JSON.parse(response.body).dig("booking", "id")
+    assert_equal 1, PrivateMeetingBooking.find(second_booking_id).student_change_count
+
+    as_user(@instructor) do
+      patch "/api/v1/staff/private_meetings/#{second_booking_id}", params: { status: "canceled" }, headers: auth_headers, as: :json
+    end
+    assert_response :success
+
+    as_user(@student) do
+      post "/api/v1/private_meetings", params: { slot_id: third.id }, headers: auth_headers, as: :json
+    end
+    assert_response :created
+    assert_equal 1, PrivateMeetingBooking.find(JSON.parse(response.body).dig("booking", "id")).student_change_count
+  end
+
   test "deletion reports a conflict when meeting history must be retained" do
     slot = publish_slot(@start_time)
     as_user(@student) do

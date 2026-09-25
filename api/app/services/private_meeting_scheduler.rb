@@ -20,8 +20,10 @@ class PrivateMeetingScheduler
 
       prior_bookings = PrivateMeetingBooking.where(enrollment_id: enrollment.id, week_number: week)
       past_changes = prior_bookings.maximum(:student_change_count).to_i
-      student_canceled = PrivateMeetingBookingEvent.where(private_meeting_booking_id: prior_bookings.select(:id), actor_id: student.id, action: "canceled").exists?
-      if student_canceled && past_changes >= config.max_student_changes
+      latest_booking = prior_bookings.order(:created_at, :id).last
+      latest_cancellation = latest_booking&.private_meeting_booking_events&.where(action: "canceled")&.order(:id)&.last
+      learner_rebooking = latest_booking&.canceled? && !latest_cancellation&.actor&.staff?
+      if learner_rebooking && past_changes >= config.max_student_changes
         raise InvalidRequest, "You have used your learner-requested schedule change; message your instructor"
       end
       booking = PrivateMeetingBooking.create!(
@@ -33,7 +35,7 @@ class PrivateMeetingScheduler
         week_number: week,
         starts_at: slot.starts_at,
         ends_at: slot.ends_at,
-        student_change_count: past_changes + (student_canceled ? 1 : 0)
+        student_change_count: past_changes + (learner_rebooking ? 1 : 0)
       )
       event!(booking, student, "booked")
     end
