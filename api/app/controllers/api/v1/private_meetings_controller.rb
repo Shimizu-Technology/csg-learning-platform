@@ -23,6 +23,8 @@ module Api
             end_date: cohort.end_date,
             instructor_name: config.instructor.full_name,
             weeks: config.weeks,
+            reschedule_cutoff_hours: config.reschedule_cutoff_hours,
+            max_student_changes: config.max_student_changes,
             bookings: bookings.map { |booking| PrivateMeetingSerializer.booking(booking) },
             slots: slots.map { |slot| PrivateMeetingSerializer.slot(slot, booked_ids: booked_ids) }
           }

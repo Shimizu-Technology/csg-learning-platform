@@ -22,6 +22,8 @@ module Api
               instructor_id: config.instructor_id,
               instructor_name: config.instructor.full_name,
               weeks: config.weeks,
+              reschedule_cutoff_hours: config.reschedule_cutoff_hours,
+              max_student_changes: config.max_student_changes,
               slots: slots.map { |slot| PrivateMeetingSerializer.slot(slot, booked_ids: booked_ids) },
               bookings: bookings.map { |booking| PrivateMeetingSerializer.booking(booking, staff: true) }
             }
@@ -36,15 +38,19 @@ module Api
           return
         end
 
+        actions = [ params[:slot_id].present?, params.key?(:zoom_url), params[:status].present? ]
+        unless actions.count(true) == 1 && (params[:status].blank? || params[:status] == "canceled")
+          render json: { error: "Change one meeting detail at a time" }, status: :unprocessable_entity
+          return
+        end
+
         if params[:slot_id].present?
           slot = PrivateMeetingSlot.find(params[:slot_id])
           booking = PrivateMeetingScheduler.reschedule!(booking: booking, slot: slot, actor: current_user)
-        end
-        if params.key?(:zoom_url)
+        elsif params.key?(:zoom_url)
           booking.update!(zoom_url: params[:zoom_url].presence)
           PrivateMeetingScheduler.event!(booking, current_user, "link_updated")
-        end
-        if params[:status] == "canceled"
+        else
           PrivateMeetingScheduler.cancel!(booking: booking, actor: current_user)
         end
         render json: { booking: PrivateMeetingSerializer.booking(booking.reload, staff: true) }

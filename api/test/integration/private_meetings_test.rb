@@ -35,6 +35,8 @@ class PrivateMeetingsTest < ActionDispatch::IntegrationTest
     assert_response :success
     cohort = JSON.parse(response.body).fetch("cohorts").first
     assert_equal @cohort.id, cohort.fetch("id")
+    assert_equal 24, cohort.fetch("reschedule_cutoff_hours")
+    assert_equal 1, cohort.fetch("max_student_changes")
     assert_equal true, cohort.fetch("slots").first.fetch("available")
     refute cohort.fetch("slots").first.key?("zoom_url")
 
@@ -107,6 +109,12 @@ class PrivateMeetingsTest < ActionDispatch::IntegrationTest
       patch "/api/v1/private_meetings/#{booking_id}", params: { slot_id: first.id }, headers: auth_headers, as: :json
     end
     assert_response :unprocessable_entity
+
+    as_user(@student) do
+      delete "/api/v1/private_meetings/#{booking_id}", headers: auth_headers
+    end
+    assert_response :success
+    assert PrivateMeetingBooking.find(booking_id).canceled?
   end
 
   test "overlapping published slots are rejected and booked slots cannot be removed" do
@@ -171,7 +179,7 @@ class PrivateMeetingsTest < ActionDispatch::IntegrationTest
       delete "/api/v1/private_meetings/#{booking_id}", headers: auth_headers
     end
     assert_response :success
-    assert_equal 1, PrivateMeetingBooking.find(booking_id).student_change_count
+    assert_equal 0, PrivateMeetingBooking.find(booking_id).student_change_count
 
     as_user(@student) do
       post "/api/v1/private_meetings", params: { slot_id: replacement.id }, headers: auth_headers, as: :json
@@ -183,8 +191,49 @@ class PrivateMeetingsTest < ActionDispatch::IntegrationTest
     as_user(@student) do
       delete "/api/v1/private_meetings/#{new_booking_id}", headers: auth_headers
     end
+    assert_response :success
+    assert PrivateMeetingBooking.find(new_booking_id).canceled?
+
+    as_user(@student) do
+      post "/api/v1/private_meetings", params: { slot_id: first.id }, headers: auth_headers, as: :json
+    end
     assert_response :unprocessable_entity
-    assert PrivateMeetingBooking.find(new_booking_id).confirmed?
+  end
+
+  test "staff updates reject mixed actions without moving the meeting" do
+    first = publish_slot(@start_time)
+    second = publish_slot(@start_time + 2.hours)
+    as_user(@student) do
+      post "/api/v1/private_meetings", params: { slot_id: first.id }, headers: auth_headers, as: :json
+    end
+    booking_id = JSON.parse(response.body).dig("booking", "id")
+
+    as_user(@instructor) do
+      patch "/api/v1/staff/private_meetings/#{booking_id}", params: { slot_id: second.id, zoom_url: "invalid" }, headers: auth_headers, as: :json
+    end
+    assert_response :unprocessable_entity
+    assert_equal first.id, PrivateMeetingBooking.find(booking_id).private_meeting_slot_id
+    assert_equal 1, PrivateMeetingBookingEvent.where(private_meeting_booking_id: booking_id).count
+  end
+
+  test "deletion reports a conflict when meeting history must be retained" do
+    slot = publish_slot(@start_time)
+    as_user(@student) do
+      post "/api/v1/private_meetings", params: { slot_id: slot.id }, headers: auth_headers, as: :json
+    end
+    enrollment = @student.enrollments.find_by!(cohort: @cohort)
+
+    as_user(@admin) do
+      delete "/api/v1/enrollments/#{enrollment.id}", headers: auth_headers
+    end
+    assert_response :conflict
+    assert enrollment.reload.persisted?
+
+    as_user(@admin) do
+      delete "/api/v1/cohorts/#{@cohort.id}", headers: auth_headers
+    end
+    assert_response :conflict
+    assert @cohort.reload.persisted?
   end
 
   test "a paused enrollment cannot change or book meetings" do

@@ -1722,6 +1722,8 @@ export interface PrivateMeetingCohort {
   end_date: string | null;
   instructor_name: string;
   weeks: number;
+  reschedule_cutoff_hours: number;
+  max_student_changes: number;
   bookings: PrivateMeetingBooking[];
   slots: PrivateMeetingSlot[];
 }

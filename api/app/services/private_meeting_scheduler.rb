@@ -18,7 +18,12 @@ class PrivateMeetingScheduler
         raise Conflict, "You already have a meeting for this course week"
       end
 
-      past_changes = PrivateMeetingBooking.where(enrollment_id: enrollment.id, week_number: week).maximum(:student_change_count).to_i
+      prior_bookings = PrivateMeetingBooking.where(enrollment_id: enrollment.id, week_number: week)
+      past_changes = prior_bookings.maximum(:student_change_count).to_i
+      student_canceled = PrivateMeetingBookingEvent.where(private_meeting_booking_id: prior_bookings.select(:id), actor_id: student.id, action: "canceled").exists?
+      if student_canceled && past_changes >= config.max_student_changes
+        raise InvalidRequest, "You have used your learner-requested schedule change; message your instructor"
+      end
       booking = PrivateMeetingBooking.create!(
         private_meeting_slot: slot,
         enrollment: enrollment,
@@ -28,7 +33,7 @@ class PrivateMeetingScheduler
         week_number: week,
         starts_at: slot.starts_at,
         ends_at: slot.ends_at,
-        student_change_count: past_changes
+        student_change_count: past_changes + (student_canceled ? 1 : 0)
       )
       event!(booking, student, "booked")
     end
@@ -70,9 +75,9 @@ class PrivateMeetingScheduler
     config.instructor.with_lock do
       booking.reload.lock!
       raise Conflict, "This meeting was already canceled" unless booking.confirmed?
-      validate_student_change!(booking, config) if actor.id == booking.student_id
+      validate_student_cutoff!(booking, config) if actor.id == booking.student_id
 
-      booking.update!(status: :canceled, student_change_count: booking.student_change_count + (actor.id == booking.student_id ? 1 : 0))
+      booking.update!(status: :canceled)
       event!(booking, actor, "canceled")
     end
     booking
@@ -92,6 +97,10 @@ class PrivateMeetingScheduler
     if booking.student_change_count >= config.max_student_changes
       raise InvalidRequest, "You have used your learner-requested schedule change; message your instructor"
     end
+    validate_student_cutoff!(booking, config)
+  end
+
+  def self.validate_student_cutoff!(booking, config)
     if booking.starts_at < Time.current + config.reschedule_cutoff_hours.hours
       raise InvalidRequest, "Changes close #{config.reschedule_cutoff_hours} hours before the meeting; message your instructor"
     end
@@ -123,5 +132,5 @@ class PrivateMeetingScheduler
     event
   end
 
-  private_class_method :validate_student_change!, :require_manager_or_student!
+  private_class_method :validate_student_change!, :validate_student_cutoff!, :require_manager_or_student!
 end

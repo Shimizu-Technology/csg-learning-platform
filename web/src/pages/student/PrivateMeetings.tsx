@@ -102,9 +102,11 @@ export function PrivateMeetings() {
           <div className="grid gap-4 lg:grid-cols-3">
             {Array.from({ length: cohort.weeks }, (_, index) => index + 1).map((week) => {
               const booking = currentBookingForWeek(cohort.bookings, week)
-              const available = slotsForWeek(cohort.slots, cohort.start_date, week, cohort.weeks).filter((slot) => slot.available && Date.parse(slot.starts_at) > Date.now() + 24 * 60 * 60 * 1000)
+              const cutoff = cohort.reschedule_cutoff_hours * 60 * 60 * 1000
+              const available = slotsForWeek(cohort.slots, cohort.start_date, week, cohort.weeks).filter((slot) => slot.available && Date.parse(slot.starts_at) > Date.now() + cutoff)
               const changing = booking?.id === changingBookingId
-              const canChange = booking && booking.reschedule_count < 1 && Date.parse(booking.starts_at) > Date.now() + 24 * 60 * 60 * 1000
+              const beforeCutoff = booking && Date.parse(booking.starts_at) > Date.now() + cutoff
+              const canReschedule = beforeCutoff && booking.reschedule_count < cohort.max_student_changes
               return (
                 <article key={week} className={`min-w-0 rounded-2xl border bg-white p-5 ${booking ? 'border-primary-200 shadow-sm shadow-primary-950/5' : 'border-slate-200'}`}>
                   <div className="flex items-center justify-between gap-3">
@@ -125,8 +127,8 @@ export function PrivateMeetings() {
                         <a href={sanitizeUrl(booking.zoom_url)} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary-600 px-4 text-sm font-semibold text-white hover:bg-primary-700"><Video className="h-4 w-4" />Join on Zoom<ExternalLink className="h-3.5 w-3.5" /></a>
                       ) : <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">Your Zoom link is being prepared. It will appear here before the meeting.</p>}
                       <div className="flex flex-wrap gap-2 pt-1">
-                        {canChange && <Button variant="secondary" disabled={busyId !== null} onClick={() => setChangingBookingId(changing ? null : booking.id)}>{changing ? 'Keep current time' : 'Reschedule'}</Button>}
-                        {canChange && <Button variant="quiet" disabled={busyId !== null} onClick={() => void cancelBooking(booking.id)}>Cancel</Button>}
+                        {canReschedule && <Button variant="secondary" disabled={busyId !== null} onClick={() => setChangingBookingId(changing ? null : booking.id)}>{changing ? 'Keep current time' : 'Reschedule'}</Button>}
+                        {beforeCutoff && <Button variant="quiet" disabled={busyId !== null} onClick={() => void cancelBooking(booking.id)}>Cancel</Button>}
                       </div>
                     </div>
                   )}
@@ -149,9 +151,10 @@ export function PrivateMeetings() {
               )
             })}
           </div>
+          <p className="text-sm leading-relaxed text-slate-600">Changes close {cohort.reschedule_cutoff_hours} hours before a meeting. You can reschedule or cancel and rebook up to {cohort.max_student_changes} {cohort.max_student_changes === 1 ? 'time' : 'times'}. You can still cancel after using a change, but ask your instructor to arrange another time.</p>
         </section>
       ))}
-      <p className="text-sm leading-relaxed text-slate-600">Need a different time? <Link to="/messages" className="font-semibold text-primary-700 underline underline-offset-2">Message your instructor</Link>. Learner reschedules need at least 24 hours of notice and are limited to one per meeting.</p>
+      <p className="text-sm leading-relaxed text-slate-600">Need a different time? <Link to="/messages" className="font-semibold text-primary-700 underline underline-offset-2">Message your instructor</Link>.</p>
     </div>
   )
 }
