@@ -242,6 +242,16 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
 
       {weeklyPlan?.enrolled && <WeeklyPlanCard plan={weeklyPlan} />}
 
+      {data.private_meetings_enabled && (
+        <Link to="/meetings" className="group flex min-h-20 items-center justify-between gap-4 rounded-2xl border border-primary-200 bg-primary-50 px-5 py-4 transition hover:border-primary-400 hover:bg-primary-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-primary-700"><CalendarDays className="h-5 w-5" /></span>
+            <div><p className="font-bold text-slate-950">Your private meetings</p><p className="text-sm text-slate-700">See your weekly one-to-one schedule and available times.</p></div>
+          </div>
+          <ArrowRight className="h-5 w-5 shrink-0 text-primary-700 transition-transform group-hover:translate-x-1" />
+        </Link>
+      )}
+
       {showWeeklyFallback && data.action_items && data.action_items.length > 0 && (
         <section className="rounded-2xl border border-amber-300 bg-amber-50 p-4 sm:p-5">
           <h2 className="flex items-center gap-2 text-sm font-extrabold text-amber-900">

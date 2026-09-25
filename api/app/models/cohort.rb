@@ -13,6 +13,8 @@ class Cohort < ApplicationRecord
   has_many :cohort_module_schedules, dependent: :destroy
   has_many :cohort_module_submission_windows, dependent: :destroy
   has_many :office_hours, dependent: :destroy
+  has_one :private_meeting_config, dependent: :restrict_with_error
+  has_many :private_meeting_bookings, dependent: :restrict_with_error
   has_many :help_requests, dependent: :destroy
 
   validates :name, presence: true

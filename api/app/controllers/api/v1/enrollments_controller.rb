@@ -54,8 +54,11 @@ module Api
 
       # DELETE /api/v1/enrollments/:id
       def destroy
-        @enrollment.destroy
-        head :no_content
+        if @enrollment.destroy
+          head :no_content
+        else
+          render json: { errors: @enrollment.errors.full_messages }, status: :conflict
+        end
       end
 
       private

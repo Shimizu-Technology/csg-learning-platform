@@ -19,6 +19,8 @@ import {
   CohortWatchProgress,
   ContentManagement,
   Dashboard,
+  PrivateMeetings,
+  StaffPrivateMeetings,
   Grading,
   HomePage,
   LessonEditor,
@@ -65,6 +67,7 @@ const routeTitles: Array<[RegExp, string]> = [
   [/^\/terms/, 'Terms & Community Guidelines'],
   [/^\/account-deletion/, 'Account deletion'],
   [/^\/dashboard/, 'Today'],
+  [/^\/meetings/, 'My meetings'],
   [/^\/materials/, 'Learn'],
   [/^\/modules\//, 'Module'],
   [/^\/lessons\//, 'Lesson'],
@@ -85,6 +88,7 @@ const routeTitles: Array<[RegExp, string]> = [
   [/^\/admin\/interventions\//, 'Intervention record'],
   [/^\/admin\/help-requests\//, 'Help request'],
   [/^\/admin\/support/, 'Student support'],
+  [/^\/admin\/meetings/, 'Private meetings'],
   [/^\/admin\/moderation/, 'Safety queue'],
   [/^\/admin\/content/, 'Content'],
   [/^\/admin\/team/, 'Team'],
@@ -123,6 +127,7 @@ function AppRoutes() {
         <Route element={<Layout />}>
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<SuspendedRoute><Dashboard /></SuspendedRoute>} />
+            <Route path="/meetings" element={<SuspendedRoute><PrivateMeetings /></SuspendedRoute>} />
             <Route path="/materials" element={<SuspendedRoute><Materials /></SuspendedRoute>} />
             <Route path="/modules/:id" element={<SuspendedRoute><ModuleView /></SuspendedRoute>} />
             <Route path="/lessons/:id" element={<SuspendedRoute><LessonView /></SuspendedRoute>} />
@@ -139,6 +144,7 @@ function AppRoutes() {
           {/* Staff routes (admin + instructor) */}
           <Route element={<ProtectedRoute requiredRole="staff" />}>
             <Route path="/admin" element={<SuspendedRoute><AdminDashboard /></SuspendedRoute>} />
+            <Route path="/admin/meetings" element={<SuspendedRoute><StaffPrivateMeetings /></SuspendedRoute>} />
             <Route path="/admin/students" element={<SuspendedRoute><StudentManagement /></SuspendedRoute>} />
             <Route path="/admin/students/:id" element={<SuspendedRoute><StudentDetail /></SuspendedRoute>} />
             <Route path="/admin/cohorts/:cohortId/students/:id/:tab?" element={<SuspendedRoute><StudentWorkspace /></SuspendedRoute>} />

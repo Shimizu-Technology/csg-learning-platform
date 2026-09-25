@@ -9,6 +9,7 @@ class Enrollment < ApplicationRecord
   has_many :lesson_assignments, dependent: :destroy
   has_many :interventions, dependent: :destroy
   has_many :recovery_plans, dependent: :destroy
+  has_many :private_meeting_bookings, dependent: :restrict_with_error
 
   validates :user_id, uniqueness: { scope: :cohort_id }
 

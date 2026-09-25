@@ -169,8 +169,11 @@ module Api
 
       # DELETE /api/v1/cohorts/:id
       def destroy
-        @cohort.destroy
-        head :no_content
+        if @cohort.destroy
+          head :no_content
+        else
+          render json: { errors: @cohort.errors.full_messages }, status: :conflict
+        end
       end
 
       private

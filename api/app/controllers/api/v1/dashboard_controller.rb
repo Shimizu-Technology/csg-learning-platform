@@ -22,6 +22,7 @@ module Api
             :cohort_module_schedules,
             :cohort_module_submission_windows,
             :office_hours,
+            :private_meeting_config,
             { curriculum: { modules: { lessons: :content_blocks } } }
           ]
         ).first
@@ -184,6 +185,7 @@ module Api
             action_items: action_items,
             recently_graded: recently_graded,
             resources: dashboard_resources_json(cohort),
+            private_meetings_enabled: cohort.private_meeting_config&.enabled? || false,
             office_hours: OfficeHourSerializer.upcoming(OfficeHourSerializer.active_for(cohort), limit: 3)
           }
         }
