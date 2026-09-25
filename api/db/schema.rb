@@ -10,8 +10,9 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_14_010000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_25_010000) do
   # These are extensions that must be enabled in order to support this database
+  enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
 
   create_table "announcements", force: :cascade do |t|
@@ -613,6 +614,74 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_010000) do
     t.index ["created_by_id"], name: "index_office_hours_on_created_by_id"
   end
 
+  create_table "private_meeting_booking_events", force: :cascade do |t|
+    t.string "action", null: false
+    t.bigint "actor_id", null: false
+    t.datetime "created_at", null: false
+    t.jsonb "details", default: {}, null: false
+    t.bigint "private_meeting_booking_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["actor_id"], name: "index_private_meeting_booking_events_on_actor_id"
+    t.index ["private_meeting_booking_id"], name: "idx_private_meeting_events_booking"
+  end
+
+  create_table "private_meeting_bookings", force: :cascade do |t|
+    t.bigint "cohort_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "ends_at", null: false
+    t.bigint "enrollment_id", null: false
+    t.bigint "instructor_id", null: false
+    t.bigint "private_meeting_slot_id", null: false
+    t.datetime "starts_at", null: false
+    t.integer "status", default: 0, null: false
+    t.integer "student_change_count", default: 0, null: false
+    t.bigint "student_id", null: false
+    t.datetime "updated_at", null: false
+    t.integer "week_number", null: false
+    t.string "zoom_url"
+    t.index ["cohort_id"], name: "index_private_meeting_bookings_on_cohort_id"
+    t.index ["enrollment_id", "week_number"], name: "private_meeting_one_confirmed_per_week", unique: true, where: "(status = 0)"
+    t.index ["enrollment_id"], name: "index_private_meeting_bookings_on_enrollment_id"
+    t.index ["instructor_id"], name: "index_private_meeting_bookings_on_instructor_id"
+    t.index ["private_meeting_slot_id"], name: "index_private_meeting_bookings_on_private_meeting_slot_id"
+    t.index ["private_meeting_slot_id"], name: "private_meeting_one_confirmed_per_slot", unique: true, where: "(status = 0)"
+    t.index ["student_id"], name: "index_private_meeting_bookings_on_student_id"
+    t.check_constraint "ends_at > starts_at AND week_number > 0 AND student_change_count >= 0", name: "private_meeting_booking_valid_range"
+    t.exclusion_constraint "instructor_id WITH =, tsrange(starts_at, (ends_at + 'PT15M'::interval), '[)'::text) WITH &&", where: "status = 0", using: :gist, name: "private_meeting_bookings_no_instructor_overlap"
+    t.exclusion_constraint "student_id WITH =, tsrange(starts_at, ends_at, '[)'::text) WITH &&", where: "status = 0", using: :gist, name: "private_meeting_bookings_no_student_overlap"
+  end
+
+  create_table "private_meeting_configs", force: :cascade do |t|
+    t.bigint "cohort_id", null: false
+    t.datetime "created_at", null: false
+    t.integer "duration_minutes", default: 60, null: false
+    t.boolean "enabled", default: true, null: false
+    t.bigint "instructor_id", null: false
+    t.integer "max_student_changes", default: 1, null: false
+    t.integer "reschedule_cutoff_hours", default: 24, null: false
+    t.string "timezone", default: "Pacific/Guam", null: false
+    t.datetime "updated_at", null: false
+    t.integer "weeks", default: 3, null: false
+    t.index ["cohort_id"], name: "index_private_meeting_configs_on_cohort_id", unique: true
+    t.index ["instructor_id"], name: "index_private_meeting_configs_on_instructor_id"
+    t.check_constraint "duration_minutes > 0 AND weeks > 0 AND reschedule_cutoff_hours >= 0 AND max_student_changes >= 0", name: "private_meeting_config_positive_policy"
+  end
+
+  create_table "private_meeting_slots", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "ends_at", null: false
+    t.bigint "instructor_id", null: false
+    t.bigint "private_meeting_config_id", null: false
+    t.datetime "starts_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["instructor_id"], name: "index_private_meeting_slots_on_instructor_id"
+    t.index ["private_meeting_config_id", "starts_at"], name: "idx_on_private_meeting_config_id_starts_at_70ff1018c5"
+    t.index ["private_meeting_config_id"], name: "index_private_meeting_slots_on_private_meeting_config_id"
+    t.check_constraint "ends_at > starts_at", name: "private_meeting_slot_positive_duration"
+    t.exclusion_constraint "instructor_id WITH =, tsrange(starts_at, (ends_at + 'PT15M'::interval), '[)'::text) WITH &&", where: "active = true", using: :gist, name: "private_meeting_slots_no_instructor_overlap"
+  end
+
   create_table "progresses", force: :cascade do |t|
     t.datetime "completed_at"
     t.bigint "content_block_id", null: false
@@ -1041,6 +1110,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_14_010000) do
   add_foreign_key "objective_alignments", "lessons"
   add_foreign_key "office_hours", "cohorts"
   add_foreign_key "office_hours", "users", column: "created_by_id"
+  add_foreign_key "private_meeting_booking_events", "private_meeting_bookings"
+  add_foreign_key "private_meeting_booking_events", "users", column: "actor_id"
+  add_foreign_key "private_meeting_bookings", "cohorts"
+  add_foreign_key "private_meeting_bookings", "enrollments"
+  add_foreign_key "private_meeting_bookings", "private_meeting_slots"
+  add_foreign_key "private_meeting_bookings", "users", column: "instructor_id"
+  add_foreign_key "private_meeting_bookings", "users", column: "student_id"
+  add_foreign_key "private_meeting_configs", "cohorts"
+  add_foreign_key "private_meeting_configs", "users", column: "instructor_id"
+  add_foreign_key "private_meeting_slots", "private_meeting_configs"
+  add_foreign_key "private_meeting_slots", "users", column: "instructor_id"
   add_foreign_key "progresses", "content_blocks"
   add_foreign_key "progresses", "users"
   add_foreign_key "push_subscriptions", "users"

@@ -25,6 +25,12 @@ Rails.application.routes.draw do
 
       # Dashboard / student hubs
       get "dashboard", to: "dashboard#show"
+      resources :private_meetings, only: [ :index, :create, :update, :destroy ]
+      get "staff/private_meetings", to: "staff_private_meetings#index"
+      patch "staff/private_meetings/:id", to: "staff_private_meetings#update"
+      post "staff/private_meeting_configs", to: "staff_private_meeting_configs#create"
+      post "staff/private_meeting_slots", to: "staff_private_meeting_slots#create"
+      delete "staff/private_meeting_slots/:id", to: "staff_private_meeting_slots#destroy"
       get "weekly_plan", to: "weekly_plans#show"
       get "support_queue", to: "support_queue#show"
       get "recordings", to: "student_recordings#index"

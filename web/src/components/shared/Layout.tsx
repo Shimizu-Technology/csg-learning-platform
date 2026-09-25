@@ -20,6 +20,7 @@ import {
   Home,
   LifeBuoy,
   ShieldAlert,
+  CalendarDays,
   Search,
   type LucideIcon,
 } from 'lucide-react'
@@ -228,6 +229,7 @@ export function Layout({ children }: LayoutProps) {
   const adminNav: NavItem[] = [
     { to: '/admin', icon: LayoutDashboard, label: 'Staff home', exact: true },
     { to: '/admin/cohorts', icon: Layers3, label: 'Cohorts' },
+    { to: '/admin/meetings', icon: CalendarDays, label: 'Private meetings' },
     { to: '/admin/content', icon: FileText, label: 'Content' },
     { to: '/admin/grading', icon: ClipboardCheck, label: 'Grading' },
     { to: '/admin/support', icon: LifeBuoy, label: 'Student support' },
@@ -241,6 +243,7 @@ export function Layout({ children }: LayoutProps) {
   const instructorNav: NavItem[] = [
     { to: '/admin', icon: LayoutDashboard, label: 'Staff home', exact: true },
     { to: '/admin/cohorts', icon: Layers3, label: 'Cohorts' },
+    { to: '/admin/meetings', icon: CalendarDays, label: 'Private meetings' },
     { to: '/admin/content', icon: FileText, label: 'Content' },
     { to: '/admin/grading', icon: ClipboardCheck, label: 'Grading' },
     { to: '/admin/support', icon: LifeBuoy, label: 'Student support' },
@@ -253,6 +256,7 @@ export function Layout({ children }: LayoutProps) {
   const studentNav: NavItem[] = [
     { to: '/dashboard', icon: Home, label: 'Today' },
     { to: '/materials', icon: BookOpenText, label: 'Learn' },
+    { to: '/meetings', icon: CalendarDays, label: 'My meetings' },
     { to: '/recordings', icon: PlayCircle, label: 'Recordings' },
     { to: '/resources', icon: Link2, label: 'Resources' },
     { to: '/messages', icon: MessageCircle, label: 'Messages' },

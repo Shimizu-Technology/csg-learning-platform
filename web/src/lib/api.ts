@@ -23,6 +23,8 @@ import type {
   SubmissionWindowsResponse,
   OfficeHoursResponse,
   OfficeHourResponse,
+  PrivateMeetingsResponse,
+  StaffPrivateMeetingsResponse,
   EnrollmentResponse,
   ModuleAssignmentsListResponse,
   ModuleAssignmentResponse,
@@ -773,6 +775,26 @@ export const api = {
     }),
   deleteOfficeHour: (cohortId: number, officeHourId: number) =>
     fetchApi<null>(`/api/v1/cohorts/${cohortId}/office_hours/${officeHourId}`, { method: 'DELETE' }),
+
+  // Private, bookable student meetings
+  getPrivateMeetings: () =>
+    fetchApi<PrivateMeetingsResponse>('/api/v1/private_meetings'),
+  bookPrivateMeeting: (slotId: number) =>
+    fetchApi<unknown>('/api/v1/private_meetings', { method: 'POST', body: JSON.stringify({ slot_id: slotId }) }),
+  reschedulePrivateMeeting: (bookingId: number, slotId: number) =>
+    fetchApi<unknown>(`/api/v1/private_meetings/${bookingId}`, { method: 'PATCH', body: JSON.stringify({ slot_id: slotId }) }),
+  cancelPrivateMeeting: (bookingId: number) =>
+    fetchApi<unknown>(`/api/v1/private_meetings/${bookingId}`, { method: 'DELETE' }),
+  getStaffPrivateMeetings: () =>
+    fetchApi<StaffPrivateMeetingsResponse>('/api/v1/staff/private_meetings'),
+  configurePrivateMeetings: (cohortId: number, instructorId: number) =>
+    fetchApi<unknown>('/api/v1/staff/private_meeting_configs', { method: 'POST', body: JSON.stringify({ cohort_id: cohortId, instructor_id: instructorId }) }),
+  createPrivateMeetingSlot: (cohortId: number, startsAt: string, repeatWeeks: number) =>
+    fetchApi<unknown>('/api/v1/staff/private_meeting_slots', { method: 'POST', body: JSON.stringify({ cohort_id: cohortId, starts_at: startsAt, repeat_weeks: repeatWeeks }) }),
+  deletePrivateMeetingSlot: (slotId: number) =>
+    fetchApi<unknown>(`/api/v1/staff/private_meeting_slots/${slotId}`, { method: 'DELETE' }),
+  updateStaffPrivateMeeting: (bookingId: number, data: { zoom_url?: string; slot_id?: number; status?: 'canceled' }) =>
+    fetchApi<unknown>(`/api/v1/staff/private_meetings/${bookingId}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   // Admin — Enrollments
   createEnrollment: (cohortId: number, userId: number) =>

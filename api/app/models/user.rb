@@ -34,6 +34,9 @@ class User < ApplicationRecord
   has_many :reports_received, class_name: "ContentReport", foreign_key: :reported_user_id, dependent: :restrict_with_exception, inverse_of: :reported_user
   has_many :data_deletion_requests, dependent: :restrict_with_exception
   has_many :created_office_hours, class_name: "OfficeHour", foreign_key: :created_by_id, dependent: :nullify
+  has_many :instructed_private_meeting_configs, class_name: "PrivateMeetingConfig", foreign_key: :instructor_id, dependent: :restrict_with_error
+  has_many :student_private_meeting_bookings, class_name: "PrivateMeetingBooking", foreign_key: :student_id, dependent: :restrict_with_error
+  has_many :instructor_private_meeting_bookings, class_name: "PrivateMeetingBooking", foreign_key: :instructor_id, dependent: :restrict_with_error
   has_many :created_submission_windows, class_name: "CohortModuleSubmissionWindow", foreign_key: :created_by_id, dependent: :nullify
   has_many :updated_submission_windows, class_name: "CohortModuleSubmissionWindow", foreign_key: :updated_by_id, dependent: :nullify
   has_many :help_requests, foreign_key: :student_id, dependent: :destroy

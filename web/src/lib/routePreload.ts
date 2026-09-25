@@ -13,6 +13,7 @@ function lazyWithPreload<T extends ComponentType<unknown>>(loader: Loader<T>): L
 }
 
 const dashboardLoader = () => import('../pages/student/Dashboard').then((module) => ({ default: module.DashboardRoute }))
+const privateMeetingsLoader = () => import('../pages/student/PrivateMeetings').then((module) => ({ default: module.PrivateMeetings }))
 const homeLoader = () => import('../pages/Home').then((module) => ({ default: module.HomePage }))
 const materialsLoader = () => import('../pages/student/Materials').then((module) => ({ default: module.MaterialsRoute }))
 const moduleViewLoader = () => import('../pages/student/ModuleView').then((module) => ({ default: module.ModuleView }))
@@ -23,6 +24,7 @@ const profileLoader = () => import('../pages/student/Profile').then((module) => 
 const announcementsLoader = () => import('../pages/shared/Announcements').then((module) => ({ default: module.Announcements }))
 const messagesLoader = () => import('../pages/shared/Messages').then((module) => ({ default: module.Messages }))
 const adminDashboardLoader = () => import('../pages/admin/AdminDashboard').then((module) => ({ default: module.AdminDashboard }))
+const staffPrivateMeetingsLoader = () => import('../pages/admin/PrivateMeetings').then((module) => ({ default: module.StaffPrivateMeetings }))
 const supportQueueLoader = () => import('../pages/admin/SupportQueue').then((module) => ({ default: module.SupportQueue }))
 const moderationLoader = () => import('../pages/admin/Moderation').then((module) => ({ default: module.Moderation }))
 const helpRequestDetailLoader = () => import('../pages/admin/HelpRequestDetail').then((module) => ({ default: module.HelpRequestDetail }))
@@ -45,6 +47,7 @@ const signInLoader = () => import('../pages/SignIn').then((module) => ({ default
 const signUpLoader = () => import('../pages/SignIn').then((module) => ({ default: module.SignUpPage }))
 
 export const Dashboard = lazyWithPreload(dashboardLoader)
+export const PrivateMeetings = lazyWithPreload(privateMeetingsLoader)
 export const HomePage = lazyWithPreload(homeLoader)
 export const Materials = lazyWithPreload(materialsLoader)
 export const ModuleView = lazyWithPreload(moduleViewLoader)
@@ -55,6 +58,7 @@ export const Profile = lazyWithPreload(profileLoader)
 export const Announcements = lazyWithPreload(announcementsLoader)
 export const Messages = lazyWithPreload(messagesLoader)
 export const AdminDashboard = lazyWithPreload(adminDashboardLoader)
+export const StaffPrivateMeetings = lazyWithPreload(staffPrivateMeetingsLoader)
 export const SupportQueue = lazyWithPreload(supportQueueLoader)
 export const Moderation = lazyWithPreload(moderationLoader)
 export const HelpRequestDetail = lazyWithPreload(helpRequestDetailLoader)
@@ -79,6 +83,7 @@ export const SignUpPage = lazyWithPreload(signUpLoader)
 const routePreloaders: Record<string, Array<() => Promise<unknown>>> = {
   '/': [homeLoader],
   '/dashboard': [dashboardLoader],
+  '/meetings': [privateMeetingsLoader],
   '/materials': [materialsLoader, moduleViewLoader, lessonViewLoader],
   '/recordings': [recordingsLoader],
   '/resources': [resourcesLoader],
@@ -86,6 +91,7 @@ const routePreloaders: Record<string, Array<() => Promise<unknown>>> = {
   '/announcements': [announcementsLoader],
   '/messages': [messagesLoader],
   '/admin': [adminDashboardLoader],
+  '/admin/meetings': [staffPrivateMeetingsLoader],
   '/admin/support': [supportQueueLoader, helpRequestDetailLoader, interventionDetailLoader],
   '/admin/moderation': [moderationLoader],
   '/admin/help-requests': [helpRequestDetailLoader],

@@ -894,6 +894,7 @@ export interface CohortDetail extends CohortSummary {
 
 export interface DashboardData {
   enrolled: boolean;
+  private_meetings_enabled?: boolean;
   user: { id: number; full_name: string; role: string };
   cohort?: {
     id: number;
@@ -1690,6 +1691,59 @@ export interface OfficeHoursResponse {
 
 export interface OfficeHourResponse {
   office_hour: OfficeHour;
+}
+
+export interface PrivateMeetingSlot {
+  id: number;
+  starts_at: string;
+  ends_at: string;
+  instructor_id: number;
+  instructor_name: string;
+  available: boolean;
+}
+
+export interface PrivateMeetingBooking {
+  id: number;
+  cohort_id: number;
+  student_name?: string;
+  instructor_name: string;
+  starts_at: string;
+  ends_at: string;
+  zoom_url: string | null;
+  status: string;
+  week_number: number;
+  reschedule_count: number;
+}
+
+export interface PrivateMeetingCohort {
+  id: number;
+  name: string;
+  start_date: string;
+  end_date: string | null;
+  instructor_name: string;
+  weeks: number;
+  bookings: PrivateMeetingBooking[];
+  slots: PrivateMeetingSlot[];
+}
+
+export interface StaffPrivateMeetingCohort extends PrivateMeetingCohort {
+  instructor_id: number;
+}
+
+export interface PrivateMeetingsResponse {
+  cohorts: PrivateMeetingCohort[];
+}
+
+export interface StaffPrivateMeetingsResponse {
+  cohorts: StaffPrivateMeetingCohort[];
+}
+
+export interface PrivateMeetingResponse {
+  booking: PrivateMeetingBooking;
+}
+
+export interface PrivateMeetingSlotResponse {
+  slot: PrivateMeetingSlot;
 }
 
 export interface EnrollmentsListResponse {
