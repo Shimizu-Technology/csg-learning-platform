@@ -96,6 +96,7 @@ export interface ChannelSummary {
   muted: boolean;
   unread_count: number;
   last_read_at: string | null;
+  last_read_message_id?: number | null;
   latest_message: LatestMessage | null;
   created_at: string;
   updated_at: string;
@@ -113,6 +114,7 @@ export interface DirectConversationSummary {
   muted: boolean;
   unread_count: number;
   last_read_at: string | null;
+  last_read_message_id?: number | null;
   latest_message: LatestMessage | null;
   users: UserSummary[];
   created_at: string;

@@ -84,7 +84,7 @@ export default function ConversationScreen() {
   const [pinnedMessages, setPinnedMessages] = useState<Message[]>(initialSnapshot?.pinnedMessages ?? []);
   const [meta, setMeta] = useState<MessageWindowMeta>(initialSnapshot?.meta ?? { oldest_message_id: null, newest_message_id: null, has_older: false, has_newer: false });
   const [mentionUsers, setMentionUsers] = useState<UserSummary[]>(initialSnapshot?.mentionUsers ?? []);
-  const [unreadBoundaryId, setUnreadBoundaryId] = useState<number | null>(initialSnapshot ? firstUnreadMessageId(initialSnapshot.messages, initialSnapshot.summary.last_read_at, initialSnapshot.summary.unread_count, initialSnapshot.meta) : null);
+  const [unreadBoundaryId, setUnreadBoundaryId] = useState<number | null>(initialSnapshot ? firstUnreadMessageId(initialSnapshot.messages, initialSnapshot.summary.last_read_at, initialSnapshot.summary.unread_count, initialSnapshot.meta, initialSnapshot.summary.last_read_message_id) : null);
   const [draft, setDraft] = useState('');
   const [selection, setSelection] = useState({ start: 0, end: 0 });
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
@@ -128,7 +128,7 @@ export default function ConversationScreen() {
     setPinnedMessages(cached?.pinnedMessages ?? []);
     setMeta(cached?.meta ?? { oldest_message_id: null, newest_message_id: null, has_older: false, has_newer: false });
     setMentionUsers(cached?.mentionUsers ?? []);
-    setUnreadBoundaryId(cached ? firstUnreadMessageId(cached.messages, cached.summary.last_read_at, cached.summary.unread_count, cached.meta) : null);
+    setUnreadBoundaryId(cached ? firstUnreadMessageId(cached.messages, cached.summary.last_read_at, cached.summary.unread_count, cached.meta, cached.summary.last_read_message_id) : null);
     setError(null);
     setAttachments([]);
     setEditingMessage(null);
@@ -246,7 +246,7 @@ export default function ConversationScreen() {
         const demoSummary = cached?.summary ?? (kind === 'channel' ? demoChannels.find((item) => item.id === id) || null : demoDms.find((item) => item.id === id) || null);
         setSummary(demoSummary);
         setMessages(demoConversationMessages);
-        setUnreadBoundaryId(demoSummary ? firstUnreadMessageId(demoConversationMessages, demoSummary.last_read_at, demoSummary.unread_count, cached?.meta ?? { oldest_message_id: null, newest_message_id: null, has_older: false, has_newer: false }) : null);
+        setUnreadBoundaryId(demoSummary ? firstUnreadMessageId(demoConversationMessages, demoSummary.last_read_at, demoSummary.unread_count, cached?.meta ?? { oldest_message_id: null, newest_message_id: null, has_older: false, has_newer: false }, demoSummary.last_read_message_id) : null);
         setPinnedMessages(cached?.pinnedMessages ?? pinnedMessagesFrom(demoConversationMessages));
         setMentionUsers(cached?.mentionUsers ?? [demoUser]);
         setLoadedOperationIdentity(operationIdentity);
@@ -257,7 +257,7 @@ export default function ConversationScreen() {
         const mergedMessages = mergeServerAndFailedMessages(result.messages, failed);
         setSummary(nextSummary);
         setMessages(mergedMessages);
-        setUnreadBoundaryId(firstUnreadMessageId(mergedMessages, nextSummary.last_read_at, nextSummary.unread_count, result.meta));
+        setUnreadBoundaryId(firstUnreadMessageId(mergedMessages, nextSummary.last_read_at, nextSummary.unread_count, result.meta, nextSummary.last_read_message_id));
         setPinnedMessages(result.pinned_messages);
         setMeta(result.meta);
         setLoadedOperationIdentity(operationIdentity);
@@ -710,7 +710,7 @@ export default function ConversationScreen() {
         {error && !conversationReady ? <ErrorState message={error} retry={() => void load()} /> : loading || !conversationReady ? <LoadingState label="Loading messages" /> : <View style={styles.messagePane}>
           <FlatList ref={listRef} data={conversationItems} inverted keyExtractor={(item) => String(item.message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" maintainVisibleContentPosition={{ minIndexForVisible: 0 }} scrollEventThrottle={16}
             onEndReached={() => void loadOlder()} onEndReachedThreshold={0.2}
-            onScroll={(event: NativeSyntheticEvent<NativeScrollEvent>) => { const near = isNearConversationBottom(event.nativeEvent, 96, true); const wasNear = nearBottomRef.current; nearBottomRef.current = near; setShowScrollToLatest(!near); if (near) { setNewMessagesBelow(0); const newest = rootMessages.at(-1); if (!wasNear && !anchorMessageId && !meta.has_newer && newest && !auth.demo) void api.markRead(kind, id, newest.id).then(() => { if (userId) void queryClient.invalidateQueries({ queryKey: messagingKeys.inbox(userId), exact: true }); }).catch(() => undefined); } }}
+            onScroll={(event: NativeSyntheticEvent<NativeScrollEvent>) => { const near = isNearConversationBottom(event.nativeEvent, 96, true); const wasNear = nearBottomRef.current; nearBottomRef.current = near; setShowScrollToLatest(!near); if (near) { setNewMessagesBelow(0); const newest = rootMessages.at(-1); if (!wasNear && !meta.has_newer && newest && !auth.demo) void api.markRead(kind, id, newest.id).then(() => { if (userId) void queryClient.invalidateQueries({ queryKey: messagingKeys.inbox(userId), exact: true }); }).catch(() => undefined); } }}
             onContentSizeChange={() => {
               if (anchorMessageId && !anchorScrolledRef.current) {
                 const index = conversationItems.findIndex((item) => item.message.id === anchorMessageId);

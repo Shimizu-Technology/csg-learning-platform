@@ -8,4 +8,6 @@ it('puts the boundary at the first unread incoming message', () => {
   expect(firstUnreadMessageId(messages, '2026-09-27T00:00:01Z', 2, meta)).toBe(2);
   expect(firstUnreadMessageId(messages, '2026-09-27T00:00:01Z', 0, meta)).toBeNull();
   expect(firstUnreadMessageId(messages, null, 3, { ...meta, has_older: true })).toBeNull();
+  const tied = messages.map((message) => ({ ...message, created_at: '2026-09-27T00:00:01Z' }));
+  expect(firstUnreadMessageId(tied, '2026-09-27T00:00:01Z', 2, meta, 1)).toBe(2);
 });
