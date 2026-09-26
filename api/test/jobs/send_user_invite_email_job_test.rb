@@ -65,7 +65,8 @@ class SendUserInviteEmailJobTest < ActiveJob::TestCase
       assert_equal 0, call_count.call
     end
 
-    assert_equal "queued", user.reload.invite_delivery_status
+    assert_equal "failed", user.reload.invite_delivery_status
+    assert_match "archived", user.invite_last_error
     assert_nil user.invite_sent_at
   end
 

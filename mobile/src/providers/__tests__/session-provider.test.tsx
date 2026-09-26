@@ -5,7 +5,7 @@ import { Text } from 'react-native';
 
 import { ApiError } from '@/lib/api';
 import { activateUserConversationStorage, loadConversationDraft, saveConversationDraft } from '@/lib/conversation-storage';
-import { serializeCachedSessionUser } from '@/lib/session-access';
+import { serializeCachedSession, serializeCachedSessionUser } from '@/lib/session-access';
 import type { SessionEnrollment, SessionUser } from '@/lib/types';
 import { SessionProvider, useSession } from '../session-provider';
 
@@ -53,6 +53,12 @@ const userA: SessionUser = {
 
 const userB: SessionUser = { ...userA, id: 8, full_name: 'Student B', email: 'b@example.com', clerk_id: 'account-b', last_name: 'B' };
 const bridgedUserA: SessionUser = { ...userA, clerk_id: 'legacy-account-a' };
+const alumniEnrollment: SessionEnrollment = {
+  id: 10,
+  cohort: { id: 4, name: 'CSG Alumni', cohort_type: 'alumni', start_date: '2026-09-01', status: 'active' },
+  status: 'active',
+  enrolled_at: '2026-09-01T00:00:00Z',
+};
 
 type ObservedSession = {
   user: SessionUser | null;
@@ -244,7 +250,7 @@ it('accepts a server-authorized production identity whose legacy Clerk id is pre
   expect(observedSession!.user).toEqual(bridgedUserA);
   await waitFor(async () => {
     const cached = JSON.parse((await AsyncStorage.getItem('csg.session.user.production-account-a'))!);
-    expect(cached).toMatchObject({ version: 2, subject: 'production-account-a', user: bridgedUserA });
+    expect(cached).toMatchObject({ version: 3, subject: 'production-account-a', user: bridgedUserA, enrollments: [] });
   });
 });
 
@@ -260,6 +266,20 @@ it('restores a subject-bound bridged session during a transient outage', async (
   await act(async () => { await observedSession!.refresh(); });
 
   expect(observedSession!.user).toEqual(bridgedUserA);
+});
+
+it('restores cached enrollments during a transient outage', async () => {
+  await AsyncStorage.setItem(
+    'csg.session.user.account-a',
+    serializeCachedSession(userA, [alumniEnrollment], 'account-a'),
+  );
+  mockSession.mockRejectedValueOnce(new ApiError('Offline'));
+  render(<SessionProvider><SessionObserver /></SessionProvider>);
+
+  await act(async () => { await observedSession!.refresh(); });
+
+  expect(observedSession!.user).toEqual(userA);
+  expect(observedSession!.enrollments).toEqual([alumniEnrollment]);
 });
 
 it('restores a matching cached session with an explicitly null community policy', async () => {

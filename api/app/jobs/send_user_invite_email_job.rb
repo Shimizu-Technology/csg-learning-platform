@@ -28,7 +28,14 @@ class SendUserInviteEmailJob < ApplicationJob
   def deliverable?(user)
     user.with_lock do
       user.reload
-      user.invite_pending? && user.archived_at.blank?
+      return false unless user.invite_pending?
+      return true if user.archived_at.blank?
+
+      user.update!(
+        invite_delivery_status: "failed",
+        invite_last_error: "Invite was not delivered because the user is archived"
+      )
+      false
     end
   end
 

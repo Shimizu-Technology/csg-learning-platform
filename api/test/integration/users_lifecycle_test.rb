@@ -289,6 +289,29 @@ class UsersLifecycleTest < ActionDispatch::IntegrationTest
     assert_nil invite.reload.archived_at
   end
 
+  test "restoring an archived user retries an invitation skipped by the delivery job" do
+    invite = User.create!(
+      clerk_id: "pending_#{SecureRandom.uuid}",
+      email: "archived-queued-restore@example.com",
+      role: :instructor,
+      invite_delivery_status: "queued",
+      archived_at: Time.current
+    )
+    SendUserInviteEmailJob.perform_now(invite.id)
+    assert_equal "failed", invite.reload.invite_delivery_status
+
+    assert_enqueued_with(job: SendUserInviteEmailJob) do
+      as_user(@admin) do
+        patch "/api/v1/users/#{invite.id}/unarchive",
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :success
+    assert_equal "queued", invite.reload.invite_delivery_status
+  end
+
   test "archived users are hidden from default user and direct message candidate lists" do
     archived_staff = User.create!(
       clerk_id: "clerk_archived_staff",
