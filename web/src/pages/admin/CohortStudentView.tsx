@@ -44,6 +44,10 @@ const sectionConfig: Record<PreviewSection, { label: string; icon: typeof Layout
 
 const sections: PreviewSection[] = ['dashboard', 'materials', 'recordings', 'resources', 'messages', 'announcements', 'profile']
 
+export function previewSectionsForCohort(cohortType?: string): PreviewSection[] {
+  return cohortType === 'alumni' ? sections.filter((section) => section !== 'recordings') : sections
+}
+
 export function CohortStudentView() {
   const { id } = useParams<{ id: string }>()
   const location = useLocation()
@@ -89,8 +93,9 @@ export function CohortStudentView() {
 
   const activeSection = useMemo<PreviewSection>(() => {
     const tail = location.pathname.split('/student-view/')[1]?.split('/')[0] || 'dashboard'
-    return sections.includes(tail as PreviewSection) ? tail as PreviewSection : 'dashboard'
-  }, [location.pathname])
+    const requestedSection = sections.includes(tail as PreviewSection) ? tail as PreviewSection : 'dashboard'
+    return previewSectionsForCohort(data?.cohort.cohort_type).includes(requestedSection) ? requestedSection : 'materials'
+  }, [data?.cohort.cohort_type, location.pathname])
 
   if (loading) return <LoadingSpinner message="Loading cohort student view..." />
 
@@ -132,6 +137,7 @@ function PreviewShell({
     : 'SP'
   const studentQuery = selectedStudent ? `?student_id=${selectedStudent.user_id}` : ''
   const sectionPath = (section: PreviewSection) => `${section === 'dashboard' ? basePath : `${basePath}/${section}`}${studentQuery}`
+  const availableSections = previewSectionsForCohort(data.cohort.cohort_type)
 
   function keepPreviewNavigationContained(event: MouseEvent<HTMLDivElement>) {
     const link = (event.target as HTMLElement).closest('a')
@@ -159,7 +165,7 @@ function PreviewShell({
           </div>
         </div>
         <nav className="flex-1 space-y-1 p-4">
-          {sections.map((section) => {
+          {availableSections.map((section) => {
             const item = sectionConfig[section]
             const active = section === activeSection
             const Icon = item.icon
@@ -208,7 +214,7 @@ function PreviewShell({
           <span className="font-semibold text-slate-900">CSG Learning Hub</span>
         </div>
         <nav className="flex gap-2 overflow-x-auto px-4 pb-3">
-          {sections.map((section) => {
+          {availableSections.map((section) => {
             const item = sectionConfig[section]
             const active = section === activeSection
             const Icon = item.icon

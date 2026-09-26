@@ -350,7 +350,11 @@ module Api
           library_summary: {
             module_count: module_data.size,
             lesson_count: module_data.sum { |mod| mod[:lessons_count] },
-            recording_count: cohort.recordings.count(&:published?)
+            recording_count: cohort.curriculum.modules.sum do |mod|
+              mod.lessons.count do |lesson|
+                lesson.content_blocks.any? { |block| block.video? || block.recording? }
+              end
+            end
           },
           events: [],
           recording_catch_up: []
