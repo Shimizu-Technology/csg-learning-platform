@@ -453,7 +453,8 @@ export function CohortDetail() {
     if (res.error) {
       notifyError(`Failed to resend invite: ${res.error}`)
     } else {
-      notifySuccess(`Invite re-sent to ${email}`)
+      await reloadCohort()
+      notifySuccess(`Invite queued for ${email}`)
     }
     setResendingInviteFor(null)
   }

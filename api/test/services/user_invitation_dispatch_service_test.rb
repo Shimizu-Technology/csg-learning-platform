@@ -47,6 +47,20 @@ class UserInvitationDispatchServiceTest < ActiveJob::TestCase
     ClerkInvitationService.define_singleton_method(:new, original_new) if original_new
   end
 
+  test "records an enqueue failure instead of leaving the invitation queued" do
+    user = pending_user("invite-enqueue-failure@example.com")
+    original_perform_later = SendUserInviteEmailJob.method(:perform_later)
+    SendUserInviteEmailJob.define_singleton_method(:perform_later) { |*| false }
+
+    result = UserInvitationDispatchService.new(user: user).call
+
+    assert_equal "failed", result.status
+    assert_equal "failed", user.reload.invite_delivery_status
+    assert_match "could not be enqueued", user.invite_last_error
+  ensure
+    SendUserInviteEmailJob.define_singleton_method(:perform_later, original_perform_later) if original_perform_later
+  end
+
   private
 
   def pending_user(email)

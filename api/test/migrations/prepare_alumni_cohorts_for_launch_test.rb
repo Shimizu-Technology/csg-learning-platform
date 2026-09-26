@@ -50,6 +50,44 @@ class PrepareAlumniCohortsForLaunchTest < ActiveSupport::TestCase
     assert_equal [ "Alumni Chat" ], workspace.channels.active.pluck(:name)
   end
 
+  test "renames an archived Alumni Chat before creating the active channel" do
+    cohort = create_alumni_cohort
+    workspace = cohort.workspace
+    workspace.channels.destroy_all
+    archived_channel = workspace.channels.create!(
+      cohort: cohort,
+      name: "Alumni Chat",
+      description: "Old alumni conversation",
+      visibility: :cohort,
+      status: :archived,
+      position: 0
+    )
+
+    2.times { PrepareAlumniCohortsForLaunch.new.migrate(:up) }
+
+    assert_equal [ "Alumni Chat" ], workspace.channels.reload.active.pluck(:name)
+    assert_match "Alumni Chat (archived", archived_channel.reload.name
+  end
+
+  test "archives every extra active legacy channel" do
+    cohort = create_alumni_cohort
+    workspace = cohort.workspace
+    general_channel = workspace.channels.create!(
+      cohort: cohort,
+      name: "General",
+      description: "Another legacy conversation",
+      visibility: :cohort,
+      status: :active,
+      position: 1
+    )
+
+    PrepareAlumniCohortsForLaunch.new.migrate(:up)
+
+    assert_equal [ "Alumni Chat" ], workspace.channels.reload.active.pluck(:name)
+    assert general_channel.reload.archived?
+    assert_match "General (archived", general_channel.name
+  end
+
   private
 
   def create_alumni_cohort

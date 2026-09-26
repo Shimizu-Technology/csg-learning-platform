@@ -20,7 +20,9 @@ class UserInvitationDispatchService
       @user.update!(invite_delivery_status: "queued", invite_last_error: nil)
     end
     invitation_url = clerk_invitation_url
-    SendUserInviteEmailJob.perform_later(@user.id, @invited_by&.id, invitation_url)
+    job = SendUserInviteEmailJob.perform_later(@user.id, @invited_by&.id, invitation_url)
+    raise "Invite job could not be enqueued" unless job
+
     Result.new(status: "queued", error: nil)
   rescue StandardError => e
     record_failure(e.message)

@@ -83,7 +83,9 @@ module Api
         end
 
         invitation = dispatch_invitation(@user)
-        if invitation.status == "failed"
+        if invitation.status == "accepted"
+          render json: { error: "User has already signed in — no invite needed" }, status: :unprocessable_entity
+        elsif invitation.status == "failed"
           render json: { error: invitation.error, invitation: invitation_json(@user) }, status: :service_unavailable
         else
           render json: { message: "Invite queued for #{@user.email}", invitation: invitation_json(@user) }

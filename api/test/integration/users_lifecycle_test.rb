@@ -223,6 +223,29 @@ class UsersLifecycleTest < ActionDispatch::IntegrationTest
     assert_match "Archived users", JSON.parse(response.body).fetch("error")
   end
 
+  test "resend invite reports when the user accepts during dispatch" do
+    invite = User.create!(
+      clerk_id: "pending_#{SecureRandom.uuid}",
+      email: "accepted-during-resend@example.com",
+      role: :student
+    )
+    original_call = UserInvitationDispatchService.instance_method(:call)
+    UserInvitationDispatchService.define_method(:call) do
+      UserInvitationDispatchService::Result.new(status: "accepted", error: nil)
+    end
+
+    as_user(@admin) do
+      post "/api/v1/users/#{invite.id}/resend_invite",
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :unprocessable_entity
+    assert_match "already signed in", JSON.parse(response.body).fetch("error")
+  ensure
+    UserInvitationDispatchService.define_method(:call, original_call) if original_call
+  end
+
   test "admin can restore an archived user" do
     archived_staff = User.create!(
       clerk_id: "clerk_archived_restore_staff",

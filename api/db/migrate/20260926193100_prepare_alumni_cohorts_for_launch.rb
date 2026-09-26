@@ -89,19 +89,26 @@ class PrepareAlumniCohortsForLaunch < ActiveRecord::Migration[8.1]
   def prepare_alumni_workspaces
     alumni_cohorts.find_each do |cohort|
       workspace = MigrationWorkspace.find_by!(cohort_id: cohort.id)
-      alumni_channel = MigrationChannel.find_by(workspace_id: workspace.id, name: "Alumni Chat")
-      class_channel = MigrationChannel.find_by(workspace_id: workspace.id, name: "Class Chat")
-      general_channel = MigrationChannel.find_by(workspace_id: workspace.id, name: "General")
-      legacy_channel = class_channel || general_channel
+      alumni_channel = MigrationChannel.find_by(workspace_id: workspace.id, name: "Alumni Chat", status: 0)
+      archived_alumni_channel = MigrationChannel.find_by(workspace_id: workspace.id, name: "Alumni Chat", status: 1)
+      legacy_channels = MigrationChannel.where(
+        workspace_id: workspace.id,
+        name: [ "Class Chat", "General" ],
+        status: 0
+      ).order(:name).to_a
 
       if alumni_channel
-        archive_legacy_channel!(legacy_channel) if legacy_channel
-      elsif legacy_channel
-        legacy_channel.update!(
+        legacy_channels.each { |channel| archive_legacy_channel!(channel) }
+      elsif legacy_channels.any?
+        archive_legacy_channel!(archived_alumni_channel) if archived_alumni_channel
+        primary_channel = legacy_channels.first
+        primary_channel.update!(
           name: "Alumni Chat",
           description: "Ongoing discussion and support for Code School of Guam alumni."
         )
+        legacy_channels.drop(1).each { |channel| archive_legacy_channel!(channel) }
       else
+        archive_legacy_channel!(archived_alumni_channel) if archived_alumni_channel
         create_default_channel!(workspace, cohort)
       end
     end
