@@ -118,10 +118,12 @@ module Api
         previous_last_read_at = member.last_read_at
         previous_last_read_message_id = member.last_read_message_id
         member.mark_read!(read_through)
-        if member.last_read_at && [ member.last_read_at, member.last_read_message_id ] != [ previous_last_read_at, previous_last_read_message_id ]
-          read_message_ids = MessageReadCursor.through(@conversation.messages.visible, member).select(:id)
+        if member.last_read_at
+          read_message_ids = MessageReadCursor.through(@conversation.messages, member).select(:id)
           current_user.notifications.direct_message.where(path: "/messages/dm/#{@conversation.id}", notifiable_type: "Message", notifiable_id: read_message_ids)
             .unread.update_all(read_at: Time.current, updated_at: Time.current)
+        end
+        if member.last_read_at && [ member.last_read_at, member.last_read_message_id ] != [ previous_last_read_at, previous_last_read_message_id ]
           ReadReceiptBroadcastJob.perform_later(@conversation, current_user.id, previous_last_read_at, member.last_read_at, previous_last_read_message_id, member.last_read_message_id)
         end
 

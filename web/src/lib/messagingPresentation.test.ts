@@ -32,6 +32,14 @@ describe('recentConversations', () => {
     )
     expect(result.map(({ type, summary }) => `${type}:${summary.id}`)).toEqual(['dm:3', 'channel:1', 'channel:2', 'dm:4'])
   })
+
+  it('orders activity by instant even when timestamp formats differ', () => {
+    const result = recentConversations(
+      [channel(1, 'General', '2026-09-01T12:00:00Z')],
+      [dm(2, 'Ada', '2026-09-01T12:00:00.500Z')],
+    )
+    expect(result.map(({ type }) => type)).toEqual(['dm', 'channel'])
+  })
 })
 
 describe('latestVisibleReadReceipts', () => {
@@ -62,5 +70,11 @@ describe('mergeConversationSummary', () => {
     const current = { ...dm(1, 'Ada', '2026-09-01T12:00:00Z'), unread_count: 0, last_read_at: '2026-09-01T12:00:00Z', last_read_message_id: 12 }
     const stale = { ...dm(1, 'Ada', '2026-09-01T11:00:00Z'), unread_count: 2, last_read_at: '2026-09-01T11:00:00Z', last_read_message_id: 11 }
     expect(mergeConversationSummary(current, stale)).toMatchObject({ unread_count: 0, last_read_message_id: 12, latest_message: latest(1, '2026-09-01T12:00:00Z') })
+  })
+
+  it('keeps a fractional-second read cursor newer than a whole-second response', () => {
+    const current = { ...channel(1, 'General', '2026-09-01T12:00:00.500Z'), unread_count: 0, last_read_at: '2026-09-01T12:00:00.500Z' }
+    const stale = { ...channel(1, 'General', '2026-09-01T12:00:00Z'), unread_count: 2, last_read_at: '2026-09-01T12:00:00Z' }
+    expect(mergeConversationSummary(current, stale)).toMatchObject({ unread_count: 0, last_read_at: current.last_read_at, latest_message: current.latest_message })
   })
 })

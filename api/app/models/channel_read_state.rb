@@ -8,9 +8,7 @@ class ChannelReadState < ApplicationRecord
   def mark_read!(message = nil)
     with_lock do
       read_at = message&.created_at || Time.current
-      next if last_read_at && (last_read_at > read_at || (last_read_at == read_at && (message.nil? || last_read_message_id.nil? || last_read_message_id >= message.id)))
-
-      update!(last_read_message: message, last_read_at: read_at)
+      update!(last_read_message: message, last_read_at: read_at) if MessageReadCursor.advances?(self, read_at, message)
     end
   end
 end

@@ -91,6 +91,15 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
+function notificationTargetPath(data) {
+  const path = typeof data.path === 'string' && data.path.startsWith('/') && !data.path.startsWith('//') ? data.path : '/';
+  const messageId = String(data.message_id ?? '');
+  if (/^\/messages\/(?:dm\/)?[1-9]\d*$/.test(path) && /^[1-9]\d*$/.test(messageId)) {
+    return `${path}?message_id=${messageId}`;
+  }
+  return path;
+}
+
 self.addEventListener('push', (event) => {
   let data = {};
   if (event.data) {
@@ -108,7 +117,7 @@ self.addEventListener('push', (event) => {
     badge: '/icon-180x180.png',
     tag: data.tag || 'csg-learning-update',
     data: {
-      path: data.path || '/',
+      path: notificationTargetPath(data),
     },
   };
 

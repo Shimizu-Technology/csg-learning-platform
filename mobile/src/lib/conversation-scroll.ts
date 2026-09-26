@@ -10,6 +10,10 @@ export function isNearConversationBottom(metrics: ConversationScrollMetrics, thr
   return distance <= threshold;
 }
 
+export function canAutoReadConversation(visible: boolean, positioningAtAnchor: boolean, atBottom: boolean) {
+  return visible && !positioningAtAnchor && atBottom;
+}
+
 export function formatConversationDay(value: string, now = new Date()) {
   const date = new Date(value);
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());

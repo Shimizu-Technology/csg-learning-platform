@@ -4,14 +4,19 @@ export type RecentConversation =
   | { type: 'channel'; summary: ChannelSummary }
   | { type: 'dm'; summary: DirectConversationSummary }
 
+function messageTime(value?: string | null): number {
+  const time = value ? Date.parse(value) : -Infinity
+  return Number.isNaN(time) ? -Infinity : time
+}
+
 export function recentConversations(channels: ChannelSummary[], directConversations: DirectConversationSummary[]): RecentConversation[] {
   return [
     ...channels.map((summary) => ({ type: 'channel' as const, summary })),
     ...directConversations.map((summary) => ({ type: 'dm' as const, summary })),
   ].sort((left, right) => {
-    const leftTime = left.summary.latest_message?.created_at || ''
-    const rightTime = right.summary.latest_message?.created_at || ''
-    if (leftTime !== rightTime) return rightTime.localeCompare(leftTime)
+    const leftTime = messageTime(left.summary.latest_message?.created_at)
+    const rightTime = messageTime(right.summary.latest_message?.created_at)
+    if (leftTime !== rightTime) return rightTime - leftTime
     // Empty conversations have a stable order regardless of API array order.
     const leftTitle = left.type === 'channel' ? left.summary.name : left.summary.title
     const rightTitle = right.type === 'channel' ? right.summary.name : right.summary.title
@@ -53,13 +58,13 @@ export function firstUnreadMessageId(messages: ChannelMessage[], lastReadAt: str
 }
 
 export function mergeConversationSummary<T extends ChannelSummary | DirectConversationSummary>(current: T, incoming: T): T {
-  const currentReadTime = current.last_read_at || ''
-  const incomingReadTime = incoming.last_read_at || ''
+  const currentReadTime = messageTime(current.last_read_at)
+  const incomingReadTime = messageTime(incoming.last_read_at)
   const currentReadIsNewer = currentReadTime > incomingReadTime || (
     currentReadTime === incomingReadTime && (current.last_read_message_id || 0) > (incoming.last_read_message_id || 0)
   )
-  const currentLatestTime = current.latest_message?.created_at || ''
-  const incomingLatestTime = incoming.latest_message?.created_at || ''
+  const currentLatestTime = messageTime(current.latest_message?.created_at)
+  const incomingLatestTime = messageTime(incoming.latest_message?.created_at)
   const currentLatestIsNewer = currentLatestTime > incomingLatestTime || (
     currentLatestTime === incomingLatestTime && (current.latest_message?.id || 0) > (incoming.latest_message?.id || 0)
   )

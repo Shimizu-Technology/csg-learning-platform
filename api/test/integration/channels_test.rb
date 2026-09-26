@@ -148,6 +148,24 @@ class ChannelsTest < ActionDispatch::IntegrationTest
     assert_equal [ newer.id ], @student.notifications.message.unread.pluck(:notifiable_id)
   end
 
+  test "mark read clears notifications for removed messages even when the cursor has not advanced" do
+    removed = Message.create!(channel: @channel, author: @admin, body: "Removed", created_at: 2.minutes.ago)
+    latest = Message.create!(channel: @channel, author: @admin, body: "Current", created_at: 1.minute.ago)
+    [ removed, latest ].each { |message| NotificationDeliveryService.message_created(message) }
+    removed.update!(deleted_at: Time.current)
+
+    as_user(@student) do
+      patch "/api/v1/channels/#{@channel.id}/read", params: { message_id: latest.id }, headers: auth_headers, as: :json
+    end
+    assert_empty @student.notifications.message.unread
+
+    @student.notifications.message.find_by!(notifiable_id: removed.id).update!(read_at: nil)
+    as_user(@student) do
+      patch "/api/v1/channels/#{@channel.id}/read", params: { message_id: latest.id }, headers: auth_headers, as: :json
+    end
+    assert_empty @student.notifications.message.unread
+  end
+
   test "student cannot post to staff-only channel" do
     staff_channel = @cohort.channels.create!(name: "Staff Room", visibility: :staff_only)
 

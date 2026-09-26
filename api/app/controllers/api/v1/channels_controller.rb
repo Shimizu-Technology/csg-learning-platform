@@ -93,10 +93,12 @@ module Api
         previous_last_read_at = read_state.last_read_at
         previous_last_read_message_id = read_state.last_read_message_id
         read_state.mark_read!(read_through)
-        if read_state.last_read_at && [ read_state.last_read_at, read_state.last_read_message_id ] != [ previous_last_read_at, previous_last_read_message_id ]
-          read_message_ids = MessageReadCursor.through(@channel.messages.visible, read_state).select(:id)
+        if read_state.last_read_at
+          read_message_ids = MessageReadCursor.through(@channel.messages, read_state).select(:id)
           current_user.notifications.message.where(path: "/messages/#{@channel.id}", notifiable_type: "Message", notifiable_id: read_message_ids)
             .unread.update_all(read_at: Time.current, updated_at: Time.current)
+        end
+        if read_state.last_read_at && [ read_state.last_read_at, read_state.last_read_message_id ] != [ previous_last_read_at, previous_last_read_message_id ]
           ReadReceiptBroadcastJob.perform_later(@channel, current_user.id, previous_last_read_at, read_state.last_read_at, previous_last_read_message_id, read_state.last_read_message_id)
         end
 

@@ -1056,6 +1056,20 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_equal [ newer.id ], @student.notifications.direct_message.unread.pluck(:notifiable_id)
   end
 
+  test "direct message read clears a removed message notification" do
+    conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @student, @admin ])
+    removed = Message.create!(direct_conversation: conversation, author: @admin, body: "Removed", created_at: 2.minutes.ago)
+    latest = Message.create!(direct_conversation: conversation, author: @admin, body: "Current", created_at: 1.minute.ago)
+    [ removed, latest ].each { |message| NotificationDeliveryService.message_created(message) }
+    removed.update!(deleted_at: Time.current)
+
+    as_user(@student) do
+      patch "/api/v1/direct_conversations/#{conversation.id}/read", params: { message_id: latest.id }, headers: auth_headers, as: :json
+    end
+
+    assert_empty @student.notifications.direct_message.unread
+  end
+
   test "channel read receipts include every authorized reader" do
     message = Message.create!(channel: @channel, author: @admin, body: "Seen by everyone", created_at: 1.minute.ago)
     readers = 6.times.map do |index|

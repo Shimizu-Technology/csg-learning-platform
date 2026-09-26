@@ -8,9 +8,7 @@ class DirectConversationMember < ApplicationRecord
   def mark_read!(message = nil)
     with_lock do
       read_at = message&.created_at || Time.current
-      should_advance = last_read_at.nil? || last_read_at < read_at ||
-        (last_read_at == read_at && message && last_read_message_id && last_read_message_id < message.id)
-      update!(last_read_at: read_at, last_read_message: message) if should_advance
+      update!(last_read_at: read_at, last_read_message: message) if MessageReadCursor.advances?(self, read_at, message)
     end
   end
 end

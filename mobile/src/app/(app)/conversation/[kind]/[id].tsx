@@ -2,10 +2,10 @@ import * as Clipboard from 'expo-clipboard';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useQueryClient } from '@tanstack/react-query';
-import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { ArrowDownToLine, ArrowLeft, Bell, BellOff, BookOpen, ChevronDown, Edit3, Flag, Hash, MessageSquareReply, Paperclip, Pin, Send, Trash2, UserX, Wifi, WifiOff, X, type LucideIcon } from 'lucide-react-native';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Alert, FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { Alert, AppState, FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/avatar';
@@ -21,7 +21,7 @@ import { fontScaleLimits, fonts, palette } from '@/constants/csg-theme';
 import { useVoiceDraft } from '@/hooks/use-voice-draft';
 import { pendingAttachment, uploadAttachment } from '@/lib/attachments';
 import { subscribeToMessages, type CableSubscription } from '@/lib/cable';
-import { formatConversationDay, isDifferentConversationDay, isNearConversationBottom } from '@/lib/conversation-scroll';
+import { canAutoReadConversation, formatConversationDay, isDifferentConversationDay, isNearConversationBottom } from '@/lib/conversation-scroll';
 import { conversationDraftKey, loadConversationDraft, loadFailedMessages, retryableMessagesForStorage, saveConversationDraftWithRetry, saveFailedMessagesWithRetry } from '@/lib/conversation-storage';
 import { demoChannels, demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { insertMention, mentionSuggestions, mentionTriggerAt, resolveMentionUserIds } from '@/lib/mentions';
@@ -60,7 +60,10 @@ export default function ConversationScreen() {
   const initialSnapshot = useMemo(() => queryClient.getQueryData<ConversationSnapshot>(conversationCacheKey), [conversationCacheKey, queryClient]);
   const listRef = useRef<FlatList<ConversationItem>>(null);
   const composerInputRef = useRef<TextInput>(null);
-  const nearBottomRef = useRef(true);
+  const nearBottomRef = useRef(!anchorMessageId);
+  const screenFocusedRef = useRef(false);
+  const modalVisibleRef = useRef(false);
+  const anchorReadGateRef = useRef(Boolean(anchorMessageId));
   const pendingScrollRef = useRef(!anchorMessageId);
   const keyboardShouldFollowRef = useRef(false);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -108,6 +111,12 @@ export default function ConversationScreen() {
   const [formattingExpanded, setFormattingExpanded] = useState(false);
   const [reactionDetails, setReactionDetails] = useState<{ messageId: number; emoji: string } | null>(null);
   const [imagePreview, setImagePreview] = useState<{ attachments: Message['attachments']; attachmentId: number } | null>(null);
+  useLayoutEffect(() => { modalVisibleRef.current = Boolean(selectedMessage || showPins || reactionDetails || imagePreview); }, [selectedMessage, showPins, reactionDetails, imagePreview]);
+  const conversationVisible = () => screenFocusedRef.current && AppState.currentState === 'active' && !modalVisibleRef.current;
+  useFocusEffect(useCallback(() => {
+    screenFocusedRef.current = true;
+    return () => { screenFocusedRef.current = false; nearBottomRef.current = false; };
+  }, []));
   const operationIdentityRef = useRef(operationIdentity);
   useLayoutEffect(() => {
     const cached = queryClient.getQueryData<ConversationSnapshot>(conversationCacheKey);
@@ -172,6 +181,7 @@ export default function ConversationScreen() {
   const reactionDetailsMessage = reactionDetails ? messages.find((message) => message.id === reactionDetails.messageId) || null : null;
 
   const scrollToLatest = useCallback((animated = true) => {
+    anchorReadGateRef.current = false;
     nearBottomRef.current = true;
     pendingScrollRef.current = true;
     setShowScrollToLatest(false);
@@ -224,6 +234,7 @@ export default function ConversationScreen() {
     const cached = queryClient.getQueryData<ConversationSnapshot>(conversationCacheKey);
     if (!cached) setLoading(true);
     anchorScrolledRef.current = false;
+    anchorReadGateRef.current = Boolean(anchorMessageId);
     try {
       const [storedDraft, loadedConversation] = await Promise.all([
         userId && !auth.demo ? loadConversationDraft(userId, kind, id).catch(() => '') : Promise.resolve(''),
@@ -333,7 +344,7 @@ export default function ConversationScreen() {
         typingTimers.delete(payload.message.author.id);
         setTypingUsers((current) => current.filter((typingUser) => typingUser.id !== payload.message.author.id));
       }
-      const follow = payload.message.mine || nearBottomRef.current;
+      const follow = payload.message.mine || canAutoReadConversation(conversationVisible(), anchorReadGateRef.current, nearBottomRef.current);
       if (payload.event === 'created' && follow && !payload.message.mine) {
         void api.markRead(kind, id, payload.message.id).then(() => {
           if (userId) void queryClient.invalidateQueries({ queryKey: messagingKeys.inbox(userId), exact: true });
@@ -469,6 +480,7 @@ export default function ConversationScreen() {
   };
 
   const jumpToLatest = async () => {
+    let readThroughId = rootMessages.at(-1)?.id;
     if (meta.has_newer && !auth.demo) {
       loadNewerRequestRef.current += 1;
       setLoadingNewer(false);
@@ -479,13 +491,14 @@ export default function ConversationScreen() {
         if (operationIdentityRef.current !== operationIdentity) return;
         setMessages((current) => mergeServerAndFailedMessages(result.messages, current.filter((message) => message.client_status === 'sending' || message.client_status === 'failed')));
         setMeta(result.meta);
+        readThroughId = result.meta.newest_message_id ?? undefined;
       } catch (requestError) {
         Alert.alert('Could not reach latest messages', (requestError as Error).message);
         return;
       }
     }
     scrollToLatest(true);
-    if (!auth.demo) void api.markRead(kind, id).then(() => {
+    if (!auth.demo && readThroughId) void api.markRead(kind, id, readThroughId).then(() => {
       if (userId) void queryClient.invalidateQueries({ queryKey: messagingKeys.inbox(userId), exact: true });
     }).catch(() => undefined);
   };
@@ -710,7 +723,8 @@ export default function ConversationScreen() {
         {error && !conversationReady ? <ErrorState message={error} retry={() => void load()} /> : loading || !conversationReady ? <LoadingState label="Loading messages" /> : <View style={styles.messagePane}>
           <FlatList ref={listRef} data={conversationItems} inverted keyExtractor={(item) => String(item.message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" maintainVisibleContentPosition={{ minIndexForVisible: 0 }} scrollEventThrottle={16}
             onEndReached={() => void loadOlder()} onEndReachedThreshold={0.2}
-            onScroll={(event: NativeSyntheticEvent<NativeScrollEvent>) => { const near = isNearConversationBottom(event.nativeEvent, 96, true); const wasNear = nearBottomRef.current; nearBottomRef.current = near; setShowScrollToLatest(!near); if (near) { setNewMessagesBelow(0); const newest = rootMessages.at(-1); if (!wasNear && !meta.has_newer && newest && !auth.demo) void api.markRead(kind, id, newest.id).then(() => { if (userId) void queryClient.invalidateQueries({ queryKey: messagingKeys.inbox(userId), exact: true }); }).catch(() => undefined); } }}
+            onScrollBeginDrag={() => { if (anchorScrolledRef.current) anchorReadGateRef.current = false; }}
+            onScroll={(event: NativeSyntheticEvent<NativeScrollEvent>) => { const visible = conversationVisible(); const near = canAutoReadConversation(visible, anchorReadGateRef.current, isNearConversationBottom(event.nativeEvent, 96, true)); const wasNear = nearBottomRef.current; nearBottomRef.current = near; setShowScrollToLatest(!near); if (near) { setNewMessagesBelow(0); const newest = rootMessages.at(-1); if (!wasNear && canAutoReadConversation(visible, anchorReadGateRef.current, isNearConversationBottom(event.nativeEvent, 16, true)) && !meta.has_newer && newest && !auth.demo) void api.markRead(kind, id, newest.id).then(() => { if (userId) void queryClient.invalidateQueries({ queryKey: messagingKeys.inbox(userId), exact: true }); }).catch(() => undefined); } }}
             onContentSizeChange={() => {
               if (anchorMessageId && !anchorScrolledRef.current) {
                 const index = conversationItems.findIndex((item) => item.message.id === anchorMessageId);

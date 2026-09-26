@@ -1,4 +1,11 @@
 module MessageReadCursor
+  def self.advances?(cursor, read_at, message)
+    return true unless cursor.last_read_at
+    return true if cursor.last_read_at < read_at
+
+    cursor.last_read_at == read_at && message && cursor.last_read_message_id && cursor.last_read_message_id < message.id
+  end
+
   def self.after(scope, cursor)
     return scope unless cursor&.last_read_at
 
