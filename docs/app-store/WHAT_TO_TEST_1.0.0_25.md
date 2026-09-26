@@ -2,7 +2,7 @@
 
 Build 25 is the premium-messaging candidate. First confirm that TestFlight shows **1.0.0 (25)** on the iPhone. The upload succeeded, but Apple processing and internal tester availability must be confirmed before this script can be run.
 
-Use two authorized accounts where possible: one to send and one to read. Test a direct message and a channel.
+Use two authorized accounts signed in at the same time on separate clients: one to send and one to read. If a second account or client is unavailable, record the cross-account reaction and read-receipt checks as incomplete. Test a direct message and a channel.
 
 1. Send messages in several conversations, including an older conversation. Return to the Messages list after each send. The conversation with the newest activity should move to the top, and its preview and time should match its latest message. Check the same order on web.
 2. Receive a push while the app is in the background. Tap it, then use the iPhone's left-edge swipe to go back. It should return to the full Messages list, not an earlier snapshot of the conversation. Repeat after opening a notification while the app is already in use and after a cold launch if available.
