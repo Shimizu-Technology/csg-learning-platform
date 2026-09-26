@@ -26,7 +26,8 @@ class ExpoPushNotificationService
         title: notification.title,
         body: notification.body,
         data: {
-          path: message.direct_message? ? "/conversation/dm/#{message.direct_conversation_id}" : "/conversation/channel/#{message.channel_id}"
+          path: message.direct_message? ? "/conversation/dm/#{message.direct_conversation_id}" : "/conversation/channel/#{message.channel_id}",
+          message_id: message.id
         },
         sound: "default",
         channelId: "messages"

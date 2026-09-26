@@ -98,6 +98,41 @@ class ChannelsTest < ActionDispatch::IntegrationTest
     assert_equal message, state.last_read_message
   end
 
+  test "mark read through a message leaves newer messages unread and never moves backward" do
+    older = Message.create!(channel: @channel, author: @admin, body: "Older", created_at: 2.minutes.ago)
+    newer = Message.create!(channel: @channel, author: @admin, body: "Newer", created_at: 1.minute.ago)
+    [ older, newer ].each { |message| NotificationDeliveryService.message_created(message) }
+
+    as_user(@student) do
+      patch "/api/v1/channels/#{@channel.id}/read", params: { message_id: older.id }, headers: auth_headers, as: :json
+    end
+
+    assert_response :success
+    assert_equal 1, JSON.parse(response.body).dig("channel", "unread_count")
+    assert_equal older, @student.channel_read_states.find_by!(channel: @channel).last_read_message
+    assert_equal [ newer.id ], @student.notifications.message.unread.pluck(:notifiable_id)
+
+    as_user(@student) do
+      patch "/api/v1/channels/#{@channel.id}/read", params: { message_id: newer.id }, headers: auth_headers, as: :json
+      patch "/api/v1/channels/#{@channel.id}/read", params: { message_id: older.id }, headers: auth_headers, as: :json
+    end
+
+    assert_response :success
+    assert_equal newer, @student.channel_read_states.find_by!(channel: @channel).reload.last_read_message
+    assert_equal 0, @student.notifications.message.unread.count
+  end
+
+  test "mark read rejects messages outside the visible channel" do
+    foreign = Message.create!(channel: @other_cohort.channels.find_by!(name: "Class Chat"), author: @admin, body: "Foreign")
+
+    as_user(@student) do
+      patch "/api/v1/channels/#{@channel.id}/read", params: { message_id: foreign.id }, headers: auth_headers, as: :json
+    end
+
+    assert_response :unprocessable_entity
+    assert_nil @student.channel_read_states.find_by(channel: @channel)
+  end
+
   test "student cannot post to staff-only channel" do
     staff_channel = @cohort.channels.create!(name: "Staff Room", visibility: :staff_only)
 

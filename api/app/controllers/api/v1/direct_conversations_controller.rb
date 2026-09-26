@@ -104,12 +104,27 @@ module Api
         end
 
         member = @conversation.direct_conversation_members.find_by!(user: current_user)
-        previous_last_read_at = member.last_read_at
-        member.mark_read!
-        current_user.notifications.direct_message.where(path: "/messages/dm/#{@conversation.id}").unread.update_all(read_at: Time.current, updated_at: Time.current)
-        ReadReceiptBroadcastJob.perform_later(@conversation, current_user.id, previous_last_read_at)
+        last_message = latest_messages_for([ @conversation ])[@conversation.id]
+        read_through = if params.key?(:message_id)
+          @conversation.messages.visible.find_by(id: params[:message_id])
+        else
+          last_message
+        end
+        if params.key?(:message_id) && !read_through
+          render json: { error: "Message is not visible in this conversation" }, status: :unprocessable_entity
+          return
+        end
 
-        render json: { direct_conversation: conversation_json(@conversation, member: member, unread_count: 0, latest_message: latest_messages_for([ @conversation ])[@conversation.id]) }
+        previous_last_read_at = member.last_read_at
+        member.mark_read!(read_through)
+        if member.last_read_at && member.last_read_at != previous_last_read_at
+          read_message_ids = @conversation.messages.visible.where("created_at <= ?", member.last_read_at).select(:id)
+          current_user.notifications.direct_message.where(path: "/messages/dm/#{@conversation.id}", notifiable_type: "Message", notifiable_id: read_message_ids)
+            .unread.update_all(read_at: Time.current, updated_at: Time.current)
+          ReadReceiptBroadcastJob.perform_later(@conversation, current_user.id, previous_last_read_at, member.last_read_at)
+        end
+
+        render json: { direct_conversation: conversation_json(@conversation, member: member, unread_count: unread_count_for(@conversation, member), latest_message: last_message) }
       end
 
       private

@@ -79,13 +79,27 @@ module Api
         end
 
         last_message = @channel.messages.visible.order(created_at: :desc, id: :desc).first
+        read_through = if params.key?(:message_id)
+          @channel.messages.visible.find_by(id: params[:message_id])
+        else
+          last_message
+        end
+        if params.key?(:message_id) && !read_through
+          render json: { error: "Message is not visible in this channel" }, status: :unprocessable_entity
+          return
+        end
+
         read_state = find_or_create_read_state(@channel)
         previous_last_read_at = read_state.last_read_at
-        read_state.mark_read!(last_message)
-        current_user.notifications.message.where(path: "/messages/#{@channel.id}").unread.update_all(read_at: Time.current, updated_at: Time.current)
-        ReadReceiptBroadcastJob.perform_later(@channel, current_user.id, previous_last_read_at)
+        read_state.mark_read!(read_through)
+        if read_state.last_read_at && read_state.last_read_at != previous_last_read_at
+          read_message_ids = @channel.messages.visible.where("created_at <= ?", read_state.last_read_at).select(:id)
+          current_user.notifications.message.where(path: "/messages/#{@channel.id}", notifiable_type: "Message", notifiable_id: read_message_ids)
+            .unread.update_all(read_at: Time.current, updated_at: Time.current)
+          ReadReceiptBroadcastJob.perform_later(@channel, current_user.id, previous_last_read_at, read_state.last_read_at)
+        end
 
-        render json: { channel: channel_json(@channel, read_state, 0, last_message) }
+        render json: { channel: channel_json(@channel, read_state, unread_count_for(@channel, read_state), last_message) }
       end
 
       private

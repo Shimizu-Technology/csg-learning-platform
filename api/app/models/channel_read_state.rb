@@ -6,9 +6,11 @@ class ChannelReadState < ApplicationRecord
   validates :user_id, uniqueness: { scope: :channel_id }
 
   def mark_read!(message = nil)
-    update!(
-      last_read_message: message,
-      last_read_at: Time.current
-    )
+    with_lock do
+      read_at = message&.created_at || Time.current
+      next if last_read_at && last_read_at >= read_at
+
+      update!(last_read_message: message, last_read_at: read_at)
+    end
   end
 end
