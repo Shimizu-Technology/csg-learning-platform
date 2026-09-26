@@ -1,4 +1,5 @@
 class UserInvitationDispatchService
+  QUEUE_DEDUPLICATION_WINDOW = 10.minutes
   Result = Data.define(:status, :error)
 
   def initialize(user:, invited_by: nil)
@@ -9,13 +10,16 @@ class UserInvitationDispatchService
   def call
     return Result.new(status: "not_needed", error: nil) unless @user.invite_pending?
 
-    invitation_url = clerk_invitation_url
     @user.with_lock do
       @user.reload
       return Result.new(status: "accepted", error: nil) unless @user.invite_pending?
+      if @user.invite_delivery_status == "queued" && @user.updated_at >= QUEUE_DEDUPLICATION_WINDOW.ago
+        return Result.new(status: "queued", error: nil)
+      end
 
       @user.update!(invite_delivery_status: "queued", invite_last_error: nil)
     end
+    invitation_url = clerk_invitation_url
     SendUserInviteEmailJob.perform_later(@user.id, @invited_by&.id, invitation_url)
     Result.new(status: "queued", error: nil)
   rescue StandardError => e
@@ -37,7 +41,7 @@ class UserInvitationDispatchService
     return result[:url] if result[:success]
 
     Rails.logger.warn("[InviteDispatch] clerk_invitation_failed recipient_user_id=#{@user.id}")
-    nil
+    raise(result[:error].presence || "Clerk invitation creation failed")
   end
 
   def record_failure(message)

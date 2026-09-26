@@ -30,6 +30,7 @@ import { api } from '../../lib/api'
 import { refreshExistingPushSubscription, pushSupported, webPushPreferenceEnabled } from '../../lib/pushNotifications'
 import { subscribeToUserMessages } from '../../lib/realtime'
 import { isVisiblePage } from '../../lib/backgroundActivity'
+import { isAlumniOnlyEnrollment } from '../../lib/enrollments'
 import { preloadPrimaryRoutes, preloadRoute } from '../../lib/routePreload'
 import type { ChannelMessageEvent, ChannelSummary, DirectConversationSummary } from '../../types/api'
 import { CommandPalette } from './CommandPalette'
@@ -253,13 +254,12 @@ export function Layout({ children }: LayoutProps) {
     { to: '/profile', icon: User, label: 'Profile' },
   ]
 
-  const activeEnrollment = enrollments.find((enrollment) => enrollment.status === 'active')
-  const isAlumniLibrary = activeEnrollment?.cohort.cohort_type === 'alumni'
+  const isAlumniOnly = isAlumniOnlyEnrollment(enrollments)
   const studentNav: NavItem[] = [
     { to: '/dashboard', icon: Home, label: 'Today' },
     { to: '/materials', icon: BookOpenText, label: 'Learn' },
     { to: '/meetings', icon: CalendarDays, label: 'My meetings' },
-    ...(!isAlumniLibrary ? [{ to: '/recordings', icon: PlayCircle, label: 'Recordings' }] : []),
+    ...(!isAlumniOnly ? [{ to: '/recordings', icon: PlayCircle, label: 'Recordings' }] : []),
     { to: '/resources', icon: Link2, label: 'Resources' },
     { to: '/messages', icon: MessageCircle, label: 'Messages' },
     { to: '/announcements', icon: Bell, label: 'Updates' },

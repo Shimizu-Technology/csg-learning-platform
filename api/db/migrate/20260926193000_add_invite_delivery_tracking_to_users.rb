@@ -8,7 +8,7 @@ class AddInviteDeliveryTrackingToUsers < ActiveRecord::Migration[8.1]
     execute <<~SQL.squish
       UPDATE users
       SET invite_delivery_status = CASE
-        WHEN clerk_id LIKE 'pending_%' THEN 'sent'
+        WHEN clerk_id LIKE 'pending_%' THEN 'not_sent'
         ELSE 'accepted'
       END
     SQL

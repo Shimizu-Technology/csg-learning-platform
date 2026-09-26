@@ -18,6 +18,7 @@ import type {
   ContentVideoProgress,
   ProgressEntry,
   PushConfig,
+  SessionEnrollment,
   SessionUser,
   StaffDashboard,
   StaffCurriculum,
@@ -161,7 +162,7 @@ export class CsgApi {
     }
   }
 
-  session = () => this.request<{ user: SessionUser }>('/api/v1/sessions', { method: 'POST' });
+  session = () => this.request<{ user: SessionUser; enrollments: SessionEnrollment[] }>('/api/v1/sessions', { method: 'POST' });
   communityPolicy = () => this.request<{ community_policy: CommunityPolicy }>('/api/v1/community_policy');
   acceptCommunityPolicy = (version: string) => this.request<{ community_policy: CommunityPolicy }>('/api/v1/community_policy/accept', { method: 'POST', body: JSON.stringify({ version, accepted: true }) });
   reportContent = (input: { message_id?: number; reported_user_id?: number; reason: ContentReport['reason']; details?: string }) => this.request<{ content_report: ContentReport }>('/api/v1/content_reports', { method: 'POST', body: JSON.stringify({ content_report: input }) });

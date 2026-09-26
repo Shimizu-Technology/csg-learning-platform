@@ -5,6 +5,7 @@ class SendUserInviteEmailJob < ApplicationJob
   def perform(user_id, invited_by_user_id = nil, invitation_url = nil)
     user = User.find_by(id: user_id)
     return if user.blank? || user.email.blank?
+    return unless deliverable?(user)
 
     invited_by = invited_by_user_id.present? ? User.find_by(id: invited_by_user_id) : nil
     success = UserInviteEmailService.send_invite(user: user, invited_by: invited_by, invitation_url: invitation_url)
@@ -23,6 +24,13 @@ class SendUserInviteEmailJob < ApplicationJob
   end
 
   private
+
+  def deliverable?(user)
+    user.with_lock do
+      user.reload
+      user.invite_pending? && user.archived_at.blank?
+    end
+  end
 
   def update_delivery_if_pending(user, **attributes)
     user.with_lock do

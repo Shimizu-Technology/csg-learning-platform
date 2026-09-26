@@ -6,7 +6,7 @@ import { Text } from 'react-native';
 import { ApiError } from '@/lib/api';
 import { activateUserConversationStorage, loadConversationDraft, saveConversationDraft } from '@/lib/conversation-storage';
 import { serializeCachedSessionUser } from '@/lib/session-access';
-import type { SessionUser } from '@/lib/types';
+import type { SessionEnrollment, SessionUser } from '@/lib/types';
 import { SessionProvider, useSession } from '../session-provider';
 
 const mockAuthState = {
@@ -56,6 +56,7 @@ const bridgedUserA: SessionUser = { ...userA, clerk_id: 'legacy-account-a' };
 
 type ObservedSession = {
   user: SessionUser | null;
+  enrollments: SessionEnrollment[];
   accessDenied: boolean;
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -90,6 +91,29 @@ beforeEach(async () => {
   jest.restoreAllMocks();
   mockSession.mockReset();
   mockedRegisterPushNotifications.mockClear();
+});
+
+it('exposes all session enrollments for cohort-aware navigation', async () => {
+  const enrollments: SessionEnrollment[] = [
+    {
+      id: 10,
+      cohort: { id: 4, name: 'CSG Alumni', cohort_type: 'alumni', start_date: '2026-09-01', status: 'active' },
+      status: 'active',
+      enrolled_at: '2026-09-01T00:00:00Z',
+    },
+    {
+      id: 11,
+      cohort: { id: 5, name: 'Cohort 3', cohort_type: 'standard', start_date: '2026-06-01', status: 'active' },
+      status: 'active',
+      enrolled_at: '2026-06-01T00:00:00Z',
+    },
+  ];
+  mockSession.mockResolvedValueOnce({ user: userA, enrollments });
+
+  render(<SessionProvider><SessionObserver /></SessionProvider>);
+  await act(async () => { await observedSession!.refresh(); });
+
+  expect(observedSession!.enrollments).toEqual(enrollments);
 });
 
 it('passes push registration a predicate that expires with the refresh', async () => {

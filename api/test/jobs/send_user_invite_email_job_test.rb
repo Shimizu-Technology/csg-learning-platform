@@ -42,11 +42,30 @@ class SendUserInviteEmailJobTest < ActiveJob::TestCase
       invite_delivery_status: "accepted"
     )
 
-    with_invite_service(send_invite: true) do
+    with_invite_service(send_invite: true) do |call_count|
       SendUserInviteEmailJob.perform_now(user.id)
+      assert_equal 0, call_count.call
     end
 
     assert_equal "accepted", user.reload.invite_delivery_status
+    assert_nil user.invite_sent_at
+  end
+
+  test "does not deliver an invitation after the user is archived" do
+    user = User.create!(
+      clerk_id: "pending_#{SecureRandom.uuid}",
+      email: "archived-before-delivery@example.com",
+      role: :student,
+      invite_delivery_status: "queued",
+      archived_at: Time.current
+    )
+
+    with_invite_service(send_invite: true) do |call_count|
+      SendUserInviteEmailJob.perform_now(user.id)
+      assert_equal 0, call_count.call
+    end
+
+    assert_equal "queued", user.reload.invite_delivery_status
     assert_nil user.invite_sent_at
   end
 
@@ -55,9 +74,13 @@ class SendUserInviteEmailJobTest < ActiveJob::TestCase
   def with_invite_service(send_invite:, configured: nil)
     original_send_invite = UserInviteEmailService.method(:send_invite)
     original_configured = UserInviteEmailService.method(:configured?)
-    UserInviteEmailService.define_singleton_method(:send_invite) { |**| send_invite }
+    call_count = 0
+    UserInviteEmailService.define_singleton_method(:send_invite) do |**|
+      call_count += 1
+      send_invite
+    end
     UserInviteEmailService.define_singleton_method(:configured?) { configured } unless configured.nil?
-    yield
+    yield -> { call_count }
   ensure
     UserInviteEmailService.define_singleton_method(:send_invite, original_send_invite)
     UserInviteEmailService.define_singleton_method(:configured?, original_configured)

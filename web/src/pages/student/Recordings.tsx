@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom'
 import { ArrowLeft, PlayCircle, ExternalLink, CalendarDays, Search, ChevronDown, ChevronUp, CheckCircle2, Clock, Film, RefreshCw, WifiOff } from 'lucide-react'
 import { api } from '../../lib/api'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
+import { isAlumniOnlyEnrollment } from '../../lib/enrollments'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { VideoPlayer } from '../../components/shared/VideoPlayer'
@@ -100,8 +101,7 @@ function normalizeUploadedRecording(recording: ApiS3Recording | ApiRecordingItem
 export function Recordings() {
   const { user, enrollments } = useAuthContext()
   const isStaff = Boolean(user?.is_staff)
-  const activeEnrollment = enrollments.find((enrollment) => enrollment.status === 'active')
-  const isAlumniLibrary = !isStaff && activeEnrollment?.cohort.cohort_type === 'alumni'
+  const isAlumniLibrary = !isStaff && isAlumniOnlyEnrollment(enrollments)
   const [legacyRecordings, setLegacyRecordings] = useState<LegacyRecording[]>([])
   const [s3Recordings, setS3Recordings] = useState<S3Recording[]>([])
   const [loading, setLoading] = useState(true)
