@@ -91,12 +91,13 @@ module Api
 
         read_state = find_or_create_read_state(@channel)
         previous_last_read_at = read_state.last_read_at
+        previous_last_read_message_id = read_state.last_read_message_id
         read_state.mark_read!(read_through)
-        if read_state.last_read_at && read_state.last_read_at != previous_last_read_at
-          read_message_ids = @channel.messages.visible.where("created_at <= ?", read_state.last_read_at).select(:id)
+        if read_state.last_read_at && [ read_state.last_read_at, read_state.last_read_message_id ] != [ previous_last_read_at, previous_last_read_message_id ]
+          read_message_ids = MessageReadCursor.through(@channel.messages.visible, read_state).select(:id)
           current_user.notifications.message.where(path: "/messages/#{@channel.id}", notifiable_type: "Message", notifiable_id: read_message_ids)
             .unread.update_all(read_at: Time.current, updated_at: Time.current)
-          ReadReceiptBroadcastJob.perform_later(@channel, current_user.id, previous_last_read_at, read_state.last_read_at)
+          ReadReceiptBroadcastJob.perform_later(@channel, current_user.id, previous_last_read_at, read_state.last_read_at, previous_last_read_message_id, read_state.last_read_message_id)
         end
 
         render json: { channel: channel_json(@channel, read_state, unread_count_for(@channel, read_state), last_message) }
@@ -125,7 +126,7 @@ module Api
           .where(channel_id: channels.map(&:id))
           .where.not(author_id: current_user.id)
           .joins(join_sql)
-          .where("message_read_states.last_read_at IS NULL OR messages.created_at > message_read_states.last_read_at")
+          .where("message_read_states.last_read_at IS NULL OR messages.created_at > message_read_states.last_read_at OR (message_read_states.last_read_message_id IS NOT NULL AND messages.created_at = message_read_states.last_read_at AND messages.id > message_read_states.last_read_message_id)")
           .group(:channel_id)
           .count
           .then { |unread_counts| counts.merge(unread_counts) }
@@ -134,9 +135,7 @@ module Api
       def unread_count_for(channel, read_state)
         messages = channel.messages.visible
         messages = messages.where.not(author_id: current_user.id)
-        if read_state&.last_read_at
-          messages = messages.where("created_at > ?", read_state.last_read_at)
-        end
+        messages = MessageReadCursor.after(messages, read_state)
         messages.count
       end
 
@@ -166,6 +165,7 @@ module Api
           muted: muted_ids ? muted_ids.include?(channel.id) : muted?(channel),
           unread_count: unread_count,
           last_read_at: read_state&.last_read_at,
+          last_read_message_id: read_state&.last_read_message_id,
           latest_message: MessageJson.latest(latest_message, current_user: current_user),
           created_at: channel.created_at,
           updated_at: channel.updated_at
@@ -206,17 +206,17 @@ module Api
       def read_receipts_for(messages)
         return {} if messages.empty?
 
-        member_ids = @channel.workspace.recipient_users.reorder(nil).pluck(:id)
+        member_ids = @channel.recipients.reorder(nil).pluck(:id)
         states = ChannelReadState.includes(:user)
           .where(channel: @channel, user_id: member_ids)
           .where.not(last_read_at: nil)
           .to_a
 
         messages.to_h do |message|
-          readers = states.select { |state| state.user_id != message.author_id && state.last_read_at && state.last_read_at >= message.created_at }
+          readers = states.select { |state| state.user_id != message.author_id && MessageReadCursor.seen?(state, message) }
           [ message.id, {
             count: readers.size,
-            users: readers.first(5).map { |state| receipt_user_json(state.user) }
+            users: readers.map { |state| receipt_user_json(state.user) }
           } ]
         end
       end

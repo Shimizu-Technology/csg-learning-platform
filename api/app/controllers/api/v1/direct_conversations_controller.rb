@@ -116,12 +116,13 @@ module Api
         end
 
         previous_last_read_at = member.last_read_at
+        previous_last_read_message_id = member.last_read_message_id
         member.mark_read!(read_through)
-        if member.last_read_at && member.last_read_at != previous_last_read_at
-          read_message_ids = @conversation.messages.visible.where("created_at <= ?", member.last_read_at).select(:id)
+        if member.last_read_at && [ member.last_read_at, member.last_read_message_id ] != [ previous_last_read_at, previous_last_read_message_id ]
+          read_message_ids = MessageReadCursor.through(@conversation.messages.visible, member).select(:id)
           current_user.notifications.direct_message.where(path: "/messages/dm/#{@conversation.id}", notifiable_type: "Message", notifiable_id: read_message_ids)
             .unread.update_all(read_at: Time.current, updated_at: Time.current)
-          ReadReceiptBroadcastJob.perform_later(@conversation, current_user.id, previous_last_read_at, member.last_read_at)
+          ReadReceiptBroadcastJob.perform_later(@conversation, current_user.id, previous_last_read_at, member.last_read_at, previous_last_read_message_id, member.last_read_message_id)
         end
 
         render json: { direct_conversation: conversation_json(@conversation, member: member, unread_count: unread_count_for(@conversation, member), latest_message: last_message) }
@@ -165,7 +166,7 @@ module Api
           .where(direct_conversation_id: conversations.map(&:id))
           .where.not(author_id: current_user.id)
           .joins(join_sql)
-          .where("current_members.last_read_at IS NULL OR messages.created_at > current_members.last_read_at")
+          .where("current_members.last_read_at IS NULL OR messages.created_at > current_members.last_read_at OR (current_members.last_read_message_id IS NOT NULL AND messages.created_at = current_members.last_read_at AND messages.id > current_members.last_read_message_id)")
           .group(:direct_conversation_id)
           .count
           .then { |unread_counts| counts.merge(unread_counts) }
@@ -173,7 +174,7 @@ module Api
 
       def unread_count_for(conversation, member)
         messages = conversation.messages.visible.where.not(author_id: current_user.id)
-        messages = messages.where("created_at > ?", member.last_read_at) if member&.last_read_at
+        messages = MessageReadCursor.after(messages, member)
         messages.count
       end
 
@@ -202,6 +203,7 @@ module Api
           muted: muted_ids ? muted_ids.include?(conversation.id) : MessagePreference.exists?(user: current_user, target: conversation, muted: true),
           unread_count: unread_count,
           last_read_at: member&.last_read_at,
+          last_read_message_id: member&.last_read_message_id,
           latest_message: MessageJson.latest(latest_message, current_user: current_user),
           users: conversation.users.map { |user| user_json(user) },
           created_at: conversation.created_at,
@@ -214,10 +216,10 @@ module Api
 
         members = @conversation.direct_conversation_members.includes(:user).where.not(last_read_at: nil).to_a
         messages.to_h do |message|
-          readers = members.select { |member| member.user_id != message.author_id && member.last_read_at && member.last_read_at >= message.created_at }
+          readers = members.select { |member| member.user_id != message.author_id && MessageReadCursor.seen?(member, message) }
           [ message.id, {
             count: readers.size,
-            users: readers.first(5).map { |member| receipt_user_json(member.user) }
+            users: readers.map { |member| receipt_user_json(member.user) }
           } ]
         end
       end

@@ -133,6 +133,21 @@ class ChannelsTest < ActionDispatch::IntegrationTest
     assert_nil @student.channel_read_states.find_by(channel: @channel)
   end
 
+  test "mark read through one of two messages with the same timestamp leaves the other unread" do
+    timestamp = 1.minute.ago
+    older = Message.create!(channel: @channel, author: @admin, body: "First", created_at: timestamp)
+    newer = Message.create!(channel: @channel, author: @admin, body: "Second", created_at: timestamp)
+    [ older, newer ].each { |message| NotificationDeliveryService.message_created(message) }
+
+    as_user(@student) do
+      patch "/api/v1/channels/#{@channel.id}/read", params: { message_id: older.id }, headers: auth_headers, as: :json
+    end
+
+    assert_response :success
+    assert_equal 1, JSON.parse(response.body).dig("channel", "unread_count")
+    assert_equal [ newer.id ], @student.notifications.message.unread.pluck(:notifiable_id)
+  end
+
   test "student cannot post to staff-only channel" do
     staff_channel = @cohort.channels.create!(name: "Staff Room", visibility: :staff_only)
 
