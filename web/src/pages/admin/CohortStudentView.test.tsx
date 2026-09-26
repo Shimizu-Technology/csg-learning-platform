@@ -108,6 +108,32 @@ const progress = {
   recent_activity: [],
 } satisfies StudentProgressResponse
 
+const standardCohort = {
+  ...cohort,
+  id: 5,
+  name: 'Standard Cohort',
+  cohort_type: 'standard',
+} satisfies CohortDetail
+
+const standardStudentView = {
+  ...studentView,
+  cohort: {
+    ...studentView.cohort,
+    id: 5,
+    name: 'Standard Cohort',
+    cohort_type: 'standard',
+  },
+  dashboard: {
+    ...studentView.dashboard,
+    cohort: {
+      ...studentView.dashboard.cohort,
+      id: 5,
+      name: 'Standard Cohort',
+      cohort_type: 'standard',
+    },
+  },
+} satisfies CohortStudentViewData
+
 describe('CohortStudentView routing', () => {
   let container: HTMLDivElement
   let root: Root
@@ -140,6 +166,36 @@ describe('CohortStudentView routing', () => {
     await vi.waitFor(() => {
       expect(router.state.location.pathname).toBe('/admin/cohorts/4/student-view/materials')
       expect(router.state.location.search).toBe('?student_id=12')
+    })
+  })
+
+  it('does not redirect a new cohort using stale alumni preview data', async () => {
+    vi.mocked(api.getCohortStudentView).mockImplementation(async (cohortId) => ({
+      data: { student_view: cohortId === 5 ? standardStudentView : studentView },
+      error: null,
+    }))
+    vi.mocked(api.getCohort).mockImplementation(async (cohortId) => ({
+      data: { cohort: cohortId === 5 ? standardCohort : cohort },
+      error: null,
+    }))
+    const router = createMemoryRouter(
+      [{ path: '/admin/cohorts/:id/student-view/*', element: <CohortStudentView /> }],
+      { initialEntries: ['/admin/cohorts/4/student-view'] },
+    )
+
+    await act(async () => {
+      root.render(<RouterProvider router={router} />)
+    })
+    await vi.waitFor(() => expect(container.textContent).toContain('CSG Alumni'))
+
+    await act(async () => {
+      await router.navigate('/admin/cohorts/5/student-view/recordings?student_id=12')
+    })
+
+    await vi.waitFor(() => {
+      expect(router.state.location.pathname).toBe('/admin/cohorts/5/student-view/recordings')
+      expect(router.state.location.search).toBe('?student_id=12')
+      expect(container.textContent).toContain('Standard Cohort')
     })
   })
 })

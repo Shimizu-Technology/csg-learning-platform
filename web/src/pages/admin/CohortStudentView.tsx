@@ -100,7 +100,7 @@ export function CohortStudentView() {
 
   useEffect(() => {
     const requestedSection = location.pathname.split('/student-view/')[1]?.split('/')[0]
-    if (!data || data.cohort.cohort_type !== 'alumni' || requestedSection !== 'recordings') return
+    if (!data || data.cohort.id !== Number(id) || data.cohort.cohort_type !== 'alumni' || requestedSection !== 'recordings') return
 
     navigate(
       {
@@ -109,7 +109,7 @@ export function CohortStudentView() {
       },
       { replace: true },
     )
-  }, [data, location.pathname, location.search, navigate])
+  }, [data, id, location.pathname, location.search, navigate])
 
   if (loading) return <LoadingSpinner message="Loading cohort student view..." />
 
