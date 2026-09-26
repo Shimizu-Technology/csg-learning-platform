@@ -51,6 +51,7 @@ export function previewSectionsForCohort(cohortType?: string): PreviewSection[] 
 export function CohortStudentView() {
   const { id } = useParams<{ id: string }>()
   const location = useLocation()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const studentId = Number(searchParams.get('student_id')) || null
   const [data, setData] = useState<CohortStudentViewData | null>(null)
@@ -96,6 +97,19 @@ export function CohortStudentView() {
     const requestedSection = sections.includes(tail as PreviewSection) ? tail as PreviewSection : 'dashboard'
     return previewSectionsForCohort(data?.cohort.cohort_type).includes(requestedSection) ? requestedSection : 'materials'
   }, [data?.cohort.cohort_type, location.pathname])
+
+  useEffect(() => {
+    const requestedSection = location.pathname.split('/student-view/')[1]?.split('/')[0]
+    if (!data || data.cohort.cohort_type !== 'alumni' || requestedSection !== 'recordings') return
+
+    navigate(
+      {
+        pathname: `/admin/cohorts/${data.cohort.id}/student-view/materials`,
+        search: location.search,
+      },
+      { replace: true },
+    )
+  }, [data, location.pathname, location.search, navigate])
 
   if (loading) return <LoadingSpinner message="Loading cohort student view..." />
 
