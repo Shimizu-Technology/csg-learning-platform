@@ -135,6 +135,10 @@ self.addEventListener('notificationclick', (event) => {
         if (client.url === targetUrl && 'focus' in client) {
           return client.focus();
         }
+        const openUrl = new URL(client.url);
+        if (openUrl.origin === self.location.origin && openUrl.pathname === new URL(targetUrl).pathname && 'navigate' in client) {
+          return client.navigate(targetUrl).then((navigated) => navigated?.focus());
+        }
       }
       return self.clients.openWindow(targetUrl);
     })
