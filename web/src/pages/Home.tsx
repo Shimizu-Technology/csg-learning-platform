@@ -79,14 +79,14 @@ export function HomePage() {
             <div className="max-w-2xl">
               <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-bold uppercase tracking-[0.16em] text-white/70">
                 <MapPin className="h-3.5 w-3.5 text-primary-400" />
-                Built for CSG learners in Guam
+                Built in Guam for online learning
               </div>
               <h1 className="mt-7 text-5xl font-extrabold leading-[0.98] tracking-[-0.055em] text-white sm:text-6xl lg:text-7xl">
                 Your work, help, and progress
                 <span className="block text-primary-400">in one place.</span>
               </h1>
               <p className="mt-7 max-w-xl text-base leading-7 text-slate-300 sm:text-lg sm:leading-8">
-                CSG Learn is the workspace for enrolled students in focused courses and the full bootcamp. Find your lessons, submit code, and ask questions in one place. If your course includes private meetings, you can book them here too.
+                CSG Learn is the workspace for enrolled students in focused courses and the full bootcamp, wherever they learn. Find your lessons, submit code, and ask questions in one place. If your guided course includes private meetings, you can book them here too.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link to={isSignedIn ? dashboardPath : '/sign-in'} className="group inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-extrabold text-slate-950 transition hover:-translate-y-0.5 hover:bg-slate-100">
