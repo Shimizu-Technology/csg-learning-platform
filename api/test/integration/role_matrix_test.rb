@@ -369,7 +369,10 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
 
   test "alumni cohort template previews the permanent learning library without enrollments" do
     @cohort.update!(cohort_type: :alumni)
-    Lesson.create!(curriculum_module: @mod, title: "Alumni lesson", position: 0, release_day: 0)
+    recorded_lesson = Lesson.create!(curriculum_module: @mod, title: "Alumni lesson", position: 0, release_day: 0)
+    ContentBlock.create!(lesson: recorded_lesson, block_type: :recording, position: 0, title: "Class recording", video_url: "https://example.com/recording")
+    text_lesson = Lesson.create!(curriculum_module: @mod, title: "Reading only", position: 1, release_day: 1)
+    ContentBlock.create!(lesson: text_lesson, block_type: :text, position: 0, title: "Notes")
     CohortModuleSchedule.create!(
       cohort: @cohort,
       curriculum_module: @mod,
@@ -392,7 +395,8 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
     assert_equal true, mod.fetch("lessons").first.fetch("available")
     assert_equal "library", data.dig("weekly_plan", "mode")
     assert_equal 1, data.dig("weekly_plan", "library_summary", "module_count")
-    assert_equal 1, data.dig("weekly_plan", "library_summary", "lesson_count")
+    assert_equal 2, data.dig("weekly_plan", "library_summary", "lesson_count")
+    assert_equal 1, data.dig("weekly_plan", "library_summary", "recording_count")
     assert_equal "Alumni lesson", data.dig("dashboard", "continue_lesson", "title")
   end
 
