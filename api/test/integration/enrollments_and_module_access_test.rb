@@ -148,6 +148,46 @@ class EnrollmentsAndModuleAccessTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
+  test "cohort invitation is queued only after enrollment succeeds" do
+    pending_student = User.create!(
+      clerk_id: "pending_#{SecureRandom.uuid}",
+      email: "pending-alumni@example.com",
+      role: :student
+    )
+
+    assert_enqueued_with(job: SendUserInviteEmailJob) do
+      as_user(@admin) do
+        post "/api/v1/cohorts/#{@cohort.id}/enrollments",
+          params: { user_id: pending_student.id, send_invite: true },
+          headers: auth_headers, as: :json
+      end
+    end
+
+    assert_response :created
+    assert_equal "queued", pending_student.reload.invite_delivery_status
+    assert_equal "queued", JSON.parse(response.body).dig("invitation", "status")
+  end
+
+  test "failed duplicate enrollment does not send an invitation" do
+    pending_student = User.create!(
+      clerk_id: "pending_#{SecureRandom.uuid}",
+      email: "duplicate-pending-alumni@example.com",
+      role: :student
+    )
+    Enrollment.create!(user: pending_student, cohort: @cohort, status: :active)
+
+    assert_no_enqueued_jobs only: SendUserInviteEmailJob do
+      as_user(@admin) do
+        post "/api/v1/cohorts/#{@cohort.id}/enrollments",
+          params: { user_id: pending_student.id, send_invite: true },
+          headers: auth_headers, as: :json
+      end
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "not_sent", pending_student.reload.invite_delivery_status
+  end
+
   test "module_access with assigned: false removes assignments" do
     enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
     ma = ModuleAssignment.create!(enrollment: enrollment, curriculum_module: @mod1, unlocked: true)

@@ -1,4 +1,6 @@
 class User < ApplicationRecord
+  INVITE_DELIVERY_STATUSES = %w[not_sent queued sent failed accepted].freeze
+
   enum :role, { student: 0, instructor: 1, admin: 2 }
 
   scope :not_archived, -> { where(archived_at: nil) }
@@ -53,6 +55,7 @@ class User < ApplicationRecord
   validates :clerk_id, presence: true, uniqueness: true
   validates :email, presence: true, uniqueness: { case_sensitive: false }
   validates :role, presence: true
+  validates :invite_delivery_status, inclusion: { in: INVITE_DELIVERY_STATUSES }
 
   def archived?
     archived_at.present?

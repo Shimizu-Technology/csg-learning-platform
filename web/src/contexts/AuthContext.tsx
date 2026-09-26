@@ -6,7 +6,7 @@ import { api, clearApiCache, setApiCacheScope, setAuthTokenGetter } from '../lib
 import { isPostHogEnabled } from '../providers/PostHogProvider'
 import { isAccessDeniedResponse } from '../lib/sessionAccess'
 import { clearComposerStateFromWindow } from '../lib/messageComposerState'
-import type { User } from '../types/api'
+import type { SessionEnrollment, User } from '../types/api'
 
 type UserData = User
 
@@ -14,6 +14,7 @@ interface AuthContextType {
   isSignedIn: boolean
   isLoading: boolean
   user: UserData | null
+  enrollments: SessionEnrollment[]
   sessionError: string | null
   accessDenied: boolean
   syncSession: () => Promise<boolean>
@@ -23,6 +24,7 @@ const AuthContext = createContext<AuthContextType>({
   isSignedIn: false,
   isLoading: true,
   user: null,
+  enrollments: [],
   sessionError: null,
   accessDenied: false,
   syncSession: async () => false,
@@ -36,6 +38,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
   const { getToken, isLoaded, isSignedIn } = useAuth()
   const { user: clerkUser } = useUser()
   const [user, setUser] = useState<UserData | null>(null)
+  const [enrollments, setEnrollments] = useState<SessionEnrollment[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [sessionError, setSessionError] = useState<string | null>(null)
   const [accessDenied, setAccessDenied] = useState(false)
@@ -75,6 +78,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
       if (res.data?.user) {
         applicationUserIdRef.current = res.data.user.id
         setUser(res.data.user)
+        setEnrollments(res.data.enrollments)
         if (isPostHogEnabled) {
           const activeCohortId = res.data.enrollments.find((enrollment) => enrollment.status === 'active')?.cohort.id
           posthog.identify(String(res.data!.user.id), {
@@ -87,6 +91,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
 
       const denied = isAccessDeniedResponse(res)
       setUser(null)
+      setEnrollments([])
       setAccessDenied(denied)
       if (denied && cacheScopeRef.current) clearApiCache(cacheScopeRef.current)
       setSessionError(res.error || 'Could not connect to your CSG account. Check your connection and try again.')
@@ -95,6 +100,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
       if (requestGeneration !== sessionRequestGenerationRef.current) return false
       console.error('Session sync failed:', err)
       setUser(null)
+      setEnrollments([])
       setAccessDenied(false)
       setSessionError(err instanceof Error ? err.message : 'Could not connect to your CSG account.')
       return false
@@ -109,6 +115,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
       applicationUserIdRef.current = null
       if (signedOutUserId && typeof window !== 'undefined') clearComposerStateFromWindow(signedOutUserId, window)
       setUser(null)
+      setEnrollments([])
       setSessionError(null)
       setAccessDenied(false)
       setIsLoading(false)
@@ -127,6 +134,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
         isSignedIn: isSignedIn ?? false,
         isLoading: !isLoaded || isLoading,
         user,
+        enrollments,
         sessionError,
         accessDenied,
         syncSession,

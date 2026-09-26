@@ -536,6 +536,7 @@ export interface StudentDashboard {
   cohort?: {
     id: number;
     name: string;
+    cohort_type: string;
     start_date: string;
     status: string;
     announcements?: Announcement[];

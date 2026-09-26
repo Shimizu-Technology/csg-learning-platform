@@ -57,7 +57,7 @@ export function Layout({ children }: LayoutProps) {
   const lastPresenceUpdateAtRef = useRef(0)
   const location = useLocation()
   const isMessagesRoute = location.pathname.startsWith('/messages')
-  const { user, isLoading } = useAuthContext()
+  const { user, enrollments, isLoading } = useAuthContext()
   const [unreadCount, setUnreadCount] = useState(0)
   const [messageUnreadCount, setMessageUnreadCount] = useState(0)
   const channelUnreadCountsRef = useRef(new Map<number, number>())
@@ -253,11 +253,13 @@ export function Layout({ children }: LayoutProps) {
     { to: '/profile', icon: User, label: 'Profile' },
   ]
 
+  const activeEnrollment = enrollments.find((enrollment) => enrollment.status === 'active')
+  const isAlumniLibrary = activeEnrollment?.cohort.cohort_type === 'alumni'
   const studentNav: NavItem[] = [
     { to: '/dashboard', icon: Home, label: 'Today' },
     { to: '/materials', icon: BookOpenText, label: 'Learn' },
     { to: '/meetings', icon: CalendarDays, label: 'My meetings' },
-    { to: '/recordings', icon: PlayCircle, label: 'Recordings' },
+    ...(!isAlumniLibrary ? [{ to: '/recordings', icon: PlayCircle, label: 'Recordings' }] : []),
     { to: '/resources', icon: Link2, label: 'Resources' },
     { to: '/messages', icon: MessageCircle, label: 'Messages' },
     { to: '/announcements', icon: Bell, label: 'Updates' },

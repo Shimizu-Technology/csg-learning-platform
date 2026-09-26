@@ -36,7 +36,14 @@ module Api
         end
 
         if enrollment.persisted?
-          render json: { enrollment: enrollment_json(enrollment) }, status: :created
+          invitation = dispatch_invitation(user)
+          render json: {
+            enrollment: enrollment_json(enrollment),
+            invitation: invitation && {
+              status: invitation.status,
+              error: invitation.error
+            }
+          }.compact, status: :created
         else
           render json: { errors: enrollment.errors.full_messages }, status: :unprocessable_entity
         end
@@ -73,6 +80,13 @@ module Api
 
       def enrollment_params
         params.permit(:status)
+      end
+
+      def dispatch_invitation(user)
+        return unless ActiveModel::Type::Boolean.new.cast(params[:send_invite])
+        return UserInvitationDispatchService::Result.new(status: "not_needed", error: nil) unless user.invite_pending?
+
+        UserInvitationDispatchService.new(user: user, invited_by: current_user).call
       end
 
       def enrollment_json(enrollment, include_progress: false)

@@ -691,12 +691,12 @@ export const api = {
     return fetchApi<UsersListResponse>(`/api/v1/users${query}`);
   },
   createUser: (data: { email: string; role?: string; github_username?: string; skip_invite?: boolean }) =>
-    fetchApi<{ user: { id: number; email: string; full_name: string; role: string } }>('/api/v1/users', {
+    fetchApi<{ user: { id: number; email: string; full_name: string; role: string; invite_pending: boolean; invite_delivery_status: string } }>('/api/v1/users', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
   resendInvite: (userId: number) =>
-    fetchApi<{ message: string }>(`/api/v1/users/${userId}/resend_invite`, {
+    fetchApi<{ message: string; invitation: { status: string; sent_at: string | null; error: string | null } }>(`/api/v1/users/${userId}/resend_invite`, {
       method: 'POST',
     }),
   getUser: (id: number) =>
@@ -709,7 +709,7 @@ export const api = {
   deleteUser: (id: number) =>
     fetchApi<{ message: string; action: 'archived' | 'deleted' }>(`/api/v1/users/${id}`, { method: 'DELETE' }),
   unarchiveUser: (id: number) =>
-    fetchApi<UserUpdateResponse>(`/api/v1/users/${id}/unarchive`, { method: 'PATCH' }),
+    fetchApi<UserUpdateResponse & { message: string; invitation?: { status: string; sent_at: string | null; error: string | null } }>(`/api/v1/users/${id}/unarchive`, { method: 'PATCH' }),
 
   // Admin — Curricula
   getCurricula: () =>
@@ -797,10 +797,10 @@ export const api = {
     fetchApi<unknown>(`/api/v1/staff/private_meetings/${bookingId}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   // Admin — Enrollments
-  createEnrollment: (cohortId: number, userId: number) =>
+  createEnrollment: (cohortId: number, userId: number, sendInvite = false) =>
     fetchApi<EnrollmentResponse>(`/api/v1/cohorts/${cohortId}/enrollments`, {
       method: 'POST',
-      body: JSON.stringify({ user_id: userId }),
+      body: JSON.stringify({ user_id: userId, send_invite: sendInvite }),
     }),
   getEnrollment: (id: number) =>
     fetchApi<EnrollmentResponse>(`/api/v1/enrollments/${id}`),

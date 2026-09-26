@@ -12,7 +12,7 @@ import { Dashboard } from './Dashboard'
 const previewData: DashboardData = {
   enrolled: true,
   user: { id: 0, full_name: 'Student Preview', role: 'student' },
-  cohort: { id: 4, name: 'CSG Alumni', start_date: '2026-09-13', status: 'active' },
+  cohort: { id: 4, name: 'CSG Alumni', cohort_type: 'alumni', start_date: '2026-09-13', status: 'active' },
   overall_progress: { completed: 0, total: 1, percentage: 0 },
   modules: [{
     id: 1,

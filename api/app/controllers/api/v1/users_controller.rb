@@ -82,8 +82,12 @@ module Api
           return render json: { error: "User has already signed in — no invite needed" }, status: :unprocessable_entity
         end
 
-        send_clerk_invitation_and_email(@user)
-        render json: { message: "Invite re-sent to #{@user.email}" }
+        invitation = dispatch_invitation(@user)
+        if invitation.status == "failed"
+          render json: { error: invitation.error, invitation: invitation_json(@user) }, status: :service_unavailable
+        else
+          render json: { message: "Invite queued for #{@user.email}", invitation: invitation_json(@user) }
+        end
       end
 
       # GET /api/v1/users/:id
@@ -139,12 +143,13 @@ module Api
         end
 
         @user.unarchive!
-        send_clerk_invitation_and_email(@user) if @user.invite_pending?
+        invitation = dispatch_invitation(@user) if @user.invite_pending?
 
         render json: {
-          message: @user.invite_pending? ? "User restored and invite sent" : "User restored",
-          user: user_json(@user)
-        }
+          message: restored_user_message(invitation),
+          user: user_json(@user),
+          invitation: invitation && invitation_json(@user)
+        }.compact
       end
 
       private
@@ -162,25 +167,11 @@ module Api
       end
 
       def send_clerk_invitation_and_email(user)
-        invitation_url = nil
+        dispatch_invitation(user)
+      end
 
-        clerk = ClerkInvitationService.new
-        if clerk.configured?
-          result = clerk.create_invitation(
-            email: user.email,
-            redirect_url: frontend_url,
-            ignore_existing: true
-          )
-          invitation_url = result[:url] if result[:success]
-        end
-
-        begin
-          SendUserInviteEmailJob.perform_later(user.id, current_user&.id, invitation_url)
-        rescue StandardError => e
-          Rails.logger.error(
-            "[InviteEmail] enqueue_failed recipient_user_id=#{user.id} error_class=#{e.class.name}"
-          )
-        end
+      def dispatch_invitation(user)
+        UserInvitationDispatchService.new(user: user, invited_by: current_user).call
       end
 
       def should_send_invite?(user, is_new:, was_archived:, skip:)
@@ -188,10 +179,6 @@ module Api
         return true if is_new
 
         was_archived && user.invite_pending?
-      end
-
-      def frontend_url
-        FrontendUrlResolver.resolve
       end
 
       def user_json(user)
@@ -208,8 +195,26 @@ module Api
           last_seen_at: user.last_seen_at,
           archived_at: user.archived_at,
           invite_pending: user.invite_pending?,
+          invite_delivery_status: user.invite_delivery_status,
+          invite_sent_at: user.invite_sent_at,
+          invite_last_error: user.invite_last_error,
           created_at: user.created_at
         }
+      end
+
+      def invitation_json(user)
+        {
+          status: user.invite_delivery_status,
+          sent_at: user.invite_sent_at,
+          error: user.invite_last_error
+        }
+      end
+
+      def restored_user_message(invitation)
+        return "User restored" unless invitation
+        return "User restored; invitation needs to be retried" if invitation.status == "failed"
+
+        "User restored and invite queued"
       end
     end
   end

@@ -73,7 +73,7 @@ export default function LearnScreen() {
       })}</View>
       {!modules.length && <Text style={styles.noResults}>No lessons match that search.</Text>}
       <View style={styles.libraryStack}>
-        <ResourceButton title="Class recordings" copy="Secure playback, resume, and watch progress" icon={<Film color={palette.rubySoft} size={20} />} onPress={() => router.push('/recordings' as Href)} />
+        {student.cohort?.cohort_type !== 'alumni' && <ResourceButton title="Class recordings" copy="Secure playback, resume, and watch progress" icon={<Film color={palette.rubySoft} size={20} />} onPress={() => router.push('/recordings' as Href)} />}
         <ResourceButton title="Class resources" copy="References, starter files, and useful links" icon={<FolderOpen color={palette.rubySoft} size={20} />} onPress={() => router.push('/resources')} />
       </View>
     </>}

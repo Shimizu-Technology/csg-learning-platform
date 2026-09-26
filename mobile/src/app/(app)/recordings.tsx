@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useRouter, type Href } from 'expo-router';
+import { Redirect, useRouter, type Href } from 'expo-router';
 import { ArrowLeft, Check, ChevronRight, Film, Link2, Play, Search, UploadCloud } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -9,7 +9,7 @@ import { ProgressBar } from '@/components/learning-ui';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { fonts, palette } from '@/constants/csg-theme';
 import { demoRecordings } from '@/lib/demo-learning';
-import { learningKeys } from '@/lib/learning';
+import { isStudentDashboard, learningKeys } from '@/lib/learning';
 import type { RecordingItem } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
@@ -40,7 +40,14 @@ export default function RecordingsScreen() {
   const auth = useCsgAuth();
   const { api, user } = useSession();
   const [filter, setFilter] = useState('');
-  const query = useQuery({ queryKey: learningKeys.recordings(user?.id ?? 0), queryFn: ({ signal }) => auth.demo ? Promise.resolve({ recordings: [], s3_recordings: [], items: demoRecordings }) : api.recordings(signal), enabled: Boolean(user) });
+  const dashboardQuery = useQuery({
+    queryKey: learningKeys.dashboard(user?.id ?? 0),
+    queryFn: ({ signal }) => api.dashboard(signal),
+    enabled: Boolean(user && !user.is_staff && !auth.demo),
+  });
+  const studentDashboard = dashboardQuery.data?.dashboard && isStudentDashboard(dashboardQuery.data.dashboard) ? dashboardQuery.data.dashboard : null;
+  const isAlumniLibrary = studentDashboard?.cohort?.cohort_type === 'alumni';
+  const query = useQuery({ queryKey: learningKeys.recordings(user?.id ?? 0), queryFn: ({ signal }) => auth.demo ? Promise.resolve({ recordings: [], s3_recordings: [], items: demoRecordings }) : api.recordings(signal), enabled: Boolean(user && (user.is_staff || auth.demo || dashboardQuery.isError || (studentDashboard && !isAlumniLibrary))) });
   const groups = useMemo(() => {
     const needle = filter.trim().toLowerCase();
     const items = (query.data?.items || []).filter((item) => `${item.title} ${item.description || ''} ${item.cohort_name}`.toLowerCase().includes(needle));
@@ -58,6 +65,9 @@ export default function RecordingsScreen() {
       count: cohortItems.length,
     }));
   }, [filter, query.data?.items]);
+
+  if (isAlumniLibrary) return <Redirect href="/(app)/(tabs)/learn" />;
+  if (!user?.is_staff && !auth.demo && dashboardQuery.isPending) return <SafeAreaView style={styles.safe}><LoadingState label="Opening your learning library" /></SafeAreaView>;
 
   return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={palette.text} size={22} /></Pressable><View style={styles.flex}><Text style={styles.kicker}>LEARNING LIBRARY</Text><Text style={styles.headerTitle}>Recordings</Text></View>{user?.is_staff && <View style={styles.headerActions}><Pressable accessibilityRole="button" accessibilityLabel="Add recording link" onPress={() => router.push('/recordings/link' as Href)} style={styles.uploadButton}><Link2 color={palette.rubySoft} size={19} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Upload class recording" onPress={() => router.push('/recordings/upload' as Href)} style={styles.uploadButton}><UploadCloud color={palette.rubySoft} size={19} /></Pressable></View>}</View>{query.isPending && !query.data ? <LoadingState label="Loading class recordings" /> : query.error && !query.data ? <ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /> : <ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={palette.rubySoft} />} contentContainerStyle={styles.content}>
     {query.isError && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved recordings. Playback needs a connection.</Text></View>}

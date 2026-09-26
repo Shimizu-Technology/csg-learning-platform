@@ -34,6 +34,9 @@ export interface UserListItem extends User {
   last_seen_at: string | null;
   archived_at: string | null;
   invite_pending: boolean;
+  invite_delivery_status: 'not_sent' | 'queued' | 'sent' | 'failed' | 'accepted';
+  invite_sent_at: string | null;
+  invite_last_error: string | null;
   created_at: string;
   enrollments?: UserEnrollment[];
 }
@@ -855,6 +858,10 @@ export interface CohortStudent {
   status: string;
   enrolled_at: string | null;
   last_sign_in_at: string | null;
+  invite_pending?: boolean;
+  invite_delivery_status?: 'not_sent' | 'queued' | 'sent' | 'failed' | 'accepted';
+  invite_sent_at?: string | null;
+  invite_last_error?: string | null;
   module_assignments: {
     id: number;
     module_id: number;
@@ -899,6 +906,7 @@ export interface DashboardData {
   cohort?: {
     id: number;
     name: string;
+    cohort_type: string;
     start_date: string;
     status: string;
     announcements?: Announcement[];
@@ -1755,6 +1763,10 @@ export interface EnrollmentsListResponse {
 
 export interface EnrollmentResponse {
   enrollment: EnrollmentSummary;
+  invitation?: {
+    status: 'not_sent' | 'queued' | 'sent' | 'failed' | 'accepted' | 'not_needed';
+    error: string | null;
+  };
 }
 
 export interface ModuleAssignmentsListResponse {
