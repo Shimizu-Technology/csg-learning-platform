@@ -166,7 +166,7 @@ Messaging-smoothness candidate preflight recorded on 2026-09-24:
 
 ## Physical TestFlight acceptance
 
-The invited tester must update to messaging candidate build 23 in TestFlight and complete this final acceptance pass with real authorized accounts:
+The invited tester must install the **exact build selected for public App Review** through TestFlight and complete this acceptance pass with real authorized accounts. Build 23 is the latest recorded internal candidate as of 2026-09-24. If a newer IPA is selected, record its build number and source commit and run this entire checklist on that newer build; the focused build 23 script applies only to build 23.
 
 - sign in with Google and confirm unauthorized accounts receive the explicit no-access state;
 - verify student, instructor, and admin role scoping where test accounts are available;
