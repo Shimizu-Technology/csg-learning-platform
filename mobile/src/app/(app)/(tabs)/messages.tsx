@@ -10,6 +10,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/screen-states
 import { fontScaleLimits, fonts, palette, typography } from '@/constants/csg-theme';
 import { demoChannels, demoDms } from '@/lib/demo-data';
 import { messagingKeys, type InboxSnapshot } from '@/lib/messaging-cache';
+import { recentConversations } from '@/lib/recent-conversations';
 import { subscribeToUserMessages } from '@/lib/cable';
 import type { RealtimeMessageEvent } from '@/lib/types';
 import { buildWorkspaceCards } from '@/lib/workspaces';
@@ -64,6 +65,7 @@ export default function MessagesScreen() {
   const workspaceDms = useMemo(() => dms.filter((item) => item.workspace_id === activeWorkspaceId), [activeWorkspaceId, dms]);
   const visibleChannels = useMemo(() => workspaceChannels.filter((item) => `${item.name} ${item.latest_message?.body || ''}`.toLowerCase().includes(filter)), [filter, workspaceChannels]);
   const visibleDms = useMemo(() => workspaceDms.filter((item) => `${item.title} ${item.latest_message?.body || ''}`.toLowerCase().includes(filter)), [filter, workspaceDms]);
+  const recent = useMemo(() => recentConversations(visibleChannels, visibleDms), [visibleChannels, visibleDms]);
   const unread = workspaceCards.reduce((sum, workspace) => sum + workspace.unreadCount, 0);
   const otherUnread = unread - (activeWorkspaceCard?.unreadCount ?? 0);
   const open = (kind: 'channel' | 'dm', item: typeof channels[number] | typeof dms[number]) => router.push({
@@ -91,8 +93,7 @@ export default function MessagesScreen() {
       <View style={styles.search}><Search color={palette.quiet} size={18} /><TextInput accessibilityLabel="Filter conversations" maxFontSizeMultiplier={fontScaleLimits.content} value={query} onChangeText={setQuery} placeholder="Find a conversation" placeholderTextColor={palette.quiet} style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel="Search all messages" onPress={() => router.push('/search')} style={styles.searchAllButton}><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.searchAll}>Search all</Text></Pressable></View>
       {blockingLoad ? <LoadingState /> : blockingError ? <ErrorState message={blockingError} retry={() => void refreshAll()} /> : (
         <ScrollView keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refreshAll()} tintColor={palette.rubySoft} />} contentContainerStyle={styles.content}>
-          {visibleDms.length > 0 && <View style={styles.section}><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.label}>DIRECT</Text>{visibleDms.map((item) => <ConversationRow key={`dm-${item.id}`} kind="dm" item={item} onPress={() => open('dm', item)} />)}</View>}
-          {visibleChannels.length > 0 && <View style={styles.section}><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.label}>CHANNELS</Text>{visibleChannels.map((item) => <ConversationRow key={`channel-${item.id}`} kind="channel" item={item} onPress={() => open('channel', item)} />)}</View>}
+          {recent.length > 0 && <View style={styles.section}><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.label}>RECENT</Text>{recent.map(({ kind, item }) => <ConversationRow key={`${kind}-${item.id}`} kind={kind} item={item} onPress={() => open(kind, item)} />)}</View>}
           {!activeWorkspace && <EmptyState title="No workspace yet" copy="Your cohort and community workspaces will appear here once you have access." />}
           {activeWorkspace && !visibleDms.length && !visibleChannels.length && <EmptyState title={filter ? 'Nothing found' : `Nothing in ${activeWorkspace.name} yet`} copy={filter ? 'Try a different conversation name or message preview.' : 'Channels and direct messages for this workspace will appear here.'} />}
         </ScrollView>

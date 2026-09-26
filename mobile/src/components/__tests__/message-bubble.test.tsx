@@ -66,6 +66,8 @@ describe('MessageBubble', () => {
     expect(screen.getByLabelText('Thumbs up, 2')).toBeTruthy();
     fireEvent.press(screen.getByLabelText('Actions for message from Maya Santos'));
     expect(onLongPress).toHaveBeenCalledWith(message);
+    fireEvent(screen.getByTestId('message-bubble-42'), 'longPress');
+    expect(onLongPress).toHaveBeenCalledTimes(2);
   });
 
   it('opens reaction details instead of removing a reaction immediately', () => {

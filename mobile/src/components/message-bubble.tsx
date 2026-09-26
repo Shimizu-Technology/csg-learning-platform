@@ -17,9 +17,10 @@ type Props = {
   onOpenImage?: (attachment: Message['attachments'][number], images: Message['attachments']) => void;
   onThread?: (message: Message) => void;
   onRetry?: (message: Message) => void;
+  receiptLabel?: string;
 };
 
-export function MessageBubble({ message, showAuthor, mentionUsers, onLongPress, onOpenReaction, onOpenImage, onThread, onRetry }: Props) {
+export function MessageBubble({ message, showAuthor, mentionUsers, onLongPress, onOpenReaction, onOpenImage, onThread, onRetry, receiptLabel }: Props) {
   const deleted = Boolean(message.deleted_at);
   const blocked = Boolean(message.blocked);
   const images = blocked ? [] : message.attachments.filter((attachment) => attachment.image && attachment.url);
@@ -33,7 +34,7 @@ export function MessageBubble({ message, showAuthor, mentionUsers, onLongPress, 
       {!message.mine && !showAuthor && <View style={styles.avatarSpacer} />}
       <View style={[styles.bubbleWrap, message.mine && styles.mineWrap]}>
         {showAuthor && !message.mine && <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.author}>{message.author.full_name}</Text>}
-        <View style={[styles.bubble, message.mine && styles.mineBubble, message.client_status === 'failed' && styles.failedBubble]}>
+        <Pressable accessible={false} delayLongPress={350} onLongPress={onLongPress ? () => onLongPress(message) : undefined} style={[styles.bubble, message.mine && styles.mineBubble, message.client_status === 'failed' && styles.failedBubble]} testID={`message-bubble-${message.id}`}>
           {message.pinned_at && <View style={styles.pinLabel}><Pin color={message.mine ? '#FFE4E8' : palette.rubySoft} size={11} /><Text style={[styles.pinText, message.mine && styles.mineMeta]}>Pinned</Text></View>}
           {blocked
             ? <Text style={[styles.body, styles.deleted]}>Message hidden — you blocked this user</Text>
@@ -46,7 +47,7 @@ export function MessageBubble({ message, showAuthor, mentionUsers, onLongPress, 
               <View style={styles.attachmentCopy}><Text numberOfLines={1} style={styles.attachmentName}>{attachment.filename}</Text><Text style={styles.attachmentSize}>{formatFileSize(attachment.byte_size)}</Text></View>
             </Pressable>
           ))}
-        </View>
+        </Pressable>
         {!blocked && !!message.reactions.length && <View style={[styles.reactions, message.mine && styles.mineReactions]}>{message.reactions.map((reaction) => {
           const option = reactionOption(reaction.emoji);
           const Icon = option?.Icon;
@@ -55,7 +56,7 @@ export function MessageBubble({ message, showAuthor, mentionUsers, onLongPress, 
         {!!message.reply_count && !message.parent_message_id && <Pressable accessibilityRole="button" accessibilityLabel={`Open ${message.reply_count} replies`} onPress={() => onThread?.(message)} style={[styles.threadButton, message.mine && styles.mineThread]}><MessageSquare color={palette.rubySoft} size={13} /><Text style={styles.threadText}>{message.reply_count} {message.reply_count === 1 ? 'reply' : 'replies'}</Text></Pressable>}
         <View style={[styles.messageMeta, message.mine && styles.mineMessageMeta]}>
           {message.client_status === 'failed' && <TriangleAlert color={palette.warning} size={11} />}
-          <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={[styles.time, message.mine && styles.mineTime, message.client_status === 'failed' && styles.failedText]}>{message.client_status === 'sending' ? message.client_upload_progress !== undefined ? `Uploading ${Math.round(message.client_upload_progress * 100)}%` : 'Sending…' : message.client_status === 'failed' ? 'Not sent' : formatTime(message.created_at)}{message.edited_at ? ' · edited' : ''}{message.mine && message.read_receipts?.count ? ` · read by ${message.read_receipts.count}` : ''}</Text>
+          <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={[styles.time, message.mine && styles.mineTime, message.client_status === 'failed' && styles.failedText]}>{message.client_status === 'sending' ? message.client_upload_progress !== undefined ? `Uploading ${Math.round(message.client_upload_progress * 100)}%` : 'Sending…' : message.client_status === 'failed' ? 'Not sent' : formatTime(message.created_at)}{message.edited_at ? ' · edited' : ''}{receiptLabel ? ` · ${receiptLabel}` : ''}</Text>
           {message.client_status === 'failed' && <Pressable accessibilityRole="button" accessibilityLabel="Retry message" onPress={() => onRetry?.(message)} hitSlop={8}><RefreshCw color={palette.warning} size={12} /></Pressable>}
           {onLongPress && <Pressable accessibilityRole="button" accessibilityLabel={`Actions for message from ${message.author.full_name}`} accessibilityHint="Opens reply, reaction, and message management actions" onPress={() => onLongPress(message)} style={({ pressed }) => [styles.messageActions, pressed && styles.messageActionsPressed]}><MoreHorizontal color={palette.muted} size={17} /></Pressable>}
         </View>

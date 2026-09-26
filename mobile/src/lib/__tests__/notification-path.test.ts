@@ -5,6 +5,7 @@ describe('isAllowedNotificationPath', () => {
     expect(isAllowedNotificationPath('/updates')).toBe(true);
     expect(isAllowedNotificationPath('/conversation/channel/12')).toBe(true);
     expect(isAllowedNotificationPath('/conversation/dm/31')).toBe(true);
+    expect(isAllowedNotificationPath('/conversation/dm/31?messageId=42')).toBe(true);
     expect(isAllowedNotificationPath('/lesson/42')).toBe(true);
     expect(isAllowedNotificationPath('/module/7')).toBe(true);
     expect(isAllowedNotificationPath('/resources')).toBe(true);
@@ -22,6 +23,8 @@ describe('isAllowedNotificationPath', () => {
   it('rejects unknown, malformed, and non-string paths', () => {
     expect(isAllowedNotificationPath('/profile')).toBe(false);
     expect(isAllowedNotificationPath('/conversation/channel/not-an-id')).toBe(false);
+    expect(isAllowedNotificationPath('/conversation/dm/31?messageId=0')).toBe(false);
+    expect(isAllowedNotificationPath('/conversation/dm/31?messageId=42&next=/profile')).toBe(false);
     expect(isAllowedNotificationPath('/lesson/not-an-id')).toBe(false);
     expect(isAllowedNotificationPath('https://example.com')).toBe(false);
     expect(isAllowedNotificationPath('/staff/submission/31?cohort_id=4&student_id=javascript:alert(1)')).toBe(false);
@@ -32,6 +35,9 @@ describe('isAllowedNotificationPath', () => {
   it('maps backend web destinations onto safe native routes', () => {
     expect(mobileNotificationPath('/messages/12')).toBe('/conversation/channel/12');
     expect(mobileNotificationPath('/messages/dm/31')).toBe('/conversation/dm/31');
+    expect(mobileNotificationPath('/messages/dm/31', 42)).toBe('/conversation/dm/31?messageId=42');
+    expect(mobileNotificationPath('/conversation/channel/12', '42')).toBe('/conversation/channel/12?messageId=42');
+    expect(mobileNotificationPath('/messages/dm/31', '../42')).toBe('/conversation/dm/31');
     expect(mobileNotificationPath('/announcements/8')).toBe('/updates');
     expect(mobileNotificationPath('/admin/submissions/31')).toBe('/staff/submission/31');
     expect(mobileNotificationPath('/admin/submissions/31?cohort_id=4&student_id=18')).toBe('/staff/submission/31?cohort_id=4&student_id=18');

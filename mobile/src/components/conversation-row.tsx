@@ -2,6 +2,7 @@ import { BellOff, ChevronRight, Hash } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { fontScaleLimits, fonts, palette, typography } from '@/constants/csg-theme';
 import { messagePreview } from '@/lib/message-format';
+import { conversationActivityTime } from '@/lib/recent-conversations';
 import type { ChannelSummary, DirectConversationSummary } from '@/lib/types';
 import { Avatar } from './avatar';
 
@@ -13,7 +14,7 @@ export function ConversationRow({ kind, item, onPress }: { kind: 'channel' | 'dm
     <Pressable accessibilityRole="button" accessibilityLabel={`Open ${title}`} onPress={onPress} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
       {channel ? <View style={styles.channelIcon}><Hash color={palette.rubySoft} size={20} /></View> : <Avatar name={title} />}
       <View style={styles.copy}>
-        <View style={styles.line}><Text maxFontSizeMultiplier={fontScaleLimits.content} numberOfLines={1} style={[styles.title, item.unread_count > 0 && styles.unreadTitle]}>{title}</Text>{item.muted && <BellOff color={palette.quiet} size={14} />}</View>
+        <View style={styles.line}><Text maxFontSizeMultiplier={fontScaleLimits.content} numberOfLines={1} style={[styles.title, item.unread_count > 0 && styles.unreadTitle]}>{title}</Text>{item.muted && <BellOff color={palette.quiet} size={14} />}{item.latest_message && <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.time}>{conversationActivityTime(item.latest_message.created_at)}</Text>}</View>
         <Text maxFontSizeMultiplier={fontScaleLimits.content} numberOfLines={1} style={[styles.preview, item.unread_count > 0 && styles.unreadPreview]}>{preview}</Text>
         <Text maxFontSizeMultiplier={fontScaleLimits.utility} numberOfLines={1} style={styles.workspace}>{item.workspace_name}</Text>
       </View>
@@ -28,6 +29,7 @@ const styles = StyleSheet.create({
   channelIcon: { width: 44, height: 44, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: '#2A151B', borderWidth: 1, borderColor: '#4A2029' },
   copy: { flex: 1, gap: 3 },
   line: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  time: { color: palette.subtle, fontFamily: fonts.medium, fontSize: 11, marginLeft: 'auto' },
   title: { color: '#C9CED8', fontFamily: fonts.semibold, fontSize: 15, flexShrink: 1 },
   unreadTitle: { color: palette.text, fontFamily: fonts.bold },
   preview: { ...typography.support, color: palette.subtle, fontFamily: fonts.regular },
