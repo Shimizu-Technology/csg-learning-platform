@@ -15,6 +15,19 @@ afterEach(() => {
 })
 
 describe('message API wire format', () => {
+  it('bounds conversation reads to the message actually viewed', async () => {
+    const fetchMock = successfulFetch()
+    vi.stubGlobal('fetch', fetchMock)
+
+    await api.markChannelRead(12, 90)
+    await api.markDirectConversationRead(34, 80)
+
+    expect(fetchMock.mock.calls.map(([url, options]) => ({ url: String(url), body: JSON.parse(String(options?.body)) }))).toEqual([
+      { url: expect.stringMatching(/\/api\/v1\/channels\/12\/read$/), body: { message_id: 90 } },
+      { url: expect.stringMatching(/\/api\/v1\/direct_conversations\/34\/read$/), body: { message_id: 80 } },
+    ])
+  })
+
   it('adds before_message_id only when channel and DM history requests include it', async () => {
     const fetchMock = successfulFetch()
     vi.stubGlobal('fetch', fetchMock)

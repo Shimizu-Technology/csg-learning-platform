@@ -547,6 +547,7 @@ export interface ChannelSummary {
   muted: boolean;
   unread_count: number;
   last_read_at: string | null;
+  last_read_message_id?: number | null;
   latest_message: {
     id: number;
     body: string;
@@ -654,6 +655,7 @@ export interface DirectConversationSummary {
   muted: boolean;
   unread_count: number;
   last_read_at: string | null;
+  last_read_message_id?: number | null;
   latest_message: {
     id: number;
     body: string;

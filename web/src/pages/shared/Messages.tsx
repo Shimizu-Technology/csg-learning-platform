@@ -83,6 +83,7 @@ import { MessagesLoadingShell } from '../../components/shared/MessagesLoadingShe
 import { Modal } from '../../components/shared/Modal'
 import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
 import { helpRequestPath, submissionPath } from '../../lib/routes'
+import { firstUnreadMessageId, latestVisibleReadReceipts, mergeConversationSummary, recentConversations } from '../../lib/messagingPresentation'
 import type {
   ChannelMessage,
   ChannelMessageEvent,
@@ -270,6 +271,15 @@ function formatTime(value: string) {
   })
 }
 
+function formatInboxTime(value: string) {
+  const date = new Date(value)
+  const today = new Date()
+  if (date.toDateString() === today.toDateString()) {
+    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  }
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
 function preview(text: string) {
   const fallback = (text || 'Attachment')
     .replace(/```[\w-]*\n?/g, '')
@@ -417,8 +427,8 @@ function initialMessageTarget(channels: ChannelSummary[], directConversations: D
   ].sort((left, right) => right.latestAt - left.latestAt)
 
   if (unreadTargets[0]) return unreadTargets[0].target
-  if (channels[0]) return { type: 'channel', id: channels[0].id }
-  if (directConversations[0]) return { type: 'dm', id: directConversations[0].id }
+  const mostRecent = recentConversations(channels, directConversations)[0]
+  if (mostRecent) return { type: mostRecent.type, id: mostRecent.summary.id }
 
   return null
 }
@@ -843,6 +853,7 @@ export function Messages() {
   const [pushEnabled, setPushEnabled] = useState(false)
   const [pushMessage, setPushMessage] = useState('')
   const [hasUnreadBelow, setHasUnreadBelow] = useState(false)
+  const [unreadBoundaryId, setUnreadBoundaryId] = useState<number | null>(null)
   const [showScrollToLatest, setShowScrollToLatest] = useState(false)
   const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'error'>('disconnected')
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([])
@@ -858,7 +869,6 @@ export function Messages() {
   const [reactionDetails, setReactionDetails] = useState<{ messageId: number; emoji: string } | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [channelsCollapsed, setChannelsCollapsed] = useState(false)
-  const [dmsCollapsed, setDmsCollapsed] = useState(false)
   const [conversationView, setConversationView] = useState<'messages' | 'pins'>('messages')
   const [activeThreadRootId, setActiveThreadRootId] = useState<number | null>(null)
   const [isDesktop, setIsDesktop] = useState(() => (typeof window === 'undefined' ? true : window.innerWidth >= 1024))
@@ -1003,6 +1013,8 @@ export function Messages() {
 
     return [activeThreadRoot, ...(threadReplies.get(activeThreadRoot.id) || [])]
   }, [activeThreadRoot, threadReplies])
+  const rootReadReceipts = useMemo(() => latestVisibleReadReceipts(rootMessages), [rootMessages])
+  const threadReadReceipts = useMemo(() => latestVisibleReadReceipts(activeThreadMessages), [activeThreadMessages])
 
   const visibleChannels = useMemo(
     () => selectedWorkspaceId ? channels.filter((channel) => channel.workspace_id === selectedWorkspaceId) : channels,
@@ -1013,6 +1025,7 @@ export function Messages() {
     () => selectedWorkspaceId ? directConversations.filter((conversation) => conversation.workspace_id === selectedWorkspaceId) : directConversations,
     [directConversations, selectedWorkspaceId],
   )
+  const recent = useMemo(() => recentConversations(visibleChannels, visibleDms), [visibleChannels, visibleDms])
 
   const selectedWorkspace = workspaces.find((workspace) => workspace.id === selectedWorkspaceId)
   const workspaceCards = useMemo(() => workspaces.map((workspace) => {
@@ -1073,10 +1086,6 @@ export function Messages() {
   const channelsUnreadCount = useMemo(
     () => visibleChannels.reduce((sum, channel) => sum + channel.unread_count, 0),
     [visibleChannels],
-  )
-  const dmsUnreadCount = useMemo(
-    () => visibleDms.reduce((sum, conversation) => sum + conversation.unread_count, 0),
-    [visibleDms],
   )
   const memberCandidates = useMemo(() => {
     const memberIds = new Set((workspaceDetail?.members || []).map((member) => member.id))
@@ -1407,6 +1416,7 @@ export function Messages() {
     if (showTargetLoader) {
       setTargetLoading(true)
       setHasUnreadBelow(false)
+      if (!options.background) setUnreadBoundaryId(null)
       setShowScrollToLatest(false)
       const savedScroll = readSavedConversationScroll(user?.id, target)
       shouldStickToBottomRef.current = !options.aroundMessageId && (!savedScroll || savedScroll.atBottom)
@@ -1424,6 +1434,7 @@ export function Messages() {
       }
 
       const serverMessages = sortChronologicalMessages(res.data.messages || [])
+      if (!options.background && !options.aroundMessageId) setUnreadBoundaryId(firstUnreadMessageId(serverMessages, res.data.channel.last_read_at, res.data.channel.unread_count, res.data.channel.last_read_message_id))
       const contiguous = Boolean(cachedView && cachedWindowIsContiguous(cachedView, serverMessages, res.data.meta || null))
       const cachedMessages = contiguous ? restoreFailedSends(cachedView!, storedFailureMessages(target)).messages : storedFailureMessages(target)
       serverMessages.forEach((message) => {
@@ -1445,11 +1456,15 @@ export function Messages() {
         pinnedMessages: sortPinnedMessages(res.data.pinned_messages || []),
         meta: contiguous && cachedView?.meta && res.data.meta ? { ...res.data.meta, oldest_message_id: cachedView.meta.oldest_message_id, has_older: cachedView.meta.has_older } : res.data.meta || null,
       })
-      setChannels((prev) => prev.map((channel) => channel.id === target.id ? res.data!.channel : channel))
+      setChannels((prev) => prev.map((channel) => channel.id === target.id ? mergeConversationSummary(channel, res.data!.channel) : channel))
       setHighlightedMessageId(options.highlightedMessageId || null)
-      if (markRead && channelNeedsRead(res.data.channel)) {
-        await api.markChannelRead(target.id)
-        setChannels((prev) => prev.map((channel) => channel.id === target.id ? { ...channel, unread_count: 0, last_read_at: new Date().toISOString() } : channel))
+      const savedScroll = readSavedConversationScroll(user?.id, target)
+      if (markRead && (!savedScroll || savedScroll.atBottom || options.aroundMessageId) && channelNeedsRead(res.data.channel)) {
+        const readThroughId = options.aroundMessageId || res.data.meta?.newest_message_id
+        if (readThroughId) {
+          const readRes = await api.markChannelRead(target.id, readThroughId)
+          if (readRes.data?.channel) setChannels((prev) => prev.map((channel) => channel.id === target.id ? mergeConversationSummary(channel, readRes.data!.channel) : channel))
+        }
       }
       if (showTargetLoader) setTargetLoading(false)
       return
@@ -1465,6 +1480,7 @@ export function Messages() {
     }
 
     const serverMessages = sortChronologicalMessages(res.data.messages || [])
+    if (!options.background && !options.aroundMessageId) setUnreadBoundaryId(firstUnreadMessageId(serverMessages, res.data.direct_conversation.last_read_at, res.data.direct_conversation.unread_count, res.data.direct_conversation.last_read_message_id))
     const contiguous = Boolean(cachedView && cachedWindowIsContiguous(cachedView, serverMessages, res.data.meta || null))
     const cachedMessages = contiguous ? restoreFailedSends(cachedView!, storedFailureMessages(target)).messages : storedFailureMessages(target)
     serverMessages.forEach((message) => {
@@ -1486,11 +1502,15 @@ export function Messages() {
       pinnedMessages: sortPinnedMessages(res.data.pinned_messages || []),
       meta: contiguous && cachedView?.meta && res.data.meta ? { ...res.data.meta, oldest_message_id: cachedView.meta.oldest_message_id, has_older: cachedView.meta.has_older } : res.data.meta || null,
     })
-    setDirectConversations((prev) => prev.map((conversation) => conversation.id === target.id ? res.data!.direct_conversation : conversation))
+    setDirectConversations((prev) => prev.map((conversation) => conversation.id === target.id ? mergeConversationSummary(conversation, res.data!.direct_conversation) : conversation))
     setHighlightedMessageId(options.highlightedMessageId || null)
-    if (markRead && dmNeedsRead(res.data.direct_conversation)) {
-      await api.markDirectConversationRead(target.id)
-      setDirectConversations((prev) => prev.map((conversation) => conversation.id === target.id ? { ...conversation, unread_count: 0, last_read_at: new Date().toISOString() } : conversation))
+    const savedScroll = readSavedConversationScroll(user?.id, target)
+    if (markRead && (!savedScroll || savedScroll.atBottom || options.aroundMessageId) && dmNeedsRead(res.data.direct_conversation)) {
+      const readThroughId = options.aroundMessageId || res.data.meta?.newest_message_id
+      if (readThroughId) {
+        const readRes = await api.markDirectConversationRead(target.id, readThroughId)
+        if (readRes.data?.direct_conversation) setDirectConversations((prev) => prev.map((conversation) => conversation.id === target.id ? mergeConversationSummary(conversation, readRes.data!.direct_conversation) : conversation))
+      }
     }
     if (showTargetLoader) setTargetLoading(false)
   }
@@ -1622,6 +1642,7 @@ export function Messages() {
       const cachedView = rawCachedView ? restoreFailedSends(rawCachedView, storedFailureMessages(target)) : null
       targetRequestRef.current += 1
       targetLoadOptionsRef.current = options
+      setUnreadBoundaryId(null)
       setMessages(cachedView?.messages ?? [])
       setPinnedMessages(cachedView?.pinnedMessages ?? [])
       setMessageWindowMeta(cachedView?.meta ?? null)
@@ -1783,7 +1804,7 @@ export function Messages() {
       }
       const shouldMarkIncomingRead = Boolean(belongsToTarget && !message.mine && event.event === 'created' && canAutoMarkRead())
 
-      updateTargetSummaryFromEvent(event, message, message.mine || shouldMarkIncomingRead)
+      updateTargetSummaryFromEvent(event, message, shouldMarkIncomingRead)
 
       if (belongsToTarget) {
         const duringProgrammaticScroll = shouldStickToBottomRef.current && window.performance.now() < programmaticScrollUntilRef.current
@@ -1793,6 +1814,7 @@ export function Messages() {
 
         if (event.event === 'created' && !message.mine && !message.parent_message_id && !shouldStickToBottomRef.current) {
           setHasUnreadBelow(true)
+          setUnreadBoundaryId((current) => current ?? message.id)
         }
 
         setMessages((prev) => {
@@ -1813,7 +1835,7 @@ export function Messages() {
         })
 
         if (shouldMarkIncomingRead && currentTarget) {
-          markRead(currentTarget).catch(() => {})
+          markRead(currentTarget, message.id).catch(() => {})
         }
       }
     }, (status) => {
@@ -2015,13 +2037,14 @@ export function Messages() {
     return () => window.clearTimeout(timer)
   }, [deferredSearchQuery])
 
-  const updateLatestForTarget = (message: ChannelMessage, markRead = true) => {
+  const updateLatestForTarget = (message: ChannelMessage, markRead = false) => {
     const unreadDelta = message.mine || markRead ? 0 : 1
     if (message.channel_id) {
       setChannels((prev) => prev.map((channel) => channel.id === message.channel_id ? {
         ...channel,
         unread_count: markRead ? 0 : channel.unread_count + unreadDelta,
-        last_read_at: markRead ? new Date().toISOString() : channel.last_read_at,
+        last_read_at: markRead ? message.created_at : channel.last_read_at,
+        last_read_message_id: markRead ? message.id : channel.last_read_message_id,
         latest_message: latestMessageFrom(message),
       } : channel))
     }
@@ -2029,7 +2052,8 @@ export function Messages() {
       setDirectConversations((prev) => prev.map((conversation) => conversation.id === message.direct_conversation_id ? {
         ...conversation,
         unread_count: markRead ? 0 : conversation.unread_count + unreadDelta,
-        last_read_at: markRead ? new Date().toISOString() : conversation.last_read_at,
+        last_read_at: markRead ? message.created_at : conversation.last_read_at,
+        last_read_message_id: markRead ? message.id : conversation.last_read_message_id,
         latest_message: latestMessageFrom(message),
       } : conversation))
     }
@@ -2038,9 +2062,9 @@ export function Messages() {
   const updateTargetSummaryFromEvent = (event: ChannelMessageEvent, message: ChannelMessage, markRead = false) => {
     if (event.channel) {
       setChannels((prev) => {
-        const next = markRead ? { ...event.channel!, unread_count: 0, last_read_at: new Date().toISOString() } : event.channel!
+        const next = markRead ? { ...event.channel!, unread_count: 0, last_read_at: message.created_at, last_read_message_id: message.id } : event.channel!
         return prev.some((channel) => channel.id === next.id)
-          ? prev.map((channel) => channel.id === next.id ? next : channel)
+          ? prev.map((channel) => channel.id === next.id ? mergeConversationSummary(channel, next) : channel)
           : [...prev, next].sort((left, right) => left.position - right.position || left.name.localeCompare(right.name))
       })
       return
@@ -2048,9 +2072,9 @@ export function Messages() {
 
     if (event.direct_conversation) {
       setDirectConversations((prev) => {
-        const next = markRead ? { ...event.direct_conversation!, unread_count: 0, last_read_at: new Date().toISOString() } : event.direct_conversation!
+        const next = markRead ? { ...event.direct_conversation!, unread_count: 0, last_read_at: message.created_at, last_read_message_id: message.id } : event.direct_conversation!
         return prev.some((conversation) => conversation.id === next.id)
-          ? prev.map((conversation) => conversation.id === next.id ? next : conversation)
+          ? prev.map((conversation) => conversation.id === next.id ? mergeConversationSummary(conversation, next) : conversation)
           : [next, ...prev]
       })
       return
@@ -2061,9 +2085,14 @@ export function Messages() {
     }
   }
 
-  const markRead = async (target: Target) => {
-    if (target.type === 'channel') await api.markChannelRead(target.id)
-    else await api.markDirectConversationRead(target.id)
+  const markRead = async (target: Target, messageId: number) => {
+    if (target.type === 'channel') {
+      const res = await api.markChannelRead(target.id, messageId)
+      if (res.data?.channel) setChannels((prev) => prev.map((channel) => channel.id === target.id ? mergeConversationSummary(channel, res.data!.channel) : channel))
+    } else {
+      const res = await api.markDirectConversationRead(target.id, messageId)
+      if (res.data?.direct_conversation) setDirectConversations((prev) => prev.map((conversation) => conversation.id === target.id ? mergeConversationSummary(conversation, res.data!.direct_conversation) : conversation))
+    }
   }
 
   const markWorkspaceRead = async (workspaceId: number) => {
@@ -2071,15 +2100,16 @@ export function Messages() {
     const workspaceDms = directConversations.filter((conversation) => conversation.workspace_id === workspaceId && conversation.unread_count > 0)
     if (workspaceChannels.length === 0 && workspaceDms.length === 0) return
 
-    await Promise.all([
-      ...workspaceChannels.map((channel) => api.markChannelRead(channel.id)),
-      ...workspaceDms.map((conversation) => api.markDirectConversationRead(conversation.id)),
+    const [channelResults, dmResults] = await Promise.all([
+      Promise.all(workspaceChannels.map((channel) => api.markChannelRead(channel.id))),
+      Promise.all(workspaceDms.map((conversation) => api.markDirectConversationRead(conversation.id))),
     ])
-
-    const now = new Date().toISOString()
-    setChannels((prev) => prev.map((channel) => channel.workspace_id === workspaceId ? { ...channel, unread_count: 0, last_read_at: now } : channel))
-    setDirectConversations((prev) => prev.map((conversation) => conversation.workspace_id === workspaceId ? { ...conversation, unread_count: 0, last_read_at: now } : conversation))
-    toast.success('Workspace marked read')
+    const readChannels = new Map(channelResults.flatMap((result) => result.data?.channel ? [[result.data.channel.id, result.data.channel] as const] : []))
+    const readDms = new Map(dmResults.flatMap((result) => result.data?.direct_conversation ? [[result.data.direct_conversation.id, result.data.direct_conversation] as const] : []))
+    setChannels((prev) => prev.map((channel) => readChannels.has(channel.id) ? mergeConversationSummary(channel, readChannels.get(channel.id)!) : channel))
+    setDirectConversations((prev) => prev.map((conversation) => readDms.has(conversation.id) ? mergeConversationSummary(conversation, readDms.get(conversation.id)!) : conversation))
+    if ([...channelResults, ...dmResults].some((result) => result.error)) toast.error('Some conversations could not be marked read.')
+    else toast.success('Workspace marked read')
   }
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
@@ -2108,8 +2138,9 @@ export function Messages() {
     }
     setHasUnreadBelow(false)
     scrollToBottom('smooth')
-    if (selectedTarget && canAutoMarkRead(true)) {
-      markRead(selectedTarget).catch(() => {})
+    const latestId = messages.filter((message) => message.id > 0).at(-1)?.id || messageWindowMeta?.newest_message_id
+    if (selectedTarget && canAutoMarkRead(true) && latestId) {
+      markRead(selectedTarget, latestId).catch(() => {})
     }
   }
 
@@ -2167,6 +2198,7 @@ export function Messages() {
     targetLoadOptionsRef.current = options
     setTargetLoading(!cachedView)
     setLoadingNewer(false)
+    setUnreadBoundaryId(null)
     shouldStickToBottomRef.current = !options.aroundMessageId
     startNavigationTransition(() => {
       setSelectedTarget(target)
@@ -2189,14 +2221,16 @@ export function Messages() {
       setSelectedWorkspaceId(id)
       setChannelForm((prev) => ({ ...prev, workspace_id: String(id) }))
     })
-    const firstChannel = channels.find((channel) => channel.workspace_id === id)
-    const firstDm = directConversations.find((conversation) => conversation.workspace_id === id)
-    if (firstChannel) selectTarget({ type: 'channel', id: firstChannel.id })
-    else if (firstDm) selectTarget({ type: 'dm', id: firstDm.id })
+    const workspaceTarget = initialMessageTarget(
+      channels.filter((channel) => channel.workspace_id === id),
+      directConversations.filter((conversation) => conversation.workspace_id === id),
+    )
+    if (workspaceTarget) selectTarget(workspaceTarget)
     else {
       window.history.replaceState(null, '', '/messages')
       startNavigationTransition(() => {
         setSelectedTarget(null)
+        setUnreadBoundaryId(null)
         setMessages([])
         setPinnedMessages([])
         setActiveThreadRootId(null)
@@ -3304,72 +3338,65 @@ export function Messages() {
 
           <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-1.5 sm:p-2">
             <div className="mb-2 flex items-center justify-between px-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setChannelsCollapsed((current) => !current)}
-                className="flex min-w-0 items-center gap-1.5 rounded-lg py-1 pr-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 hover:text-slate-800"
-                aria-expanded={!channelsCollapsed}
-              >
-                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${channelsCollapsed ? '-rotate-90' : ''}`} />
-                <span>Channels</span>
-                {channelsUnreadCount > 0 && <span className="rounded-full bg-primary-100 px-1.5 py-0.5 text-[10px] text-primary-700">{channelsUnreadCount}</span>}
-              </button>
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-slate-400">{visibleChannels.length}</span>
-                {isStaff && (
-                  <button onClick={() => { setShowChannelForm(true); setChannelError('') }} className="rounded-lg p-1 text-slate-500 hover:bg-white" aria-label="Create channel">
-                    <Plus className="h-4 w-4" />
-                  </button>
-                )}
+              <div className="flex min-w-0 items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <span>Recent</span>
+                <span className="text-slate-400">{recent.length}</span>
               </div>
+              <button onClick={() => setShowDmForm(true)} className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-white" aria-label="Start direct message">
+                <UserPlus className="h-4 w-4" />
+              </button>
             </div>
-            {channelsCollapsed ? null : visibleChannels.length === 0 ? (
-              <div className="px-3 py-4 text-sm text-slate-500">No channels yet.</div>
-            ) : visibleChannels.map((channel) => (
+            {recent.length === 0 ? (
+              <div className="px-3 py-4 text-sm text-slate-500">No conversations yet.</div>
+            ) : recent.map(({ type, summary }) => (
               <ConversationButton
-                key={channel.id}
-                active={selectedTarget?.type === 'channel' && selectedTarget.id === channel.id}
-                icon={channel.visibility === 'staff_only' ? <Lock className="h-4 w-4 shrink-0" /> : <Hash className="h-4 w-4 shrink-0" />}
-                title={channel.name}
-                subtitle={channel.latest_message ? `${channel.latest_message.author_name}: ${preview(channel.latest_message.body)}` : channel.description || channel.workspace_name}
-                unread={channel.unread_count}
-                muted={channel.muted}
-                onClick={() => selectTarget({ type: 'channel', id: channel.id })}
+                key={`${type}:${summary.id}`}
+                active={selectedTarget?.type === type && selectedTarget.id === summary.id}
+                icon={type === 'channel'
+                  ? summary.visibility === 'staff_only' ? <Lock className="h-4 w-4 shrink-0" /> : <Hash className="h-4 w-4 shrink-0" />
+                  : <MessageCircle className="h-4 w-4 shrink-0" />}
+                title={type === 'channel' ? summary.name : summary.title}
+                subtitle={summary.latest_message ? `${summary.latest_message.author_name}: ${preview(summary.latest_message.body)}` : type === 'channel' ? summary.description || 'No messages yet' : 'No messages yet'}
+                latestAt={summary.latest_message?.created_at}
+                unread={summary.unread_count}
+                muted={summary.muted}
+                onClick={() => selectTarget({ type, id: summary.id })}
               />
             ))}
 
-            <div className="mb-2 mt-4 flex items-center justify-between px-2">
+            <div className="mb-2 mt-5 flex items-center justify-between px-2">
               <button
                 type="button"
-                onClick={() => setDmsCollapsed((current) => !current)}
-                className="flex min-w-0 items-center gap-1.5 rounded-lg py-1 pr-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 hover:text-slate-800"
-                aria-expanded={!dmsCollapsed}
+                onClick={() => setChannelsCollapsed((current) => !current)}
+                className="flex min-h-11 min-w-0 items-center gap-1.5 rounded-lg pr-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 hover:text-slate-800"
+                aria-expanded={!channelsCollapsed}
               >
-                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${dmsCollapsed ? '-rotate-90' : ''}`} />
-                <span>Direct messages</span>
-                {dmsUnreadCount > 0 && <span className="rounded-full bg-primary-100 px-1.5 py-0.5 text-[10px] text-primary-700">{dmsUnreadCount}</span>}
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${channelsCollapsed ? '-rotate-90' : ''}`} />
+                <span>Browse channels</span>
+                {channelsUnreadCount > 0 && <span className="rounded-full bg-primary-100 px-1.5 py-0.5 text-[10px] text-primary-700">{channelsUnreadCount}</span>}
               </button>
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-slate-400">{visibleDms.length}</span>
-                <button onClick={() => setShowDmForm(true)} className="rounded-lg p-1 text-slate-500 hover:bg-white" aria-label="Start direct message">
-                  <UserPlus className="h-4 w-4" />
+              {isStaff && (
+                <button onClick={() => { setShowChannelForm(true); setChannelError('') }} className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-white" aria-label="Create channel">
+                  <Plus className="h-4 w-4" />
                 </button>
-              </div>
+              )}
             </div>
-            {dmsCollapsed ? null : visibleDms.length === 0 ? (
-              <div className="px-3 py-4 text-sm text-slate-500">No DMs yet.</div>
-            ) : visibleDms.map((conversation) => (
-              <ConversationButton
-                key={conversation.id}
-                active={selectedTarget?.type === 'dm' && selectedTarget.id === conversation.id}
-                icon={<MessageCircle className="h-4 w-4 shrink-0" />}
-                title={conversation.title}
-                subtitle={conversation.latest_message ? `${conversation.latest_message.author_name}: ${preview(conversation.latest_message.body)}` : conversation.workspace_name}
-                unread={conversation.unread_count}
-                muted={conversation.muted}
-                onClick={() => selectTarget({ type: 'dm', id: conversation.id })}
-              />
-            ))}
+            {!channelsCollapsed && (
+              <div className="px-2 pb-3">
+                {visibleChannels.length === 0 ? <p className="px-1 py-2 text-xs text-slate-500">No channels yet.</p> : visibleChannels.map((channel) => (
+                  <button
+                    key={channel.id}
+                    type="button"
+                    onClick={() => selectTarget({ type: 'channel', id: channel.id })}
+                    className={`flex min-h-11 w-full items-center gap-2 rounded-xl px-2 text-left text-sm hover:bg-white ${selectedTarget?.type === 'channel' && selectedTarget.id === channel.id ? 'font-semibold text-primary-700' : 'text-slate-600'}`}
+                  >
+                    {channel.visibility === 'staff_only' ? <Lock className="h-4 w-4 shrink-0" /> : <Hash className="h-4 w-4 shrink-0" />}
+                    <span className="min-w-0 flex-1 truncate">{channel.name}</span>
+                    {channel.unread_count > 0 && <span className="h-2 w-2 shrink-0 rounded-full bg-primary-500" aria-label="Unread" />}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </aside>
         )}
@@ -3383,32 +3410,24 @@ export function Messages() {
               <PanelLeftOpen className="h-5 w-5" />
             </button>
             <div className="space-y-2">
-              {visibleChannels.map((channel) => (
-                <button
-                  key={channel.id}
-                  onClick={() => selectTarget({ type: 'channel', id: channel.id })}
-                  title={channel.name}
-                  className={`relative flex h-14 w-full flex-col items-center justify-center rounded-lg text-[10px] font-semibold ${selectedTarget?.type === 'channel' && selectedTarget.id === channel.id ? 'bg-primary-50 text-primary-700' : 'text-slate-500 hover:bg-white hover:text-slate-800'}`}
-                >
-                  {channel.visibility === 'staff_only' ? <Lock className="h-4 w-4" /> : <Hash className="h-4 w-4" />}
-                  <span className="mt-0.5 max-w-12 truncate">{channelInitials(channel.name)}</span>
-                  {channel.unread_count > 0 && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-primary-500" />}
-                </button>
-              ))}
-              <div className="my-2 border-t border-slate-200" />
-              {visibleDms.map((conversation) => (
-                <button
-                  key={conversation.id}
-                  onClick={() => selectTarget({ type: 'dm', id: conversation.id })}
-                  title={conversation.title}
-                  className={`relative flex h-14 w-full flex-col items-center justify-center rounded-lg text-[10px] font-semibold ${selectedTarget?.type === 'dm' && selectedTarget.id === conversation.id ? 'bg-primary-50 text-primary-700' : 'text-slate-500 hover:bg-white hover:text-slate-800'}`}
-                >
-                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-xs shadow-sm">
-                    {initials(conversation.title)}
-                  </span>
-                  {conversation.unread_count > 0 && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-primary-500" />}
-                </button>
-              ))}
+              {recent.map(({ type, summary }) => {
+                const title = type === 'channel' ? summary.name : summary.title
+                return (
+                  <button
+                    key={`${type}:${summary.id}`}
+                    onClick={() => selectTarget({ type, id: summary.id })}
+                    title={title}
+                    aria-label={title}
+                    className={`relative flex h-14 w-full flex-col items-center justify-center rounded-xl text-[10px] font-semibold ${selectedTarget?.type === type && selectedTarget.id === summary.id ? 'bg-primary-50 text-primary-700' : 'text-slate-500 hover:bg-white hover:text-slate-800'}`}
+                  >
+                    {type === 'channel'
+                      ? summary.visibility === 'staff_only' ? <Lock className="h-4 w-4" /> : <Hash className="h-4 w-4" />
+                      : <MessageCircle className="h-4 w-4" />}
+                    <span className="mt-0.5 max-w-12 truncate">{type === 'channel' ? channelInitials(title) : initials(title)}</span>
+                    {summary.unread_count > 0 && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-primary-500" />}
+                  </button>
+                )
+              })}
             </div>
           </aside>
         )}
@@ -3584,6 +3603,13 @@ export function Messages() {
 
                     return (
                       <div key={message.id}>
+                        {!activeThreadRoot && conversationView === 'messages' && unreadBoundaryId === message.id && (
+                          <div className="my-4 flex items-center gap-3 px-2" role="separator" aria-label="Unread messages">
+                            <div className="h-px flex-1 bg-primary-200" />
+                            <span className="text-[11px] font-semibold uppercase tracking-wide text-primary-700">New messages</span>
+                            <div className="h-px flex-1 bg-primary-200" />
+                          </div>
+                        )}
                         {showDayDivider && (
                           <div className="relative my-5 flex items-center justify-center">
                             <div className="absolute inset-x-0 top-1/2 border-t border-slate-200" />
@@ -3594,6 +3620,7 @@ export function Messages() {
                         )}
                         <MessageRow
                           message={message}
+                          readReceipts={conversationView === 'pins' && !activeThreadRoot ? undefined : activeThreadRoot ? threadReadReceipts.get(message.id) : rootReadReceipts.get(message.id)}
                           compact={compact}
                           highlighted={highlightedMessageId === message.id}
                           editing={editing?.id === message.id}
@@ -3678,6 +3705,7 @@ export function Messages() {
                           <MessageRow
                             key={message.id}
                             message={message}
+                            readReceipts={threadReadReceipts.get(message.id)}
                             compact={compact}
                             highlighted={highlightedMessageId === message.id}
                             editing={editing?.id === message.id}
@@ -4468,6 +4496,7 @@ function ConversationButton({
   icon,
   title,
   subtitle,
+  latestAt,
   unread,
   muted,
   onClick,
@@ -4476,6 +4505,7 @@ function ConversationButton({
   icon: ReactNode
   title: string
   subtitle: string
+  latestAt?: string
   unread: number
   muted: boolean
   onClick: () => void
@@ -4495,13 +4525,14 @@ function ConversationButton({
           <span className="truncate text-sm font-semibold">{title}</span>
           {muted && <BellOff className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
         </span>
+        {latestAt && <time dateTime={latestAt} className="shrink-0 text-[11px] font-medium text-slate-400">{formatInboxTime(latestAt)}</time>}
         {unread > 0 && (
           <span className="shrink-0 rounded-full bg-primary-500 px-2 py-0.5 text-xs font-semibold text-white">
             {unread}
           </span>
         )}
       </div>
-      <p className="mt-1 truncate text-xs text-slate-500">{subtitle}</p>
+      <p className={`mt-1 truncate text-xs ${unread > 0 ? 'font-semibold text-slate-700' : 'text-slate-500'}`}>{subtitle}</p>
     </button>
   )
 }
@@ -4673,6 +4704,7 @@ function formatInline(text: string, mentionPatterns: MentionPattern[]) {
 
 function MessageRow({
   message,
+  readReceipts,
   compact,
   highlighted,
   editing,
@@ -4698,6 +4730,7 @@ function MessageRow({
   mentionPatterns,
 }: {
   message: LocalMessage
+  readReceipts?: ReadReceipts
   compact: boolean
   highlighted: boolean
   editing: boolean
@@ -4813,14 +4846,14 @@ function MessageRow({
             ))}
           </div>
         )}
-        {message.mine && message.read_receipts && message.read_receipts.count > 0 && (
+        {message.mine && readReceipts && readReceipts.count > 0 && (
           <div
             className="mt-1 inline-flex max-w-full min-w-0 items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-500"
-            title={readReceiptTitle(message.read_receipts)}
-            aria-label={`Seen by ${readReceiptTitle(message.read_receipts)}`}
+            title={readReceiptTitle(readReceipts)}
+            aria-label={`Seen by ${readReceiptTitle(readReceipts)}`}
           >
             <CheckCheck className="h-3 w-3 shrink-0 text-green-600" />
-            <span className="truncate">Seen by {readReceiptLabel(message.read_receipts)}</span>
+            <span className="truncate">Seen by {readReceiptLabel(readReceipts)}</span>
           </div>
         )}
         {!message.blocked && (message.reactions.length > 0 || (!inThreadView && replyCount > 0)) && (
