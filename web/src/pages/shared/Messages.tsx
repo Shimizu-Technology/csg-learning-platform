@@ -1,6 +1,6 @@
 import { useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -146,6 +146,11 @@ type TypingUser = MessageTypingEvent['user']
 
 function targetKey(target: Target) {
   return `${target.type}:${target.id}`
+}
+
+export function conversationPath(target: Target, messageId?: number) {
+  const path = target.type === 'channel' ? `/messages/${target.id}` : `/messages/dm/${target.id}`
+  return messageId ? `${path}?message_id=${messageId}` : path
 }
 
 function cacheConversationView(cache: Map<string, ConversationViewSnapshot>, target: Target, snapshot: ConversationViewSnapshot) {
@@ -819,6 +824,7 @@ const MentionHighlightExtension = Extension.create<{ getPatterns: () => MentionP
 
 export function Messages() {
   const { channelId, dmId } = useParams()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const routedMessageId = Number(searchParams.get('message_id')) || null
   const { user } = useAuthContext()
@@ -911,6 +917,7 @@ export function Messages() {
   const conversationViewsRef = useRef(new Map<string, ConversationViewSnapshot>())
   const targetLoadOptionsRef = useRef<TargetLoadOptions>({})
   const routeTargetInitializedRef = useRef(false)
+  const routedMessageIdRef = useRef<number | null>(routedMessageId)
   const loadingTargetRef = useRef(false)
   const backgroundTargetLoadingRef = useRef(false)
   const shouldStickToBottomRef = useRef(true)
@@ -1630,14 +1637,28 @@ export function Messages() {
   useEffect(() => {
     const options = routedMessageId !== null && Number.isInteger(routedMessageId) && routedMessageId > 0 ? { aroundMessageId: routedMessageId, highlightedMessageId: routedMessageId } : {}
     const target: Target | null = channelId ? { type: 'channel', id: Number(channelId) } : dmId ? { type: 'dm', id: Number(dmId) } : null
-    if (!target) return
+    if (!target) {
+      routeTargetInitializedRef.current = true
+      routedMessageIdRef.current = null
+      setActiveThreadRootId(null)
+      if (!isDesktopRef.current) setMobilePane('list')
+      return
+    }
 
     const current = selectedTargetRef.current
     const sameTarget = current?.type === target.type && current.id === target.id
     if (routeTargetInitializedRef.current && sameTarget) {
-      targetLoadOptionsRef.current = {}
-      void loadTarget(target, canAutoMarkRead(true), options)
+      if (routedMessageIdRef.current !== routedMessageId) {
+        targetLoadOptionsRef.current = {}
+        setActiveThreadRootId(null)
+        void loadTarget(target, document.visibilityState === 'visible', options)
+      }
     } else {
+      const element = messageScrollRef.current
+      if (element && current) saveConversationScroll(user?.id, current, element)
+      if (current && !loadingTargetRef.current && !messageWindowMeta?.has_newer) {
+        cacheConversationView(conversationViewsRef.current, current, { messages, pinnedMessages, meta: messageWindowMeta })
+      }
       const rawCachedView = options.aroundMessageId ? null : conversationViewsRef.current.get(targetKey(target))
       const cachedView = rawCachedView ? restoreFailedSends(rawCachedView, storedFailureMessages(target)) : null
       targetRequestRef.current += 1
@@ -1648,9 +1669,15 @@ export function Messages() {
       setMessageWindowMeta(cachedView?.meta ?? null)
       setTargetLoading(!cachedView)
       setLoadingNewer(false)
+      shouldStickToBottomRef.current = !options.aroundMessageId
+      setActiveThreadRootId(null)
+      setEditing(null)
+      setConversationView('messages')
       setSelectedTarget(target)
     }
+    if (!isDesktopRef.current) setMobilePane('conversation')
     routeTargetInitializedRef.current = true
+    routedMessageIdRef.current = routedMessageId
   }, [channelId, dmId, routedMessageId])
 
   useEffect(() => {
@@ -1689,11 +1716,6 @@ export function Messages() {
     const workspaceId = selectedChannel?.workspace_id || selectedDm?.workspace_id
     if (workspaceId) setSelectedWorkspaceId(workspaceId)
   }, [selectedTarget, selectedChannel, selectedDm])
-
-  useEffect(() => {
-    if (isDesktop) return
-    setMobilePane(selectedTarget ? 'conversation' : 'list')
-  }, [isDesktop, selectedTarget?.type, selectedTarget?.id])
 
   useEffect(() => {
     if (!selectedTarget) return
@@ -1938,8 +1960,8 @@ export function Messages() {
   useEffect(() => {
     if (isDesktop) return
     if (activeThreadRootId) setMobilePane('thread')
-    else if (selectedTarget) setMobilePane('conversation')
-  }, [activeThreadRootId, isDesktop, selectedTarget])
+    else setMobilePane(channelId || dmId ? 'conversation' : 'list')
+  }, [activeThreadRootId, isDesktop, channelId, dmId])
 
   useEffect(() => {
     if (!lightboxAttachment) return
@@ -2185,35 +2207,11 @@ export function Messages() {
   }
 
   const selectTarget = (target: Target, options: TargetLoadOptions = {}) => {
-    const currentElement = messageScrollRef.current
-    const currentTarget = selectedTargetRef.current
-    if (currentElement && currentTarget) saveConversationScroll(user?.id, currentTarget, currentElement)
-    if (currentTarget && !loadingTargetRef.current && !messageWindowMeta?.has_newer) cacheConversationView(conversationViewsRef.current, currentTarget, { messages, pinnedMessages, meta: messageWindowMeta })
-    const rawCachedView = options.aroundMessageId ? null : conversationViewsRef.current.get(targetKey(target))
-    const cachedView = rawCachedView ? restoreFailedSends(rawCachedView, storedFailureMessages(target)) : null
-    targetRequestRef.current += 1
-
-    window.history.replaceState(null, '', target.type === 'channel' ? `/messages/${target.id}` : `/messages/dm/${target.id}`)
     setSourceContextHidden(true)
-    targetLoadOptionsRef.current = options
-    setTargetLoading(!cachedView)
-    setLoadingNewer(false)
-    setUnreadBoundaryId(null)
-    shouldStickToBottomRef.current = !options.aroundMessageId
-    startNavigationTransition(() => {
-      setSelectedTarget(target)
-      setMessages(cachedView?.messages ?? [])
-      setPinnedMessages(cachedView?.pinnedMessages ?? [])
-      setMessageWindowMeta(cachedView?.meta ?? null)
-      setActiveThreadRootId(null)
-      setEditing(null)
-      setConversationView('messages')
-      if (!isDesktop) setMobilePane('conversation')
-    })
-
-    if (selectedTarget?.type === target.type && selectedTarget.id === target.id) {
-      void loadTarget(target, canAutoMarkRead(true), options)
-    }
+    setActiveThreadRootId(null)
+    setEditing(null)
+    setConversationView('messages')
+    navigate(conversationPath(target, options.aroundMessageId))
   }
 
   const selectWorkspace = (id: number) => {
@@ -2227,7 +2225,7 @@ export function Messages() {
     )
     if (workspaceTarget) selectTarget(workspaceTarget)
     else {
-      window.history.replaceState(null, '', '/messages')
+      navigate('/messages')
       startNavigationTransition(() => {
         setSelectedTarget(null)
         setUnreadBoundaryId(null)
@@ -3450,7 +3448,7 @@ export function Messages() {
                     )}
                     {!isDesktop && (
                       <button
-                        onClick={() => setMobilePane('list')}
+                        onClick={() => navigate('/messages', { replace: true })}
                         className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                         aria-label="Back to conversations"
                       >

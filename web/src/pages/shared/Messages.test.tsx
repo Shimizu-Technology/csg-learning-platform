@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { cachedWindowIsContiguous, FormattedMessage, MessageEditSurface, mergeMessageWindow, restoreFailedSends, typingIndicatorLabel } from './Messages'
+import { cachedWindowIsContiguous, conversationPath, FormattedMessage, MessageEditSurface, mergeMessageWindow, restoreFailedSends, typingIndicatorLabel } from './Messages'
 import type { ChannelMessage } from '../../types/api'
 
 function message(overrides: Partial<ChannelMessage>): ChannelMessage {
@@ -124,5 +124,13 @@ describe('typingIndicatorLabel', () => {
     expect(typingIndicatorLabel([typingUser(1, 'Ada')])).toBe('Ada is typing…')
     expect(typingIndicatorLabel([typingUser(1, 'Ada'), typingUser(2, 'Grace')])).toBe('Ada and Grace are typing…')
     expect(typingIndicatorLabel([typingUser(1, 'Ada'), typingUser(2, 'Grace'), typingUser(3, 'Linus')])).toBe('Ada, Grace, and 1 more are typing…')
+  })
+})
+
+describe('conversation routes', () => {
+  it('keeps channels, DMs, and a highlighted message in routable URLs', () => {
+    expect(conversationPath({ type: 'channel', id: 12 })).toBe('/messages/12')
+    expect(conversationPath({ type: 'dm', id: 34 })).toBe('/messages/dm/34')
+    expect(conversationPath({ type: 'dm', id: 34 }, 90)).toBe('/messages/dm/34?message_id=90')
   })
 })
