@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_26_193100) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_27_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -205,10 +205,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_26_193100) do
     t.datetime "created_at", null: false
     t.bigint "direct_conversation_id", null: false
     t.datetime "last_read_at"
+    t.bigint "last_read_message_id"
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.index ["direct_conversation_id", "user_id"], name: "idx_direct_members_unique", unique: true
     t.index ["direct_conversation_id"], name: "index_direct_conversation_members_on_direct_conversation_id"
+    t.index ["last_read_message_id"], name: "index_direct_conversation_members_on_last_read_message_id"
     t.index ["user_id", "direct_conversation_id"], name: "idx_direct_members_user_conversation"
     t.index ["user_id"], name: "index_direct_conversation_members_on_user_id"
   end
@@ -1064,6 +1066,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_26_193100) do
   add_foreign_key "data_deletion_requests", "users"
   add_foreign_key "data_deletion_requests", "users", column: "resolved_by_id"
   add_foreign_key "direct_conversation_members", "direct_conversations"
+  add_foreign_key "direct_conversation_members", "messages", column: "last_read_message_id"
   add_foreign_key "direct_conversation_members", "users"
   add_foreign_key "direct_conversations", "cohorts"
   add_foreign_key "direct_conversations", "workspaces"

@@ -483,8 +483,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  markChannelRead: (id: number) =>
-    fetchApi<ChannelResponse>(`/api/v1/channels/${id}/read`, { method: 'PATCH' }),
+  markChannelRead: (id: number, messageId?: number) =>
+    fetchApi<ChannelResponse>(`/api/v1/channels/${id}/read`, {
+      method: 'PATCH',
+      ...(messageId === undefined ? {} : { body: JSON.stringify({ message_id: messageId }) }),
+    }),
   createMessage: (channelId: number, data: { body: string; parent_message_id?: number | null; client_message_id?: string; mention_user_ids?: number[]; attachments?: { s3_key: string; filename: string; content_type: string; byte_size: number }[]; send_push?: boolean }) =>
     fetchApi<MessageResponse>(`/api/v1/channels/${channelId}/messages`, {
       method: 'POST',
@@ -501,8 +504,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  markDirectConversationRead: (id: number) =>
-    fetchApi<DirectConversationResponse>(`/api/v1/direct_conversations/${id}/read`, { method: 'PATCH' }),
+  markDirectConversationRead: (id: number, messageId?: number) =>
+    fetchApi<DirectConversationResponse>(`/api/v1/direct_conversations/${id}/read`, {
+      method: 'PATCH',
+      ...(messageId === undefined ? {} : { body: JSON.stringify({ message_id: messageId }) }),
+    }),
   createDirectMessage: (conversationId: number, data: { body: string; parent_message_id?: number | null; client_message_id?: string; mention_user_ids?: number[]; attachments?: { s3_key: string; filename: string; content_type: string; byte_size: number }[]; send_push?: boolean }) =>
     fetchApi<MessageResponse>(`/api/v1/direct_conversations/${conversationId}/messages`, {
       method: 'POST',

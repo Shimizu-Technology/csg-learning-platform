@@ -43,6 +43,7 @@ class WebPushNotificationServiceTest < ActiveSupport::TestCase
     service.message_created(message, [ notification ])
 
     assert_equal "Sent an attachment", payload.fetch("body")
+    assert_equal message.id, payload.fetch("message_id")
   end
 
   test "does not deliver to a user who disabled browser push" do

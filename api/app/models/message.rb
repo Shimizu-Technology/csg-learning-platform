@@ -9,6 +9,7 @@ class Message < ApplicationRecord
   has_many :replies, class_name: "Message", foreign_key: :parent_message_id, dependent: :nullify
   has_many :notifications, as: :notifiable, dependent: :destroy
   has_many :channel_read_states, foreign_key: :last_read_message_id, dependent: :nullify
+  has_many :direct_conversation_read_states, class_name: "DirectConversationMember", foreign_key: :last_read_message_id, dependent: :nullify
   has_many :message_attachments, dependent: :destroy
   has_many :message_reactions, dependent: :destroy
 
