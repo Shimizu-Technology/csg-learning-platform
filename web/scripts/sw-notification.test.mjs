@@ -45,4 +45,15 @@ assert.equal(navigatedTo, 'https://learn.codeschoolofguam.com/messages/dm/12?mes
 assert.equal(focused, true)
 assert.equal(opened, false)
 
+context.self.clients.matchAll = async () => [{
+  url: 'https://learn.codeschoolofguam.com/messages/dm/12',
+  navigate: async () => { throw new Error('Tab closed') },
+}]
+listeners.get('notificationclick')({
+  notification: { data: shown.data, close: () => {} },
+  waitUntil: (promise) => { pending = promise },
+})
+await pending
+assert.equal(opened, true)
+
 console.log('Service worker notification anchor checks passed.')
