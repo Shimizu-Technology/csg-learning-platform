@@ -48,7 +48,11 @@ class Workspace < ApplicationRecord
   def ensure_default_channels!
     default_name, default_description =
       if cohort?
-        [ "Class Chat", "General class discussion for this cohort." ]
+        if cohort&.alumni?
+          [ "Alumni Chat", "Ongoing discussion and support for Code School of Guam alumni." ]
+        else
+          [ "Class Chat", "General class discussion for this cohort." ]
+        end
       else
         [ "General", "General discussion for this workspace." ]
       end

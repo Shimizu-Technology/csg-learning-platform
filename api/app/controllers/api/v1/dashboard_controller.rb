@@ -170,6 +170,7 @@ module Api
             cohort: {
               id: cohort.id,
               name: cohort.name,
+              cohort_type: cohort.cohort_type,
               start_date: cohort.start_date,
               status: cohort.status,
               announcements: visible_announcements.map { |announcement| dashboard_announcement_json(announcement, announcement_notifications[announcement.id]) },

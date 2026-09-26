@@ -18,6 +18,19 @@ export interface SessionUser extends UserSummary {
   community_policy?: CommunityPolicy | null;
 }
 
+export interface SessionEnrollment {
+  id: number;
+  cohort: {
+    id: number;
+    name: string;
+    cohort_type: string;
+    start_date: string;
+    status: string;
+  };
+  status: string;
+  enrolled_at: string | null;
+}
+
 export interface CommunityPolicy {
   version: string;
   accepted: boolean;
@@ -536,6 +549,7 @@ export interface StudentDashboard {
   cohort?: {
     id: number;
     name: string;
+    cohort_type: string;
     start_date: string;
     status: string;
     announcements?: Announcement[];

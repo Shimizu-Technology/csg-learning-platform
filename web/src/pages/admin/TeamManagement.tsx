@@ -173,7 +173,7 @@ export function TeamManagement() {
     if (res.error) {
       showNotification('error', `Failed to resend: ${res.error}`)
     } else {
-      showNotification('success', `Invite re-sent to ${member.email}`)
+      showNotification('success', `Invite queued for ${member.email}`)
     }
     setResendingId(null)
   }
@@ -186,7 +186,8 @@ export function TeamManagement() {
     if (res.error) {
       showNotification('error', `Failed to restore: ${res.error}`)
     } else {
-      showNotification('success', member.invite_pending ? `${member.email} restored and invite sent` : `${member.email} restored`)
+      const inviteFailed = res.data?.invitation?.status === 'failed'
+      showNotification(inviteFailed ? 'error' : 'success', inviteFailed ? `${member.email} was restored, but the invite needs to be retried` : res.data?.message || `${member.email} restored`)
       await loadTeam()
     }
     setRestoreConfirm(null)

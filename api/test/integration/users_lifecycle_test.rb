@@ -223,6 +223,29 @@ class UsersLifecycleTest < ActionDispatch::IntegrationTest
     assert_match "Archived users", JSON.parse(response.body).fetch("error")
   end
 
+  test "resend invite reports when the user accepts during dispatch" do
+    invite = User.create!(
+      clerk_id: "pending_#{SecureRandom.uuid}",
+      email: "accepted-during-resend@example.com",
+      role: :student
+    )
+    original_call = UserInvitationDispatchService.instance_method(:call)
+    UserInvitationDispatchService.define_method(:call) do
+      UserInvitationDispatchService::Result.new(status: "accepted", error: nil)
+    end
+
+    as_user(@admin) do
+      post "/api/v1/users/#{invite.id}/resend_invite",
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :unprocessable_entity
+    assert_match "already signed in", JSON.parse(response.body).fetch("error")
+  ensure
+    UserInvitationDispatchService.define_method(:call, original_call) if original_call
+  end
+
   test "admin can restore an archived user" do
     archived_staff = User.create!(
       clerk_id: "clerk_archived_restore_staff",
@@ -264,6 +287,29 @@ class UsersLifecycleTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_nil invite.reload.archived_at
+  end
+
+  test "restoring an archived user retries an invitation skipped by the delivery job" do
+    invite = User.create!(
+      clerk_id: "pending_#{SecureRandom.uuid}",
+      email: "archived-queued-restore@example.com",
+      role: :instructor,
+      invite_delivery_status: "queued",
+      archived_at: Time.current
+    )
+    SendUserInviteEmailJob.perform_now(invite.id)
+    assert_equal "failed", invite.reload.invite_delivery_status
+
+    assert_enqueued_with(job: SendUserInviteEmailJob) do
+      as_user(@admin) do
+        patch "/api/v1/users/#{invite.id}/unarchive",
+          headers: auth_headers,
+          as: :json
+      end
+    end
+
+    assert_response :success
+    assert_equal "queued", invite.reload.invite_delivery_status
   end
 
   test "archived users are hidden from default user and direct message candidate lists" do

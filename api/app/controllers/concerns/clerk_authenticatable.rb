@@ -180,7 +180,12 @@ module ClerkAuthenticatable
       # Preserve established Clerk IDs during the transition. Pending users
       # still graduate to their first real Clerk subject as they do today.
       if user.clerk_id.blank? || user.invite_pending?
-        user.update!(clerk_id: clerk_id, last_sign_in_at: Time.current)
+        user.update!(
+          clerk_id: clerk_id,
+          last_sign_in_at: Time.current,
+          invite_delivery_status: "accepted",
+          invite_last_error: nil
+        )
       end
 
       identity

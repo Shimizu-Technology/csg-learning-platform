@@ -1,5 +1,6 @@
 import { ApiError } from '../api';
-import { canUseCachedSession, isSessionAccessDenied, parseCachedSessionUser, serializeCachedSessionUser } from '../session-access';
+import { canUseCachedSession, isSessionAccessDenied, parseCachedSession, parseCachedSessionUser, serializeCachedSession, serializeCachedSessionUser } from '../session-access';
+import type { SessionEnrollment } from '../types';
 
 describe('session access errors', () => {
   it('recognizes explicit invite-only and archived account denials', () => {
@@ -63,5 +64,32 @@ describe('session access errors', () => {
     expect(parseCachedSessionUser(cached, 'production_clerk_student')).toEqual(bridgedUser);
     expect(parseCachedSessionUser(cached, 'different_clerk_student')).toBeNull();
     expect(parseCachedSessionUser(JSON.stringify(bridgedUser), 'production_clerk_student')).toBeNull();
+  });
+
+  it('round trips enrollments needed for offline navigation', () => {
+    const user = {
+      id: 7,
+      full_name: 'Student One',
+      email: 'student@example.com',
+      role: 'student',
+      avatar_url: null,
+      is_admin: false,
+      is_staff: false,
+      clerk_id: 'clerk_student',
+      first_name: 'Student',
+      last_name: 'One',
+      github_username: null,
+    } as const;
+    const enrollments: SessionEnrollment[] = [{
+      id: 12,
+      cohort: { id: 4, name: 'CSG Alumni', cohort_type: 'alumni', start_date: '2026-09-01', status: 'active' },
+      status: 'active',
+      enrolled_at: '2026-09-01T00:00:00Z',
+    }];
+
+    const cached = serializeCachedSession(user, enrollments, 'clerk_student');
+
+    expect(parseCachedSession(cached, 'clerk_student')).toEqual({ user, enrollments });
+    expect(parseCachedSession(cached, 'different_subject')).toBeNull();
   });
 });

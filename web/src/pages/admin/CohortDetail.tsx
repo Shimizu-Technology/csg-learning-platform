@@ -58,6 +58,9 @@ type CohortData = Record<string, any> & {
     last_sign_in_at?: string | null
     last_seen_at?: string | null
     invite_pending?: boolean
+    invite_delivery_status?: 'not_sent' | 'queued' | 'sent' | 'failed' | 'accepted'
+    invite_sent_at?: string | null
+    invite_last_error?: string | null
   }>
   modules: Array<{
     id: number
@@ -406,7 +409,7 @@ export function CohortDetail() {
       email: addStudentEmail.trim().toLowerCase(),
       role: 'student',
       github_username: addStudentGithub.trim() || undefined,
-      skip_invite: !sendInvite,
+      skip_invite: true,
     })
     if (createRes.error) {
       notifyError(createRes.error)
@@ -421,7 +424,7 @@ export function CohortDetail() {
       return
     }
 
-    const enrollRes = await api.createEnrollment(Number(id), userId)
+    const enrollRes = await api.createEnrollment(Number(id), userId, sendInvite)
     if (enrollRes.error) {
       notifyError(`User created but enrollment failed: ${enrollRes.error}`)
       setAddingStudent(false)
@@ -430,7 +433,13 @@ export function CohortDetail() {
 
     await reloadCohort()
 
-    notifySuccess(`Added ${addStudentEmail.trim()} to cohort`)
+    if (enrollRes.data?.invitation?.status === 'failed') {
+      notifyError(`Added ${addStudentEmail.trim()}, but the invitation needs to be retried from the roster.`)
+    } else if (enrollRes.data?.invitation?.status === 'queued') {
+      notifySuccess(`Added ${addStudentEmail.trim()} and queued the invitation`)
+    } else {
+      notifySuccess(`Added ${addStudentEmail.trim()} to cohort`)
+    }
     setAddStudentEmail('')
     setAddStudentGithub('')
     setAddingStudent(false)
@@ -444,7 +453,8 @@ export function CohortDetail() {
     if (res.error) {
       notifyError(`Failed to resend invite: ${res.error}`)
     } else {
-      notifySuccess(`Invite re-sent to ${email}`)
+      await reloadCohort()
+      notifySuccess(`Invite queued for ${email}`)
     }
     setResendingInviteFor(null)
   }
@@ -1459,9 +1469,9 @@ export function CohortDetail() {
                 <div className="flex flex-wrap items-center gap-2 shrink-0">
                   {student.invite_pending ? (
                     <>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-1 text-xs font-medium text-amber-700">
+                      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium ${student.invite_delivery_status === 'failed' ? 'border-red-200 bg-red-50 text-red-700' : student.invite_delivery_status === 'not_sent' ? 'border-slate-200 bg-slate-50 text-slate-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`} title={student.invite_last_error || undefined}>
                         <Mail className="h-3 w-3" />
-                        Invite sent
+                        {student.invite_delivery_status === 'failed' ? 'Invite failed' : student.invite_delivery_status === 'queued' ? 'Invite queued' : student.invite_delivery_status === 'not_sent' ? 'Invite not sent' : 'Invite sent'}
                       </span>
                       <button
                         onClick={() => handleResendInvite(student.user_id, student.email)}
@@ -1469,7 +1479,7 @@ export function CohortDetail() {
                         className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
                       >
                         <Mail className="h-3 w-3" />
-                        {resendingInviteFor === student.user_id ? 'Sending...' : 'Resend'}
+                        {resendingInviteFor === student.user_id ? 'Sending...' : student.invite_delivery_status === 'not_sent' ? 'Send invite' : 'Retry invite'}
                       </button>
                     </>
                   ) : (
