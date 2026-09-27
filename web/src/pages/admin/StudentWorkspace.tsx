@@ -346,7 +346,7 @@ function LinkButton({ to, secondary = false, children }: { to: string; secondary
 
 function StudentStepper({ direction, student, cohortId, tab }: { direction: 'previous' | 'next'; student: CohortDetail['students'][number] | null; cohortId: number; tab: StudentWorkspaceTab }) {
   const Icon = direction === 'previous' ? ChevronLeft : ChevronRight
-  if (!student) return <span className="h-11 w-28" />
+  if (!student) return <span className="hidden h-11 w-28 sm:block" />
   return <Link to={cohortStudentPath(cohortId, student.user_id, tab)} className="inline-flex min-h-11 max-w-48 items-center gap-1 rounded-xl px-2 text-xs font-bold text-slate-600 hover:bg-white hover:text-primary-700">{direction === 'previous' && <Icon className="h-4 w-4" />}<span className="truncate">{student.full_name || student.email}</span>{direction === 'next' && <Icon className="h-4 w-4" />}</Link>
 }
 
