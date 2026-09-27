@@ -59,7 +59,7 @@ Clerk authentication is required in local development too. The current app does 
 | `SOLID_QUEUE_IN_PUMA` | No | `false` | Set to `true` only for an intentional single-process Solid Queue deployment; never combine with a dedicated worker |
 | `RESEND_API_KEY` | No | — | Transactional email (invites, mentions, and direct-message notifications) |
 | `MAILER_FROM_EMAIL` | No | `noreply@codeschoolofguam.com` | Verified sender address for transactional emails |
-| `GITHUB_ORGANIZATION_ADMIN_TOKEN` | No | — | GitHub API token for repo sync and org invites |
+| `GITHUB_ORGANIZATION_ADMIN_TOKEN` | No | — | GitHub API token for repo sync, org invites, and staff access status. The token owner must be an active member of each configured organization and have organization membership read access (`read:org` for a classic PAT); status checks fail closed otherwise. |
 | `AWS_ACCESS_KEY_ID` | No | — | AWS IAM access key for S3 recording uploads |
 | `AWS_SECRET_ACCESS_KEY` | No | — | AWS IAM secret key for S3 recording uploads |
 | `AWS_REGION` | No | `us-east-1` | AWS region for S3 bucket |

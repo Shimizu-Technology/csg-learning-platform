@@ -51,6 +51,12 @@ describe('staff access roster', () => {
     expect(screen.getByText('Invited Alum')).toBeTruthy();
     expect(screen.queryByText('Joined Alum')).toBeNull();
 
+    githubError = true;
+    screen.rerender(<StaffAccessScreen />);
+    expect(screen.getByText('Joined Alum')).toBeTruthy();
+    expect(screen.getByText('2 of 2 enrolled')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'GitHub invited' }).props.accessibilityState.selected).toBe(false);
+
     fireEvent.press(screen.getByText('Bootcamp'));
     expect(screen.queryByText('Invited Alum')).toBeNull();
     expect(screen.getByText('0 of 0 enrolled')).toBeTruthy();

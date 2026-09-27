@@ -29,14 +29,18 @@ export default function StaffAccessScreen() {
   const selectedCohortId = cohortId ?? cohorts[0]?.id ?? null;
   const accessQuery = useQuery({ queryKey: ['staff-access', selectedCohortId], queryFn: ({ signal }) => api.cohortAccess(selectedCohortId!, signal), enabled: Boolean(selectedCohortId && !auth.demo) });
   const organization = accessQuery.data?.cohort.github_organization_name;
-  const githubQuery = useQuery({ queryKey: ['staff-github-access', selectedCohortId, organization], queryFn: ({ signal }) => api.cohortGithubAccess(selectedCohortId!, signal), enabled: Boolean(selectedCohortId && organization && !auth.demo), staleTime: 60_000 });
+  const githubQuery = useQuery({ queryKey: ['staff-github-access', selectedCohortId, organization], queryFn: async ({ signal }) => {
+    try { return await api.cohortGithubAccess(selectedCohortId!, signal); }
+    catch (error) { if (!signal.aborted) setFilter('all'); throw error; }
+  }, enabled: Boolean(selectedCohortId && organization && !auth.demo), staleTime: 60_000 });
   const students = accessQuery.data?.cohort.students || [];
   const statuses = organization && !githubQuery.isError ? githubQuery.data?.statuses : undefined;
+  const activeFilter = statuses || filter === 'app' ? filter : 'all';
   const visible = students.filter((student) => {
     const github = statuses?.[String(student.user_id)];
-    const matches = filter === 'all' || (filter === 'app' && !student.last_sign_in_at) ||
-      (filter === 'invited' && github === 'invited') || (filter === 'member' && github === 'member') ||
-      (filter === 'followup' && (github === 'not_invited' || github === 'username_missing'));
+    const matches = activeFilter === 'all' || (activeFilter === 'app' && !student.last_sign_in_at) ||
+      (activeFilter === 'invited' && github === 'invited') || (activeFilter === 'member' && github === 'member') ||
+      (activeFilter === 'followup' && (github === 'not_invited' || github === 'username_missing'));
     return matches && `${student.full_name} ${student.email} ${student.github_username || ''}`.toLowerCase().includes(search.trim().toLowerCase());
   });
 
@@ -62,7 +66,7 @@ export default function StaffAccessScreen() {
       <Text style={styles.eyebrow}>PEOPLE & ACCESS</Text><Text style={styles.title}>Who has joined?</Text><Text style={styles.copy}>App sign-in and GitHub organization access are tracked separately. Enrollment does not mean an invite was accepted.</Text>
       <View style={styles.cohortBox}><Text style={styles.label}>COHORT</Text><ScrollView horizontal style={styles.strip} contentContainerStyle={styles.chips} showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled">{cohorts.map((cohort) => <Pressable key={cohort.id} accessibilityRole="button" accessibilityState={{ selected: cohort.id === selectedCohortId }} onPress={() => { Keyboard.dismiss(); setCohortId(cohort.id); setFilter('all'); setSearch(''); }} style={[styles.chip, cohort.id === selectedCohortId && styles.selectedChip]}><Text numberOfLines={1} style={[styles.chipText, cohort.id === selectedCohortId && styles.selectedText]}>{cohort.name}</Text></Pressable>)}</ScrollView></View>
       <View style={styles.search}><Search color={palette.muted} size={18} /><TextInput accessibilityLabel="Search students" value={search} onChangeText={setSearch} placeholder="Search students" placeholderTextColor={palette.quiet} returnKeyType="done" onSubmitEditing={Keyboard.dismiss} style={styles.input} /></View>
-      <ScrollView horizontal style={styles.strip} contentContainerStyle={styles.chips} showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled">{filters.map((option) => <Pressable key={option.key} accessibilityRole="button" accessibilityState={{ selected: filter === option.key, disabled: option.key !== 'all' && option.key !== 'app' && !statuses }} disabled={option.key !== 'all' && option.key !== 'app' && !statuses} onPress={() => { Keyboard.dismiss(); setFilter(option.key); }} style={[styles.filter, filter === option.key && styles.selectedFilter, option.key !== 'all' && option.key !== 'app' && !statuses && styles.disabledFilter]}><Text style={[styles.filterText, filter === option.key && styles.selectedText]}>{option.label}</Text></Pressable>)}</ScrollView>
+      <ScrollView horizontal style={styles.strip} contentContainerStyle={styles.chips} showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled">{filters.map((option) => <Pressable key={option.key} accessibilityRole="button" accessibilityState={{ selected: activeFilter === option.key, disabled: option.key !== 'all' && option.key !== 'app' && !statuses }} disabled={option.key !== 'all' && option.key !== 'app' && !statuses} onPress={() => { Keyboard.dismiss(); setFilter(option.key); }} style={[styles.filter, activeFilter === option.key && styles.selectedFilter, option.key !== 'all' && option.key !== 'app' && !statuses && styles.disabledFilter]}><Text style={[styles.filterText, activeFilter === option.key && styles.selectedText]}>{option.label}</Text></Pressable>)}</ScrollView>
       {accessQuery.isPending ? <LoadingState label="Loading students" /> : accessQuery.error ? <ErrorState message={(accessQuery.error as Error).message} retry={() => void accessQuery.refetch()} /> : <>
         {!organization && <Text style={styles.notice}>No GitHub organization is configured for this cohort.</Text>}
         {organization && githubQuery.error && <Text style={styles.notice}>GitHub status could not be checked. Pull down to retry.</Text>}

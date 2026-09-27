@@ -14,7 +14,9 @@ class GithubOrganizationAccessServiceTest < ActiveSupport::TestCase
     requests = []
     getter = lambda do |url, options|
       requests << [ url, options.dig(:query, :page), options.dig(:headers, "Authorization") ]
-      if url.end_with?("/members")
+      if url.include?("/user/memberships/orgs/")
+        Response.new(200, { "state" => "active", "role" => "admin" })
+      elsif url.end_with?("/members")
         Response.new(200, [ { "login" => "MEMBER" } ])
       elsif options.dig(:query, :page) == 1
         Response.new(200, Array.new(98) { { "login" => "unrelated" } } + [
@@ -38,6 +40,48 @@ class GithubOrganizationAccessServiceTest < ActiveSupport::TestCase
     assert_raises(GithubOrganizationAccessService::Unavailable) do
       GithubOrganizationAccessService.new(organization: "example-org", token: "secret", client: client).status_for([ Person.new(1, "one@example.com", "one") ])
     end
+  end
+
+  test "a credential without active organization membership cannot claim a negative status" do
+    client = Object.new
+    client.define_singleton_method(:get) { |*, **| Response.new(200, { "state" => "pending" }) }
+    assert_raises(GithubOrganizationAccessService::Unavailable) do
+      GithubOrganizationAccessService.new(organization: "example-org", token: "secret", client: client).status_for([ Person.new(1, "one@example.com", "one") ])
+    end
+  end
+
+  test "exactly twenty full pages are complete when the following page is empty" do
+    requests = []
+    client = Object.new
+    client.define_singleton_method(:get) do |url, options|
+      requests << [ url, options.dig(:query, :page) ]
+      if url.include?("/user/memberships/orgs/")
+        Response.new(200, { "state" => "active" })
+      elsif options.dig(:query, :page) <= 20
+        Response.new(200, Array.new(100) { |index| { "login" => "member-#{options.dig(:query, :page)}-#{index}" } })
+      else
+        Response.new(200, [])
+      end
+    end
+    user = Person.new(1, "one@example.com", "member-20-99")
+    statuses = GithubOrganizationAccessService.new(organization: "example-org", token: "secret", client: client).status_for([ user ])
+    assert_equal "member", statuses.fetch(1)
+    assert_includes requests, [ "https://api.github.com/orgs/example-org/members", 21 ]
+  end
+
+  test "the entire lookup has a deadline" do
+    calls = 0
+    client = Object.new
+    client.define_singleton_method(:get) do |*, **|
+      calls += 1
+      Response.new(200, { "state" => "active" })
+    end
+    times = [ 0, 1, 21 ]
+    clock = -> { times.shift || 21 }
+    assert_raises(GithubOrganizationAccessService::Unavailable) do
+      GithubOrganizationAccessService.new(organization: "example-org", token: "secret", client: client, clock: clock).status_for([ Person.new(1, "one@example.com", "one") ])
+    end
+    assert_equal 1, calls
   end
 
   test "missing configuration avoids a provider request" do
