@@ -131,7 +131,8 @@ export interface ApiResponse<T> {
 async function fetchApi<T>(
   endpoint: string,
   options: RequestInit = {},
-  requireAuth: boolean = true
+  requireAuth: boolean = true,
+  timeoutMs: number = REQUEST_TIMEOUT_MS
 ): Promise<ApiResponse<T>> {
   const method = (options.method || 'GET').toUpperCase();
   const canRetry = method === 'GET' || method === 'HEAD';
@@ -159,7 +160,7 @@ async function fetchApi<T>(
       const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
         ...options,
         headers,
-      });
+      }, timeoutMs);
 
       if (!response.ok) {
         const errorBody = await response.json().catch(() => ({}));
@@ -235,9 +236,9 @@ async function fetchApi<T>(
   return { data: null, error: 'Request failed', errorKind: 'unknown' };
 }
 
-function fetchWithTimeout(url: string, options: RequestInit): Promise<Response> {
+function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
-  const timeoutId = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), timeoutMs);
   const externalSignal = options.signal;
 
   if (externalSignal?.aborted) controller.abort();
@@ -734,7 +735,7 @@ export const api = {
   getCohort: (id: number) =>
     fetchApi<CohortResponse>(`/api/v1/cohorts/${id}`),
   getCohortGithubAccess: (id: number) =>
-    fetchApi<import('../types/api').GithubAccessResponse>(`/api/v1/cohorts/${id}/github_access`),
+    fetchApi<import('../types/api').GithubAccessResponse>(`/api/v1/cohorts/${id}/github_access`, {}, true, 30_000),
   getCohortStudentView: (id: number) =>
     fetchApi<CohortStudentViewResponse>(`/api/v1/cohorts/${id}/student_view`),
   createCohort: (data: { name: string; cohort_type: string; curriculum_id: number; start_date: string; end_date?: string; status?: string }) =>
