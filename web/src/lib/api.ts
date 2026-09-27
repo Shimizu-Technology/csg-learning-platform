@@ -1,4 +1,5 @@
 import type {
+  ActivityEventsResponse,
   SessionResponse,
   DashboardResponse,
   WeeklyPlanResponse,
@@ -672,6 +673,8 @@ export const api = {
     fetchApi<any>(`/api/v1/submissions/${id}/github_issue`),
 
   // Student progress (admin)
+  getActivityEvents: (params?: { user_id?: number; category?: string; before_id?: number; limit?: number }) =>
+    fetchApi<ActivityEventsResponse>(`/api/v1/activity_events${queryString(params || {})}`),
   getStudentProgress: (userId: number, cohortId?: number) =>
     fetchApi<StudentProgressResponse>(`/api/v1/progress/student/${userId}${queryString({ cohort_id: cohortId })}`),
   getLearningInsights: (cohortId: number, userId?: number) =>

@@ -25,6 +25,7 @@ module Api
           progress = upsert_watch_progress(recording)
 
           if progress.save
+            record_watch_activity!(progress, recording, enrollment)
             render json: {
               watch_progress: {
                 recording_id: progress.recording_id,
@@ -43,6 +44,7 @@ module Api
         with_learning_write_guard(enrollment) do
           progress = upsert_watch_progress(recording, force_existing: true)
           if progress.save
+            record_watch_activity!(progress, recording, enrollment)
             render json: {
               watch_progress: {
                 recording_id: progress.recording_id,
@@ -266,6 +268,18 @@ module Api
       end
 
       private
+
+      def record_watch_activity!(progress, recording, enrollment)
+        event_type = if progress.saved_change_to_completed? && progress.completed?
+          "recording_completed"
+        elsif progress.previously_new_record? && progress.total_watched_seconds.positive?
+          "recording_started"
+        end
+        return unless event_type
+
+        ActivityEvent.record!(event_type: event_type, actor: current_user,
+          cohort: enrollment.cohort, record: recording, evidence: "player_reported")
+      end
 
       # Build the WatchProgress row to save and apply the param-derived fields
       # (capped last_position, capped total_watched, last_watched_at). Used by both the

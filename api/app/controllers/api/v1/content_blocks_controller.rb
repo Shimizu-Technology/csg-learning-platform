@@ -182,7 +182,9 @@ module Api
         # a text or code block and write through to its s3_video_duration_seconds
         # via the first-reporter lock below, corrupting the authoritative
         # duration the moment a real video is later attached.
-        unless @content_block.s3_video_key.present?
+        linked_provider = Recording.source_kind_for(@content_block.video_url)
+        linked_video = %w[video recording].include?(@content_block.block_type) && %w[youtube vimeo].include?(linked_provider)
+        unless @content_block.s3_video_key.present? || linked_video
           render json: { error: "Content block has no video to track" }, status: :unprocessable_entity
           return
         end
@@ -198,8 +200,8 @@ module Api
         # Compare-and-swap via UPDATE ... WHERE s3_video_duration_seconds IS NULL
         # makes only one writer succeed; the loser re-reads the winner's value.
         with_learning_write_guard(@learning_write_enrollment) do
-          authoritative_duration = @content_block.s3_video_duration_seconds
-          if authoritative_duration.blank? && params[:duration_seconds].to_i.positive?
+          authoritative_duration = linked_video ? params[:duration_seconds].to_i.clamp(0, 28_800) : @content_block.s3_video_duration_seconds
+          if !linked_video && authoritative_duration.blank? && params[:duration_seconds].to_i.positive?
             candidate = params[:duration_seconds].to_i
             updated = ContentBlock.where(id: @content_block.id, s3_video_duration_seconds: nil)
                                   .update_all(s3_video_duration_seconds: candidate)
@@ -223,6 +225,7 @@ module Api
           # and merge our update into it.
           progress = upsert_video_progress(authoritative_duration)
           if progress.save
+            record_video_activity!(progress)
             render_video_progress(progress)
           else
             render json: { errors: progress.errors.full_messages }, status: :unprocessable_entity
@@ -232,6 +235,7 @@ module Api
         with_learning_write_guard(@learning_write_enrollment) do
           progress = upsert_video_progress(authoritative_duration, force_existing: true)
           if progress.save
+            record_video_activity!(progress)
             render_video_progress(progress)
           else
             render json: { errors: progress.errors.full_messages }, status: :unprocessable_entity
@@ -240,6 +244,19 @@ module Api
       end
 
       private
+
+      def record_video_activity!(progress)
+        event_type = if progress.saved_change_to_status? && progress.completed?
+          "video_completed"
+        elsif progress.previously_new_record? && progress.video_total_watched.to_i.positive?
+          "video_started"
+        end
+        return unless event_type
+
+        ActivityEvent.record!(event_type: event_type, actor: current_user,
+          cohort: @learning_write_enrollment&.cohort, record: @content_block,
+          evidence: "player_reported")
+      end
 
       # Apply the param-derived video progress fields (capped last_position, capped
       # total_watched, status transitions). Pass force_existing: true after a

@@ -1,4 +1,5 @@
 import type {
+  ActivityEventsResponse,
   Announcement,
   AppNotification,
   ChannelSummary,
@@ -163,6 +164,7 @@ export class CsgApi {
   }
 
   session = () => this.request<{ user: SessionUser; enrollments: SessionEnrollment[] }>('/api/v1/sessions', { method: 'POST' });
+  activityEvents = (params?: { user_id?: number; category?: string; before_id?: number }, signal?: AbortSignal) => this.request<ActivityEventsResponse>(`/api/v1/activity_events${queryString(params || {})}`, { signal });
   communityPolicy = () => this.request<{ community_policy: CommunityPolicy }>('/api/v1/community_policy');
   acceptCommunityPolicy = (version: string) => this.request<{ community_policy: CommunityPolicy }>('/api/v1/community_policy/accept', { method: 'POST', body: JSON.stringify({ version, accepted: true }) });
   reportContent = (input: { message_id?: number; reported_user_id?: number; reason: ContentReport['reason']; details?: string }) => this.request<{ content_report: ContentReport }>('/api/v1/content_reports', { method: 'POST', body: JSON.stringify({ content_report: input }) });

@@ -3,6 +3,7 @@ import { Link, NavLink, useLocation, useNavigate, useParams, useSearchParams } f
 import {
   ArrowLeft,
   ArrowRight,
+  Activity,
   BookOpen,
   CheckCircle2,
   ChevronLeft,
@@ -31,6 +32,7 @@ import { Button } from '../../components/ui/Button'
 import { useToast } from '../../contexts/ToastContext'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
+import { ActivityTimeline } from '../../components/shared/ActivityTimeline'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import type {
   CohortDetail,
@@ -47,6 +49,7 @@ import type {
 
 const tabs: Array<{ id: StudentWorkspaceTab; label: string; icon: typeof UserRound }> = [
   { id: 'overview', label: 'Overview', icon: UserRound },
+  { id: 'activity', label: 'Activity', icon: Activity },
   { id: 'work', label: 'Work', icon: FileCheck2 },
   { id: 'learning', label: 'Learning', icon: BookOpen },
   { id: 'support', label: 'Support', icon: LifeBuoy },
@@ -211,6 +214,7 @@ export function StudentWorkspace() {
       {sharedEvidence && evidenceScope && <div className="flex gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950"><BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" /><p><span className="font-extrabold">Curriculum evidence:</span> progress and submitted work follow this learner across {evidenceScope.enrollment_count} enrollments using {evidenceScope.curriculum_name}. Support, recordings, access, and messages on this page remain scoped to {cohort.name}.</p></div>}
 
       {activeTab === 'overview' && <OverviewTab progress={progress} submissions={submissions} helpRequests={helpRequests} recordings={recordings} lessonVideos={lessonVideos} cohortId={cohortId} studentId={studentId} />}
+      {activeTab === 'activity' && <ActivityTimeline userId={studentId} cohortId={cohortId} />}
       {activeTab === 'work' && <WorkTab submissions={submissions} cohortId={cohortId} studentId={studentId} returnTo={location.pathname} />}
       {activeTab === 'learning' && <LearningTab progress={progress} cohortId={cohortId} studentId={studentId} returnTo={location.pathname} />}
       {activeTab === 'support' && <SupportTab requests={helpRequests} interventions={interventions} recoveryPlans={recoveryPlans} cohortId={cohortId} studentId={studentId} />}

@@ -50,6 +50,12 @@ Syncs an invited user record from the Clerk JWT. Production access is invite-onl
 
 Archived users receive the same status with `code: "account_archived"`. Missing, invalid, and expired Clerk JWTs remain `401` responses.
 
+A new verified Clerk session with a `sid` creates one sign-in history event and updates `last_sign_in_at`. Refreshing the same session does neither. Tokens without `sid` do not create a sign-in event.
+
+### `GET /api/v1/activity_events`
+
+Returns paginated account and learning history. Optional query parameters: `user_id`, `category` (`account`, `learning`, or `work`), `cohort_id`, `before_id`, and `limit` (up to 100, default 40). Members can read their own history; instructors can read students' history; administrators can read any member's history. Each event includes a timestamp, actor, event type, record reference and current label when available, cohort, and evidence label. Video evidence is `player_reported`.
+
 ### `POST /api/v1/web_handoffs`
 
 Creates a one-time, 60-second Clerk sign-in link for an allowlisted responsive-web destination. Mobile uses this for browser-shaped tools without placing the device session JWT in a URL. All signed-in users may hand off to numeric lesson and module paths. Staff may also hand off to allowlisted student workspaces, submission/help/intervention records, cohort operations, grading, content, and team destinations. For example:

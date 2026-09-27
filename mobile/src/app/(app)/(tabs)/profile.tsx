@@ -1,7 +1,7 @@
 import * as Application from 'expo-application';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
-import { Bell, Check, ChevronRight, FileText, GitBranch, GraduationCap, LogOut, Mail, RefreshCw, Save, Settings2, ShieldCheck, Trash2, UserX } from 'lucide-react-native';
+import { Activity, Bell, Check, ChevronRight, FileText, GitBranch, GraduationCap, LogOut, Mail, RefreshCw, Save, Settings2, ShieldCheck, Trash2, UserX } from 'lucide-react-native';
 import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -221,6 +221,7 @@ export default function ProfileScreen() {
       {auth.demo && <View style={styles.demo}><Text style={styles.demoTitle}>Simulator walkthrough</Text><Text style={styles.demoCopy}>Local sample data is active. This mode is compiled out of production behavior.</Text></View>}
       {!auth.demo && <GithubEditor initialValue={profileQuery.data?.user.github_username || user?.github_username || ''} api={api} userId={user?.id || 0} afterSave={refresh} />}
       {!!profileQuery.data?.enrollments.length && <><Text style={styles.sectionLabel}>ENROLLMENTS</Text><View style={styles.group}>{profileQuery.data.enrollments.map((enrollment, index) => <View key={enrollment.id} style={[styles.enrollment, index > 0 && styles.groupDivider]}><View style={styles.settingIcon}><GraduationCap color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>{enrollment.cohort_name}</Text><Text style={styles.settingCopy}>{enrollment.curriculum_name}</Text></View><Text style={[styles.enrollmentStatus, enrollment.status === 'active' && styles.enrollmentActive]}>{enrollment.status}</Text></View>)}</View></>}
+      <Pressable accessibilityRole="button" accessibilityLabel="Open your activity history" onPress={() => router.push('/activity' as Href)} style={styles.manage}><View style={styles.settingIcon}><Activity color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Your activity history</Text><Text style={styles.settingCopy}>Review your sign-ins, learning progress, and saved work.</Text></View><ChevronRight color={palette.quiet} size={18} /></Pressable>
       <Text style={styles.sectionLabel}>PREFERENCES</Text>
       <View style={styles.group}>
         {preferenceLoadError ? <View style={styles.preferenceError}><View style={styles.settingIcon}><Bell color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Notifications unavailable</Text><Text style={styles.settingCopy}>{preferenceLoadError}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Retry notification preferences" onPress={() => void loadNotificationPreferences()} style={styles.retryPreference}><Text style={styles.retryPreferenceText}>Try again</Text></Pressable></View> : <>

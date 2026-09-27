@@ -10,6 +10,7 @@ Rails.application.routes.draw do
 
       # Auth
       post "sessions", to: "sessions#create"
+      resources :activity_events, only: :index
       post "presence", to: "presence#create"
       post "web_handoffs", to: "web_handoffs#create"
 
