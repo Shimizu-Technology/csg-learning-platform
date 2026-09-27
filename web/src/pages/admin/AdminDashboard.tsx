@@ -140,7 +140,7 @@ export function AdminDashboard() {
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           {[
             ['/admin/support', LifeBuoy, 'Student support', 'Requests and explainable signals'],
-            ['/admin/students', Users, 'Students', 'Progress, access, and intervention'],
+            ['/admin/cohorts', Users, 'Access & invitations', 'Choose any cohort, then check who joined'],
             ['/admin/grading', ClipboardCheck, 'Grading', 'Review submissions and redos'],
             ['/admin/content', FileText, 'Curriculum', 'Modules, lessons, and exercises'],
             [data.cohort ? `/admin/cohorts/${data.cohort.id}` : '/admin/cohorts', Layers3, 'Cohort setup', 'Schedule, resources, and access'],

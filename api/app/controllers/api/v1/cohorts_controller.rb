@@ -2,9 +2,9 @@ module Api
   module V1
     class CohortsController < ApplicationController
       before_action :authenticate_user!
-      before_action :require_staff!, only: [ :index, :show, :student_view ]
-      before_action :require_admin!, except: [ :index, :show, :student_view ]
-      before_action :set_cohort, only: [ :show, :update, :destroy, :module_access, :announcements, :recordings, :class_resources ]
+      before_action :require_staff!, only: [ :index, :show, :student_view, :github_access ]
+      before_action :require_admin!, except: [ :index, :show, :student_view, :github_access ]
+      before_action :set_cohort, only: [ :show, :github_access, :update, :destroy, :module_access, :announcements, :recordings, :class_resources ]
       before_action :set_cohort_with_lessons, only: [ :student_view ]
 
       # GET /api/v1/cohorts
@@ -29,6 +29,19 @@ module Api
         render json: {
           cohort: cohort_json(@cohort, include_students: true, include_modules: true)
         }
+      end
+
+      # GET /api/v1/cohorts/:id/github_access
+      def github_access
+        students = @cohort.enrollments.joins(:user).includes(:user).merge(User.not_archived).map(&:user)
+        result = GithubOrganizationAccessService.new(
+          organization: @cohort.github_organization_name,
+          token: ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"]
+        ).status_for(students)
+        render json: { organization: @cohort.github_organization_name, checked_at: Time.current.iso8601, statuses: result }
+      rescue GithubOrganizationAccessService::Unavailable => e
+        Rails.logger.warn("[GithubAccess] cohort_id=#{@cohort.id} unavailable: #{e.message}")
+        render json: { error: "GitHub organization status is unavailable" }, status: :bad_gateway
       end
 
       # GET /api/v1/cohorts/:id/student_view

@@ -14,8 +14,28 @@ import { CsgApi, websocketOrigin, websocketUrl } from '../api';
 
 describe('CsgApi', () => {
   afterEach(() => {
+    jest.useRealTimers();
     jest.restoreAllMocks();
     mockExpoFetch.mockReset();
+  });
+
+  it('keeps the longer GitHub access timeout after an authentication retry', async () => {
+    jest.useFakeTimers();
+    const fetchMock = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }))
+      .mockImplementationOnce((_url, options) => new Promise((resolve, reject) => {
+        const timer = setTimeout(() => resolve(new Response(JSON.stringify({ organization: 'alumni', statuses: {} }), { status: 200 })), 21_000);
+        options?.signal?.addEventListener('abort', () => {
+          clearTimeout(timer);
+          reject(Object.assign(new Error('The request was aborted'), { name: 'AbortError' }));
+        }, { once: true });
+      }));
+
+    const request = new CsgApi(async () => 'session-token').cohortGithubAccess(4);
+    await jest.advanceTimersByTimeAsync(21_000);
+
+    await expect(request).resolves.toEqual({ organization: 'alumni', statuses: {} });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('adds a Clerk bearer token and parses JSON', async () => {

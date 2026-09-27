@@ -1,7 +1,7 @@
 import { useRouter, type Href } from 'expo-router';
 import { Hash, Search as SearchIcon } from 'lucide-react-native';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { EmptyState, ErrorState, LoadingState } from '@/components/screen-states';
 import { fonts, palette } from '@/constants/csg-theme';
@@ -24,6 +24,7 @@ export default function SearchScreen() {
   const submit = async () => {
     const value = query.trim();
     if (value.length < 2) return;
+    Keyboard.dismiss();
     setLoading(true);
     setSearched(true);
     setError(null);
@@ -38,9 +39,9 @@ export default function SearchScreen() {
 
   return (
     <View style={styles.safe}>
-      <View style={styles.search}><SearchIcon color={palette.quiet} size={18} /><TextInput accessibilityLabel="Search every message" autoFocus returnKeyType="search" value={query} onChangeText={setQuery} onSubmitEditing={() => void submit()} placeholder="Search every message" placeholderTextColor={palette.quiet} style={styles.input} /></View>
+      <View style={styles.search}><SearchIcon color={palette.quiet} size={18} /><TextInput accessibilityLabel="Search every message" autoFocus returnKeyType="search" value={query} onChangeText={setQuery} onSubmitEditing={() => void submit()} placeholder="Search every message" placeholderTextColor={palette.quiet} style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel="Dismiss keyboard" onPress={Keyboard.dismiss} style={styles.dismiss}><Text style={styles.dismissText}>Done</Text></Pressable></View>
       {loading ? <LoadingState label="Searching messages" /> : error ? <ErrorState message={error} retry={() => void submit()} /> : (
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list}>
+        <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.list}>
           {results.map((result) => <Pressable key={result.id} accessibilityRole="button" accessibilityLabel={`Open ${result.context.label} at this message`} onPress={() => router.replace(messageSearchRoute(result) as Href)} style={styles.result}><View style={styles.meta}><Hash color={palette.rubySoft} size={14} /><Text style={styles.label}>{result.context.label}</Text><Text style={styles.author}>{result.author.full_name}</Text></View><Text numberOfLines={3} style={styles.body}>{plainMessageText(result.body)}</Text></Pressable>)}
           {searched && !results.length && <EmptyState title="No matching messages" copy={auth.demo ? 'Full message search connects to the live API outside simulator walkthrough mode.' : 'Try another word or a less specific phrase.'} />}
           {!searched && <EmptyState title="Search across CSG" copy="Find a question, link, decision, or class note from any conversation you can access." />}
@@ -54,6 +55,8 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.ink },
   search: { margin: 20, minHeight: 50, borderRadius: 16, backgroundColor: palette.panel, borderWidth: 1, borderColor: palette.line, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
   input: { flex: 1, color: palette.text, fontFamily: fonts.regular, fontSize: 14 },
+  dismiss: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 6 },
+  dismissText: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 12 },
   list: { paddingHorizontal: 20, paddingBottom: 30 },
   result: { minHeight: 68, paddingVertical: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.line },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
