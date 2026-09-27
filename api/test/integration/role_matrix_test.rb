@@ -263,7 +263,7 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
       get "/api/v1/cohorts/#{@cohort.id}/github_access", headers: auth_headers
     end
     assert_response :bad_gateway
-    assert_match "unavailable", JSON.parse(response.body).fetch("error")
+    assert_equal "GitHub organization status is unavailable", JSON.parse(response.body).fetch("error")
   end
 
   test "instructor can inspect current GitHub access for enrolled students" do

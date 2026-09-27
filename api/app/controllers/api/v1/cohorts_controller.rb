@@ -40,7 +40,8 @@ module Api
         ).status_for(students)
         render json: { organization: @cohort.github_organization_name, checked_at: Time.current.iso8601, statuses: result }
       rescue GithubOrganizationAccessService::Unavailable => e
-        render json: { error: "GitHub organization status is unavailable: #{e.message}" }, status: :bad_gateway
+        Rails.logger.warn("[GithubAccess] cohort_id=#{@cohort.id} unavailable: #{e.message}")
+        render json: { error: "GitHub organization status is unavailable" }, status: :bad_gateway
       end
 
       # GET /api/v1/cohorts/:id/student_view
