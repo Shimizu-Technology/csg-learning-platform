@@ -1,6 +1,6 @@
 # CSG Connect App Store Release Record
 
-Last updated: 2026-09-27 (Pacific/Guam)
+Last updated: 2026-09-28 (Pacific/Guam)
 
 This directory is the durable source record for the App Store presentation of the completed mobile-parity program. It records what was uploaded, how the images were produced, and what remains before public App Review.
 
@@ -9,13 +9,13 @@ This directory is the durable source record for the App Store presentation of th
 | Item | State |
 | --- | --- |
 | Marketing version | `1.0.0` |
-| Latest uploaded iOS build | `1.0.0 (25)`; Apple processing and tester availability are not yet verified |
-| Latest verified EAS build ID | Not applicable — build 25 was signed locally after the monthly cloud-build allowance was exhausted |
-| Latest uploaded source commit | `749f056809fc5423448dfffeb6abc32c80bb970c` (`main`) |
-| Latest release delivery | EAS submission `a6e5fbc5-be31-4bca-930c-05232c37f12a` reported a successful upload to App Store Connect |
-| Latest verified App Store Connect state | Build 23: `VALID` and internal `IN_BETA_TESTING`; build 25 has not yet been verified in App Store Connect |
-| Next release candidate | Build 25, pending Apple processing and physical-device acceptance |
-| Release artifact fingerprint | Build 25 IPA SHA-256 `d04c9b9378499c09194e0e83d0e98d4e551d797ed3583de7efd20046dbce344e` |
+| Latest uploaded iOS build | `1.0.0 (26)`; Apple processing and tester availability are not yet verified |
+| Latest verified EAS build ID | Not applicable — build 26 was signed locally |
+| Latest uploaded source commit | `440e93fcae3674afbb8fa73af962c014fd7cf769` (`main`, merged PR #151) |
+| Latest release delivery | EAS submission `e2c2eadb-9abf-46b3-be1c-ff2837e28498` reported a successful upload to App Store Connect |
+| Latest verified App Store Connect state | Build 23: `VALID` and internal `IN_BETA_TESTING`; builds 25 and 26 have not yet been verified in App Store Connect |
+| Next release candidate | Build 26, pending Apple processing and physical-device acceptance |
+| Release artifact fingerprint | Build 26 IPA SHA-256 `6c33c8a6c9d428085aea62fadde08b00e14b8c9de450bc75d178225d5c8ac6ff` |
 | Phase 0–1 release candidate | `1.0.0 (9)` |
 | App Store version | `1.0`, Prepare for Submission |
 | Internal group | `CSG Internal` |
@@ -42,6 +42,8 @@ Build 23 is the messaging-smoothness candidate from merged PR #141. It reduces w
 
 Build 25 is the premium-messaging candidate from merged PR #149. It adds recent-activity inbox ordering, native message actions and reactions, consolidated read receipts, an unread divider, bounded read positions, and notification navigation across mobile and web. The locally signed production IPA was built from exact merged-main commit `749f056809fc5423448dfffeb6abc32c80bb970c`, identifies itself as `com.codeschoolofguam.connect` version `1.0.0 (25)`, and passed package, App Store profile, team, production push-entitlement, and code-signature inspection. Its SHA-256 is `d04c9b9378499c09194e0e83d0e98d4e551d797ed3583de7efd20046dbce344e`. EAS submission `a6e5fbc5-be31-4bca-930c-05232c37f12a` reported a successful upload. Apple processing, internal group distribution, and physical iPhone acceptance still need confirmation. Build 24 was consumed by a failed local preflight before an IPA was produced. The focused tester script is in [`WHAT_TO_TEST_1.0.0_25.md`](WHAT_TO_TEST_1.0.0_25.md).
 
+Build 26 is the alumni-access and messaging-layout candidate from merged PR #151 at exact source commit `440e93fcae3674afbb8fa73af962c014fd7cf769`. It separates app sign-in from GitHub organization membership and pending invitations on staff web and native rosters, fixes the native message-recipient picker and keyboard behavior, and moves the desktop home progress badge clear of the illustration. The first local signing preflight advanced EAS remote versioning from 25 to 26, then stopped before compilation because Fastlane was missing from that process's PATH. The successful local archive used a temporary `autoIncrement: false` profile override; the repository profile was restored. The IPA identifies itself as `com.codeschoolofguam.connect` version `1.0.0 (26)`, uses App Store profile `c8de0f63-fa95-410b-8f3e-cfa655ae605f` for team `4T358A5S74` through 2027-08-15 UTC, has the production push entitlement, and passed code-signature verification. Its SHA-256 is `6c33c8a6c9d428085aea62fadde08b00e14b8c9de450bc75d178225d5c8ac6ff`. EAS submission `e2c2eadb-9abf-46b3-be1c-ff2837e28498` reported a successful Apple upload; Apple processing and internal tester availability still need confirmation. Focused tester steps are in [`WHAT_TO_TEST_1.0.0_26.md`](WHAT_TO_TEST_1.0.0_26.md).
+
 Verified iOS production history:
 
 | Build | EAS build ID | Submission or delivery ID | Submission and Apple state |
@@ -60,6 +62,7 @@ Verified iOS production history:
 | `22` | Local signed archive; no cloud EAS build ID | `ab62f5fc-5a90-44b8-884a-7d3d9e6425fe` | Finished; internal `IN_BETA_TESTING`, external beta ready for submission |
 | `23` | Local signed archive; no cloud EAS build ID | Apple delivery `a5e16a46-2b3c-4c41-972d-73aae8b08b82` | Direct upload succeeded; `VALID` and internal `IN_BETA_TESTING`. EAS job `8cd1a88c-7598-4377-920d-588215d77fc9` was canceled while queued. |
 | `25` | Local signed archive; no cloud EAS build ID | `a6e5fbc5-be31-4bca-930c-05232c37f12a` | EAS reported successful upload; Apple processing and internal availability unverified. |
+| `26` | Local signed archive; no cloud EAS build ID | `e2c2eadb-9abf-46b3-be1c-ff2837e28498` | EAS reported successful upload; Apple processing and internal availability unverified. |
 
 These are EAS or Apple delivery states plus App Store Connect status checks. Build 23 is the current verified internal TestFlight build. Public App Review remains separate.
 
@@ -169,7 +172,7 @@ Messaging-smoothness candidate preflight recorded on 2026-09-24:
 
 ## Physical TestFlight acceptance
 
-The invited tester must install the **exact build selected for public App Review** through TestFlight and complete this acceptance pass with real authorized accounts. Build 25 is the latest uploaded candidate as of 2026-09-27, but its Apple processing and internal availability are still unverified. Confirm the build number on the device before testing. The focused [build 25 script](WHAT_TO_TEST_1.0.0_25.md) supplements this broader checklist.
+The invited tester must install the **exact build selected for public App Review** through TestFlight and complete this acceptance pass with real authorized accounts. Build 26 is the latest uploaded candidate as of 2026-09-28, but its Apple processing and internal availability are still unverified. Confirm the build number on the device before testing. The focused [build 26 script](WHAT_TO_TEST_1.0.0_26.md) supplements this broader checklist.
 
 - sign in with Google and confirm unauthorized accounts receive the explicit no-access state;
 - verify student, instructor, and admin role scoping where test accounts are available;
