@@ -14,16 +14,17 @@ export function CourseCatalog() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [checkingOut, setCheckingOut] = useState<number | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     let active = true
     api.getCourseOfferings().then((result) => {
       if (!active) return
       setOfferings(result.data?.offerings || [])
-      setError(result.error)
+      setError(result.error ? 'Course listings could not load right now.' : null)
     }).finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [])
+  }, [reloadKey])
 
   useEffect(() => {
     if (searchParams.get('checkout') === 'return' && isSignedIn) void syncSession()
@@ -58,7 +59,7 @@ export function CourseCatalog() {
         <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">Study on your schedule with guided exercises and a real instructor available for course questions. Built in Guam for learners wherever they are.</p>
         {searchParams.get('checkout') === 'return' && <p role="status" className="mt-8 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-900">Thanks for checking out. Payment confirmation may take a moment; your course will appear in My learning after it is confirmed.</p>}
         {searchParams.get('checkout') === 'canceled' && <p role="status" className="mt-8 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">Checkout was canceled. You have not been enrolled.</p>}
-        {error && <p role="alert" className="mt-8 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">{error}</p>}
+        {error && offerings.length > 0 && <p role="alert" className="mt-8 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">{error}</p>}
         <div className="mt-12 grid gap-6 md:grid-cols-2">
           {offerings.map((offering) => {
             const enrolled = enrollments.some((entry) => entry.cohort.id === offering.id && hasCourseAccess(entry))
@@ -81,7 +82,11 @@ export function CourseCatalog() {
               </div>
             </article>
           })}
-          {!loading && offerings.length === 0 && <div className="rounded-2xl border border-slate-200 bg-white p-8 md:col-span-2"><h2 className="text-xl font-extrabold">Courses are being prepared</h2><p className="mt-2 text-sm leading-6 text-slate-600">We are recording and testing the first focused course. Enrollment will appear here when it opens.</p></div>}
+          {!loading && offerings.length === 0 && <div className="rounded-2xl border border-slate-200 bg-white p-8 md:col-span-2">
+            <h2 className="text-xl font-extrabold">{error ? 'Course listings are unavailable' : 'Courses are being prepared'}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">{error || 'We are recording and testing the first focused course. Enrollment will appear here when it opens.'}</p>
+            {error && <button type="button" onClick={() => { setLoading(true); setReloadKey((key) => key + 1) }} className="mt-5 inline-flex min-h-11 items-center rounded-xl border border-slate-300 px-4 text-sm font-bold text-slate-900 hover:bg-slate-50">Try again</button>}
+          </div>}
         </div>
       </div>
     </main>
