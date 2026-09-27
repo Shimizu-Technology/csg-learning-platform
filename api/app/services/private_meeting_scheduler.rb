@@ -23,6 +23,7 @@ class PrivateMeetingScheduler
 
   def self.book!(student:, slot:)
     config = slot.private_meeting_config
+    raise InvalidRequest, "Private meetings are not included with self-paced courses" if config.cohort.self_paced?
     enrollment = student.enrollments.active.find_by(cohort_id: config.cohort_id)
     raise InvalidRequest, "Private meetings are not available for this class" unless config.enabled? && enrollment
 

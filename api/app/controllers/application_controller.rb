@@ -15,6 +15,16 @@ class ApplicationController < ActionController::API
 
   private
 
+  def preferred_enrollment_for(scope, curriculum_id:)
+    matching = scope.where(cohorts: { curriculum_id: curriculum_id })
+    preferred_id = Integer(request.headers["X-CSG-Cohort-Id"], exception: false)
+    if preferred_id && preferred_id.positive?
+      preferred = matching.find_by(cohort_id: preferred_id)
+      return preferred if preferred
+    end
+    matching.first
+  end
+
   def capture_learning_request_started_at
     @learning_request_started_at = Time.current
   end
@@ -106,10 +116,9 @@ class ApplicationController < ActionController::API
     @active_enrollment_for_lesson_cache ||= {}
     return @active_enrollment_for_lesson_cache[cache_key] if @active_enrollment_for_lesson_cache.key?(cache_key)
 
-    @active_enrollment_for_lesson_cache[cache_key] = current_user.enrollments
+    @active_enrollment_for_lesson_cache[cache_key] = preferred_enrollment_for(current_user.enrollments
       .active
       .joins(:cohort)
-      .includes(:module_assignments, :lesson_assignments, cohort: [ :cohort_module_schedules, :cohort_module_submission_windows ])
-      .find_by(cohorts: { curriculum_id: curriculum_id })
+      .includes(:module_assignments, :lesson_assignments, cohort: [ :cohort_module_schedules, :cohort_module_submission_windows ]), curriculum_id: curriculum_id)
   end
 end

@@ -8,6 +8,7 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { formatShortDateTime } from '../../lib/format'
 import type { DashboardData } from '../../types/api'
+import { useSelectedCourse } from '../../components/student/CourseSwitcher'
 
 type MaterialFilter = 'ready' | 'all' | 'redo' | 'completed' | 'locked'
 
@@ -47,7 +48,9 @@ function readCollapsedModuleIds(cohortId: number | undefined): Set<number> {
 }
 
 export function Materials({ previewData, disableStaffRedirect = false }: MaterialsProps = {}) {
-  const { user } = useAuthContext()
+  const { user, enrollments } = useAuthContext()
+  const { selectedId, switcher } = useSelectedCourse()
+  const selectedEnrollment = enrollments.find((entry) => entry.cohort.id === selectedId)
   const navigate = useNavigate()
   const [data, setData] = useState<MaterialsData | null>(previewData || null)
   const [loading, setLoading] = useState(!previewData)
@@ -76,7 +79,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
     setLoadError(null)
     setShowingSavedData(false)
 
-    api.getDashboard()
+    api.getDashboard(selectedId)
       .then((res) => {
         if (res.data?.dashboard) {
           const dashboard = res.data.dashboard
@@ -92,7 +95,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
         setLoadError(error instanceof Error ? error.message : 'Unable to load your materials right now.')
       })
       .finally(() => setLoading(false))
-  }, [disableStaffRedirect, navigate, previewData, user])
+  }, [disableStaffRedirect, navigate, previewData, selectedId, user])
 
   useEffect(() => {
     loadMaterials()
@@ -216,12 +219,14 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
 
   return (
     <div className="app-page">
+      {switcher}
       {showingSavedData && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           Showing saved materials while your connection catches up.
         </div>
       )}
       <header className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_16px_50px_rgba(15,23,42,0.05)] sm:p-6">
+        {selectedEnrollment?.cohort.course_delivery === 'self_paced' && <p className="mb-4 rounded-xl bg-primary-50 px-4 py-3 text-xs font-semibold text-primary-900">Self-paced lesson access through {selectedEnrollment.access_expires_at ? new Date(selectedEnrollment.access_expires_at).toLocaleDateString() : 'your access period'}. {selectedEnrollment.support_expires_at ? (new Date(selectedEnrollment.support_expires_at) > new Date() ? `Instructor messaging through ${new Date(selectedEnrollment.support_expires_at).toLocaleDateString()}.` : 'Instructor messaging has ended.') : 'Instructor messaging starts when you first open the course.'}</p>}
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="app-eyebrow">{data.cohort?.name || 'Your cohort'}</p>

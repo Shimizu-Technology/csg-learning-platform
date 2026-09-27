@@ -92,11 +92,10 @@ module Api
       end
 
       def active_enrollment_for_curriculum(curriculum_id)
-        current_user.enrollments
+        preferred_enrollment_for(current_user.enrollments
           .active
           .joins(:cohort)
-          .includes(:module_assignments, cohort: :cohort_module_schedules)
-          .find_by(cohorts: { curriculum_id: curriculum_id })
+          .includes(:module_assignments, cohort: :cohort_module_schedules), curriculum_id: curriculum_id)
       end
 
       def module_json(mod, include_lessons: false, include_solutions: false)

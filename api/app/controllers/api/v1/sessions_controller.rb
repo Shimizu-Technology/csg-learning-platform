@@ -19,10 +19,14 @@ module Api
                 name: e.cohort.name,
                 cohort_type: e.cohort.cohort_type,
                 start_date: e.cohort.start_date,
-                status: e.cohort.status
+                status: e.cohort.status,
+                course_delivery: e.cohort.course_delivery
               },
               status: e.status,
-              enrolled_at: e.enrolled_at
+              enrolled_at: e.enrolled_at,
+              access_expires_at: e.access_expires_at,
+              first_opened_at: e.first_opened_at,
+              support_expires_at: e.support_expires_at
             }
           }
         }

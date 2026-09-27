@@ -11,6 +11,7 @@ import { formatShortDateTime } from '../../lib/format'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { WeeklyPlanCard } from '../../components/student/WeeklyPlan'
 import type { DashboardData, WeeklyPlan } from '../../types/api'
+import { useSelectedCourse } from '../../components/student/CourseSwitcher'
 
 function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return 'TBD'
@@ -25,7 +26,9 @@ interface DashboardProps {
 }
 
 export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disableStaffRedirect = false }: DashboardProps = {}) {
-  const { user } = useAuthContext()
+  const { user, enrollments } = useAuthContext()
+  const { selectedId, switcher } = useSelectedCourse()
+  const selectedEnrollment = enrollments.find((entry) => entry.cohort.id === selectedId)
   const navigate = useNavigate()
   const [data, setData] = useState<DashboardData | null>(previewData || null)
   const [loading, setLoading] = useState(!previewData)
@@ -61,7 +64,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
     setLoadError(null)
     setShowingSavedData(false)
 
-    api.getDashboard()
+    api.getDashboard(selectedId)
       .then((res) => {
         if (res.data) {
           setData(res.data.dashboard)
@@ -76,7 +79,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
         setLoadError(error instanceof Error ? error.message : 'Unable to load your dashboard right now.')
       })
       .finally(() => setLoading(false))
-  }, [disableStaffRedirect, navigate, previewData, user])
+  }, [disableStaffRedirect, navigate, previewData, selectedId, user])
 
   useEffect(() => {
     loadDashboard()
@@ -84,14 +87,19 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
 
   useEffect(() => {
     if (!user || previewData || user.is_staff) return
+    if (selectedEnrollment?.cohort.course_delivery === 'self_paced') {
+      setWeeklyPlan(null)
+      setWeeklyPlanLoaded(true)
+      return
+    }
     let active = true
     setWeeklyPlan(null)
     setWeeklyPlanLoaded(false)
-    api.getWeeklyPlan().then((res) => {
+    api.getWeeklyPlan(selectedId).then((res) => {
       if (active && res.data?.weekly_plan) setWeeklyPlan(res.data.weekly_plan)
     }).finally(() => { if (active) setWeeklyPlanLoaded(true) })
     return () => { active = false }
-  }, [previewData, user])
+  }, [previewData, selectedEnrollment?.cohort.course_delivery, selectedId, user])
 
   const retryAction = (
     <button
@@ -175,6 +183,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
 
   return (
     <div className="app-page max-w-5xl">
+      {switcher}
       {previewBanner}
       {showingSavedData && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">

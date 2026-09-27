@@ -8,6 +8,10 @@ module Api
 
       def create
         cohort = Cohort.find(params.require(:cohort_id))
+        if cohort.self_paced?
+          render json: { error: "Self-paced courses do not include private meetings" }, status: :unprocessable_entity
+          return
+        end
         instructor = User.find(params.require(:instructor_id))
         config = PrivateMeetingConfig.create!(cohort: cohort, instructor: instructor)
         render json: { config: { id: config.id, cohort_id: cohort.id, instructor_id: instructor.id } }, status: :created

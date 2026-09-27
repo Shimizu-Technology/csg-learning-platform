@@ -9,7 +9,7 @@ module Api
           return
         end
 
-        render json: { weekly_plan: WeeklyPlanProjection.new(current_user).call }
+        render json: { weekly_plan: WeeklyPlanProjection.new(current_user, cohort_id: params[:cohort_id]).call }
       end
     end
   end

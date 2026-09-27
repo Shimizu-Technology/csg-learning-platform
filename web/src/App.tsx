@@ -44,6 +44,7 @@ import {
   TeamManagement,
 } from './lib/routePreload'
 import { AccountDeletionPage, PrivacyPolicyPage, TermsPage } from './pages/Legal'
+import { CourseCatalog } from './pages/CourseCatalog'
 
 function RouteLoadingFallback() {
   const location = useLocation()
@@ -63,6 +64,7 @@ const routeTitles: Array<[RegExp, string]> = [
   [/^\/$/, 'CSG Learning Hub'],
   [/^\/sign-in/, 'Sign in'],
   [/^\/sign-up/, 'Create account'],
+  [/^\/courses/, 'Focused courses'],
   [/^\/privacy/, 'Privacy Policy'],
   [/^\/terms/, 'Terms & Community Guidelines'],
   [/^\/account-deletion/, 'Account deletion'],
@@ -113,6 +115,7 @@ function AppRoutes() {
       <RouteTitle />
       <Routes>
         <Route path="/" element={<SuspendedRoute><HomePage /></SuspendedRoute>} />
+        <Route path="/courses" element={<CourseCatalog />} />
         <Route path="/sign-in" element={<SuspendedRoute><SignInPage /></SuspendedRoute>} />
         <Route path="/sign-up" element={<SuspendedRoute><SignUpPage /></SuspendedRoute>} />
         <Route path="/privacy" element={<PrivacyPolicyPage />} />

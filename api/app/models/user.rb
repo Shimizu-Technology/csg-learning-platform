@@ -7,6 +7,7 @@ class User < ApplicationRecord
   scope :archived, -> { where.not(archived_at: nil) }
 
   has_many :enrollments, dependent: :destroy
+  has_many :course_purchases, dependent: :restrict_with_error
   has_many :cohorts, through: :enrollments
   has_many :progresses, dependent: :destroy
   has_many :submissions, dependent: :destroy

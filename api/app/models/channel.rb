@@ -23,11 +23,13 @@ class Channel < ApplicationRecord
 
     workspace_ids = Workspace.visible_for(user).select(:id)
     active.where(workspace_id: workspace_ids, visibility: visibilities[:cohort])
+      .where.not(cohort_id: Cohort.where(course_delivery: "self_paced").select(:id))
   end
 
   def visible_to?(user)
     return false unless user
     return true if user.staff?
+    return false if cohort&.self_paced?
     return false if staff_only?
 
     workspace.visible_to?(user)

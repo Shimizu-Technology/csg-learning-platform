@@ -1363,9 +1363,13 @@ export interface SessionEnrollment {
     cohort_type: string;
     start_date: string;
     status: string;
+    course_delivery?: 'program' | 'guided' | 'self_paced';
   };
   status: string;
   enrolled_at: string | null;
+  access_expires_at?: string | null;
+  first_opened_at?: string | null;
+  support_expires_at?: string | null;
 }
 
 export interface ProfileEnrollment {

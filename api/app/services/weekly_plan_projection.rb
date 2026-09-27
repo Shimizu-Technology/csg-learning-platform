@@ -3,9 +3,10 @@ class WeeklyPlanProjection
   RECORDING_LIMIT = 3
   UPCOMING_UNLOCK_LIMIT = 5
 
-  def initialize(user, now: Time.current)
+  def initialize(user, now: Time.current, cohort_id: nil)
     @user = user
     @now = now
+    @cohort_id = cohort_id
     @zone = Time.find_zone!(TIMEZONE)
     @today = LearningCalendar.today(at: now)
     @week_start = @today.beginning_of_week(:monday)
@@ -76,7 +77,7 @@ class WeeklyPlanProjection
   end
 
   def active_enrollment
-    @user.enrollments.active.includes(
+    scope = @user.enrollments.active.includes(
       :module_assignments,
       :lesson_assignments,
       cohort: [
@@ -86,7 +87,8 @@ class WeeklyPlanProjection
         :recordings,
         { curriculum: { modules: { lessons: :content_blocks } } }
       ]
-    ).first
+    )
+    @cohort_id.present? ? scope.find_by(cohort_id: @cohort_id) : scope.first
   end
 
   def assigned_modules

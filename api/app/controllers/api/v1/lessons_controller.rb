@@ -436,11 +436,10 @@ module Api
           return
         end
 
-        enrollment = current_user.enrollments
+        enrollment = preferred_enrollment_for(current_user.enrollments
           .active
           .joins(:cohort)
-          .includes(:module_assignments, cohort: [ :cohort_module_schedules, :cohort_module_submission_windows ])
-          .find_by(cohorts: { curriculum_id: @lesson.curriculum_module.curriculum_id })
+          .includes(:module_assignments, cohort: [ :cohort_module_schedules, :cohort_module_submission_windows ]), curriculum_id: @lesson.curriculum_module.curriculum_id)
 
         unless enrollment
           render_forbidden("Cannot access this lesson")
@@ -456,7 +455,10 @@ module Api
           return
         end
 
-        return if @lesson.available?(enrollment.cohort, assignment, lesson_assignment)
+        if @lesson.available?(enrollment.cohort, assignment, lesson_assignment)
+          enrollment.record_first_course_open!
+          return
+        end
 
         render_forbidden("Lesson is not unlocked yet")
       end
@@ -480,10 +482,9 @@ module Api
         json[:objectives] = objective_json(lesson, include_inactive: current_user.staff?)
 
         if current_user.student?
-          enrollment = @lesson_enrollment || current_user.enrollments.active
+          enrollment = @lesson_enrollment || preferred_enrollment_for(current_user.enrollments.active
             .joins(:cohort)
-            .includes(cohort: :cohort_module_submission_windows)
-            .find_by(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
+            .includes(cohort: :cohort_module_submission_windows), curriculum_id: lesson.curriculum_module.curriculum_id)
           if enrollment
             cohort = enrollment.cohort
             json[:cohort_id] = cohort.id
@@ -575,10 +576,9 @@ module Api
           current_index = sibling_lessons.index { |l| l.id == lesson.id }
 
           if current_index && !current_user.staff?
-            enrollment = current_user.enrollments.active
+            enrollment = preferred_enrollment_for(current_user.enrollments.active
               .joins(:cohort)
-              .includes(:cohort, :module_assignments, :lesson_assignments)
-              .find_by(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
+              .includes(:cohort, :module_assignments, :lesson_assignments), curriculum_id: lesson.curriculum_module.curriculum_id)
             if enrollment
               ma = enrollment.module_assignments.find_by(module_id: lesson.module_id)
               available_siblings = sibling_lessons.select { |l|

@@ -153,6 +153,12 @@ async function fetchApi<T>(
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
+      try {
+        const cohortId = globalThis.localStorage?.getItem('csg-selected-course-id');
+        if (cohortId && /^\d+$/.test(cohortId)) headers['X-CSG-Cohort-Id'] = cohortId;
+      } catch {
+        // Storage may be unavailable in a private browser.
+      }
     }
 
     try {
@@ -365,20 +371,24 @@ function queryString(params?: Record<string, string | number | boolean | null | 
 
 export const api = {
   // Auth
+  getCourseOfferings: () =>
+    fetchApi<{ offerings: Array<{ id: number; name: string; curriculum_name: string; checkout_available: boolean; price_cents: number | null; currency: 'USD'; access_months: number; instructor_message_weeks: number; instructor_response_target: string; includes_private_meetings: boolean; includes_individual_project_review: boolean }> }>('/api/v1/course_offerings', {}, false),
+  startCourseCheckout: (cohortId: number) =>
+    fetchApi<{ url: string }>('/api/v1/course_checkouts', { method: 'POST', body: JSON.stringify({ cohort_id: cohortId }) }),
   createSession: () =>
     fetchApi<SessionResponse>('/api/v1/sessions', { method: 'POST' }),
   updatePresence: () =>
     fetchApi<{ last_seen_at: string }>('/api/v1/presence', { method: 'POST' }),
 
   // Dashboard
-  getDashboard: () =>
-    fetchApi<DashboardResponse>('/api/v1/dashboard'),
-  getWeeklyPlan: () =>
-    fetchApi<WeeklyPlanResponse>('/api/v1/weekly_plan'),
+  getDashboard: (cohortId?: number) =>
+    fetchApi<DashboardResponse>(`/api/v1/dashboard${queryString({ cohort_id: cohortId })}`),
+  getWeeklyPlan: (cohortId?: number) =>
+    fetchApi<WeeklyPlanResponse>(`/api/v1/weekly_plan${queryString({ cohort_id: cohortId })}`),
   getRecordings: () =>
     fetchApi<RecordingsResponse>('/api/v1/recordings'),
-  getResources: () =>
-    fetchApi<ResourcesResponse>('/api/v1/resources'),
+  getResources: (cohortId?: number) =>
+    fetchApi<ResourcesResponse>(`/api/v1/resources${queryString({ cohort_id: cohortId })}`),
   getAnnouncements: (params?: {
     scope?: 'manage';
     page?: number;

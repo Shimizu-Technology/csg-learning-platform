@@ -10,6 +10,9 @@ Rails.application.routes.draw do
 
       # Auth
       post "sessions", to: "sessions#create"
+      get "course_offerings", to: "course_offerings#index"
+      post "course_checkouts", to: "course_checkouts#create"
+      post "course_checkout_webhooks", to: "course_checkout_webhooks#create"
       post "presence", to: "presence#create"
       post "web_handoffs", to: "web_handoffs#create"
 

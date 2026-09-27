@@ -48,7 +48,10 @@ class DirectConversation < ApplicationRecord
   end
 
   def can_post?(user)
-    active? && visible_to?(user) && !blocked_for?(user)
+    return false unless active? && visible_to?(user) && !blocked_for?(user)
+    return true unless workspace.cohort&.self_paced? && user.student?
+
+    user.enrollments.active.find_by(cohort: workspace.cohort)&.instructor_support_active? || false
   end
 
   def blocked_for?(user)

@@ -115,19 +115,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_010000) do
 
   create_table "cohorts", force: :cascade do |t|
     t.integer "cohort_type", default: 0, null: false
+    t.string "course_delivery", default: "program", null: false
     t.datetime "created_at", null: false
     t.bigint "curriculum_id", null: false
     t.date "end_date"
     t.string "github_organization_name"
     t.string "name", null: false
+    t.boolean "public_checkout_enabled", default: false, null: false
+    t.integer "public_price_cents"
     t.string "repository_name", default: "prework-exercises"
     t.boolean "requires_github", default: false, null: false
+    t.integer "self_paced_access_months", default: 12, null: false
+    t.integer "self_paced_support_weeks", default: 6, null: false
     t.jsonb "settings", default: {}, null: false
     t.date "start_date", null: false
     t.integer "status", default: 0, null: false
+    t.string "stripe_price_id"
+    t.bigint "support_instructor_id"
     t.datetime "updated_at", null: false
     t.index ["curriculum_id"], name: "index_cohorts_on_curriculum_id"
     t.index ["status"], name: "index_cohorts_on_status"
+    t.index ["support_instructor_id"], name: "index_cohorts_on_support_instructor_id"
+    t.check_constraint "course_delivery::text = ANY (ARRAY['program'::character varying::text, 'guided'::character varying::text, 'self_paced'::character varying::text])", name: "cohort_course_delivery_valid"
+    t.check_constraint "public_price_cents IS NULL OR public_price_cents > 0", name: "cohort_public_price_positive"
+    t.check_constraint "self_paced_access_months > 0 AND self_paced_support_weeks > 0", name: "cohort_self_paced_terms_positive"
   end
 
   create_table "content_blocks", force: :cascade do |t|
@@ -177,6 +188,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_010000) do
     t.index ["reporter_id"], name: "index_content_reports_on_reporter_id"
     t.index ["reviewed_by_id"], name: "index_content_reports_on_reviewed_by_id"
     t.index ["status", "created_at"], name: "index_content_reports_on_status_and_created_at"
+  end
+
+  create_table "course_purchases", force: :cascade do |t|
+    t.datetime "checkout_expires_at"
+    t.text "checkout_url"
+    t.bigint "cohort_id", null: false
+    t.datetime "created_at", null: false
+    t.integer "price_cents"
+    t.string "status", default: "pending", null: false
+    t.string "stripe_payment_intent_id"
+    t.string "stripe_price_id", null: false
+    t.string "stripe_session_id"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["cohort_id"], name: "index_course_purchases_on_cohort_id"
+    t.index ["stripe_payment_intent_id"], name: "index_course_purchases_on_stripe_payment_intent_id", unique: true
+    t.index ["stripe_session_id"], name: "index_course_purchases_on_stripe_session_id", unique: true
+    t.index ["user_id", "cohort_id"], name: "index_course_purchases_on_user_id_and_cohort_id", unique: true
+    t.index ["user_id"], name: "index_course_purchases_on_user_id"
+    t.check_constraint "price_cents IS NULL OR price_cents > 0", name: "course_purchase_price_positive"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'paid'::character varying, 'expired'::character varying, 'failed'::character varying, 'refunded'::character varying, 'disputed'::character varying]::text[])", name: "course_purchase_status_valid"
   end
 
   create_table "curricula", force: :cascade do |t|
@@ -245,14 +277,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_010000) do
   end
 
   create_table "enrollments", force: :cascade do |t|
+    t.datetime "access_expires_at"
     t.bigint "cohort_id", null: false
     t.datetime "completed_at"
     t.datetime "created_at", null: false
     t.datetime "enrolled_at"
+    t.datetime "first_opened_at"
     t.datetime "learning_state_reset_at"
     t.integer "status", default: 0, null: false
+    t.datetime "support_expires_at"
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
+    t.index ["access_expires_at"], name: "index_enrollments_on_access_expires_at"
     t.index ["cohort_id"], name: "index_enrollments_on_cohort_id"
     t.index ["user_id", "cohort_id"], name: "index_enrollments_on_user_id_and_cohort_id", unique: true
     t.index ["user_id"], name: "index_enrollments_on_user_id"
@@ -1056,6 +1092,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_010000) do
   add_foreign_key "cohort_module_submission_windows", "users", column: "created_by_id"
   add_foreign_key "cohort_module_submission_windows", "users", column: "updated_by_id"
   add_foreign_key "cohorts", "curricula", column: "curriculum_id"
+  add_foreign_key "cohorts", "users", column: "support_instructor_id"
   add_foreign_key "content_blocks", "lessons"
   add_foreign_key "content_blocks", "rubrics"
   add_foreign_key "content_blocks", "users", column: "s3_video_uploaded_by_id"
@@ -1063,6 +1100,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_010000) do
   add_foreign_key "content_reports", "users", column: "reported_user_id"
   add_foreign_key "content_reports", "users", column: "reporter_id"
   add_foreign_key "content_reports", "users", column: "reviewed_by_id"
+  add_foreign_key "course_purchases", "cohorts"
+  add_foreign_key "course_purchases", "users"
   add_foreign_key "data_deletion_requests", "users"
   add_foreign_key "data_deletion_requests", "users", column: "resolved_by_id"
   add_foreign_key "direct_conversation_members", "direct_conversations"

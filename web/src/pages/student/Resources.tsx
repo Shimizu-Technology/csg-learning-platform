@@ -6,6 +6,7 @@ import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { IconButton } from '../../components/ui/Button'
+import { useSelectedCourse } from '../../components/student/CourseSwitcher'
 
 interface ResourceItem {
   id: number
@@ -26,6 +27,7 @@ const categoryConfig: Record<string, { label: string; icon: typeof Globe; color:
 }
 
 export function Resources() {
+  const { selectedId, switcher } = useSelectedCourse()
   const [resources, setResources] = useState<ResourceItem[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -38,7 +40,7 @@ export function Resources() {
     setLoadError(null)
     setShowingSavedData(false)
 
-    api.getResources()
+    api.getResources(selectedId)
       .then((res) => {
         if (res.data?.resources) {
           setResources(res.data.resources)
@@ -53,7 +55,7 @@ export function Resources() {
         setLoadError(error instanceof Error ? error.message : 'Unable to load resources right now.')
       })
       .finally(() => setLoading(false))
-  }, [])
+  }, [selectedId])
 
   useEffect(() => {
     loadResources()
@@ -89,7 +91,7 @@ export function Resources() {
 
   if (loadError && resources.length === 0) {
     return (
-      <EmptyState
+      <div className="app-page max-w-5xl">{switcher}<EmptyState
         icon={WifiOff}
         title="Could not load resources"
         description={loadError}
@@ -103,22 +105,23 @@ export function Resources() {
             Try again
           </button>
         }
-      />
+      /></div>
     )
   }
 
   if (resources.length === 0) {
     return (
-      <EmptyState
+      <div className="app-page max-w-5xl">{switcher}<EmptyState
         icon={Link2}
         title="No resources yet"
         description="Class resources will appear here once your instructor adds them."
-      />
+      /></div>
     )
   }
 
   return (
     <div className="app-page max-w-5xl">
+      {switcher}
       {showingSavedData && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           Showing saved resources while your connection catches up.

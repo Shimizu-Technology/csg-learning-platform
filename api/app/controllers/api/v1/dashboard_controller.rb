@@ -25,12 +25,14 @@ module Api
             :private_meeting_config,
             { curriculum: { modules: { lessons: :content_blocks } } }
           ]
-        ).first
+        ).find { |item| item.cohort_id == params[:cohort_id].to_i } || (params[:cohort_id].present? ? nil : current_user.enrollments.active.first)
 
         unless enrollment
           render json: { dashboard: { enrolled: false, user: user_summary } }
           return
         end
+
+        enrollment.record_first_course_open!
 
         cohort = enrollment.cohort
         curriculum = cohort.curriculum

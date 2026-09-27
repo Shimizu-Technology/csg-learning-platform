@@ -28,6 +28,7 @@ class HelpRequestContext
 
     enrollment = @student.enrollments.active.includes(:module_assignments, :lesson_assignments, cohort: :curriculum).find_by(cohort_id: @cohort_id)
     raise InvalidContext, "You do not have access to this cohort" unless enrollment
+    raise InvalidContext, "Instructor help is available with guided courses" if enrollment.cohort.self_paced?
 
     case @context_type
     when "lesson" then resolve_lesson(enrollment)

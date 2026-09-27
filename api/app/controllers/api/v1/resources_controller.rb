@@ -8,7 +8,9 @@ module Api
         cohorts = if current_user.staff?
           Cohort.where(status: %i[active upcoming]).order(start_date: :desc)
         else
-          current_user.enrollments.active.includes(:cohort).limit(1).map(&:cohort)
+          scope = current_user.enrollments.active.includes(:cohort)
+          enrollment = params[:cohort_id].present? ? scope.find_by(cohort_id: params[:cohort_id]) : scope.first
+          enrollment ? [ enrollment.cohort ] : []
         end
         if cohorts.empty?
           render json: { resources: [] }
