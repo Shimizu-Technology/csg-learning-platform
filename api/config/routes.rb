@@ -166,6 +166,7 @@ Rails.application.routes.draw do
         resource :learning_insights, only: :show, controller: "cohort_learning_insights"
         member do
           get :student_view
+          get :github_access
           patch :module_access
           patch :announcements
           patch :recordings

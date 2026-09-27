@@ -269,6 +269,7 @@ export function CohortManagement() {
                   <StatusBadge status={cohort.status} />
                 </div>
                 <p className="text-sm text-slate-500">{cohort.curriculum_name}</p>
+                <p className="mt-1 text-xs font-bold text-primary-700">Open for access and invitation status</p>
                 <div className="flex items-center gap-4 mt-2 text-xs text-slate-400">
                   <span className="inline-flex items-center gap-1">
                     <Calendar className="h-3.5 w-3.5" />

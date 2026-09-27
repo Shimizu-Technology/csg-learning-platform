@@ -873,6 +873,13 @@ export interface CohortStudent {
   }[];
 }
 
+export type GithubAccessStatus = 'member' | 'invited' | 'not_invited' | 'username_missing';
+export interface GithubAccessResponse {
+  organization: string;
+  checked_at: string;
+  statuses: Record<string, GithubAccessStatus>;
+}
+
 export interface CohortModule {
   id: number;
   name: string;

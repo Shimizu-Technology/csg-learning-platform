@@ -275,7 +275,7 @@ export function StudentManagement() {
                   <div className="text-left">
                     <h2 className="text-base font-semibold text-slate-900">{group.cohort.name}</h2>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      {group.cohort.enrolled_count} enrolled · {group.cohort.active_count} active
+                      {group.cohort.enrolled_count} enrolled · {group.cohort.active_count} active enrollments
                       {group.ungraded_count > 0 && (
                         <span className="text-amber-600 font-medium"> · {group.ungraded_count} ungraded</span>
                       )}
@@ -283,11 +283,11 @@ export function StudentManagement() {
                   </div>
                   <div className="flex items-center gap-3">
                     <Link
-                      to={`/admin/cohorts/${group.cohort.id}`}
+                      to={`/admin/cohorts/${group.cohort.id}?tab=students`}
                       onClick={e => e.stopPropagation()}
                       className="text-xs text-primary-600 hover:underline"
                     >
-                      View Cohort
+                      Access & invitations
                     </Link>
                     <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
                   </div>

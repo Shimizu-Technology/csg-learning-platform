@@ -170,7 +170,7 @@ export function HomePage() {
                   </div>
                 </div>
               </div>
-              <div className="absolute -bottom-5 -left-4 hidden items-center gap-2 rounded-2xl border border-white/10 bg-[#22252d] px-3 py-2 text-xs font-bold text-white shadow-xl sm:flex">
+              <div className="mt-4 hidden w-fit items-center gap-2 rounded-2xl border border-white/10 bg-[#22252d] px-3 py-2 text-xs font-bold text-white shadow-xl sm:flex">
                 <ShieldCheck className="h-4 w-4 text-green-400" />
                 Progress saved automatically
               </div>

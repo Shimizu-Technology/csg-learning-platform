@@ -544,6 +544,7 @@ The server authorizes the subscription against the same channel visibility rules
 |--------|------|------|-------------|
 | `GET` | `/api/v1/cohorts` | Staff | List all cohorts |
 | `GET` | `/api/v1/cohorts/:id` | Staff | Show cohort with enrollments |
+| `GET` | `/api/v1/cohorts/:id/github_access` | Staff | Current GitHub organization membership and invitation status by enrolled user ID |
 | `GET` | `/api/v1/cohorts/:id/student_view` | Staff | Read-only preview of the cohort's student experience |
 | `POST` | `/api/v1/cohorts` | Admin | Create cohort |
 | `PATCH` | `/api/v1/cohorts/:id` | Admin | Update cohort |

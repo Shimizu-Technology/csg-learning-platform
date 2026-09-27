@@ -253,6 +253,19 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "only staff can inspect GitHub organization access" do
+    as_user(@student) do
+      get "/api/v1/cohorts/#{@cohort.id}/github_access", headers: auth_headers
+    end
+    assert_response :forbidden
+
+    as_user(@instructor) do
+      get "/api/v1/cohorts/#{@cohort.id}/github_access", headers: auth_headers
+    end
+    assert_response :bad_gateway
+    assert_match "unavailable", JSON.parse(response.body).fetch("error")
+  end
+
   test "instructor cannot create cohort (admin-only)" do
     as_user(@instructor) do
       post "/api/v1/cohorts",

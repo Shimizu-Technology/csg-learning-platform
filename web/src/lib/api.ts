@@ -733,6 +733,8 @@ export const api = {
     fetchApi<CohortsListResponse>('/api/v1/cohorts'),
   getCohort: (id: number) =>
     fetchApi<CohortResponse>(`/api/v1/cohorts/${id}`),
+  getCohortGithubAccess: (id: number) =>
+    fetchApi<import('../types/api').GithubAccessResponse>(`/api/v1/cohorts/${id}/github_access`),
   getCohortStudentView: (id: number) =>
     fetchApi<CohortStudentViewResponse>(`/api/v1/cohorts/${id}/student_view`),
   createCohort: (data: { name: string; cohort_type: string; curriculum_id: number; start_date: string; end_date?: string; status?: string }) =>
