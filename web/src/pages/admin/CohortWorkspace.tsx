@@ -8,7 +8,7 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { Button } from '../../components/ui/Button'
-import type { CohortDetail, LearningInsights, LearningEvidenceStatus } from '../../types/api'
+import type { CohortDetail, GithubAccessResponse, GithubAccessStatus, LearningInsights, LearningEvidenceStatus } from '../../types/api'
 
 type CohortTab = 'overview' | 'students' | 'learning' | 'insights' | 'schedule'
 const tabs: Array<{ id: CohortTab; label: string; icon: typeof Users }> = [
@@ -69,13 +69,13 @@ export function CohortWorkspace() {
   return <div className="app-page-wide space-y-6">
     <header>
       <Link to="/admin/cohorts" className="app-link inline-flex min-h-11 items-center gap-1 text-sm font-bold"><ArrowLeft className="h-4 w-4" />Cohorts</Link>
-      <div className="mt-2 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><div className="flex flex-wrap items-center gap-3"><h1 className="app-title">{cohort.name}</h1><span className={`rounded-full px-2.5 py-1 text-xs font-bold capitalize ${cohort.status === 'active' ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-600'}`}>{cohort.status}</span></div><p className="app-description mt-2">{cohort.curriculum_name} · {activeStudents.length} active student{activeStudents.length === 1 ? '' : 's'}</p></div><div className="flex flex-wrap gap-2"><Link to={`/admin/cohorts/${cohort.id}/student-view${activeStudents[0] ? `?student_id=${activeStudents[0].user_id}` : ''}`} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 hover:border-primary-300 hover:text-primary-700"><Eye className="h-4 w-4" />Preview student view</Link><Link to={`/admin/cohorts/${cohort.id}/settings`} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white hover:bg-slate-800"><Settings2 className="h-4 w-4" />Manage cohort</Link></div></div>
+      <div className="mt-2 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><div className="flex flex-wrap items-center gap-3"><h1 className="app-title">{cohort.name}</h1><span className={`rounded-full px-2.5 py-1 text-xs font-bold capitalize ${cohort.status === 'active' ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-600'}`}>{cohort.status}</span></div><p className="app-description mt-2">{cohort.curriculum_name} · {cohort.students.length} enrolled student{cohort.students.length === 1 ? '' : 's'}</p></div><div className="flex flex-wrap gap-2"><Link to={`/admin/cohorts/${cohort.id}/student-view${activeStudents[0] ? `?student_id=${activeStudents[0].user_id}` : ''}`} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 hover:border-primary-300 hover:text-primary-700"><Eye className="h-4 w-4" />Preview student view</Link><Link to={`/admin/cohorts/${cohort.id}/settings`} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white hover:bg-slate-800"><Settings2 className="h-4 w-4" />Manage cohort</Link></div></div>
     </header>
 
-    <nav aria-label="Cohort workspace sections" className="overflow-x-auto border-b border-slate-200"><div className="flex min-w-max gap-1">{tabs.map(({ id: tabId, label, icon: Icon }) => <Link key={tabId} to={tabId === 'overview' ? `/admin/cohorts/${cohort.id}` : `/admin/cohorts/${cohort.id}?tab=${tabId}`} aria-current={activeTab === tabId ? 'page' : undefined} className={`inline-flex min-h-11 items-center gap-2 border-b-2 px-4 text-sm font-extrabold ${activeTab === tabId ? 'border-primary-600 text-primary-700' : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-900'}`}><Icon className="h-4 w-4" />{label}</Link>)}</div></nav>
+    <nav aria-label="Cohort workspace sections" className="overflow-x-auto border-b border-slate-200"><div className="flex min-w-max gap-1">{tabs.map(({ id: tabId, label, icon: Icon }) => <Link key={tabId} to={tabId === 'overview' ? `/admin/cohorts/${cohort.id}` : `/admin/cohorts/${cohort.id}?tab=${tabId}`} aria-current={activeTab === tabId ? 'page' : undefined} className={`inline-flex min-h-11 items-center gap-2 border-b-2 px-3 text-sm font-extrabold sm:px-4 ${activeTab === tabId ? 'border-primary-600 text-primary-700' : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-900'}`}><Icon className="h-4 w-4" />{label}</Link>)}</div></nav>
 
     {activeTab === 'overview' && <Overview cohort={cohort} />}
-    {activeTab === 'students' && <Students cohort={cohort} />}
+    {activeTab === 'students' && <Students key={cohort.id} cohort={cohort} />}
     {activeTab === 'learning' && <Learning cohort={cohort} />}
     {activeTab === 'insights' && <Insights cohort={cohort} insights={insights} loading={insightsLoading} error={insightsError} onRetry={() => void loadInsights()} />}
     {activeTab === 'schedule' && <Schedule cohort={cohort} />}
@@ -89,8 +89,46 @@ function Overview({ cohort }: { cohort: CohortDetail }) {
 }
 
 function Students({ cohort }: { cohort: CohortDetail }) {
+  const [github, setGithub] = useState<GithubAccessResponse | null>(null)
+  const [githubError, setGithubError] = useState<string | null>(null)
+  const [githubLoading, setGithubLoading] = useState(false)
+  const [filter, setFilter] = useState('all')
+  const [search, setSearch] = useState('')
+  const loadGithub = useCallback(async () => {
+    if (!cohort.github_organization_name) return
+    setGithubLoading(true)
+    const result = await api.getCohortGithubAccess(cohort.id)
+    if (result.data && !result.error && !result.fromCache) { setGithub(result.data); setGithubError(null) }
+    else { setGithub(null); setFilter('all'); setGithubError(result.error || 'Could not check GitHub access.') }
+    setGithubLoading(false)
+  }, [cohort.id, cohort.github_organization_name])
+  useEffect(() => { void loadGithub() }, [loadGithub])
+
+  const status = (id: number): GithubAccessStatus | 'unavailable' => github?.statuses[String(id)] || 'unavailable'
+  const visible = cohort.students.filter((student) => {
+    const text = `${student.full_name} ${student.email} ${student.github_username || ''}`.toLowerCase()
+    const matchesFilter = filter === 'all' ||
+      (filter === 'app_pending' && !student.last_sign_in_at) ||
+      (filter === 'github_member' && status(student.user_id) === 'member') ||
+      (filter === 'github_invited' && status(student.user_id) === 'invited') ||
+      (filter === 'github_followup' && ['not_invited', 'username_missing'].includes(status(student.user_id)))
+    return matchesFilter && text.includes(search.trim().toLowerCase())
+  })
+  const githubLabels: Record<GithubAccessStatus | 'unavailable', string> = { member: 'Joined GitHub org', invited: 'GitHub invite pending', not_invited: 'No current GitHub invite', username_missing: 'GitHub username needed', unavailable: 'GitHub status unavailable' }
+  const githubTones: Record<GithubAccessStatus | 'unavailable', string> = { member: 'bg-green-50 text-green-700', invited: 'bg-amber-50 text-amber-800', not_invited: 'bg-red-50 text-red-700', username_missing: 'bg-slate-100 text-slate-700', unavailable: 'bg-slate-100 text-slate-600' }
   if (!cohort.students.length) return <EmptyState icon={Users} title="No students enrolled" description="Use Manage cohort to add a student." />
-  return <section className="app-surface overflow-hidden"><div className="border-b border-slate-100 px-5 py-4"><h2 className="font-extrabold text-slate-950">Enrolled students</h2><p className="mt-1 text-sm text-slate-500">Each row opens the student’s cohort-scoped workspace.</p></div><div className="divide-y divide-slate-100">{cohort.students.map((student) => <div key={student.enrollment_id} className="grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"><Link to={cohortStudentPath(cohort.id, student.user_id)} className="min-w-0"><p className="truncate font-extrabold text-slate-900 hover:text-primary-700">{student.full_name || student.email}</p><p className="truncate text-sm text-slate-500">{student.email} · {student.status}</p></Link><div className="flex gap-2"><Link to={`/admin/cohorts/${cohort.id}/student-view?student_id=${student.user_id}`} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-600 hover:border-primary-300"><Eye className="h-4 w-4" />Preview</Link><Link to={cohortStudentPath(cohort.id, student.user_id, 'communication')} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-600 hover:border-primary-300"><MessageSquareText className="h-4 w-4" />Messages</Link></div></div>)}</div></section>
+  return <section className="app-surface overflow-hidden">
+    <div className="border-b border-slate-100 px-5 py-5 sm:px-6">
+      <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-extrabold text-slate-950">Access and invitations</h2><p className="mt-1 text-sm text-slate-600">App sign-in and GitHub organization membership are separate. Enrollment alone does not mean an invitation was accepted.</p></div>{cohort.github_organization_name && <button type="button" onClick={() => void loadGithub()} disabled={githubLoading} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700 disabled:opacity-50"><RefreshCw className="h-4 w-4" />{githubLoading ? 'Checking…' : 'Refresh GitHub'}</button>}</div>
+      {githubError && <p role="status" className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{githubError} App statuses are still available.</p>}
+      {!cohort.github_organization_name && <p className="mt-3 text-sm text-slate-500">No GitHub organization is configured for this cohort.</p>}
+      {github && <p className="mt-2 text-xs text-slate-500">GitHub checked {new Date(github.checked_at).toLocaleString()} · {github.organization}</p>}
+      <div className="mt-4 grid gap-2 sm:grid-cols-3"><div className="rounded-xl bg-slate-50 px-4 py-3"><p className="text-xl font-extrabold text-slate-950">{cohort.students.filter((student) => student.last_sign_in_at).length}</p><p className="text-xs font-bold text-slate-600">signed in to app</p></div><div className="rounded-xl bg-green-50 px-4 py-3"><p className="text-xl font-extrabold text-green-800">{github ? cohort.students.filter((student) => status(student.user_id) === 'member').length : '—'}</p><p className="text-xs font-bold text-green-800">joined GitHub org</p></div><div className="rounded-xl bg-amber-50 px-4 py-3"><p className="text-xl font-extrabold text-amber-900">{github ? cohort.students.filter((student) => status(student.user_id) === 'invited').length : '—'}</p><p className="text-xs font-bold text-amber-900">GitHub invites pending</p></div></div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]"><label className="relative"><span className="sr-only">Search enrolled students</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, email, or GitHub username" className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm focus-visible:outline-2 focus-visible:outline-primary-600" /></label><label><span className="sr-only">Filter access status</span><select value={filter} onChange={(event) => setFilter(event.target.value)} className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"><option value="all">All enrolled</option><option value="app_pending">Not signed in to app</option><option value="github_member" disabled={!github}>Joined GitHub org</option><option value="github_invited" disabled={!github}>GitHub invite pending</option><option value="github_followup" disabled={!github}>GitHub follow-up needed</option></select></label></div>
+      <p aria-live="polite" className="mt-3 text-xs font-bold text-slate-500">Showing {visible.length} of {cohort.students.length} enrolled</p>
+    </div>
+    <div className="divide-y divide-slate-100">{visible.map((student) => { const githubStatus = status(student.user_id); const appLabel = student.last_sign_in_at ? 'Signed in to app' : student.invite_pending ? `App invite ${student.invite_delivery_status === 'failed' ? 'failed' : student.invite_delivery_status === 'queued' ? 'queued' : student.invite_delivery_status === 'not_sent' ? 'not sent' : 'sent'}` : 'App account ready · no sign-in'; return <div key={student.enrollment_id} className="grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6"><div className="min-w-0"><Link to={cohortStudentPath(cohort.id, student.user_id)} className="font-extrabold text-slate-900 hover:text-primary-700">{student.full_name || student.email}</Link><p className="break-all text-sm text-slate-500">{student.email}{student.github_username ? ` · @${student.github_username}` : ''}</p><div className="mt-2 flex flex-wrap gap-2"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${student.last_sign_in_at ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-800'}`}>{appLabel}</span>{cohort.github_organization_name && <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${githubTones[githubStatus]}`}>{githubLabels[githubStatus]}</span>}</div></div><div className="flex flex-wrap gap-2"><Link to={`/admin/cohorts/${cohort.id}/student-view?student_id=${student.user_id}`} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-600 hover:border-primary-300"><Eye className="h-4 w-4" />Preview</Link><Link to={cohortStudentPath(cohort.id, student.user_id, 'communication')} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-600 hover:border-primary-300"><MessageSquareText className="h-4 w-4" />Messages</Link></div></div> })}{!visible.length && <p className="px-5 py-8 text-sm text-slate-500">No students match this search and filter.</p>}</div>
+  </section>
 }
 
 function Learning({ cohort }: { cohort: CohortDetail }) {

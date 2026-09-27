@@ -10,8 +10,29 @@ function successfulFetch() {
 }
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllGlobals()
   setAuthTokenGetter(async () => null)
+})
+
+describe('GitHub organization access timeout', () => {
+  it('accepts a successful lookup after the normal 12-second request limit', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn().mockImplementation((_url: string, options: RequestInit) => new Promise((resolve, reject) => {
+      const timer = setTimeout(() => resolve({ ok: true, status: 200, text: async () => JSON.stringify({ organization: 'alumni', statuses: {} }) }), 13_000)
+      options.signal?.addEventListener('abort', () => {
+        clearTimeout(timer)
+        reject(new DOMException('The request was aborted', 'AbortError'))
+      }, { once: true })
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const request = api.getCohortGithubAccess(4)
+    await vi.advanceTimersByTimeAsync(13_000)
+
+    expect(await request).toEqual({ data: { organization: 'alumni', statuses: {} }, error: null, status: 200 })
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
 })
 
 describe('message API wire format', () => {

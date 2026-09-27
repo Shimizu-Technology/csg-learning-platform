@@ -24,10 +24,20 @@ module Api
             user: current_user,
             content_block: content_block
           )
-
+          previous_status = progress.status
           progress.status = params[:status]
 
           if progress.save
+            if previous_status != progress.status && (progress.completed? || previous_status == "completed")
+              video = %w[video recording].include?(content_block.block_type)
+              ActivityEvent.record!(
+                event_type: progress.completed? ? "checkpoint_completed" : "checkpoint_reopened",
+                actor: current_user,
+                cohort: @learning_write_enrollment&.cohort,
+                record: content_block,
+                evidence: video ? "player_reported" : "server_record"
+              )
+            end
             render json: {
               progress: {
                 id: progress.id,

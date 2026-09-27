@@ -183,6 +183,7 @@ CLERK_PRODUCTION_AUTHORIZED_PARTIES=https://learn.codeschoolofguam.com
 CLERK_PRIMARY_ENVIRONMENT=development
 MAILER_FROM_EMAIL=noreply@codeschoolofguam.com
 RESEND_API_KEY=re_...
+# Token owner must actively belong to each configured GitHub organization and be able to read its full member list.
 GITHUB_ORGANIZATION_ADMIN_TOKEN=ghp_...
 AWS_ACCESS_KEY_ID=<iam access key for S3 uploads>
 AWS_SECRET_ACCESS_KEY=<iam secret for S3 uploads>

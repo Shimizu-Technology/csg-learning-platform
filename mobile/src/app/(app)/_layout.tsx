@@ -30,6 +30,7 @@ export default function AppLayout() {
   return (
     <Stack screenOptions={{ headerStyle: { backgroundColor: palette.ink }, headerTintColor: palette.text, headerShadowVisible: false, contentStyle: { backgroundColor: palette.ink } }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="activity" options={{ headerShown: false }} />
       <Stack.Screen name="conversation/[kind]/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="thread/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="module/[id]" options={{ headerShown: false }} />
@@ -39,6 +40,7 @@ export default function AppLayout() {
       <Stack.Screen name="recordings/link" options={{ headerShown: false }} />
       <Stack.Screen name="recording/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="staff/student/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="staff/access" options={{ title: 'Student access' }} />
       <Stack.Screen name="staff/submission/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="staff/grading" options={{ headerShown: false }} />
       <Stack.Screen name="staff/curriculum/[id]" options={{ headerShown: false }} />

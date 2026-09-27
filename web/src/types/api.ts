@@ -873,6 +873,13 @@ export interface CohortStudent {
   }[];
 }
 
+export type GithubAccessStatus = 'member' | 'invited' | 'not_invited' | 'username_missing';
+export interface GithubAccessResponse {
+  organization: string;
+  checked_at: string;
+  statuses: Record<string, GithubAccessStatus>;
+}
+
 export interface CohortModule {
   id: number;
   name: string;
@@ -1797,4 +1804,22 @@ export interface ContentBlockResponse {
 
 export interface ContentBlocksListResponse {
   content_blocks: ContentBlock[];
+}
+export interface ActivityEvent {
+  id: number
+  event_type: string
+  actor: { id: number; name: string; role: string }
+  subject_user_id: number
+  cohort_id: number | null
+  cohort_name: string | null
+  record_type: string | null
+  record_id: number | null
+  record_label: string | null
+  evidence: 'server_record' | 'player_reported'
+  created_at: string
+}
+
+export interface ActivityEventsResponse {
+  activity_events: ActivityEvent[]
+  next_before_id: number | null
 }

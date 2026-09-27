@@ -25,6 +25,7 @@ module ClerkAuthenticatable
     end
 
     @current_clerk_issuer = ClerkEnvironment.normalize_issuer(issuer)
+    @current_clerk_session_id = decoded["sid"].presence
     @current_clerk_environment = decoded["_clerk_environment"]
     if Rails.env.production? && %w[development legacy].include?(@current_clerk_environment)
       Rails.logger.info("[ClerkAuth] legacy_development_session")
