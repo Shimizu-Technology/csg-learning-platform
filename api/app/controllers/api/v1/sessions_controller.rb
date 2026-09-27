@@ -5,9 +5,7 @@ module Api
 
       # POST /api/v1/sessions — Clerk auth sync
       def create
-        # authenticate_user! records activity via last_seen_at; this explicit
-        # frontend session sync is the moment we count as a sign-in.
-        current_user.update_column(:last_sign_in_at, Time.current)
+        record_new_session!
 
         render json: {
           user: user_json(current_user),
@@ -29,6 +27,25 @@ module Api
       end
 
       private
+
+      def record_new_session!
+        # A refresh calls this endpoint too. A Clerk sid identifies a real auth
+        # session across refreshed JWTs and across web/native requests. Without
+        # sid we cannot distinguish a login from a refresh, so record neither.
+        return if @current_clerk_session_id.blank?
+
+        digest = OpenSSL::HMAC.hexdigest(
+          "SHA256", Rails.application.secret_key_base,
+          "#{@current_clerk_issuer}\0#{@current_clerk_session_id}"
+        )
+        current_user.with_lock do
+          next if current_user.auth_sessions.exists?(session_digest: digest)
+
+          current_user.auth_sessions.create!(session_digest: digest)
+          ActivityEvent.record!(event_type: "account_signed_in", actor: current_user)
+          current_user.update!(last_sign_in_at: Time.current)
+        end
+      end
 
       def user_json(user)
         {

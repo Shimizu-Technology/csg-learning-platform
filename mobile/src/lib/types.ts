@@ -1006,3 +1006,18 @@ export interface SubmissionInput {
   commit_sha?: string;
   notes?: string;
 }
+export type ActivityEvent = {
+  id: number;
+  event_type: string;
+  actor: { id: number; name: string; role: string };
+  subject_user_id: number;
+  cohort_id: number | null;
+  cohort_name: string | null;
+  record_type: string | null;
+  record_id: number | null;
+  record_label: string | null;
+  evidence: 'server_record' | 'player_reported';
+  created_at: string;
+};
+
+export type ActivityEventsResponse = { activity_events: ActivityEvent[]; next_before_id: number | null };

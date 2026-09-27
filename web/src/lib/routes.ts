@@ -1,4 +1,4 @@
-export type StudentWorkspaceTab = 'overview' | 'work' | 'learning' | 'support' | 'communication' | 'access'
+export type StudentWorkspaceTab = 'overview' | 'activity' | 'work' | 'learning' | 'support' | 'communication' | 'access'
 
 export function cohortPath(cohortId: number) {
   return `/admin/cohorts/${cohortId}`

@@ -30,6 +30,7 @@ export default function AppLayout() {
   return (
     <Stack screenOptions={{ headerStyle: { backgroundColor: palette.ink }, headerTintColor: palette.text, headerShadowVisible: false, contentStyle: { backgroundColor: palette.ink } }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="activity" options={{ headerShown: false }} />
       <Stack.Screen name="conversation/[kind]/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="thread/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="module/[id]" options={{ headerShown: false }} />

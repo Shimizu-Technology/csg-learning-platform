@@ -37,7 +37,7 @@ jest.mock('@tanstack/react-query', () => ({
 jest.mock('lucide-react-native', () => {
   const Icon = () => null;
   return {
-    Bell: Icon, Check: Icon, ChevronRight: Icon, FileText: Icon, GitBranch: Icon,
+    Activity: Icon, Bell: Icon, Check: Icon, ChevronRight: Icon, FileText: Icon, GitBranch: Icon,
     GraduationCap: Icon, LogOut: Icon, Mail: Icon, RefreshCw: Icon, Save: Icon,
     Settings2: Icon, ShieldCheck: Icon, Trash2: Icon, UserX: Icon,
   };
