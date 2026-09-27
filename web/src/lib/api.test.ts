@@ -18,8 +18,12 @@ afterEach(() => {
 describe('GitHub organization access timeout', () => {
   it('accepts a successful lookup after the normal 12-second request limit', async () => {
     vi.useFakeTimers()
-    const fetchMock = vi.fn().mockImplementation(() => new Promise((resolve) => {
-      setTimeout(() => resolve({ ok: true, status: 200, text: async () => JSON.stringify({ organization: 'alumni', statuses: {} }) }), 13_000)
+    const fetchMock = vi.fn().mockImplementation((_url: string, options: RequestInit) => new Promise((resolve, reject) => {
+      const timer = setTimeout(() => resolve({ ok: true, status: 200, text: async () => JSON.stringify({ organization: 'alumni', statuses: {} }) }), 13_000)
+      options.signal?.addEventListener('abort', () => {
+        clearTimeout(timer)
+        reject(new DOMException('The request was aborted', 'AbortError'))
+      }, { once: true })
     }))
     vi.stubGlobal('fetch', fetchMock)
 
