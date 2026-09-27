@@ -45,7 +45,7 @@ class CourseCheckout
         raise Unavailable, "Course price does not match the configured checkout price"
       end
 
-      identifier = "csglearn#{SecureRandom.alphanumeric(8).downcase}"
+      purchase.update!(integration_identifier: "csglearn#{Array.new(8) { ("a".ord + SecureRandom.random_number(26)).chr }.join}") if purchase.integration_identifier.blank?
       session = client.v1.checkout.sessions.create({
         mode: "payment",
         line_items: [ { price: cohort.stripe_price_id, quantity: 1 } ],
@@ -55,7 +55,7 @@ class CourseCheckout
         payment_intent_data: { metadata: { course_purchase_id: purchase.id.to_s } },
         success_url: "#{ENV.fetch('FRONTEND_URL').chomp('/')}/courses?checkout=return",
         cancel_url: "#{ENV.fetch('FRONTEND_URL').chomp('/')}/courses?checkout=canceled",
-        integration_identifier: identifier
+        integration_identifier: purchase.integration_identifier
       }, { idempotency_key: "csg-course-#{purchase.id}-#{purchase.stripe_session_id || 'initial'}" })
       purchase.update!(status: "pending", stripe_session_id: session.id, checkout_url: session.url, checkout_expires_at: Time.at(session.expires_at))
       session.url

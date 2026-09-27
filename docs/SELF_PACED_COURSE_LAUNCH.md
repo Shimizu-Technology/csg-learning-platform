@@ -1,6 +1,6 @@
 # Self-paced focused courses: launch controls
 
-This branch prepares course purchase and enrollment. **It does not open sales.** `COURSE_CHECKOUT_ENABLED` defaults to off, new Clerk signups remain closed in production unless `OPEN_COURSE_SIGNUPS` is explicitly enabled, and each course has its own `public_checkout_enabled` switch. No Stripe live key, public price, or course purchase terms are committed here.
+This branch prepares course purchase and enrollment. **It does not open sales.** `COURSE_CHECKOUT_ENABLED` defaults to off, new Clerk signups remain closed in production unless `OPEN_COURSE_SIGNUPS` is explicitly enabled, and each course has its own `public_checkout_enabled` switch. `OPEN_COURSE_SIGNUPS=true` independently permits verified new Clerk accounts to become local student accounts even while checkout is off; keep it disabled until the account and eligibility flow is approved. No Stripe live key, public price, or course purchase terms are committed here.
 
 ## Course setup
 

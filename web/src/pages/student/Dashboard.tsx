@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, BookOpen, Clock, Lock, PlayCircle, CalendarDays, CheckCircle2, RotateCcw, RefreshCw, WifiOff, Link2, ExternalLink } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -36,6 +36,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
   const [showingSavedData, setShowingSavedData] = useState(false)
   const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan | null>(previewWeeklyPlan || null)
   const [weeklyPlanLoaded, setWeeklyPlanLoaded] = useState(Boolean(previewData))
+  const dashboardRequest = useRef(0)
 
   useEffect(() => {
     if (!previewData) return
@@ -49,6 +50,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
   }
 
   const loadDashboard = useCallback(() => {
+    const request = ++dashboardRequest.current
     if (previewData) {
       setData(previewData)
       setLoading(false)
@@ -66,6 +68,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
 
     api.getDashboard(selectedId)
       .then((res) => {
+        if (request !== dashboardRequest.current) return
         if (res.data) {
           setData(res.data.dashboard)
           setShowingSavedData(Boolean(res.fromCache))
@@ -76,9 +79,10 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
         setLoadError(res.error || 'Unable to load your dashboard right now.')
       })
       .catch((error: unknown) => {
+        if (request !== dashboardRequest.current) return
         setLoadError(error instanceof Error ? error.message : 'Unable to load your dashboard right now.')
       })
-      .finally(() => setLoading(false))
+      .finally(() => { if (request === dashboardRequest.current) setLoading(false) })
   }, [disableStaffRedirect, navigate, previewData, selectedId, user])
 
   useEffect(() => {

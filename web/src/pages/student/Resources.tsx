@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, ExternalLink, Link2, Search, Video, MessageSquare, Github, FileText, Globe, RefreshCw, WifiOff, Keyboard, Copy, Check } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -34,14 +34,17 @@ export function Resources() {
   const [showingSavedData, setShowingSavedData] = useState(false)
   const [query, setQuery] = useState('')
   const [copiedResourceId, setCopiedResourceId] = useState<number | null>(null)
+  const resourcesRequest = useRef(0)
 
   const loadResources = useCallback(() => {
+    const request = ++resourcesRequest.current
     setLoading(true)
     setLoadError(null)
     setShowingSavedData(false)
 
     api.getResources(selectedId)
       .then((res) => {
+        if (request !== resourcesRequest.current) return
         if (res.data?.resources) {
           setResources(res.data.resources)
           setShowingSavedData(Boolean(res.fromCache))
@@ -52,9 +55,10 @@ export function Resources() {
         setLoadError(res.error || 'Unable to load resources right now.')
       })
       .catch((error: unknown) => {
+        if (request !== resourcesRequest.current) return
         setLoadError(error instanceof Error ? error.message : 'Unable to load resources right now.')
       })
-      .finally(() => setLoading(false))
+      .finally(() => { if (request === resourcesRequest.current) setLoading(false) })
   }, [selectedId])
 
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, BookOpen, CheckCircle2, ChevronDown, ChevronRight, Clock, Lock, RefreshCw, RotateCcw, Search, WifiOff } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -59,8 +59,10 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<MaterialFilter>('ready')
   const [collapsedModules, setCollapsedModules] = useState<Set<number>>(() => new Set())
+  const materialsRequest = useRef(0)
 
   const loadMaterials = useCallback(() => {
+    const request = ++materialsRequest.current
     if (previewData) {
       setData(previewData)
       setCollapsedModules(readCollapsedModuleIds(previewData.cohort?.id))
@@ -81,6 +83,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
 
     api.getDashboard(selectedId)
       .then((res) => {
+        if (request !== materialsRequest.current) return
         if (res.data?.dashboard) {
           const dashboard = res.data.dashboard
           setCollapsedModules(readCollapsedModuleIds(dashboard.cohort?.id))
@@ -92,9 +95,10 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
         }
       })
       .catch((error: unknown) => {
+        if (request !== materialsRequest.current) return
         setLoadError(error instanceof Error ? error.message : 'Unable to load your materials right now.')
       })
-      .finally(() => setLoading(false))
+      .finally(() => { if (request === materialsRequest.current) setLoading(false) })
   }, [disableStaffRedirect, navigate, previewData, selectedId, user])
 
   useEffect(() => {

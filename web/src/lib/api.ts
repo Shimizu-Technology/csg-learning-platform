@@ -315,12 +315,14 @@ function shouldCacheResponse<T>(endpoint: string, data: T) {
   if (!data || typeof data !== 'object') return false;
   if (endpoint.startsWith('/api/v1/help_requests') || endpoint === '/api/v1/support_queue') return false;
 
-  if (endpoint === '/api/v1/dashboard') {
+  const path = endpoint.split('?')[0];
+
+  if (path === '/api/v1/dashboard') {
     const dashboard = (data as { dashboard?: { enrolled?: boolean } }).dashboard;
     return typeof dashboard?.enrolled === 'boolean';
   }
 
-  if (endpoint === '/api/v1/resources') {
+  if (path === '/api/v1/resources') {
     const resources = (data as { resources?: unknown[] }).resources;
     return Array.isArray(resources);
   }

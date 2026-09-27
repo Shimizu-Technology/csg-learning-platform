@@ -15,8 +15,7 @@ module Api
             CoursePurchaseFulfillment.revoke!(payment_intent_id: charge.payment_intent, status: "refunded")
           end
         elsif event.type == "charge.dispute.created"
-          charge = CourseCheckout.client.v1.charges.retrieve(event.data.object.charge)
-          CoursePurchaseFulfillment.revoke!(payment_intent_id: charge.payment_intent, status: "disputed")
+          CoursePurchaseFulfillment.revoke!(payment_intent_id: event.data.object.payment_intent, status: "disputed")
         end
         head :ok
       rescue JSON::ParserError, Stripe::SignatureVerificationError

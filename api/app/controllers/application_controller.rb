@@ -17,12 +17,13 @@ class ApplicationController < ActionController::API
 
   def preferred_enrollment_for(scope, curriculum_id:)
     matching = scope.where(cohorts: { curriculum_id: curriculum_id })
-    preferred_id = Integer(request.headers["X-CSG-Cohort-Id"], exception: false)
-    if preferred_id && preferred_id.positive?
-      preferred = matching.find_by(cohort_id: preferred_id)
-      return preferred if preferred
-    end
-    matching.first
+    selected = request.headers["X-CSG-Cohort-Id"]
+    return matching.first if selected.blank?
+
+    preferred_id = Integer(selected, exception: false)
+    return nil unless preferred_id&.positive?
+
+    matching.find_by(cohort_id: preferred_id)
   end
 
   def capture_learning_request_started_at

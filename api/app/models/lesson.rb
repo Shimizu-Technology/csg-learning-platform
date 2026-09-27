@@ -60,7 +60,9 @@ class Lesson < ApplicationRecord
 
   def available?(cohort, module_assignment = nil, lesson_assignment = nil, on: LearningCalendar.today)
     return false if archived?
-    return module_assignment.present? if cohort.self_paced?
+    if cohort.self_paced?
+      return module_assignment.present? || lesson_assignment&.available?(cohort, module_assignment, on: on)
+    end
     return on >= lesson_assignment.unlock_date_override if lesson_assignment&.unlock_date_override.present?
     return lesson_assignment.unlocked? if lesson_assignment.present?
 

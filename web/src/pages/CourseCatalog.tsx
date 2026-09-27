@@ -70,7 +70,7 @@ export function CourseCatalog() {
               <p className="mt-2 text-sm text-slate-600">{offering.curriculum_name}</p>
               {offering.checkout_available && offering.price_cents && <p className="mt-3 text-2xl font-extrabold">${(offering.price_cents / 100).toFixed(2)} <span className="text-sm font-semibold text-slate-500">USD one-time</span></p>}
               <div className="mt-7 space-y-3 text-sm text-slate-700">
-                <p className="flex items-start gap-3"><Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-primary-600" />{offering.access_months} months of lesson access from purchase</p>
+                <p className="flex items-start gap-3"><Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-primary-600" />{offering.access_months} months of lesson access from confirmed payment</p>
                 <p className="flex items-start gap-3"><MessageCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary-600" />Course questions to an instructor for {offering.instructor_message_weeks} weeks from your first course open. Response target: {offering.instructor_response_target}.</p>
               </div>
               <p className="mt-6 text-xs leading-5 text-slate-500">Private meetings and individual project review are offered through guided courses.</p>

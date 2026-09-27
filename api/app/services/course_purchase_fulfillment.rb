@@ -39,7 +39,9 @@ class CoursePurchaseFulfillment
 
       enrollment = Enrollment.find_or_initialize_by(user: purchase.user, cohort: cohort)
       enrollment.status = :active
-      enrollment.access_expires_at ||= Time.current + cohort.self_paced_access_months.months
+      enrollment.access_expires_at = Time.current + cohort.self_paced_access_months.months
+      enrollment.first_opened_at = nil
+      enrollment.support_expires_at = nil
       enrollment.save!
       cohort.curriculum.modules.find_each do |curriculum_module|
         enrollment.module_assignments.find_or_create_by!(curriculum_module: curriculum_module) do |assignment|
