@@ -6,16 +6,17 @@ import { demoUser } from '@/lib/demo-data';
 import { PUSH_TOKEN_KEY, registerPushNotifications } from '@/lib/push-notifications';
 import { clearLearningCache } from '@/lib/learning-cache';
 import { activateUserConversationStorage, clearUserConversationStorage } from '@/lib/conversation-storage';
-import { canUseCachedSession, isSessionAccessDenied, parseCachedSessionUser, serializeCachedSessionUser } from '@/lib/session-access';
+import { canUseCachedSession, isSessionAccessDenied, parseCachedSession, serializeCachedSession } from '@/lib/session-access';
 import { clearUserSubmissionDrafts } from '@/lib/submission-storage';
 import { clearUserLessonEditorDrafts } from '@/lib/curriculum-draft-storage';
 import { beginUserStorageCleanup } from '@/lib/user-storage-lifecycle';
-import type { SessionUser } from '@/lib/types';
+import type { SessionEnrollment, SessionUser } from '@/lib/types';
 import { useCsgAuth } from './auth-provider';
 
 interface SessionValue {
   api: CsgApi;
   user: SessionUser | null;
+  enrollments: SessionEnrollment[];
   loading: boolean;
   error: string | null;
   accessDenied: boolean;
@@ -30,6 +31,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const api = useMemo(() => new CsgApi(auth.getToken), [auth.getToken]);
   const userCacheKey = auth.subject ? `csg.session.user.${auth.subject}` : null;
   const [user, setUser] = useState<SessionUser | null>(auth.demo ? demoUser : null);
+  const [enrollments, setEnrollments] = useState<SessionEnrollment[]>([]);
   const [sessionSubject, setSessionSubject] = useState<string | null>(auth.demo ? 'demo' : null);
   const [loading, setLoading] = useState(!auth.demo);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +47,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     authSubjectRef.current = auth.subject;
     userIdRef.current = null;
     lastUserIdRef.current = null;
+    setEnrollments([]);
     refreshGenerationRef.current += 1;
   }, [auth.subject]);
   useEffect(() => {
@@ -56,10 +59,10 @@ export function SessionProvider({ children }: PropsWithChildren) {
     const refreshGeneration = ++refreshGenerationRef.current;
     const refreshSubject = auth.subject;
     const isCurrentRefresh = () => refreshGenerationRef.current === refreshGeneration && authSubjectRef.current === refreshSubject;
-    if (!auth.signedIn) { setUser(null); setSessionSubject(null); setError(null); setAccessDenied(false); setLoading(false); return; }
-    if (auth.demo) { setUser(demoUser); setSessionSubject('demo'); setError(null); setAccessDenied(false); setLoading(false); return; }
+    if (!auth.signedIn) { setUser(null); setEnrollments([]); setSessionSubject(null); setError(null); setAccessDenied(false); setLoading(false); return; }
+    if (auth.demo) { setUser(demoUser); setEnrollments([]); setSessionSubject('demo'); setError(null); setAccessDenied(false); setLoading(false); return; }
     if (!refreshSubject) {
-      setUser(null); setSessionSubject(null); setError('We could not verify the signed-in account. Please sign in again.'); setAccessDenied(false); setLoading(false); return;
+      setUser(null); setEnrollments([]); setSessionSubject(null); setError('We could not verify the signed-in account. Please sign in again.'); setAccessDenied(false); setLoading(false); return;
     }
     // Session validation after the first successful load is background work.
     // Keeping the existing user mounted prevents token refreshes and foreground
@@ -69,11 +72,11 @@ export function SessionProvider({ children }: PropsWithChildren) {
       const result = await api.session();
       if (!isCurrentRefresh()) return;
       activateUserConversationStorage(result.user.id);
-      setUser(result.user); setSessionSubject(refreshSubject); setError(null); setAccessDenied(false);
+      setUser(result.user); setEnrollments(result.enrollments || []); setSessionSubject(refreshSubject); setError(null); setAccessDenied(false);
       // The authenticated server session is authoritative. A device-storage
       // failure must not turn a valid sign-in into a session failure.
       if (userCacheKey) {
-        const serializedUser = serializeCachedSessionUser(result.user, refreshSubject);
+        const serializedUser = serializeCachedSession(result.user, result.enrollments || [], refreshSubject);
         const cacheWrite = sessionCacheWriteRef.current.catch(() => undefined).then(async () => {
           if (!isCurrentRefresh()) return;
           await AsyncStorage.setItem(userCacheKey, serializedUser);
@@ -91,7 +94,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
       // A superseded denial must not delete credentials or caches written by a
       // newer refresh for the same subject.
       if (!isCurrentRefresh()) return;
-      const cachedUser = cached ? parseCachedSessionUser(cached, refreshSubject) : null;
+      const cachedSession = cached ? parseCachedSession(cached, refreshSubject) : null;
+      const cachedUser = cachedSession?.user || null;
       if (isSessionAccessDenied(requestError)) {
         const cleanupUserId = userIdRef.current || cachedUser?.id || null;
         const keys = [PUSH_TOKEN_KEY];
@@ -110,21 +114,25 @@ export function SessionProvider({ children }: PropsWithChildren) {
         await AsyncStorage.multiRemove(keys).catch(() => undefined);
         if (!isCurrentRefresh()) return;
         setUser(null);
+        setEnrollments([]);
         setSessionSubject(null);
         setAccessDenied(true);
       } else if (canUseCachedSession(requestError)) {
         if (cachedUser) {
           activateUserConversationStorage(cachedUser.id);
           setUser(cachedUser);
+          setEnrollments(cachedSession?.enrollments || []);
           setSessionSubject(refreshSubject);
         } else {
           if (cached && userCacheKey) await AsyncStorage.removeItem(userCacheKey).catch(() => undefined);
           if (!isCurrentRefresh()) return;
           setUser(null);
+          setEnrollments([]);
           setSessionSubject(null);
         }
       } else {
         setUser(null);
+        setEnrollments([]);
         setSessionSubject(null);
       }
       setError((requestError as Error).message);
@@ -149,7 +157,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
       let cleanupUserId = (auth.demo || sessionSubject === auth.subject ? user?.id : null) || lastUserIdRef.current;
       if (!cleanupUserId && userCacheKey) {
         const cached = await AsyncStorage.getItem(userCacheKey).catch(() => null);
-        const cachedUser = cached && auth.subject ? parseCachedSessionUser(cached, auth.subject) : null;
+        const cachedUser = cached && auth.subject ? parseCachedSession(cached, auth.subject)?.user : null;
         if (cachedUser) cleanupUserId = cachedUser.id;
       }
       const keys = [PUSH_TOKEN_KEY];
@@ -167,11 +175,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
       await AsyncStorage.multiRemove(keys).catch(() => undefined);
     } finally {
       await auth.signOut();
+      setEnrollments([]);
       lastUserIdRef.current = null;
     }
   }, [api, auth, sessionSubject, user, userCacheKey]);
   const visibleUser = auth.demo || (auth.subject !== null && sessionSubject === auth.subject) ? user : null;
-  const value = useMemo(() => ({ api, user: visibleUser, loading, error, accessDenied, refresh, signOut }), [api, visibleUser, loading, error, accessDenied, refresh, signOut]);
+  const value = useMemo(() => ({ api, user: visibleUser, enrollments: visibleUser ? enrollments : [], loading, error, accessDenied, refresh, signOut }), [api, visibleUser, enrollments, loading, error, accessDenied, refresh, signOut]);
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 

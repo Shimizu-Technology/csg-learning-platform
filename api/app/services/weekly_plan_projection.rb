@@ -62,11 +62,17 @@ class WeeklyPlanProjection
       library_summary: {
         module_count: @modules.size,
         lesson_count: @lessons.size,
-        recording_count: @cohort.recordings.count(&:published?)
+        recording_count: recorded_lesson_count
       },
       events: event_items,
       recording_catch_up: recording_items
     }
+  end
+
+  def recorded_lesson_count
+    @lessons.count do |_mod, lesson|
+      lesson.content_blocks.any? { |block| block.video? || block.recording? }
+    end
   end
 
   def active_enrollment

@@ -81,6 +81,8 @@ module Api
           if submission.save
             progress = Progress.find_or_initialize_by(user: current_user, content_block_id: submission.content_block_id)
             progress.update!(status: :completed)
+            ActivityEvent.record!(event_type: "submission_created", actor: current_user,
+              cohort: @learning_write_enrollment&.cohort, record: submission)
             SubmissionNotificationJob.perform_later("created", submission.id, submission.created_at.iso8601(6))
 
             render json: { submission: submission_json(submission, include_github_checks: true) }, status: :created
@@ -107,6 +109,12 @@ module Api
 
         with_learning_write_guard(@learning_write_enrollment) do
           if @submission.update(submission_update_params)
+            if @submission.saved_changes.except("updated_at").any?
+              ActivityEvent.record!(event_type: "submission_updated", actor: current_user,
+                subject_user: @submission.user,
+                cohort: learning_enrollment_for(@submission.user, @submission.content_block)&.cohort,
+                record: @submission)
+            end
             render json: { submission: submission_json(@submission, include_github_checks: true) }
           else
             render json: { errors: @submission.errors.full_messages }, status: :unprocessable_entity
@@ -157,6 +165,8 @@ module Api
               content_block_id: @submission.content_block_id
             )
             progress.update!(status: @submission.grade == "R" ? :in_progress : :completed)
+            ActivityEvent.record!(event_type: "submission_graded", actor: current_user,
+              subject_user: @submission.user, cohort: enrollment&.cohort, record: @submission)
           end
         end
 

@@ -28,17 +28,31 @@ function submissionPath(value: string, source: RegExp): string | null {
 
 export function isAllowedNotificationPath(value: unknown): value is string {
   if (typeof value !== 'string') return false;
+  const conversation = conversationNotificationPath(value);
   const staffSubmission = submissionPath(value, STAFF_SUBMISSION_PATH);
-  return value === '/' || value === '/learn' || value === '/resources' || value === '/recordings' || value === '/updates' || value === '/staff/grading' || value === '/staff/support' || staffSubmission === value || CONVERSATION_PATH.test(value) || LEARNING_PATH.test(value) || STAFF_PATH.test(value) || /^\/recording\/[A-Za-z0-9-]+$/.test(value);
+  return value === '/' || value === '/learn' || value === '/resources' || value === '/recordings' || value === '/updates' || value === '/staff/grading' || value === '/staff/support' || staffSubmission === value || conversation === value || LEARNING_PATH.test(value) || STAFF_PATH.test(value) || /^\/recording\/[A-Za-z0-9-]+$/.test(value);
 }
 
-export function mobileNotificationPath(value: unknown) {
+function conversationNotificationPath(value: string): string | null {
+  const [pathname, query, ...extra] = value.split('?');
+  if (extra.length || !CONVERSATION_PATH.test(pathname)) return null;
+  if (!query) return pathname;
+  const params = new URLSearchParams(query);
+  const ids = params.getAll('messageId');
+  if (Array.from(params.keys()).some((key) => key !== 'messageId') || ids.length !== 1 || !/^[1-9]\d*$/.test(ids[0])) return null;
+  return `${pathname}?messageId=${ids[0]}`;
+}
+
+export function mobileNotificationPath(value: unknown, messageId?: unknown) {
+  const anchor = typeof messageId === 'number' || typeof messageId === 'string' ? String(messageId) : '';
+  const withAnchor = (path: string) => /^[1-9]\d*$/.test(anchor) && !path.includes('?') ? `${path}?messageId=${anchor}` : path;
+  if (typeof value === 'string' && CONVERSATION_PATH.test(value)) return withAnchor(value);
   if (isAllowedNotificationPath(value)) return value;
   if (typeof value !== 'string') return '/updates';
   const dm = value.match(WEB_DM_PATH);
-  if (dm) return `/conversation/dm/${dm[1]}`;
+  if (dm) return withAnchor(`/conversation/dm/${dm[1]}`);
   const channel = value.match(WEB_CHANNEL_PATH);
-  if (channel) return `/conversation/channel/${channel[1]}`;
+  if (channel) return withAnchor(`/conversation/channel/${channel[1]}`);
   if (WEB_ANNOUNCEMENT_PATH.test(value)) return '/updates';
   const submission = submissionPath(value, WEB_SUBMISSION_PATH);
   if (submission) return submission;

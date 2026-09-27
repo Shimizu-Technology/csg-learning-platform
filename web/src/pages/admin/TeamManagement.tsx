@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Archive, Shield, ShieldCheck, UserPlus, Mail, Pencil, Trash2, RotateCcw, Check } from 'lucide-react'
+import { Activity, Archive, Shield, ShieldCheck, UserPlus, Mail, Pencil, Trash2, RotateCcw, Check } from 'lucide-react'
 import { api } from '../../lib/api'
 import { Modal } from '../../components/shared/Modal'
+import { ActivityTimeline } from '../../components/shared/ActivityTimeline'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 
@@ -49,6 +50,7 @@ export function TeamManagement() {
   const [deleteConfirm, setDeleteConfirm] = useState<TeamMember | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [restoreConfirm, setRestoreConfirm] = useState<TeamMember | null>(null)
+  const [activityMember, setActivityMember] = useState<TeamMember | null>(null)
 
   const [resendingId, setResendingId] = useState<number | null>(null)
   const [restoringId, setRestoringId] = useState<number | null>(null)
@@ -173,7 +175,7 @@ export function TeamManagement() {
     if (res.error) {
       showNotification('error', `Failed to resend: ${res.error}`)
     } else {
-      showNotification('success', `Invite re-sent to ${member.email}`)
+      showNotification('success', `Invite queued for ${member.email}`)
     }
     setResendingId(null)
   }
@@ -186,7 +188,8 @@ export function TeamManagement() {
     if (res.error) {
       showNotification('error', `Failed to restore: ${res.error}`)
     } else {
-      showNotification('success', member.invite_pending ? `${member.email} restored and invite sent` : `${member.email} restored`)
+      const inviteFailed = res.data?.invitation?.status === 'failed'
+      showNotification(inviteFailed ? 'error' : 'success', inviteFailed ? `${member.email} was restored, but the invite needs to be retried` : res.data?.message || `${member.email} restored`)
       await loadTeam()
     }
     setRestoreConfirm(null)
@@ -293,7 +296,8 @@ export function TeamManagement() {
               </div>
 
               {/* Actions — always visible, stacked below on mobile */}
-              <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
+              <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-100">
+                <button type="button" onClick={() => setActivityMember(member)} className="inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-xs font-bold text-primary-700 hover:bg-primary-50"><Activity className="h-4 w-4" />Activity</button>
                 {isArchived(member) ? (
                   <button
                     onClick={() => setRestoreConfirm(member)}
@@ -344,6 +348,9 @@ export function TeamManagement() {
       </div>
 
       {/* Add Member Modal */}
+      <Modal open={Boolean(activityMember)} onClose={() => setActivityMember(null)} title={activityMember ? `${activityMember.full_name} activity` : 'Activity'} size="lg">
+        {activityMember && <ActivityTimeline key={activityMember.id} userId={activityMember.id} />}
+      </Modal>
       <Modal
         open={showAddModal}
         onClose={() => setShowAddModal(false)}

@@ -55,6 +55,7 @@ class WebPushNotificationService
         title: notification.title,
         body: notification.body,
         path: notification.path,
+        message_id: message.id,
         tag: message.direct_message? ? "dm-#{message.direct_conversation_id}" : "channel-#{message.channel_id}"
       }.to_json
 

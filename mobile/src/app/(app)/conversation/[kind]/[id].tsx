@@ -2,10 +2,10 @@ import * as Clipboard from 'expo-clipboard';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useQueryClient } from '@tanstack/react-query';
-import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { ArrowDownToLine, ArrowLeft, Bell, BellOff, BookOpen, ChevronDown, Edit3, Flag, Hash, MessageSquareReply, Paperclip, Pin, Send, Trash2, UserX, Wifi, WifiOff, X, type LucideIcon } from 'lucide-react-native';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Alert, FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { Alert, AppState, FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/avatar';
@@ -21,7 +21,7 @@ import { fontScaleLimits, fonts, palette } from '@/constants/csg-theme';
 import { useVoiceDraft } from '@/hooks/use-voice-draft';
 import { pendingAttachment, uploadAttachment } from '@/lib/attachments';
 import { subscribeToMessages, type CableSubscription } from '@/lib/cable';
-import { formatConversationDay, isDifferentConversationDay, isNearConversationBottom } from '@/lib/conversation-scroll';
+import { canAutoReadConversation, formatConversationDay, isDifferentConversationDay, isNearConversationBottom } from '@/lib/conversation-scroll';
 import { conversationDraftKey, loadConversationDraft, loadFailedMessages, retryableMessagesForStorage, saveConversationDraftWithRetry, saveFailedMessagesWithRetry } from '@/lib/conversation-storage';
 import { demoChannels, demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { insertMention, mentionSuggestions, mentionTriggerAt, resolveMentionUserIds } from '@/lib/mentions';
@@ -30,6 +30,8 @@ import { messagePreview } from '@/lib/message-format';
 import { markInboxConversationRead, messagingKeys, type ConversationSnapshot, type InboxSnapshot } from '@/lib/messaging-cache';
 import { markOptimisticFailed, mergeMessageEvent, mergeOlderMessages, mergePinnedMessageEvent, mergeServerAndFailedMessages, pinnedMessagesFrom, reconcileOptimistic, sortMessages, toggleOwnReaction } from '@/lib/message-state';
 import { REACTION_OPTIONS } from '@/lib/reactions';
+import { latestReaderPositions } from '@/lib/read-receipt-position';
+import { firstUnreadMessageId } from '@/lib/unread-boundary';
 import type { TypingUser } from '@/lib/typing';
 import type { ChannelSummary, ConversationKind, DirectConversationSummary, Message, MessageEvent, MessageTypingEvent, MessageWindowMeta, PendingAttachment, UserSummary } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
@@ -58,7 +60,10 @@ export default function ConversationScreen() {
   const initialSnapshot = useMemo(() => queryClient.getQueryData<ConversationSnapshot>(conversationCacheKey), [conversationCacheKey, queryClient]);
   const listRef = useRef<FlatList<ConversationItem>>(null);
   const composerInputRef = useRef<TextInput>(null);
-  const nearBottomRef = useRef(true);
+  const nearBottomRef = useRef(!anchorMessageId);
+  const screenFocusedRef = useRef(false);
+  const modalVisibleRef = useRef(false);
+  const anchorReadGateRef = useRef(Boolean(anchorMessageId));
   const pendingScrollRef = useRef(!anchorMessageId);
   const keyboardShouldFollowRef = useRef(false);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -82,6 +87,7 @@ export default function ConversationScreen() {
   const [pinnedMessages, setPinnedMessages] = useState<Message[]>(initialSnapshot?.pinnedMessages ?? []);
   const [meta, setMeta] = useState<MessageWindowMeta>(initialSnapshot?.meta ?? { oldest_message_id: null, newest_message_id: null, has_older: false, has_newer: false });
   const [mentionUsers, setMentionUsers] = useState<UserSummary[]>(initialSnapshot?.mentionUsers ?? []);
+  const [unreadBoundaryId, setUnreadBoundaryId] = useState<number | null>(initialSnapshot ? firstUnreadMessageId(initialSnapshot.messages, initialSnapshot.summary.last_read_at, initialSnapshot.summary.unread_count, initialSnapshot.meta, initialSnapshot.summary.last_read_message_id) : null);
   const [draft, setDraft] = useState('');
   const [selection, setSelection] = useState({ start: 0, end: 0 });
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
@@ -105,6 +111,12 @@ export default function ConversationScreen() {
   const [formattingExpanded, setFormattingExpanded] = useState(false);
   const [reactionDetails, setReactionDetails] = useState<{ messageId: number; emoji: string } | null>(null);
   const [imagePreview, setImagePreview] = useState<{ attachments: Message['attachments']; attachmentId: number } | null>(null);
+  useLayoutEffect(() => { modalVisibleRef.current = Boolean(selectedMessage || showPins || reactionDetails || imagePreview); }, [selectedMessage, showPins, reactionDetails, imagePreview]);
+  const conversationVisible = () => screenFocusedRef.current && AppState.currentState === 'active' && !modalVisibleRef.current;
+  useFocusEffect(useCallback(() => {
+    screenFocusedRef.current = true;
+    return () => { screenFocusedRef.current = false; nearBottomRef.current = false; };
+  }, []));
   const operationIdentityRef = useRef(operationIdentity);
   useLayoutEffect(() => {
     const cached = queryClient.getQueryData<ConversationSnapshot>(conversationCacheKey);
@@ -125,6 +137,7 @@ export default function ConversationScreen() {
     setPinnedMessages(cached?.pinnedMessages ?? []);
     setMeta(cached?.meta ?? { oldest_message_id: null, newest_message_id: null, has_older: false, has_newer: false });
     setMentionUsers(cached?.mentionUsers ?? []);
+    setUnreadBoundaryId(cached ? firstUnreadMessageId(cached.messages, cached.summary.last_read_at, cached.summary.unread_count, cached.meta, cached.summary.last_read_message_id) : null);
     setError(null);
     setAttachments([]);
     setEditingMessage(null);
@@ -160,6 +173,7 @@ export default function ConversationScreen() {
   const composerWithinLimit = messageBodyWithinLimit(composerValue);
   const focusComposer = useCallback(() => composerInputRef.current?.focus(), []);
   const rootMessages = useMemo(() => messages.filter((message) => !message.parent_message_id), [messages]);
+  const readerPositions = useMemo(() => latestReaderPositions(rootMessages), [rootMessages]);
   const conversationItems = useMemo(() => rootMessages.map((message, index) => ({ message, previous: rootMessages[index - 1] })).reverse(), [rootMessages]);
   const mentionTrigger = useMemo(() => mentionTriggerAt(composerValue, composerSelection.start), [composerSelection.start, composerValue]);
   const suggestions = useMemo(() => mentionTrigger ? mentionSuggestions(mentionUsers.filter((member) => member.id !== user?.id), mentionTrigger.query) : [], [mentionTrigger, mentionUsers, user?.id]);
@@ -167,6 +181,7 @@ export default function ConversationScreen() {
   const reactionDetailsMessage = reactionDetails ? messages.find((message) => message.id === reactionDetails.messageId) || null : null;
 
   const scrollToLatest = useCallback((animated = true) => {
+    anchorReadGateRef.current = false;
     nearBottomRef.current = true;
     pendingScrollRef.current = true;
     setShowScrollToLatest(false);
@@ -219,6 +234,7 @@ export default function ConversationScreen() {
     const cached = queryClient.getQueryData<ConversationSnapshot>(conversationCacheKey);
     if (!cached) setLoading(true);
     anchorScrolledRef.current = false;
+    anchorReadGateRef.current = Boolean(anchorMessageId);
     try {
       const [storedDraft, loadedConversation] = await Promise.all([
         userId && !auth.demo ? loadConversationDraft(userId, kind, id).catch(() => '') : Promise.resolve(''),
@@ -238,8 +254,10 @@ export default function ConversationScreen() {
       setDraftReadyOperationIdentity(operationIdentity);
       if (auth.demo) {
         const demoConversationMessages = cached?.messages ?? demoMessages[`${kind}:${id}`] ?? [];
-        setSummary(cached?.summary ?? (kind === 'channel' ? demoChannels.find((item) => item.id === id) || null : demoDms.find((item) => item.id === id) || null));
+        const demoSummary = cached?.summary ?? (kind === 'channel' ? demoChannels.find((item) => item.id === id) || null : demoDms.find((item) => item.id === id) || null);
+        setSummary(demoSummary);
         setMessages(demoConversationMessages);
+        setUnreadBoundaryId(demoSummary ? firstUnreadMessageId(demoConversationMessages, demoSummary.last_read_at, demoSummary.unread_count, cached?.meta ?? { oldest_message_id: null, newest_message_id: null, has_older: false, has_newer: false }, demoSummary.last_read_message_id) : null);
         setPinnedMessages(cached?.pinnedMessages ?? pinnedMessagesFrom(demoConversationMessages));
         setMentionUsers(cached?.mentionUsers ?? [demoUser]);
         setLoadedOperationIdentity(operationIdentity);
@@ -250,6 +268,7 @@ export default function ConversationScreen() {
         const mergedMessages = mergeServerAndFailedMessages(result.messages, failed);
         setSummary(nextSummary);
         setMessages(mergedMessages);
+        setUnreadBoundaryId(firstUnreadMessageId(mergedMessages, nextSummary.last_read_at, nextSummary.unread_count, result.meta, nextSummary.last_read_message_id));
         setPinnedMessages(result.pinned_messages);
         setMeta(result.meta);
         setLoadedOperationIdentity(operationIdentity);
@@ -257,7 +276,13 @@ export default function ConversationScreen() {
         void api.workspace(nextSummary.workspace_id).then((workspaceResult) => {
           if (isCurrentRequest()) setMentionUsers(workspaceResult.workspace.members);
         }).catch(() => undefined);
-        void api.markRead(kind, id).catch(() => undefined);
+        // A notification can open historical context. Only advance through the
+        // message actually opened; newer unseen messages must stay unread.
+        if (!anchorMessageId || mergedMessages.some((message) => message.id === anchorMessageId)) {
+          void api.markRead(kind, id, anchorMessageId).then(() => {
+            if (userId) void queryClient.invalidateQueries({ queryKey: messagingKeys.inbox(userId), exact: true });
+          }).catch(() => undefined);
+        }
       }
       if (!isCurrentRequest()) return;
       nearBottomRef.current = !anchorMessageId;
@@ -287,11 +312,11 @@ export default function ConversationScreen() {
   }, [conversationCacheKey, loadedOperationIdentity, mentionUsers, messages, meta, operationIdentity, pinnedMessages, queryClient, summary]);
 
   useEffect(() => {
-    if (!userId || loadedOperationIdentity !== operationIdentity || !summary) return;
+    if (!userId || loadedOperationIdentity !== operationIdentity || !summary || anchorMessageId) return;
     const readAt = new Date().toISOString();
     queryClient.setQueryData<InboxSnapshot>(messagingKeys.inbox(userId), (current) => markInboxConversationRead(current, kind, id, readAt));
     if (summary.unread_count > 0) setSummary((current) => current ? { ...current, unread_count: 0, last_read_at: readAt } : current);
-  }, [id, kind, loadedOperationIdentity, operationIdentity, queryClient, summary, userId]);
+  }, [anchorMessageId, id, kind, loadedOperationIdentity, operationIdentity, queryClient, summary, userId]);
 
   useEffect(() => {
     if (!userId || auth.demo || loading || loadedOperationIdentity !== operationIdentity) return;
@@ -319,7 +344,12 @@ export default function ConversationScreen() {
         typingTimers.delete(payload.message.author.id);
         setTypingUsers((current) => current.filter((typingUser) => typingUser.id !== payload.message.author.id));
       }
-      const follow = payload.message.mine || nearBottomRef.current;
+      const follow = payload.message.mine || canAutoReadConversation(conversationVisible(), anchorReadGateRef.current, nearBottomRef.current);
+      if (payload.event === 'created' && follow && !payload.message.mine) {
+        void api.markRead(kind, id, payload.message.id).then(() => {
+          if (userId) void queryClient.invalidateQueries({ queryKey: messagingKeys.inbox(userId), exact: true });
+        }).catch(() => undefined);
+      }
       if (payload.event === 'created' && !follow) {
         setShowScrollToLatest(true);
         if (!payload.message.mine) setNewMessagesBelow((current) => current + 1);
@@ -360,7 +390,7 @@ export default function ConversationScreen() {
       realtimeSubscriptionRef.current = null;
       subscription();
     };
-  }, [api, auth.demo, error, id, kind, loadedOperationIdentity, loading, operationIdentity, scrollToLatest, userId]);
+  }, [api, auth.demo, error, id, kind, loadedOperationIdentity, loading, operationIdentity, queryClient, scrollToLatest, userId]);
 
   useEffect(() => {
     const subscription = realtimeSubscriptionRef.current;
@@ -450,6 +480,7 @@ export default function ConversationScreen() {
   };
 
   const jumpToLatest = async () => {
+    let readThroughId = rootMessages.at(-1)?.id;
     if (meta.has_newer && !auth.demo) {
       loadNewerRequestRef.current += 1;
       setLoadingNewer(false);
@@ -460,13 +491,16 @@ export default function ConversationScreen() {
         if (operationIdentityRef.current !== operationIdentity) return;
         setMessages((current) => mergeServerAndFailedMessages(result.messages, current.filter((message) => message.client_status === 'sending' || message.client_status === 'failed')));
         setMeta(result.meta);
+        readThroughId = result.meta.newest_message_id ?? undefined;
       } catch (requestError) {
         Alert.alert('Could not reach latest messages', (requestError as Error).message);
         return;
       }
     }
     scrollToLatest(true);
-    if (!auth.demo) void api.markRead(kind, id);
+    if (!auth.demo && readThroughId) void api.markRead(kind, id, readThroughId).then(() => {
+      if (userId) void queryClient.invalidateQueries({ queryKey: messagingKeys.inbox(userId), exact: true });
+    }).catch(() => undefined);
   };
 
   const send = async (retryMessage?: Message) => {
@@ -689,7 +723,8 @@ export default function ConversationScreen() {
         {error && !conversationReady ? <ErrorState message={error} retry={() => void load()} /> : loading || !conversationReady ? <LoadingState label="Loading messages" /> : <View style={styles.messagePane}>
           <FlatList ref={listRef} data={conversationItems} inverted keyExtractor={(item) => String(item.message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" maintainVisibleContentPosition={{ minIndexForVisible: 0 }} scrollEventThrottle={16}
             onEndReached={() => void loadOlder()} onEndReachedThreshold={0.2}
-            onScroll={(event: NativeSyntheticEvent<NativeScrollEvent>) => { const near = isNearConversationBottom(event.nativeEvent, 96, true); nearBottomRef.current = near; setShowScrollToLatest(!near); if (near) setNewMessagesBelow(0); }}
+            onScrollBeginDrag={() => { if (anchorScrolledRef.current) anchorReadGateRef.current = false; }}
+            onScroll={(event: NativeSyntheticEvent<NativeScrollEvent>) => { const visible = conversationVisible(); const near = canAutoReadConversation(visible, anchorReadGateRef.current, isNearConversationBottom(event.nativeEvent, 96, true)); const wasNear = nearBottomRef.current; nearBottomRef.current = near; setShowScrollToLatest(!near); if (near) { setNewMessagesBelow(0); const newest = rootMessages.at(-1); if (!wasNear && canAutoReadConversation(visible, anchorReadGateRef.current, isNearConversationBottom(event.nativeEvent, 16, true)) && !meta.has_newer && newest && !auth.demo) void api.markRead(kind, id, newest.id).then(() => { if (userId) void queryClient.invalidateQueries({ queryKey: messagingKeys.inbox(userId), exact: true }); }).catch(() => undefined); } }}
             onContentSizeChange={() => {
               if (anchorMessageId && !anchorScrolledRef.current) {
                 const index = conversationItems.findIndex((item) => item.message.id === anchorMessageId);
@@ -705,7 +740,7 @@ export default function ConversationScreen() {
             ListHeaderComponent={meta.has_newer ? <Pressable accessibilityRole="button" accessibilityLabel="Load newer messages" disabled={loadingNewer} onPress={() => void loadNewer()} style={styles.loadingOlder}><Text style={styles.pendingStatus}>{loadingNewer ? 'Loading newer messages…' : 'Load newer messages'}</Text></Pressable> : null}
             ListFooterComponent={loadingOlder ? <Text style={styles.loadingOlder}>Loading earlier messages…</Text> : null}
             ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyTitle}>Start the conversation</Text><Text style={styles.emptyCopy}>Messages sent here stay connected to your Code School workspace.</Text></View>}
-            renderItem={({ item }) => <View style={item.message.id === anchorMessageId && styles.targetMessage}>{isDifferentConversationDay(item.message.created_at, item.previous?.created_at) && <DayDivider value={item.message.created_at} />}<MessageBubble message={item.message} showAuthor={!item.previous || item.previous.author.id !== item.message.author.id || isDifferentConversationDay(item.message.created_at, item.previous.created_at)} mentionUsers={mentionUsers} onLongPress={setSelectedMessage} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} onThread={openThread} onRetry={(message) => void send(message)} /></View>}
+            renderItem={({ item }) => <View style={item.message.id === anchorMessageId && styles.targetMessage}>{isDifferentConversationDay(item.message.created_at, item.previous?.created_at) && <DayDivider value={item.message.created_at} />}{item.message.id === unreadBoundaryId && <View accessibilityRole="text" style={styles.unreadDivider}><View style={styles.unreadLine} /><Text style={styles.unreadDividerText}>New messages</Text><View style={styles.unreadLine} /></View>}<MessageBubble message={item.message} showAuthor={!item.previous || item.previous.author.id !== item.message.author.id || isDifferentConversationDay(item.message.created_at, item.previous.created_at)} mentionUsers={mentionUsers} receiptLabel={readerPositions.get(item.message.id)} onLongPress={setSelectedMessage} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} onThread={openThread} onRetry={(message) => void send(message)} /></View>}
           />
           {showScrollToLatest && <Pressable accessibilityRole="button" accessibilityLabel="Jump to latest message" onPress={() => void jumpToLatest()} style={styles.latestButton}><ChevronDown color={palette.text} size={17} strokeWidth={2.5} /><Text style={styles.latestText}>{newMessagesBelow ? `${newMessagesBelow} new` : 'Jump to latest'}</Text></Pressable>}
         </View>}
@@ -762,6 +797,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.ink }, header: { minHeight: 68, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.line }, iconButton: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, hash: { width: 38, height: 38, borderRadius: 13, backgroundColor: '#2A151B', alignItems: 'center', justifyContent: 'center' }, headerCopy: { flex: 1, minHeight: 44, justifyContent: 'center' }, title: { color: palette.text, fontFamily: fonts.bold, fontSize: 16 }, status: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }, statusText: { color: palette.subtle, fontFamily: fonts.medium, fontSize: 11 }, sourceChip: { minHeight: 44, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#244A77', backgroundColor: '#122238', paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 8 }, sourceText: { flex: 1, color: '#BED6F5', fontFamily: fonts.bold, fontSize: 11 },
   messagePane: { flex: 1, minHeight: 0 }, list: { paddingHorizontal: 14, paddingVertical: 20, paddingBottom: 28, flexGrow: 1 }, empty: { flex: 1, minHeight: 420, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 50 }, emptyTitle: { color: palette.text, fontFamily: fonts.bold, fontSize: 18 }, emptyCopy: { color: palette.muted, fontFamily: fonts.regular, fontSize: 13, lineHeight: 20, textAlign: 'center', marginTop: 7 }, loadingOlder: { color: palette.subtle, fontFamily: fonts.medium, fontSize: 11, textAlign: 'center', paddingVertical: 18 },
   dayDivider: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 16 }, dayLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: palette.line }, dayText: { color: palette.subtle, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase' },
+  unreadDivider: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 12 }, unreadLine: { flex: 1, height: 1, backgroundColor: palette.rubySoft }, unreadDividerText: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 0.5 },
   targetMessage: { marginHorizontal: -8, paddingHorizontal: 8, paddingTop: 7, borderRadius: 16, backgroundColor: '#21161A' },
   latestButton: { position: 'absolute', bottom: 12, alignSelf: 'center', minHeight: 44, borderRadius: 22, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: '#242936', borderWidth: 1, borderColor: '#3A4253', shadowColor: '#000', shadowOpacity: 0.32, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 8 }, latestText: { color: palette.text, fontFamily: fonts.bold, fontSize: 11 },
   mentionPanel: { maxHeight: 210, borderTopWidth: 1, borderTopColor: palette.line, backgroundColor: palette.panel, padding: 8 }, mentionRow: { minHeight: 48, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', gap: 10 }, mentionName: { color: palette.text, fontFamily: fonts.semibold, fontSize: 12 }, mentionEmail: { color: palette.subtle, fontFamily: fonts.regular, fontSize: 11, marginTop: 2 },

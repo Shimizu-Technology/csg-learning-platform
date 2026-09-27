@@ -24,7 +24,7 @@ export const demoWeeklyPlan: WeeklyPlan = {
 export const demoDashboard: StudentDashboard = {
   enrolled: true,
   user: { id: demoStudentUser.id, full_name: demoStudentUser.full_name, role: 'student' },
-  cohort: { id: 4, name: 'Web Dev Cohort 4', start_date: '2026-06-01', status: 'active', unread_notifications_count: 2, announcements: [] },
+  cohort: { id: 4, name: 'Web Dev Cohort 4', cohort_type: 'bootcamp', start_date: '2026-06-01', status: 'active', unread_notifications_count: 2, announcements: [] },
   overall_progress: { completed: 18, total: 36, percentage: 50 },
   continue_lesson: { id: 101, title: 'Responsive layouts with Grid' },
   action_items: [{ type: 'redo', submission_id: 9, lesson_id: 102, lesson_title: 'Accessible forms', content_block_title: 'Contact form exercise', feedback: 'Add an explicit label for every field.', submissions_closed: false }],

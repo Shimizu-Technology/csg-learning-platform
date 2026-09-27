@@ -25,6 +25,7 @@ module ClerkAuthenticatable
     end
 
     @current_clerk_issuer = ClerkEnvironment.normalize_issuer(issuer)
+    @current_clerk_session_id = decoded["sid"].presence
     @current_clerk_environment = decoded["_clerk_environment"]
     if Rails.env.production? && %w[development legacy].include?(@current_clerk_environment)
       Rails.logger.info("[ClerkAuth] legacy_development_session")
@@ -180,7 +181,12 @@ module ClerkAuthenticatable
       # Preserve established Clerk IDs during the transition. Pending users
       # still graduate to their first real Clerk subject as they do today.
       if user.clerk_id.blank? || user.invite_pending?
-        user.update!(clerk_id: clerk_id, last_sign_in_at: Time.current)
+        user.update!(
+          clerk_id: clerk_id,
+          last_sign_in_at: Time.current,
+          invite_delivery_status: "accepted",
+          invite_last_error: nil
+        )
       end
 
       identity

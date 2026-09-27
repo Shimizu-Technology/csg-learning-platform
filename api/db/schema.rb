@@ -10,10 +10,27 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_25_010000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_28_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
+
+  create_table "activity_events", force: :cascade do |t|
+    t.bigint "actor_id", null: false
+    t.bigint "cohort_id"
+    t.datetime "created_at", null: false
+    t.string "event_type", limit: 48, null: false
+    t.string "evidence", limit: 32, default: "server_record", null: false
+    t.bigint "record_id"
+    t.string "record_type", limit: 32
+    t.bigint "subject_user_id", null: false
+    t.index ["actor_id", "created_at", "id"], name: "index_activity_events_on_actor_and_time"
+    t.index ["actor_id"], name: "index_activity_events_on_actor_id"
+    t.index ["cohort_id", "created_at", "id"], name: "index_activity_events_on_cohort_and_time"
+    t.index ["cohort_id"], name: "index_activity_events_on_cohort_id"
+    t.index ["subject_user_id", "created_at", "id"], name: "index_activity_events_on_subject_and_time", order: { created_at: :desc, id: :desc }
+    t.index ["subject_user_id"], name: "index_activity_events_on_subject_user_id"
+  end
 
   create_table "announcements", force: :cascade do |t|
     t.datetime "archived_at"
@@ -31,6 +48,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_010000) do
     t.index ["author_id"], name: "index_announcements_on_author_id"
     t.index ["cohort_id"], name: "index_announcements_on_cohort_id"
     t.index ["status", "published_at"], name: "index_announcements_on_status_and_published_at"
+  end
+
+  create_table "auth_sessions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "session_digest", limit: 64, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["user_id", "session_digest"], name: "index_auth_sessions_on_user_id_and_session_digest", unique: true
+    t.index ["user_id"], name: "index_auth_sessions_on_user_id"
   end
 
   create_table "cable_token_nonces", force: :cascade do |t|
@@ -205,10 +231,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_010000) do
     t.datetime "created_at", null: false
     t.bigint "direct_conversation_id", null: false
     t.datetime "last_read_at"
+    t.bigint "last_read_message_id"
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.index ["direct_conversation_id", "user_id"], name: "idx_direct_members_unique", unique: true
     t.index ["direct_conversation_id"], name: "index_direct_conversation_members_on_direct_conversation_id"
+    t.index ["last_read_message_id"], name: "index_direct_conversation_members_on_last_read_message_id"
     t.index ["user_id", "direct_conversation_id"], name: "idx_direct_members_user_conversation"
     t.index ["user_id"], name: "index_direct_conversation_members_on_user_id"
   end
@@ -980,6 +1008,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_010000) do
     t.string "email", null: false
     t.string "first_name"
     t.string "github_username"
+    t.string "invite_delivery_status", default: "not_sent", null: false
+    t.text "invite_last_error"
+    t.datetime "invite_sent_at"
     t.string "last_name"
     t.datetime "last_seen_at"
     t.datetime "last_sign_in_at"
@@ -991,6 +1022,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_010000) do
     t.index ["archived_at"], name: "index_users_on_archived_at"
     t.index ["clerk_id"], name: "index_users_on_clerk_id", unique: true
     t.index ["email"], name: "index_users_on_email", unique: true
+    t.index ["invite_delivery_status"], name: "index_users_on_invite_delivery_status"
     t.index ["last_seen_at"], name: "index_users_on_last_seen_at"
   end
 
@@ -1034,8 +1066,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_010000) do
     t.index ["slug"], name: "index_workspaces_on_slug", unique: true
   end
 
+  add_foreign_key "activity_events", "cohorts"
+  add_foreign_key "activity_events", "users", column: "actor_id"
+  add_foreign_key "activity_events", "users", column: "subject_user_id"
   add_foreign_key "announcements", "cohorts"
   add_foreign_key "announcements", "users", column: "author_id"
+  add_foreign_key "auth_sessions", "users"
   add_foreign_key "cable_token_nonces", "users"
   add_foreign_key "channel_read_states", "channels"
   add_foreign_key "channel_read_states", "messages", column: "last_read_message_id"
@@ -1060,6 +1096,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_010000) do
   add_foreign_key "data_deletion_requests", "users"
   add_foreign_key "data_deletion_requests", "users", column: "resolved_by_id"
   add_foreign_key "direct_conversation_members", "direct_conversations"
+  add_foreign_key "direct_conversation_members", "messages", column: "last_read_message_id"
   add_foreign_key "direct_conversation_members", "users"
   add_foreign_key "direct_conversations", "cohorts"
   add_foreign_key "direct_conversations", "workspaces"

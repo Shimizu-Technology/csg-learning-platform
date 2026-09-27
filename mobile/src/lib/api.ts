@@ -1,4 +1,5 @@
 import type {
+  ActivityEventsResponse,
   Announcement,
   AppNotification,
   ChannelSummary,
@@ -18,6 +19,7 @@ import type {
   ContentVideoProgress,
   ProgressEntry,
   PushConfig,
+  SessionEnrollment,
   SessionUser,
   StaffDashboard,
   StaffCurriculum,
@@ -94,9 +96,9 @@ function queryString(values: Record<string, string | number | boolean | null | u
 export class CsgApi {
   constructor(private readonly getToken: TokenGetter) {}
 
-  async request<T>(path: string, init: RequestInit = {}, attempt = 0): Promise<T> {
+  async request<T>(path: string, init: RequestInit = {}, attempt = 0, timeoutMs = 12_000): Promise<T> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12_000);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     const cancel = () => controller.abort();
     init.signal?.addEventListener('abort', cancel, { once: true });
     if (init.signal?.aborted) cancel();
@@ -110,7 +112,7 @@ export class CsgApi {
         const payload = await response.json().catch(() => ({})) as { error?: string; errors?: string[]; code?: string };
         const getRequest = !init.method || init.method === 'GET';
         if (attempt === 0 && (response.status === 401 || (getRequest && RETRYABLE.has(response.status)))) {
-          return this.request<T>(path, init, attempt + 1);
+          return this.request<T>(path, init, attempt + 1, timeoutMs);
         }
         throw new ApiError(payload.error || payload.errors?.join(', ') || `Request failed (${response.status})`, response.status, payload.code);
       }
@@ -161,7 +163,8 @@ export class CsgApi {
     }
   }
 
-  session = () => this.request<{ user: SessionUser }>('/api/v1/sessions', { method: 'POST' });
+  session = () => this.request<{ user: SessionUser; enrollments: SessionEnrollment[] }>('/api/v1/sessions', { method: 'POST' });
+  activityEvents = (params?: { user_id?: number; category?: string; before_id?: number }, signal?: AbortSignal) => this.request<ActivityEventsResponse>(`/api/v1/activity_events${queryString(params || {})}`, { signal });
   communityPolicy = () => this.request<{ community_policy: CommunityPolicy }>('/api/v1/community_policy');
   acceptCommunityPolicy = (version: string) => this.request<{ community_policy: CommunityPolicy }>('/api/v1/community_policy/accept', { method: 'POST', body: JSON.stringify({ version, accepted: true }) });
   reportContent = (input: { message_id?: number; reported_user_id?: number; reason: ContentReport['reason']; details?: string }) => this.request<{ content_report: ContentReport }>('/api/v1/content_reports', { method: 'POST', body: JSON.stringify({ content_report: input }) });
@@ -219,6 +222,8 @@ export class CsgApi {
   updateContentVideoProgress = (id: number, input: VideoProgressInput) => this.request<{ video_progress: ContentVideoProgress & { content_block_id: number; completed: boolean } }>(`/api/v1/content_blocks/${id}/video_progress`, { method: 'PATCH', body: JSON.stringify(input) });
   recordings = (signal?: AbortSignal) => this.request<{ recordings: RecordingItem[]; s3_recordings: RecordingItem[]; items: RecordingItem[] }>('/api/v1/recordings', { signal });
   cohorts = (signal?: AbortSignal) => this.request<{ cohorts: { id: number; name: string; status: string; start_date: string }[] }>('/api/v1/cohorts', { signal });
+  cohortAccess = (cohortId: number, signal?: AbortSignal) => this.request<{ cohort: { id: number; name: string; github_organization_name: string | null; students: { user_id: number; full_name: string; email: string; github_username: string | null; last_sign_in_at: string | null; invite_pending: boolean; invite_delivery_status: string }[] } }>(`/api/v1/cohorts/${cohortId}`, { signal });
+  cohortGithubAccess = (cohortId: number, signal?: AbortSignal) => this.request<{ organization: string; checked_at: string; statuses: Record<string, 'member' | 'invited' | 'not_invited' | 'username_missing'> }>(`/api/v1/cohorts/${cohortId}/github_access`, { signal }, 0, 30_000);
   presignRecordingUpload = (cohortId: number, filename: string, contentType: string) => this.request<{ upload_url: string; fields: Record<string, string>; s3_key: string }>(`/api/v1/cohorts/${cohortId}/recordings_presign`, { method: 'POST', body: JSON.stringify({ filename, content_type: contentType }) });
   presignContentVideoUpload = (contentBlockId: number | undefined, filename: string, contentType: string) => this.request<{ upload_url: string; fields: Record<string, string>; s3_key: string }>(contentBlockId ? `/api/v1/content_blocks/${contentBlockId}/video_presign` : '/api/v1/video_presign', { method: 'POST', body: JSON.stringify({ filename, content_type: contentType }) });
   initiateMultipartUpload = (cohortId: number, filename: string, contentType: string, fileSize: number) => this.request<{ s3_key: string; upload_id: string }>('/api/v1/uploads/multipart/initiate', { method: 'POST', body: JSON.stringify({ cohort_id: cohortId, filename, content_type: contentType, file_size: fileSize }) });
@@ -256,7 +261,7 @@ export class CsgApi {
   updateGlobalNotifications = (enabled: boolean) => this.request<PushConfig>('/api/v1/push_subscriptions/preferences', { method: 'PATCH', body: JSON.stringify({ notifications_enabled: enabled }) });
   channel = (id: number, options: ConversationOptions = { message_limit: 100 }) => this.request<{ channel: ChannelSummary } & ConversationPayload>(`/api/v1/channels/${id}${queryString(options)}`);
   directConversation = (id: number, options: ConversationOptions = { message_limit: 100 }) => this.request<{ direct_conversation: DirectConversationSummary } & ConversationPayload>(`/api/v1/direct_conversations/${id}${queryString(options)}`);
-  markRead = (kind: 'channel' | 'dm', id: number) => this.request(kind === 'channel' ? `/api/v1/channels/${id}/read` : `/api/v1/direct_conversations/${id}/read`, { method: 'PATCH' });
+  markRead = (kind: 'channel' | 'dm', id: number, messageId?: number) => this.request(kind === 'channel' ? `/api/v1/channels/${id}/read` : `/api/v1/direct_conversations/${id}/read`, { method: 'PATCH', ...(messageId ? { body: JSON.stringify({ message_id: messageId }) } : {}) });
   sendMessage = (kind: 'channel' | 'dm', id: number, input: string | MessageInput) => this.request<{ message: Message }>(kind === 'channel' ? `/api/v1/channels/${id}/messages` : `/api/v1/direct_conversations/${id}/messages`, { method: 'POST', body: JSON.stringify(typeof input === 'string' ? { body: input, send_push: true } : input) });
   updateMessage = (id: number, body: string, mentionUserIds: number[] = []) => this.request<{ message: Message }>(`/api/v1/messages/${id}`, { method: 'PATCH', body: JSON.stringify({ body, mention_user_ids: mentionUserIds }) });
   messageThread = (id: number) => this.request<{ root_message: Message; replies: Message[] }>(`/api/v1/messages/${id}/thread`);

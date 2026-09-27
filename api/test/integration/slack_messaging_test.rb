@@ -1003,6 +1003,92 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_equal message, @student.channel_read_states.find_by!(channel: @channel).last_read_message
   end
 
+  test "direct message read through leaves newer messages and notifications unread" do
+    conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @student, @admin ])
+    older = Message.create!(direct_conversation: conversation, author: @admin, body: "Older", created_at: 2.minutes.ago)
+    newer = Message.create!(direct_conversation: conversation, author: @admin, body: "Newer", created_at: 1.minute.ago)
+    [ older, newer ].each { |message| NotificationDeliveryService.message_created(message) }
+
+    as_user(@student) do
+      patch "/api/v1/direct_conversations/#{conversation.id}/read", params: { message_id: older.id }, headers: auth_headers, as: :json
+    end
+
+    assert_response :success
+    assert_equal 1, JSON.parse(response.body).dig("direct_conversation", "unread_count")
+    assert_equal older.created_at, conversation.direct_conversation_members.find_by!(user: @student).last_read_at
+    assert_equal [ newer.id ], @student.notifications.direct_message.unread.pluck(:notifiable_id)
+
+    as_user(@student) do
+      patch "/api/v1/direct_conversations/#{conversation.id}/read", params: { message_id: newer.id }, headers: auth_headers, as: :json
+      patch "/api/v1/direct_conversations/#{conversation.id}/read", params: { message_id: older.id }, headers: auth_headers, as: :json
+    end
+
+    assert_equal newer.created_at, conversation.direct_conversation_members.find_by!(user: @student).reload.last_read_at
+    assert_equal 0, @student.notifications.direct_message.unread.count
+  end
+
+  test "direct message read rejects a message from another conversation" do
+    conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @student, @admin ])
+    other_conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @classmate, @admin ])
+    foreign = Message.create!(direct_conversation: other_conversation, author: @admin, body: "Foreign")
+
+    as_user(@student) do
+      patch "/api/v1/direct_conversations/#{conversation.id}/read", params: { message_id: foreign.id }, headers: auth_headers, as: :json
+    end
+
+    assert_response :unprocessable_entity
+    assert_nil conversation.direct_conversation_members.find_by!(user: @student).last_read_at
+  end
+
+  test "direct message read through one of two messages with the same timestamp leaves the other unread" do
+    conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @student, @admin ])
+    timestamp = 1.minute.ago
+    older = Message.create!(direct_conversation: conversation, author: @admin, body: "First", created_at: timestamp)
+    newer = Message.create!(direct_conversation: conversation, author: @admin, body: "Second", created_at: timestamp)
+    [ older, newer ].each { |message| NotificationDeliveryService.message_created(message) }
+
+    as_user(@student) do
+      patch "/api/v1/direct_conversations/#{conversation.id}/read", params: { message_id: older.id }, headers: auth_headers, as: :json
+    end
+
+    assert_response :success
+    assert_equal 1, JSON.parse(response.body).dig("direct_conversation", "unread_count")
+    assert_equal [ newer.id ], @student.notifications.direct_message.unread.pluck(:notifiable_id)
+  end
+
+  test "direct message read clears a removed message notification" do
+    conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @student, @admin ])
+    removed = Message.create!(direct_conversation: conversation, author: @admin, body: "Removed", created_at: 2.minutes.ago)
+    latest = Message.create!(direct_conversation: conversation, author: @admin, body: "Current", created_at: 1.minute.ago)
+    [ removed, latest ].each { |message| NotificationDeliveryService.message_created(message) }
+    removed.update!(deleted_at: Time.current)
+
+    as_user(@student) do
+      patch "/api/v1/direct_conversations/#{conversation.id}/read", params: { message_id: latest.id }, headers: auth_headers, as: :json
+    end
+
+    assert_empty @student.notifications.direct_message.unread
+  end
+
+  test "channel read receipts include every authorized reader" do
+    message = Message.create!(channel: @channel, author: @admin, body: "Seen by everyone", created_at: 1.minute.ago)
+    readers = 6.times.map do |index|
+      user = User.create!(clerk_id: "receipt_member_#{index}", email: "receipt-member-#{index}@example.com", role: :student)
+      Enrollment.create!(user: user, cohort: @cohort, status: :active)
+      ChannelReadState.create!(user: user, channel: @channel, last_read_at: Time.current, last_read_message: message)
+      user
+    end
+
+    as_user(@admin) do
+      get "/api/v1/channels/#{@channel.id}", headers: auth_headers
+    end
+
+    assert_response :success
+    receipts = JSON.parse(response.body).fetch("messages").find { |item| item.fetch("id") == message.id }.fetch("read_receipts")
+    assert_equal 6, receipts.fetch("count")
+    assert_equal readers.map(&:id).sort, receipts.fetch("users").map { |user| user.fetch("id") }.sort
+  end
+
   test "channel show includes read receipts keyed by message id" do
     message = Message.create!(channel: @channel, author: @student, body: "Seen in channel", created_at: 5.minutes.ago)
     ChannelReadState.create!(user: @classmate, channel: @channel, last_read_at: 1.minute.ago)

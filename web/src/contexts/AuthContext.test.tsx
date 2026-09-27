@@ -39,13 +39,16 @@ let container: HTMLDivElement | null = null
 function SessionProbe({
   onUser,
   onError = () => undefined,
+  onEnrollmentIds = () => undefined,
 }: {
   onUser: (userId: number | null) => void
   onError?: (error: string | null) => void
+  onEnrollmentIds?: (enrollmentIds: number[]) => void
 }) {
-  const { user, sessionError } = useAuthContext()
+  const { user, enrollments, sessionError } = useAuthContext()
   useEffect(() => { onUser(user?.id ?? null) }, [onUser, user])
   useEffect(() => { onError(sessionError) }, [onError, sessionError])
+  useEffect(() => { onEnrollmentIds(enrollments.map((enrollment) => enrollment.id)) }, [enrollments, onEnrollmentIds])
   return null
 }
 
@@ -61,6 +64,32 @@ afterEach(() => {
 })
 
 describe('AuthProvider session lifecycle', () => {
+  it('keeps session enrollments available for cohort-aware navigation', async () => {
+    createSession.mockResolvedValue({
+      data: {
+        user: { id: 41, role: 'student' },
+        enrollments: [{
+          id: 17,
+          cohort: { id: 9, name: 'CSG Alumni', cohort_type: 'alumni', start_date: '2026-09-26', status: 'active' },
+          status: 'active',
+          enrolled_at: '2026-09-26T00:00:00Z',
+        }],
+      },
+      error: null,
+    })
+    const seenEnrollmentIds: number[][] = []
+    const onEnrollmentIds = (ids: number[]) => seenEnrollmentIds.push(ids)
+    container = document.createElement('div')
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(<AuthProvider><SessionProbe onUser={() => undefined} onEnrollmentIds={onEnrollmentIds} /></AuthProvider>)
+      await Promise.resolve()
+    })
+
+    expect(seenEnrollmentIds.at(-1)).toEqual([17])
+  })
+
   it('ignores a session response that resolves after sign-out', async () => {
     let resolveSession: ((value: unknown) => void) | undefined
     createSession.mockReturnValue(new Promise((resolve) => { resolveSession = resolve }))

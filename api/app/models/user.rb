@@ -1,4 +1,6 @@
 class User < ApplicationRecord
+  INVITE_DELIVERY_STATUSES = %w[not_sent queued sent failed accepted].freeze
+
   enum :role, { student: 0, instructor: 1, admin: 2 }
 
   scope :not_archived, -> { where(archived_at: nil) }
@@ -18,6 +20,9 @@ class User < ApplicationRecord
   has_many :push_subscriptions, dependent: :destroy
   has_many :mobile_push_tokens, dependent: :destroy
   has_many :clerk_identities, dependent: :destroy
+  has_many :auth_sessions, dependent: :destroy
+  has_many :activity_events, foreign_key: :subject_user_id, dependent: :destroy
+  has_many :performed_activity_events, class_name: "ActivityEvent", foreign_key: :actor_id, dependent: :destroy
   has_many :messages, foreign_key: :author_id, dependent: :nullify
   has_many :channel_read_states, dependent: :destroy
   has_many :direct_conversation_members, dependent: :destroy
@@ -53,6 +58,7 @@ class User < ApplicationRecord
   validates :clerk_id, presence: true, uniqueness: true
   validates :email, presence: true, uniqueness: { case_sensitive: false }
   validates :role, presence: true
+  validates :invite_delivery_status, inclusion: { in: INVITE_DELIVERY_STATUSES }
 
   def archived?
     archived_at.present?
@@ -89,7 +95,9 @@ class User < ApplicationRecord
       direct_conversation_members.none? &&
       help_requests.none? &&
       feedback_snippets.none? &&
-      knowledge_check_attempts.none?
+      knowledge_check_attempts.none? &&
+      activity_events.none? &&
+      performed_activity_events.none?
   end
 
   def full_name

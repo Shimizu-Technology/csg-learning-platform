@@ -91,6 +91,15 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
+function notificationTargetPath(data) {
+  const path = typeof data.path === 'string' && data.path.startsWith('/') && !data.path.startsWith('//') ? data.path : '/';
+  const messageId = String(data.message_id ?? '');
+  if (/^\/messages\/(?:dm\/)?[1-9]\d*$/.test(path) && /^[1-9]\d*$/.test(messageId)) {
+    return `${path}?message_id=${messageId}`;
+  }
+  return path;
+}
+
 self.addEventListener('push', (event) => {
   let data = {};
   if (event.data) {
@@ -108,7 +117,7 @@ self.addEventListener('push', (event) => {
     badge: '/icon-180x180.png',
     tag: data.tag || 'csg-learning-update',
     data: {
-      path: data.path || '/',
+      path: notificationTargetPath(data),
     },
   };
 
@@ -125,6 +134,12 @@ self.addEventListener('notificationclick', (event) => {
       for (const client of clients) {
         if (client.url === targetUrl && 'focus' in client) {
           return client.focus();
+        }
+        const openUrl = new URL(client.url);
+        if (openUrl.origin === self.location.origin && openUrl.pathname === new URL(targetUrl).pathname && 'navigate' in client) {
+          return client.navigate(targetUrl)
+            .then((navigated) => navigated ? navigated.focus() : self.clients.openWindow(targetUrl))
+            .catch(() => self.clients.openWindow(targetUrl));
         }
       }
       return self.clients.openWindow(targetUrl);

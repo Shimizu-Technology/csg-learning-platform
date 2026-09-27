@@ -6,6 +6,7 @@ import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { useToast } from '../../contexts/ToastContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import { ActivityTimeline } from '../../components/shared/ActivityTimeline'
 import type { BlockedUser } from '../../types/api'
 
 interface ProfileData {
@@ -252,6 +253,7 @@ export function Profile() {
       </section>
 
       {/* Enrollments */}
+      <ActivityTimeline />
       <div className="rounded-2xl bg-white border border-slate-200 p-6">
         <h3 className="text-lg font-semibold text-slate-900 mb-4">Enrollments</h3>
         {data.enrollments.length === 0 ? (

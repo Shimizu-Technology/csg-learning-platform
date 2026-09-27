@@ -1,4 +1,4 @@
-import { formatConversationDay, isDifferentConversationDay, isNearConversationBottom } from '../conversation-scroll';
+import { canAutoReadConversation, formatConversationDay, isDifferentConversationDay, isNearConversationBottom } from '../conversation-scroll';
 
 describe('conversation scrolling', () => {
   it('treats the final 96 points as the live conversation edge', () => {
@@ -6,6 +6,13 @@ describe('conversation scrolling', () => {
     expect(isNearConversationBottom({ contentOffset: { y: 700 }, contentSize: { height: 1_400 }, layoutMeasurement: { height: 500 } })).toBe(false);
     expect(isNearConversationBottom({ contentOffset: { y: 36 }, contentSize: { height: 1_400 }, layoutMeasurement: { height: 500 } }, 96, true)).toBe(true);
     expect(isNearConversationBottom({ contentOffset: { y: 180 }, contentSize: { height: 1_400 }, layoutMeasurement: { height: 500 } }, 96, true)).toBe(false);
+  });
+
+  it('does not read through a hidden or positioning conversation', () => {
+    expect(canAutoReadConversation(false, false, true)).toBe(false);
+    expect(canAutoReadConversation(true, true, true)).toBe(false);
+    expect(canAutoReadConversation(true, false, false)).toBe(false);
+    expect(canAutoReadConversation(true, false, true)).toBe(true);
   });
 
   it('formats premium day dividers and detects date boundaries', () => {

@@ -1,4 +1,5 @@
 import type {
+  ActivityEventsResponse,
   SessionResponse,
   DashboardResponse,
   WeeklyPlanResponse,
@@ -131,7 +132,8 @@ export interface ApiResponse<T> {
 async function fetchApi<T>(
   endpoint: string,
   options: RequestInit = {},
-  requireAuth: boolean = true
+  requireAuth: boolean = true,
+  timeoutMs: number = REQUEST_TIMEOUT_MS
 ): Promise<ApiResponse<T>> {
   const method = (options.method || 'GET').toUpperCase();
   const canRetry = method === 'GET' || method === 'HEAD';
@@ -159,7 +161,7 @@ async function fetchApi<T>(
       const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
         ...options,
         headers,
-      });
+      }, timeoutMs);
 
       if (!response.ok) {
         const errorBody = await response.json().catch(() => ({}));
@@ -235,9 +237,9 @@ async function fetchApi<T>(
   return { data: null, error: 'Request failed', errorKind: 'unknown' };
 }
 
-function fetchWithTimeout(url: string, options: RequestInit): Promise<Response> {
+function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
-  const timeoutId = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), timeoutMs);
   const externalSignal = options.signal;
 
   if (externalSignal?.aborted) controller.abort();
@@ -483,8 +485,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  markChannelRead: (id: number) =>
-    fetchApi<ChannelResponse>(`/api/v1/channels/${id}/read`, { method: 'PATCH' }),
+  markChannelRead: (id: number, messageId?: number) =>
+    fetchApi<ChannelResponse>(`/api/v1/channels/${id}/read`, {
+      method: 'PATCH',
+      ...(messageId === undefined ? {} : { body: JSON.stringify({ message_id: messageId }) }),
+    }),
   createMessage: (channelId: number, data: { body: string; parent_message_id?: number | null; client_message_id?: string; mention_user_ids?: number[]; attachments?: { s3_key: string; filename: string; content_type: string; byte_size: number }[]; send_push?: boolean }) =>
     fetchApi<MessageResponse>(`/api/v1/channels/${channelId}/messages`, {
       method: 'POST',
@@ -501,8 +506,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  markDirectConversationRead: (id: number) =>
-    fetchApi<DirectConversationResponse>(`/api/v1/direct_conversations/${id}/read`, { method: 'PATCH' }),
+  markDirectConversationRead: (id: number, messageId?: number) =>
+    fetchApi<DirectConversationResponse>(`/api/v1/direct_conversations/${id}/read`, {
+      method: 'PATCH',
+      ...(messageId === undefined ? {} : { body: JSON.stringify({ message_id: messageId }) }),
+    }),
   createDirectMessage: (conversationId: number, data: { body: string; parent_message_id?: number | null; client_message_id?: string; mention_user_ids?: number[]; attachments?: { s3_key: string; filename: string; content_type: string; byte_size: number }[]; send_push?: boolean }) =>
     fetchApi<MessageResponse>(`/api/v1/direct_conversations/${conversationId}/messages`, {
       method: 'POST',
@@ -665,6 +673,8 @@ export const api = {
     fetchApi<any>(`/api/v1/submissions/${id}/github_issue`),
 
   // Student progress (admin)
+  getActivityEvents: (params?: { user_id?: number; category?: string; before_id?: number; limit?: number }) =>
+    fetchApi<ActivityEventsResponse>(`/api/v1/activity_events${queryString(params || {})}`),
   getStudentProgress: (userId: number, cohortId?: number) =>
     fetchApi<StudentProgressResponse>(`/api/v1/progress/student/${userId}${queryString({ cohort_id: cohortId })}`),
   getLearningInsights: (cohortId: number, userId?: number) =>
@@ -691,12 +701,12 @@ export const api = {
     return fetchApi<UsersListResponse>(`/api/v1/users${query}`);
   },
   createUser: (data: { email: string; role?: string; github_username?: string; skip_invite?: boolean }) =>
-    fetchApi<{ user: { id: number; email: string; full_name: string; role: string } }>('/api/v1/users', {
+    fetchApi<{ user: { id: number; email: string; full_name: string; role: string; invite_pending: boolean; invite_delivery_status: string } }>('/api/v1/users', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
   resendInvite: (userId: number) =>
-    fetchApi<{ message: string }>(`/api/v1/users/${userId}/resend_invite`, {
+    fetchApi<{ message: string; invitation: { status: string; sent_at: string | null; error: string | null } }>(`/api/v1/users/${userId}/resend_invite`, {
       method: 'POST',
     }),
   getUser: (id: number) =>
@@ -709,7 +719,7 @@ export const api = {
   deleteUser: (id: number) =>
     fetchApi<{ message: string; action: 'archived' | 'deleted' }>(`/api/v1/users/${id}`, { method: 'DELETE' }),
   unarchiveUser: (id: number) =>
-    fetchApi<UserUpdateResponse>(`/api/v1/users/${id}/unarchive`, { method: 'PATCH' }),
+    fetchApi<UserUpdateResponse & { message: string; invitation?: { status: string; sent_at: string | null; error: string | null } }>(`/api/v1/users/${id}/unarchive`, { method: 'PATCH' }),
 
   // Admin — Curricula
   getCurricula: () =>
@@ -727,6 +737,8 @@ export const api = {
     fetchApi<CohortsListResponse>('/api/v1/cohorts'),
   getCohort: (id: number) =>
     fetchApi<CohortResponse>(`/api/v1/cohorts/${id}`),
+  getCohortGithubAccess: (id: number) =>
+    fetchApi<import('../types/api').GithubAccessResponse>(`/api/v1/cohorts/${id}/github_access`, {}, true, 30_000),
   getCohortStudentView: (id: number) =>
     fetchApi<CohortStudentViewResponse>(`/api/v1/cohorts/${id}/student_view`),
   createCohort: (data: { name: string; cohort_type: string; curriculum_id: number; start_date: string; end_date?: string; status?: string }) =>
@@ -797,10 +809,10 @@ export const api = {
     fetchApi<unknown>(`/api/v1/staff/private_meetings/${bookingId}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   // Admin — Enrollments
-  createEnrollment: (cohortId: number, userId: number) =>
+  createEnrollment: (cohortId: number, userId: number, sendInvite = false) =>
     fetchApi<EnrollmentResponse>(`/api/v1/cohorts/${cohortId}/enrollments`, {
       method: 'POST',
-      body: JSON.stringify({ user_id: userId }),
+      body: JSON.stringify({ user_id: userId, send_invite: sendInvite }),
     }),
   getEnrollment: (id: number) =>
     fetchApi<EnrollmentResponse>(`/api/v1/enrollments/${id}`),

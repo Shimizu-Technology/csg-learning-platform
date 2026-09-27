@@ -34,6 +34,9 @@ export interface UserListItem extends User {
   last_seen_at: string | null;
   archived_at: string | null;
   invite_pending: boolean;
+  invite_delivery_status: 'not_sent' | 'queued' | 'sent' | 'failed' | 'accepted';
+  invite_sent_at: string | null;
+  invite_last_error: string | null;
   created_at: string;
   enrollments?: UserEnrollment[];
 }
@@ -544,6 +547,7 @@ export interface ChannelSummary {
   muted: boolean;
   unread_count: number;
   last_read_at: string | null;
+  last_read_message_id?: number | null;
   latest_message: {
     id: number;
     body: string;
@@ -651,6 +655,7 @@ export interface DirectConversationSummary {
   muted: boolean;
   unread_count: number;
   last_read_at: string | null;
+  last_read_message_id?: number | null;
   latest_message: {
     id: number;
     body: string;
@@ -855,6 +860,10 @@ export interface CohortStudent {
   status: string;
   enrolled_at: string | null;
   last_sign_in_at: string | null;
+  invite_pending?: boolean;
+  invite_delivery_status?: 'not_sent' | 'queued' | 'sent' | 'failed' | 'accepted';
+  invite_sent_at?: string | null;
+  invite_last_error?: string | null;
   module_assignments: {
     id: number;
     module_id: number;
@@ -862,6 +871,13 @@ export interface CohortStudent {
     unlocked: boolean;
     unlock_date_override: string | null;
   }[];
+}
+
+export type GithubAccessStatus = 'member' | 'invited' | 'not_invited' | 'username_missing';
+export interface GithubAccessResponse {
+  organization: string;
+  checked_at: string;
+  statuses: Record<string, GithubAccessStatus>;
 }
 
 export interface CohortModule {
@@ -899,6 +915,7 @@ export interface DashboardData {
   cohort?: {
     id: number;
     name: string;
+    cohort_type: string;
     start_date: string;
     status: string;
     announcements?: Announcement[];
@@ -1755,6 +1772,10 @@ export interface EnrollmentsListResponse {
 
 export interface EnrollmentResponse {
   enrollment: EnrollmentSummary;
+  invitation?: {
+    status: 'not_sent' | 'queued' | 'sent' | 'failed' | 'accepted' | 'not_needed';
+    error: string | null;
+  };
 }
 
 export interface ModuleAssignmentsListResponse {
@@ -1779,4 +1800,22 @@ export interface ContentBlockResponse {
 
 export interface ContentBlocksListResponse {
   content_blocks: ContentBlock[];
+}
+export interface ActivityEvent {
+  id: number
+  event_type: string
+  actor: { id: number; name: string; role: string }
+  subject_user_id: number
+  cohort_id: number | null
+  cohort_name: string | null
+  record_type: string | null
+  record_id: number | null
+  record_label: string | null
+  evidence: 'server_record' | 'player_reported'
+  created_at: string
+}
+
+export interface ActivityEventsResponse {
+  activity_events: ActivityEvent[]
+  next_before_id: number | null
 }

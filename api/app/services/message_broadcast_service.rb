@@ -81,6 +81,7 @@ class MessageBroadcastService
         muted: muted?(user, channel),
         unread_count: channel_unread_count(channel, user, read_state),
         last_read_at: read_state&.last_read_at,
+        last_read_message_id: read_state&.last_read_message_id,
         latest_message: MessageJson.latest(channel.messages.visible.includes(:author, :message_attachments).order(created_at: :desc, id: :desc).first, current_user: user),
         created_at: channel.created_at,
         updated_at: channel.updated_at
@@ -102,6 +103,7 @@ class MessageBroadcastService
         muted: muted?(user, conversation),
         unread_count: direct_unread_count(conversation, user, member),
         last_read_at: member&.last_read_at,
+        last_read_message_id: member&.last_read_message_id,
         latest_message: MessageJson.latest(conversation.messages.visible.includes(:author, :message_attachments).order(created_at: :desc, id: :desc).first, current_user: user),
         users: conversation.users.map { |member_user| user_json(member_user) },
         created_at: conversation.created_at,
@@ -111,13 +113,13 @@ class MessageBroadcastService
 
     def channel_unread_count(channel, user, read_state)
       messages = channel.messages.visible.where.not(author_id: user.id)
-      messages = messages.where("created_at > ?", read_state.last_read_at) if read_state&.last_read_at
+      messages = MessageReadCursor.after(messages, read_state)
       messages.count
     end
 
     def direct_unread_count(conversation, user, member)
       messages = conversation.messages.visible.where.not(author_id: user.id)
-      messages = messages.where("created_at > ?", member.last_read_at) if member&.last_read_at
+      messages = MessageReadCursor.after(messages, member)
       messages.count
     end
 
@@ -142,21 +144,20 @@ class MessageBroadcastService
 
       readers =
         if message.channel
-          member_ids = message.channel.workspace.recipient_users.reorder(nil).where.not(id: message.author_id).select(:id)
+          member_ids = message.channel.recipients.reorder(nil).where.not(id: message.author_id).select(:id)
           ChannelReadState.includes(:user)
             .where(channel: message.channel, user_id: member_ids)
-            .where("last_read_at >= ?", message.created_at)
             .to_a
         else
           message.direct_conversation.direct_conversation_members.includes(:user)
             .where.not(user_id: message.author_id)
-            .where("last_read_at >= ?", message.created_at)
             .to_a
         end
+      readers.select! { |reader| MessageReadCursor.seen?(reader, message) }
 
       {
         count: readers.size,
-        users: readers.first(5).map { |reader| receipt_user_json(reader.user) }
+        users: readers.map { |reader| receipt_user_json(reader.user) }
       }
     end
 

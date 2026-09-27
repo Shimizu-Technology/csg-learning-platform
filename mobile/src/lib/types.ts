@@ -18,6 +18,19 @@ export interface SessionUser extends UserSummary {
   community_policy?: CommunityPolicy | null;
 }
 
+export interface SessionEnrollment {
+  id: number;
+  cohort: {
+    id: number;
+    name: string;
+    cohort_type: string;
+    start_date: string;
+    status: string;
+  };
+  status: string;
+  enrolled_at: string | null;
+}
+
 export interface CommunityPolicy {
   version: string;
   accepted: boolean;
@@ -83,6 +96,7 @@ export interface ChannelSummary {
   muted: boolean;
   unread_count: number;
   last_read_at: string | null;
+  last_read_message_id?: number | null;
   latest_message: LatestMessage | null;
   created_at: string;
   updated_at: string;
@@ -100,6 +114,7 @@ export interface DirectConversationSummary {
   muted: boolean;
   unread_count: number;
   last_read_at: string | null;
+  last_read_message_id?: number | null;
   latest_message: LatestMessage | null;
   users: UserSummary[];
   created_at: string;
@@ -536,6 +551,7 @@ export interface StudentDashboard {
   cohort?: {
     id: number;
     name: string;
+    cohort_type: string;
     start_date: string;
     status: string;
     announcements?: Announcement[];
@@ -990,3 +1006,18 @@ export interface SubmissionInput {
   commit_sha?: string;
   notes?: string;
 }
+export type ActivityEvent = {
+  id: number;
+  event_type: string;
+  actor: { id: number; name: string; role: string };
+  subject_user_id: number;
+  cohort_id: number | null;
+  cohort_name: string | null;
+  record_type: string | null;
+  record_id: number | null;
+  record_label: string | null;
+  evidence: 'server_record' | 'player_reported';
+  created_at: string;
+};
+
+export type ActivityEventsResponse = { activity_events: ActivityEvent[]; next_before_id: number | null };

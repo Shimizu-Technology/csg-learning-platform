@@ -13,6 +13,7 @@ import { demoDashboard } from '@/lib/demo-learning';
 import { demoStaffCurriculum } from '@/lib/demo-staff';
 import { loadStaffCurriculumDetails } from '@/lib/curriculum';
 import { openAuthenticatedWebPage } from '@/lib/external-links';
+import { isAlumniOnlyEnrollment } from '@/lib/enrollments';
 import { isStudentDashboard, learningKeys } from '@/lib/learning';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
@@ -20,9 +21,10 @@ import { useSession } from '@/providers/session-provider';
 export default function LearnScreen() {
   const router = useRouter();
   const auth = useCsgAuth();
-  const { api, user } = useSession();
+  const { api, user, enrollments } = useSession();
   const [filter, setFilter] = useState('');
   const isStaff = Boolean(user?.is_staff);
+  const isAlumniOnly = isAlumniOnlyEnrollment(enrollments);
   const studentQuery = useQuery({
     queryKey: learningKeys.dashboard(user?.id || 0),
     queryFn: ({ signal }) => auth.demo ? Promise.resolve({ dashboard: demoDashboard }) : api.dashboard(signal),
@@ -73,7 +75,7 @@ export default function LearnScreen() {
       })}</View>
       {!modules.length && <Text style={styles.noResults}>No lessons match that search.</Text>}
       <View style={styles.libraryStack}>
-        <ResourceButton title="Class recordings" copy="Secure playback, resume, and watch progress" icon={<Film color={palette.rubySoft} size={20} />} onPress={() => router.push('/recordings' as Href)} />
+        {!isAlumniOnly && <ResourceButton title="Class recordings" copy="Secure playback, resume, and watch progress" icon={<Film color={palette.rubySoft} size={20} />} onPress={() => router.push('/recordings' as Href)} />}
         <ResourceButton title="Class resources" copy="References, starter files, and useful links" icon={<FolderOpen color={palette.rubySoft} size={20} />} onPress={() => router.push('/resources')} />
       </View>
     </>}

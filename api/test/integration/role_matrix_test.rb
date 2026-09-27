@@ -253,6 +253,40 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "only staff can inspect GitHub organization access" do
+    as_user(@student) do
+      get "/api/v1/cohorts/#{@cohort.id}/github_access", headers: auth_headers
+    end
+    assert_response :forbidden
+
+    as_user(@instructor) do
+      get "/api/v1/cohorts/#{@cohort.id}/github_access", headers: auth_headers
+    end
+    assert_response :bad_gateway
+    assert_equal "GitHub organization status is unavailable", JSON.parse(response.body).fetch("error")
+  end
+
+  test "instructor can inspect current GitHub access for enrolled students" do
+    @cohort.update!(github_organization_name: "Code-School-of-Guam-Alumni")
+    Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+    lookup = Object.new
+    lookup.define_singleton_method(:status_for) { |users| users.to_h { |user| [ user.id, "invited" ] } }
+
+    original_new = GithubOrganizationAccessService.method(:new)
+    GithubOrganizationAccessService.define_singleton_method(:new) { |**| lookup }
+    as_user(@instructor) do
+      get "/api/v1/cohorts/#{@cohort.id}/github_access", headers: auth_headers
+    end
+
+    assert_response :success
+    data = JSON.parse(response.body)
+    assert_equal "Code-School-of-Guam-Alumni", data.fetch("organization")
+    assert_equal "invited", data.fetch("statuses").fetch(@student.id.to_s)
+    assert Time.iso8601(data.fetch("checked_at"))
+  ensure
+    GithubOrganizationAccessService.define_singleton_method(:new, original_new) if original_new
+  end
+
   test "instructor cannot create cohort (admin-only)" do
     as_user(@instructor) do
       post "/api/v1/cohorts",
@@ -369,7 +403,10 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
 
   test "alumni cohort template previews the permanent learning library without enrollments" do
     @cohort.update!(cohort_type: :alumni)
-    Lesson.create!(curriculum_module: @mod, title: "Alumni lesson", position: 0, release_day: 0)
+    recorded_lesson = Lesson.create!(curriculum_module: @mod, title: "Alumni lesson", position: 0, release_day: 0)
+    ContentBlock.create!(lesson: recorded_lesson, block_type: :recording, position: 0, title: "Class recording", video_url: "https://example.com/recording")
+    text_lesson = Lesson.create!(curriculum_module: @mod, title: "Reading only", position: 1, release_day: 1)
+    ContentBlock.create!(lesson: text_lesson, block_type: :text, position: 0, title: "Notes")
     CohortModuleSchedule.create!(
       cohort: @cohort,
       curriculum_module: @mod,
@@ -392,7 +429,8 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
     assert_equal true, mod.fetch("lessons").first.fetch("available")
     assert_equal "library", data.dig("weekly_plan", "mode")
     assert_equal 1, data.dig("weekly_plan", "library_summary", "module_count")
-    assert_equal 1, data.dig("weekly_plan", "library_summary", "lesson_count")
+    assert_equal 2, data.dig("weekly_plan", "library_summary", "lesson_count")
+    assert_equal 1, data.dig("weekly_plan", "library_summary", "recording_count")
     assert_equal "Alumni lesson", data.dig("dashboard", "continue_lesson", "title")
   end
 

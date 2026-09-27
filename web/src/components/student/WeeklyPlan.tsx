@@ -91,7 +91,7 @@ function LibraryPlan({ plan }: { plan: WeeklyPlan }) {
       <div className="grid gap-px bg-slate-200 sm:grid-cols-3">
         <LibraryStat value={library.module_count} label="learning modules" />
         <LibraryStat value={library.lesson_count} label="available lessons" />
-        <LibraryStat value={library.recording_count} label="class recordings" />
+        <LibraryStat value={library.recording_count} label="recorded lessons" />
       </div>
       {((plan.events || []).length > 0 || (plan.recording_catch_up || []).length > 0) && <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-2">
         {(plan.events || []).length > 0 && <SideSection title="Upcoming sessions" icon={CalendarClock}>{(plan.events || []).map((event) => <a key={event.id} href={sanitizeUrl(event.meeting_url)} target="_blank" rel="noopener noreferrer" className="block border-b border-slate-200 py-3 first:pt-1 last:border-0"><span className="text-[10px] font-extrabold uppercase tracking-wider text-primary-700">{event.kind === 'live_class' ? 'Live class' : 'Office hours'}</span><span className="mt-1 block text-sm font-bold text-slate-950">{event.title}</span><span className="mt-0.5 block text-xs leading-5 text-slate-500">{formatShortDateTime(event.starts_at, 'Time pending', event.timezone)}</span></a>)}</SideSection>}

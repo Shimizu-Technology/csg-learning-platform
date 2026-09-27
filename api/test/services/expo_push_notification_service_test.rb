@@ -54,6 +54,28 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
     assert_equal token.id, ExpoPushReceipt.last.mobile_push_token_id
   end
 
+  test "message push opens the exact channel message" do
+    curriculum = Curriculum.create!(name: "Push messaging")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Push cohort", start_date: Date.current, status: :active)
+    channel = cohort.channels.find_by!(name: "Class Chat")
+    author = User.create!(clerk_id: "expo_message_author", email: "expo-message-author@example.com", role: :admin)
+    recipient = User.create!(clerk_id: "expo_message_recipient", email: "expo-message-recipient@example.com", role: :student)
+    Enrollment.create!(user: recipient, cohort: cohort, status: :active)
+    recipient.mobile_push_tokens.create!(token: "ExpoPushToken[message]", platform: "ios", last_seen_at: Time.current)
+    message = Message.create!(channel: channel, author: author, body: "Open this message")
+    notification = NotificationDeliveryService.message_created(message).find { |item| item.user_id == recipient.id }
+    response = Net::HTTPOK.new("1.1", "200", "OK")
+    response.instance_variable_set(:@read, true)
+    response.body = { data: [ { status: "ok" } ] }.to_json
+
+    with_http_response(response) do |connection|
+      ExpoPushNotificationService.message_created(message, [ notification ])
+      payload = JSON.parse(connection.request_received.body).first
+      assert_equal "/conversation/channel/#{channel.id}", payload.dig("data", "path")
+      assert_equal message.id, payload.dig("data", "message_id")
+    end
+  end
+
   test "marks an unregistered device as failed" do
     user = User.create!(clerk_id: "expo_failed", email: "expo-failed@example.com", role: :student)
     token = user.mobile_push_tokens.create!(token: "ExpoPushToken[failed-device]", platform: "ios", last_seen_at: Time.current)

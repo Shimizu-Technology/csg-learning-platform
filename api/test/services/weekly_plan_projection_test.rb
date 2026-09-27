@@ -16,6 +16,7 @@ class WeeklyPlanProjectionTest < ActiveSupport::TestCase
     @wednesday = create_lesson("Wednesday project", 2, required: true)
     @friday_optional = create_lesson("Friday stretch", 4, required: false)
     @next_monday = create_lesson("Next week", 7, required: true)
+    @monday.content_blocks.create!(block_type: :video, position: 1, title: "Monday recording", video_url: "https://www.youtube.com/watch?v=example")
 
     @student = User.create!(clerk_id: "weekly_student", email: "weekly@example.com", first_name: "Weekly", last_name: "Student", role: :student)
     @instructor = User.create!(clerk_id: "weekly_instructor", email: "weekly-instructor@example.com", first_name: "Weekly", last_name: "Instructor", role: :instructor)
@@ -92,6 +93,22 @@ class WeeklyPlanProjectionTest < ActiveSupport::TestCase
     assert_nil plan[:optional]
     assert_equal "live_class", plan[:events].first[:kind]
     assert_equal @recording.id, plan[:recording_catch_up].first[:recording_id]
+  end
+
+  test "counts recorded lessons instead of cohort recording rows for alumni" do
+    @cohort.update!(cohort_type: :alumni)
+    @cohort.recordings.create!(
+      title: "Extra cohort replay",
+      s3_key: "recordings/cohort_#{@cohort.id}/20300709090000_abcdef12_extra.mp4",
+      content_type: "video/mp4",
+      file_size: 1.megabyte,
+      position: 2,
+      status: :published
+    )
+
+    plan = WeeklyPlanProjection.new(@student, now: @now).call
+
+    assert_equal 1, plan.dig(:library_summary, :recording_count)
   end
 
   private

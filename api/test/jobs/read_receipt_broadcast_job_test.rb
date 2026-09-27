@@ -26,4 +26,23 @@ class ReadReceiptBroadcastJobTest < ActiveJob::TestCase
   ensure
     MessageBroadcastService.define_singleton_method(:updated, original_updated) if defined?(original_updated) && original_updated
   end
+
+  test "does not broadcast messages beyond the read cursor" do
+    curriculum = Curriculum.create!(name: "Receipt cursor")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Receipt cohort", start_date: Date.current, status: :active)
+    channel = cohort.channels.find_by!(name: "Class Chat")
+    reader = User.create!(clerk_id: "receipt_cursor_reader", email: "receipt-cursor-reader@example.com", role: :student)
+    author = User.create!(clerk_id: "receipt_cursor_author", email: "receipt-cursor-author@example.com", role: :admin)
+    read_message = Message.create!(channel: channel, author: author, body: "Read", created_at: 2.minutes.ago)
+    Message.create!(channel: channel, author: author, body: "Unread", created_at: 1.minute.ago)
+    broadcasted = []
+    original_updated = MessageBroadcastService.method(:updated)
+    MessageBroadcastService.define_singleton_method(:updated) { |message| broadcasted << message }
+
+    ReadReceiptBroadcastJob.perform_now(channel, reader.id, nil, read_message.created_at)
+
+    assert_equal [ read_message ], broadcasted
+  ensure
+    MessageBroadcastService.define_singleton_method(:updated, original_updated) if defined?(original_updated) && original_updated
+  end
 end
