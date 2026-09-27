@@ -17,8 +17,8 @@ class GithubOrganizationAccessServiceTest < ActiveSupport::TestCase
       if url.end_with?("/members")
         Response.new(200, [ { "login" => "MEMBER" } ])
       elsif options.dig(:query, :page) == 1
-        Response.new(200, Array.new(98) { { "invitee" => { "login" => "unrelated" } } } + [
-          { "invitee" => { "login" => "member" } }, { "invitee" => { "login" => "pending" } }
+        Response.new(200, Array.new(98) { { "login" => "unrelated" } } + [
+          { "login" => "member" }, { "login" => "pending" }
         ])
       else
         Response.new(200, [ { "email" => "EMAIL@example.com" } ])

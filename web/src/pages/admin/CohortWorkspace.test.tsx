@@ -66,4 +66,37 @@ describe('cohort access roster', () => {
     expect(container.textContent).toContain('Invited Alum')
     expect(container.textContent).not.toContain('Joined Alum')
   })
+
+  it('clears a GitHub filter and cached statuses when refresh fails', async () => {
+    const router = createMemoryRouter([{ path: '/admin/cohorts/:id', element: <CohortWorkspace /> }], { initialEntries: ['/admin/cohorts/4?tab=students'] })
+    await act(async () => { root.render(<RouterProvider router={router} />) })
+    await act(async () => { await Promise.resolve() })
+
+    const select = container.querySelector('select')!
+    await act(async () => { select.value = 'github_invited'; select.dispatchEvent(new Event('change', { bubbles: true })) })
+    expect(container.textContent).toContain('Showing 1 of 2 enrolled')
+
+    vi.mocked(api.getCohortGithubAccess).mockResolvedValueOnce({ data: { organization: 'Code-School-of-Guam-Alumni', checked_at: '2026-09-27T00:00:00Z', statuses: { '10': 'member', '11': 'invited' } }, error: 'GitHub is unavailable', status: 502, fromCache: true })
+    const refresh = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Refresh GitHub'))!
+    await act(async () => { refresh.click() })
+
+    expect(select.value).toBe('all')
+    expect(container.textContent).toContain('Showing 2 of 2 enrolled')
+    expect(container.textContent).toContain('Signed in to app')
+    expect(container.textContent).toContain('App invite sent')
+    expect(container.textContent).toContain('GitHub status unavailable')
+    expect(Array.from(container.querySelectorAll('span')).some((span) => span.textContent === 'Joined GitHub org')).toBe(false)
+    expect(container.textContent).not.toContain('GitHub checked')
+  })
+
+  it('does not present an initial cached GitHub response as current', async () => {
+    vi.mocked(api.getCohortGithubAccess).mockResolvedValueOnce({ data: { organization: 'Code-School-of-Guam-Alumni', checked_at: '2026-09-27T00:00:00Z', statuses: { '10': 'member', '11': 'invited' } }, error: 'GitHub is unavailable', status: 502, fromCache: true })
+    const router = createMemoryRouter([{ path: '/admin/cohorts/:id', element: <CohortWorkspace /> }], { initialEntries: ['/admin/cohorts/4?tab=students'] })
+    await act(async () => { root.render(<RouterProvider router={router} />) })
+    await act(async () => { await Promise.resolve() })
+
+    expect(container.textContent).toContain('GitHub status unavailable')
+    expect(container.textContent).not.toContain('GitHub checked')
+    expect(container.querySelector<HTMLSelectElement>('select')!.querySelector<HTMLOptionElement>('option[value="github_member"]')!.disabled).toBe(true)
+  })
 })

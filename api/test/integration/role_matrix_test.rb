@@ -266,6 +266,27 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
     assert_match "unavailable", JSON.parse(response.body).fetch("error")
   end
 
+  test "instructor can inspect current GitHub access for enrolled students" do
+    @cohort.update!(github_organization_name: "Code-School-of-Guam-Alumni")
+    Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+    lookup = Object.new
+    lookup.define_singleton_method(:status_for) { |users| users.to_h { |user| [ user.id, "invited" ] } }
+
+    original_new = GithubOrganizationAccessService.method(:new)
+    GithubOrganizationAccessService.define_singleton_method(:new) { |**| lookup }
+    as_user(@instructor) do
+      get "/api/v1/cohorts/#{@cohort.id}/github_access", headers: auth_headers
+    end
+
+    assert_response :success
+    data = JSON.parse(response.body)
+    assert_equal "Code-School-of-Guam-Alumni", data.fetch("organization")
+    assert_equal "invited", data.fetch("statuses").fetch(@student.id.to_s)
+    assert Time.iso8601(data.fetch("checked_at"))
+  ensure
+    GithubOrganizationAccessService.define_singleton_method(:new, original_new) if original_new
+  end
+
   test "instructor cannot create cohort (admin-only)" do
     as_user(@instructor) do
       post "/api/v1/cohorts",

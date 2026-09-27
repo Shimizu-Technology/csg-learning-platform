@@ -16,7 +16,7 @@ class GithubOrganizationAccessService
 
     members = fetch_pages("members").filter_map { |entry| entry["login"]&.downcase }.to_set
     invitations = fetch_pages("invitations")
-    invited_logins = invitations.filter_map { |entry| entry.dig("invitee", "login")&.downcase }.to_set
+    invited_logins = invitations.filter_map { |entry| entry["login"]&.downcase }.to_set
     invited_emails = invitations.filter_map { |entry| entry["email"]&.downcase }.to_set
 
     users.to_h do |user|
