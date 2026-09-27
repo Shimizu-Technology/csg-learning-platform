@@ -248,7 +248,8 @@ module Api
       def record_video_activity!(progress)
         event_type = if progress.saved_change_to_status? && progress.completed?
           "video_completed"
-        elsif progress.previously_new_record? && progress.video_total_watched.to_i.positive?
+        elsif progress.saved_change_to_video_total_watched? &&
+            progress.video_total_watched_before_last_save.to_i.zero? && progress.video_total_watched.to_i.positive?
           "video_started"
         end
         return unless event_type

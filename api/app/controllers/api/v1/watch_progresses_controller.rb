@@ -272,7 +272,8 @@ module Api
       def record_watch_activity!(progress, recording, enrollment)
         event_type = if progress.saved_change_to_completed? && progress.completed?
           "recording_completed"
-        elsif progress.previously_new_record? && progress.total_watched_seconds.positive?
+        elsif progress.saved_change_to_total_watched_seconds? &&
+            progress.total_watched_seconds_before_last_save.to_i.zero? && progress.total_watched_seconds.positive?
           "recording_started"
         end
         return unless event_type

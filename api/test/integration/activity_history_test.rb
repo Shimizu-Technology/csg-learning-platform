@@ -72,6 +72,7 @@ class ActivityHistoryTest < ActionDispatch::IntegrationTest
   end
 
   test "embedded player progress saves and creates bounded player reported history" do
+    Progress.create!(user: @student, content_block: @video, status: :not_started)
     as_user(@student) do
       patch "/api/v1/content_blocks/#{@video.id}/video_progress", params: { last_position_seconds: 12, total_watched_seconds: 12, duration_seconds: 100 }, headers: auth_headers, as: :json
     end
