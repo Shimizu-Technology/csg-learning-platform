@@ -26,8 +26,8 @@ class WeeklyPlanProjectionTest < ActiveSupport::TestCase
     @enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
     @enrollment.module_assignments.create!(curriculum_module: @mod, unlocked: true)
 
-    Progress.create!(user: @student, content_block: @monday.content_blocks.first, status: :completed)
-    Submission.create!(user: @student, content_block: @wednesday.content_blocks.first, grade: :R, feedback: "Try the layout again.", graded_at: @now - 1.hour)
+    Progress.create!(user: @student, enrollment: @enrollment, content_block: @monday.content_blocks.first, status: :completed)
+    Submission.create!(user: @student, enrollment: @enrollment, content_block: @wednesday.content_blocks.first, grade: :R, feedback: "Try the layout again.", graded_at: @now - 1.hour)
     @cohort.office_hours.create!(
       title: "Live class",
       starts_at: Time.utc(2030, 7, 10, 4),

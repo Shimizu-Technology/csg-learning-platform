@@ -9,10 +9,12 @@ class SubmissionNotificationDeliveryServiceTest < ActiveJob::TestCase
     block = ContentBlock.create!(lesson: lesson, block_type: :exercise, position: 0, title: "Production checklist")
     @student = User.create!(clerk_id: "submission_notify_student", email: "submission-notify-student@example.com", role: :student)
     @instructor = User.create!(clerk_id: "submission_notify_instructor", email: "submission-notify-instructor@example.com", role: :instructor)
+    @cohort.cohort_instructor_assignments.create!(user: @instructor)
+    @unassigned_instructor = User.create!(clerk_id: "submission_notify_unassigned", email: "submission-notify-unassigned@example.com", role: :instructor)
     @admin = User.create!(clerk_id: "submission_notify_admin", email: "submission-notify-admin@example.com", role: :admin)
     @archived_staff = User.create!(clerk_id: "submission_notify_archived", email: "submission-notify-archived@example.com", role: :instructor, archived_at: Time.current)
-    Enrollment.create!(user: @student, cohort: @cohort, status: :active)
-    @submission = Submission.create!(user: @student, content_block: block, text: "Ready")
+    enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+    @submission = Submission.create!(user: @student, enrollment: enrollment, content_block: block, text: "Ready")
   end
 
   test "a new submission alerts active staff and queues push delivery" do
@@ -24,6 +26,7 @@ class SubmissionNotificationDeliveryServiceTest < ActiveJob::TestCase
     recipients = Notification.where(notifiable: @submission).order(:user_id).pluck(:user_id)
     assert_equal [ @instructor.id, @admin.id ].sort, recipients.sort
     assert_not_includes recipients, @archived_staff.id
+    assert_not_includes recipients, @unassigned_instructor.id
     assert Notification.where(notifiable: @submission).all?(&:submission?)
     notification = @instructor.notifications.find_by!(notifiable: @submission)
     assert_equal "#{@student.full_name} submitted Production checklist", notification.title

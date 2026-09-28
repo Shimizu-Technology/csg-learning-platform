@@ -33,7 +33,7 @@ module Api
       # GET /api/v1/direct_conversations/available_users?workspace_id=1
       def available_users
         workspace = resolved_workspace
-        unless workspace&.visible_to?(current_user) || current_user.staff?
+        unless workspace&.visible_to?(current_user)
           render_forbidden("Workspace is not visible")
           return
         end
@@ -74,7 +74,7 @@ module Api
       def create
         workspace = resolved_workspace
 
-        unless workspace&.visible_to?(current_user) || current_user.staff?
+        unless workspace&.visible_to?(current_user)
           render_forbidden("Workspace is not visible")
           return
         end

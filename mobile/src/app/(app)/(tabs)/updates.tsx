@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRouter, type Href } from 'expo-router';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { Archive, Bell, CheckCheck, ChevronRight, FileCheck2, Inbox, Megaphone, MessageCircle, PenLine, Pin, Send, Users, X } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
 import { Alert, FlatList, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
@@ -24,6 +24,8 @@ function demoMeta(totalCount: number): PaginationMeta {
 
 export default function UpdatesScreen() {
   const router = useRouter();
+  const { cohort_id } = useLocalSearchParams<{ cohort_id?: string }>();
+  const focusedCohortId = cohort_id && Number(cohort_id) > 0 ? Number(cohort_id) : null;
   const auth = useCsgAuth();
   const { api, user } = useSession();
   const isStaff = Boolean(user?.is_staff);
@@ -35,13 +37,13 @@ export default function UpdatesScreen() {
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
   const [showEditor, setShowEditor] = useState(false);
   const [managing, setManaging] = useState(false);
-  const announcementKey = useMemo(() => updatesKeys.announcements(userId, managing && isStaff), [isStaff, managing, userId]);
+  const announcementKey = useMemo(() => updatesKeys.announcements(userId, managing && isStaff, focusedCohortId), [focusedCohortId, isStaff, managing, userId]);
   const notificationKey = useMemo(() => updatesKeys.notifications(userId), [userId]);
   const announcementQuery = useQuery({
     queryKey: announcementKey,
     queryFn: (): Promise<AnnouncementListPayload> => auth.demo
-      ? Promise.resolve({ announcements: demoAnnouncements, unread_count: demoAnnouncements.filter((item) => !item.read_at).length, meta: demoMeta(demoAnnouncements.length) })
-      : api.announcements({ ...(managing && isStaff ? { scope: 'manage' as const, sort: 'updated_desc' } : {}), per_page: 50 }),
+      ? Promise.resolve({ announcements: demoAnnouncements.filter((item) => !focusedCohortId || item.cohort_id === focusedCohortId), unread_count: demoAnnouncements.filter((item) => !item.read_at && (!focusedCohortId || item.cohort_id === focusedCohortId)).length, meta: demoMeta(demoAnnouncements.length) })
+      : api.announcements({ ...(managing && isStaff ? { scope: 'manage' as const, sort: 'updated_desc' } : {}), ...(focusedCohortId ? { cohort_id: focusedCohortId } : {}), per_page: 50 }),
     enabled: Boolean(user),
     staleTime: auth.demo ? Infinity : UPDATES_STALE_TIME,
     meta: { persist: true },
@@ -65,14 +67,14 @@ export default function UpdatesScreen() {
 
   const setAnnouncementCaches = useCallback((announcement: Announcement, operation: 'read' | 'upsert') => {
     ([false, true] as const).forEach((managingCache) => {
-      queryClient.setQueryData<AnnouncementListPayload>(updatesKeys.announcements(userId, managingCache), (current) => (
-        operation === 'read' ? readAnnouncement(current, announcement) : upsertAnnouncement(current, announcement, managingCache)
-      ));
+      [null, focusedCohortId].forEach((cohortId) => queryClient.setQueryData<AnnouncementListPayload>(updatesKeys.announcements(userId, managingCache, cohortId), (current) => (
+        operation === 'read' ? readAnnouncement(current, announcement) : cohortId && announcement.cohort_id !== cohortId ? current : upsertAnnouncement(current, announcement, managingCache)
+      )));
     });
     if (operation === 'read') {
       queryClient.setQueryData<NotificationListPayload>(notificationKey, (current) => readAnnouncementNotification(current, announcement.id, announcement.read_at));
     }
-  }, [notificationKey, queryClient, userId]);
+  }, [focusedCohortId, notificationKey, queryClient, userId]);
 
   const refresh = async () => {
     setRefreshing(true);
@@ -127,7 +129,7 @@ export default function UpdatesScreen() {
   const blockingError = section === 'announcements' ? !announcementData && announcementError : !notificationData && notificationError;
 
   return <SafeAreaView edges={['top']} style={styles.safe}>
-    <View style={styles.header}><View><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>WHAT MATTERS NOW</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heading}>Updates</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.subhead}>{unread ? `${unread} unread notification${unread === 1 ? '' : 's'}` : 'You’re all caught up'}</Text></View>{user?.is_staff && section === 'announcements' && <Pressable accessibilityRole="button" accessibilityLabel="Write an announcement" onPress={() => setShowEditor(true)} style={styles.compose}><PenLine color={palette.text} size={20} /></Pressable>}</View>
+    <View style={styles.header}><View><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>WHAT MATTERS NOW</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heading}>Updates</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.subhead}>{focusedCohortId ? 'Announcements for this cohort' : unread ? `${unread} unread notification${unread === 1 ? '' : 's'}` : 'You’re all caught up'}</Text></View>{user?.is_staff && section === 'announcements' && <Pressable accessibilityRole="button" accessibilityLabel="Write an announcement" onPress={() => setShowEditor(true)} style={styles.compose}><PenLine color={palette.text} size={20} /></Pressable>}</View>
     <View style={styles.tabs}><SectionButton active={section === 'announcements'} label="Announcements" icon={Megaphone} onPress={() => setSection('announcements')} /><SectionButton active={section === 'inbox'} label="Inbox" icon={Inbox} badge={unread} onPress={() => setSection('inbox')} /></View>
     {user?.is_staff && section === 'announcements' && <View style={styles.manageRow}><Text style={styles.manageLabel}>Include drafts and archived</Text><View style={styles.switchSlot}><Switch accessibilityLabel="Include drafts and archived announcements" value={managing} onValueChange={setManaging} trackColor={{ false: palette.line, true: '#6A2A36' }} thumbColor={managing ? palette.rubySoft : palette.muted} style={styles.switch} /></View></View>}
     {blockingLoad ? <LoadingState label="Loading updates" /> : blockingError ? <ErrorState message={blockingError.message} retry={() => void (section === 'announcements' ? refetchAnnouncements() : refetchNotifications())} /> : section === 'announcements' ? (
@@ -137,7 +139,7 @@ export default function UpdatesScreen() {
     )}
 
     <AnnouncementDetail item={selectedAnnouncement} canManage={Boolean(user?.is_staff)} onClose={() => setSelectedAnnouncement(null)} onEdit={() => setShowEditor(true)} onArchive={async () => { if (!selectedAnnouncement) return; try { const result = await api.archiveAnnouncement(selectedAnnouncement.id); setAnnouncementCaches(result.announcement, 'upsert'); setSelectedAnnouncement(null); } catch (requestError) { Alert.alert('Could not archive announcement', (requestError as Error).message); } }} />
-    <AnnouncementEditor visible={showEditor} initial={selectedAnnouncement} workspaces={workspaces} onClose={() => { setShowEditor(false); setSelectedAnnouncement(null); }} onSave={async (data) => { const result = selectedAnnouncement ? await api.updateAnnouncement(selectedAnnouncement.id, data) : await api.createAnnouncement(data); setAnnouncementCaches(result.announcement, 'upsert'); setShowEditor(false); setSelectedAnnouncement(null); }} />
+    <AnnouncementEditor visible={showEditor} initial={selectedAnnouncement} defaultCohortId={focusedCohortId} workspaces={workspaces} onClose={() => { setShowEditor(false); setSelectedAnnouncement(null); }} onSave={async (data) => { const result = selectedAnnouncement ? await api.updateAnnouncement(selectedAnnouncement.id, data) : await api.createAnnouncement(data); setAnnouncementCaches(result.announcement, 'upsert'); setShowEditor(false); setSelectedAnnouncement(null); }} />
   </SafeAreaView>;
 }
 
@@ -149,10 +151,10 @@ function AnnouncementDetail({ item, canManage, onClose, onEdit, onArchive }: { i
 }
 
 type EditorData = { title: string; body: string; audience: Announcement['audience']; cohort_id?: number | null; status: Announcement['status']; pinned: boolean; send_push?: boolean };
-function AnnouncementEditor({ visible, initial, workspaces, onClose, onSave }: { visible: boolean; initial: Announcement | null; workspaces: { cohort_id: number | null; cohort_name: string | null; name: string }[]; onClose: () => void; onSave: (data: EditorData) => Promise<void> }) {
+function AnnouncementEditor({ visible, initial, defaultCohortId, workspaces, onClose, onSave }: { visible: boolean; initial: Announcement | null; defaultCohortId: number | null; workspaces: { cohort_id: number | null; cohort_name: string | null; name: string }[]; onClose: () => void; onSave: (data: EditorData) => Promise<void> }) {
   const [title, setTitle] = useState(''); const [body, setBody] = useState(''); const [audience, setAudience] = useState<Announcement['audience']>('cohort'); const [cohortId, setCohortId] = useState<number | null>(null); const [pinned, setPinned] = useState(false); const [publish, setPublish] = useState(true); const [push, setPush] = useState(true); const [saving, setSaving] = useState(false);
   const cohorts = useMemo(() => Array.from(new Map(workspaces.filter((workspace) => workspace.cohort_id).map((workspace) => [workspace.cohort_id!, { id: workspace.cohort_id!, name: workspace.cohort_name || workspace.name }])).values()), [workspaces]);
-  const reset = useCallback(() => { setTitle(initial?.title || ''); setBody(initial?.body || ''); setAudience(initial?.audience || 'cohort'); setCohortId(initial?.cohort_id || cohorts[0]?.id || null); setPinned(initial?.pinned || false); setPublish(initial ? initial.status === 'published' : true); setPush(!initial); }, [cohorts, initial]);
+  const reset = useCallback(() => { setTitle(initial?.title || ''); setBody(initial?.body || ''); setAudience(initial?.audience || 'cohort'); setCohortId(initial?.cohort_id || defaultCohortId || cohorts[0]?.id || null); setPinned(initial?.pinned || false); setPublish(initial ? initial.status === 'published' : true); setPush(!initial); }, [cohorts, defaultCohortId, initial]);
   return <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onShow={reset} onRequestClose={onClose}><SafeAreaView style={styles.editorSafe}><View style={styles.editorHeader}><Pressable accessibilityRole="button" accessibilityLabel="Close announcement editor" onPress={onClose} style={styles.close}><X color={palette.muted} size={20} /></Pressable><Text style={styles.editorTitle}>{initial ? 'Edit announcement' : 'New announcement'}</Text><Pressable accessibilityRole="button" disabled={saving || !title.trim() || !body.trim() || (audience === 'cohort' && !cohortId)} onPress={async () => { setSaving(true); try { await onSave({ title: title.trim(), body: body.trim(), audience, cohort_id: audience === 'cohort' ? cohortId : null, status: publish ? 'published' : 'draft', pinned, send_push: publish && push }); } catch (requestError) { Alert.alert('Could not save announcement', (requestError as Error).message); } finally { setSaving(false); } }} style={styles.saveButton}><Send color={palette.text} size={15} /><Text style={styles.saveText}>{saving ? 'Saving' : 'Save'}</Text></Pressable></View><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.editorContent}><Text style={styles.fieldLabel}>TITLE</Text><TextInput accessibilityLabel="Announcement title" value={title} onChangeText={setTitle} placeholder="What should everyone know?" placeholderTextColor={palette.quiet} style={styles.field} /><Text style={styles.fieldLabel}>MESSAGE</Text><TextInput accessibilityLabel="Announcement message" value={body} onChangeText={setBody} placeholder="Share the details clearly…" placeholderTextColor={palette.quiet} multiline style={[styles.field, styles.bodyField]} /><Text style={styles.fieldLabel}>AUDIENCE</Text><View style={styles.choiceRow}>{(['cohort', 'global', 'staff'] as const).map((value) => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: audience === value }} onPress={() => setAudience(value)} style={[styles.choice, audience === value && styles.choiceActive]}><Text style={[styles.choiceText, audience === value && styles.choiceTextActive]}>{value}</Text></Pressable>)}</View>{audience === 'cohort' && <><Text style={styles.fieldLabel}>COHORT</Text><View style={styles.cohortList}>{cohorts.map((cohort) => <Pressable key={cohort.id} accessibilityRole="radio" accessibilityState={{ checked: cohortId === cohort.id }} onPress={() => setCohortId(cohort.id)} style={[styles.cohortChoice, cohortId === cohort.id && styles.choiceActive]}><Users color={cohortId === cohort.id ? palette.rubySoft : palette.muted} size={15} /><Text style={[styles.choiceText, cohortId === cohort.id && styles.choiceTextActive]}>{cohort.name}</Text></Pressable>)}</View></>}<EditorToggle label="Pin to the top" value={pinned} onValueChange={setPinned} /><EditorToggle label="Publish now" value={publish} onValueChange={setPublish} /><EditorToggle label="Send a push notification" value={push} onValueChange={setPush} disabled={!publish || Boolean(initial)} /></ScrollView></SafeAreaView></Modal>;
 }
 function EditorToggle({ label, value, onValueChange, disabled = false }: { label: string; value: boolean; onValueChange: (value: boolean) => void; disabled?: boolean }) { return <View style={[styles.editorToggle, disabled && { opacity: 0.45 }]}><Text style={styles.editorToggleText}>{label}</Text><View style={styles.switchSlot}><Switch accessibilityLabel={label} disabled={disabled} value={value} onValueChange={onValueChange} trackColor={{ false: palette.line, true: '#6A2A36' }} thumbColor={value ? palette.rubySoft : palette.muted} style={styles.switch} /></View></View>; }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, ExternalLink, Link2, Search, Video, MessageSquare, Github, FileText, Globe, RefreshCw, WifiOff, Keyboard, Copy, Check } from 'lucide-react'
 import { api } from '../../lib/api'
+import { useCohortContext } from '../../contexts/CohortContext'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
@@ -26,6 +27,7 @@ const categoryConfig: Record<string, { label: string; icon: typeof Globe; color:
 }
 
 export function Resources() {
+  const { selectedCohortId } = useCohortContext()
   const [resources, setResources] = useState<ResourceItem[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -35,10 +37,11 @@ export function Resources() {
 
   const loadResources = useCallback(() => {
     setLoading(true)
+    setResources([])
     setLoadError(null)
     setShowingSavedData(false)
 
-    api.getResources()
+    api.getResources(selectedCohortId ?? undefined)
       .then((res) => {
         if (res.data?.resources) {
           setResources(res.data.resources)
@@ -53,7 +56,7 @@ export function Resources() {
         setLoadError(error instanceof Error ? error.message : 'Unable to load resources right now.')
       })
       .finally(() => setLoading(false))
-  }, [])
+  }, [selectedCohortId])
 
   useEffect(() => {
     loadResources()

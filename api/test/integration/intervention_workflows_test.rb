@@ -11,13 +11,14 @@ class InterventionWorkflowsTest < ActionDispatch::IntegrationTest
     @cohort = Cohort.create!(curriculum: @curriculum, name: "Intervention cohort", start_date: Date.current, status: :active)
     @student = User.create!(clerk_id: "intervention_student", email: "intervention-student@example.com", first_name: "Maya", last_name: "Santos", role: :student)
     @staff = User.create!(clerk_id: "intervention_staff", email: "intervention-staff@example.com", first_name: "Inez", last_name: "Instructor", role: :instructor)
+    @cohort.cohort_instructor_assignments.create!(user: @staff)
     @other_staff = User.create!(clerk_id: "intervention_owner", email: "intervention-owner@example.com", first_name: "Owen", last_name: "Owner", role: :admin)
     @enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
     @enrollment.module_assignments.create!(curriculum_module: @mod, unlocked: true)
   end
 
   test "staff creates an owned intervention from server-generated privacy-safe evidence" do
-    submission = Submission.create!(user: @student, content_block: @block, text: "private student code", grade: :R, feedback: "private staff feedback")
+    submission = Submission.create!(user: @student, enrollment: @enrollment, content_block: @block, text: "private student code", grade: :R, feedback: "private staff feedback")
 
     as_user(@staff) do
       post "/api/v1/interventions", params: {

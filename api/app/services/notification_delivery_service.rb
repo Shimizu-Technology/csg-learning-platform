@@ -86,11 +86,8 @@ class NotificationDeliveryService
   end
 
   def submission_created(submission, push: true, event_at: submission.created_at)
-    # Staff authorization is intentionally platform-wide today: instructors and
-    # admins can view every active cohort, and there is no teaching-team
-    # assignment model to scope this further without silently dropping alerts.
     path = staff_submission_path(submission)
-    notifications = User.not_archived.where(role: %i[instructor admin]).find_each.filter_map do |staff|
+    notifications = staff_for_cohort(submission.enrollment&.cohort).find_each.filter_map do |staff|
       notification, claimed = submission_notification_for(
         staff,
         submission,
@@ -128,7 +125,7 @@ class NotificationDeliveryService
   end
 
   def help_request_created(help_request, push: true)
-    notifications = User.not_archived.where(role: %i[instructor admin]).find_each.map do |staff|
+    notifications = staff_for_cohort(help_request.cohort).find_each.map do |staff|
       help_request_notification_for(
         staff,
         help_request,
@@ -187,6 +184,13 @@ class NotificationDeliveryService
   end
 
   private
+
+  def staff_for_cohort(cohort)
+    return User.not_archived.admin unless cohort
+
+    User.not_archived.where(role: User.roles[:admin])
+      .or(User.not_archived.where(id: cohort.cohort_instructor_assignments.select(:user_id)))
+  end
 
   def enqueue_message_push(message, notification_ids)
     return if notification_ids.empty?
@@ -311,12 +315,7 @@ class NotificationDeliveryService
   end
 
   def staff_submission_path(submission)
-    curriculum_id = submission.content_block.lesson.curriculum_module.curriculum_id
-    enrollment = submission.user.enrollments
-      .joins(:cohort)
-      .where(cohorts: { curriculum_id: curriculum_id })
-      .order(status: :asc, enrolled_at: :desc, id: :desc)
-      .first
+    enrollment = submission.enrollment
     base_path = "/admin/submissions/#{submission.id}"
     return base_path unless enrollment
 

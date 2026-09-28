@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LearningCard, ProgressBar, SectionHeading } from '@/components/learning-ui';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { WeeklyPlanCard } from '@/components/weekly-plan';
+import { CohortSwitcher } from '@/components/cohort-switcher';
 import { fontScaleLimits, fonts, palette, typography } from '@/constants/csg-theme';
 import { demoDashboard, demoWeeklyPlan } from '@/lib/demo-learning';
 import { demoStaffDashboard } from '@/lib/demo-staff';
@@ -14,6 +15,7 @@ import { openAuthenticatedWebPage, openExternalPage } from '@/lib/external-links
 import { isStudentDashboard, learningKeys, staffAttentionRank } from '@/lib/learning';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
+import { useCohort } from '@/providers/cohort-provider';
 
 export default function TodayScreen() {
   const router = useRouter();
@@ -21,15 +23,16 @@ export default function TodayScreen() {
   const largeText = fontScale >= 1.5;
   const auth = useCsgAuth();
   const { api, user } = useSession();
+  const { selectedCohortId } = useCohort();
   const query = useQuery({
-    queryKey: learningKeys.dashboard(user?.id || 0),
-    queryFn: ({ signal }) => auth.demo ? Promise.resolve({ dashboard: user?.is_staff ? demoStaffDashboard : demoDashboard }) : api.dashboard(signal),
+    queryKey: learningKeys.dashboard(user?.id || 0, selectedCohortId),
+    queryFn: ({ signal }) => auth.demo ? Promise.resolve({ dashboard: user?.is_staff ? { ...demoStaffDashboard, cohorts: selectedCohortId ? demoStaffDashboard.cohorts.filter((item) => item.cohort.id === selectedCohortId) : demoStaffDashboard.cohorts } : demoDashboard }) : api.dashboard(signal, selectedCohortId),
     enabled: Boolean(user),
   });
   const dashboard = query.data?.dashboard;
   const weeklyQuery = useQuery({
-    queryKey: learningKeys.weeklyPlan(user?.id || 0),
-    queryFn: ({ signal }) => auth.demo ? Promise.resolve({ weekly_plan: demoWeeklyPlan }) : api.weeklyPlan(signal),
+    queryKey: learningKeys.weeklyPlan(user?.id || 0, selectedCohortId),
+    queryFn: ({ signal }) => auth.demo ? Promise.resolve({ weekly_plan: demoWeeklyPlan }) : api.weeklyPlan(signal, selectedCohortId),
     enabled: Boolean(user && !user.is_staff),
   });
   const weeklyPlan = weeklyQuery.data?.weekly_plan;
@@ -46,6 +49,7 @@ export default function TodayScreen() {
     const redos = students.reduce((total, student) => total + student.redo_count, 0);
     return <SafeAreaView edges={['top']} style={styles.safe}><ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={refresh} tintColor={palette.rubySoft} />} contentContainerStyle={styles.content}>
       {query.isError && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved staff data. Pull to reconnect.</Text></View>}
+      <CohortSwitcher />
       <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>TEACHING TODAY</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heroTitle}>Good {dayPart()}, {firstName(dashboard?.user.full_name || user?.full_name || '')}</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.heroCopy}>See who needs a response, review work, and move the class forward from your phone.</Text>
       <View style={[styles.metricGrid, largeText && styles.singleColumn]}><MetricCard icon={ClipboardCheck} value={ungraded} label="to review" tone="ruby" large={largeText} /><MetricCard icon={RotateCcw} value={redos} label="redo requests" tone="warning" large={largeText} /><MetricCard icon={Users} value={students.length} label="active students" tone="success" large={largeText} /></View>
       <View style={styles.section}><SectionHeading eyebrow="Highest signal first" title="Needs attention" actionLabel={ungraded ? 'Grading queue' : undefined} onAction={ungraded ? () => router.push('/staff/grading') : undefined} />
@@ -55,7 +59,7 @@ export default function TodayScreen() {
     </ScrollView></SafeAreaView>;
   }
 
-  if (!dashboard.enrolled) return <SafeAreaView style={styles.safe}><View style={styles.center}><BookOpen color={palette.rubySoft} size={34} /><Text style={styles.emptyTitle}>No active learning path</Text><Text style={styles.emptyCopy}>Your lessons will appear here when your cohort enrollment is active.</Text></View></SafeAreaView>;
+  if (!dashboard.enrolled) return <SafeAreaView style={styles.safe}><View style={styles.content}><CohortSwitcher /></View><View style={styles.center}><BookOpen color={palette.rubySoft} size={34} /><Text style={styles.emptyTitle}>No active learning path</Text><Text style={styles.emptyCopy}>Choose a current cohort to see its lessons, or open a past cohort to revisit your class.</Text></View></SafeAreaView>;
 
   const progress = dashboard.overall_progress?.percentage || 0;
   const showWeeklyFallback = !weeklyQuery.isPending && !weeklyPlan?.enrolled;
@@ -63,13 +67,14 @@ export default function TodayScreen() {
     <SafeAreaView edges={['top']} style={styles.safe}>
       <ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching || weeklyQuery.isRefetching} onRefresh={refresh} tintColor={palette.rubySoft} />} contentContainerStyle={styles.content}>
         {(query.isError || weeklyQuery.isError) && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved learning data. Pull to reconnect.</Text></View>}
+        <CohortSwitcher />
         <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>YOUR LEARNING DAY</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heroTitle}>Good {dayPart()}, {firstName(dashboard.user.full_name)}</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.heroCopy}>{dashboard.cohort?.name || 'Code School of Guam'} · focus on the next useful step.</Text>
         <LearningCard onPress={dashboard.continue_lesson ? () => router.push(`/lesson/${dashboard.continue_lesson!.id}`) : undefined} label={dashboard.continue_lesson ? `Continue ${dashboard.continue_lesson.title}` : undefined}>
           <View style={styles.cardTop}><View style={styles.continueIcon}><BookOpen color={palette.rubySoft} size={21} /></View><View style={styles.flex}><Text style={styles.cardKicker}>NEXT BEST ACTION</Text><Text style={styles.cardTitle}>{dashboard.continue_lesson?.title || 'You’re caught up'}</Text><Text style={styles.cardMeta}>{dashboard.continue_lesson ? 'Continue your current lesson' : 'Review your completed lessons anytime'}</Text></View>{dashboard.continue_lesson && <ArrowRight color={palette.muted} size={20} />}</View>
           <View style={styles.progressCopy}><Text style={styles.progressLabel}>Overall progress</Text><Text style={styles.progressValue}>{Math.round(progress)}%</Text></View><ProgressBar value={progress} label="Overall learning progress" />
         </LearningCard>
 
-        {weeklyPlan?.enrolled && <WeeklyPlanCard plan={weeklyPlan} />}
+        {weeklyPlan?.enrolled && (!selectedCohortId || weeklyPlan.cohort?.id === selectedCohortId) && <WeeklyPlanCard plan={weeklyPlan} />}
 
         {showWeeklyFallback && !!dashboard.action_items?.length && <View style={styles.section}><SectionHeading eyebrow="Needs attention" title="Redo work" /><View style={styles.stack}>{dashboard.action_items.map((item) => <LearningCard key={item.submission_id} onPress={() => router.push(`/lesson/${item.lesson_id}`)} label={`Open redo for ${item.lesson_title}`}><View style={styles.row}><View style={styles.redoIcon}><RotateCcw color={palette.rubySoft} size={18} /></View><View style={styles.flex}><Text style={styles.cardTitle}>{item.lesson_title}</Text><Text style={styles.cardMeta}>{item.content_block_title}</Text>{item.feedback && <Text numberOfLines={3} style={styles.feedback}>{item.feedback}</Text>}</View><ArrowRight color={palette.quiet} size={18} /></View></LearningCard>)}</View></View>}
 

@@ -3,13 +3,14 @@ module Api
     class CohortsController < ApplicationController
       before_action :authenticate_user!
       before_action :require_staff!, only: [ :index, :show, :student_view, :github_access ]
-      before_action :require_admin!, except: [ :index, :show, :student_view, :github_access ]
-      before_action :set_cohort, only: [ :show, :github_access, :update, :destroy, :module_access, :announcements, :recordings, :class_resources ]
+      before_action :require_admin!, except: [ :index, :accessible, :home, :show, :student_view, :github_access ]
+      before_action :set_cohort, only: [ :home, :show, :github_access, :update, :destroy, :module_access, :announcements, :recordings, :class_resources ]
       before_action :set_cohort_with_lessons, only: [ :student_view ]
+      before_action :authorize_staff_cohort!, only: [ :show, :student_view, :github_access ]
 
       # GET /api/v1/cohorts
       def index
-        cohorts = Cohort.includes(
+        cohorts = current_user.accessible_cohorts.includes(
           :cohort_module_schedules,
           :cohort_module_submission_windows,
           { office_hours: :created_by },
@@ -22,6 +23,35 @@ module Api
             base
           }
         }
+      end
+
+      # The switcher list is available to every signed-in role. It is also the
+      # source of truth when a saved cohort selection has become unauthorized.
+      def accessible
+        cohorts = current_user.accessible_cohorts.includes(:curriculum, :workspace).order(start_date: :desc)
+        enrollment_statuses = current_user.student? ? current_user.enrollments.where(cohort_id: cohorts.map(&:id)).index_by(&:cohort_id) : {}
+        render json: { cohorts: cohorts.map { |cohort|
+          {
+            id: cohort.id,
+            name: cohort.name,
+            status: cohort.status,
+            cohort_type: cohort.cohort_type,
+            curriculum_name: cohort.curriculum.name,
+            workspace_id: cohort.workspace&.id,
+            enrollment_status: enrollment_statuses[cohort.id]&.status,
+            joined_at: enrollment_statuses[cohort.id]&.joined_at
+          }
+        } }
+      end
+
+      def home
+        unless current_user.can_access_cohort?(@cohort)
+          render_forbidden("Cannot access this cohort")
+          return
+        end
+
+        @cohort.enrollments.find_by(user: current_user)&.mark_joined! if current_user.student?
+        render json: { home: CohortHomeProjection.new(cohort: @cohort, viewer: current_user).call }
       end
 
       # GET /api/v1/cohorts/:id
@@ -190,6 +220,12 @@ module Api
       end
 
       private
+
+      def authorize_staff_cohort!
+        return if current_user.can_teach_cohort?(@cohort)
+
+        render_forbidden("Cannot access this cohort")
+      end
 
       def set_cohort
         @cohort = load_cohort_for_detail(params[:id])
@@ -627,6 +663,8 @@ module Api
               github_username: e.user.github_username,
               status: e.status,
               enrolled_at: e.enrolled_at,
+              invited_at: e.invited_at,
+              joined_at: e.joined_at,
               last_sign_in_at: e.user.last_sign_in_at,
               last_seen_at: e.user.last_seen_at,
               invite_pending: e.user.clerk_id&.start_with?("pending_") || false,

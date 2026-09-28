@@ -1,5 +1,8 @@
 import type {
   ActivityEventsResponse,
+  AccessibleCohort,
+  CohortHome,
+  CohortOfficeHour,
   Announcement,
   AppNotification,
   ChannelSummary,
@@ -172,15 +175,20 @@ export class CsgApi {
   blockedUsers = () => this.request<{ blocked_users: import('./types').BlockedUser[] }>('/api/v1/user_blocks');
   unblockUser = (blockedUserId: number) => this.request<void>(`/api/v1/user_blocks/${blockedUserId}`, { method: 'DELETE' });
   requestDataDeletion = () => this.request<{ data_deletion_request: DataDeletionRequest }>('/api/v1/data_deletion_requests', { method: 'POST' });
-  dashboard = (signal?: AbortSignal) => this.request<{ dashboard: StudentDashboard | StaffDashboard }>('/api/v1/dashboard', { signal });
-  weeklyPlan = (signal?: AbortSignal) => this.request<{ weekly_plan: WeeklyPlan }>('/api/v1/weekly_plan', { signal });
+  dashboard = (signal?: AbortSignal, cohortId?: number | null) => this.request<{ dashboard: StudentDashboard | StaffDashboard }>(`/api/v1/dashboard${queryString({ cohort_id: cohortId })}`, { signal });
+  accessibleCohorts = (signal?: AbortSignal) => this.request<{ cohorts: AccessibleCohort[] }>('/api/v1/cohorts/accessible', { signal });
+  cohortHome = (cohortId: number, signal?: AbortSignal) => this.request<{ home: CohortHome }>(`/api/v1/cohorts/${cohortId}/home`, { signal });
+  cohortOfficeHours = (cohortId: number, signal?: AbortSignal) => this.request<{ office_hours: CohortOfficeHour[]; upcoming: CohortHome['upcoming_events'] }>(`/api/v1/cohorts/${cohortId}/office_hours`, { signal });
+  createCohortOfficeHour = (cohortId: number, input: Pick<CohortOfficeHour, 'title' | 'starts_at' | 'ends_at' | 'meeting_url' | 'timezone' | 'recurrence' | 'event_kind'> & { description?: string }) => this.request<{ office_hour: CohortOfficeHour }>(`/api/v1/cohorts/${cohortId}/office_hours`, { method: 'POST', body: JSON.stringify(input) });
+  updateCohortOfficeHour = (cohortId: number, officeHourId: number, input: Partial<Pick<CohortOfficeHour, 'title' | 'description' | 'starts_at' | 'ends_at' | 'meeting_url' | 'timezone' | 'recurrence' | 'event_kind' | 'active'>>) => this.request<{ office_hour: CohortOfficeHour }>(`/api/v1/cohorts/${cohortId}/office_hours/${officeHourId}`, { method: 'PATCH', body: JSON.stringify(input) });
+  weeklyPlan = (signal?: AbortSignal, cohortId?: number | null) => this.request<{ weekly_plan: WeeklyPlan }>(`/api/v1/weekly_plan${queryString({ cohort_id: cohortId })}`, { signal });
   profile = (signal?: AbortSignal) => this.request<ProfilePayload>('/api/v1/profile', { signal });
   updateProfile = (data: { github_username?: string | null }) => this.request<{ user: ProfilePayload['user'] }>('/api/v1/profile', { method: 'PATCH', body: JSON.stringify(data) });
   webHandoff = (destination: string) => this.request<{ url: string }>('/api/v1/web_handoffs', { method: 'POST', body: JSON.stringify({ destination }) });
   resources = (signal?: AbortSignal) => this.request<{ resources: LearningResource[] }>('/api/v1/resources', { signal });
   curricula = (signal?: AbortSignal) => this.request<{ curricula: StaffCurriculumSummary[] }>('/api/v1/curricula', { signal });
   curriculum = (id: number, signal?: AbortSignal) => this.request<{ curriculum: StaffCurriculum }>(`/api/v1/curricula/${id}`, { signal });
-  lesson = (id: number, signal?: AbortSignal) => this.request<{ lesson: LessonDetail }>(`/api/v1/lessons/${id}`, { signal });
+  lesson = (id: number, signal?: AbortSignal, cohortId?: number | null) => this.request<{ lesson: LessonDetail }>(`/api/v1/lessons/${id}${queryString({ cohort_id: cohortId })}`, { signal });
   updateLessonEditor = (id: number, input: LessonEditorInput) => this.request<{ lesson: LessonDetail }>(`/api/v1/lessons/${id}/editor`, { method: 'PATCH', body: JSON.stringify({ editor: input }) });
   createExercise = (moduleId: number, input: ExerciseCreateInput) => this.request<{ lesson: LessonDetail }>(`/api/v1/modules/${moduleId}/exercises`, { method: 'POST', body: JSON.stringify(input) });
   updateLessonSchedule = (id: number, releaseDay: number, baseUpdatedAt: string) => this.request<{ lesson: LessonDetail }>(`/api/v1/lessons/${id}`, { method: 'PATCH', body: JSON.stringify({ release_day: releaseDay, base_updated_at: baseUpdatedAt }) });
@@ -196,20 +204,20 @@ export class CsgApi {
   helpRequest = (id: number, signal?: AbortSignal) => this.request<{ help_request: HelpRequest }>(`/api/v1/help_requests/${id}`, { signal });
   createHelpRequest = (input: { cohort_id: number; context_type: HelpContextType; context_source?: HelpContextSource; context_id: number; category: HelpCategory; urgency: HelpUrgency; message: string }) => this.request<{ help_request: HelpRequest; created: boolean }>('/api/v1/help_requests', { method: 'POST', body: JSON.stringify({ help_request: input }) });
   updateHelpRequest = (id: number, input: { status: 'acknowledged' | 'resolved' | 'canceled'; staff_response?: string }) => this.request<{ help_request: HelpRequest; status_changed: boolean }>(`/api/v1/help_requests/${id}`, { method: 'PATCH', body: JSON.stringify({ help_request: input }) });
-  supportQueue = (signal?: AbortSignal) => this.request<{ support_queue: SupportQueue }>('/api/v1/support_queue', { signal });
+  supportQueue = (signal?: AbortSignal, cohortId?: number | null) => this.request<{ support_queue: SupportQueue }>(`/api/v1/support_queue${queryString({ cohort_id: cohortId })}`, { signal });
   intervention = (id: number, signal?: AbortSignal) => this.request<{ intervention: Intervention }>(`/api/v1/interventions/${id}`, { signal });
   updateIntervention = (id: number, input: { status?: InterventionStatus; action_summary?: string; next_follow_up_at?: string; outcome?: InterventionOutcome; resolution_summary?: string }) => this.request<{ intervention: Intervention }>(`/api/v1/interventions/${id}`, { method: 'PATCH', body: JSON.stringify({ intervention: input }) });
-  progress = (lessonId: number, signal?: AbortSignal) => this.request<{ progress: ProgressEntry[] }>(`/api/v1/progress?lesson_id=${lessonId}`, { signal });
-  updateProgress = (contentBlockId: number, status: string) => this.request<{ progress: ProgressEntry }>('/api/v1/progress', { method: 'PATCH', body: JSON.stringify({ content_block_id: contentBlockId, status }) });
-  createSubmission = (input: SubmissionInput) => this.request<{ submission: Submission }>('/api/v1/submissions', { method: 'POST', body: JSON.stringify(input) });
-  updateSubmission = (id: number, input: Omit<SubmissionInput, 'content_block_id'>) => this.request<{ submission: Submission }>(`/api/v1/submissions/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
-  submissions = (params: { user_id?: number; ungraded?: boolean; module_id?: number } = {}, signal?: AbortSignal) => this.request<{ submissions: Submission[] }>(`/api/v1/submissions${queryString(params)}`, { signal });
+  progress = (lessonId: number, signal?: AbortSignal, cohortId?: number | null) => this.request<{ progress: ProgressEntry[] }>(`/api/v1/progress${queryString({ lesson_id: lessonId, cohort_id: cohortId })}`, { signal });
+  updateProgress = (contentBlockId: number, status: string, cohortId?: number | null) => this.request<{ progress: ProgressEntry }>('/api/v1/progress', { method: 'PATCH', body: JSON.stringify({ content_block_id: contentBlockId, status, ...(cohortId != null ? { cohort_id: cohortId } : {}) }) });
+  createSubmission = (input: SubmissionInput, cohortId?: number | null) => this.request<{ submission: Submission }>('/api/v1/submissions', { method: 'POST', body: JSON.stringify({ ...input, ...(cohortId != null ? { cohort_id: cohortId } : {}) }) });
+  updateSubmission = (id: number, input: Omit<SubmissionInput, 'content_block_id'>, cohortId?: number | null) => this.request<{ submission: Submission }>(`/api/v1/submissions/${id}`, { method: 'PATCH', body: JSON.stringify({ ...input, ...(cohortId != null ? { cohort_id: cohortId } : {}) }) });
+  submissions = (params: { user_id?: number; ungraded?: boolean; module_id?: number; cohort_id?: number } = {}, signal?: AbortSignal) => this.request<{ submissions: Submission[] }>(`/api/v1/submissions${queryString(params)}`, { signal });
   submission = (id: number, signal?: AbortSignal) => this.request<{ submission: Submission }>(`/api/v1/submissions/${id}`, { signal });
   gradeSubmission = (id: number, grade: 'A' | 'B' | 'C' | 'R', feedback: string, baseSubmissionUpdatedAt: string, criterionResults?: { rubric_criterion_id: number; rating: import('./types').RubricRating; feedback?: string }[]) => this.request<{ submission: Submission }>(`/api/v1/submissions/${id}/grade`, { method: 'PATCH', body: JSON.stringify({ grade, feedback, base_submission_updated_at: baseSubmissionUpdatedAt, criterion_results: criterionResults }) });
   feedbackSnippets = (signal?: AbortSignal) => this.request<{ feedback_snippets: FeedbackSnippet[] }>('/api/v1/feedback_snippets', { signal });
   createFeedbackSnippet = (body: string) => this.request<{ feedback_snippet: FeedbackSnippet }>('/api/v1/feedback_snippets', { method: 'POST', body: JSON.stringify({ feedback_snippet: { body } }) });
   useFeedbackSnippet = (id: number) => this.request<{ feedback_snippet: FeedbackSnippet }>(`/api/v1/feedback_snippets/${id}/use`, { method: 'POST' });
-  attemptKnowledgeCheck = (id: number, selectedOption: number) => this.request<{ knowledge_check: import('./types').KnowledgeCheck; progress: { status: string; completed_at: string | null } | null }>(`/api/v1/knowledge_checks/${id}/attempts`, { method: 'POST', body: JSON.stringify({ selected_option: selectedOption }) });
+  attemptKnowledgeCheck = (id: number, selectedOption: number, cohortId?: number | null) => this.request<{ knowledge_check: import('./types').KnowledgeCheck; progress: { status: string; completed_at: string | null } | null }>(`/api/v1/knowledge_checks/${id}/attempts`, { method: 'POST', body: JSON.stringify({ selected_option: selectedOption, ...(cohortId != null ? { cohort_id: cohortId } : {}) }) });
   studentProgress = (studentId: number, cohortId?: number, signal?: AbortSignal) => this.request<StudentProgressDetail>(`/api/v1/progress/student/${studentId}${queryString({ cohort_id: cohortId })}`, { signal });
   restartEnrollment = (enrollmentId: number, confirmation: string, reason?: string) => this.request<{
     message: string;
@@ -218,11 +226,11 @@ export class CsgApi {
   }>(`/api/v1/enrollments/${enrollmentId}/restart`, { method: 'POST', body: JSON.stringify({ confirmation, reason }) });
   studentRecordingProgress = (studentId: number, cohortId?: number, signal?: AbortSignal) => this.request<{ watch_progresses: StaffVideoProgress[] }>(`/api/v1/watch_progress/student/${studentId}${queryString({ cohort_id: cohortId })}`, { signal });
   studentLessonVideoProgress = (studentId: number, cohortId?: number, signal?: AbortSignal) => this.request<{ lesson_videos: StaffVideoProgress[] }>(`/api/v1/watch_progress/student/${studentId}/lesson_videos${queryString({ cohort_id: cohortId })}`, { signal });
-  contentVideoStream = (id: number, signal?: AbortSignal) => this.request<{ stream_url: string; expires_at: string; video_progress: ContentVideoProgress | null }>(`/api/v1/content_blocks/${id}/video_stream`, { signal });
-  updateContentVideoProgress = (id: number, input: VideoProgressInput) => this.request<{ video_progress: ContentVideoProgress & { content_block_id: number; completed: boolean } }>(`/api/v1/content_blocks/${id}/video_progress`, { method: 'PATCH', body: JSON.stringify(input) });
+  contentVideoStream = (id: number, signal?: AbortSignal, cohortId?: number | null) => this.request<{ stream_url: string; expires_at: string; video_progress: ContentVideoProgress | null }>(`/api/v1/content_blocks/${id}/video_stream${queryString({ cohort_id: cohortId })}`, { signal });
+  updateContentVideoProgress = (id: number, input: VideoProgressInput, cohortId?: number | null) => this.request<{ video_progress: ContentVideoProgress & { content_block_id: number; completed: boolean } }>(`/api/v1/content_blocks/${id}/video_progress`, { method: 'PATCH', body: JSON.stringify({ ...input, ...(cohortId != null ? { cohort_id: cohortId } : {}) }) });
   recordings = (signal?: AbortSignal) => this.request<{ recordings: RecordingItem[]; s3_recordings: RecordingItem[]; items: RecordingItem[] }>('/api/v1/recordings', { signal });
   cohorts = (signal?: AbortSignal) => this.request<{ cohorts: { id: number; name: string; status: string; start_date: string }[] }>('/api/v1/cohorts', { signal });
-  cohortAccess = (cohortId: number, signal?: AbortSignal) => this.request<{ cohort: { id: number; name: string; github_organization_name: string | null; students: { user_id: number; full_name: string; email: string; github_username: string | null; last_sign_in_at: string | null; invite_pending: boolean; invite_delivery_status: string }[] } }>(`/api/v1/cohorts/${cohortId}`, { signal });
+  cohortAccess = (cohortId: number, signal?: AbortSignal) => this.request<{ cohort: { id: number; name: string; github_organization_name: string | null; students: { user_id: number; full_name: string; email: string; github_username: string | null; last_sign_in_at: string | null; invited_at: string | null; joined_at: string | null; invite_pending: boolean; invite_delivery_status: string }[] } }>(`/api/v1/cohorts/${cohortId}`, { signal });
   cohortGithubAccess = (cohortId: number, signal?: AbortSignal) => this.request<{ organization: string; checked_at: string; statuses: Record<string, 'member' | 'invited' | 'not_invited' | 'username_missing'> }>(`/api/v1/cohorts/${cohortId}/github_access`, { signal }, 0, 30_000);
   presignRecordingUpload = (cohortId: number, filename: string, contentType: string) => this.request<{ upload_url: string; fields: Record<string, string>; s3_key: string }>(`/api/v1/cohorts/${cohortId}/recordings_presign`, { method: 'POST', body: JSON.stringify({ filename, content_type: contentType }) });
   presignContentVideoUpload = (contentBlockId: number | undefined, filename: string, contentType: string) => this.request<{ upload_url: string; fields: Record<string, string>; s3_key: string }>(contentBlockId ? `/api/v1/content_blocks/${contentBlockId}/video_presign` : '/api/v1/video_presign', { method: 'POST', body: JSON.stringify({ filename, content_type: contentType }) });

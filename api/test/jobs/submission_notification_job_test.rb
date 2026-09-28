@@ -9,7 +9,10 @@ class SubmissionNotificationJobTest < ActiveJob::TestCase
     @student = User.create!(clerk_id: "submission_job_student", email: "submission-job-student@example.com", role: :student)
     @instructor = User.create!(clerk_id: "submission_job_instructor", email: "submission-job-instructor@example.com", role: :instructor)
     @admin = User.create!(clerk_id: "submission_job_admin", email: "submission-job-admin@example.com", role: :admin)
-    @submission = Submission.create!(user: @student, content_block: block, text: "Ready")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Submission job cohort", start_date: Date.current, status: :active)
+    cohort.cohort_instructor_assignments.create!(user: @instructor)
+    enrollment = Enrollment.create!(user: @student, cohort: cohort, status: :active)
+    @submission = Submission.create!(user: @student, enrollment: enrollment, content_block: block, text: "Ready")
   end
 
   test "created event fans out staff notifications outside the request" do

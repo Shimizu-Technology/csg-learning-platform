@@ -15,7 +15,7 @@ module Api
       end
 
       def show
-        unless @workspace.visible_to?(current_user) || current_user.staff?
+        unless @workspace.visible_to?(current_user)
           render_forbidden("Workspace is not visible")
           return
         end

@@ -161,7 +161,7 @@ module Api
 
         expires_at = S3Service::VIDEO_STREAM_EXPIRY.seconds.from_now
         url = S3Service.generate_presigned_url(@content_block.s3_video_key, expires_in: S3Service::VIDEO_STREAM_EXPIRY)
-        progress = current_user.progresses.find_by(content_block: @content_block) unless current_user.staff?
+        progress = current_user.progresses.find_by(enrollment: @learning_read_enrollment, content_block: @content_block) unless current_user.staff?
 
         render json: {
           stream_url: url,
@@ -265,9 +265,9 @@ module Api
       # racing request just inserted instead of stacking another insert.
       def upsert_video_progress(authoritative_duration, force_existing: false)
         progress = if force_existing
-          current_user.progresses.find_by!(content_block: @content_block)
+          current_user.progresses.find_by!(enrollment: @learning_write_enrollment, content_block: @content_block)
         else
-          current_user.progresses.find_or_initialize_by(content_block: @content_block)
+          current_user.progresses.find_or_initialize_by(enrollment: @learning_write_enrollment, content_block: @content_block)
         end
 
         progress.video_duration = authoritative_duration if authoritative_duration.present?
@@ -313,7 +313,29 @@ module Api
       end
 
       def authorize_video_access!
-        authorize_content_block_write!(@content_block)
+        if current_user.staff?
+          return
+        end
+
+        lesson = @content_block.lesson
+        scope = current_user.enrollments.joins(:cohort)
+          .where(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
+        scope = if params[:cohort_id].present?
+          scope.where(cohort_id: params[:cohort_id], status: %i[active completed])
+        else
+          scope.active
+        end
+        @learning_read_enrollment = scope.order(enrolled_at: :desc, id: :desc).first
+        unless @learning_read_enrollment
+          render_forbidden("Not enrolled in this curriculum")
+          return
+        end
+        assignment = @learning_read_enrollment.module_assignments.find_by(module_id: lesson.module_id)
+        lesson_assignment = @learning_read_enrollment.lesson_assignments.find_by(lesson_id: lesson.id)
+        unless (assignment&.accessible?(@learning_read_enrollment.cohort) || lesson_assignment.present?) &&
+            lesson.available?(@learning_read_enrollment.cohort, assignment, lesson_assignment)
+          render_forbidden("Lesson is not available")
+        end
       end
 
       # Looser gate for the player's polling save: starting playback already
@@ -326,10 +348,7 @@ module Api
       # here, not module/lesson availability.
       def authorize_video_progress!
         lesson = @content_block.lesson
-        @learning_write_enrollment = current_user.enrollments
-          .active
-          .joins(:cohort)
-          .find_by(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
+        @learning_write_enrollment = active_enrollment_for_lesson(lesson)
 
         render_forbidden("Not enrolled in this curriculum") unless @learning_write_enrollment
       end

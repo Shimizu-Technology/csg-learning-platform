@@ -105,6 +105,19 @@ describe('offline authored storage', () => {
     expect(await loadSubmissionDraft(7, 42)).toBeNull();
   });
 
+  it('keeps drafts for the same lesson block separate by cohort', async () => {
+    await saveSubmissionDraft(7, 42, 'Cohort four work', null, null, 4);
+    await saveSubmissionDraft(7, 42, 'Cohort five work', null, null, 5);
+
+    expect((await loadSubmissionDraft(7, 42, 4))?.text).toBe('Cohort four work');
+    expect((await loadSubmissionDraft(7, 42, 5))?.text).toBe('Cohort five work');
+    expect(await loadSubmissionDraft(7, 42)).toBeNull();
+
+    await clearSubmissionDraft(7, 42, 4);
+    expect(await loadSubmissionDraft(7, 42, 4)).toBeNull();
+    expect((await loadSubmissionDraft(7, 42, 5))?.text).toBe('Cohort five work');
+  });
+
   it('drops malformed submission storage instead of restoring unsafe data', async () => {
     await AsyncStorage.setItem(submissionDraftKey(7, 42), JSON.stringify({ text: 9 }));
 

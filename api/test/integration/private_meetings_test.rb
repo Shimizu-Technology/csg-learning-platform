@@ -14,6 +14,7 @@ class PrivateMeetingsTest < ActionDispatch::IntegrationTest
     @admin = user("admin", :admin)
     @instructor = user("instructor", :instructor)
     @other_instructor = user("other_instructor", :instructor)
+    @cohort.cohort_instructor_assignments.create!(user: @instructor)
     @student = user("student", :student)
     @other_student = user("other_student", :student)
     Enrollment.create!(user: @student, cohort: @cohort)
@@ -304,6 +305,7 @@ class PrivateMeetingsTest < ActionDispatch::IntegrationTest
       end_date: @cohort.end_date
     )
     Enrollment.create!(user: @student, cohort: other_cohort)
+    other_cohort.cohort_instructor_assignments.create!(user: @other_instructor)
     as_user(@admin) do
       post "/api/v1/staff/private_meeting_configs", params: { cohort_id: other_cohort.id, instructor_id: @other_instructor.id }, headers: auth_headers, as: :json
     end

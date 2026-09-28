@@ -6,7 +6,8 @@ module Api
       before_action :set_plan, only: [ :show, :update ]
 
       def index
-        scope = RecoveryPlan.includes(enrollment: [ :user, :cohort ], owner: [], created_by: [], check_ins: :author).recent_first
+        scope = RecoveryPlan.includes(enrollment: [ :user, :cohort ], owner: [], created_by: [], check_ins: :author)
+          .joins(:enrollment).where(enrollments: { cohort_id: current_user.accessible_cohorts.select(:id) }).recent_first
         scope = scope.where(enrollment_id: params[:enrollment_id]) if params[:enrollment_id].present?
         scope = scope.where(status: params[:status]) if params[:status].present?
         scope = scope.due if ActiveModel::Type::Boolean.new.cast(params[:due])
@@ -19,6 +20,7 @@ module Api
 
       def create
         enrollment = Enrollment.includes(:user, :cohort).find(create_params[:enrollment_id])
+        return unless require_cohort_access!(enrollment.cohort, teacher: true)
         if enrollment.recovery_plans.status_active.exists?
           render json: { error: "This enrollment already has an active recovery plan" }, status: :conflict
           return
@@ -61,7 +63,8 @@ module Api
       private
 
       def set_plan
-        @plan = RecoveryPlan.includes(enrollment: [ :user, :cohort ], check_ins: :author).find(params[:id])
+        @plan = RecoveryPlan.includes(enrollment: [ :user, :cohort ], check_ins: :author)
+          .joins(:enrollment).where(enrollments: { cohort_id: current_user.accessible_cohorts.select(:id) }).find(params[:id])
       end
 
       def create_params

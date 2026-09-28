@@ -28,6 +28,8 @@ const student = {
   github_username: null,
   status: 'active',
   enrolled_at: '2026-09-26T00:00:00Z',
+  invited_at: '2026-09-26T00:00:00Z',
+  joined_at: null,
   last_sign_in_at: null,
   module_assignments: [],
 }

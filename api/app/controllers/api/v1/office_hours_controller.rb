@@ -9,6 +9,7 @@ module Api
       before_action :set_cohort
       before_action :authorize_cohort_read!, only: [ :index ]
       before_action :require_staff!, except: [ :index ]
+      before_action :authorize_cohort_teacher!, except: [ :index ]
       before_action :set_office_hour, only: [ :update, :destroy ]
 
       # GET /api/v1/cohorts/:cohort_id/office_hours
@@ -59,10 +60,11 @@ module Api
       end
 
       def authorize_cohort_read!
-        return if current_user.staff?
-        return if current_user.enrollments.active.exists?(cohort_id: @cohort.id)
+        require_cohort_access!(@cohort)
+      end
 
-        render_forbidden("Cannot access this cohort")
+      def authorize_cohort_teacher!
+        require_cohort_access!(@cohort, teacher: true)
       end
 
       def office_hour_params

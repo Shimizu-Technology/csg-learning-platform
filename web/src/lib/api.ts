@@ -20,6 +20,9 @@ import type {
   CurriculumResponse,
   CohortsListResponse,
   CohortResponse,
+  AccessibleCohortsResponse,
+  CohortHomeResponse,
+  CohortInstructorAssignmentsResponse,
   CohortStudentViewResponse,
   SubmissionWindowsResponse,
   OfficeHoursResponse,
@@ -373,14 +376,14 @@ export const api = {
     fetchApi<{ last_seen_at: string }>('/api/v1/presence', { method: 'POST' }),
 
   // Dashboard
-  getDashboard: () =>
-    fetchApi<DashboardResponse>('/api/v1/dashboard'),
-  getWeeklyPlan: () =>
-    fetchApi<WeeklyPlanResponse>('/api/v1/weekly_plan'),
-  getRecordings: () =>
-    fetchApi<RecordingsResponse>('/api/v1/recordings'),
-  getResources: () =>
-    fetchApi<ResourcesResponse>('/api/v1/resources'),
+  getDashboard: (cohortId?: number) =>
+    fetchApi<DashboardResponse>(`/api/v1/dashboard${queryString({ cohort_id: cohortId })}`),
+  getWeeklyPlan: (cohortId?: number) =>
+    fetchApi<WeeklyPlanResponse>(`/api/v1/weekly_plan${queryString({ cohort_id: cohortId })}`),
+  getRecordings: (cohortId?: number) =>
+    fetchApi<RecordingsResponse>(`/api/v1/recordings${queryString({ cohort_id: cohortId })}`),
+  getResources: (cohortId?: number) =>
+    fetchApi<ResourcesResponse>(`/api/v1/resources${queryString({ cohort_id: cohortId })}`),
   getAnnouncements: (params?: {
     scope?: 'manage';
     page?: number;
@@ -586,12 +589,12 @@ export const api = {
     }),
 
   // Modules
-  getModule: (id: number) =>
-    fetchApi<ModuleResponse>(`/api/v1/modules/${id}`),
+  getModule: (id: number, cohortId?: number) =>
+    fetchApi<ModuleResponse>(`/api/v1/modules/${id}${queryString({ cohort_id: cohortId })}`),
 
   // Lessons
-  getLesson: (id: number) =>
-    fetchApi<LessonResponse>(`/api/v1/lessons/${id}`),
+  getLesson: (id: number, cohortId?: number) =>
+    fetchApi<LessonResponse>(`/api/v1/lessons/${id}${queryString({ cohort_id: cohortId })}`),
 
   getHelpRequests: (params: { cohort_id?: number; student_id?: number; status?: string; context_type?: HelpContextType } = {}) =>
     fetchApi<HelpRequestsResponse>(`/api/v1/help_requests${queryString(params)}`),
@@ -606,7 +609,7 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ help_request: data }),
     }),
-  getSupportQueue: () => fetchApi<SupportQueueResponse>('/api/v1/support_queue'),
+  getSupportQueue: (cohortId?: number) => fetchApi<SupportQueueResponse>(`/api/v1/support_queue${queryString({ cohort_id: cohortId })}`),
   getInterventions: (params: { enrollment_id?: number; owner_id?: number; status?: InterventionStatus; due?: boolean } = {}) =>
     fetchApi<InterventionsResponse>(`/api/v1/interventions${queryString(params)}`),
   getIntervention: (id: number) => fetchApi<InterventionResponse>(`/api/v1/interventions/${id}`),
@@ -627,10 +630,10 @@ export const api = {
     fetchApi<{ recovery_plan: import('../types/api').RecoveryPlan }>(`/api/v1/recovery_plans/${id}/check_ins`, { method: 'POST', body: JSON.stringify({ check_in: data }) }),
 
   // Progress
-  updateProgress: (contentBlockId: number, status: string) =>
+  updateProgress: (contentBlockId: number, status: string, cohortId?: number) =>
     fetchApi<ProgressUpdateResponse>('/api/v1/progress', {
       method: 'PATCH',
-      body: JSON.stringify({ content_block_id: contentBlockId, status }),
+      body: JSON.stringify({ content_block_id: contentBlockId, status, cohort_id: cohortId }),
     }),
 
   // Submissions
@@ -644,7 +647,7 @@ export const api = {
     fetchApi<GithubChecksResponse>(`/api/v1/submissions/${id}/github_checks`),
   refreshSubmissionGithubChecks: (id: number) =>
     fetchApi<GithubChecksResponse>(`/api/v1/submissions/${id}/github_checks`, { method: 'POST' }),
-  createSubmission: (data: { content_block_id: number; text?: string; github_issue_url?: string; github_code_url?: string; repo_url?: string; pr_url?: string; live_url?: string; branch?: string; commit_sha?: string; notes?: string }) =>
+  createSubmission: (data: { content_block_id: number; cohort_id?: number; text?: string; github_issue_url?: string; github_code_url?: string; repo_url?: string; pr_url?: string; live_url?: string; branch?: string; commit_sha?: string; notes?: string }) =>
     fetchApi<SubmissionResponse>('/api/v1/submissions', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -663,10 +666,10 @@ export const api = {
     }),
   useFeedbackSnippet: (id: number) =>
     fetchApi<{ feedback_snippet: import('../types/api').FeedbackSnippet }>(`/api/v1/feedback_snippets/${id}/use`, { method: 'POST' }),
-  attemptKnowledgeCheck: (id: number, selectedOption: number) =>
+  attemptKnowledgeCheck: (id: number, selectedOption: number, cohortId?: number) =>
     fetchApi<{ knowledge_check: import('../types/api').KnowledgeCheck; progress: { status: string; completed_at: string | null } | null }>(`/api/v1/knowledge_checks/${id}/attempts`, {
       method: 'POST',
-      body: JSON.stringify({ selected_option: selectedOption }),
+      body: JSON.stringify({ selected_option: selectedOption, cohort_id: cohortId }),
     }),
   getSubmissionGithubIssue: (id: number) =>
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -735,8 +738,20 @@ export const api = {
   // Admin — Cohorts
   getCohorts: () =>
     fetchApi<CohortsListResponse>('/api/v1/cohorts'),
+  getAccessibleCohorts: () =>
+    fetchApi<AccessibleCohortsResponse>('/api/v1/cohorts/accessible'),
   getCohort: (id: number) =>
     fetchApi<CohortResponse>(`/api/v1/cohorts/${id}`),
+  getCohortHome: (id: number) =>
+    fetchApi<CohortHomeResponse>(`/api/v1/cohorts/${id}/home`),
+  getCohortInstructorAssignments: (id: number) =>
+    fetchApi<CohortInstructorAssignmentsResponse>(`/api/v1/cohorts/${id}/instructor_assignments`),
+  createCohortInstructorAssignment: (id: number, instructorId: number) =>
+    fetchApi<{ instructor: import('../types/api').CohortInstructorAssignment }>(`/api/v1/cohorts/${id}/instructor_assignments`, {
+      method: 'POST', body: JSON.stringify({ user_id: instructorId }),
+    }),
+  deleteCohortInstructorAssignment: (id: number, instructorId: number) =>
+    fetchApi<null>(`/api/v1/cohorts/${id}/instructor_assignments/${instructorId}`, { method: 'DELETE' }),
   getCohortGithubAccess: (id: number) =>
     fetchApi<import('../types/api').GithubAccessResponse>(`/api/v1/cohorts/${id}/github_access`, {}, true, 30_000),
   getCohortStudentView: (id: number) =>
@@ -947,11 +962,11 @@ export const api = {
       `/api/v1/content_blocks/${blockId}/video_presign`,
       { method: 'POST', body: JSON.stringify({ filename, content_type: contentType }) }
     ),
-  getContentBlockVideoStream: (blockId: number) =>
-    fetchApi<VideoStreamResponse>(`/api/v1/content_blocks/${blockId}/video_stream`),
-  updateContentBlockVideoProgress: (blockId: number, data: { last_position_seconds: number; total_watched_seconds: number; duration_seconds?: number }) =>
+  getContentBlockVideoStream: (blockId: number, cohortId?: number) =>
+    fetchApi<VideoStreamResponse>(`/api/v1/content_blocks/${blockId}/video_stream${queryString({ cohort_id: cohortId })}`),
+  updateContentBlockVideoProgress: (blockId: number, data: { last_position_seconds: number; total_watched_seconds: number; duration_seconds?: number }, cohortId?: number) =>
     fetchApi<VideoProgressResponse>(`/api/v1/content_blocks/${blockId}/video_progress`, {
-      method: 'PATCH', body: JSON.stringify(data),
+      method: 'PATCH', body: JSON.stringify({ ...data, cohort_id: cohortId }),
     }),
 
   // Cohort-scoped grading

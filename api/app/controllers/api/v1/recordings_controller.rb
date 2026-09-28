@@ -4,6 +4,7 @@ module Api
       before_action :authenticate_user!
       before_action :require_staff!, only: [ :create, :update, :destroy, :presign, :reorder ]
       before_action :set_cohort
+      before_action :authorize_cohort_access!
       before_action :set_recording, only: [ :show, :update, :destroy, :stream_url ]
 
       # GET /api/v1/cohorts/:cohort_id/recordings
@@ -13,7 +14,7 @@ module Api
         if current_user.staff?
           render json: { recordings: recordings.map { |r| recording_json(r, staff: true) } }
         else
-          enrollment = current_user.enrollments.find_by(cohort: @cohort, status: :active)
+          enrollment = current_user.enrollments.where(status: %i[active completed]).find_by(cohort: @cohort)
           unless enrollment
             render_forbidden("Not enrolled in this cohort")
             return
@@ -234,16 +235,20 @@ module Api
         @cohort = Cohort.find(params[:cohort_id])
       end
 
+      def authorize_cohort_access!
+        require_cohort_access!(@cohort, teacher: current_user.staff?)
+      end
+
       def set_recording
         @recording = @cohort.recordings.find(params[:id])
       end
 
       def enrolled_in_cohort?
-        current_user.enrollments.exists?(cohort: @cohort, status: :active)
+        current_user.enrollments.where(status: %i[active completed]).exists?(cohort: @cohort)
       end
 
       def recording_available_to_current_user?
-        current_user.staff? || (@recording.published? && enrolled_in_cohort?)
+        current_user.can_teach_cohort?(@cohort) || (@recording.published? && enrolled_in_cohort?)
       end
 
       def publish_immediately?

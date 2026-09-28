@@ -4,6 +4,7 @@ module Api
       before_action :authenticate_user!
       before_action :require_staff!, only: [ :create, :update, :destroy ]
       before_action :set_announcement, only: [ :show, :update, :destroy ]
+      before_action :authorize_announcement_management!, only: [ :create, :update, :destroy ]
 
       # GET /api/v1/announcements
       def index
@@ -51,6 +52,12 @@ module Api
 
       # PATCH /api/v1/announcements/:id
       def update
+        proposed = @announcement.dup
+        proposed.assign_attributes(announcement_params)
+        unless (proposed.cohort? && current_user.can_teach_cohort?(proposed.cohort)) || (!proposed.cohort? && current_user.admin?)
+          render_forbidden("Cannot manage this announcement")
+          return
+        end
         was_published = @announcement.published?
 
         if @announcement.update(announcement_params)
@@ -71,6 +78,14 @@ module Api
 
       private
 
+      def authorize_announcement_management!
+        announcement = @announcement || Announcement.new(announcement_params)
+        return if announcement.cohort? && current_user.can_teach_cohort?(announcement.cohort)
+        return if !announcement.cohort? && current_user.admin?
+
+        render_forbidden("Cannot manage this announcement")
+      end
+
       def set_announcement
         @announcement = Announcement.find(params[:id])
       end
@@ -87,7 +102,7 @@ module Api
 
       def base_announcements_scope
         scope = if current_user.staff? && params[:scope] == "manage"
-          Announcement.all
+          current_user.admin? ? Announcement.all : Announcement.where(audience: :cohort, cohort_id: current_user.cohort_instructor_assignments.select(:cohort_id))
         else
           Announcement.visible_for(current_user)
         end
@@ -161,8 +176,6 @@ module Api
       end
 
       def can_view?(announcement)
-        return true if current_user.staff?
-
         Announcement.visible_for(current_user).where(id: announcement.id).exists?
       end
 

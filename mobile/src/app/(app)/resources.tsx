@@ -13,18 +13,20 @@ import { openExternalPage } from '@/lib/external-links';
 import { learningKeys } from '@/lib/learning';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
+import { useCohort } from '@/providers/cohort-provider';
 
 export default function ResourcesScreen() {
   const router = useRouter();
   const auth = useCsgAuth();
   const { api, user } = useSession();
+  const { selectedCohortId, selectedCohort } = useCohort();
   const [filter, setFilter] = useState('');
   const query = useQuery({
     queryKey: learningKeys.resources(user?.id || 0),
     queryFn: ({ signal }) => auth.demo ? Promise.resolve({ resources: demoDashboard.resources }) : api.resources(signal),
     enabled: Boolean(user),
   });
-  const resources = useMemo(() => (query.data?.resources || []).filter((resource) => `${resource.title} ${resource.category} ${resource.description || ''}`.toLowerCase().includes(filter.trim().toLowerCase())), [filter, query.data?.resources]);
+  const resources = useMemo(() => (query.data?.resources || []).filter((resource) => (!selectedCohortId || resource.cohort_id === selectedCohortId) && `${resource.title} ${resource.category} ${resource.description || ''}`.toLowerCase().includes(filter.trim().toLowerCase())), [filter, query.data?.resources, selectedCohortId]);
   const grouped = useMemo(() => Object.entries(resources.reduce<Record<string, typeof resources>>((groups, resource) => {
     const category = resource.cohort_name ? `${resource.cohort_name} · ${resource.category || 'General'}` : resource.category || 'General';
     groups[category] = [...(groups[category] || []), resource];
@@ -33,7 +35,7 @@ export default function ResourcesScreen() {
 
   return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={palette.text} size={22} /></Pressable><View><Text style={styles.headerKicker}>LEARNING LIBRARY</Text><Text style={styles.headerTitle}>Resources</Text></View></View>{query.isPending && !query.data ? <LoadingState label="Loading resources" /> : query.error && !query.data ? <ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /> : <ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={palette.rubySoft} />} contentContainerStyle={styles.content}>
     {query.isError && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved resources. Pull to reconnect.</Text></View>}
-    <Text style={styles.title}>Everything useful, close at hand.</Text><Text style={styles.subtitle}>Open class references and starter materials without hunting through old messages.</Text>
+    <Text style={styles.title}>Everything useful, close at hand.</Text><Text style={styles.subtitle}>{selectedCohort ? `${selectedCohort.name} · ` : ''}Open class references and starter materials without hunting through old messages.</Text>
     <View style={styles.search}><Search color={palette.quiet} size={18} /><TextInput accessibilityLabel="Search resources" value={filter} onChangeText={setFilter} placeholder="Search resources" placeholderTextColor={palette.quiet} style={styles.input} /></View>
     {grouped.map(([category, items]) => <View key={category} style={styles.section}><Text style={styles.category}>{category.toUpperCase()}</Text><View style={styles.stack}>{(items || []).map((resource) => <LearningCard key={resource.id} onPress={() => void openExternalPage(resource.url).catch((error) => Alert.alert('Could not open resource', (error as Error).message))} label={`Open ${resource.title}`}><View style={styles.row}><View style={styles.icon}><FolderOpen color={palette.rubySoft} size={20} /></View><View style={styles.flex}><Text style={styles.resourceTitle}>{resource.title}</Text>{resource.description && <Text style={styles.resourceCopy}>{resource.description}</Text>}</View><ExternalLink color={palette.quiet} size={18} /></View></LearningCard>)}</View></View>)}
     {!resources.length && <View style={styles.empty}><FolderOpen color={palette.rubySoft} size={30} /><Text style={styles.emptyTitle}>{filter ? 'No matching resources' : 'No resources yet'}</Text><Text style={styles.emptyCopy}>{filter ? 'Try a different search.' : 'Shared class links will appear here.'}</Text></View>}

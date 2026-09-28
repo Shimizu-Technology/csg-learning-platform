@@ -4,6 +4,7 @@ module Api
       before_action :authenticate_user!
       before_action :require_staff!
       before_action :set_cohort
+      before_action :authorize_cohort_teacher!
       before_action :set_module
 
       # GET /api/v1/cohorts/:cohort_id/modules/:module_id/submissions
@@ -17,10 +18,11 @@ module Api
           .to_a
         block_ids = exercise_blocks.map(&:id)
 
+        enrollment_ids = @cohort.enrollments.active.pluck(:id)
         submissions = Submission.includes(:user, { content_block: { lesson: :curriculum_module } }, :grader)
-          .where(user_id: student_ids, content_block_id: block_ids)
+          .where(enrollment_id: enrollment_ids, content_block_id: block_ids)
           .order(created_at: :desc)
-        progress_records = Progress.where(user_id: student_ids, content_block_id: block_ids)
+        progress_records = Progress.where(enrollment_id: enrollment_ids, content_block_id: block_ids)
 
         students_data = @cohort.enrollments.active.joins(:user).includes(:user).merge(User.not_archived).map do |enrollment|
           user = enrollment.user
@@ -133,6 +135,10 @@ module Api
       end
 
       private
+
+      def authorize_cohort_teacher!
+        require_cohort_access!(@cohort, teacher: true)
+      end
 
       def set_cohort
         @cohort = Cohort.includes(:cohort_module_submission_windows).find(params[:cohort_id])

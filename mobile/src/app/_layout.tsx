@@ -21,6 +21,7 @@ import { ClerkAuthProvider, DemoAuthProvider, isDemoMode } from '@/providers/aut
 import { SessionProvider } from '@/providers/session-provider';
 import { ServerStateProvider } from '@/providers/server-state-provider';
 import { WorkspaceProvider } from '@/providers/workspace-provider';
+import { CohortProvider } from '@/providers/cohort-provider';
 import { VoiceRecorderProvider } from '@/providers/voice-recorder-provider';
 
 void SplashScreen.preventAutoHideAsync();
@@ -28,7 +29,7 @@ void SplashScreen.preventAutoHideAsync();
 function AppProviders() {
   return (
     <SessionProvider>
-      <AnalyticsProvider><ServerStateProvider><WorkspaceProvider><VoiceRecorderProvider>
+      <AnalyticsProvider><ServerStateProvider><WorkspaceProvider><CohortProvider><VoiceRecorderProvider>
         <StatusBar style="light" />
         <NotificationObserver />
         <Stack screenOptions={{ contentStyle: { backgroundColor: palette.ink }, headerStyle: { backgroundColor: palette.ink }, headerTintColor: palette.text, headerShadowVisible: false }}>
@@ -36,7 +37,7 @@ function AppProviders() {
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen name="(app)" options={{ headerShown: false }} />
         </Stack>
-      </VoiceRecorderProvider></WorkspaceProvider></ServerStateProvider></AnalyticsProvider>
+      </VoiceRecorderProvider></CohortProvider></WorkspaceProvider></ServerStateProvider></AnalyticsProvider>
     </SessionProvider>
   );
 }

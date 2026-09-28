@@ -39,10 +39,11 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     @cohort = Cohort.create!(
       curriculum: @curriculum, name: "Cohort", start_date: Date.current, status: :active
     )
+    @cohort.cohort_instructor_assignments.create!(user: @instructor)
     @enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
     ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @mod, unlocked: true)
 
-    @submission = Submission.create!(user: @student, content_block: @block, submission_type: :text_submission, text: "my code")
+    @submission = Submission.create!(user: @student, enrollment: @enrollment, content_block: @block, submission_type: :text_submission, text: "my code")
   end
 
   test "staff can grade a submission with passing grade and it completes progress" do
@@ -175,7 +176,7 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     assert_equal @cohort.name, payload.fetch("cohort_name")
   end
 
-  test "submission context uses the newest active enrollment for the curriculum" do
+  test "submission context stays with its original enrollment when a student joins another cohort" do
     @enrollment.update!(enrolled_at: 2.days.ago)
     newer_cohort = Cohort.create!(curriculum: @curriculum, name: "New cohort", start_date: Date.current, status: :active)
     Enrollment.create!(user: @student, cohort: newer_cohort, status: :active, enrolled_at: 1.day.ago)
@@ -186,8 +187,8 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     payload = response.parsed_body.fetch("submission")
-    assert_equal newer_cohort.id, payload.fetch("cohort_id")
-    assert_equal newer_cohort.name, payload.fetch("cohort_name")
+    assert_equal @cohort.id, payload.fetch("cohort_id")
+    assert_equal @cohort.name, payload.fetch("cohort_name")
   end
 
   test "student can submit repo and live url artifacts" do
@@ -343,7 +344,7 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     assert first_progress.in_progress?
 
     resubmission = Submission.create!(
-      user: @student, content_block: @block, text: "fixed code", num_submissions: 2
+      user: @student, enrollment: @enrollment, content_block: @block, text: "fixed code", num_submissions: 2
     )
 
     as_user(@admin) do

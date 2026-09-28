@@ -13,7 +13,7 @@ class LearningInsightsProjection
     {
       generated_at: now,
       evidence_scope: {
-        kind: "curriculum",
+        kind: "enrollment",
         curriculum_id: cohort.curriculum_id,
         curriculum_name: cohort.curriculum.name,
         completion_and_watch_time_excluded: true
@@ -62,7 +62,7 @@ class LearningInsightsProjection
     block_ids = blocks.map(&:id)
     @blocks_by_id = blocks.index_by(&:id)
 
-    @submissions = Submission.where(user_id: user_ids, content_block_id: block_ids)
+    @submissions = Submission.where(enrollment_id: enrollments.map(&:id), content_block_id: block_ids)
       .includes(:user, :github_check_runs, :submission_criterion_results, content_block: { lesson: :curriculum_module })
       .order(:created_at, :id)
       .to_a
@@ -148,7 +148,7 @@ class LearningInsightsProjection
 
   def add_knowledge_check_evidence(objective_ids, user_ids)
     attempts = KnowledgeCheckAttempt.joins(:knowledge_check)
-      .where(user_id: user_ids, knowledge_checks: { learning_objective_id: objective_ids })
+      .where(enrollment_id: enrollments.map(&:id), knowledge_checks: { learning_objective_id: objective_ids })
       .includes(knowledge_check: { content_block: { lesson: :curriculum_module } })
       .order(:created_at, :id)
       .to_a

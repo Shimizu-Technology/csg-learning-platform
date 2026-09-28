@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Activity, AlertTriangle, ArrowRight, ClipboardCheck, FileText, Layers3, LifeBuoy, Users } from 'lucide-react'
 import { api } from '../../lib/api'
+import { useCohortContext } from '../../contexts/CohortContext'
 import { cohortStudentPath } from '../../lib/routes'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -42,15 +43,18 @@ function formatLastSeen(date: string | null) {
 }
 
 export function AdminDashboard() {
+  const { selectedCohortId } = useCohortContext()
   const [data, setData] = useState<AdminDashboardData | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    api.getDashboard().then((res) => {
+    setLoading(true)
+    setData(null)
+    api.getDashboard(selectedCohortId ?? undefined).then((res) => {
       if (res.data) setData(res.data.dashboard)
       setLoading(false)
     })
-  }, [])
+  }, [selectedCohortId])
 
   const allStudentsNeedingAttention = useMemo(
     () => (data?.students || [])

@@ -2,17 +2,22 @@ class SupportQueueProjection
   INACTIVE_AFTER = 7.days
   RECENT_RESOLVED_LIMIT = 20
 
-  def initialize(now: Time.current)
+  def initialize(now: Time.current, cohort_ids: nil)
     @now = now
+    @cohort_ids = cohort_ids
   end
 
   def call
-    active_requests = HelpRequest.active_queue.includes(:cohort, :student, :owner).queue_order.to_a
-    resolved = HelpRequest.status_resolved.includes(:cohort, :student, :owner).order(resolved_at: :desc).limit(RECENT_RESOLVED_LIMIT)
+    active_requests = scoped(HelpRequest.active_queue).includes(:cohort, :student, :owner).queue_order.to_a
+    resolved = scoped(HelpRequest.status_resolved).includes(:cohort, :student, :owner).order(resolved_at: :desc).limit(RECENT_RESOLVED_LIMIT)
     students = student_candidates(active_requests)
-    active_interventions = Intervention.active.includes(enrollment: [ :user, :cohort ], owner: [], created_by: [], recovery_plan: []).recent_first.to_a
+    intervention_scope = Intervention.active
+    intervention_scope = intervention_scope.joins(:enrollment).where(enrollments: { cohort_id: @cohort_ids }) if @cohort_ids
+    active_interventions = intervention_scope.includes(enrollment: [ :user, :cohort ], owner: [], created_by: [], recovery_plan: []).recent_first.to_a
     due_interventions = active_interventions.count { |intervention| intervention.next_follow_up_at.present? && intervention.next_follow_up_at <= @now }
-    active_recovery_plans = RecoveryPlan.status_active.includes(enrollment: [ :user, :cohort ], owner: [], created_by: []).to_a
+    recovery_scope = RecoveryPlan.status_active
+    recovery_scope = recovery_scope.joins(:enrollment).where(enrollments: { cohort_id: @cohort_ids }) if @cohort_ids
+    active_recovery_plans = recovery_scope.includes(enrollment: [ :user, :cohort ], owner: [], created_by: []).to_a
 
     {
       generated_at: @now,
@@ -36,24 +41,29 @@ class SupportQueueProjection
 
   private
 
+  def scoped(relation)
+    @cohort_ids ? relation.where(cohort_id: @cohort_ids) : relation
+  end
+
   def student_candidates(active_requests)
     enrollments = Enrollment.active.joins(:cohort, :user)
-      .merge(Cohort.active)
+    enrollments = enrollments.where(cohort_id: @cohort_ids) if @cohort_ids
+    enrollments = enrollments.merge(Cohort.active)
       .merge(User.not_archived)
       .includes(:user, :cohort, module_assignments: { curriculum_module: { lessons: :content_blocks } })
       .to_a
-    user_ids = enrollments.map(&:user_id)
+    enrollment_ids = enrollments.map(&:id)
     requests_by_student_cohort = active_requests.group_by { |request| [ request.student_id, request.cohort_id ] }
-    submissions = latest_submissions(user_ids).group_by(&:user_id)
-    progresses = Progress.completed.where(user_id: user_ids).select(:user_id, :content_block_id, :completed_at).to_a.group_by(&:user_id)
+    submissions = latest_submissions(enrollment_ids).group_by(&:enrollment_id)
+    progresses = Progress.completed.where(enrollment_id: enrollment_ids).select(:enrollment_id, :content_block_id, :completed_at).to_a.group_by(&:enrollment_id)
     interventions = Intervention.active.where(enrollment_id: enrollments.map(&:id)).recent_first.group_by(&:enrollment_id)
     recovery_plans = RecoveryPlan.status_active.where(enrollment_id: enrollments.map(&:id)).index_by(&:enrollment_id)
 
     enrollments.filter_map do |enrollment|
       block_ids = enrollment.module_assignments.flat_map { |assignment| assignment.curriculum_module.lessons.flat_map(&:completion_block_ids) }.uniq
       assigned_block_ids = block_ids.to_set
-      user_submissions = (submissions[enrollment.user_id] || []).select { |submission| assigned_block_ids.include?(submission.content_block_id) }
-      user_progresses = (progresses[enrollment.user_id] || []).select { |progress| assigned_block_ids.include?(progress.content_block_id) }
+      user_submissions = (submissions[enrollment.id] || []).select { |submission| assigned_block_ids.include?(submission.content_block_id) }
+      user_progresses = (progresses[enrollment.id] || []).select { |progress| assigned_block_ids.include?(progress.content_block_id) }
       requests = requests_by_student_cohort[[ enrollment.user_id, enrollment.cohort_id ]] || []
       ungraded = user_submissions.count { |submission| submission.grade.nil? }
       redos = user_submissions.count { |submission| submission.grade == "R" }
@@ -96,9 +106,9 @@ class SupportQueueProjection
     end.sort_by { |student| [ -student[:priority], student[:full_name] ] }
   end
 
-  def latest_submissions(user_ids)
-    ids = Submission.where(user_id: user_ids).group(:user_id, :content_block_id).maximum(:id).values
-    Submission.where(id: ids).select(:id, :user_id, :content_block_id, :grade, :created_at).to_a
+  def latest_submissions(enrollment_ids)
+    ids = Submission.where(enrollment_id: enrollment_ids).group(:enrollment_id, :content_block_id).maximum(:id).values
+    Submission.where(id: ids).select(:id, :enrollment_id, :content_block_id, :grade, :created_at).to_a
   end
 
   def priority_for(requests:, redos:, ungraded:, inactive:, intervention:, recovery_plan:)
