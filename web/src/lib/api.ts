@@ -773,7 +773,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  updateCohort: (id: number, data: { name?: string; start_date?: string; end_date?: string; status?: string }) =>
+  updateCohort: (id: number, data: { name?: string; start_date?: string; end_date?: string; status?: string; github_organization_name?: string | null }) =>
     fetchApi<CohortResponse>(`/api/v1/cohorts/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
