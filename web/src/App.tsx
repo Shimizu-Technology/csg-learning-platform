@@ -6,6 +6,7 @@ import ProtectedRoute from './components/auth/ProtectedRoute'
 import { LoadingSpinner } from './components/shared/LoadingSpinner'
 import { MessagesLoadingShell } from './components/shared/MessagesLoadingShell'
 import { UploadProvider } from './contexts/UploadContext'
+import { CohortProvider } from './contexts/CohortContext'
 import { ToastProvider } from './contexts/ToastContext'
 import { ConfirmProvider } from './contexts/ConfirmContext'
 import {
@@ -44,6 +45,7 @@ import {
   TeamManagement,
 } from './lib/routePreload'
 import { AccountDeletionPage, PrivacyPolicyPage, TermsPage } from './pages/Legal'
+import { StudentCohortHome } from './pages/student/StudentCohortHome'
 import { CourseCatalog } from './pages/CourseCatalog'
 
 function RouteLoadingFallback() {
@@ -69,6 +71,7 @@ const routeTitles: Array<[RegExp, string]> = [
   [/^\/terms/, 'Terms & Community Guidelines'],
   [/^\/account-deletion/, 'Account deletion'],
   [/^\/dashboard/, 'Today'],
+  [/^\/cohorts\//, 'Cohort home'],
   [/^\/meetings/, 'My meetings'],
   [/^\/materials/, 'Learn'],
   [/^\/modules\//, 'Module'],
@@ -130,6 +133,7 @@ function AppRoutes() {
         <Route element={<Layout />}>
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<SuspendedRoute><Dashboard /></SuspendedRoute>} />
+            <Route path="/cohorts/:id" element={<StudentCohortHome />} />
             <Route path="/meetings" element={<SuspendedRoute><PrivateMeetings /></SuspendedRoute>} />
             <Route path="/materials" element={<SuspendedRoute><Materials /></SuspendedRoute>} />
             <Route path="/modules/:id" element={<SuspendedRoute><ModuleView /></SuspendedRoute>} />
@@ -183,7 +187,7 @@ function App() {
       <ToastProvider>
         <ConfirmProvider>
           <UploadProvider>
-            <AppRoutes />
+            <CohortProvider><AppRoutes /></CohortProvider>
           </UploadProvider>
         </ConfirmProvider>
       </ToastProvider>

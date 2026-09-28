@@ -135,6 +135,29 @@ describe('CsgApi', () => {
     expect(fetchMock.mock.calls[3][0]).toContain('/api/v1/content_blocks/9/video_progress');
   });
 
+  it('sends cohort context for student lesson evidence', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async () => new Response('{}', { status: 200 }));
+    const api = new CsgApi(async () => 'session-token');
+
+    await api.lesson(8, undefined, 4);
+    await api.progress(8, undefined, 4);
+    await api.updateProgress(9, 'completed', 4);
+    await api.createSubmission({ content_block_id: 9, text: 'My work' }, 4);
+    await api.updateSubmission(11, { text: 'Updated work' }, 4);
+    await api.attemptKnowledgeCheck(12, 2, 4);
+    await api.contentVideoStream(9, undefined, 4);
+    await api.updateContentVideoProgress(9, { last_position_seconds: 30, total_watched_seconds: 25, duration_seconds: 120 }, 4);
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/api/v1/lessons/8?cohort_id=4');
+    expect(String(fetchMock.mock.calls[1][0])).toContain('/api/v1/progress?lesson_id=8&cohort_id=4');
+    expect(fetchMock.mock.calls[2][1]).toEqual(expect.objectContaining({ body: JSON.stringify({ content_block_id: 9, status: 'completed', cohort_id: 4 }) }));
+    expect(fetchMock.mock.calls[3][1]).toEqual(expect.objectContaining({ body: JSON.stringify({ content_block_id: 9, text: 'My work', cohort_id: 4 }) }));
+    expect(fetchMock.mock.calls[4][1]).toEqual(expect.objectContaining({ body: JSON.stringify({ text: 'Updated work', cohort_id: 4 }) }));
+    expect(fetchMock.mock.calls[5][1]).toEqual(expect.objectContaining({ body: JSON.stringify({ selected_option: 2, cohort_id: 4 }) }));
+    expect(String(fetchMock.mock.calls[6][0])).toContain('/api/v1/content_blocks/9/video_stream?cohort_id=4');
+    expect(fetchMock.mock.calls[7][1]).toEqual(expect.objectContaining({ body: JSON.stringify({ last_position_seconds: 30, total_watched_seconds: 25, duration_seconds: 120, cohort_id: 4 }) }));
+  });
+
   it('creates a first-class hosted recording', async () => {
     const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ recording: { id: 12 } }), { status: 201 }));
     const api = new CsgApi(async () => 'session-token');

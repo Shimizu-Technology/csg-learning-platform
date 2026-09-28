@@ -46,7 +46,7 @@ class PreworkGraderArchiveImporterTest < ActiveSupport::TestCase
       role: :student,
       github_username: "student-one"
     )
-    Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+    @enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
   end
 
   test "dry run reports creates without writing submissions" do
@@ -98,6 +98,7 @@ class PreworkGraderArchiveImporterTest < ActiveSupport::TestCase
   test "merge mode preserves existing nonblank text and grade but imports missing issue url" do
     existing = Submission.create!(
       user: @student,
+      enrollment: @enrollment,
       content_block: @block,
       submission_type: :prework_github_sync,
       text: "local newer work",
@@ -127,6 +128,7 @@ class PreworkGraderArchiveImporterTest < ActiveSupport::TestCase
   test "merge mode reports unchanged when existing submission already matches archive" do
     Submission.create!(
       user: @student,
+      enrollment: @enrollment,
       content_block: @block,
       submission_type: :prework_github_sync,
       text: "puts 'hello'",
@@ -157,6 +159,7 @@ class PreworkGraderArchiveImporterTest < ActiveSupport::TestCase
   test "merge mode keeps progress consistent with retained existing grade" do
     Submission.create!(
       user: @student,
+      enrollment: @enrollment,
       content_block: @block,
       submission_type: :prework_github_sync,
       text: "redo version",
@@ -201,6 +204,7 @@ class PreworkGraderArchiveImporterTest < ActiveSupport::TestCase
   test "blank existing submission type alone does not count as an update" do
     Submission.create!(
       user: @student,
+      enrollment: @enrollment,
       content_block: @block,
       text: "puts 'hello'",
       grade: :A,

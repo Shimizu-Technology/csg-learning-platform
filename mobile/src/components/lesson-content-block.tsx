@@ -25,6 +25,7 @@ interface LessonContentBlockProps {
 interface PendingSubmissionDraft {
   userId: number;
   contentBlockId: number;
+  cohortId?: number | null;
   text: string;
   baseSubmissionId: number | null;
   baseSubmissionUpdatedAt: string | null;
@@ -64,7 +65,8 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
   const pendingDraftRef = useRef<PendingSubmissionDraft | null>(null);
   const studentEditedRef = useRef(false);
   const trackedFeedbackRef = useRef<number | null>(null);
-  const lessonQueryKey = useMemo(() => learningKeys.lesson(user?.id || 0, lesson.id), [lesson.id, user?.id]);
+  const cohortId = studentMode ? lesson.cohort_id : null;
+  const lessonQueryKey = useMemo(() => learningKeys.lesson(user?.id || 0, lesson.id, cohortId), [cohortId, lesson.id, user?.id]);
 
   const updateDemoBlock = useCallback((update: (current: LessonContentBlock) => LessonContentBlock) => {
     queryClient.setQueryData<{ lesson: LessonDetail }>(lessonQueryKey, (current) => current ? {
@@ -75,7 +77,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
   useEffect(() => {
     if (!studentMode || submissionType !== 'text_submission' || !user) return;
     let canceled = false;
-    void loadSubmissionDraft(user.id, block.id).then((draft) => {
+    void loadSubmissionDraft(user.id, block.id, cohortId).then((draft) => {
       if (canceled) return;
       if (draft && studentEditedRef.current) {
         setOlderDraft(draft);
@@ -87,7 +89,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
         setOlderDraft(draft);
         setDraftNotice('An older device draft is available to restore.');
       } else if (draft) {
-        void clearSubmissionDraft(user.id, block.id);
+        void clearSubmissionDraft(user.id, block.id, cohortId);
       }
     }).catch(() => {
       if (!canceled) setDraftNotice('Draft storage is temporarily unavailable. Keep this screen open.');
@@ -95,13 +97,13 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
       if (!canceled) setDraftHydrated(true);
     });
     return () => { canceled = true; };
-  }, [block.id, latest?.id, latest?.text, latest?.updated_at, studentMode, submissionType, user]);
+  }, [block.id, cohortId, latest?.id, latest?.text, latest?.updated_at, studentMode, submissionType, user]);
 
   useEffect(() => {
     if (!studentMode || submissionType !== 'text_submission' || !user || !draftHydrated) return;
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
     const changed = text !== (latest?.text || '');
-    const pending: PendingSubmissionDraft = { userId: user.id, contentBlockId: block.id, text, baseSubmissionId: latest?.id ?? null, baseSubmissionUpdatedAt: latest?.updated_at ?? null, changed };
+    const pending: PendingSubmissionDraft = { userId: user.id, contentBlockId: block.id, cohortId, text, baseSubmissionId: latest?.id ?? null, baseSubmissionUpdatedAt: latest?.updated_at ?? null, changed };
     pendingDraftRef.current = pending;
     draftTimerRef.current = setTimeout(() => {
       void persistSubmissionDraft(pending).then(() => {
@@ -111,7 +113,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
       }).catch(() => setDraftNotice('Draft could not be saved. Keep this screen open.'));
     }, 300);
     return () => { if (draftTimerRef.current) clearTimeout(draftTimerRef.current); };
-  }, [block.id, draftHydrated, latest?.id, latest?.text, latest?.updated_at, studentMode, submissionType, text, user]);
+  }, [block.id, cohortId, draftHydrated, latest?.id, latest?.text, latest?.updated_at, studentMode, submissionType, text, user]);
 
   useEffect(() => () => {
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
@@ -137,7 +139,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
     ]);
   };
   const progressMutation = useMutation({
-    mutationFn: (status: string) => auth.demo ? Promise.resolve({ progress: { id: block.id, content_block_id: block.id, status, completed_at: status === 'completed' ? new Date().toISOString() : null } }) : api.updateProgress(block.id, status),
+    mutationFn: (status: string) => auth.demo ? Promise.resolve({ progress: { id: block.id, content_block_id: block.id, status, completed_at: status === 'completed' ? new Date().toISOString() : null } }) : api.updateProgress(block.id, status, cohortId),
     onSuccess: (_result, status) => {
       if (status === 'completed') captureProductEvent('learning_step_completed', {
         module_id: lesson.module_id, lesson_id: lesson.id, content_block_id: block.id, block_type: block.block_type, source: 'manual',
@@ -150,7 +152,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
   const knowledgeCheckMutation = useMutation({
     mutationFn: () => {
       if (!knowledgeCheck || selectedCheckOption === null) throw new Error('Choose an answer first.');
-      return api.attemptKnowledgeCheck(knowledgeCheck.id, selectedCheckOption);
+      return api.attemptKnowledgeCheck(knowledgeCheck.id, selectedCheckOption, cohortId);
     },
     onSuccess: async (result) => {
       setKnowledgeCheckDraft({ blockId: block.id, value: result.knowledge_check });
@@ -168,13 +170,13 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
     mutationFn: async () => {
       const input = buildSubmissionInput(block.id, submissionType, { text, repoUrl, liveUrl, prUrl, branch, commitSha, notes });
       if (auth.demo) return { submission: demoSubmission(block, lesson, user, input, latest) };
-      if (editable && latest) return api.updateSubmission(latest.id, withoutContentBlock(input));
-      return api.createSubmission(input);
+      if (editable && latest) return api.updateSubmission(latest.id, withoutContentBlock(input), cohortId);
+      return api.createSubmission(input, cohortId);
     },
     onSuccess: async (result) => {
       if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
       pendingDraftRef.current = null;
-      if (user) await clearSubmissionDraft(user.id, block.id).catch(() => undefined);
+      if (user) await clearSubmissionDraft(user.id, block.id, cohortId).catch(() => undefined);
       setDraftNotice(null);
       setOlderDraft(null);
       const attempt = result.submission.num_submissions || (latest?.num_submissions || 0) + 1;
@@ -191,7 +193,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
     onError: async (error) => {
       if (user && submissionType === 'text_submission') {
         try {
-          await saveSubmissionDraft(user.id, block.id, text, latest?.id ?? null, latest?.updated_at ?? null);
+          await saveSubmissionDraft(user.id, block.id, text, latest?.id ?? null, latest?.updated_at ?? null, cohortId);
           setDraftNotice('Draft saved on this device · not submitted');
         } catch {
           setDraftNotice('Draft could not be saved. Keep this screen open.');
@@ -258,6 +260,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
 function LessonVideo({ block, lesson }: { block: LessonContentBlock; lesson: LessonDetail }) {
   const { api, user } = useSession();
   const userId = user?.id ?? null;
+  const cohortId = user?.is_staff ? null : lesson.cohort_id;
   const queryClient = useQueryClient();
   const trackedCompletionRef = useRef(block.progress?.status === 'completed');
   const hostedPlayerRef = useRef<NativeVideoPlayerHandle>(null);
@@ -265,11 +268,11 @@ function LessonVideo({ block, lesson }: { block: LessonContentBlock; lesson: Les
   const videoSegments = useMemo(() => normalizeVideoSegments(block.metadata), [block.metadata]);
   const initialPosition = segmentPlaybackStart(videoSegments, block.progress?.video_last_position || 0);
   const fetchStream = useCallback(async () => {
-    const response = await api.contentVideoStream(block.id);
+    const response = await api.contentVideoStream(block.id, undefined, cohortId);
     return { stream_url: response.stream_url, expires_at: response.expires_at };
-  }, [api, block.id]);
+  }, [api, block.id, cohortId]);
   const saveProgress = useCallback(async (progress: VideoProgressInput) => {
-    const response = await api.updateContentVideoProgress(block.id, progress);
+    const response = await api.updateContentVideoProgress(block.id, progress, cohortId);
     if (response.video_progress.completed && !trackedCompletionRef.current) {
       trackedCompletionRef.current = true;
       captureProductEvent('learning_step_completed', {
@@ -277,9 +280,9 @@ function LessonVideo({ block, lesson }: { block: LessonContentBlock; lesson: Les
       });
     }
     if (!userId) return;
-    queryClient.setQueryData<{ lesson: LessonDetail }>(learningKeys.lesson(userId, lesson.id), (current) => current ? { lesson: { ...current.lesson, content_blocks: current.lesson.content_blocks.map((candidate) => candidate.id === block.id ? { ...candidate, progress: { ...candidate.progress, status: response.video_progress.status, completed_at: response.video_progress.completed ? new Date().toISOString() : candidate.progress?.completed_at || null, video_last_position: response.video_progress.last_position, video_total_watched: response.video_progress.total_watched } } : candidate) } } : current);
+    queryClient.setQueryData<{ lesson: LessonDetail }>(learningKeys.lesson(userId, lesson.id, cohortId), (current) => current ? { lesson: { ...current.lesson, content_blocks: current.lesson.content_blocks.map((candidate) => candidate.id === block.id ? { ...candidate, progress: { ...candidate.progress, status: response.video_progress.status, completed_at: response.video_progress.completed ? new Date().toISOString() : candidate.progress?.completed_at || null, video_last_position: response.video_progress.last_position, video_total_watched: response.video_progress.total_watched } } : candidate) } } : current);
     if (response.video_progress.completed) void queryClient.invalidateQueries({ queryKey: learningKeys.dashboard(userId) });
-  }, [api, block.block_type, block.id, lesson.id, lesson.module_id, queryClient, userId]);
+  }, [api, block.block_type, block.id, cohortId, lesson.id, lesson.module_id, queryClient, userId]);
 
   if (block.metadata?.staged_video_upload) return <View style={styles.stagedVideo}><Film color={palette.rubySoft} size={18} /><View style={styles.flex}><Text style={styles.stagedVideoTitle}>Hosted video ready to save</Text><Text style={styles.stagedVideoCopy}>Playback becomes available as soon as this lesson draft is saved.</Text></View></View>;
   const seekToSegment = (segment: VideoSegment) => {
@@ -311,7 +314,7 @@ function demoSubmission(block: LessonContentBlock, lesson: LessonDetail, user: S
     lesson_id: lesson.id, lesson_title: lesson.title, module_id: lesson.module_id, cohort_id: lesson.cohort_id || null, filename: block.filename, submission_config: block.submission_config, language_hint: typeof block.metadata.language === 'string' ? block.metadata.language : null,
   };
 }
-function persistSubmissionDraft(pending: PendingSubmissionDraft) { return pending.changed ? saveSubmissionDraft(pending.userId, pending.contentBlockId, pending.text, pending.baseSubmissionId, pending.baseSubmissionUpdatedAt) : clearSubmissionDraft(pending.userId, pending.contentBlockId); }
+function persistSubmissionDraft(pending: PendingSubmissionDraft) { return pending.changed ? saveSubmissionDraft(pending.userId, pending.contentBlockId, pending.text, pending.baseSubmissionId, pending.baseSubmissionUpdatedAt, pending.cohortId) : clearSubmissionDraft(pending.userId, pending.contentBlockId, pending.cohortId); }
 function blockLabel(value: string) { return value === 'text' ? 'Lesson notes' : value === 'checkpoint' ? 'Checkpoint' : value === 'recording' ? 'Class recording' : 'Learning step'; }
 function formatDate(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date); }
 

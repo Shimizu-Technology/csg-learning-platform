@@ -18,6 +18,8 @@ class CohortModuleSubmissionWindowsTest < ActionDispatch::IntegrationTest
       email: "window_instructor@example.com",
       role: :instructor
     )
+    @cohort.cohort_instructor_assignments.create!(user: @instructor)
+    @admin = User.create!(clerk_id: "clerk_window_admin", email: "window_admin@example.com", role: :admin)
     @student = User.create!(
       clerk_id: "clerk_window_student",
       email: "window_student@example.com",
@@ -25,13 +27,14 @@ class CohortModuleSubmissionWindowsTest < ActionDispatch::IntegrationTest
     )
     issuer = ClerkEnvironment.primary&.issuer || "https://test.clerk.invalid"
     @instructor.clerk_identities.create!(issuer: issuer, clerk_user_id: @instructor.clerk_id)
+    @admin.clerk_identities.create!(issuer: issuer, clerk_user_id: @admin.clerk_id)
     @student.clerk_identities.create!(issuer: issuer, clerk_user_id: @student.clerk_id)
   end
 
-  test "staff can save and clear a valid weekly close time" do
+  test "admin can save and clear a valid weekly close time" do
     close_at = 2.days.from_now.change(usec: 0)
 
-    as_user(@instructor) do
+    as_user(@admin) do
       patch endpoint,
         params: { submission_windows: [ { week_number: 2, submissions_close_at: close_at.iso8601 } ] },
         headers: auth_headers,
@@ -42,7 +45,7 @@ class CohortModuleSubmissionWindowsTest < ActionDispatch::IntegrationTest
     window = @cohort.cohort_module_submission_windows.find_by!(module_id: @curriculum_module.id, week_number: 2)
     assert_equal close_at.to_i, window.submissions_close_at.to_i
 
-    as_user(@instructor) do
+    as_user(@admin) do
       patch endpoint,
         params: { submission_windows: [ { week_number: 2, submissions_close_at: nil } ] },
         headers: auth_headers,
@@ -54,7 +57,7 @@ class CohortModuleSubmissionWindowsTest < ActionDispatch::IntegrationTest
   end
 
   test "an out-of-range week rolls back the whole batch" do
-    as_user(@instructor) do
+    as_user(@admin) do
       patch endpoint,
         params: {
           submission_windows: [
@@ -72,7 +75,7 @@ class CohortModuleSubmissionWindowsTest < ActionDispatch::IntegrationTest
   end
 
   test "bare close times are rejected and roll back the whole batch" do
-    as_user(@instructor) do
+    as_user(@admin) do
       patch endpoint,
         params: {
           submission_windows: [
@@ -90,7 +93,7 @@ class CohortModuleSubmissionWindowsTest < ActionDispatch::IntegrationTest
   end
 
   test "invalid offset-aware close times are rejected and roll back the whole batch" do
-    as_user(@instructor) do
+    as_user(@admin) do
       patch endpoint,
         params: {
           submission_windows: [
@@ -118,13 +121,24 @@ class CohortModuleSubmissionWindowsTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  test "assigned instructors cannot change learning submission windows" do
+    as_user(@instructor) do
+      patch endpoint,
+        params: { submission_windows: [ { week_number: 1, submissions_close_at: 1.day.from_now.iso8601 } ] },
+        headers: auth_headers,
+        as: :json
+    end
+
+    assert_response :forbidden
+  end
+
   test "a concurrent window write returns a retryable conflict" do
     original_transaction = ActiveRecord::Base.method(:transaction)
     ActiveRecord::Base.define_singleton_method(:transaction) do |*|
       raise ActiveRecord::RecordNotUnique
     end
 
-    as_user(@instructor) do
+    as_user(@admin) do
       patch endpoint,
         params: { submission_windows: [ { week_number: 1, submissions_close_at: 1.day.from_now.iso8601 } ] },
         headers: auth_headers,

@@ -1,9 +1,9 @@
 import type { HelpRequest, Intervention, LessonContentBlock, StaffDashboard, StaffStudentSummary, StudentDashboard, StudentProgressDetail, Submission, SubmissionBrief, SubmissionInput, SupportQueue } from './types';
 
 export const learningKeys = {
-  dashboard: (userId: number) => ['learning', userId, 'dashboard'] as const,
-  weeklyPlan: (userId: number) => ['learning', userId, 'weekly-plan'] as const,
-  lesson: (userId: number, lessonId: number) => ['learning', userId, 'lesson', lessonId] as const,
+  dashboard: (userId: number, cohortId?: number | null) => ['learning', userId, 'dashboard', cohortId || 'all'] as const,
+  weeklyPlan: (userId: number, cohortId?: number | null) => ['learning', userId, 'weekly-plan', cohortId || 'all'] as const,
+  lesson: (userId: number, lessonId: number, cohortId?: number | null) => ['learning', userId, 'lesson', lessonId, cohortId ?? 'all'] as const,
   curricula: (userId: number) => ['learning', userId, 'staff-curricula'] as const,
   curriculum: (userId: number, curriculumId: number) => ['learning', userId, 'staff-curriculum', curriculumId] as const,
   learningObjectives: (userId: number, curriculumId: number) => ['learning', userId, 'learning-objectives', curriculumId] as const,
@@ -14,11 +14,11 @@ export const learningKeys = {
   studentDetail: (userId: number, studentId: number, cohortId?: number) => ['learning', userId, 'staff-student', cohortId || 'active', studentId] as const,
   submission: (userId: number, submissionId: number) => ['learning', userId, 'staff-submission', submissionId] as const,
   submissionContext: (userId: number, submissionId: number, cohortId: number) => ['learning', userId, 'validated-submission-context', submissionId, cohortId] as const,
-  submissions: (userId: number, studentId?: number) => ['learning', userId, 'staff-submissions', studentId || 'all'] as const,
+  submissions: (userId: number, studentId?: number, cohortId?: number | null) => ['learning', userId, 'staff-submissions', studentId || 'all', cohortId || 'all'] as const,
   feedbackSnippets: (userId: number) => ['learning', userId, 'feedback-snippets'] as const,
   helpRequests: (userId: number, cohortId?: number, contextType?: string) => ['learning', userId, 'help-requests', cohortId || 'all', contextType || 'all'] as const,
   helpRequest: (userId: number, requestId: number) => ['learning', userId, 'help-request', requestId] as const,
-  supportQueue: (userId: number) => ['learning', userId, 'support-queue'] as const,
+  supportQueue: (userId: number, cohortId?: number | null) => ['learning', userId, 'support-queue', cohortId || 'all'] as const,
   intervention: (userId: number, interventionId: number) => ['learning', userId, 'intervention', interventionId] as const,
 };
 

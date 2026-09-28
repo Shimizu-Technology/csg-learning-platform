@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, BookOpen, Clock, Lock, PlayCircle, CalendarDays, CheckCircle2, RotateCcw, RefreshCw, WifiOff, Link2, ExternalLink } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useAuthContext } from '../../contexts/AuthContext'
+import { useCohortContext } from '../../contexts/CohortContext'
 import { ProgressRing } from '../../components/shared/ProgressRing'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -11,7 +12,6 @@ import { formatShortDateTime } from '../../lib/format'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { WeeklyPlanCard } from '../../components/student/WeeklyPlan'
 import type { DashboardData, WeeklyPlan } from '../../types/api'
-import { useSelectedCourse } from '../../components/student/CourseSwitcher'
 
 function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return 'TBD'
@@ -27,8 +27,8 @@ interface DashboardProps {
 
 export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disableStaffRedirect = false }: DashboardProps = {}) {
   const { user, enrollments } = useAuthContext()
-  const { selectedId, switcher } = useSelectedCourse()
-  const selectedEnrollment = enrollments.find((entry) => entry.cohort.id === selectedId)
+  const { selectedCohortId } = useCohortContext()
+  const selectedEnrollment = enrollments.find((entry) => entry.cohort.id === selectedCohortId)
   const navigate = useNavigate()
   const [data, setData] = useState<DashboardData | null>(previewData || null)
   const [loading, setLoading] = useState(!previewData)
@@ -63,10 +63,11 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
     }
 
     setLoading(true)
+    setData(null)
     setLoadError(null)
     setShowingSavedData(false)
 
-    api.getDashboard(selectedId)
+    api.getDashboard(selectedCohortId ?? undefined)
       .then((res) => {
         if (request !== dashboardRequest.current) return
         if (res.data) {
@@ -83,7 +84,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
         setLoadError(error instanceof Error ? error.message : 'Unable to load your dashboard right now.')
       })
       .finally(() => { if (request === dashboardRequest.current) setLoading(false) })
-  }, [disableStaffRedirect, navigate, previewData, selectedId, user])
+  }, [disableStaffRedirect, navigate, previewData, selectedCohortId, user])
 
   useEffect(() => {
     loadDashboard()
@@ -99,11 +100,11 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
     let active = true
     setWeeklyPlan(null)
     setWeeklyPlanLoaded(false)
-    api.getWeeklyPlan(selectedId).then((res) => {
+    api.getWeeklyPlan(selectedCohortId ?? undefined).then((res) => {
       if (active && res.data?.weekly_plan) setWeeklyPlan(res.data.weekly_plan)
     }).finally(() => { if (active) setWeeklyPlanLoaded(true) })
     return () => { active = false }
-  }, [previewData, selectedEnrollment?.cohort.course_delivery, selectedId, user])
+  }, [previewData, selectedCohortId, selectedEnrollment?.cohort.course_delivery, user])
 
   const retryAction = (
     <button
@@ -187,7 +188,6 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
 
   return (
     <div className="app-page max-w-5xl">
-      {switcher}
       {previewBanner}
       {showingSavedData && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -212,7 +212,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
                 <p className="mt-1.5 text-lg font-extrabold tracking-tight text-white">{derived.nextAvailableLesson.title}</p>
                 <p className="mt-0.5 text-sm text-slate-400">{derived.nextAvailableLesson.moduleName}</p>
                 <Link
-                  to={`/lessons/${derived.nextAvailableLesson.id}`}
+                  to={`/lessons/${derived.nextAvailableLesson.id}${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}`}
                   className="group mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-primary-500"
                 >
                   Continue learning
@@ -274,7 +274,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
           <ul className="mt-3 grid gap-2 sm:grid-cols-2">
             {data.action_items.map((item, i) => (
               <li key={i}>
-                <Link to={`/lessons/${item.lesson_id}`} className="group block h-full rounded-xl border border-amber-200 bg-white p-3.5 transition hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-md hover:shadow-amber-900/5">
+                <Link to={`/lessons/${item.lesson_id}${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}`} className="group block h-full rounded-xl border border-amber-200 bg-white p-3.5 transition hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-md hover:shadow-amber-900/5">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-bold text-slate-950">{item.content_block_title}</p>
@@ -459,7 +459,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
           return (
             <Link
               key={mod.id}
-              to={mod.available ? `/modules/${mod.id}` : '#'}
+              to={mod.available ? `/modules/${mod.id}${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}` : '#'}
               onClick={(e) => {
                 if (!mod.available) e.preventDefault()
               }}

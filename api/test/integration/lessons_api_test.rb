@@ -66,7 +66,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
 
   test "lesson payload identifies only actionable completion blocks when an exercise exists" do
     exercise = @lesson.content_blocks.create!(block_type: :exercise, position: 2, title: "Submit")
-    submission = Submission.create!(user: @student, content_block: exercise, text: "Versioned draft base")
+    submission = Submission.create!(user: @student, enrollment: @enrollment, content_block: exercise, text: "Versioned draft base")
 
     as_user(@student) do
       get "/api/v1/lessons/#{@lesson.id}", headers: auth_headers
@@ -1011,7 +1011,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert_match "retrieval check", JSON.parse(response.body).fetch("error")
     assert_not Progress.exists?(user: @student, content_block: block, status: :completed)
 
-    check.attempts.create!(user: @student, selected_option: check.correct_option, correct: true)
+    check.attempts.create!(user: @student, enrollment: @enrollment, selected_option: check.correct_option, correct: true)
     as_user(@student) do
       patch "/api/v1/progress", params: { content_block_id: block.id, status: "completed" }, headers: auth_headers
     end
@@ -1056,7 +1056,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
   test "lesson deletion cannot report success while retrieval evidence exists" do
     block = @lesson.content_blocks.create!(block_type: :checkpoint, position: 2)
     check = KnowledgeCheck.create!(content_block: block, prompt: "Which one?", options: [ "One", "Two" ], correct_option: 0, explanation: "One is correct.")
-    check.attempts.create!(user: @student, selected_option: 0, correct: true)
+    check.attempts.create!(user: @student, enrollment: @enrollment, selected_option: 0, correct: true)
 
     as_user(@admin) do
       delete "/api/v1/lessons/#{@lesson.id}", headers: auth_headers

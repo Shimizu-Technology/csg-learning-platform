@@ -8,7 +8,7 @@ module Api
 
       def index
         configs = PrivateMeetingConfig.includes(:cohort, :instructor).order(created_at: :desc)
-        configs = configs.where(instructor_id: current_user.id) unless current_user.admin?
+        configs = configs.where(instructor_id: current_user.id, cohort_id: current_user.accessible_cohorts.select(:id)) unless current_user.admin?
         render json: {
           cohorts: configs.map do |config|
             slots = config.private_meeting_slots.active.includes(:instructor).order(:starts_at).to_a
@@ -33,7 +33,7 @@ module Api
 
       def update
         booking = PrivateMeetingBooking.includes(cohort: :private_meeting_config).find(params[:id])
-        unless current_user.admin? || booking.instructor_id == current_user.id
+        unless current_user.admin? || (booking.instructor_id == current_user.id && current_user.can_teach_cohort?(booking.cohort))
           render_forbidden("This meeting belongs to another instructor")
           return
         end

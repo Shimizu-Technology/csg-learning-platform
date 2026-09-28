@@ -10,6 +10,7 @@ class StudentProgressContextTest < ActionDispatch::IntegrationTest
     @staff = User.create!(clerk_id: "context_staff", email: "staff-context@example.com", first_name: "Context", last_name: "Staff", role: :instructor)
     @active_cohort = Cohort.create!(curriculum: @curriculum, name: "Current cohort", start_date: Date.current, status: :active)
     @past_cohort = Cohort.create!(curriculum: @curriculum, name: "Past cohort", start_date: 1.year.ago, status: :completed)
+    [ @active_cohort, @past_cohort ].each { |cohort| cohort.cohort_instructor_assignments.create!(user: @staff) }
     [ @active_cohort, @past_cohort ].each do |cohort|
       enrollment = Enrollment.create!(user: @student, cohort: cohort, status: cohort.active? ? :active : :completed)
       enrollment.module_assignments.create!(curriculum_module: @mod, unlocked: true)
@@ -25,10 +26,10 @@ class StudentProgressContextTest < ActionDispatch::IntegrationTest
     payload = JSON.parse(response.body)
     assert_equal @past_cohort.id, payload.dig("cohort", "id")
     assert_equal "completed", payload.dig("enrollment", "status")
-    assert_equal "curriculum", payload.dig("learning_evidence_scope", "kind")
+    assert_equal "enrollment", payload.dig("learning_evidence_scope", "kind")
     assert_equal @curriculum.id, payload.dig("learning_evidence_scope", "curriculum_id")
     assert_equal 2, payload.dig("learning_evidence_scope", "enrollment_count")
-    assert payload.dig("learning_evidence_scope", "shared_across_enrollments")
+    refute payload.dig("learning_evidence_scope", "shared_across_enrollments")
   end
 
   test "staff progress rejects a cohort the student never joined" do

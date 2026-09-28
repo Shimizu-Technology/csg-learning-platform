@@ -30,6 +30,7 @@ class OfficeHoursTest < ActionDispatch::IntegrationTest
     )
 
     @cohort = Cohort.create!(curriculum: @curriculum, name: "Cohort", start_date: Date.current, status: :active)
+    @cohort.cohort_instructor_assignments.create!(user: @instructor)
     enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
     ModuleAssignment.create!(enrollment: enrollment, curriculum_module: @mod, unlocked: true)
   end

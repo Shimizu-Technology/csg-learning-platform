@@ -13,6 +13,7 @@ module Api
           return
         end
         instructor = User.find(params.require(:instructor_id))
+        return render_forbidden("Instructor is not assigned to this cohort") unless instructor.can_teach_cohort?(cohort)
         config = PrivateMeetingConfig.create!(cohort: cohort, instructor: instructor)
         render json: { config: { id: config.id, cohort_id: cohort.id, instructor_id: instructor.id } }, status: :created
       end

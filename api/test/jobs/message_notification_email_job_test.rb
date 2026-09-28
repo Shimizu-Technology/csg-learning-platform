@@ -6,6 +6,7 @@ class MessageNotificationEmailJobTest < ActiveJob::TestCase
     cohort = Cohort.create!(curriculum: curriculum, name: "Email Cohort", start_date: Date.current, status: :active)
     author = User.create!(clerk_id: "email_job_author", email: "author@example.com", role: :student)
     recipient = User.create!(clerk_id: "email_job_recipient", email: "recipient@example.com", role: :student)
+    [ author, recipient ].each { |user| Enrollment.create!(user: user, cohort: cohort, status: :active) }
     conversation = DirectConversation.find_or_create_for!(workspace: cohort.workspace, users: [ author, recipient ])
     message = Message.create!(direct_conversation: conversation, author: author, body: "Important update")
     notification = NotificationDeliveryService.message_created(message).find { |item| item.user_id == recipient.id }
@@ -28,6 +29,7 @@ class MessageNotificationEmailJobTest < ActiveJob::TestCase
     cohort = Cohort.create!(curriculum: curriculum, name: "Configuration Cohort", start_date: Date.current, status: :active)
     author = User.create!(clerk_id: "email_config_author", email: "author@example.com", role: :student)
     recipient = User.create!(clerk_id: "email_config_recipient", email: "recipient@example.com", role: :student)
+    [ author, recipient ].each { |user| Enrollment.create!(user: user, cohort: cohort, status: :active) }
     conversation = DirectConversation.find_or_create_for!(workspace: cohort.workspace, users: [ author, recipient ])
     message = Message.create!(direct_conversation: conversation, author: author, body: "Configuration check")
     notification = NotificationDeliveryService.message_created(message).find { |item| item.user_id == recipient.id }

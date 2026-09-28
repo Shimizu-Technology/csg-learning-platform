@@ -92,10 +92,16 @@ module Api
       end
 
       def active_enrollment_for_curriculum(curriculum_id)
-        preferred_enrollment_for(current_user.enrollments
-          .active
+        scope = current_user.enrollments
           .joins(:cohort)
-          .includes(:module_assignments, cohort: :cohort_module_schedules), curriculum_id: curriculum_id)
+          .includes(:module_assignments, cohort: :cohort_module_schedules)
+          .where(cohorts: { curriculum_id: curriculum_id })
+        scope = if params[:cohort_id].present?
+          scope.where(cohort_id: params[:cohort_id], status: %i[active completed])
+        else
+          scope.active
+        end
+        scope.order(enrolled_at: :desc, id: :desc).first
       end
 
       def module_json(mod, include_lessons: false, include_solutions: false)

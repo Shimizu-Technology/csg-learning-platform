@@ -7,8 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({ selectedId: 1, getResources: vi.fn() }))
 
-vi.mock('../../components/student/CourseSwitcher', () => ({
-  useSelectedCourse: () => ({ selectedId: state.selectedId, switcher: null }),
+vi.mock('../../contexts/CohortContext', () => ({
+  useCohortContext: () => ({ selectedCohortId: state.selectedId }),
 }))
 vi.mock('../../lib/api', () => ({ api: { getResources: state.getResources } }))
 

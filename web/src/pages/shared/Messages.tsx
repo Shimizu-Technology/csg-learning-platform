@@ -827,6 +827,7 @@ export function Messages() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const routedMessageId = Number(searchParams.get('message_id')) || null
+  const requestedWorkspaceId = Number(searchParams.get('workspace_id')) || null
   const { user } = useAuthContext()
   const toast = useToast()
   const composerHelpId = useId()
@@ -1291,10 +1292,21 @@ export function Messages() {
       ? loadedChannels.find((channel) => channel.id === firstTarget.id)?.workspace_id
       : loadedDirectConversations.find((conversation) => conversation.id === firstTarget?.id)?.workspace_id
 
-    setSelectedTarget((current) => current || firstTarget)
-    setSelectedWorkspaceId((current) => current || firstTargetWorkspaceId || workspaceRes.data?.workspaces[0]?.id || null)
+    const requestedWorkspace = workspaceRes.data?.workspaces.find((workspace) => workspace.id === requestedWorkspaceId)
+    setSelectedTarget((current) => current || (requestedWorkspace ? initialMessageTarget(
+      loadedChannels.filter((channel) => channel.workspace_id === requestedWorkspace.id),
+      loadedDirectConversations.filter((conversation) => conversation.workspace_id === requestedWorkspace.id),
+    ) : firstTarget))
+    setSelectedWorkspaceId((current) => requestedWorkspace?.id || current || firstTargetWorkspaceId || workspaceRes.data?.workspaces[0]?.id || null)
     setLoading(false)
   }
+
+  useEffect(() => {
+    if (!requestedWorkspaceId || !workspaces.some((workspace) => workspace.id === requestedWorkspaceId) || channelId || dmId) return
+    setSelectedWorkspaceId(requestedWorkspaceId)
+    setSelectedTarget(null)
+    setMessages([])
+  }, [requestedWorkspaceId, workspaces, channelId, dmId])
 
   const loadWorkspaceDetail = async (workspaceId: number) => {
     const workspaceRes = await api.getWorkspace(workspaceId)

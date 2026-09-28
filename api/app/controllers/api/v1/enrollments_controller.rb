@@ -37,6 +37,17 @@ module Api
 
         if enrollment.persisted?
           invitation = dispatch_invitation(user)
+          unless user.invite_pending?
+            Notification.create!(
+              user: user,
+              actor: current_user,
+              notifiable: enrollment,
+              notification_type: :system,
+              title: "You've been added to #{@cohort.name}",
+              body: "Open your cohort workspace to see your class, schedule, and messages.",
+              path: "/cohorts/#{@cohort.id}"
+            )
+          end
           render json: {
             enrollment: enrollment_json(enrollment),
             invitation: invitation && {
@@ -97,6 +108,8 @@ module Api
           user_name: enrollment.user.full_name,
           user_email: enrollment.user.email,
           status: enrollment.status,
+          invited_at: enrollment.invited_at,
+          joined_at: enrollment.joined_at,
           enrolled_at: enrollment.enrolled_at,
           completed_at: enrollment.completed_at,
           module_assignments: enrollment.module_assignments.includes(:curriculum_module).map { |assignment|
@@ -117,7 +130,7 @@ module Api
             .flat_map { |mod| mod.lessons.flat_map(&:completion_block_ids) }
 
           completed_blocks = Progress.completed
-            .where(user_id: enrollment.user_id, content_block_id: completion_block_ids)
+            .where(enrollment_id: enrollment.id, content_block_id: completion_block_ids)
 
           json[:total_blocks] = completion_block_ids.count
           json[:completed_blocks] = completed_blocks.count

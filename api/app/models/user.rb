@@ -9,6 +9,8 @@ class User < ApplicationRecord
   has_many :enrollments, dependent: :destroy
   has_many :course_purchases, dependent: :restrict_with_error
   has_many :cohorts, through: :enrollments
+  has_many :cohort_instructor_assignments, dependent: :destroy
+  has_many :assigned_cohorts, through: :cohort_instructor_assignments, source: :cohort
   has_many :progresses, dependent: :destroy
   has_many :submissions, dependent: :destroy
   has_many :graded_submissions, class_name: "Submission", foreign_key: :graded_by_id, dependent: :nullify
@@ -107,6 +109,26 @@ class User < ApplicationRecord
 
   def staff?
     admin? || instructor?
+  end
+
+  def accessible_cohorts
+    return Cohort.none if archived?
+    return Cohort.all if admin?
+    return assigned_cohorts if instructor?
+
+    Cohort.where(id: enrollments.where(status: [ Enrollment.statuses[:active], Enrollment.statuses[:completed] ]).select(:cohort_id))
+  end
+
+  def can_access_cohort?(cohort)
+    return false if cohort.nil? || archived?
+    return true if admin?
+    return cohort_instructor_assignments.exists?(cohort_id: cohort.id) if instructor?
+
+    enrollments.where(status: [ Enrollment.statuses[:active], Enrollment.statuses[:completed] ]).exists?(cohort_id: cohort.id)
+  end
+
+  def can_teach_cohort?(cohort)
+    staff? && can_access_cohort?(cohort)
   end
 
   def community_terms_accepted?

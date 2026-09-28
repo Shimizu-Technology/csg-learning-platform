@@ -5,6 +5,7 @@ module Api
       before_action :require_staff!
       before_action :set_enrollment, only: [ :index, :create ]
       before_action :set_lesson_assignment, only: [ :show, :update, :destroy ]
+      before_action :authorize_enrollment_cohort!
 
       def index
         assignments = @enrollment.lesson_assignments.includes(:lesson)
@@ -54,6 +55,10 @@ module Api
 
       def set_lesson_assignment
         @lesson_assignment = LessonAssignment.find(params[:id])
+      end
+
+      def authorize_enrollment_cohort!
+        require_cohort_access!((@enrollment || @lesson_assignment.enrollment).cohort, teacher: true)
       end
 
       def lesson_assignment_params

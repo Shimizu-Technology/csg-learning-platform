@@ -1,4 +1,5 @@
 class KnowledgeCheckAttempt < ApplicationRecord
+  belongs_to :enrollment, optional: true
   belongs_to :knowledge_check
   belongs_to :user
 

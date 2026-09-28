@@ -7,7 +7,7 @@ module Api
 
       def index
         scope = Intervention.includes(enrollment: [ :user, :cohort ], owner: [], created_by: [], recovery_plan: [])
-          .recent_first
+          .joins(:enrollment).where(enrollments: { cohort_id: current_user.accessible_cohorts.select(:id) }).recent_first
         scope = scope.where(enrollment_id: params[:enrollment_id]) if params[:enrollment_id].present?
         scope = scope.where(owner_id: params[:owner_id]) if params[:owner_id].present?
         scope = scope.where(status: params[:status]) if params[:status].present?
@@ -22,6 +22,7 @@ module Api
 
       def create
         enrollment = Enrollment.includes(:user, :cohort).find(create_params[:enrollment_id])
+        return unless require_cohort_access!(enrollment.cohort, teacher: true)
         trigger_type = create_params[:trigger_type].to_s
         help_request = create_params[:help_request_id].present? ? HelpRequest.find(create_params[:help_request_id]) : nil
         existing = enrollment.interventions.active.find_by(trigger_type: trigger_type)
@@ -76,7 +77,8 @@ module Api
       private
 
       def set_intervention
-        @intervention = Intervention.includes(enrollment: [ :user, :cohort ], notes: :author, recovery_plan: []).find(params[:id])
+        @intervention = Intervention.includes(enrollment: [ :user, :cohort ], notes: :author, recovery_plan: [])
+          .joins(:enrollment).where(enrollments: { cohort_id: current_user.accessible_cohorts.select(:id) }).find(params[:id])
       end
 
       def create_params

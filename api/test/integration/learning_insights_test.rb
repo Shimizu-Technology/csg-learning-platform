@@ -16,16 +16,17 @@ class LearningInsightsTest < ActionDispatch::IntegrationTest
     ObjectiveAlignment.create!(learning_objective: @objective, lesson: @lesson, content_block: @block)
     @cohort = Cohort.create!(curriculum: @curriculum, name: "Evidence cohort", start_date: Date.current, status: :active)
     @staff = User.create!(clerk_id: "insights_staff", email: "insights-staff@example.com", first_name: "Inez", last_name: "Instructor", role: :instructor)
+    @cohort.cohort_instructor_assignments.create!(user: @staff)
     @student = create_student("insights_one", "one@example.com", "Maya", "Santos")
     @redo_student = create_student("insights_two", "two@example.com", "Noah", "Cruz")
     @other_student = create_student("insights_other", "other@example.com", "Other", "Student", enroll: false)
 
-    passing = Submission.create!(user: @student, content_block: @block, text: "private passing work", grade: :A, feedback: "private feedback", grader: @staff, graded_at: 2.days.ago, num_submissions: 1)
+    passing = Submission.create!(user: @student, enrollment: @cohort.enrollments.find_by!(user: @student), content_block: @block, text: "private passing work", grade: :A, feedback: "private feedback", grader: @staff, graded_at: 2.days.ago, num_submissions: 1)
     passing.submission_criterion_results.create!(rubric_criterion: @rubric.rubric_criteria.first, rating: :meets, feedback: "private criterion feedback")
-    redo_submission = Submission.create!(user: @redo_student, content_block: @block, text: "private redo work", grade: :R, feedback: "private redo feedback", grader: @staff, graded_at: 1.day.ago, num_submissions: 2, repo_url: "https://github.com/noah/project", commit_sha: "def456")
+    redo_submission = Submission.create!(user: @redo_student, enrollment: @cohort.enrollments.find_by!(user: @redo_student), content_block: @block, text: "private redo work", grade: :R, feedback: "private redo feedback", grader: @staff, graded_at: 1.day.ago, num_submissions: 2, repo_url: "https://github.com/noah/project", commit_sha: "def456")
     redo_submission.submission_criterion_results.create!(rubric_criterion: @rubric.rubric_criteria.first, rating: :redo)
     redo_submission.github_check_runs.create!(external_id: 91, name: "test", head_sha: "def456", status: "completed", conclusion: "failure", fetched_at: Time.current)
-    @check.attempts.create!(user: @student, selected_option: 0, correct: true)
+    @check.attempts.create!(user: @student, enrollment: @cohort.enrollments.find_by!(user: @student), selected_option: 0, correct: true)
   end
 
   test "cohort insights explain objective status and drill down without private content" do

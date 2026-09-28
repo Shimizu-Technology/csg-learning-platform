@@ -10,7 +10,7 @@ module Api
         authorize_content_block_write!(content_block)
         return if performed?
         if params[:status].to_s == "completed" && content_block.knowledge_check.present? &&
-            !content_block.knowledge_check.attempts.where(user: current_user, correct: true).exists?
+            !content_block.knowledge_check.attempts.where(enrollment: @learning_write_enrollment, correct: true).exists?
           render json: { error: "Answer the retrieval check correctly to complete this checkpoint." }, status: :unprocessable_entity
           return
         end
@@ -21,9 +21,10 @@ module Api
 
         with_learning_write_guard(@learning_write_enrollment) do
           progress = Progress.find_or_initialize_by(
-            user: current_user,
+            enrollment: @learning_write_enrollment,
             content_block: content_block
           )
+          progress.user = current_user
           previous_status = progress.status
           progress.status = params[:status]
 
@@ -66,6 +67,11 @@ module Api
         end
 
         progresses = current_user.progresses
+        if params[:cohort_id].present?
+          cohort = Cohort.find(params[:cohort_id])
+          return unless require_cohort_access!(cohort)
+          progresses = progresses.where(enrollment_id: current_user.enrollments.where(cohort_id: cohort.id).select(:id))
+        end
         progresses = progresses.where(content_block_id: block_ids) if block_ids
 
         render json: {
@@ -107,6 +113,7 @@ module Api
         end
 
         cohort = enrollment.cohort
+        return unless require_cohort_access!(cohort, teacher: true)
         curriculum = cohort.curriculum
         same_curriculum_enrollment_count = user.enrollments.joins(:cohort)
           .where(cohorts: { curriculum_id: curriculum.id })
@@ -122,8 +129,8 @@ module Api
         # without falsely attributing historical work to one enrollment. Cohort-scoped
         # operations (access, support, recordings, and DMs) still use +enrollment+.
         all_block_ids = modules.flat_map { |m| m.lessons.flat_map(&:completion_block_ids) }
-        progress_by_block = user.progresses.where(content_block_id: all_block_ids).index_by(&:content_block_id)
-        submissions_by_block = user.submissions.where(content_block_id: all_block_ids)
+        progress_by_block = user.progresses.where(enrollment_id: enrollment.id, content_block_id: all_block_ids).index_by(&:content_block_id)
+        submissions_by_block = user.submissions.where(enrollment_id: enrollment.id, content_block_id: all_block_ids)
           .order(created_at: :desc)
           .group_by(&:content_block_id)
           .transform_values(&:first) # latest submission per block
@@ -246,11 +253,11 @@ module Api
             status: cohort.status
           },
           learning_evidence_scope: {
-            kind: "curriculum",
+            kind: "enrollment",
             curriculum_id: curriculum.id,
             curriculum_name: curriculum.name,
             enrollment_count: same_curriculum_enrollment_count,
-            shared_across_enrollments: same_curriculum_enrollment_count > 1
+            shared_across_enrollments: false
           },
           overall_progress: {
             completed: completed_blocks,

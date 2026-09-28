@@ -49,9 +49,11 @@ class DirectConversation < ApplicationRecord
 
   def can_post?(user)
     return false unless active? && visible_to?(user) && !blocked_for?(user)
-    return true unless workspace.cohort&.self_paced? && user.student?
+    return false if cohort&.completed? || cohort&.archived?
+    return false if cohort && user.student? && !user.enrollments.active.exists?(cohort_id: cohort.id)
+    return true unless cohort&.self_paced? && user.student?
 
-    user.enrollments.active.find_by(cohort: workspace.cohort)&.instructor_support_active? || false
+    user.enrollments.active.find_by(cohort: cohort)&.instructor_support_active? || false
   end
 
   def blocked_for?(user)
@@ -60,7 +62,7 @@ class DirectConversation < ApplicationRecord
   end
 
   def recipients
-    users
+    users.where(id: users.select { |user| visible_to?(user) }.map(&:id))
   end
 
   def title_for(user)

@@ -6,6 +6,7 @@ module Api
       before_action :authenticate_user!
       before_action :set_channel, only: [ :show, :update, :destroy, :mark_read ]
       before_action :require_staff!, only: [ :create, :update, :destroy ]
+      before_action :authorize_channel_teacher!, only: [ :update, :destroy ]
 
       # GET /api/v1/channels
       def index
@@ -107,6 +108,12 @@ module Api
 
       private
 
+      def authorize_channel_teacher!
+        return if @channel.workspace.visible_to?(current_user) && current_user.staff?
+
+        render_forbidden("Cannot manage this channel")
+      end
+
       def set_channel
         @channel = Channel.includes(workspace: :cohort).find(params[:id])
       end
@@ -195,13 +202,14 @@ module Api
       def workspace_for_mutation!
         if channel_params[:workspace_id].present?
           workspace = Workspace.find(channel_params[:workspace_id])
-          return workspace if workspace.visible_to?(current_user) || current_user.staff?
+          return workspace if workspace.visible_to?(current_user) && current_user.staff?
 
           render_forbidden("Workspace is not visible")
           return nil
         end
 
         cohort = Cohort.find(channel_params[:cohort_id])
+        return nil unless require_cohort_access!(cohort, teacher: true)
         Workspace.find_or_create_for_cohort!(cohort)
       end
 

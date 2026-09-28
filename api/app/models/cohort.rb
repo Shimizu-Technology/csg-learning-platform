@@ -6,6 +6,8 @@ class Cohort < ApplicationRecord
   belongs_to :support_instructor, class_name: "User", optional: true
   has_many :enrollments, dependent: :destroy
   has_many :users, through: :enrollments
+  has_many :cohort_instructor_assignments, dependent: :destroy
+  has_many :instructors, through: :cohort_instructor_assignments, source: :user
   has_many :recordings, dependent: :destroy
   has_many :announcements, dependent: :destroy
   has_one :workspace, dependent: :destroy

@@ -39,9 +39,9 @@ class CohortGradingTest < ActionDispatch::IntegrationTest
     @cohort = Cohort.create!(
       curriculum: @curriculum, name: "Cohort", start_date: Date.current, status: :active
     )
-    enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
-    ModuleAssignment.create!(enrollment: enrollment, curriculum_module: @mod, unlocked: true)
-    Progress.create!(user: @student, content_block: @exercise, status: :completed)
+    @enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+    ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @mod, unlocked: true)
+    Progress.create!(user: @student, enrollment: @enrollment, content_block: @exercise, status: :completed)
   end
 
   test "index includes non submission exercises and progress state for grading views" do
@@ -97,7 +97,7 @@ class CohortGradingTest < ActionDispatch::IntegrationTest
   end
 
   test "index exposes the exact submission version required by grading clients" do
-    submission = Submission.create!(user: @student, content_block: @exercise, text: "Ready for review")
+    submission = Submission.create!(user: @student, enrollment: @enrollment, content_block: @exercise, text: "Ready for review")
 
     as_user(@admin) do
       get "/api/v1/cohorts/#{@cohort.id}/modules/#{@mod.id}/submissions",

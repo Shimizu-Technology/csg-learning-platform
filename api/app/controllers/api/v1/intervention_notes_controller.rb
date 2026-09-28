@@ -6,6 +6,7 @@ module Api
 
       def create
         intervention = Intervention.find(params[:intervention_id])
+        return unless require_cohort_access!(intervention.enrollment.cohort, teacher: true)
         note = intervention.notes.create!(author: current_user, body: note_params[:body].to_s.strip)
         render json: { note: InterventionSerializer.note_json(note) }, status: :created
       rescue ActiveRecord::RecordInvalid => e

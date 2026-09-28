@@ -27,8 +27,8 @@ const cohort = {
   announcements: [],
   modules: [],
   students: [
-    { enrollment_id: 1, user_id: 10, full_name: 'Joined Alum', email: 'joined@example.com', github_username: 'joined', status: 'active', enrolled_at: null, last_sign_in_at: '2026-09-27T00:00:00Z', invite_pending: false, invite_delivery_status: 'accepted', module_assignments: [] },
-    { enrollment_id: 2, user_id: 11, full_name: 'Invited Alum', email: 'invited@example.com', github_username: 'invited', status: 'active', enrolled_at: null, last_sign_in_at: null, invite_pending: true, invite_delivery_status: 'sent', module_assignments: [] },
+    { enrollment_id: 1, user_id: 10, full_name: 'Joined Alum', email: 'joined@example.com', github_username: 'joined', status: 'active', enrolled_at: null, invited_at: '2026-09-26T00:00:00Z', joined_at: '2026-09-27T00:00:00Z', last_sign_in_at: '2026-09-27T00:00:00Z', invite_pending: false, invite_delivery_status: 'accepted', module_assignments: [] },
+    { enrollment_id: 2, user_id: 11, full_name: 'Invited Alum', email: 'invited@example.com', github_username: 'invited', status: 'active', enrolled_at: null, invited_at: '2026-09-26T00:00:00Z', joined_at: null, last_sign_in_at: null, invite_pending: true, invite_delivery_status: 'sent', module_assignments: [] },
   ],
 } satisfies CohortDetail
 
@@ -57,11 +57,23 @@ describe('cohort access roster', () => {
 
     expect(container.textContent).toContain('Signed in to app')
     expect(container.textContent).toContain('App invite sent')
+    expect(container.textContent).toContain('Joined cohort')
+    expect(container.textContent).toContain('Added, not yet opened')
     expect(container.textContent).toContain('Joined GitHub org')
     expect(container.textContent).toContain('GitHub invite pending')
 
     const select = container.querySelector('select')!
     await act(async () => { select.value = 'github_invited'; select.dispatchEvent(new Event('change', { bubbles: true })) })
+    expect(container.textContent).toContain('Showing 1 of 2 enrolled')
+    expect(container.textContent).toContain('Invited Alum')
+    expect(container.textContent).not.toContain('Joined Alum')
+  })
+
+  it('filters cohort entry independently of app and GitHub status', async () => {
+    const router = createMemoryRouter([{ path: '/admin/cohorts/:id', element: <CohortWorkspace /> }], { initialEntries: ['/admin/cohorts/4?tab=students'] })
+    await act(async () => { root.render(<RouterProvider router={router} />) })
+    const select = container.querySelector('select')!
+    await act(async () => { select.value = 'cohort_not_opened'; select.dispatchEvent(new Event('change', { bubbles: true })) })
     expect(container.textContent).toContain('Showing 1 of 2 enrolled')
     expect(container.textContent).toContain('Invited Alum')
     expect(container.textContent).not.toContain('Joined Alum')

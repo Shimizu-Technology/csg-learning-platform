@@ -25,8 +25,8 @@ class EnrollmentRestartsTest < ActionDispatch::IntegrationTest
     )
     LessonAssignment.create!(enrollment: @enrollment, lesson: @lesson, unlocked: true)
 
-    @progress = Progress.create!(user: @student, content_block: @block, status: :completed)
-    @submission = Submission.create!(user: @student, content_block: @block, text: "Original work", grade: :A, grader: @instructor)
+    @progress = Progress.create!(user: @student, enrollment: @enrollment, content_block: @block, status: :completed)
+    @submission = Submission.create!(user: @student, enrollment: @enrollment, content_block: @block, text: "Original work", grade: :A, grader: @instructor)
     @recording = Recording.create!(
       cohort: @cohort,
       uploaded_by: @admin,
@@ -52,7 +52,7 @@ class EnrollmentRestartsTest < ActionDispatch::IntegrationTest
   test "admin can restart one enrollment with a recoverable audit snapshot" do
     check_block = @lesson.content_blocks.create!(block_type: :checkpoint, title: "Recall", body: "Check", position: 2)
     check = KnowledgeCheck.create!(content_block: check_block, prompt: "What is two plus two?", options: [ "3", "4" ], correct_option: 1, explanation: "Four is correct.")
-    attempt = KnowledgeCheckAttempt.create!(knowledge_check: check, user: @student, selected_option: 1, correct: true)
+    attempt = KnowledgeCheckAttempt.create!(knowledge_check: check, user: @student, enrollment: @enrollment, selected_option: 1, correct: true)
 
     as_user(@admin) do
       post "/api/v1/enrollments/#{@enrollment.id}/restart",

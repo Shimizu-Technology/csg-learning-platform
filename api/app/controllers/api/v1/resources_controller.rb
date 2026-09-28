@@ -6,11 +6,16 @@ module Api
       # GET /api/v1/resources
       def index
         cohorts = if current_user.staff?
-          Cohort.where(status: %i[active upcoming]).order(start_date: :desc)
+          current_user.accessible_cohorts.where(status: %i[active upcoming]).order(start_date: :desc)
         else
-          scope = current_user.enrollments.active.includes(:cohort)
-          enrollment = params[:cohort_id].present? ? scope.find_by(cohort_id: params[:cohort_id]) : scope.first
-          enrollment ? [ enrollment.cohort ] : []
+          current_user.accessible_cohorts.order(start_date: :desc)
+        end
+        if params[:cohort_id].present?
+          unless current_user.accessible_cohorts.exists?(id: params[:cohort_id])
+            render_forbidden("Cannot access this cohort")
+            return
+          end
+          cohorts = cohorts.respond_to?(:where) ? cohorts.where(id: params[:cohort_id]) : cohorts.select { |cohort| cohort.id.to_s == params[:cohort_id].to_s }
         end
         if cohorts.empty?
           render json: { resources: [] }

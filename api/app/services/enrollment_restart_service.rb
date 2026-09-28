@@ -20,9 +20,9 @@ class EnrollmentRestartService
         .pluck(:id)
       recording_ids = cohort.recordings.pluck(:id)
 
-      progresses = student.progresses.where(content_block_id: block_ids)
-      submissions = student.submissions.where(content_block_id: block_ids)
-      knowledge_check_attempts = student.knowledge_check_attempts
+      progresses = enrollment.progresses.where(content_block_id: block_ids)
+      submissions = enrollment.submissions.where(content_block_id: block_ids)
+      knowledge_check_attempts = enrollment.knowledge_check_attempts
         .joins(:knowledge_check)
         .where(knowledge_checks: { content_block_id: block_ids })
       watch_progresses = student.watch_progresses.where(recording_id: recording_ids)

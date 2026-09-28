@@ -19,6 +19,7 @@ export function SupportQueue() {
   const toast = useToast()
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
+  const cohortId = Number(searchParams.get('cohort_id')) || undefined
   const [queue, setQueue] = useState<SupportQueueData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -33,11 +34,12 @@ export function SupportQueue() {
 
   const loadQueue = useCallback(async () => {
     setError(null)
-    const result = await api.getSupportQueue()
+    setLoading(true)
+    const result = await api.getSupportQueue(cohortId)
     if (result.data) setQueue(result.data.support_queue)
-    else setError(result.error || 'Could not load the support queue.')
+    else { setQueue(null); setError(result.error || 'Could not load the support queue.') }
     setLoading(false)
-  }, [])
+  }, [cohortId])
 
   useEffect(() => { void loadQueue() }, [loadQueue])
 

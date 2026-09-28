@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, ChevronLeft, Lock, RotateCcw } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -7,6 +7,7 @@ import { RubricPanel } from '../../components/shared/RubricPanel'
 import { ContextualHelp } from '../../components/student/ContextualHelp'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { useAuthContext } from '../../contexts/AuthContext'
+import { useCohortContext } from '../../contexts/CohortContext'
 import { formatShortDateTime } from '../../lib/format'
 import { captureProductEvent } from '../../lib/analytics'
 import type { HelpRequest } from '../../types/api'
@@ -44,18 +45,31 @@ export function LessonView() {
   const [helpRequests, setHelpRequests] = useState<HelpRequest[]>([])
   const [helpRequestsLoading, setHelpRequestsLoading] = useState(true)
   const { user } = useAuthContext()
+  const { selectedCohortId } = useCohortContext()
+  const requestId = useRef(0)
+  const activeCohortId = useRef(selectedCohortId)
+  activeCohortId.current = selectedCohortId
 
   const loadLesson = useCallback((options?: { silent?: boolean }) => {
     if (!id) return
+    if (selectedCohortId !== activeCohortId.current) return
+    const currentRequest = ++requestId.current
     if (!options?.silent) setLoading(true)
-    api.getLesson(Number(id)).then((res) => {
+    if (!options?.silent) setLesson(null)
+    if (!user?.is_staff && !selectedCohortId) {
+      setLoading(false)
+      return
+    }
+    api.getLesson(Number(id), selectedCohortId ?? undefined).then((res) => {
+      if (currentRequest !== requestId.current) return
       if (res.data) setLesson(res.data.lesson)
       if (!options?.silent) setLoading(false)
     })
-  }, [id])
+  }, [id, selectedCohortId, user?.is_staff])
 
   useEffect(() => {
     loadLesson()
+    return () => { requestId.current += 1 }
   }, [loadLesson])
 
   const loadHelpRequests = useCallback(async () => {
@@ -81,15 +95,16 @@ export function LessonView() {
   }, [lesson?.id, lesson?.module_id])
 
   if (loading) return <LoadingSpinner message="Loading lesson..." />
-  if (!lesson) return <div className="text-center text-slate-500 py-12">Lesson not found</div>
+  if (!lesson) return <div className="text-center text-slate-500 py-12">{!user?.is_staff && !selectedCohortId ? 'Choose a cohort to view this lesson.' : 'Lesson not found or unavailable in this cohort.'}</div>
 
   const redoBlocks = lesson.content_blocks.filter((block: any) => block.submissions?.[0]?.grade === 'R')
+  const cohortQuery = lesson.cohort_id ? `?cohort_id=${lesson.cohort_id}` : ''
 
   return (
     <article className="app-page max-w-3xl">
       {/* Back link */}
       <Link
-        to={`/modules/${lesson.module_id}`}
+        to={`/modules/${lesson.module_id}${cohortQuery}`}
         className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900"
       >
         <ChevronLeft className="h-4 w-4" />
@@ -155,6 +170,7 @@ export function LessonView() {
             <RubricPanel rubric={block.rubric} />
             <ContentBlockRenderer
               block={block}
+              cohortId={lesson.cohort_id}
               isStaff={user?.is_staff}
               requiresGithub={lesson.requires_github}
               requiresSubmission={lesson.requires_submission}
@@ -178,7 +194,7 @@ export function LessonView() {
       <div className="flex items-center justify-between pt-4 border-t border-slate-200">
         {lesson.prev_lesson ? (
           <Link
-            to={`/lessons/${lesson.prev_lesson.id}`}
+            to={`/lessons/${lesson.prev_lesson.id}${cohortQuery}`}
             className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -190,7 +206,7 @@ export function LessonView() {
         )}
         {lesson.next_lesson ? (
           <Link
-            to={`/lessons/${lesson.next_lesson.id}`}
+            to={`/lessons/${lesson.next_lesson.id}${cohortQuery}`}
             className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-600 transition-colors"
           >
             <span className="hidden sm:inline">{lesson.next_lesson.title}</span>
@@ -199,7 +215,7 @@ export function LessonView() {
           </Link>
         ) : (
           <Link
-            to={`/modules/${lesson.module_id}`}
+            to={`/modules/${lesson.module_id}${cohortQuery}`}
             className="inline-flex items-center gap-2 rounded-lg bg-success-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-success-600 transition-colors"
           >
             Back to Module

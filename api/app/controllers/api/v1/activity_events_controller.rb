@@ -16,7 +16,8 @@ module Api
         else
           current_user
         end
-        unless current_user.admin? || subject.id == current_user.id || (current_user.instructor? && subject.student?)
+        unless current_user.admin? || subject.id == current_user.id ||
+            (current_user.instructor? && subject.student? && subject.enrollments.where(cohort_id: current_user.accessible_cohorts.select(:id)).exists?)
           render_forbidden("Cannot view this activity")
           return
         end
@@ -28,7 +29,13 @@ module Api
             render json: { error: "Student is not enrolled in this cohort" }, status: :not_found
             return
           end
+          if current_user.instructor? && !current_user.can_teach_cohort?(Cohort.find(cohort_id))
+            render_forbidden("Cannot access this cohort")
+            return
+          end
           scope = scope.where(cohort_id: cohort_id)
+        elsif current_user.instructor? && subject.id != current_user.id
+          scope = scope.where(cohort_id: current_user.accessible_cohorts.select(:id))
         end
         if params[:event_type].present?
           unless ActivityEvent::TYPES.include?(params[:event_type])

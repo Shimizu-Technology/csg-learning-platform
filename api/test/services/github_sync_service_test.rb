@@ -24,7 +24,7 @@ class GithubSyncServiceTest < ActiveSupport::TestCase
       first_name: "Student", last_name: "One", role: :student,
       github_username: "student-one"
     )
-    Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+    @enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
   end
 
   test "sync_student creates a submission and completes progress" do
@@ -60,13 +60,14 @@ class GithubSyncServiceTest < ActiveSupport::TestCase
   test "sync_student updates redo work and restores completed progress" do
     submission = Submission.create!(
       user: @student,
+      enrollment: @enrollment,
       content_block: @block,
       text: "old code",
       grade: :R,
       feedback: "redo this",
       num_submissions: 1
     )
-    Progress.create!(user: @student, content_block: @block, status: :in_progress)
+    Progress.create!(user: @student, enrollment: @enrollment, content_block: @block, status: :in_progress)
 
     service = GithubSyncService.new(github_token: "test-token")
     original_fetch = service.method(:fetch_exercise_files)

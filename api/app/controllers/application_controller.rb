@@ -15,15 +15,12 @@ class ApplicationController < ActionController::API
 
   private
 
-  def preferred_enrollment_for(scope, curriculum_id:)
-    matching = scope.where(cohorts: { curriculum_id: curriculum_id })
-    selected = request.headers["X-CSG-Cohort-Id"]
-    return matching.first if selected.blank?
+  def require_cohort_access!(cohort, teacher: false)
+    allowed = teacher ? current_user.can_teach_cohort?(cohort) : current_user.can_access_cohort?(cohort)
+    return true if allowed
 
-    preferred_id = Integer(selected, exception: false)
-    return nil unless preferred_id&.positive?
-
-    matching.find_by(cohort_id: preferred_id)
+    render_forbidden("Cannot access this cohort")
+    false
   end
 
   def capture_learning_request_started_at
@@ -113,13 +110,16 @@ class ApplicationController < ActionController::API
 
   def active_enrollment_for_lesson(lesson)
     curriculum_id = lesson.curriculum_module.curriculum_id
-    cache_key = [ current_user.id, curriculum_id ]
+    cache_key = [ current_user.id, curriculum_id, params[:cohort_id] ]
     @active_enrollment_for_lesson_cache ||= {}
     return @active_enrollment_for_lesson_cache[cache_key] if @active_enrollment_for_lesson_cache.key?(cache_key)
 
-    @active_enrollment_for_lesson_cache[cache_key] = preferred_enrollment_for(current_user.enrollments
+    scope = current_user.enrollments
       .active
       .joins(:cohort)
-      .includes(:module_assignments, :lesson_assignments, cohort: [ :cohort_module_schedules, :cohort_module_submission_windows ]), curriculum_id: curriculum_id)
+      .includes(:module_assignments, :lesson_assignments, cohort: [ :cohort_module_schedules, :cohort_module_submission_windows ])
+      .where(cohorts: { curriculum_id: curriculum_id })
+    scope = scope.where(cohort_id: params[:cohort_id]) if params[:cohort_id].present?
+    @active_enrollment_for_lesson_cache[cache_key] = scope.order(enrolled_at: :desc, id: :desc).first
   end
 end

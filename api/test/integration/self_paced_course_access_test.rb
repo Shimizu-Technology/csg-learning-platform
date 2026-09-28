@@ -318,22 +318,21 @@ class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal @cohort.id, JSON.parse(response.body).dig("dashboard", "cohort", "id")
     as_user(@student) { get "/api/v1/dashboard", params: { cohort_id: 999_999 }, headers: auth_headers }
-    assert_response :success
-    assert_equal false, JSON.parse(response.body).dig("dashboard", "enrolled")
+    assert_response :forbidden
     as_user(@student) do
-      get "/api/v1/lessons/#{@lesson.id}", headers: auth_headers.merge("X-CSG-Cohort-Id" => @cohort.id.to_s)
+      get "/api/v1/lessons/#{@lesson.id}", params: { cohort_id: @cohort.id }, headers: auth_headers
     end
     assert_response :success
     assert_equal @cohort.id, JSON.parse(response.body).dig("lesson", "cohort_id")
     as_user(@student) do
-      get "/api/v1/lessons/#{@lesson.id}", headers: auth_headers.merge("X-CSG-Cohort-Id" => "999999")
+      get "/api/v1/lessons/#{@lesson.id}", params: { cohort_id: 999_999 }, headers: auth_headers
     end
     assert_response :forbidden
 
     block = @lesson.content_blocks.create!(block_type: :text, position: 0, body: "Try a variable")
     as_user(@student) do
-      patch "/api/v1/progress", params: { content_block_id: block.id, status: "completed" },
-        headers: auth_headers.merge("X-CSG-Cohort-Id" => "999999"), as: :json
+      patch "/api/v1/progress", params: { content_block_id: block.id, status: "completed", cohort_id: 999_999 },
+        headers: auth_headers, as: :json
     end
     assert_response :forbidden
     assert_nil Progress.find_by(user: @student, content_block: block)
@@ -355,8 +354,7 @@ class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal [ "Guided setup" ], JSON.parse(response.body).fetch("resources").pluck("title")
     as_user(@student) { get "/api/v1/resources", params: { cohort_id: 999_999 }, headers: auth_headers }
-    assert_response :success
-    assert_empty JSON.parse(response.body).fetch("resources")
+    assert_response :forbidden
   end
 
   test "existing program enrollment without an expiry remains active" do
@@ -365,7 +363,7 @@ class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
     enrollment.module_assignments.create!(curriculum_module: @module, unlocked: true)
 
     assert enrollment.active?
-    as_user(@student) { get "/api/v1/lessons/#{@lesson.id}", headers: auth_headers.merge("X-CSG-Cohort-Id" => program.id.to_s) }
+    as_user(@student) { get "/api/v1/lessons/#{@lesson.id}", params: { cohort_id: program.id }, headers: auth_headers }
     assert_response :success
     assert_equal program.id, JSON.parse(response.body).dig("lesson", "cohort_id")
   end

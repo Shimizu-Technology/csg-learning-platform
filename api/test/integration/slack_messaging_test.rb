@@ -59,6 +59,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
       last_name: "User",
       role: :instructor
     )
+    @cohort.cohort_instructor_assignments.create!(user: instructor)
 
     as_user(@admin) do
       post "/api/v1/direct_conversations",
