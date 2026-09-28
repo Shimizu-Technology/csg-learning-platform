@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, ArrowRight, ClipboardCheck, ExternalLink, GitPullRequest, Inbox } from 'lucide-react-native';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,15 +13,19 @@ import { learningKeys } from '@/lib/learning';
 import type { Submission } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
+import { useCohort } from '@/providers/cohort-provider';
 
 export default function StaffGradingScreen() {
   const router = useRouter();
   const auth = useCsgAuth();
   const { api, user } = useSession();
+  const { cohort_id } = useLocalSearchParams<{ cohort_id?: string }>();
+  const { selectedCohortId, selectedCohort } = useCohort();
+  const cohortId = cohort_id ? Number(cohort_id) : selectedCohortId;
   const queryClient = useQueryClient();
   const query = useQuery({
-    queryKey: learningKeys.submissions(user?.id || 0),
-    queryFn: ({ signal }) => auth.demo ? Promise.resolve({ submissions: demoStaffSubmissions.filter((item) => item.grade === null) }) : api.submissions({ ungraded: true }, signal),
+    queryKey: learningKeys.submissions(user?.id || 0, undefined, cohortId),
+    queryFn: ({ signal }) => auth.demo ? Promise.resolve({ submissions: demoStaffSubmissions.filter((item) => item.grade === null && (!cohortId || item.cohort_id === cohortId)) }) : api.submissions({ ungraded: true, ...(cohortId ? { cohort_id: cohortId } : {}) }, signal),
     enabled: Boolean(user?.is_staff),
   });
 
@@ -36,7 +40,7 @@ export default function StaffGradingScreen() {
     <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={palette.text} size={22} /></Pressable><View style={styles.headerCopy}><Text style={styles.kicker}>STAFF WORKFLOW</Text><Text style={styles.headerTitle}>Grading queue</Text></View><View style={styles.count}><Text style={styles.countText}>{submissions.length}</Text></View></View>
     {query.isPending && !query.data ? <LoadingState label="Loading grading queue" /> : query.error && !query.data ? <ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /> : <ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={palette.rubySoft} />} contentContainerStyle={styles.content}>
       {query.isError && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved submissions. Pull to reconnect.</Text></View>}
-      <Text style={styles.title}>Review what is ready now.</Text><Text style={styles.subtitle}>This focused queue keeps quick feedback native. Use the full matrix for bulk grading and cross-cohort comparisons.</Text>
+      <Text style={styles.title}>Review what is ready now.</Text><Text style={styles.subtitle}>{cohortId ? `${selectedCohort?.name || 'This cohort'} · ` : 'All cohorts · '}Quick feedback from your phone.</Text>
       <View style={styles.stack}>{submissions.map((submission) => <LearningCard key={submission.id} onPress={() => openSubmission(submission)} label={`Review ${submission.user_name}'s submission`}><View style={styles.row}><View style={styles.icon}>{submission.repo_url || submission.pr_url ? <GitPullRequest color={palette.rubySoft} size={20} /> : <ClipboardCheck color={palette.rubySoft} size={20} />}</View><View style={styles.flex}><Text style={styles.student}>{submission.user_name}</Text><Text style={styles.lesson}>{submission.lesson_title}{submission.cohort_name ? ` · ${submission.cohort_name}` : ''}</Text><Text numberOfLines={2} style={styles.exercise}>{submission.content_block_title} · attempt {submission.num_submissions}</Text><Text style={styles.time}>{formatRelative(submission.created_at)}</Text></View><ArrowRight color={palette.quiet} size={18} /></View></LearningCard>)}</View>
       {!submissions.length && <View style={styles.empty}><View style={styles.emptyIcon}><Inbox color={palette.success} size={28} /></View><Text style={styles.emptyTitle}>Queue cleared</Text><Text style={styles.emptyCopy}>There is no ungraded work waiting right now.</Text></View>}
       <Pressable accessibilityRole="button" onPress={() => void openAuthenticatedWebPage(api, '/admin/grading').catch((error) => Alert.alert('Could not open full grading', (error as Error).message))} style={styles.handoff}><ExternalLink color={palette.rubySoft} size={18} /><View style={styles.flex}><Text style={styles.handoffTitle}>Open full grading matrix</Text><Text style={styles.handoffCopy}>Bulk grading, cohort filters, and dense progress views</Text></View><ArrowRight color={palette.quiet} size={17} /></Pressable>

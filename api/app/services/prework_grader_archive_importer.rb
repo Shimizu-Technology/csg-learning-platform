@@ -242,7 +242,7 @@ class PreworkGraderArchiveImporter
   end
 
   def import_submission_record(user, block, submission_data, grade)
-    existing = Submission.find_by(user: user, content_block: block)
+    existing = Submission.find_by(enrollment: cohort.enrollments.find_by(user: user), content_block: block)
     if existing
       update_existing_submission(existing, submission_data, grade)
     else
@@ -287,6 +287,7 @@ class PreworkGraderArchiveImporter
     submission = Submission.create!(
       submission_attrs(submission_data, grade, new_record: true).merge(
         user: user,
+        enrollment: cohort.enrollments.find_by(user: user),
         content_block: block,
         created_at: parse_time(submission_data["created_at"]) || Time.current,
         updated_at: parse_time(submission_data["updated_at"]) || Time.current
@@ -340,7 +341,9 @@ class PreworkGraderArchiveImporter
     return unless grade.present?
 
     status = grade == "R" ? :in_progress : :completed
-    progress = Progress.find_or_initialize_by(user: user, content_block: block)
+    enrollment = cohort.enrollments.find_by(user: user)
+    progress = Progress.find_or_initialize_by(enrollment: enrollment, content_block: block)
+    progress.user = user
     progress.status = status
     progress.completed_at = status == :completed ? (parse_time(submission_data["updated_at"]) || Time.current) : nil
     progress.save!

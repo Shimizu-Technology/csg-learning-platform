@@ -16,6 +16,12 @@ module Api
         end
 
         users = include_archived ? User.all : User.not_archived
+        if current_user.instructor?
+          cohort_ids = current_user.cohort_instructor_assignments.select(:cohort_id)
+          peer_ids = CohortInstructorAssignment.where(cohort_id: cohort_ids).select(:user_id)
+          student_ids = Enrollment.where(cohort_id: cohort_ids).select(:user_id)
+          users = users.where(id: student_ids).or(users.where(id: peer_ids)).or(users.where(role: :admin))
+        end
         users = users.order(:last_name, :first_name)
 
         if params[:role].present?
@@ -27,7 +33,9 @@ module Api
           users: users.map { |user|
             payload = user_json(user)
             if include_enrollments
-              payload[:enrollments] = user.enrollments.map { |enrollment|
+              enrollments = user.enrollments
+              enrollments = enrollments.select { |enrollment| current_user.can_teach_cohort?(enrollment.cohort) } if current_user.instructor?
+              payload[:enrollments] = enrollments.map { |enrollment|
                 {
                   id: enrollment.id,
                   cohort_id: enrollment.cohort_id,
@@ -95,6 +103,13 @@ module Api
       # GET /api/v1/users/:id
       def show
         enrollments = @user.enrollments.includes(cohort: :curriculum)
+        if current_user.instructor?
+          enrollments = enrollments.select { |enrollment| current_user.can_teach_cohort?(enrollment.cohort) }
+          unless enrollments.any? || @user.admin? || (@user.instructor? && @user.assigned_cohorts.where(id: current_user.assigned_cohorts.select(:id)).exists?)
+            render_forbidden("Cannot access this user")
+            return
+          end
+        end
         render json: {
           user: user_json(@user),
           enrollments: enrollments.map { |e|

@@ -31,6 +31,41 @@ export interface SessionEnrollment {
   enrolled_at: string | null;
 }
 
+export interface AccessibleCohort {
+  id: number;
+  name: string;
+  status: string;
+  cohort_type: string;
+  curriculum_name: string;
+  workspace_id: number | null;
+  enrollment_status: string | null;
+}
+
+export interface CohortHome {
+  cohort: Pick<AccessibleCohort, 'id' | 'name' | 'status' | 'cohort_type' | 'curriculum_name' | 'workspace_id'> & { start_date: string; end_date: string | null };
+  permissions: { can_manage_roster: boolean; can_manage_schedule: boolean; can_manage_learning_schedule: boolean; can_grade: boolean; can_announce: boolean };
+  counts?: { invited: number; joined: number; active_students: number; ungraded: number; redos: number; open_help: number };
+  students?: { user_id: number; enrollment_id: number; full_name: string; email: string; status: string; invited_at: string | null; joined_at: string | null; invite_delivery_status: string; progress_percentage: number; ungraded_count: number; redo_count: number; last_seen_at: string | null }[];
+  upcoming_events: { office_hour_id: number; title: string; starts_at: string; ends_at: string; timezone: string; event_kind: string; meeting_url?: string | null }[];
+  recent_announcements: { id: number; title: string; published_at: string | null; pinned: boolean }[];
+  own_progress_percentage?: number;
+}
+
+export interface CohortOfficeHour {
+  id: number;
+  cohort_id: number;
+  title: string;
+  description: string | null;
+  starts_at: string;
+  ends_at: string;
+  meeting_url: string;
+  timezone: string;
+  recurrence: 'once' | 'weekly';
+  event_kind: 'office_hours' | 'live_class';
+  active: boolean;
+  occurrences: CohortHome['upcoming_events'];
+}
+
 export interface CommunityPolicy {
   version: string;
   accepted: boolean;

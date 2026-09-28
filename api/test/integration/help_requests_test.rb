@@ -12,6 +12,7 @@ class HelpRequestsTest < ActionDispatch::IntegrationTest
     @other_student = User.create!(clerk_id: "help_api_other", email: "help-api-other@example.com", first_name: "Other", last_name: "Student", role: :student)
     @staff = User.create!(clerk_id: "help_api_staff", email: "help-api-staff@example.com", first_name: "Help", last_name: "Instructor", role: :instructor)
     @cohort = Cohort.create!(curriculum: @curriculum, name: "Help cohort", start_date: Date.current, status: :active, settings: { "recordings" => [ { "title" => "Legacy replay", "url" => "https://example.com/replay" } ] })
+    @cohort.cohort_instructor_assignments.create!(user: @staff)
     @enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
     @enrollment.module_assignments.create!(curriculum_module: @mod, unlocked: true)
     @recording = @cohort.recordings.create!(title: "Uploaded replay", s3_key: "recordings/cohort_#{@cohort.id}/20260831010000_abcdef12_replay.mp4", content_type: "video/mp4", file_size: 1.megabyte, position: 0, status: :published)
@@ -228,7 +229,7 @@ class HelpRequestsTest < ActionDispatch::IntegrationTest
 
   test "support queue is staff-only and combines requests with current student signals" do
     request = create_help_request(urgency: :urgent)
-    Submission.create!(user: @student, content_block: @block, text: "Ready")
+    Submission.create!(user: @student, enrollment: @enrollment, content_block: @block, text: "Ready")
 
     as_user(@student) { get "/api/v1/support_queue", headers: auth_headers }
     assert_response :forbidden

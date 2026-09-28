@@ -14,9 +14,15 @@ module Api
 
         # Staff can filter by any student; students can only see themselves.
         if current_user.staff?
+          submissions = submissions.where(enrollment_id: Enrollment.where(cohort_id: current_user.accessible_cohorts.select(:id)).select(:id))
           submissions = submissions.where(user_id: params[:user_id]) if params[:user_id].present?
         else
           submissions = submissions.where(user_id: current_user.id)
+        end
+        if params[:cohort_id].present?
+          cohort = Cohort.find(params[:cohort_id])
+          return unless require_cohort_access!(cohort, teacher: current_user.staff?)
+          submissions = submissions.joins(:enrollment).where(enrollments: { cohort_id: cohort.id })
         end
 
         # Filter by module
@@ -69,17 +75,19 @@ module Api
         end
 
         submission = current_user.submissions.new(submission_params)
+        submission.enrollment = @learning_write_enrollment
         submission.submission_type = submission_type
 
         # Check if resubmission
-        existing = Submission.where(user: current_user, content_block_id: submission.content_block_id).order(:created_at).last
+        existing = Submission.where(enrollment: submission.enrollment, content_block_id: submission.content_block_id).order(:created_at).last
         if existing
           submission.num_submissions = existing.num_submissions + 1
         end
 
         with_learning_write_guard(@learning_write_enrollment) do
           if submission.save
-            progress = Progress.find_or_initialize_by(user: current_user, content_block_id: submission.content_block_id)
+            progress = Progress.find_or_initialize_by(enrollment: submission.enrollment, content_block_id: submission.content_block_id)
+            progress.user = current_user
             progress.update!(status: :completed)
             ActivityEvent.record!(event_type: "submission_created", actor: current_user,
               cohort: @learning_write_enrollment&.cohort, record: submission)
@@ -94,6 +102,9 @@ module Api
 
       # PATCH /api/v1/submissions/:id
       def update
+        if current_user.staff?
+          return unless authorize_submission_cohort!
+        end
         # Students can only update their own ungraded submissions
         unless current_user.staff? || (@submission.user_id == current_user.id && @submission.grade.nil?)
           render_forbidden("Cannot update this submission")
@@ -103,6 +114,10 @@ module Api
         unless current_user.staff?
           authorize_content_block_write!(@submission.content_block)
           return if performed?
+          unless @submission.enrollment_id == @learning_write_enrollment&.id
+            render_forbidden("Cannot update a submission from another cohort")
+            return
+          end
           authorize_submission_window_open!(@submission.content_block)
           return if performed?
         end
@@ -126,6 +141,7 @@ module Api
       def grade
         require_staff!
         return if performed?
+        return unless authorize_submission_cohort!
         base_updated_at = requested_grading_base_updated_at
         return if performed?
 
@@ -138,7 +154,7 @@ module Api
           return
         end
 
-        enrollment = learning_enrollment_for(@submission.user, @submission.content_block)
+        enrollment = @submission.enrollment
         with_learning_write_guard(enrollment) do
           Submission.transaction do
             @submission.lock!
@@ -161,6 +177,7 @@ module Api
             end
 
             progress = Progress.find_or_initialize_by(
+              enrollment: enrollment,
               user_id: @submission.user_id,
               content_block_id: @submission.content_block_id
             )
@@ -206,6 +223,7 @@ module Api
       def github_issue
         require_staff!
         return if performed?
+        return unless authorize_submission_cohort!
 
         unless @submission.github_issue_url.present?
           render json: { error: "No GitHub issue linked to this submission" }, status: :not_found
@@ -245,12 +263,22 @@ module Api
         end
       end
 
+      def authorize_submission_cohort!
+        enrollment = @submission.enrollment
+        unless enrollment && current_user.can_teach_cohort?(enrollment.cohort)
+          render_forbidden("Cannot access this submission")
+          return false
+        end
+        true
+      end
+
       def set_submission
         @submission = Submission.includes({ user: { enrollments: :cohort } }, { content_block: { lesson: :curriculum_module } }).find(params[:id])
       end
 
       def authorize_submission_read!
-        return if current_user.staff? || @submission.user_id == current_user.id
+        return if @submission.user_id == current_user.id
+        return if current_user.staff? && @submission.enrollment && current_user.can_teach_cohort?(@submission.enrollment.cohort)
 
         render_forbidden("Cannot view this submission")
       end
@@ -280,7 +308,7 @@ module Api
 
       def submission_json(submission, include_solution: false, include_github_checks: false)
         submission_type = submission.submission_type.presence || submission.content_block.effective_submission_type
-        enrollment = learning_enrollment_for(submission.user, submission.content_block)
+        enrollment = submission.enrollment || learning_enrollment_for(submission.user, submission.content_block)
         json = {
           id: submission.id,
           content_block_id: submission.content_block_id,
@@ -364,7 +392,9 @@ module Api
         lesson = content_block.lesson
         enrollment = current_user.enrollments.active
           .joins(:cohort)
-          .find_by(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
+          .where(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
+        enrollment = enrollment.where(cohort_id: params[:cohort_id]) if params[:cohort_id].present?
+        enrollment = enrollment.order(enrolled_at: :desc, id: :desc).first
         mod_gh = enrollment ? ((enrollment.cohort.settings || {}).dig("module_github_config", lesson.module_id.to_s) || {}) : {}
 
         content_block.effective_submission_type(requires_github: mod_gh["requires_github"] || false)

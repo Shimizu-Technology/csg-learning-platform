@@ -5,6 +5,14 @@ module Api
 
       # GET /api/v1/dashboard
       def show
+        if params[:cohort_id].present?
+          @selected_cohort = Cohort.find_by(id: params[:cohort_id])
+          unless current_user.can_access_cohort?(@selected_cohort)
+            render_forbidden("Cannot access this cohort")
+            return
+          end
+        end
+
         if current_user.staff?
           render_admin_dashboard
         else
@@ -15,7 +23,7 @@ module Api
       private
 
       def render_student_dashboard
-        enrollment = current_user.enrollments.active.includes(
+        enrollment_scope = current_user.enrollments.includes(
           :module_assignments,
           :lesson_assignments,
           cohort: [
@@ -25,12 +33,19 @@ module Api
             :private_meeting_config,
             { curriculum: { modules: { lessons: :content_blocks } } }
           ]
-        ).first
+        )
+        enrollment_scope = if @selected_cohort
+          enrollment_scope.where(cohort_id: @selected_cohort.id, status: %i[active completed])
+        else
+          enrollment_scope.active
+        end
+        enrollment = enrollment_scope.first
 
         unless enrollment
           render json: { dashboard: { enrolled: false, user: user_summary } }
           return
         end
+        enrollment.mark_joined!
 
         cohort = enrollment.cohort
         curriculum = cohort.curriculum
@@ -43,7 +58,7 @@ module Api
         # Calculate overall progress only across assigned modules
         all_block_ids = modules.flat_map { |mod| mod.lessons.flat_map(&:completion_block_ids) }
 
-        user_progress = current_user.progresses.where(content_block_id: all_block_ids).index_by(&:content_block_id)
+        user_progress = current_user.progresses.where(enrollment_id: enrollment.id, content_block_id: all_block_ids).index_by(&:content_block_id)
         completed_count = user_progress.values.count(&:completed?)
         total_count = all_block_ids.size
         overall_percentage = total_count > 0 ? (completed_count.to_f / total_count * 100).round(1) : 0
@@ -101,7 +116,7 @@ module Api
         end
 
         latest_submission_ids = current_user.submissions
-          .where(content_block_id: all_block_ids)
+          .where(enrollment_id: enrollment.id, content_block_id: all_block_ids)
           .group(:content_block_id)
           .select("MAX(id)")
         latest_submissions = current_user.submissions
@@ -223,7 +238,9 @@ module Api
       end
 
       def render_admin_dashboard
-        cohorts = Cohort.active.includes(:enrollments, :curriculum).to_a
+        cohorts_scope = current_user.accessible_cohorts.active.includes(:enrollments, :curriculum)
+        cohorts_scope = cohorts_scope.where(id: @selected_cohort.id) if @selected_cohort
+        cohorts = cohorts_scope.to_a
 
         if cohorts.empty?
           render json: { dashboard: { user: user_summary, cohorts: [] } }
@@ -272,13 +289,13 @@ module Api
         user_ids = enrollments.map { |e| e.user.id }
 
         progresses_by_user = Progress.completed
-          .where(user_id: user_ids, content_block_id: all_block_ids)
+          .where(enrollment_id: enrollments.map(&:id), content_block_id: all_block_ids)
           .select(:user_id, :content_block_id, :completed_at)
           .to_a
           .group_by(&:user_id)
 
         submissions_by_user = Submission
-          .where(user_id: user_ids, content_block_id: all_block_ids)
+          .where(enrollment_id: enrollments.map(&:id), content_block_id: all_block_ids)
           .select(:user_id, :content_block_id, :grade, :created_at)
           .to_a
           .group_by(&:user_id)
@@ -319,8 +336,7 @@ module Api
         end
 
         ungraded_count = Submission.where(grade: nil)
-          .joins(:user)
-          .where(users: { id: user_ids })
+          .where(enrollment_id: enrollments.map(&:id))
           .count
 
         {

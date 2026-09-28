@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Layers3, Plus, Users, Calendar, ChevronRight } from 'lucide-react'
 import { api } from '../../lib/api'
+import { useAuthContext } from '../../contexts/AuthContext'
+import { useCohortContext } from '../../contexts/CohortContext'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { useToast } from '../../contexts/ToastContext'
@@ -37,6 +39,8 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export function CohortManagement() {
+  const { user } = useAuthContext()
+  const { refreshCohorts } = useCohortContext()
   const navigate = useNavigate()
   const toast = useToast()
   const [cohorts, setCohorts] = useState<CohortSummary[]>([])
@@ -101,6 +105,7 @@ export function CohortManagement() {
 
     if (res.data) {
       toast.success(`Created cohort "${form.name}"`)
+      await refreshCohorts()
       navigate(`/admin/cohorts/${res.data.cohort.id}`)
     } else {
       const message = res.error || 'Failed to create cohort'
@@ -118,18 +123,18 @@ export function CohortManagement() {
         <div>
           <p className="app-eyebrow">Program operations</p>
           <h1 className="app-title mt-2">Cohorts</h1>
-          <p className="app-description mt-2">Create, organize, and reopen the workspace for every class.</p>
+          <p className="app-description mt-2">{user?.is_admin ? 'Create, organize, and reopen the workspace for every class.' : 'Open the cohorts you teach and see what needs attention.'}</p>
         </div>
-        <button
+        {user?.is_admin && <button
           onClick={() => setShowCreate(true)}
           className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-700"
         >
           <Plus className="h-4 w-4" />
           New Cohort
-        </button>
+        </button>}
       </header>
 
-      {showCreate && (
+      {showCreate && user?.is_admin && (
         <form onSubmit={handleCreate} className="rounded-2xl bg-white border border-slate-200 p-6 space-y-4">
           <h2 className="text-lg font-semibold text-slate-900">Create New Cohort</h2>
 

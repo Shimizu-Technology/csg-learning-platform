@@ -83,11 +83,13 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
       start_date: Date.current,
       status: :active
     )
+    @cohort.cohort_instructor_assignments.create!(user: @instructor)
     @enrollment_one = Enrollment.create!(user: @student_one, cohort: @cohort, status: :active)
+    enrollment_two = Enrollment.create!(user: @student_two, cohort: @cohort, status: :active)
     ModuleAssignment.create!(enrollment: @enrollment_one, curriculum_module: @module, unlocked: true)
 
-    @submission_one = Submission.create!(user: @student_one, content_block: @content_block, text: "mine")
-    @submission_two = Submission.create!(user: @student_two, content_block: @content_block, text: "theirs")
+    @submission_one = Submission.create!(user: @student_one, enrollment: @enrollment_one, content_block: @content_block, text: "mine")
+    @submission_two = Submission.create!(user: @student_two, enrollment: enrollment_two, content_block: @content_block, text: "theirs")
   end
 
   test "student submissions index ignores foreign user_id filter" do

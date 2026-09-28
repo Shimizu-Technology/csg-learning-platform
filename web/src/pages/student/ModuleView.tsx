@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { CheckCircle2, ArrowLeft, Play, Code, FileText, BookOpen } from 'lucide-react'
 import { api } from '../../lib/api'
+import { useCohortContext } from '../../contexts/CohortContext'
+import { useAuthContext } from '../../contexts/AuthContext'
 import { formatShortDateTime } from '../../lib/format'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -36,6 +38,8 @@ const lessonTypeIcons: Record<string, React.ReactNode> = {
 
 export function ModuleView() {
   const { id } = useParams<{ id: string }>()
+  const { selectedCohortId } = useCohortContext()
+  const { user } = useAuthContext()
   const [mod, setMod] = useState<ModuleData | null>(null)
   const [loading, setLoading] = useState(true)
   const [progressData, setProgressData] = useState<Record<number, { status: string; completedBlocks: number; totalBlocks: number; submissionWindow?: { submissions_close_at: string | null; submissions_closed: boolean } }>>({})
@@ -43,11 +47,21 @@ export function ModuleView() {
 
   useEffect(() => {
     if (!id) return
+    setLoading(true)
+    setMod(null)
+    setProgressData({})
+    setModuleProgress(null)
+    if (!user?.is_staff && !selectedCohortId) {
+      setLoading(false)
+      return
+    }
+    let canceled = false
 
     Promise.all([
-      api.getModule(Number(id)),
-      api.getDashboard(),
+      api.getModule(Number(id), selectedCohortId ?? undefined),
+      api.getDashboard(selectedCohortId ?? undefined),
     ]).then(([modRes, dashRes]) => {
+      if (canceled) return
       if (modRes.data) setMod(modRes.data.module)
 
       // Build progress map from dashboard data
@@ -73,10 +87,13 @@ export function ModuleView() {
 
       setLoading(false)
     })
-  }, [id])
+    return () => { canceled = true }
+  }, [id, selectedCohortId, user?.is_staff])
 
   if (loading) return <LoadingSpinner message="Loading module..." />
-  if (!mod) return <div className="text-center text-slate-500 py-12">Module not found</div>
+  if (!mod) return <div className="text-center text-slate-500 py-12">{!user?.is_staff && !selectedCohortId ? 'Choose a cohort to view this module.' : 'Module not found or unavailable in this cohort.'}</div>
+
+  const cohortQuery = selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''
 
   const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
@@ -152,7 +169,7 @@ export function ModuleView() {
                             return (
                               <Link
                                 key={lesson.id}
-                                to={`/lessons/${lesson.id}`}
+                                to={`/lessons/${lesson.id}${cohortQuery}`}
                                 className="group flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition duration-200 hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-md hover:shadow-slate-900/5 sm:items-center"
                               >
                                 <div className={`shrink-0 ${isCompleted ? 'text-success-500' : 'text-slate-400'}`}>

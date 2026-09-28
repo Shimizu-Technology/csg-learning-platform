@@ -30,17 +30,17 @@ module Api
         if current_user.student?
           block_ids = @lesson.content_blocks.pluck(:id)
           progress_map = current_user.progresses
-            .where(content_block_id: block_ids)
+            .where(enrollment_id: @lesson_enrollment.id, content_block_id: block_ids)
             .index_by(&:content_block_id)
 
           submission_map = current_user.submissions
-            .where(content_block_id: block_ids)
+            .where(enrollment_id: @lesson_enrollment.id, content_block_id: block_ids)
             .order(created_at: :desc)
             .group_by(&:content_block_id)
 
           check_ids = KnowledgeCheck.where(content_block_id: block_ids).pluck(:id)
           knowledge_check_attempt_map = current_user.knowledge_check_attempts
-            .where(knowledge_check_id: check_ids)
+            .where(enrollment_id: @lesson_enrollment.id, knowledge_check_id: check_ids)
             .order(created_at: :desc)
             .group_by(&:knowledge_check_id)
             .transform_values { |attempts| { attempt: attempts.first, count: attempts.length } }
@@ -436,11 +436,16 @@ module Api
           return
         end
 
-        enrollment = current_user.enrollments
-          .active
+        enrollments = current_user.enrollments
           .joins(:cohort)
           .includes(:module_assignments, cohort: [ :cohort_module_schedules, :cohort_module_submission_windows ])
-          .find_by(cohorts: { curriculum_id: @lesson.curriculum_module.curriculum_id })
+          .where(cohorts: { curriculum_id: @lesson.curriculum_module.curriculum_id })
+        enrollments = if params[:cohort_id].present?
+          enrollments.where(cohort_id: params[:cohort_id], status: %i[active completed])
+        else
+          enrollments.active
+        end
+        enrollment = enrollments.order(enrolled_at: :desc, id: :desc).first
 
         unless enrollment
           render_forbidden("Cannot access this lesson")

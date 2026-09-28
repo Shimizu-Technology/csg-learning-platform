@@ -11,6 +11,7 @@ class ActivityHistoryTest < ActionDispatch::IntegrationTest
     @student = User.create!(clerk_id: "activity_student", email: "activity-student@example.com", role: :student)
     @other = User.create!(clerk_id: "activity_other", email: "activity-other@example.com", role: :student)
     @staff = User.create!(clerk_id: "activity_staff", email: "activity-staff@example.com", role: :instructor)
+    @cohort.cohort_instructor_assignments.create!(user: @staff)
     @admin = User.create!(clerk_id: "activity_admin", email: "activity-admin@example.com", role: :admin)
     @student.clerk_identities.create!(issuer: @issuer, clerk_user_id: @student.clerk_id)
     @student_enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
@@ -32,7 +33,7 @@ class ActivityHistoryTest < ActionDispatch::IntegrationTest
   end
 
   test "students see only their own history and staff can inspect an enrolled student" do
-    event = ActivityEvent.record!(event_type: "account_signed_in", actor: @student)
+    event = ActivityEvent.record!(event_type: "account_signed_in", actor: @student, cohort: @cohort)
     as_user(@other) { get "/api/v1/activity_events", params: { user_id: @student.id }, headers: auth_headers }
     assert_response :forbidden
 

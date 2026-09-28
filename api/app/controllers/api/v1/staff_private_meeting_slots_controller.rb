@@ -54,7 +54,7 @@ module Api
       private
 
       def can_manage?(config)
-        current_user.admin? || config.instructor_id == current_user.id
+        current_user.admin? || (config.instructor_id == current_user.id && current_user.can_teach_cohort?(config.cohort))
       end
     end
   end

@@ -50,6 +50,7 @@ export function Grading() {
   const toast = useToast()
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
+  const cohortId = Number(searchParams.get('cohort_id')) || undefined
   const [submissions, setSubmissions] = useState<SubmissionItem[]>([])
   const [cohorts, setCohorts] = useState<CohortSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -73,8 +74,9 @@ export function Grading() {
 
   const loadSubmissions = () => {
     setLoading(true)
+    setSubmissions([])
     Promise.all([
-      api.getSubmissions(),
+      api.getSubmissions(cohortId ? { cohort_id: String(cohortId) } : undefined),
       api.getCohorts(),
     ]).then(([subRes, cohortRes]) => {
       if (subRes.data?.submissions) setSubmissions(subRes.data.submissions)
@@ -84,11 +86,12 @@ export function Grading() {
   }
 
   useEffect(() => {
+    setSelectedSubmission(null)
     loadSubmissions()
     void api.getFeedbackSnippets().then((response) => {
       if (response.data) setFeedbackSnippets(response.data.feedback_snippets)
     })
-  }, [])
+  }, [cohortId])
 
   const applyFeedbackSnippet = (snippet: FeedbackSnippet) => {
     setFeedback((current) => appendFeedbackSnippet(current, snippet.body))
@@ -174,7 +177,7 @@ export function Grading() {
 
   if (loading) return <LoadingSpinner message="Loading submissions..." />
 
-  const activeCohorts = cohorts.filter((c: CohortSummary & { status?: string }) => (c as CohortSummary & { status?: string }).status === 'active' || true)
+  const activeCohorts = cohorts.filter((c: CohortSummary) => !cohortId || c.id === cohortId)
   const selectedLanguage = selectedSubmission
     ? detectLanguage(selectedSubmission.filename, selectedSubmission.language_hint)
     : 'ruby'
@@ -194,7 +197,7 @@ export function Grading() {
         </Link>
         <p className="app-eyebrow">Feedback workflow</p>
         <h1 className="app-title mt-2">Grading inbox</h1>
-        <p className="app-description mt-2">Review ungraded work across cohorts, then move through focused module queues.</p>
+        <p className="app-description mt-2">{cohortId ? 'Review work for this cohort, then move through focused module queues.' : 'Review ungraded work across cohorts, then move through focused module queues.'}</p>
       </header>
 
       {/* Quick links to cohort grading */}

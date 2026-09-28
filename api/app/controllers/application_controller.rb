@@ -15,6 +15,14 @@ class ApplicationController < ActionController::API
 
   private
 
+  def require_cohort_access!(cohort, teacher: false)
+    allowed = teacher ? current_user.can_teach_cohort?(cohort) : current_user.can_access_cohort?(cohort)
+    return true if allowed
+
+    render_forbidden("Cannot access this cohort")
+    false
+  end
+
   def capture_learning_request_started_at
     @learning_request_started_at = Time.current
   end
@@ -102,14 +110,16 @@ class ApplicationController < ActionController::API
 
   def active_enrollment_for_lesson(lesson)
     curriculum_id = lesson.curriculum_module.curriculum_id
-    cache_key = [ current_user.id, curriculum_id ]
+    cache_key = [ current_user.id, curriculum_id, params[:cohort_id] ]
     @active_enrollment_for_lesson_cache ||= {}
     return @active_enrollment_for_lesson_cache[cache_key] if @active_enrollment_for_lesson_cache.key?(cache_key)
 
-    @active_enrollment_for_lesson_cache[cache_key] = current_user.enrollments
+    scope = current_user.enrollments
       .active
       .joins(:cohort)
       .includes(:module_assignments, :lesson_assignments, cohort: [ :cohort_module_schedules, :cohort_module_submission_windows ])
-      .find_by(cohorts: { curriculum_id: curriculum_id })
+      .where(cohorts: { curriculum_id: curriculum_id })
+    scope = scope.where(cohort_id: params[:cohort_id]) if params[:cohort_id].present?
+    @active_enrollment_for_lesson_cache[cache_key] = scope.order(enrolled_at: :desc, id: :desc).first
   end
 end

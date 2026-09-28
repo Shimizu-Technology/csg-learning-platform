@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_28_010000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_28_032000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -110,6 +110,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_28_010000) do
     t.index ["issuer", "clerk_user_id"], name: "index_clerk_identities_on_issuer_and_clerk_user_id", unique: true
     t.index ["user_id", "issuer"], name: "index_clerk_identities_on_user_id_and_issuer", unique: true
     t.index ["user_id"], name: "index_clerk_identities_on_user_id"
+  end
+
+  create_table "cohort_instructor_assignments", force: :cascade do |t|
+    t.bigint "cohort_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["cohort_id", "user_id"], name: "idx_cohort_instructors_unique", unique: true
+    t.index ["cohort_id"], name: "index_cohort_instructor_assignments_on_cohort_id"
+    t.index ["user_id"], name: "index_cohort_instructor_assignments_on_user_id"
   end
 
   create_table "cohort_module_schedules", force: :cascade do |t|
@@ -275,6 +285,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_28_010000) do
     t.datetime "completed_at"
     t.datetime "created_at", null: false
     t.datetime "enrolled_at"
+    t.datetime "invited_at"
+    t.datetime "joined_at"
     t.datetime "learning_state_reset_at"
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
@@ -398,10 +410,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_28_010000) do
   create_table "knowledge_check_attempts", force: :cascade do |t|
     t.boolean "correct", null: false
     t.datetime "created_at", null: false
+    t.bigint "enrollment_id"
     t.bigint "knowledge_check_id", null: false
     t.integer "selected_option", null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
+    t.index ["enrollment_id"], name: "index_knowledge_check_attempts_on_enrollment_id"
     t.index ["knowledge_check_id"], name: "index_knowledge_check_attempts_on_knowledge_check_id"
     t.index ["user_id", "knowledge_check_id", "created_at"], name: "idx_knowledge_check_attempts_user_check_time"
     t.index ["user_id"], name: "index_knowledge_check_attempts_on_user_id"
@@ -714,6 +728,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_28_010000) do
     t.datetime "completed_at"
     t.bigint "content_block_id", null: false
     t.datetime "created_at", null: false
+    t.bigint "enrollment_id"
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
@@ -721,7 +736,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_28_010000) do
     t.integer "video_last_position", default: 0
     t.integer "video_total_watched", default: 0
     t.index ["content_block_id"], name: "index_progresses_on_content_block_id"
-    t.index ["user_id", "content_block_id"], name: "index_progresses_on_user_id_and_content_block_id", unique: true
+    t.index ["enrollment_id", "content_block_id"], name: "idx_progresses_enrollment_block", unique: true, where: "(enrollment_id IS NOT NULL)"
+    t.index ["enrollment_id"], name: "index_progresses_on_enrollment_id"
+    t.index ["user_id", "content_block_id"], name: "idx_progresses_legacy_user_block", unique: true, where: "(enrollment_id IS NULL)"
     t.index ["user_id"], name: "index_progresses_on_user_id"
   end
 
@@ -965,6 +982,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_28_010000) do
     t.string "commit_sha"
     t.bigint "content_block_id", null: false
     t.datetime "created_at", null: false
+    t.bigint "enrollment_id"
     t.text "feedback"
     t.string "github_code_url"
     t.string "github_issue_url"
@@ -982,6 +1000,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_28_010000) do
     t.bigint "user_id", null: false
     t.index ["content_block_id", "user_id"], name: "index_submissions_on_content_block_id_and_user_id"
     t.index ["content_block_id"], name: "index_submissions_on_content_block_id"
+    t.index ["enrollment_id", "content_block_id", "created_at"], name: "idx_submissions_enrollment_block_created"
+    t.index ["enrollment_id"], name: "index_submissions_on_enrollment_id"
     t.index ["graded_by_id"], name: "index_submissions_on_graded_by_id"
     t.index ["submission_type"], name: "index_submissions_on_submission_type"
     t.index ["user_id"], name: "index_submissions_on_user_id"
@@ -1079,6 +1099,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_28_010000) do
   add_foreign_key "channels", "cohorts"
   add_foreign_key "channels", "workspaces"
   add_foreign_key "clerk_identities", "users"
+  add_foreign_key "cohort_instructor_assignments", "cohorts"
+  add_foreign_key "cohort_instructor_assignments", "users"
   add_foreign_key "cohort_module_schedules", "cohorts"
   add_foreign_key "cohort_module_schedules", "modules"
   add_foreign_key "cohort_module_submission_windows", "cohorts"
@@ -1118,6 +1140,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_28_010000) do
   add_foreign_key "interventions", "help_requests"
   add_foreign_key "interventions", "users", column: "created_by_id"
   add_foreign_key "interventions", "users", column: "owner_id"
+  add_foreign_key "knowledge_check_attempts", "enrollments"
   add_foreign_key "knowledge_check_attempts", "knowledge_checks"
   add_foreign_key "knowledge_check_attempts", "users"
   add_foreign_key "knowledge_checks", "content_blocks"
@@ -1159,6 +1182,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_28_010000) do
   add_foreign_key "private_meeting_slots", "private_meeting_configs"
   add_foreign_key "private_meeting_slots", "users", column: "instructor_id"
   add_foreign_key "progresses", "content_blocks"
+  add_foreign_key "progresses", "enrollments"
   add_foreign_key "progresses", "users"
   add_foreign_key "push_subscriptions", "users"
   add_foreign_key "recordings", "cohorts"
@@ -1182,6 +1206,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_28_010000) do
   add_foreign_key "submission_criterion_results", "rubric_criteria", column: "rubric_criterion_id"
   add_foreign_key "submission_criterion_results", "submissions"
   add_foreign_key "submissions", "content_blocks"
+  add_foreign_key "submissions", "enrollments"
   add_foreign_key "submissions", "users"
   add_foreign_key "submissions", "users", column: "graded_by_id"
   add_foreign_key "user_blocks", "users", column: "blocked_user_id"

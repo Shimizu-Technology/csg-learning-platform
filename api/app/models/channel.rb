@@ -19,30 +19,35 @@ class Channel < ApplicationRecord
 
   def self.visible_for(user)
     return none unless user
-    return active if user.staff?
-
     workspace_ids = Workspace.visible_for(user).select(:id)
-    active.where(workspace_id: workspace_ids, visibility: visibilities[:cohort])
+    scope = active.where(workspace_id: workspace_ids)
+    user.staff? ? scope : scope.where(visibility: visibilities[:cohort])
   end
 
   def visible_to?(user)
     return false unless user
-    return true if user.staff?
-    return false if staff_only?
-
-    workspace.visible_to?(user)
+    return false unless workspace.visible_to?(user)
+    return false if staff_only? && !user.staff?
+    true
   end
 
   def can_post?(user)
     return false unless visible_to?(user)
     return false if archived?
+    return false if cohort&.completed? || cohort&.archived?
+    return false if cohort && user.student? && !user.enrollments.active.exists?(cohort_id: cohort.id)
 
     true
   end
 
   def recipients
     if staff_only?
-      User.not_archived.where(role: [ User.roles[:instructor], User.roles[:admin] ])
+      if cohort
+        User.not_archived.where(role: User.roles[:admin])
+          .or(User.not_archived.where(id: cohort.cohort_instructor_assignments.select(:user_id)))
+      else
+        User.not_archived.where(role: [ User.roles[:instructor], User.roles[:admin] ])
+      end
     else
       workspace.recipient_users
     end

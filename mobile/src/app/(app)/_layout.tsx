@@ -38,6 +38,8 @@ export default function AppLayout() {
       <Stack.Screen name="resources" options={{ headerShown: false }} />
       <Stack.Screen name="recordings" options={{ headerShown: false }} />
       <Stack.Screen name="recordings/link" options={{ headerShown: false }} />
+      <Stack.Screen name="cohort/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="cohort/[id]/schedule" options={{ headerShown: false }} />
       <Stack.Screen name="recording/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="staff/student/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="staff/access" options={{ title: 'Student access' }} />

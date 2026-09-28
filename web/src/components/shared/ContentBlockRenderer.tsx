@@ -52,6 +52,7 @@ interface ContentBlock {
 
 interface ContentBlockRendererProps {
   block: ContentBlock
+  cohortId?: number
   isStaff?: boolean
   requiresGithub?: boolean
   requiresSubmission?: boolean
@@ -74,7 +75,7 @@ function getVimeoEmbed(url: string): { id: string; hash?: string } | null {
   return { id: match[1], hash: match[2] }
 }
 
-export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresSubmission = true, repositoryName, submissionsLocked = false, submissionsCloseAt, submissionWeekNumber, analyticsContext, onProgressUpdate }: ContentBlockRendererProps) {
+export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub, requiresSubmission = true, repositoryName, submissionsLocked = false, submissionsCloseAt, submissionWeekNumber, analyticsContext, onProgressUpdate }: ContentBlockRendererProps) {
   const toast = useToast()
   const submissions = block.submissions ?? []
   const latestSubmission = submissions[0] || null
@@ -180,7 +181,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
   const markVideoCompleted = useCallback(async () => {
     if (isStaff) return
     if (isCompletedRef.current) return
-    const res = await api.updateProgress(block.id, 'completed')
+    const res = await api.updateProgress(block.id, 'completed', cohortId)
     if (!res.error) {
       setIsCompleted(true)
       if (analyticsContext) captureProductEvent('learning_step_completed', {
@@ -192,7 +193,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
       })
       onProgressUpdate?.()
     }
-  }, [analyticsContext, block.block_type, block.id, isStaff, onProgressUpdate])
+  }, [analyticsContext, block.block_type, block.id, cohortId, isStaff, onProgressUpdate])
 
   // Vimeo completion tracking
   useEffect(() => {
@@ -292,7 +293,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
     }
 
     const newStatus = isCompleted ? 'not_started' : 'completed'
-    const res = await api.updateProgress(block.id, newStatus)
+    const res = await api.updateProgress(block.id, newStatus, cohortId)
     if (!res.error) {
       setIsCompleted(!isCompleted)
       if (newStatus === 'completed' && analyticsContext) captureProductEvent('learning_step_completed', {
@@ -310,18 +311,18 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
   }
 
   const fetchBlockStreamUrl = useCallback(async () => {
-    const res = await api.getContentBlockVideoStream(block.id)
+    const res = await api.getContentBlockVideoStream(block.id, cohortId)
     return res.data?.stream_url || null
-  }, [block.id])
+  }, [block.id, cohortId])
 
   const saveBlockProgress = useCallback((data: import('./VideoPlayer').VideoProgressData) => {
-    api.updateContentBlockVideoProgress(block.id, data).then(res => {
+    api.updateContentBlockVideoProgress(block.id, data, cohortId).then(res => {
       if (res.data?.video_progress?.completed) {
         setIsCompleted(true)
         onProgressUpdate?.()
       }
     })
-  }, [block.id, onProgressUpdate])
+  }, [block.id, cohortId, onProgressUpdate])
 
   // Optimistic local-state flip on video end. We intentionally don't call
   // onProgressUpdate here because saveBlockProgress already does so when the
@@ -388,6 +389,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
     setIsSubmitting(true)
     const res = await api.createSubmission({
       content_block_id: block.id,
+      cohort_id: cohortId,
       ...(usesTextSubmission ? { text: submissionText } : {}),
       ...(usesRepoArtifactSubmission ? {
         repo_url: repoUrl.trim(),
@@ -452,7 +454,7 @@ export function ContentBlockRenderer({ block, isStaff, requiresGithub, requiresS
       return
     }
 
-    const response = await api.attemptKnowledgeCheck(knowledgeCheck.id, selectedCheckOption)
+    const response = await api.attemptKnowledgeCheck(knowledgeCheck.id, selectedCheckOption, cohortId)
     if (response.error || !response.data) {
       setCheckError(response.error || 'Could not check this answer.')
     } else {

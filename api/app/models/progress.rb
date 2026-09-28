@@ -3,8 +3,10 @@ class Progress < ApplicationRecord
 
   belongs_to :user
   belongs_to :content_block
+  belongs_to :enrollment, optional: true
 
-  validates :content_block_id, uniqueness: { scope: :user_id }
+  validates :content_block_id, uniqueness: { scope: :enrollment_id }, if: :enrollment_id?
+  validates :content_block_id, uniqueness: { scope: :user_id }, unless: :enrollment_id?
 
   before_save :set_completed_at
 

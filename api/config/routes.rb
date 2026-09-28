@@ -163,9 +163,14 @@ Rails.application.routes.draw do
 
       # Cohorts with nested enrollments
       resources :cohorts, only: [ :index, :show, :create, :update, :destroy ] do
+        collection do
+          get :accessible
+        end
         resources :enrollments, only: [ :index, :create ]
+        resources :instructor_assignments, only: [ :index, :create, :destroy ], controller: "cohort_instructor_assignments"
         resource :learning_insights, only: :show, controller: "cohort_learning_insights"
         member do
+          get :home
           get :student_view
           get :github_access
           patch :module_access

@@ -6,6 +6,7 @@ import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInp
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { LearningCard, ProgressBar, SectionHeading, StatusPill } from '@/components/learning-ui';
+import { CohortSwitcher } from '@/components/cohort-switcher';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { StaffCurriculumLibrary } from '@/components/staff-curriculum';
 import { fontScaleLimits, fonts, palette, typography } from '@/constants/csg-theme';
@@ -17,17 +18,19 @@ import { isAlumniOnlyEnrollment } from '@/lib/enrollments';
 import { isStudentDashboard, learningKeys } from '@/lib/learning';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
+import { useCohort } from '@/providers/cohort-provider';
 
 export default function LearnScreen() {
   const router = useRouter();
   const auth = useCsgAuth();
   const { api, user, enrollments } = useSession();
+  const { selectedCohortId, selectedCohort } = useCohort();
   const [filter, setFilter] = useState('');
   const isStaff = Boolean(user?.is_staff);
-  const isAlumniOnly = isAlumniOnlyEnrollment(enrollments);
+  const isAlumniOnly = selectedCohort ? selectedCohort.cohort_type === 'alumni' : isAlumniOnlyEnrollment(enrollments);
   const studentQuery = useQuery({
-    queryKey: learningKeys.dashboard(user?.id || 0),
-    queryFn: ({ signal }) => auth.demo ? Promise.resolve({ dashboard: demoDashboard }) : api.dashboard(signal),
+    queryKey: learningKeys.dashboard(user?.id || 0, selectedCohortId),
+    queryFn: ({ signal }) => auth.demo ? Promise.resolve({ dashboard: demoDashboard }) : api.dashboard(signal, selectedCohortId),
     enabled: Boolean(user && !isStaff),
   });
   const curriculumQuery = useQuery({
@@ -53,6 +56,7 @@ export default function LearnScreen() {
   if (activeQuery.error && !activeQuery.data) return <SafeAreaView style={styles.safe}><ErrorState message={(activeQuery.error as Error).message} retry={() => void activeQuery.refetch()} /></SafeAreaView>;
 
   return <SafeAreaView edges={['top']} style={styles.safe}><ScrollView refreshControl={<RefreshControl refreshing={activeQuery.isRefetching} onRefresh={() => void activeQuery.refetch()} tintColor={palette.rubySoft} />} contentContainerStyle={styles.content}>
+    <CohortSwitcher />
     <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>{isStaff ? 'CURRICULUM STUDIO' : 'YOUR CURRICULUM'}</Text>
     <Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.title}>Learn</Text>
     <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.subtitle}>{isStaff ? 'Review what students see, wherever you are' : student?.cohort?.name || 'Lessons, resources, and progress'}</Text>

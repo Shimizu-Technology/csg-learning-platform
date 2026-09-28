@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import { UserButton } from '@clerk/clerk-react'
 import { useAuthContext } from '../../contexts/AuthContext'
+import { useCohortContext } from '../../contexts/CohortContext'
 import { api } from '../../lib/api'
 import { refreshExistingPushSubscription, pushSupported, webPushPreferenceEnabled } from '../../lib/pushNotifications'
 import { subscribeToUserMessages } from '../../lib/realtime'
@@ -34,6 +35,7 @@ import { isAlumniOnlyEnrollment } from '../../lib/enrollments'
 import { preloadPrimaryRoutes, preloadRoute } from '../../lib/routePreload'
 import type { ChannelMessageEvent, ChannelSummary, DirectConversationSummary } from '../../types/api'
 import { CommandPalette } from './CommandPalette'
+import { CohortSwitcher } from './CohortSwitcher'
 
 interface LayoutProps {
   children?: React.ReactNode
@@ -59,6 +61,7 @@ export function Layout({ children }: LayoutProps) {
   const location = useLocation()
   const isMessagesRoute = location.pathname.startsWith('/messages')
   const { user, enrollments, isLoading } = useAuthContext()
+  const { selectedCohort } = useCohortContext()
   const [unreadCount, setUnreadCount] = useState(0)
   const [messageUnreadCount, setMessageUnreadCount] = useState(0)
   const channelUnreadCountsRef = useRef(new Map<number, number>())
@@ -257,6 +260,7 @@ export function Layout({ children }: LayoutProps) {
   const isAlumniOnly = isAlumniOnlyEnrollment(enrollments)
   const studentNav: NavItem[] = [
     { to: '/dashboard', icon: Home, label: 'Today' },
+    ...(selectedCohort ? [{ to: `/cohorts/${selectedCohort.id}`, icon: Layers3, label: 'My cohort' }] : []),
     { to: '/materials', icon: BookOpenText, label: 'Learn' },
     { to: '/meetings', icon: CalendarDays, label: 'My meetings' },
     ...(!isAlumniOnly ? [{ to: '/recordings', icon: PlayCircle, label: 'Recordings' }] : []),
@@ -266,7 +270,14 @@ export function Layout({ children }: LayoutProps) {
     { to: '/profile', icon: User, label: 'Profile' },
   ]
 
-  const navItems = isLoading ? [] : isFullAdmin ? adminNav : isStaff ? instructorNav : studentNav
+  const baseNavItems = isLoading ? [] : isFullAdmin ? adminNav : isStaff ? instructorNav : studentNav
+  const navItems = baseNavItems.map((item) => {
+    if (!selectedCohort) return item
+    if (item.to === '/admin/cohorts') return { ...item, to: `/admin/cohorts/${selectedCohort.id}`, label: 'This cohort' }
+    if (item.to === '/admin/grading' || item.to === '/admin/support' || item.to === '/announcements') return { ...item, to: `${item.to}?cohort_id=${selectedCohort.id}` }
+    if (item.to === '/messages' && selectedCohort.workspace_id) return { ...item, to: `/messages?workspace_id=${selectedCohort.workspace_id}` }
+    return item
+  })
 
   useEffect(() => {
     if (navItems.length === 0 || typeof window === 'undefined') return
@@ -288,13 +299,14 @@ export function Layout({ children }: LayoutProps) {
   }, [navItems])
 
   const isActive = (path: string, exact?: boolean) => {
-    if (path === '/dashboard' || exact) return location.pathname === path
-    return location.pathname.startsWith(path)
+    const pathname = path.split('?')[0]
+    if (pathname === '/dashboard' || exact) return location.pathname === pathname
+    return location.pathname.startsWith(pathname)
   }
 
   const getNavUnreadCount = (path: string) => {
-    if (path === '/announcements') return unreadCount
-    if (path === '/messages') return messageUnreadCount
+    if (path.startsWith('/announcements')) return unreadCount
+    if (path.startsWith('/messages')) return messageUnreadCount
     return 0
   }
 
@@ -311,7 +323,7 @@ export function Layout({ children }: LayoutProps) {
     onFocus: () => preloadRoute(path),
     onTouchStart: () => preloadRoute(path),
   })
-  const studentBottomNav = studentNav.filter((item) => ['/dashboard', '/materials', '/messages', '/announcements'].includes(item.to))
+  const studentBottomNav = navItems.filter((item) => ['/dashboard', '/materials', '/messages', '/announcements'].includes(item.to.split('?')[0]))
   const pageContentClassName = isMessagesRoute
     ? 'h-full p-0 lg:p-4'
     : isStaff
@@ -341,8 +353,9 @@ export function Layout({ children }: LayoutProps) {
           <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary-600 text-white shadow-sm shadow-primary-900/20">
             <GraduationCap className="h-4.5 w-4.5" />
           </span>
-          <span className="truncate font-bold tracking-tight text-slate-950">CSG Learning</span>
+          <span className="hidden truncate font-bold tracking-tight text-slate-950 sm:inline">CSG Learning</span>
         </Link>
+        <CohortSwitcher compact />
         <button type="button" onClick={() => setCommandPaletteOpen(true)} aria-label="Search and go" className="ml-auto inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100"><Search className="h-5 w-5" /></button>
       </header>
 
@@ -383,10 +396,10 @@ export function Layout({ children }: LayoutProps) {
               >
                 <span className="relative">
                   <item.icon className="h-5 w-5" />
-                  {item.to === '/announcements' && unreadCount > 0 && (
+                  {item.to.startsWith('/announcements') && unreadCount > 0 && (
                     <span className="absolute -right-2 -top-2 h-2.5 w-2.5 rounded-full bg-primary-500 ring-2 ring-white" />
                   )}
-                  {item.to === '/messages' && messageUnreadCount > 0 && (
+                  {item.to.startsWith('/messages') && messageUnreadCount > 0 && (
                     <span className="absolute -right-2 -top-2 h-2.5 w-2.5 rounded-full bg-primary-500 ring-2 ring-white" />
                   )}
                 </span>
@@ -429,6 +442,7 @@ export function Layout({ children }: LayoutProps) {
             {!collapsed && <span className="truncate font-bold tracking-tight text-slate-950">CSG Learning</span>}
           </Link>
         </div>
+        <div className={`border-b border-slate-100 ${collapsed ? 'px-2 py-3' : 'px-4 py-3'}`}><CohortSwitcher compact={collapsed} /></div>
         <nav className={`flex-1 ${collapsed ? 'p-2' : 'p-4'} space-y-1`}>
           <button type="button" onClick={() => setCommandPaletteOpen(true)} aria-label="Search and go" className={`group relative mb-2 flex min-h-11 w-full items-center rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:border-primary-300 hover:text-primary-700 ${collapsed ? 'justify-center px-2' : 'gap-3 px-3'}`}><Search className="h-5 w-5" />{!collapsed && <><span>Search</span><kbd className="ml-auto rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-400">⌘K</kbd></>}</button>
           {navItems.map((item) => (
@@ -446,20 +460,20 @@ export function Layout({ children }: LayoutProps) {
             >
               <span className="relative shrink-0">
                 <item.icon className="h-5 w-5" />
-                {item.to === '/announcements' && unreadCount > 0 && (
+                {item.to.startsWith('/announcements') && unreadCount > 0 && (
                   <span className="absolute -right-2 -top-2 h-2.5 w-2.5 rounded-full bg-primary-500 ring-2 ring-white" />
                 )}
-                {item.to === '/messages' && messageUnreadCount > 0 && (
+                {item.to.startsWith('/messages') && messageUnreadCount > 0 && (
                   <span className="absolute -right-2 -top-2 h-2.5 w-2.5 rounded-full bg-primary-500 ring-2 ring-white" />
                 )}
               </span>
               {!collapsed && item.label}
-              {!collapsed && item.to === '/announcements' && unreadCount > 0 && (
+              {!collapsed && item.to.startsWith('/announcements') && unreadCount > 0 && (
                 <span className="ml-auto rounded-full bg-primary-100 px-2 py-0.5 text-xs font-semibold text-primary-700">
                   {unreadCount}
                 </span>
               )}
-              {!collapsed && item.to === '/messages' && messageUnreadCount > 0 && (
+              {!collapsed && item.to.startsWith('/messages') && messageUnreadCount > 0 && (
                 <span className="ml-auto rounded-full bg-primary-100 px-2 py-0.5 text-xs font-semibold text-primary-700">
                   {messageUnreadCount}
                 </span>

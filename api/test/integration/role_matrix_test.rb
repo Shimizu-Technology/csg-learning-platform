@@ -22,6 +22,7 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
       clerk_id: "clerk_role_admin", email: "role_admin@example.com",
       first_name: "Admin", last_name: "One", role: :admin
     )
+    @cohort.cohort_instructor_assignments.create!(user: @instructor)
   end
 
   # --- Dashboard ---
@@ -154,7 +155,7 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
       title: "Submit",
       submission_type: :repo_url_submission
     )
-    Progress.create!(user: @student, content_block: exercise_block, status: :completed)
+    Progress.create!(user: @student, enrollment: enrollment, content_block: exercise_block, status: :completed)
 
     as_user(@student) do
       get "/api/v1/dashboard", headers: auth_headers
@@ -177,8 +178,8 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
     ModuleAssignment.create!(enrollment: enrollment, curriculum_module: @mod, unlocked: true)
     lesson = Lesson.create!(curriculum_module: @mod, title: "Portfolio", position: 0, release_day: 0)
     block = ContentBlock.create!(lesson: lesson, block_type: :exercise, position: 0, title: "Ship it")
-    Submission.create!(user: @student, content_block: block, text: "redo", grade: "R", feedback: "Try again", grader: @instructor, graded_at: 1.hour.ago)
-    Submission.create!(user: @student, content_block: block, text: "done", grade: "A", feedback: "Strong work", grader: @instructor, graded_at: 30.minutes.ago)
+    Submission.create!(user: @student, enrollment: enrollment, content_block: block, text: "redo", grade: "R", feedback: "Try again", grader: @instructor, graded_at: 1.hour.ago)
+    Submission.create!(user: @student, enrollment: enrollment, content_block: block, text: "done", grade: "A", feedback: "Strong work", grader: @instructor, graded_at: 30.minutes.ago)
 
     as_user(@student) do
       get "/api/v1/dashboard", headers: auth_headers
@@ -198,8 +199,8 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
     lesson = Lesson.create!(curriculum_module: @mod, title: "Attention", position: 0, release_day: 0)
     ungraded_block = ContentBlock.create!(lesson: lesson, block_type: :exercise, position: 0, title: "Review me")
     redo_block = ContentBlock.create!(lesson: lesson, block_type: :exercise, position: 1, title: "Redo me")
-    Submission.create!(user: @student, content_block: ungraded_block, text: "ready")
-    Submission.create!(user: @student, content_block: redo_block, text: "again", grade: "R")
+    Submission.create!(user: @student, enrollment: enrollment, content_block: ungraded_block, text: "ready")
+    Submission.create!(user: @student, enrollment: enrollment, content_block: redo_block, text: "again", grade: "R")
 
     as_user(@instructor) do
       get "/api/v1/dashboard", headers: auth_headers
