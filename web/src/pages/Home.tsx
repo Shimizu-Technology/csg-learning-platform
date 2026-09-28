@@ -93,7 +93,7 @@ export function HomePage() {
                   {isSignedIn ? 'Continue learning' : 'Sign in to Learn'}
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </Link>
-                <a href="https://codeschoolofguam.com/courses" className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/15 px-5 py-3 text-sm font-bold text-white/80 transition hover:border-white/30 hover:bg-white/10 hover:text-white">
+                <a href="https://codeschoolofguam.com/" className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/15 px-5 py-3 text-sm font-bold text-white/80 transition hover:border-white/30 hover:bg-white/10 hover:text-white">
                   Explore CSG courses
                 </a>
               </div>
