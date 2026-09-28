@@ -248,10 +248,12 @@ export function CohortDetail() {
   const [sendInvite, setSendInvite] = useState(true)
   const [resendingInviteFor, setResendingInviteFor] = useState<number | null>(null)
   const [editStartDate, setEditStartDate] = useState('')
+  const [editGithubOrganization, setEditGithubOrganization] = useState('')
   const [editStatus, setEditStatus] = useState('active')
   const [savingStatus, setSavingStatus] = useState(false)
   const [statusPendingConfirmation, setStatusPendingConfirmation] = useState<CohortStatusValue | null>(null)
   const [savingStartDate, setSavingStartDate] = useState(false)
+  const [savingGithubOrganization, setSavingGithubOrganization] = useState(false)
   const [showRecordingsModal, setShowRecordingsModal] = useState(false)
   const [showResourcesModal, setShowResourcesModal] = useState(false)
   const [resourcesMode, setResourcesMode] = useState<'view' | 'edit'>('view')
@@ -311,6 +313,7 @@ export function CohortDetail() {
     setClassResources(nextCohort.class_resources || [])
     setOfficeHours(nextCohort.office_hours || [])
     setEditStartDate(toDateInputValue(nextCohort.start_date))
+    setEditGithubOrganization(nextCohort.github_organization_name || '')
     setEditStatus(nextCohort.status)
     setForms(buildFormsFromCohort(nextCohort))
     setSubmissionWindows(buildSubmissionWindowsFromCohort(nextCohort))
@@ -374,6 +377,21 @@ export function CohortDetail() {
       notifySuccess('Cohort start date updated')
     }
     setSavingStartDate(false)
+  }
+
+  const handleSaveGithubOrganization = async () => {
+    if (!id || !cohort) return
+    const organization = editGithubOrganization.trim()
+    setSavingGithubOrganization(true)
+    setMessage('')
+    const res = await api.updateCohort(Number(id), { github_organization_name: organization || null })
+    if (res.error) {
+      notifyError(res.error)
+    } else if (res.data?.cohort) {
+      applyCohort(res.data.cohort as CohortData)
+      notifySuccess('GitHub organization updated')
+    }
+    setSavingGithubOrganization(false)
   }
 
   const updateCohortStatus = async (nextStatus: string) => {
@@ -821,6 +839,14 @@ export function CohortDetail() {
             </button>
           )}
           <p className="pb-2 text-xs text-slate-400">Fallback start date for modules without their own start date.</p>
+        </div>
+        <div className="mt-4 border-t border-slate-200 pt-4">
+          <label htmlFor="cohort-github-organization" className="flex items-center gap-1.5 text-sm font-semibold text-slate-900"><Github className="h-4 w-4" /> GitHub organization</label>
+          <p className="mt-1 text-xs text-slate-600">Used to check student membership and invitations. Add the organization name from its GitHub URL; resource links are managed separately.</p>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <input id="cohort-github-organization" type="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={editGithubOrganization} onChange={(e) => setEditGithubOrganization(e.target.value)} placeholder="e.g. Code-School-of-Guam-Alumni" className="min-h-11 w-full max-w-md rounded-xl border border-slate-300 px-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200" />
+            {editGithubOrganization.trim() !== (cohort.github_organization_name || '') && <button type="button" onClick={() => void handleSaveGithubOrganization()} disabled={savingGithubOrganization} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 text-sm font-bold text-white hover:bg-primary-700 disabled:opacity-50"><Save className="h-4 w-4" />{savingGithubOrganization ? 'Saving...' : 'Save organization'}</button>}
+          </div>
         </div>
       </div>
 
