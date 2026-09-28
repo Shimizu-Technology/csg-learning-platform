@@ -1,4 +1,6 @@
 class Cohort < ApplicationRecord
+  ALUMNI_GITHUB_ORGANIZATION = "Code-School-of-Guam-Alumni".freeze
+
   enum :cohort_type, { bootcamp: 0, workshop: 1, alumni: 2, custom: 3 }
   enum :status, { upcoming: 0, active: 1, completed: 2, archived: 3 }
 
@@ -21,7 +23,10 @@ class Cohort < ApplicationRecord
 
   validates :name, presence: true
   validates :start_date, presence: true
+  validates :github_organization_name, format: { with: /\A[a-z\d](?:[a-z\d-]{0,37}[a-z\d])?\z/i }, allow_blank: true
 
+  before_validation :normalize_github_organization_name
+  before_validation :default_alumni_github_organization, on: :create
   after_create :provision_workspace
   after_update :complete_alumni_enrollments, if: :became_alumni?
 
@@ -42,6 +47,14 @@ class Cohort < ApplicationRecord
   end
 
   private
+
+  def normalize_github_organization_name
+    self.github_organization_name = github_organization_name.to_s.strip.presence
+  end
+
+  def default_alumni_github_organization
+    self.github_organization_name = ALUMNI_GITHUB_ORGANIZATION if alumni? && github_organization_name.blank?
+  end
 
   def provision_workspace
     Workspace.find_or_create_for_cohort!(self)

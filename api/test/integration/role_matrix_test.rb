@@ -308,6 +308,29 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
     assert_response :created
   end
 
+  test "only an admin can configure a cohort GitHub organization" do
+    as_user(@instructor) do
+      patch "/api/v1/cohorts/#{@cohort.id}",
+        params: { github_organization_name: "Code-School-of-Guam-Alumni" }, headers: auth_headers, as: :json
+    end
+    assert_response :forbidden
+    assert_nil @cohort.reload.github_organization_name
+
+    as_user(@admin) do
+      patch "/api/v1/cohorts/#{@cohort.id}",
+        params: { github_organization_name: "Code-School-of-Guam-Alumni" }, headers: auth_headers, as: :json
+    end
+    assert_response :success
+    assert_equal "Code-School-of-Guam-Alumni", JSON.parse(response.body).dig("cohort", "github_organization_name")
+
+    as_user(@admin) do
+      patch "/api/v1/cohorts/#{@cohort.id}",
+        params: { github_organization_name: "https://github.com/invalid" }, headers: auth_headers, as: :json
+    end
+    assert_response :unprocessable_entity
+    assert_equal "Code-School-of-Guam-Alumni", @cohort.reload.github_organization_name
+  end
+
   test "student cannot view cohort student view" do
     as_user(@student) do
       get "/api/v1/cohorts/#{@cohort.id}/student_view", headers: auth_headers

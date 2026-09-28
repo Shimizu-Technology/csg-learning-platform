@@ -28,7 +28,7 @@ export default function AppLayout() {
   }
   const closeButton = () => <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => router.back()} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}><X color={palette.muted} size={22} /></Pressable>;
   return (
-    <Stack screenOptions={{ headerStyle: { backgroundColor: palette.ink }, headerTintColor: palette.text, headerShadowVisible: false, contentStyle: { backgroundColor: palette.ink } }}>
+    <Stack screenOptions={{ headerStyle: { backgroundColor: palette.ink }, headerTintColor: palette.text, headerBackButtonDisplayMode: 'minimal', headerBackTitle: 'Back', headerShadowVisible: false, contentStyle: { backgroundColor: palette.ink } }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="activity" options={{ headerShown: false }} />
       <Stack.Screen name="conversation/[kind]/[id]" options={{ headerShown: false }} />
