@@ -61,6 +61,7 @@ export function CourseCatalog() {
         {searchParams.get('checkout') === 'canceled' && <p role="status" className="mt-8 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">Checkout was canceled. You have not been enrolled.</p>}
         {error && offerings.length > 0 && <p role="alert" className="mt-8 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">{error}</p>}
         <div className="mt-12 grid gap-6 md:grid-cols-2">
+          {loading && offerings.length === 0 && <p role="status" className="text-sm text-slate-600 md:col-span-2">Loading courses…</p>}
           {offerings.map((offering) => {
             const enrolled = enrollments.some((entry) => entry.cohort.id === offering.id && hasCourseAccess(entry))
             return <article key={offering.id} className="flex flex-col rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">

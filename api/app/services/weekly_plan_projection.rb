@@ -7,7 +7,6 @@ class WeeklyPlanProjection
     @user = user
     @cohort_id = cohort_id
     @now = now
-    @cohort_id = cohort_id
     @zone = Time.find_zone!(TIMEZONE)
     @today = LearningCalendar.today(at: now)
     @week_start = @today.beginning_of_week(:monday)

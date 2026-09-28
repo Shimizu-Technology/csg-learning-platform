@@ -53,7 +53,7 @@ class Cohort < ApplicationRecord
   end
 
   def purchase_ready?
-    self_paced? && public_checkout_enabled? && active? && curriculum.active? && stripe_price_id.present? && public_price_cents.to_i.positive? && support_instructor&.staff?
+    self_paced? && public_checkout_enabled? && active? && curriculum.active? && stripe_price_id.present? && public_price_cents.to_i.positive? && support_instructor&.staff? == true
   end
 
   def checkout_is_self_paced

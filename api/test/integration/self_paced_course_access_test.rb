@@ -29,6 +29,26 @@ class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
     assert_equal 0, CoursePurchase.count
   end
 
+  test "checkout for a missing course returns not found" do
+    as_user(@student) do
+      post "/api/v1/course_checkouts", params: { cohort_id: 999_999 }, headers: auth_headers, as: :json
+    end
+
+    assert_response :not_found
+    assert_equal "Course not found", JSON.parse(response.body).fetch("error")
+  end
+
+  test "viewing a completed self-paced course does not start instructor support" do
+    enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :completed, access_expires_at: 12.months.from_now)
+    enrollment.module_assignments.create!(curriculum_module: @module, unlocked: true)
+
+    as_user(@student) { get "/api/v1/dashboard", params: { cohort_id: @cohort.id }, headers: auth_headers }
+
+    assert_response :success
+    assert_nil enrollment.reload.first_opened_at
+    assert_nil enrollment.support_expires_at
+  end
+
   test "paid webhook fulfillment is idempotent and opens every lesson without meetings" do
     purchase = CoursePurchase.create!(user: @student, cohort: @cohort, stripe_price_id: @cohort.stripe_price_id, price_cents: 14_900, stripe_session_id: "cs_test_python")
     session = OpenStruct.new(

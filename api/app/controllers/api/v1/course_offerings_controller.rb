@@ -2,7 +2,7 @@ module Api
   module V1
     class CourseOfferingsController < ApplicationController
       def index
-        offerings = Cohort.where(course_delivery: "self_paced", status: :active, public_checkout_enabled: true).includes(:curriculum).order(:name)
+        offerings = Cohort.where(course_delivery: "self_paced", status: :active, public_checkout_enabled: true).includes(:curriculum, :support_instructor).order(:name)
         render json: { offerings: offerings.map { |cohort|
           {
             id: cohort.id,
