@@ -9,6 +9,7 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import { VideoPlayer } from '../../components/shared/VideoPlayer'
 import { ContextualHelp } from '../../components/student/ContextualHelp'
 import { useAuthContext } from '../../contexts/AuthContext'
+import { useCohortContext } from '../../contexts/CohortContext'
 import type { RecordingEntry, RecordingItem as ApiRecordingItem, S3Recording as ApiS3Recording } from '../../types/api'
 
 interface LegacyRecording {
@@ -100,6 +101,7 @@ function normalizeUploadedRecording(recording: ApiS3Recording | ApiRecordingItem
 
 export function Recordings() {
   const { user, enrollments } = useAuthContext()
+  const { selectedCohortId } = useCohortContext()
   const isStaff = Boolean(user?.is_staff)
   const isAlumniLibrary = !isStaff && isAlumniOnlyEnrollment(enrollments)
   const [legacyRecordings, setLegacyRecordings] = useState<LegacyRecording[]>([])
@@ -114,10 +116,13 @@ export function Recordings() {
 
   const loadRecordings = useCallback(() => {
     setLoading(true)
+    setLegacyRecordings([])
+    setS3Recordings([])
+    setSelectedItem(null)
     setLoadError(null)
     setShowingSavedData(false)
 
-    api.getRecordings().then((res) => {
+    api.getRecordings(selectedCohortId ?? undefined).then((res) => {
       if (res.data) {
         const normalizedItems = res.data.items || []
         const legacy: LegacyRecording[] = normalizedItems.length > 0
@@ -144,7 +149,7 @@ export function Recordings() {
       setLoadError(error instanceof Error ? error.message : 'Unable to load recordings right now.')
       setLoading(false)
     })
-  }, [])
+  }, [selectedCohortId])
 
   useEffect(() => {
     if (isAlumniLibrary) return
@@ -187,20 +192,20 @@ export function Recordings() {
   }, [legacyRecordings, selectedItem, s3Recordings])
 
   const selectedId = typeof liveSelectedItem?.id === 'number' ? liveSelectedItem.id : null
-  const selectedCohortId = liveSelectedItem?.cohort_id ?? null
+  const recordingCohortId = liveSelectedItem?.cohort_id ?? null
   const selectedHelpContext = useMemo(() => {
-    if (!liveSelectedItem || !selectedCohortId) return null
+    if (!liveSelectedItem || !recordingCohortId) return null
     if (typeof liveSelectedItem.id === 'number') return { source: 'primary' as const, id: liveSelectedItem.id }
     const ordinal = Number(String(liveSelectedItem.id).split('-').at(-1))
     if (!Number.isInteger(ordinal) || ordinal < 1) return null
     return { source: 'legacy' as const, id: ordinal - 1 }
-  }, [liveSelectedItem, selectedCohortId])
+  }, [liveSelectedItem, recordingCohortId])
 
   const fetchSelectedStreamUrl = useCallback(async () => {
-    if (!selectedCohortId || !selectedId) return null
-    const res = await api.getRecordingStreamUrl(selectedCohortId, selectedId)
+    if (!recordingCohortId || !selectedId) return null
+    const res = await api.getRecordingStreamUrl(recordingCohortId, selectedId)
     return res.data?.stream_url || null
-  }, [selectedCohortId, selectedId])
+  }, [recordingCohortId, selectedId])
 
   const saveSelectedProgress = useCallback((data: import('../../components/shared/VideoPlayer').VideoProgressData) => {
     if (!selectedId) return
@@ -273,7 +278,7 @@ export function Recordings() {
       <div className="flex flex-col lg:flex-row gap-5">
         {/* Player area */}
         <div className="flex-1 min-w-0">
-          {liveSelectedItem && liveSelectedItem.source === 'uploaded' && selectedCohortId ? (
+          {liveSelectedItem && liveSelectedItem.source === 'uploaded' && recordingCohortId ? (
             <div className="space-y-4">
               <VideoPlayer
                 key={liveSelectedItem.id}
@@ -330,11 +335,11 @@ export function Recordings() {
           ) : liveSelectedItem && (liveSelectedItem.source === 'youtube' || liveSelectedItem.source === 'external') ? (
             <LegacyPlayer recording={liveSelectedItem as LegacyRecording} />
           ) : null}
-          {liveSelectedItem && selectedCohortId && selectedHelpContext && (
+          {liveSelectedItem && recordingCohortId && selectedHelpContext && (
             <div className="mt-3 flex justify-end">
               <ContextualHelp
                 key={`${liveSelectedItem.source}-${liveSelectedItem.id}`}
-                cohortId={selectedCohortId}
+                cohortId={recordingCohortId}
                 contextType="recording"
                 contextSource={selectedHelpContext.source}
                 contextId={selectedHelpContext.id}

@@ -20,11 +20,14 @@ module Api
           KnowledgeCheckAttempt.transaction do
             attempt = knowledge_check.attempts.create!(
               user: current_user,
+              enrollment: @learning_write_enrollment,
               selected_option: selected_option,
               correct: knowledge_check.correct_option?(selected_option)
             )
             if attempt.correct?
-              progress = current_user.progresses.find_or_initialize_by(content_block: knowledge_check.content_block)
+              progress = current_user.progresses.find_or_initialize_by(
+                enrollment: @learning_write_enrollment, content_block: knowledge_check.content_block
+              )
               progress.update!(status: :completed)
             end
           end
@@ -48,7 +51,7 @@ module Api
           prompt: check.prompt,
           options: check.options,
           objective_code: check.learning_objective&.code,
-          attempt_count: check.attempts.where(user: current_user).count,
+          attempt_count: check.attempts.where(enrollment: @learning_write_enrollment).count,
           latest_attempt: {
             id: attempt.id,
             selected_option: attempt.selected_option,

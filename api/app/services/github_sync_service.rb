@@ -72,7 +72,7 @@ class GithubSyncService
         ref = commit_hash.presence || "HEAD"
         github_code_url = "https://github.com/#{user.github_username}/#{repo_name}/blob/#{ref}/#{file['name']}#L1-L#{line_count}"
 
-        existing = Submission.where(user: user, content_block_id: block.id).order(:created_at).last
+        existing = Submission.where(enrollment: enrollment, content_block_id: block.id).order(:created_at).last
 
         if existing
           if existing.text != file_text
@@ -93,7 +93,8 @@ class GithubSyncService
             end
 
             existing.update!(attrs)
-            progress = Progress.find_or_initialize_by(user: user, content_block_id: block.id)
+            progress = Progress.find_or_initialize_by(enrollment: enrollment, content_block_id: block.id)
+            progress.user = user
             progress.update!(status: :completed)
             synced_count += 1
           elsif existing.commit_sha != commit_hash || existing.github_code_url != github_code_url
@@ -102,6 +103,7 @@ class GithubSyncService
         else
           Submission.create!(
             user: user,
+            enrollment: enrollment,
             content_block_id: block.id,
             submission_type: :prework_github_sync,
             text: file_text,
@@ -109,7 +111,8 @@ class GithubSyncService
             commit_sha: commit_hash,
             num_submissions: 1
           )
-          progress = Progress.find_or_initialize_by(user: user, content_block_id: block.id)
+          progress = Progress.find_or_initialize_by(enrollment: enrollment, content_block_id: block.id)
+          progress.user = user
           progress.update!(status: :completed)
           synced_count += 1
         end

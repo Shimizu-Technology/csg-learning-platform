@@ -29,6 +29,7 @@ export function WeeklyPlanCard({ plan }: { plan: WeeklyPlan }) {
   if (plan.mode === 'library' && plan.library_summary) return <LibraryPlan plan={plan} />
   if (!summary) return null
   const completion = summary.required_count ? Math.round((summary.required_completed_count / summary.required_count) * 100) : 100
+  const cohortQuery = plan.cohort?.id ? `?cohort_id=${plan.cohort.id}` : ''
 
   return (
     <section aria-labelledby="this-week-title" className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
@@ -49,18 +50,18 @@ export function WeeklyPlanCard({ plan }: { plan: WeeklyPlan }) {
       <div className="grid gap-0 lg:grid-cols-[1.45fr_0.85fr]">
         <div className="p-5 sm:p-6 lg:border-r lg:border-slate-200">
           {(plan.redos || []).length > 0 && <PlanSection title="Redo first" icon={RotateCcw} tone="amber">
-            {(plan.redos || []).map((redo) => <Link key={redo.id} to={`/lessons/${redo.lesson_id}`} className="group flex min-h-14 items-start gap-3 border-b border-amber-200 py-3 last:border-0">
+            {(plan.redos || []).map((redo) => <Link key={redo.id} to={`/lessons/${redo.lesson_id}${cohortQuery}`} className="group flex min-h-14 items-start gap-3 border-b border-amber-200 py-3 last:border-0">
               <span className="mt-0.5 rounded-lg bg-amber-100 p-2"><RotateCcw className="h-4 w-4 text-amber-700" /></span><span className="min-w-0 flex-1"><span className="block text-sm font-extrabold text-slate-950">{redo.title}</span><span className="mt-0.5 block text-xs text-slate-600">{redo.lesson_title}{redo.state === 'closed' ? ' · submission window closed' : ''}</span>{redo.feedback && <span className="mt-1.5 line-clamp-2 block text-xs leading-5 text-slate-600">{redo.feedback}</span>}</span><ArrowRight className="mt-2 h-4 w-4 shrink-0 text-amber-600 transition-transform group-hover:translate-x-1" />
             </Link>)}
           </PlanSection>}
 
           <PlanSection title="Required work" icon={CircleAlert}>
-            {required.length ? <LessonGroups items={required} /> : <EmptyLine icon={Check} text="No required work is open for this week." />}
+            {required.length ? <LessonGroups items={required} cohortQuery={cohortQuery} /> : <EmptyLine icon={Check} text="No required work is open for this week." />}
           </PlanSection>
 
           {optional.length > 0 && <PlanSection title="Optional stretch" icon={Sparkles} subtle>
             <p className="mb-1 text-xs leading-5 text-slate-500">Useful if you finish early; this does not count against your required week.</p>
-            <LessonGroups items={optional} />
+            <LessonGroups items={optional} cohortQuery={cohortQuery} />
           </PlanSection>}
         </div>
 
@@ -105,13 +106,13 @@ function LibraryStat({ value, label }: { value: number; label: string }) {
   return <div className="bg-white px-5 py-4 sm:px-6"><p className="text-2xl font-extrabold text-slate-950">{value}</p><p className="mt-0.5 text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p></div>
 }
 
-function LessonGroups({ items }: { items: WeeklyPlanLessonItem[] }) {
-  return <div>{groupLessons(items).map(([label, lessons]) => <div key={label} className="pt-3 first:pt-1"><p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-500">{label}</p>{lessons.map((item) => <LessonRow key={item.id} item={item} />)}</div>)}</div>
+function LessonGroups({ items, cohortQuery }: { items: WeeklyPlanLessonItem[]; cohortQuery: string }) {
+  return <div>{groupLessons(items).map(([label, lessons]) => <div key={label} className="pt-3 first:pt-1"><p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-500">{label}</p>{lessons.map((item) => <LessonRow key={item.id} item={item} cohortQuery={cohortQuery} />)}</div>)}</div>
 }
 
-function LessonRow({ item }: { item: WeeklyPlanLessonItem }) {
+function LessonRow({ item, cohortQuery }: { item: WeeklyPlanLessonItem; cohortQuery: string }) {
   const closed = item.state === 'closed'
-  return <Link to={`/lessons/${item.lesson_id}`} className="group flex min-h-14 items-center gap-3 border-b border-slate-200 py-3 last:border-0"><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${item.state === 'completed' ? 'bg-green-100 text-green-700' : item.state === 'upcoming' ? 'bg-slate-100 text-slate-500' : closed ? 'bg-red-50 text-red-700' : 'bg-primary-50 text-primary-700'}`}>{item.state === 'completed' ? <Check className="h-4 w-4" /> : item.state === 'upcoming' ? <Clock3 className="h-4 w-4" /> : closed ? <LockKeyhole className="h-4 w-4" /> : <CircleAlert className="h-4 w-4" />}</span><span className="min-w-0 flex-1"><span className="block text-sm font-extrabold text-slate-950">{item.title}</span><span className="mt-0.5 block text-xs text-slate-500">{item.module_title} · {item.carried_forward ? 'Open from earlier' : dateLabel(item.scheduled_for)}{item.submission_close_at ? ` · closes ${formatShortDateTime(item.submission_close_at)}` : ''}</span></span><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-extrabold uppercase tracking-wide text-slate-600">{item.state}</span><ArrowRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:translate-x-1" /></Link>
+  return <Link to={`/lessons/${item.lesson_id}${cohortQuery}`} className="group flex min-h-14 items-center gap-3 border-b border-slate-200 py-3 last:border-0"><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${item.state === 'completed' ? 'bg-green-100 text-green-700' : item.state === 'upcoming' ? 'bg-slate-100 text-slate-500' : closed ? 'bg-red-50 text-red-700' : 'bg-primary-50 text-primary-700'}`}>{item.state === 'completed' ? <Check className="h-4 w-4" /> : item.state === 'upcoming' ? <Clock3 className="h-4 w-4" /> : closed ? <LockKeyhole className="h-4 w-4" /> : <CircleAlert className="h-4 w-4" />}</span><span className="min-w-0 flex-1"><span className="block text-sm font-extrabold text-slate-950">{item.title}</span><span className="mt-0.5 block text-xs text-slate-500">{item.module_title} · {item.carried_forward ? 'Open from earlier' : dateLabel(item.scheduled_for)}{item.submission_close_at ? ` · closes ${formatShortDateTime(item.submission_close_at)}` : ''}</span></span><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-extrabold uppercase tracking-wide text-slate-600">{item.state}</span><ArrowRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:translate-x-1" /></Link>
 }
 
 function PlanSection({ title, icon: Icon, children, tone, subtle }: { title: string; icon: typeof CircleAlert; children: ReactNode; tone?: 'amber'; subtle?: boolean }) { return <div className={`mb-6 last:mb-0 ${tone === 'amber' ? 'rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3' : subtle ? 'rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3' : ''}`}><h3 className={`mb-2 flex items-center gap-2 text-sm font-extrabold ${tone === 'amber' ? 'text-amber-900' : 'text-slate-950'}`}><Icon className={`h-4 w-4 ${tone === 'amber' ? 'text-amber-700' : 'text-primary-600'}`} />{title}</h3>{children}</div> }

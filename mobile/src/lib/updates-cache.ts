@@ -14,7 +14,7 @@ export interface NotificationListPayload {
 
 export const updatesKeys = {
   root: (userId: number) => ['updates', userId] as const,
-  announcements: (userId: number, managing: boolean) => ['updates', userId, 'announcements', managing ? 'manage' : 'visible'] as const,
+  announcements: (userId: number, managing: boolean, cohortId?: number | null) => ['updates', userId, 'announcements', managing ? 'manage' : 'visible', cohortId || 'all'] as const,
   notifications: (userId: number) => ['updates', userId, 'notifications'] as const,
 };
 

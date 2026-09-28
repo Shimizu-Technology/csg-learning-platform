@@ -5,7 +5,7 @@ module Api
       before_action :set_help_request, only: [ :show, :update ]
 
       def index
-        scope = current_user.staff? ? HelpRequest.all : current_user.help_requests
+        scope = current_user.staff? ? HelpRequest.where(cohort_id: current_user.accessible_cohorts.select(:id)) : current_user.help_requests
         scope = scope.where(cohort_id: params[:cohort_id]) if params[:cohort_id].present?
         scope = scope.where(student_id: params[:student_id]) if current_user.staff? && params[:student_id].present?
         scope = scope.where(status: params[:status]) if HelpRequest.statuses.key?(params[:status])
@@ -74,7 +74,7 @@ module Api
 
       def set_help_request
         @help_request = if current_user.staff?
-          HelpRequest.find(params[:id])
+          HelpRequest.where(cohort_id: current_user.accessible_cohorts.select(:id)).find(params[:id])
         else
           current_user.help_requests.find(params[:id])
         end

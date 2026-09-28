@@ -26,6 +26,7 @@ class UsersLifecycleTest < ActionDispatch::IntegrationTest
       start_date: Date.current,
       status: :active
     )
+    @cohort.cohort_instructor_assignments.create!(user: @instructor)
     @channel = Channel.create!(workspace: @cohort.workspace, cohort: @cohort, name: "Lifecycle Chat")
   end
 
@@ -328,6 +329,7 @@ class UsersLifecycleTest < ActionDispatch::IntegrationTest
       last_name: "Staff",
       role: :instructor
     )
+    @cohort.cohort_instructor_assignments.create!(user: active_staff)
 
     as_user(@admin) do
       get "/api/v1/users", headers: auth_headers

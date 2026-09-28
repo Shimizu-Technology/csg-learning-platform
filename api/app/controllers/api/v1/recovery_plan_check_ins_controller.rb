@@ -6,6 +6,7 @@ module Api
 
       def create
         plan = RecoveryPlan.find(params[:recovery_plan_id])
+        return unless require_cohort_access!(plan.enrollment.cohort, teacher: true)
         unless plan.status_active?
           render json: { error: "Check-ins can only be added to an active recovery plan" }, status: :unprocessable_entity
           return

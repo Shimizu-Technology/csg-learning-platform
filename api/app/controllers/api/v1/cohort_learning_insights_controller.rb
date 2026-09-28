@@ -6,6 +6,7 @@ module Api
 
       def show
         cohort = Cohort.includes(:curriculum).find(params[:cohort_id])
+        return unless require_cohort_access!(cohort, teacher: true)
         if params[:user_id].present? && !cohort.enrollments.exists?(user_id: params[:user_id])
           render json: { error: "Student is not enrolled in this cohort" }, status: :not_found
           return

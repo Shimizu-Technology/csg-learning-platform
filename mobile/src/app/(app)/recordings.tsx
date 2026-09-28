@@ -14,6 +14,7 @@ import { learningKeys } from '@/lib/learning';
 import type { RecordingItem } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
+import { useCohort } from '@/providers/cohort-provider';
 
 function dateLabel(value: string | null) {
   if (!value) return 'Date not set';
@@ -40,12 +41,13 @@ export default function RecordingsScreen() {
   const router = useRouter();
   const auth = useCsgAuth();
   const { api, user, enrollments } = useSession();
+  const { selectedCohortId, selectedCohort } = useCohort();
   const [filter, setFilter] = useState('');
-  const isAlumniOnly = !user?.is_staff && isAlumniOnlyEnrollment(enrollments);
+  const isAlumniOnly = !user?.is_staff && (selectedCohort ? selectedCohort.cohort_type === 'alumni' : isAlumniOnlyEnrollment(enrollments));
   const query = useQuery({ queryKey: learningKeys.recordings(user?.id ?? 0), queryFn: ({ signal }) => auth.demo ? Promise.resolve({ recordings: [], s3_recordings: [], items: demoRecordings }) : api.recordings(signal), enabled: Boolean(user && !isAlumniOnly) });
   const groups = useMemo(() => {
     const needle = filter.trim().toLowerCase();
-    const items = (query.data?.items || []).filter((item) => `${item.title} ${item.description || ''} ${item.cohort_name}`.toLowerCase().includes(needle));
+    const items = (query.data?.items || []).filter((item) => (!selectedCohortId || item.cohort_id === selectedCohortId) && `${item.title} ${item.description || ''} ${item.cohort_name}`.toLowerCase().includes(needle));
     const sorted = [...items].sort((a, b) => (b.recorded_date || '').localeCompare(a.recorded_date || ''));
     const cohorts = sorted.reduce<Record<string, RecordingItem[]>>((result, item) => {
       (result[item.cohort_name] ||= []).push(item);
@@ -59,13 +61,13 @@ export default function RecordingsScreen() {
       }, {})),
       count: cohortItems.length,
     }));
-  }, [filter, query.data?.items]);
+  }, [filter, query.data?.items, selectedCohortId]);
 
   if (isAlumniOnly) return <Redirect href="/(app)/(tabs)/learn" />;
 
   return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={palette.text} size={22} /></Pressable><View style={styles.flex}><Text style={styles.kicker}>LEARNING LIBRARY</Text><Text style={styles.headerTitle}>Recordings</Text></View>{user?.is_staff && <View style={styles.headerActions}><Pressable accessibilityRole="button" accessibilityLabel="Add recording link" onPress={() => router.push('/recordings/link' as Href)} style={styles.uploadButton}><Link2 color={palette.rubySoft} size={19} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Upload class recording" onPress={() => router.push('/recordings/upload' as Href)} style={styles.uploadButton}><UploadCloud color={palette.rubySoft} size={19} /></Pressable></View>}</View>{query.isPending && !query.data ? <LoadingState label="Loading class recordings" /> : query.error && !query.data ? <ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /> : <ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={palette.rubySoft} />} contentContainerStyle={styles.content}>
     {query.isError && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved recordings. Playback needs a connection.</Text></View>}
-    <View style={styles.hero}><View style={styles.heroIcon}><Film color={palette.rubySoft} size={23} /></View><Text style={styles.heroKicker}>CLASS REPLAYS</Text><Text style={styles.heroTitle}>Pick up where you left off</Text><Text style={styles.heroCopy}>CSG-hosted videos play natively. Supported YouTube, Vimeo, and Loom recordings play here in the app, with the original always one tap away.</Text></View>
+    <View style={styles.hero}><View style={styles.heroIcon}><Film color={palette.rubySoft} size={23} /></View><Text style={styles.heroKicker}>CLASS REPLAYS</Text><Text style={styles.heroTitle}>Pick up where you left off</Text><Text style={styles.heroCopy}>{selectedCohort ? `${selectedCohort.name} · ` : ''}CSG-hosted videos play natively. Supported YouTube, Vimeo, and Loom recordings play here in the app, with the original always one tap away.</Text></View>
     <View style={styles.search}><Search color={palette.quiet} size={18} /><TextInput accessibilityLabel="Search recordings" value={filter} onChangeText={setFilter} placeholder="Search class recordings" placeholderTextColor={palette.quiet} style={styles.input} /></View>
     {groups.map(({ cohort, count, dateGroups }) => <View key={cohort} style={styles.group}><View style={styles.groupHeading}><Text style={styles.groupKicker}>COHORT</Text><Text style={styles.groupTitle}>{cohort}</Text><Text style={styles.groupCount}>{count}</Text></View>{dateGroups.map(([date, items]) => <View key={date} style={styles.dateGroup}><Text style={styles.dateHeading}>{date}</Text><View style={styles.rows}>{items.map((item) => <RecordingRow key={item.item_key} item={item} onPress={() => router.push(`/recording/${encodeURIComponent(item.item_key)}` as Href)} />)}</View></View>)}</View>)}
     {!groups.length && <View style={styles.empty}><Film color={palette.rubySoft} size={31} /><Text style={styles.emptyTitle}>{filter ? 'No matching recordings' : 'No recordings yet'}</Text><Text style={styles.emptyCopy}>{filter ? 'Try a different search.' : 'Your class replays will appear here after they are published.'}</Text></View>}

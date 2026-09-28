@@ -7,6 +7,7 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Modal } from '../../components/shared/Modal'
 import { RecordingUploadManager } from '../../components/admin/RecordingUploadManager'
 import { useToast } from '../../contexts/ToastContext'
+import { useCohortContext } from '../../contexts/CohortContext'
 import { formatShortDateTime } from '../../lib/format'
 import { toDateTimeInputValueInTimeZone, toLocalDateTimeInputValue } from '../../lib/dateTime'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
@@ -229,6 +230,7 @@ function emptyOfficeHourForm(): OfficeHourFormState {
 export function CohortDetail() {
   const { id } = useParams<{ id: string }>()
   const toast = useToast()
+  const { refreshCohorts } = useCohortContext()
   const presenceNow = usePresenceNow()
   const [cohort, setCohort] = useState<CohortData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -384,6 +386,7 @@ export function CohortDetail() {
     } else if (res.data?.cohort) {
       applyCohort(res.data.cohort as CohortData)
       notifySuccess(`Cohort marked ${nextStatus}`)
+      await refreshCohorts()
     }
     setSavingStatus(false)
   }

@@ -10,10 +10,14 @@ class Enrollment < ApplicationRecord
   has_many :interventions, dependent: :destroy
   has_many :recovery_plans, dependent: :destroy
   has_many :private_meeting_bookings, dependent: :restrict_with_error
+  has_many :progresses, dependent: :nullify
+  has_many :submissions, dependent: :nullify
+  has_many :knowledge_check_attempts, dependent: :nullify
 
   validates :user_id, uniqueness: { scope: :cohort_id }
 
   before_create :set_enrolled_at
+  before_create :set_invited_at
   after_create :assign_alumni_curriculum_modules, if: :active_alumni_enrollment?
   after_update :assign_alumni_curriculum_modules, if: :reactivated_alumni_enrollment?
 
@@ -38,10 +42,18 @@ class Enrollment < ApplicationRecord
     end
   end
 
+  def mark_joined!
+    update_column(:joined_at, Time.current) if joined_at.nil?
+  end
+
   private
 
   def set_enrolled_at
     self.enrolled_at ||= Time.current
+  end
+
+  def set_invited_at
+    self.invited_at ||= Time.current
   end
 
   def active_alumni_enrollment?

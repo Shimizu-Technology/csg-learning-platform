@@ -48,7 +48,8 @@ class DirectConversation < ApplicationRecord
   end
 
   def can_post?(user)
-    active? && visible_to?(user) && !blocked_for?(user)
+    active? && visible_to?(user) && !cohort&.completed? && !cohort&.archived? &&
+      (!cohort || !user.student? || user.enrollments.active.exists?(cohort_id: cohort.id)) && !blocked_for?(user)
   end
 
   def blocked_for?(user)
@@ -57,7 +58,7 @@ class DirectConversation < ApplicationRecord
   end
 
   def recipients
-    users
+    users.where(id: users.select { |user| visible_to?(user) }.map(&:id))
   end
 
   def title_for(user)

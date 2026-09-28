@@ -4,7 +4,7 @@ module Api
       class InvalidSubmissionWindow < StandardError; end
 
       before_action :authenticate_user!
-      before_action :require_staff!
+      before_action :require_admin!
       before_action :set_cohort
       before_action :set_module
 

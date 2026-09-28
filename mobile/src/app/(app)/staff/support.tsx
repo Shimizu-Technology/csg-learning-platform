@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, Clock3, LifeBuoy, UserRoundCheck, X } from 'lucide-react-native';
 import { useState } from 'react';
 import { Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -15,12 +15,16 @@ import { learningKeys, updateSupportQueueHelpRequest } from '@/lib/learning';
 import type { HelpRequest, SupportQueue, SupportQueueStudent } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
+import { useCohort } from '@/providers/cohort-provider';
 
 export default function StaffSupportScreen() {
   const router = useRouter();
   const auth = useCsgAuth();
   const queryClient = useQueryClient();
   const { api, user } = useSession();
+  const { cohort_id } = useLocalSearchParams<{ cohort_id?: string }>();
+  const { selectedCohortId } = useCohort();
+  const cohortId = cohort_id ? Number(cohort_id) : selectedCohortId;
   const [resolving, setResolving] = useState<HelpRequest | null>(null);
   const [response, setResponse] = useState('');
   const [responseSelection, setResponseSelection] = useState({ start: 0, end: 0 });
@@ -36,8 +40,8 @@ export default function StaffSupportScreen() {
     onDraftChange: setResponse,
     onSelectionChange: setResponseSelection,
   });
-  const queryKey = learningKeys.supportQueue(user?.id || 0);
-  const query = useQuery({ queryKey, queryFn: ({ signal }) => auth.demo ? Promise.resolve({ support_queue: demoSupportQueue }) : api.supportQueue(signal), enabled: Boolean(user?.is_staff), meta: { persist: false } });
+  const queryKey = learningKeys.supportQueue(user?.id || 0, cohortId);
+  const query = useQuery({ queryKey, queryFn: ({ signal }) => auth.demo ? Promise.resolve({ support_queue: demoSupportQueue }) : api.supportQueue(signal, cohortId), enabled: Boolean(user?.is_staff), meta: { persist: false } });
   const queue = query.data?.support_queue;
 
   async function acknowledge(request: HelpRequest) {

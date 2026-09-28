@@ -8,6 +8,7 @@ class NotificationDeliveryServiceTest < ActiveSupport::TestCase
     cohort = Cohort.create!(curriculum: curriculum, name: "Help cohort", start_date: Date.current, status: :active)
     student = User.create!(clerk_id: "help_notification_student", email: "help-notification-student@example.com", first_name: "Maya", last_name: "Santos", role: :student)
     staff = User.create!(clerk_id: "help_notification_staff", email: "help-notification-staff@example.com", role: :instructor)
+    cohort.cohort_instructor_assignments.create!(user: staff)
     Enrollment.create!(user: student, cohort: cohort, status: :active)
     help_request = HelpRequest.create!(student: student, cohort: cohort, context_type: :lesson, context_source: :primary, context_id: 42, context_label: "Connected records", context_path: "/lessons/42", category: :concept, urgency: :urgent, message: "Where should I look next?")
 
@@ -133,6 +134,7 @@ class NotificationDeliveryServiceTest < ActiveSupport::TestCase
     cohort = Cohort.create!(curriculum: curriculum, name: "Cohort 3", start_date: Date.current, status: :active)
     author = User.create!(clerk_id: "dm_mention_author", email: "dm-mention-author@example.com", role: :student)
     recipient = User.create!(clerk_id: "dm_mention_recipient", email: "dm-mention-recipient@example.com", role: :student)
+    [ author, recipient ].each { |user| Enrollment.create!(user: user, cohort: cohort, status: :active) }
     conversation = DirectConversation.find_or_create_for!(workspace: cohort.workspace, users: [ author, recipient ])
     message = Message.create!(direct_conversation: conversation, author: author, body: "Please review", mention_user_ids: [ recipient.id ])
 

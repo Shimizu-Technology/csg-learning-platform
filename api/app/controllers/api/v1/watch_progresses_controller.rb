@@ -76,6 +76,7 @@ module Api
         else
           user.enrollments.where(status: :active).pluck(:cohort_id)
         end
+        cohort_ids &= current_user.accessible_cohorts.pluck(:id)
         if params[:cohort_id].present? && cohort_ids.empty?
           render json: { error: "Student is not enrolled in this cohort" }, status: :not_found
           return
@@ -116,6 +117,7 @@ module Api
         else
           user.enrollments.where(status: :active).includes(:cohort)
         end.to_a
+        enrollments.select! { |enrollment| current_user.can_teach_cohort?(enrollment.cohort) }
         if params[:cohort_id].present? && enrollments.empty?
           render json: { error: "Student is not enrolled in this cohort" }, status: :not_found
           return
@@ -141,11 +143,13 @@ module Api
         }
 
         block_ids = rows.map { |cb, _m, _l, _c| cb.id }
-        progress_by_block = user.progresses.where(content_block_id: block_ids).index_by(&:content_block_id)
+        progress_by_block = user.progresses.where(enrollment_id: enrollments.map(&:id), content_block_id: block_ids)
+          .index_by { |progress| [ progress.enrollment_id, progress.content_block_id ] }
 
         render json: {
           lesson_videos: rows.map { |cb, mod, lesson, cohort|
-            p = progress_by_block[cb.id]
+            enrollment = enrollments.find { |item| item.cohort_id == cohort.id }
+            p = progress_by_block[[ enrollment.id, cb.id ]]
             duration = cb.s3_video_duration_seconds
             pct = if duration&.positive? && p&.video_total_watched
               [ (p.video_total_watched.to_f / duration * 100).round(1), 100.0 ].min
@@ -179,6 +183,7 @@ module Api
         return if performed?
 
         cohort = Cohort.find(params[:cohort_id])
+        return unless require_cohort_access!(cohort, teacher: true)
         recordings = cohort.recordings.ordered
         enrollments = cohort.enrollments.active.joins(:user).includes(:user).merge(User.not_archived)
 
@@ -214,6 +219,7 @@ module Api
         return if performed?
 
         cohort = Cohort.find(params[:cohort_id])
+        return unless require_cohort_access!(cohort, teacher: true)
         enrollments = cohort.enrollments.active.joins(:user).includes(:user).merge(User.not_archived)
 
         # Query only the ordered S3-backed video blocks for this cohort's
@@ -230,7 +236,7 @@ module Api
 
         block_ids = video_blocks.map { |cb, _m, _l| cb.id }
         progress_data = Progress
-          .where(content_block_id: block_ids, user: enrollments.map(&:user))
+          .where(content_block_id: block_ids, enrollment_id: enrollments.map(&:id))
           .index_by { |p| [ p.user_id, p.content_block_id ] }
 
         render json: {

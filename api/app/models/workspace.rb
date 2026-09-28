@@ -20,21 +20,27 @@ class Workspace < ApplicationRecord
   scope :ordered, -> { order(:name) }
 
   def self.visible_for(user)
-    return none unless user
-    return active.includes(:cohort) if user.staff?
+    return none unless user && !user.archived?
+    if user.staff?
+      return active.includes(:cohort) if user.admin?
 
-    enrollment_scope = where(cohort_id: user.enrollments.active.select(:cohort_id))
+      cohort_scope = active.where(cohort_id: user.cohort_instructor_assignments.select(:cohort_id))
+      community_scope = active.community
+      return cohort_scope.or(community_scope).includes(:cohort)
+    end
+
+    enrollment_scope = where(cohort_id: user.enrollments.where(status: [ Enrollment.statuses[:active], Enrollment.statuses[:completed] ]).select(:cohort_id))
     membership_scope = joins(:workspace_memberships).where(workspace_memberships: { user_id: user.id })
 
     active.where(id: enrollment_scope.select(:id)).or(active.where(id: membership_scope.select(:id))).distinct
   end
 
   def visible_to?(user)
-    return false unless user
+    return false unless user && active?
+    return user.can_access_cohort?(cohort) if cohort?
     return true if user.staff?
 
-    cohort_id.present? && user.enrollments.active.exists?(cohort_id: cohort_id) ||
-      workspace_memberships.exists?(user_id: user.id)
+    workspace_memberships.exists?(user_id: user.id)
   end
 
   def available_users_for(current_user)
@@ -109,7 +115,9 @@ class Workspace < ApplicationRecord
     scope =
       if cohort_id.present?
         student_ids = cohort.enrollments.active.select(:user_id)
-        User.not_archived.where(id: student_ids).or(User.not_archived.where(role: [ User.roles[:instructor], User.roles[:admin] ]))
+        User.not_archived.where(id: student_ids)
+          .or(User.not_archived.where(role: User.roles[:admin]))
+          .or(User.not_archived.where(id: cohort.cohort_instructor_assignments.select(:user_id)))
       else
         User.not_archived.where(id: workspace_memberships.select(:user_id)).or(User.not_archived.where(role: [ User.roles[:instructor], User.roles[:admin] ]))
       end

@@ -33,7 +33,7 @@ describe('WeeklyPlanCard', () => {
     expect(html).toContain('Redo first')
     expect(html).toContain('Required work')
     expect(html).toContain('Optional stretch')
-    expect(html).toContain('href="/lessons/1"')
+    expect(html).toContain('href="/lessons/1?cohort_id=4"')
     expect(html).toContain('does not count against your required week')
   })
 

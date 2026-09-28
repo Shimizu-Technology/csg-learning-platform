@@ -859,6 +859,8 @@ export interface CohortStudent {
   github_username: string | null;
   status: string;
   enrolled_at: string | null;
+  invited_at: string | null;
+  joined_at: string | null;
   last_sign_in_at: string | null;
   invite_pending?: boolean;
   invite_delivery_status?: 'not_sent' | 'queued' | 'sent' | 'failed' | 'accepted';
@@ -1691,6 +1693,89 @@ export interface CohortsListResponse {
 
 export interface CohortResponse {
   cohort: CohortDetail;
+}
+
+export interface AccessibleCohort {
+  id: number;
+  name: string;
+  status: string;
+  cohort_type: string;
+  curriculum_name: string;
+  workspace_id: number | null;
+  enrollment_status?: string | null;
+}
+
+export interface AccessibleCohortsResponse {
+  cohorts: AccessibleCohort[];
+}
+
+export interface CohortHomeStudent {
+  user_id: number;
+  enrollment_id: number;
+  full_name: string;
+  email: string;
+  status: string;
+  invited_at: string | null;
+  joined_at: string | null;
+  invite_delivery_status: 'not_sent' | 'queued' | 'sent' | 'failed' | 'accepted';
+  progress_percentage: number;
+  ungraded_count: number;
+  redo_count: number;
+  last_seen_at: string | null;
+}
+
+export interface CohortHome {
+  cohort: {
+    id: number;
+    name: string;
+    status: string;
+    cohort_type?: string;
+    curriculum_name: string;
+    start_date: string | null;
+    end_date: string | null;
+    workspace_id: number | null;
+  };
+  permissions?: {
+    can_manage_roster: boolean;
+    can_manage_schedule: boolean;
+    can_manage_learning_schedule: boolean;
+    can_grade: boolean;
+    can_announce: boolean;
+  };
+  counts?: {
+    invited: number;
+    joined: number;
+    active_students: number;
+    ungraded: number;
+    redos: number;
+    open_help: number;
+  };
+  students?: CohortHomeStudent[];
+  upcoming_events: Array<{
+    id: number | string;
+    title: string;
+    starts_at: string;
+    ends_at?: string | null;
+    timezone?: string;
+    event_kind?: 'office_hours' | 'live_class';
+    meeting_url?: string | null;
+  }>;
+  recent_announcements: Array<{ id: number; title: string; published_at: string | null; pinned: boolean }>;
+  own_progress_percentage?: number;
+}
+
+export interface CohortHomeResponse {
+  home: CohortHome;
+}
+
+export interface CohortInstructorAssignment {
+  id: number;
+  full_name: string;
+  email: string;
+}
+
+export interface CohortInstructorAssignmentsResponse {
+  instructors: CohortInstructorAssignment[];
 }
 
 export interface CohortStudentViewResponse {

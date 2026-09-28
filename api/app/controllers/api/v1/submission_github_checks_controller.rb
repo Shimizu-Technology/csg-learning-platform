@@ -34,7 +34,8 @@ module Api
       end
 
       def authorize_read!
-        return if current_user.staff? || @submission.user_id == current_user.id
+        return if @submission.user_id == current_user.id
+        return if current_user.staff? && @submission.enrollment && current_user.can_teach_cohort?(@submission.enrollment.cohort)
 
         render_forbidden("Cannot view this submission")
       end

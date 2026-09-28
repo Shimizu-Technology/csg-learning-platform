@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, BookOpen, CheckCircle2, ChevronDown, ChevronRight, Clock, Lock, RefreshCw, RotateCcw, Search, WifiOff } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useAuthContext } from '../../contexts/AuthContext'
+import { useCohortContext } from '../../contexts/CohortContext'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { ProgressBar } from '../../components/shared/ProgressBar'
@@ -48,6 +49,7 @@ function readCollapsedModuleIds(cohortId: number | undefined): Set<number> {
 
 export function Materials({ previewData, disableStaffRedirect = false }: MaterialsProps = {}) {
   const { user } = useAuthContext()
+  const { selectedCohortId } = useCohortContext()
   const navigate = useNavigate()
   const [data, setData] = useState<MaterialsData | null>(previewData || null)
   const [loading, setLoading] = useState(!previewData)
@@ -73,10 +75,11 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
     }
 
     setLoading(true)
+    setData(null)
     setLoadError(null)
     setShowingSavedData(false)
 
-    api.getDashboard()
+    api.getDashboard(selectedCohortId ?? undefined)
       .then((res) => {
         if (res.data?.dashboard) {
           const dashboard = res.data.dashboard
@@ -92,7 +95,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
         setLoadError(error instanceof Error ? error.message : 'Unable to load your materials right now.')
       })
       .finally(() => setLoading(false))
-  }, [disableStaffRedirect, navigate, previewData, user])
+  }, [disableStaffRedirect, navigate, previewData, selectedCohortId, user])
 
   useEffect(() => {
     loadMaterials()
@@ -313,7 +316,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
             {data.action_items.map((item) => (
               <Link
                 key={item.submission_id}
-                to={`/lessons/${item.lesson_id}`}
+                to={`/lessons/${item.lesson_id}${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}`}
                 className="rounded-xl border border-orange-200 bg-white p-4 hover:border-orange-300 hover:shadow-sm"
               >
                 <p className="text-sm font-semibold text-slate-900">{item.content_block_title}</p>
@@ -412,7 +415,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
                   return lesson.available ? (
                     <Link
                       key={lesson.id}
-                      to={`/lessons/${lesson.id}`}
+                      to={`/lessons/${lesson.id}${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}`}
                       className={rowClassName}
                     >
                       {rowContent}

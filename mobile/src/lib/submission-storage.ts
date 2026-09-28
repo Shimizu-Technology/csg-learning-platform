@@ -34,8 +34,8 @@ export interface GradingDraft {
   saved_at: string;
 }
 
-export function submissionDraftKey(userId: number, contentBlockId: number) {
-  return `csg.submission-draft.${userId}.${contentBlockId}`;
+export function submissionDraftKey(userId: number, contentBlockId: number, cohortId?: number | null) {
+  return `csg.submission-draft.${userId}.${cohortId == null ? '' : `${cohortId}.`}${contentBlockId}`;
 }
 
 export function gradingDraftKey(userId: number, submissionId: number) {
@@ -50,10 +50,10 @@ export function submissionDraftMatches(draft: SubmissionDraft, submissionId: num
   return draft.base_submission_id === submissionId && draft.base_submission_updated_at === submissionUpdatedAt;
 }
 
-export async function loadSubmissionDraft(userId: number, contentBlockId: number): Promise<SubmissionDraft | null> {
+export async function loadSubmissionDraft(userId: number, contentBlockId: number, cohortId?: number | null): Promise<SubmissionDraft | null> {
   if (!userStorageIsActive(userId)) return null;
   const storageGeneration = userStorageGeneration(userId);
-  const key = submissionDraftKey(userId, contentBlockId);
+  const key = submissionDraftKey(userId, contentBlockId, cohortId);
   const pending = submissionStorageWrites.get(key);
   if (pending) await pending.catch(() => undefined);
   const value = await AsyncStorage.getItem(key);
@@ -73,8 +73,8 @@ export async function loadSubmissionDraft(userId: number, contentBlockId: number
   }
 }
 
-export async function saveSubmissionDraft(userId: number, contentBlockId: number, text: string, baseSubmissionId: number | null, baseSubmissionUpdatedAt: string | null) {
-  const key = submissionDraftKey(userId, contentBlockId);
+export async function saveSubmissionDraft(userId: number, contentBlockId: number, text: string, baseSubmissionId: number | null, baseSubmissionUpdatedAt: string | null, cohortId?: number | null) {
+  const key = submissionDraftKey(userId, contentBlockId, cohortId);
   return enqueueSubmissionWrite(userId, key, async (storageGeneration) => {
     if (!text.trim()) {
       await AsyncStorage.removeItem(key);
@@ -86,8 +86,8 @@ export async function saveSubmissionDraft(userId: number, contentBlockId: number
   });
 }
 
-export function clearSubmissionDraft(userId: number, contentBlockId: number) {
-  const key = submissionDraftKey(userId, contentBlockId);
+export function clearSubmissionDraft(userId: number, contentBlockId: number, cohortId?: number | null) {
+  const key = submissionDraftKey(userId, contentBlockId, cohortId);
   return enqueueSubmissionWrite(userId, key, () => AsyncStorage.removeItem(key));
 }
 

@@ -34,6 +34,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
       last_name: "User",
       role: :instructor
     )
+    @cohort.cohort_instructor_assignments.create!(user: @instructor)
 
     @enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
     ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @module)
@@ -492,6 +493,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     )
     Progress.create!(
       user: @student,
+      enrollment: @enrollment,
       content_block: block,
       status: :in_progress,
       video_last_position: 30,

@@ -9,7 +9,10 @@ class SubmissionGithubChecksTest < ActionDispatch::IntegrationTest
     @student = User.create!(clerk_id: "checks_owner", email: "owner@example.com", first_name: "Check", last_name: "Owner", role: :student)
     @other = User.create!(clerk_id: "checks_other", email: "other-checks@example.com", first_name: "Other", last_name: "Student", role: :student)
     @staff = User.create!(clerk_id: "checks_staff", email: "checks-staff@example.com", first_name: "Staff", last_name: "Reviewer", role: :instructor)
-    @submission = Submission.create!(user: @student, content_block: block, repo_url: "https://github.com/check-owner/project", commit_sha: "abc123", num_submissions: 1)
+    @cohort = Cohort.create!(curriculum: curriculum, name: "Checks cohort", start_date: Date.current, status: :active)
+    @cohort.cohort_instructor_assignments.create!(user: @staff)
+    enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+    @submission = Submission.create!(user: @student, enrollment: enrollment, content_block: block, repo_url: "https://github.com/check-owner/project", commit_sha: "abc123", num_submissions: 1)
     @submission.github_check_runs.create!(external_id: 4, name: "test", head_sha: "abc123", status: "completed", conclusion: "success", details_url: "https://github.com/check-owner/project/actions/runs/4", fetched_at: Time.current)
     @submission.github_check_runs.create!(external_id: 3, name: "old test", head_sha: "old123", status: "completed", conclusion: "failure", fetched_at: 1.day.ago)
   end

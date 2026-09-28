@@ -3,8 +3,9 @@ class WeeklyPlanProjection
   RECORDING_LIMIT = 3
   UPCOMING_UNLOCK_LIMIT = 5
 
-  def initialize(user, now: Time.current)
+  def initialize(user, now: Time.current, cohort_id: nil)
     @user = user
+    @cohort_id = cohort_id
     @now = now
     @zone = Time.find_zone!(TIMEZONE)
     @today = LearningCalendar.today(at: now)
@@ -76,7 +77,7 @@ class WeeklyPlanProjection
   end
 
   def active_enrollment
-    @user.enrollments.active.includes(
+    scope = @user.enrollments.includes(
       :module_assignments,
       :lesson_assignments,
       cohort: [
@@ -86,7 +87,13 @@ class WeeklyPlanProjection
         :recordings,
         { curriculum: { modules: { lessons: :content_blocks } } }
       ]
-    ).first
+    )
+    scope = if @cohort_id
+      scope.where(cohort_id: @cohort_id, status: %i[active completed])
+    else
+      scope.active
+    end
+    scope.first
   end
 
   def assigned_modules
@@ -96,12 +103,12 @@ class WeeklyPlanProjection
 
   def completed_block_ids
     ids = @lessons.flat_map { |_mod, lesson| lesson.completion_block_ids }
-    @user.progresses.completed.where(content_block_id: ids).pluck(:content_block_id).to_set
+    @user.progresses.completed.where(enrollment_id: @enrollment.id, content_block_id: ids).pluck(:content_block_id).to_set
   end
 
   def latest_submissions
     ids = @lessons.flat_map { |_mod, lesson| lesson.content_blocks.map(&:id) }
-    latest_ids = @user.submissions.where(content_block_id: ids).group(:content_block_id).maximum(:id).values
+    latest_ids = @user.submissions.where(enrollment_id: @enrollment.id, content_block_id: ids).group(:content_block_id).maximum(:id).values
     @user.submissions.where(id: latest_ids).includes(content_block: :lesson).index_by(&:content_block_id)
   end
 

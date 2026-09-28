@@ -5,7 +5,7 @@ import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 
 jest.mock('@tanstack/react-query', () => ({ useQuery: jest.fn() }));
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }), useLocalSearchParams: () => ({}) }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: jest.fn() }));
 jest.mock('@/providers/session-provider', () => ({ useSession: jest.fn() }));
 jest.mock('lucide-react-native', () => {

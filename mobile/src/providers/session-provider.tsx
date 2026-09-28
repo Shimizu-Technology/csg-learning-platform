@@ -102,7 +102,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
         if (userCacheKey) keys.push(userCacheKey);
         if (cleanupUserId) {
           const cleanup = beginUserStorageCleanup(cleanupUserId);
-          keys.push(`csg.inbox.${cleanupUserId}`, `csg.workspaces.${cleanupUserId}`, `csg.workspace.active.${cleanupUserId}`);
+          keys.push(`csg.inbox.${cleanupUserId}`, `csg.workspaces.${cleanupUserId}`, `csg.workspace.active.${cleanupUserId}`, `csg.cohort.active.${cleanupUserId}`);
           await Promise.all([
             clearLearningCache(cleanupUserId, cleanup),
             clearUserConversationStorage(cleanupUserId, cleanup),
@@ -162,7 +162,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
       }
       const keys = [PUSH_TOKEN_KEY];
       if (userCacheKey) keys.push(userCacheKey);
-      if (cleanupUserId) keys.push(`csg.inbox.${cleanupUserId}`, `csg.workspaces.${cleanupUserId}`, `csg.workspace.active.${cleanupUserId}`);
+      if (cleanupUserId) keys.push(`csg.inbox.${cleanupUserId}`, `csg.workspaces.${cleanupUserId}`, `csg.workspace.active.${cleanupUserId}`, `csg.cohort.active.${cleanupUserId}`);
       if (cleanupUserId) {
         const cleanup = beginUserStorageCleanup(cleanupUserId);
         await Promise.all([

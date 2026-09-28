@@ -48,7 +48,7 @@ class InterventionEvidenceBuilder
       enrollment.user.last_seen_at,
       enrollment.user.last_sign_in_at,
       enrollment_submissions.maximum(:created_at),
-      Progress.where(user: enrollment.user, content_block_id: curriculum_block_ids).maximum(:completed_at)
+      Progress.where(enrollment: enrollment, content_block_id: curriculum_block_ids).maximum(:completed_at)
     ].compact.max
 
     {
@@ -70,7 +70,7 @@ class InterventionEvidenceBuilder
   end
 
   def enrollment_submissions
-    Submission.where(user: enrollment.user, content_block_id: curriculum_block_ids)
+    Submission.where(enrollment: enrollment, content_block_id: curriculum_block_ids)
   end
 
   def curriculum_block_ids

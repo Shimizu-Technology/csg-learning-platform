@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Search, Users } from 'lucide-react-native';
 import { useState } from 'react';
 import { Keyboard, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -19,9 +19,10 @@ const filters: { key: Filter; label: string }[] = [
 
 export default function StaffAccessScreen() {
   const router = useRouter();
+  const { cohort_id } = useLocalSearchParams<{ cohort_id?: string }>();
   const auth = useCsgAuth();
   const { api, user } = useSession();
-  const [cohortId, setCohortId] = useState<number | null>(null);
+  const [cohortId, setCohortId] = useState<number | null>(cohort_id ? Number(cohort_id) : null);
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
   const cohortsQuery = useQuery({ queryKey: ['staff-access-cohorts', user?.id], queryFn: ({ signal }) => api.cohorts(signal), enabled: Boolean(user?.is_staff && !auth.demo) });
@@ -73,7 +74,7 @@ export default function StaffAccessScreen() {
         {statuses && githubQuery.data && <Text style={styles.checked}>GitHub checked {new Date(githubQuery.data.checked_at).toLocaleString()}</Text>}
         <View style={styles.summary}><View style={styles.summaryCard}><Text style={styles.summaryNumber}>{students.filter((student) => student.last_sign_in_at).length}</Text><Text style={styles.summaryLabel}>App sign-ins</Text></View><View style={styles.summaryCard}><Text style={styles.summaryNumber}>{statuses ? students.filter((student) => statuses[String(student.user_id)] === 'member').length : '—'}</Text><Text style={styles.summaryLabel}>GitHub joined</Text></View><View style={styles.summaryCard}><Text style={styles.summaryNumber}>{statuses ? students.filter((student) => statuses[String(student.user_id)] === 'invited').length : '—'}</Text><Text style={styles.summaryLabel}>Invites pending</Text></View></View>
         <Text style={styles.count}>{visible.length} of {students.length} enrolled</Text>
-        {visible.map((student) => { const github = githubLabel(student.user_id); const appLabel = student.last_sign_in_at ? 'Signed in to app' : student.invite_pending ? `App invite ${student.invite_delivery_status === 'failed' ? 'failed' : student.invite_delivery_status === 'not_sent' ? 'not sent' : student.invite_delivery_status === 'queued' ? 'queued' : 'sent'}` : 'App account ready · no sign-in'; return <Pressable key={student.user_id} accessibilityRole="button" accessibilityLabel={`Open ${student.full_name}. ${appLabel}${github ? `. ${github[0]}` : ''}`} onPress={() => router.push({ pathname: '/staff/student/[id]', params: { id: String(student.user_id), cohort_id: String(selectedCohortId) } })} style={styles.person}><View style={styles.avatar}><Users color={palette.rubySoft} size={18} /></View><View style={styles.personCopy}><Text style={styles.name}>{student.full_name || student.email}</Text><Text style={styles.email}>{student.email}</Text><Text style={[styles.status, { color: student.last_sign_in_at ? palette.success : palette.warning }]}>{appLabel}</Text>{github && <Text style={[styles.status, { color: github[1] }]}>{github[0]}</Text>}</View></Pressable>; })}
+        {visible.map((student) => { const github = githubLabel(student.user_id); const membershipLabel = student.joined_at ? 'Joined cohort' : 'Added, not yet opened'; const appLabel = student.last_sign_in_at ? 'Signed in to app' : student.invite_pending ? `App invite ${student.invite_delivery_status === 'failed' ? 'failed' : student.invite_delivery_status === 'not_sent' ? 'not sent' : student.invite_delivery_status === 'queued' ? 'queued' : 'sent'}` : 'App account ready · no sign-in'; return <Pressable key={student.user_id} accessibilityRole="button" accessibilityLabel={`Open ${student.full_name}. ${membershipLabel}. ${appLabel}${github ? `. ${github[0]}` : ''}`} onPress={() => router.push({ pathname: '/staff/student/[id]', params: { id: String(student.user_id), cohort_id: String(selectedCohortId) } })} style={styles.person}><View style={styles.avatar}><Users color={palette.rubySoft} size={18} /></View><View style={styles.personCopy}><Text style={styles.name}>{student.full_name || student.email}</Text><Text style={styles.email}>{student.email}</Text><Text style={[styles.status, { color: student.joined_at ? palette.success : palette.warning }]}>{membershipLabel}</Text><Text style={[styles.status, { color: student.last_sign_in_at ? palette.success : palette.warning }]}>{appLabel}</Text>{github && <Text style={[styles.status, { color: github[1] }]}>{github[0]}</Text>}</View></Pressable>; })}
         {!visible.length && <EmptyState title="No matching students" copy="Try another name or access filter." />}
       </>}
     </ScrollView>
