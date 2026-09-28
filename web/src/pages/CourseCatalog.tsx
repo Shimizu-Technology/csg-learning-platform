@@ -56,7 +56,7 @@ export function CourseCatalog() {
       <div className="mx-auto max-w-6xl px-5 py-16 lg:py-24">
         <p className="app-eyebrow">Focused courses</p>
         <h1 className="mt-3 max-w-3xl text-4xl font-extrabold tracking-tight sm:text-5xl">Learn one useful skill at a time.</h1>
-        <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">Study on your schedule with guided exercises and a real instructor available for course questions. Built in Guam for learners wherever they are.</p>
+        <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">Study on your schedule, build a small project yourself, and ask a real instructor course questions. Optional lessons show how to extend and verify the work with AI. Built in Guam for learners wherever they are.</p>
         {searchParams.get('checkout') === 'return' && <p role="status" className="mt-8 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-900">Thanks for checking out. Payment confirmation may take a moment; your course will appear in My learning after it is confirmed.</p>}
         {searchParams.get('checkout') === 'canceled' && <p role="status" className="mt-8 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">Checkout was canceled. You have not been enrolled.</p>}
         {error && offerings.length > 0 && <p role="alert" className="mt-8 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">{error}</p>}
