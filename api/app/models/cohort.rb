@@ -25,6 +25,7 @@ class Cohort < ApplicationRecord
   validates :start_date, presence: true
   validates :github_organization_name, format: { with: /\A[a-z\d](?:[a-z\d-]{0,37}[a-z\d])?\z/i }, allow_blank: true
 
+  before_validation :normalize_github_organization_name
   before_validation :default_alumni_github_organization, on: :create
   after_create :provision_workspace
   after_update :complete_alumni_enrollments, if: :became_alumni?
@@ -46,6 +47,10 @@ class Cohort < ApplicationRecord
   end
 
   private
+
+  def normalize_github_organization_name
+    self.github_organization_name = github_organization_name.to_s.strip.presence
+  end
 
   def default_alumni_github_organization
     self.github_organization_name = ALUMNI_GITHUB_ORGANIZATION if alumni? && github_organization_name.blank?

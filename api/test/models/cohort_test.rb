@@ -19,4 +19,13 @@ class CohortTest < ActiveSupport::TestCase
     refute cohort.valid?
     assert_includes cohort.errors.attribute_names, :github_organization_name
   end
+
+  test "blank or padded organization names are normalized before saving" do
+    curriculum = Curriculum.create!(name: "GitHub name normalization")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Bootcamp", start_date: Date.current, github_organization_name: "  Another-Org  ")
+    assert_equal "Another-Org", cohort.github_organization_name
+
+    cohort.update!(github_organization_name: "\t ")
+    assert_nil cohort.reload.github_organization_name
+  end
 end

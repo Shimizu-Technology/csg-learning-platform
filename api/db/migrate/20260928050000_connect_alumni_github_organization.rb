@@ -6,7 +6,7 @@ class ConnectAlumniGithubOrganization < ActiveRecord::Migration[8.1]
       UPDATE cohorts
       SET github_organization_name = '#{ALUMNI_ORGANIZATION}'
       WHERE cohort_type = 2
-        AND (github_organization_name IS NULL OR TRIM(github_organization_name) = '')
+        AND (github_organization_name IS NULL OR github_organization_name ~ '^[[:space:]]*$')
     SQL
   end
 
