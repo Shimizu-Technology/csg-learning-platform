@@ -5,6 +5,7 @@ module Api
       before_action :require_staff!
       before_action :set_enrollment, only: [ :index, :create ]
       before_action :set_module_assignment, only: [ :show, :update, :destroy ]
+      before_action :authorize_enrollment_cohort!
 
       # GET /api/v1/enrollments/:enrollment_id/module_assignments
       def index
@@ -65,6 +66,10 @@ module Api
 
       def set_module_assignment
         @module_assignment = ModuleAssignment.find(params[:id])
+      end
+
+      def authorize_enrollment_cohort!
+        require_cohort_access!((@enrollment || @module_assignment.enrollment).cohort, teacher: true)
       end
 
       def module_assignment_params

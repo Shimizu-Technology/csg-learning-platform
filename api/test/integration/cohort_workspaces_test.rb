@@ -74,6 +74,31 @@ class CohortWorkspacesTest < ActionDispatch::IntegrationTest
     assert_equal @other.id, JSON.parse(response.body).dig("home", "cohort", "id")
   end
 
+  test "instructors cannot inspect or change learning assignments in unassigned cohorts" do
+    curriculum_module = @curriculum.modules.create!(name: "Private module", position: 0, day_offset: 0, schedule_days: "daily")
+    lesson = curriculum_module.lessons.create!(title: "Private lesson", position: 0, release_day: 0)
+    enrollment = @other.enrollments.find_by!(user: @peer)
+    module_assignment = enrollment.module_assignments.create!(curriculum_module: curriculum_module, unlocked: true)
+    lesson_assignment = enrollment.lesson_assignments.create!(lesson: lesson, unlocked: true)
+
+    as_user(@instructor) do
+      get "/api/v1/enrollments/#{enrollment.id}/module_assignments", headers: auth_headers
+      assert_response :forbidden
+      get "/api/v1/module_assignments/#{module_assignment.id}", headers: auth_headers
+      assert_response :forbidden
+      patch "/api/v1/module_assignments/#{module_assignment.id}", params: { unlocked: false }, headers: auth_headers
+      assert_response :forbidden
+      get "/api/v1/enrollments/#{enrollment.id}/lesson_assignments", headers: auth_headers
+      assert_response :forbidden
+      get "/api/v1/lesson_assignments/#{lesson_assignment.id}", headers: auth_headers
+      assert_response :forbidden
+      patch "/api/v1/lesson_assignments/#{lesson_assignment.id}", params: { unlocked: false }, headers: auth_headers
+      assert_response :forbidden
+    end
+    assert module_assignment.reload.unlocked?
+    assert lesson_assignment.reload.unlocked?
+  end
+
   test "student home shows own cohort information without staff counts or peer records" do
     as_user(@student) { get "/api/v1/cohorts/#{@first.id}/home", headers: auth_headers }
     assert_response :success
