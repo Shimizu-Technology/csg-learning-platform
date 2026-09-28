@@ -113,7 +113,9 @@ class Workspace < ApplicationRecord
 
   def available_users_scope(current_user)
     scope =
-      if cohort_id.present?
+      if cohort&.self_paced?
+        User.not_archived.where(id: cohort.support_instructor_id)
+      elsif cohort_id.present?
         student_ids = cohort.enrollments.active.select(:user_id)
         User.not_archived.where(id: student_ids)
           .or(User.not_archived.where(role: User.roles[:admin]))

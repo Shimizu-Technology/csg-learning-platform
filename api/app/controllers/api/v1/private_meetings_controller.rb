@@ -11,6 +11,7 @@ module Api
         confirmed_bookings = current_user.student_private_meeting_bookings.confirmed.select(:starts_at, :ends_at).to_a
         cohorts = enrollments.filter_map do |enrollment|
           cohort = enrollment.cohort
+          next if cohort.self_paced?
           config = cohort.private_meeting_config
           next unless config&.enabled?
 

@@ -24,7 +24,7 @@ class WeeklyPlanProjection
     @modules = assigned_modules
     @lessons = @modules.flat_map { |mod| mod.lessons.map { |lesson| [ mod, lesson ] } }
 
-    return library_plan if @cohort.alumni?
+    return library_plan if @cohort.alumni? || @cohort.self_paced?
 
     @completed_block_ids = completed_block_ids
     @latest_submissions = latest_submissions
@@ -65,7 +65,7 @@ class WeeklyPlanProjection
         lesson_count: @lessons.size,
         recording_count: recorded_lesson_count
       },
-      events: event_items,
+      events: @cohort.self_paced? ? [] : event_items,
       recording_catch_up: recording_items
     }
   end

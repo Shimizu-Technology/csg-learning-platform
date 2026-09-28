@@ -47,6 +47,8 @@ module Api
         end
         enrollment.mark_joined!
 
+        enrollment.record_first_course_open! if enrollment.active?
+
         cohort = enrollment.cohort
         curriculum = cohort.curriculum
         assignments_by_module_id = enrollment.module_assignments.index_by(&:module_id)

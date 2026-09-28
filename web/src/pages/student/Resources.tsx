@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, ExternalLink, Link2, Search, Video, MessageSquare, Github, FileText, Globe, RefreshCw, WifiOff, Keyboard, Copy, Check } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -34,8 +34,10 @@ export function Resources() {
   const [showingSavedData, setShowingSavedData] = useState(false)
   const [query, setQuery] = useState('')
   const [copiedResourceId, setCopiedResourceId] = useState<number | null>(null)
+  const resourcesRequest = useRef(0)
 
   const loadResources = useCallback(() => {
+    const request = ++resourcesRequest.current
     setLoading(true)
     setResources([])
     setLoadError(null)
@@ -43,6 +45,7 @@ export function Resources() {
 
     api.getResources(selectedCohortId ?? undefined)
       .then((res) => {
+        if (request !== resourcesRequest.current) return
         if (res.data?.resources) {
           setResources(res.data.resources)
           setShowingSavedData(Boolean(res.fromCache))
@@ -53,9 +56,10 @@ export function Resources() {
         setLoadError(res.error || 'Unable to load resources right now.')
       })
       .catch((error: unknown) => {
+        if (request !== resourcesRequest.current) return
         setLoadError(error instanceof Error ? error.message : 'Unable to load resources right now.')
       })
-      .finally(() => setLoading(false))
+      .finally(() => { if (request === resourcesRequest.current) setLoading(false) })
   }, [selectedCohortId])
 
   useEffect(() => {
@@ -92,7 +96,7 @@ export function Resources() {
 
   if (loadError && resources.length === 0) {
     return (
-      <EmptyState
+      <div className="app-page max-w-5xl"><EmptyState
         icon={WifiOff}
         title="Could not load resources"
         description={loadError}
@@ -106,17 +110,17 @@ export function Resources() {
             Try again
           </button>
         }
-      />
+      /></div>
     )
   }
 
   if (resources.length === 0) {
     return (
-      <EmptyState
+      <div className="app-page max-w-5xl"><EmptyState
         icon={Link2}
         title="No resources yet"
         description="Class resources will appear here once your instructor adds them."
-      />
+      /></div>
     )
   }
 

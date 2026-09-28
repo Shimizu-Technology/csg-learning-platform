@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, BookOpen, CheckCircle2, ChevronDown, ChevronRight, Clock, Lock, RefreshCw, RotateCcw, Search, WifiOff } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -48,8 +48,9 @@ function readCollapsedModuleIds(cohortId: number | undefined): Set<number> {
 }
 
 export function Materials({ previewData, disableStaffRedirect = false }: MaterialsProps = {}) {
-  const { user } = useAuthContext()
+  const { user, enrollments } = useAuthContext()
   const { selectedCohortId } = useCohortContext()
+  const selectedEnrollment = enrollments.find((entry) => entry.cohort.id === selectedCohortId)
   const navigate = useNavigate()
   const [data, setData] = useState<MaterialsData | null>(previewData || null)
   const [loading, setLoading] = useState(!previewData)
@@ -58,8 +59,10 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<MaterialFilter>('ready')
   const [collapsedModules, setCollapsedModules] = useState<Set<number>>(() => new Set())
+  const materialsRequest = useRef(0)
 
   const loadMaterials = useCallback(() => {
+    const request = ++materialsRequest.current
     if (previewData) {
       setData(previewData)
       setCollapsedModules(readCollapsedModuleIds(previewData.cohort?.id))
@@ -81,6 +84,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
 
     api.getDashboard(selectedCohortId ?? undefined)
       .then((res) => {
+        if (request !== materialsRequest.current) return
         if (res.data?.dashboard) {
           const dashboard = res.data.dashboard
           setCollapsedModules(readCollapsedModuleIds(dashboard.cohort?.id))
@@ -92,9 +96,10 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
         }
       })
       .catch((error: unknown) => {
+        if (request !== materialsRequest.current) return
         setLoadError(error instanceof Error ? error.message : 'Unable to load your materials right now.')
       })
-      .finally(() => setLoading(false))
+      .finally(() => { if (request === materialsRequest.current) setLoading(false) })
   }, [disableStaffRedirect, navigate, previewData, selectedCohortId, user])
 
   useEffect(() => {
@@ -225,6 +230,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
         </div>
       )}
       <header className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_16px_50px_rgba(15,23,42,0.05)] sm:p-6">
+        {selectedEnrollment?.cohort.course_delivery === 'self_paced' && <p className="mb-4 rounded-xl bg-primary-50 px-4 py-3 text-xs font-semibold text-primary-900">Self-paced lesson access through {selectedEnrollment.access_expires_at ? new Date(selectedEnrollment.access_expires_at).toLocaleDateString() : 'your access period'}. {selectedEnrollment.support_expires_at ? (new Date(selectedEnrollment.support_expires_at) > new Date() ? `Instructor messaging through ${new Date(selectedEnrollment.support_expires_at).toLocaleDateString()}.` : 'Instructor messaging has ended.') : 'Instructor messaging starts when you first open the course.'}</p>}
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="app-eyebrow">{data.cohort?.name || 'Your cohort'}</p>

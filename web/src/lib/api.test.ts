@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { api, setAuthTokenGetter } from './api'
+import { api, setApiCacheScope, setAuthTokenGetter } from './api'
 
 function successfulFetch() {
   return vi.fn().mockResolvedValue({
@@ -13,6 +13,30 @@ afterEach(() => {
   vi.useRealTimers()
   vi.unstubAllGlobals()
   setAuthTokenGetter(async () => null)
+  setApiCacheScope(null)
+})
+
+describe('course-scoped response cache', () => {
+  it('does not cache error-shaped dashboard or resources payloads with cohort query strings', async () => {
+    const stored = new Map<string, string>()
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => stored.get(key) ?? null,
+      setItem: (key: string, value: string) => stored.set(key, value),
+      removeItem: (key: string) => stored.delete(key),
+    })
+    setApiCacheScope('course-cache-test')
+    setAuthTokenGetter(async () => 'test-token')
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ error: 'Unavailable' }),
+    }))
+
+    await api.getDashboard(42)
+    await api.getResources(42)
+
+    expect(stored.size).toBe(0)
+  })
 })
 
 describe('GitHub organization access timeout', () => {

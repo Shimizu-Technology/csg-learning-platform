@@ -245,7 +245,7 @@ module ClerkAuthenticatable
       next unless user.persisted?
       raise ActiveRecord::Rollback unless attach_clerk_identity(user, issuer: issuer, clerk_id: clerk_id)
 
-      enroll_local_student(user) if user.student?
+      enroll_local_student(user) if user.student? && !Rails.env.production? && !ActiveModel::Type::Boolean.new.cast(ENV["OPEN_COURSE_SIGNUPS"])
       authenticated_user = user
     end
     authenticated_user
@@ -308,7 +308,7 @@ module ClerkAuthenticatable
   end
 
   def allow_open_signup?
-    return false if Rails.env.production?
+    return ActiveModel::Type::Boolean.new.cast(ENV["OPEN_COURSE_SIGNUPS"]) if Rails.env.production?
 
     Rails.env.development? || ActiveModel::Type::Boolean.new.cast(ENV["ALLOW_OPEN_SIGNUPS"])
   end

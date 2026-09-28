@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, BookOpen, Clock, Lock, PlayCircle, CalendarDays, CheckCircle2, RotateCcw, RefreshCw, WifiOff, Link2, ExternalLink } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -26,8 +26,9 @@ interface DashboardProps {
 }
 
 export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disableStaffRedirect = false }: DashboardProps = {}) {
-  const { user } = useAuthContext()
+  const { user, enrollments } = useAuthContext()
   const { selectedCohortId } = useCohortContext()
+  const selectedEnrollment = enrollments.find((entry) => entry.cohort.id === selectedCohortId)
   const navigate = useNavigate()
   const [data, setData] = useState<DashboardData | null>(previewData || null)
   const [loading, setLoading] = useState(!previewData)
@@ -35,6 +36,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
   const [showingSavedData, setShowingSavedData] = useState(false)
   const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan | null>(previewWeeklyPlan || null)
   const [weeklyPlanLoaded, setWeeklyPlanLoaded] = useState(Boolean(previewData))
+  const dashboardRequest = useRef(0)
 
   useEffect(() => {
     if (!previewData) return
@@ -48,6 +50,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
   }
 
   const loadDashboard = useCallback(() => {
+    const request = ++dashboardRequest.current
     if (previewData) {
       setData(previewData)
       setLoading(false)
@@ -66,6 +69,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
 
     api.getDashboard(selectedCohortId ?? undefined)
       .then((res) => {
+        if (request !== dashboardRequest.current) return
         if (res.data) {
           setData(res.data.dashboard)
           setShowingSavedData(Boolean(res.fromCache))
@@ -76,9 +80,10 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
         setLoadError(res.error || 'Unable to load your dashboard right now.')
       })
       .catch((error: unknown) => {
+        if (request !== dashboardRequest.current) return
         setLoadError(error instanceof Error ? error.message : 'Unable to load your dashboard right now.')
       })
-      .finally(() => setLoading(false))
+      .finally(() => { if (request === dashboardRequest.current) setLoading(false) })
   }, [disableStaffRedirect, navigate, previewData, selectedCohortId, user])
 
   useEffect(() => {
@@ -87,6 +92,11 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
 
   useEffect(() => {
     if (!user || previewData || user.is_staff) return
+    if (selectedEnrollment?.cohort.course_delivery === 'self_paced') {
+      setWeeklyPlan(null)
+      setWeeklyPlanLoaded(true)
+      return
+    }
     let active = true
     setWeeklyPlan(null)
     setWeeklyPlanLoaded(false)
@@ -94,7 +104,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
       if (active && res.data?.weekly_plan) setWeeklyPlan(res.data.weekly_plan)
     }).finally(() => { if (active) setWeeklyPlanLoaded(true) })
     return () => { active = false }
-  }, [previewData, selectedCohortId, user])
+  }, [previewData, selectedCohortId, selectedEnrollment?.cohort.course_delivery, user])
 
   const retryAction = (
     <button

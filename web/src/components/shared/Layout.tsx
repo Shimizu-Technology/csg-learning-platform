@@ -258,11 +258,12 @@ export function Layout({ children }: LayoutProps) {
   ]
 
   const isAlumniOnly = isAlumniOnlyEnrollment(enrollments)
+  const hasMeetingCourse = enrollments.some((entry) => entry.status === 'active' && entry.cohort.course_delivery !== 'self_paced')
   const studentNav: NavItem[] = [
     { to: '/dashboard', icon: Home, label: 'Today' },
     ...(selectedCohort ? [{ to: `/cohorts/${selectedCohort.id}`, icon: Layers3, label: 'My cohort' }] : []),
     { to: '/materials', icon: BookOpenText, label: 'Learn' },
-    { to: '/meetings', icon: CalendarDays, label: 'My meetings' },
+    ...(hasMeetingCourse ? [{ to: '/meetings', icon: CalendarDays, label: 'My meetings' }] : []),
     ...(!isAlumniOnly ? [{ to: '/recordings', icon: PlayCircle, label: 'Recordings' }] : []),
     { to: '/resources', icon: Link2, label: 'Resources' },
     { to: '/messages', icon: MessageCircle, label: 'Messages' },

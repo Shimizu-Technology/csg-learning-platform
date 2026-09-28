@@ -158,6 +158,12 @@ async function fetchApi<T>(
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
+      try {
+        const cohortId = globalThis.localStorage?.getItem('csg-selected-course-id');
+        if (cohortId && /^\d+$/.test(cohortId)) headers['X-CSG-Cohort-Id'] = cohortId;
+      } catch {
+        // Storage may be unavailable in a private browser.
+      }
     }
 
     try {
@@ -312,12 +318,14 @@ function shouldCacheResponse<T>(endpoint: string, data: T) {
   if (!data || typeof data !== 'object') return false;
   if (endpoint.startsWith('/api/v1/help_requests') || endpoint === '/api/v1/support_queue') return false;
 
-  if (endpoint === '/api/v1/dashboard') {
+  const path = endpoint.split('?')[0];
+
+  if (path === '/api/v1/dashboard') {
     const dashboard = (data as { dashboard?: { enrolled?: boolean } }).dashboard;
     return typeof dashboard?.enrolled === 'boolean';
   }
 
-  if (endpoint === '/api/v1/resources') {
+  if (path === '/api/v1/resources') {
     const resources = (data as { resources?: unknown[] }).resources;
     return Array.isArray(resources);
   }
@@ -370,6 +378,10 @@ function queryString(params?: Record<string, string | number | boolean | null | 
 
 export const api = {
   // Auth
+  getCourseOfferings: () =>
+    fetchApi<{ offerings: Array<{ id: number; name: string; curriculum_name: string; checkout_available: boolean; price_cents: number | null; currency: 'USD'; access_months: number; instructor_message_weeks: number; instructor_response_target: string; includes_private_meetings: boolean; includes_individual_project_review: boolean }> }>('/api/v1/course_offerings', {}, false),
+  startCourseCheckout: (cohortId: number) =>
+    fetchApi<{ url: string }>('/api/v1/course_checkouts', { method: 'POST', body: JSON.stringify({ cohort_id: cohortId }) }),
   createSession: () =>
     fetchApi<SessionResponse>('/api/v1/sessions', { method: 'POST' }),
   updatePresence: () =>

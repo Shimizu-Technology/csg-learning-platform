@@ -2,6 +2,7 @@ class Enrollment < ApplicationRecord
   class StaleLearningWrite < StandardError; end
 
   enum :status, { active: 0, paused: 1, dropped: 2, completed: 3 }
+  scope :active, -> { where(status: statuses.fetch("active")).where("access_expires_at IS NULL OR access_expires_at > ?", Time.current) }
 
   belongs_to :user
   belongs_to :cohort
@@ -28,6 +29,25 @@ class Enrollment < ApplicationRecord
       end
 
       yield
+    end
+  end
+
+  def active?
+    super && (access_expires_at.nil? || access_expires_at > Time.current)
+  end
+
+  def instructor_support_active?
+    active? && (!cohort.self_paced? || (support_expires_at.present? && support_expires_at > Time.current))
+  end
+
+  def record_first_course_open!
+    return unless cohort.self_paced?
+
+    with_lock do
+      return if first_opened_at.present?
+
+      opened_at = Time.current
+      update!(first_opened_at: opened_at, support_expires_at: [ opened_at + cohort.self_paced_support_weeks.weeks, access_expires_at ].compact.min)
     end
   end
 

@@ -461,7 +461,10 @@ module Api
           return
         end
 
-        return if @lesson.available?(enrollment.cohort, assignment, lesson_assignment)
+        if @lesson.available?(enrollment.cohort, assignment, lesson_assignment)
+          enrollment.record_first_course_open!
+          return
+        end
 
         render_forbidden("Lesson is not unlocked yet")
       end
@@ -488,7 +491,9 @@ module Api
           enrollment = @lesson_enrollment || current_user.enrollments.active
             .joins(:cohort)
             .includes(cohort: :cohort_module_submission_windows)
-            .find_by(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
+            .where(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
+            .where(params[:cohort_id].present? ? { cohort_id: params[:cohort_id] } : {})
+            .order(enrolled_at: :desc, id: :desc).first
           if enrollment
             cohort = enrollment.cohort
             json[:cohort_id] = cohort.id
@@ -580,10 +585,12 @@ module Api
           current_index = sibling_lessons.index { |l| l.id == lesson.id }
 
           if current_index && !current_user.staff?
-            enrollment = current_user.enrollments.active
+            enrollment = @lesson_enrollment || current_user.enrollments.active
               .joins(:cohort)
               .includes(:cohort, :module_assignments, :lesson_assignments)
-              .find_by(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
+              .where(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
+              .where(params[:cohort_id].present? ? { cohort_id: params[:cohort_id] } : {})
+              .order(enrolled_at: :desc, id: :desc).first
             if enrollment
               ma = enrollment.module_assignments.find_by(module_id: lesson.module_id)
               available_siblings = sibling_lessons.select { |l|
