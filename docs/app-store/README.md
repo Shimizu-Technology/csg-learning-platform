@@ -13,7 +13,7 @@ This directory is the durable source record for the App Store presentation of th
 | Latest verified EAS build ID | Not applicable — build 30 was signed locally |
 | Latest uploaded source commit | `6048693658c29092a7ecdabab21dc90cc628e9a4` (`main`, merged PR #158) |
 | Latest release delivery | EAS submission `d6781187-7333-4fcf-9cfb-9319b19c9166` finished without error |
-| Latest verified App Store Connect state | Leon confirmed build 29 is available in TestFlight; build 30 is not yet verified in App Store Connect |
+| Latest verified App Store Connect state | Build 23: `VALID` and internal `IN_BETA_TESTING`; Leon separately confirmed build 29 in TestFlight; build 30 is unverified |
 | Next release candidate | Build 30, pending Apple processing and physical-device acceptance |
 | Release artifact fingerprint | Build 30 IPA SHA-256 `9ad40f270ed6c6e38b6c6b16123778beb9436a21cd861dfd8d3bd5c6ce1eab39` |
 | Phase 0–1 release candidate | `1.0.0 (9)` |
