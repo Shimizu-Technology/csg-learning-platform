@@ -9,12 +9,12 @@ This directory is the durable source record for the App Store presentation of th
 | Item | State |
 | --- | --- |
 | Marketing version | `1.0.0` |
-| Latest signed iOS build | `1.0.0 (30)`; submission `d6781187-7333-4fcf-9cfb-9319b19c9166` is running |
+| Latest uploaded iOS build | `1.0.0 (30)`; Apple processing and tester availability are not yet verified |
 | Latest verified EAS build ID | Not applicable — build 30 was signed locally |
-| Latest signed source commit | `6048693658c29092a7ecdabab21dc90cc628e9a4` (`main`, merged PR #158) |
-| Latest release delivery | Build 30 is scheduled through EAS Submit; Apple upload and processing are pending confirmation |
+| Latest uploaded source commit | `6048693658c29092a7ecdabab21dc90cc628e9a4` (`main`, merged PR #158) |
+| Latest release delivery | EAS submission `d6781187-7333-4fcf-9cfb-9319b19c9166` finished without error |
 | Latest verified App Store Connect state | Leon confirmed build 29 is available in TestFlight; build 30 is not yet verified in App Store Connect |
-| Next release candidate | Build 30, pending Apple upload, processing, and physical-device acceptance |
+| Next release candidate | Build 30, pending Apple processing and physical-device acceptance |
 | Release artifact fingerprint | Build 30 IPA SHA-256 `9ad40f270ed6c6e38b6c6b16123778beb9436a21cd861dfd8d3bd5c6ce1eab39` |
 | Phase 0–1 release candidate | `1.0.0 (9)` |
 | App Store version | `1.0`, Prepare for Submission |
@@ -48,7 +48,7 @@ Build 27 is the activity-history candidate from merged PR #154 at exact source c
 
 Build 29 is the cohort-workspace candidate from merged PR #156 at exact source commit `87cc7f536ccec0f631b49fcdc9645e079e779680`. It adds a native cohort switcher and student/staff cohort home, cohort-scoped grading, support, messages, and learning, plus native class-session scheduling. The first local preflight reserved build 28 but stopped before compilation because Fastlane was unavailable in that shell's Ruby version. The retry used the installed Fastlane and archived the unchanged merged source as `com.codeschoolofguam.connect` version `1.0.0 (29)`. The App Store signature and production push entitlement passed inspection. IPA SHA-256 is `804725d31449267f16fb3d0bb4a9057432b3b0dcf25e2306aa7000993c3ba513`. EAS submission `4c1817bc-9348-4a40-918c-e7bab513b18c` uploaded successfully to App Store Connect. Leon confirmed build 29 is available in TestFlight; App Store Connect's processing state has not been independently checked in this session. Focused tester steps are in [`WHAT_TO_TEST_1.0.0_29.md`](WHAT_TO_TEST_1.0.0_29.md).
 
-Build 30 follows Leon's confirmation that build 29 is available in TestFlight. Merged PR #158 sets the CSG Alumni cohort's GitHub organization to `Code-School-of-Guam-Alumni` and removes the literal “(tabs)” label from native stack back buttons. The production Render deployment is live at source commit `6048693658c29092a7ecdabab21dc90cc628e9a4`; a production read verified cohort 4's organization value and a successful GitHub access-service check. The locally signed IPA was archived from that exact commit as `com.codeschoolofguam.connect` version `1.0.0 (30)`. App Store signing, team `4T358A5S74`, production push entitlement, and code signature passed inspection. The IPA is 31,991,734 bytes with SHA-256 `9ad40f270ed6c6e38b6c6b16123778beb9436a21cd861dfd8d3bd5c6ce1eab39`. EAS submission `d6781187-7333-4fcf-9cfb-9319b19c9166` is running; Apple upload, processing, and internal TestFlight availability are not yet confirmed. Focused tester steps are in [`WHAT_TO_TEST_1.0.0_30.md`](WHAT_TO_TEST_1.0.0_30.md).
+Build 30 follows Leon's confirmation that build 29 is available in TestFlight. Merged PR #158 sets the CSG Alumni cohort's GitHub organization to `Code-School-of-Guam-Alumni` and removes the literal “(tabs)” label from native stack back buttons. The production Render deployment is live at source commit `6048693658c29092a7ecdabab21dc90cc628e9a4`; a production read verified cohort 4's organization value and a successful GitHub access-service check. The locally signed IPA was archived from that exact commit as `com.codeschoolofguam.connect` version `1.0.0 (30)`. App Store signing, team `4T358A5S74`, production push entitlement, and code signature passed inspection. The IPA is 31,991,734 bytes with SHA-256 `9ad40f270ed6c6e38b6c6b16123778beb9436a21cd861dfd8d3bd5c6ce1eab39`. EAS submission `d6781187-7333-4fcf-9cfb-9319b19c9166` finished without error. Apple processing and internal TestFlight availability are not yet confirmed. Focused tester steps are in [`WHAT_TO_TEST_1.0.0_30.md`](WHAT_TO_TEST_1.0.0_30.md).
 
 Verified iOS production history:
 
@@ -71,7 +71,7 @@ Verified iOS production history:
 | `26` | Local signed archive; no cloud EAS build ID | `e2c2eadb-9abf-46b3-be1c-ff2837e28498` | EAS reported successful upload; Apple processing and internal availability unverified. |
 | `27` | Local signed archive; no cloud EAS build ID | `fa5fe41e-79b1-4b84-8bba-1226835845df` | EAS reported successful upload; Apple processing and internal availability unverified. |
 | `29` | Local signed archive; no cloud EAS build ID | `4c1817bc-9348-4a40-918c-e7bab513b18c` | EAS reported successful upload; Leon confirmed TestFlight availability. |
-| `30` | Local signed archive; no cloud EAS build ID | `d6781187-7333-4fcf-9cfb-9319b19c9166` | EAS submission running; Apple upload and internal availability unverified. |
+| `30` | Local signed archive; no cloud EAS build ID | `d6781187-7333-4fcf-9cfb-9319b19c9166` | EAS finished without error; Apple processing and internal availability unverified. |
 
 These are EAS or Apple delivery states plus App Store Connect status checks. Leon confirmed build 29 is available in TestFlight. Public App Review remains separate.
 
@@ -181,7 +181,7 @@ Messaging-smoothness candidate preflight recorded on 2026-09-24:
 
 ## Physical TestFlight acceptance
 
-The invited tester must install the **exact build selected for public App Review** through TestFlight and complete this acceptance pass with real authorized accounts. Build 30 is the latest signed candidate as of 2026-09-28; its Apple upload and internal availability remain unverified. Confirm the build number on the device before testing. The focused [build 30 script](WHAT_TO_TEST_1.0.0_30.md) supplements this broader checklist.
+The invited tester must install the **exact build selected for public App Review** through TestFlight and complete this acceptance pass with real authorized accounts. Build 30 is the latest uploaded candidate as of 2026-09-28; its Apple processing and internal availability remain unverified. Confirm the build number on the device before testing. The focused [build 30 script](WHAT_TO_TEST_1.0.0_30.md) supplements this broader checklist.
 
 - sign in with Google and confirm unauthorized accounts receive the explicit no-access state;
 - verify student, instructor, and admin role scoping where test accounts are available;
