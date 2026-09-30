@@ -51,7 +51,7 @@ class DirectConversation < ApplicationRecord
     return false unless active? && visible_to?(user) && !blocked_for?(user)
     return false if cohort&.completed? || cohort&.archived?
     return false if cohort && user.student? && !user.enrollments.active.exists?(cohort_id: cohort.id)
-    return true unless cohort&.self_paced? && user.student?
+    return true unless cohort && user.student?
 
     user.enrollments.active.find_by(cohort: cohort)&.instructor_support_active? || false
   end

@@ -913,6 +913,11 @@ export interface CohortDetail extends CohortSummary {
 export interface DashboardData {
   enrolled: boolean;
   private_meetings_enabled?: boolean;
+  course_access?: {
+    course_delivery: 'program' | 'guided' | 'self_paced';
+    access_expires_at: string | null;
+    support_expires_at: string | null;
+  } | null;
   user: { id: number; full_name: string; role: string };
   cohort?: {
     id: number;
@@ -1451,6 +1456,8 @@ export interface StudentProgressResponse {
   enrollment: {
     id: number;
     status: string;
+    access_expires_at?: string | null;
+    support_expires_at?: string | null;
     module_assignments: {
       id: number;
       module_id: number;
@@ -1471,7 +1478,7 @@ export interface StudentProgressResponse {
     last_sign_in_at: string | null;
     last_seen_at: string | null;
   };
-  cohort: { id: number; name: string; start_date: string; status: string };
+  cohort: { id: number; name: string; start_date: string; status: string; course_delivery?: 'program' | 'guided' | 'self_paced' };
   learning_evidence_scope?: {
     kind: 'curriculum';
     curriculum_id: number;

@@ -112,6 +112,8 @@ module Api
           joined_at: enrollment.joined_at,
           enrolled_at: enrollment.enrolled_at,
           completed_at: enrollment.completed_at,
+          access_expires_at: enrollment.access_expires_at,
+          support_expires_at: enrollment.support_expires_at,
           module_assignments: enrollment.module_assignments.includes(:curriculum_module).map { |assignment|
             {
               id: assignment.id,

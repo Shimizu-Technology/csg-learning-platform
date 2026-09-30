@@ -47,6 +47,9 @@ type CohortData = Record<string, any> & {
   requires_github?: boolean
   repository_name?: string | null
   github_organization_name?: string | null
+  course_delivery?: 'program' | 'guided' | 'self_paced'
+  guided_access_ends_on?: string | null
+  guided_support_ends_on?: string | null
   class_resources?: ClassResource[]
   office_hours?: OfficeHour[]
   office_hour_occurrences?: OfficeHourOccurrence[]
@@ -247,6 +250,10 @@ export function CohortDetail() {
   const [addingStudent, setAddingStudent] = useState(false)
   const [sendInvite, setSendInvite] = useState(true)
   const [resendingInviteFor, setResendingInviteFor] = useState<number | null>(null)
+  const [editCourseDelivery, setEditCourseDelivery] = useState<'program' | 'guided' | 'self_paced'>('program')
+  const [editAccessEnd, setEditAccessEnd] = useState('')
+  const [editSupportEnd, setEditSupportEnd] = useState('')
+  const [savingAccessTerms, setSavingAccessTerms] = useState(false)
   const [editStartDate, setEditStartDate] = useState('')
   const [editGithubOrganization, setEditGithubOrganization] = useState('')
   const [editStatus, setEditStatus] = useState('active')
@@ -312,6 +319,9 @@ export function CohortDetail() {
     setCohort(nextCohort)
     setClassResources(nextCohort.class_resources || [])
     setOfficeHours(nextCohort.office_hours || [])
+    setEditCourseDelivery(nextCohort.course_delivery || 'program')
+    setEditAccessEnd(nextCohort.guided_access_ends_on || '')
+    setEditSupportEnd(nextCohort.guided_support_ends_on || '')
     setEditStartDate(toDateInputValue(nextCohort.start_date))
     setEditGithubOrganization(nextCohort.github_organization_name || '')
     setEditStatus(nextCohort.status)
@@ -364,6 +374,25 @@ export function CohortDetail() {
       unsubscribe?.()
     }
   }, [])
+
+  const handleSaveAccessTerms = async () => {
+    if (!id) return
+    setSavingAccessTerms(true)
+    try {
+      const res = await api.updateCohort(Number(id), {
+        course_delivery: editCourseDelivery,
+        guided_access_ends_on: editCourseDelivery === 'guided' ? editAccessEnd || null : null,
+        guided_support_ends_on: editCourseDelivery === 'guided' ? editSupportEnd || null : null,
+      })
+      if (res.error) notifyError(res.error)
+      else if (res.data?.cohort) {
+        applyCohort(res.data.cohort as CohortData)
+        notifySuccess('Course access defaults saved for new enrollments')
+      }
+    } finally {
+      setSavingAccessTerms(false)
+    }
+  }
 
   const handleSaveStartDate = async () => {
     if (!id || !editStartDate) return
@@ -840,6 +869,37 @@ export function CohortDetail() {
           )}
           <p className="pb-2 text-xs text-slate-400">Fallback start date for modules without their own start date.</p>
         </div>
+        {cohort.course_delivery !== 'self_paced' && (
+          <section className="mt-4 border-t border-slate-200 pt-4" aria-labelledby="course-access-heading">
+            <h2 id="course-access-heading" className="text-sm font-semibold text-slate-900">Course access for new enrollments</h2>
+            <p className="mt-1 text-xs text-slate-600">Dates include the entire selected day in Guam. Saving defaults does not change existing enrollments. Leave dates blank for ongoing access; the full program currently has indefinite lesson access.</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <label className="text-xs font-medium text-slate-600">
+                Delivery
+                <select value={editCourseDelivery} onChange={(e) => setEditCourseDelivery(e.target.value as 'program' | 'guided')} disabled={savingAccessTerms} className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm">
+                  <option value="program">Full program</option>
+                  <option value="guided">Guided focused course</option>
+                </select>
+              </label>
+              {editCourseDelivery === 'guided' && (
+                <>
+                  <label className="text-xs font-medium text-slate-600">
+                    Lessons available through
+                    <input type="date" value={editAccessEnd} onChange={(e) => setEditAccessEnd(e.target.value)} disabled={savingAccessTerms} className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm" />
+                  </label>
+                  <label className="text-xs font-medium text-slate-600">
+                    Instructor support through
+                    <input type="date" value={editSupportEnd} onChange={(e) => setEditSupportEnd(e.target.value)} disabled={savingAccessTerms} className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm" />
+                  </label>
+                </>
+              )}
+            </div>
+            <button type="button" onClick={() => void handleSaveAccessTerms()} disabled={savingAccessTerms} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary-600 px-4 text-sm font-bold text-white disabled:opacity-50">
+              <Save className="h-4 w-4" />
+              {savingAccessTerms ? 'Saving...' : 'Save access defaults'}
+            </button>
+          </section>
+        )}
         <div className="mt-4 border-t border-slate-200 pt-4">
           <label htmlFor="cohort-github-organization" className="flex items-center gap-1.5 text-sm font-semibold text-slate-900"><Github className="h-4 w-4" /> GitHub organization</label>
           <p className="mt-1 text-xs text-slate-600">Used to check student membership and invitations. Add the organization name from its GitHub URL; resource links are managed separately.</p>

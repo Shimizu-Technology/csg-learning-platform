@@ -27,6 +27,7 @@ class Cohort < ApplicationRecord
   validates :start_date, presence: true
   validates :self_paced_access_months, :self_paced_support_weeks, numericality: { only_integer: true, greater_than: 0 }
   validates :course_delivery, inclusion: { in: %w[program guided self_paced] }
+  validate :guided_access_dates_are_valid
   validate :checkout_is_self_paced
   validate :support_instructor_is_staff
   validates :github_organization_name, format: { with: /\A[a-z\d](?:[a-z\d-]{0,37}[a-z\d])?\z/i }, allow_blank: true
@@ -73,6 +74,18 @@ class Cohort < ApplicationRecord
   end
 
   private
+
+  def guided_access_dates_are_valid
+    %w[guided_access_ends_on guided_support_ends_on].each do |attribute|
+      errors.add(attribute, "is invalid") if self[attribute].nil? && public_send("#{attribute}_before_type_cast").present?
+    end
+    if guided_access_ends_on && guided_support_ends_on && guided_support_ends_on > guided_access_ends_on
+      errors.add(:guided_support_ends_on, "must be on or before lesson access ends")
+    end
+    if !guided? && (guided_access_ends_on || guided_support_ends_on)
+      errors.add(:course_delivery, "must be guided to set guided access dates")
+    end
+  end
 
   def normalize_github_organization_name
     self.github_organization_name = github_organization_name.to_s.strip.presence

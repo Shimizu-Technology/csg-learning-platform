@@ -43,6 +43,8 @@ class Channel < ApplicationRecord
     return false if cohort&.completed? || cohort&.archived?
     return false if cohort && user.student? && !user.enrollments.active.exists?(cohort_id: cohort.id)
 
+    return false if cohort && user.student? && !user.enrollments.active.find_by(cohort: cohort)&.instructor_support_active?
+
     true
   end
 
