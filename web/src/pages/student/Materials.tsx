@@ -235,7 +235,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
         </div>
       )}
       <header className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_16px_50px_rgba(15,23,42,0.05)] sm:p-6">
-        {courseAccess?.course_delivery === 'guided' && (courseAccess.access_expires_at || courseAccess.support_expires_at) && (
+        {courseAccess?.course_delivery !== 'self_paced' && (courseAccess?.access_expires_at || courseAccess?.support_expires_at) && (
           <p className="mb-4 rounded-xl bg-primary-50 px-4 py-3 text-xs font-semibold text-primary-900">
             {courseAccess.access_expires_at && `Lesson access through ${new Date(new Date(courseAccess.access_expires_at).getTime() - 1).toLocaleDateString('en-US', { timeZone: 'Pacific/Guam' })} (Guam time). `}
             {courseAccess.support_expires_at && (new Date(courseAccess.support_expires_at) > new Date()

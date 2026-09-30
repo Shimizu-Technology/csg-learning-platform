@@ -76,10 +76,15 @@ class Cohort < ApplicationRecord
   private
 
   def guided_access_dates_are_valid
+    invalid_date = false
     %w[guided_access_ends_on guided_support_ends_on].each do |attribute|
-      errors.add(attribute, "is invalid") if self[attribute].nil? && public_send("#{attribute}_before_type_cast").present?
+      next if public_send("#{attribute}_before_type_cast").blank?
+      next if self[attribute].is_a?(Date)
+
+      errors.add(attribute, "is invalid")
+      invalid_date = true
     end
-    if guided_access_ends_on && guided_support_ends_on && guided_support_ends_on > guided_access_ends_on
+    if !invalid_date && guided_access_ends_on && guided_support_ends_on && guided_support_ends_on > guided_access_ends_on
       errors.add(:guided_support_ends_on, "must be on or before lesson access ends")
     end
     if !guided? && (guided_access_ends_on || guided_support_ends_on)

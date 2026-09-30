@@ -34,6 +34,22 @@ class GuidedCourseAccessTest < ActionDispatch::IntegrationTest
     assert_equal original_terms, enrollment.reload.attributes.slice("access_expires_at", "support_expires_at")
   end
 
+  test "changing a cohort to program preserves and exposes existing enrollment deadlines" do
+    enrollment = Enrollment.create!(user: @student, cohort: @cohort)
+    original_terms = enrollment.attributes.slice("access_expires_at", "support_expires_at")
+    @cohort.update!(course_delivery: "program", guided_access_ends_on: nil, guided_support_ends_on: nil)
+
+    as_user(@student) do
+      get "/api/v1/dashboard", params: { cohort_id: @cohort.id }, headers: auth_headers
+    end
+
+    assert_response :success
+    course_access = JSON.parse(response.body).dig("dashboard", "course_access")
+    assert_equal "program", course_access.fetch("course_delivery")
+    assert_equal original_terms.fetch("access_expires_at").iso8601(3), course_access.fetch("access_expires_at")
+    assert_equal original_terms.fetch("support_expires_at").iso8601(3), course_access.fetch("support_expires_at")
+  end
+
   test "support cutoff blocks learner messaging and contextual help while lessons remain available" do
     staff = User.create!(clerk_id: "guided_staff", email: "guided-staff@example.com", first_name: "Guide", role: :instructor)
     enrollment = Enrollment.create!(user: @student, cohort: @cohort)
@@ -115,6 +131,18 @@ class GuidedCourseAccessTest < ActionDispatch::IntegrationTest
 
     refute @cohort.valid?
     assert_includes @cohort.errors[:guided_access_ends_on], "is invalid"
+  end
+
+  test "boolean guided dates return a validation response instead of raising" do
+    admin = User.create!(clerk_id: "guided_date_admin", email: "guided-date-admin@example.com", first_name: "Admin", role: :admin)
+
+    as_user(admin) do
+      patch "/api/v1/cohorts/#{@cohort.id}",
+        params: { guided_access_ends_on: true }, headers: auth_headers, as: :json
+    end
+
+    assert_response :unprocessable_entity
+    assert_includes JSON.parse(response.body).fetch("errors"), "Guided access ends on is invalid"
   end
 
   test "guided dates cannot be attached to a full program" do
