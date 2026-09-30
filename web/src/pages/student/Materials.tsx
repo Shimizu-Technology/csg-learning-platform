@@ -60,6 +60,11 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
   const [filter, setFilter] = useState<MaterialFilter>('ready')
   const [collapsedModules, setCollapsedModules] = useState<Set<number>>(() => new Set())
   const materialsRequest = useRef(0)
+  const courseAccess = data?.course_access || (selectedEnrollment ? {
+    course_delivery: selectedEnrollment.cohort.course_delivery,
+    access_expires_at: selectedEnrollment.access_expires_at || null,
+    support_expires_at: selectedEnrollment.support_expires_at || null,
+  } : null)
 
   const loadMaterials = useCallback(() => {
     const request = ++materialsRequest.current
@@ -230,6 +235,14 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
         </div>
       )}
       <header className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_16px_50px_rgba(15,23,42,0.05)] sm:p-6">
+        {courseAccess?.course_delivery !== 'self_paced' && (courseAccess?.access_expires_at || courseAccess?.support_expires_at) && (
+          <p className="mb-4 rounded-xl bg-primary-50 px-4 py-3 text-xs font-semibold text-primary-900">
+            {courseAccess.access_expires_at && `Lesson access through ${new Date(new Date(courseAccess.access_expires_at).getTime() - 1).toLocaleDateString('en-US', { timeZone: 'Pacific/Guam' })} (Guam time). `}
+            {courseAccess.support_expires_at && (new Date(courseAccess.support_expires_at) > new Date()
+              ? `Instructor support through ${new Date(new Date(courseAccess.support_expires_at).getTime() - 1).toLocaleDateString('en-US', { timeZone: 'Pacific/Guam' })} (Guam time).`
+              : 'Instructor support has ended; you can still review lessons during your access period.')}
+          </p>
+        )}
         {selectedEnrollment?.cohort.course_delivery === 'self_paced' && <p className="mb-4 rounded-xl bg-primary-50 px-4 py-3 text-xs font-semibold text-primary-900">Self-paced lesson access through {selectedEnrollment.access_expires_at ? new Date(selectedEnrollment.access_expires_at).toLocaleDateString() : 'your access period'}. {selectedEnrollment.support_expires_at ? (new Date(selectedEnrollment.support_expires_at) > new Date() ? `Instructor messaging through ${new Date(selectedEnrollment.support_expires_at).toLocaleDateString()}.` : 'Instructor messaging has ended.') : 'Instructor messaging starts when you first open the course.'}</p>}
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>

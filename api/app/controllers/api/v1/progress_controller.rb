@@ -224,6 +224,8 @@ module Api
           enrollment: {
             id: enrollment.id,
             status: enrollment.status,
+            access_expires_at: enrollment.access_expires_at,
+            support_expires_at: enrollment.support_expires_at,
             module_assignments: enrollment.module_assignments.includes(:curriculum_module).map do |assignment|
               {
                 id: assignment.id,
@@ -250,7 +252,8 @@ module Api
             id: cohort.id,
             name: cohort.name,
             start_date: cohort.start_date,
-            status: cohort.status
+            status: cohort.status,
+            course_delivery: cohort.course_delivery
           },
           learning_evidence_scope: {
             kind: "enrollment",

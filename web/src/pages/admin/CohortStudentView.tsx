@@ -297,7 +297,22 @@ function mergeStudentProgress(view: CohortStudentViewData, progress: StudentProg
     return { ...module, available: actual.lessons.some((lesson) => lesson.available), lessons: module.lessons.map((lesson) => ({ ...lesson, available: actual.lessons.find((item) => item.id === lesson.id)?.available ?? lesson.available })) }
   })
   const continueLesson = dashboardModules.flatMap((module) => module.lessons).find((lesson) => lesson.available && !lesson.completed)
-  return { ...view, modules, dashboard: { ...view.dashboard, user: { id: progress.user.id, full_name: progress.user.full_name, role: 'student' }, overall_progress: progress.overall_progress, modules: dashboardModules, continue_lesson: continueLesson ? { id: continueLesson.id, title: continueLesson.title } : null } }
+  return {
+    ...view,
+    modules,
+    dashboard: {
+      ...view.dashboard,
+      user: { id: progress.user.id, full_name: progress.user.full_name, role: 'student' },
+      course_access: progress.cohort.course_delivery ? {
+        course_delivery: progress.cohort.course_delivery,
+        access_expires_at: progress.enrollment.access_expires_at || null,
+        support_expires_at: progress.enrollment.support_expires_at || null,
+      } : null,
+      overall_progress: progress.overall_progress,
+      modules: dashboardModules,
+      continue_lesson: continueLesson ? { id: continueLesson.id, title: continueLesson.title } : null,
+    },
+  }
 }
 
 function PreviewContent({ data, activeSection }: { data: CohortStudentViewData; activeSection: PreviewSection }) {

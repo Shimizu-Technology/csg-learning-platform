@@ -17,6 +17,7 @@ class Enrollment < ApplicationRecord
 
   validates :user_id, uniqueness: { scope: :cohort_id }
 
+  before_create :set_guided_access_terms
   before_create :set_enrolled_at
   before_create :set_invited_at
   after_create :assign_alumni_curriculum_modules, if: :active_alumni_enrollment?
@@ -37,7 +38,10 @@ class Enrollment < ApplicationRecord
   end
 
   def instructor_support_active?
-    active? && (!cohort.self_paced? || (support_expires_at.present? && support_expires_at > Time.current))
+    return false unless active?
+    return support_expires_at.present? && support_expires_at > Time.current if cohort.self_paced?
+
+    support_expires_at.nil? || support_expires_at > Time.current
   end
 
   def record_first_course_open!
@@ -67,6 +71,19 @@ class Enrollment < ApplicationRecord
   end
 
   private
+
+  # Snapshot agreed terms for new guided enrollments. Editing cohort defaults
+  # never shortens or extends an existing student's purchase automatically.
+  def set_guided_access_terms
+    return unless cohort.guided?
+
+    self.access_expires_at ||= guided_date_boundary(cohort.guided_access_ends_on)
+    self.support_expires_at ||= guided_date_boundary(cohort.guided_support_ends_on)
+  end
+
+  def guided_date_boundary(date)
+    (date + 1).in_time_zone(LearningCalendar::TIMEZONE) if date
+  end
 
   def set_enrolled_at
     self.enrolled_at ||= Time.current

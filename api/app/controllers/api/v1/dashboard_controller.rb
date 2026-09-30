@@ -193,6 +193,11 @@ module Api
               announcements: visible_announcements.map { |announcement| dashboard_announcement_json(announcement, announcement_notifications[announcement.id]) },
               unread_notifications_count: current_user.notifications.announcement.unread.count
             },
+            course_access: {
+              course_delivery: cohort.course_delivery,
+              access_expires_at: enrollment.access_expires_at,
+              support_expires_at: enrollment.support_expires_at
+            },
             overall_progress: {
               completed: completed_count,
               total: total_count,

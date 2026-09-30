@@ -253,7 +253,7 @@ module Api
         params.permit(:name, :cohort_type, :curriculum_id, :start_date, :end_date,
                        :github_organization_name, :repository_name, :requires_github, :status, :settings,
                        :course_delivery, :public_checkout_enabled, :stripe_price_id, :support_instructor_id, :public_price_cents,
-                       :self_paced_access_months, :self_paced_support_weeks)
+                       :self_paced_access_months, :self_paced_support_weeks, :guided_access_ends_on, :guided_support_ends_on)
       end
 
       def module_access_params
@@ -639,6 +639,8 @@ module Api
           support_instructor_id: cohort.support_instructor_id,
           self_paced_access_months: cohort.self_paced_access_months,
           self_paced_support_weeks: cohort.self_paced_support_weeks,
+          guided_access_ends_on: cohort.guided_access_ends_on,
+          guided_support_ends_on: cohort.guided_support_ends_on,
           curriculum_id: cohort.curriculum_id,
           curriculum_name: cohort.curriculum.name,
           start_date: cohort.start_date,

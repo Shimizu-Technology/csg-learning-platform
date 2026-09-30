@@ -773,7 +773,16 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  updateCohort: (id: number, data: { name?: string; start_date?: string; end_date?: string; status?: string; github_organization_name?: string | null }) =>
+  updateCohort: (id: number, data: {
+    name?: string
+    start_date?: string
+    end_date?: string
+    status?: string
+    github_organization_name?: string | null
+    course_delivery?: 'program' | 'guided' | 'self_paced'
+    guided_access_ends_on?: string | null
+    guided_support_ends_on?: string | null
+  }) =>
     fetchApi<CohortResponse>(`/api/v1/cohorts/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
