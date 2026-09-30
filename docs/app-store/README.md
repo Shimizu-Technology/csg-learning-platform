@@ -1,6 +1,6 @@
 # CSG Connect App Store Release Record
 
-Last updated: 2026-09-28 (Pacific/Guam)
+Last updated: 2026-09-30 (Pacific/Guam)
 
 This directory is the durable source record for the App Store presentation of the completed mobile-parity program. It records what was uploaded, how the images were produced, and what remains before public App Review.
 
@@ -9,13 +9,13 @@ This directory is the durable source record for the App Store presentation of th
 | Item | State |
 | --- | --- |
 | Marketing version | `1.0.0` |
-| Latest uploaded iOS build | `1.0.0 (30)`; Apple processing and tester availability are not yet verified |
-| Latest verified EAS build ID | Not applicable — build 30 was signed locally |
-| Latest uploaded source commit | `6048693658c29092a7ecdabab21dc90cc628e9a4` (`main`, merged PR #158) |
-| Latest release delivery | EAS submission `d6781187-7333-4fcf-9cfb-9319b19c9166` finished without error |
-| Latest verified App Store Connect state | Build 23: `VALID` and internal `IN_BETA_TESTING`; Leon separately confirmed build 29 in TestFlight; build 30 is unverified |
-| Next release candidate | Build 30, pending Apple processing and physical-device acceptance |
-| Release artifact fingerprint | Build 30 IPA SHA-256 `9ad40f270ed6c6e38b6c6b16123778beb9436a21cd861dfd8d3bd5c6ce1eab39` |
+| Latest uploaded iOS build | `1.0.0 (31)`; Apple processing and tester availability are not yet verified |
+| Latest verified EAS build ID | Not applicable — build 31 was signed locally |
+| Latest uploaded source commit | `236f0d22e8e695fd0fc7c50063d5a0fca70f1804` (`main`, merged PRs #160–#162) |
+| Latest release delivery | EAS submission `5151cded-c8e0-4f8c-8772-f00266caa5aa` uploaded successfully to App Store Connect |
+| Latest verified App Store Connect state | Build 23: `VALID` and internal `IN_BETA_TESTING`; Leon separately confirmed build 29 in TestFlight; build 31 is processing after a successful upload |
+| Next release candidate | Build 31, pending Apple processing and physical-device acceptance |
+| Release artifact fingerprint | Build 31 IPA SHA-256 `3b1507e71b41513b0050b1b2a95885eb2f63d6f89008b7f147aa2b8d29d69989` |
 | Phase 0–1 release candidate | `1.0.0 (9)` |
 | App Store version | `1.0`, Prepare for Submission |
 | Internal group | `CSG Internal` |
@@ -50,6 +50,8 @@ Build 29 is the cohort-workspace candidate from merged PR #156 at exact source c
 
 Build 30 follows Leon's confirmation that build 29 is available in TestFlight. Merged PR #158 sets the CSG Alumni cohort's GitHub organization to `Code-School-of-Guam-Alumni` and removes the literal “(tabs)” label from native stack back buttons. The production Render deployment is live at source commit `6048693658c29092a7ecdabab21dc90cc628e9a4`; a production read verified cohort 4's organization value and a successful GitHub access-service check. The locally signed IPA was archived from that exact commit as `com.codeschoolofguam.connect` version `1.0.0 (30)`. App Store signing, team `4T358A5S74`, production push entitlement, and code signature passed inspection. The IPA is 31,991,734 bytes with SHA-256 `9ad40f270ed6c6e38b6c6b16123778beb9436a21cd861dfd8d3bd5c6ce1eab39`. EAS submission `d6781187-7333-4fcf-9cfb-9319b19c9166` finished without error. Apple processing and internal TestFlight availability are not yet confirmed. Focused tester steps are in [`WHAT_TO_TEST_1.0.0_30.md`](WHAT_TO_TEST_1.0.0_30.md).
 
+Build 31 is the post-course-readiness dependency candidate from exact merged-main commit `236f0d22e8e695fd0fc7c50063d5a0fca70f1804`. PR #161 aligns Expo packages with the installed SDK 57 baseline, PR #162 resolves the applicable `brace-expansion` lockfile advisories, and PR #160 adds guided-course access and support dates to the Rails and web experience. PR #160 does not add a new native administration screen, so its access-date controls must be accepted on the web app. The mobile gate passed 71 suites / 402 tests, strict TypeScript, Expo lint, dependency policy, and Expo dependency compatibility. Expo Doctor passed 20 of 21 checks with the already documented React Native Directory metadata warning for `react-native-render-html` and the Solana mobile wallet adapter. The locally signed IPA identifies itself as `com.codeschoolofguam.connect` version `1.0.0 (31)`, uses team `4T358A5S74`, has the production push entitlement with `get-task-allow=false`, and passed strict deep code-signature verification. The IPA is 31,994,918 bytes with SHA-256 `3b1507e71b41513b0050b1b2a95885eb2f63d6f89008b7f147aa2b8d29d69989`. EAS submission `5151cded-c8e0-4f8c-8772-f00266caa5aa` uploaded the binary successfully to App Store Connect. Apple processing and internal tester availability are not yet confirmed. Focused tester steps are in [`WHAT_TO_TEST_1.0.0_31.md`](WHAT_TO_TEST_1.0.0_31.md).
+
 Verified iOS production history:
 
 | Build | EAS build ID | Submission or delivery ID | Submission and Apple state |
@@ -72,6 +74,7 @@ Verified iOS production history:
 | `27` | Local signed archive; no cloud EAS build ID | `fa5fe41e-79b1-4b84-8bba-1226835845df` | EAS reported successful upload; Apple processing and internal availability unverified. |
 | `29` | Local signed archive; no cloud EAS build ID | `4c1817bc-9348-4a40-918c-e7bab513b18c` | EAS reported successful upload; Leon confirmed TestFlight availability. |
 | `30` | Local signed archive; no cloud EAS build ID | `d6781187-7333-4fcf-9cfb-9319b19c9166` | EAS finished without error; Apple processing and internal availability unverified. |
+| `31` | Local signed archive; no cloud EAS build ID | `5151cded-c8e0-4f8c-8772-f00266caa5aa` | EAS reported a successful App Store Connect upload; Apple processing and internal availability are pending. |
 
 These are EAS or Apple delivery states plus App Store Connect status checks. Leon confirmed build 29 is available in TestFlight. Public App Review remains separate.
 
@@ -181,7 +184,7 @@ Messaging-smoothness candidate preflight recorded on 2026-09-24:
 
 ## Physical TestFlight acceptance
 
-The invited tester must install the **exact build selected for public App Review** through TestFlight and complete this acceptance pass with real authorized accounts. Build 30 is the latest uploaded candidate as of 2026-09-28; its Apple processing and internal availability remain unverified. Confirm the build number on the device before testing. The focused [build 30 script](WHAT_TO_TEST_1.0.0_30.md) supplements this broader checklist.
+The invited tester must install the **exact build selected for public App Review** through TestFlight and complete this acceptance pass with real authorized accounts. Build 31 is the latest uploaded candidate as of 2026-09-30; its Apple processing and internal availability remain unverified. Confirm the build number on the device before testing. The focused [build 31 script](WHAT_TO_TEST_1.0.0_31.md) supplements this broader checklist.
 
 - sign in with Google and confirm unauthorized accounts receive the explicit no-access state;
 - verify student, instructor, and admin role scoping where test accounts are available;
