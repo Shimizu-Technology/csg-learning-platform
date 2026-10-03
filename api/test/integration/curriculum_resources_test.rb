@@ -140,6 +140,23 @@ class CurriculumResourcesTest < ActionDispatch::IntegrationTest
     assert_empty JSON.parse(response.body).fetch("resources")
   end
 
+  test "only authorized staff can discover pending uploads for recovery" do
+    @resource.update!(ready: false)
+    path = "/api/v1/curricula/#{@curriculum.id}/resources"
+    as_user(@student) { get path, headers: headers }
+    assert_response :success
+    assert_empty JSON.parse(response.body).fetch("resources")
+    as_user(@teacher) { get path, headers: headers }
+    assert_response :forbidden
+    as_user(@admin) { get path, headers: headers }
+    assert_response :success
+    pending = JSON.parse(response.body).fetch("resources").sole
+    assert_equal @resource.id, pending.fetch("download_id")
+    assert_equal false, pending.fetch("ready")
+    assert_not_includes response.body, @resource.upload_key
+    assert_not_includes response.body, @resource.s3_key
+  end
+
   test "missing and wrong MIME uploads are not published" do
     @resource.update!(ready: false)
     with_storage do

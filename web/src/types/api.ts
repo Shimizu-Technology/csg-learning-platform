@@ -1208,6 +1208,7 @@ export interface ResourceEntry {
   curriculum_id?: number;
   filename?: string;
   file_size?: number;
+  ready?: boolean;
 }
 
 // First-class recording library entries (returned by /api/v1/cohorts/:id/recordings)

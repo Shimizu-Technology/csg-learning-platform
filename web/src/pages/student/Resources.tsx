@@ -8,6 +8,7 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { IconButton } from '../../components/ui/Button'
 import type { ResourceEntry } from '../../types/api'
+import { downloadCourseResource } from '../../lib/downloadCourseResource'
 
 type ResourceItem = ResourceEntry
 
@@ -226,13 +227,7 @@ function ResourceCard({ resource, compact = false }: { resource: ResourceItem; c
             if (!resource.download_id || !resource.curriculum_id || downloading) return
             setDownloading(true); setError('')
             try {
-              const result = await api.downloadCurriculumResource(resource.curriculum_id, resource.download_id)
-              if (!result.data) throw new Error(result.error || 'Could not download this file.')
-              const url = sanitizeUrl(result.data.url)
-              if (!url.startsWith('https://')) throw new Error('File storage returned an invalid download link.')
-              const link = document.createElement('a')
-              link.href = url; link.download = resource.filename || 'course-resources.zip'; link.rel = 'noreferrer'
-              link.click()
+              await downloadCourseResource(resource.curriculum_id, resource.download_id, resource.filename || 'course-resources.zip')
             } catch (cause) { setError(cause instanceof Error ? cause.message : 'Download failed.') }
             finally { setDownloading(false) }
           }

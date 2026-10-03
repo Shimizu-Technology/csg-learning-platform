@@ -762,9 +762,9 @@ Admin-only `POST /api/v1/course_packages/preview` and `POST /api/v1/course_packa
 
 ## Protected curriculum learner ZIPs
 
-Staff prepare a course-specific ZIP in a draft curriculum through Content → Learner ZIP files. This does not activate a course, create enrollments or change access terms. Admins can manage any curriculum; instructors need a cohort assignment for that curriculum. Native/older clients continue receiving link resources only; web Resources explicitly requests protected file metadata.
+Staff prepare a course-specific ZIP in a draft curriculum through Content → Learner ZIP files. Use Download ZIP beside a ready file to inspect the actual stored bundle before any cohort assignment; Abandon pending upload retries cleanup for interrupted files. This does not activate a course, create enrollments or change access terms. Admins can manage any curriculum; instructors need a cohort assignment for that curriculum. Native/older clients continue receiving link resources only; web Resources explicitly requests protected file metadata.
 
-- `GET /api/v1/curricula/:id/resources`: ready ZIP metadata for authorized staff or a currently active, unexpired matching-curriculum enrollment. No object keys or signed download URLs are returned.
+- `GET /api/v1/curricula/:id/resources`: authorized staff see ready and pending ZIP metadata, so interrupted uploads remain discoverable for cleanup. Currently active, unexpired matching-curriculum learners see only ready files. No object keys or signed download URLs are returned.
 - `POST /api/v1/curricula/:id/resources`: staff, draft only. JSON `title`, ZIP `filename`, integer `file_size` (1–50 MiB). Returns server-owned pending resource ID and a bounded `application/zip` S3 POST. Send the ZIP using the returned fields.
 - `POST /api/v1/curricula/:id/resources/:resource_id/complete`: staff, draft only. Checks staging object type and exact declared size, copies its matching ETag to a separate published object, then marks the resource ready. Repeated completion does not recopy a ready file. Failed/pending files never appear to learners.
 - `DELETE /api/v1/curricula/:id/resources/:resource_id`: staff may abandon an unfinished upload; removes its staging/published orphan objects and pending row. Published resources cannot be abandoned.

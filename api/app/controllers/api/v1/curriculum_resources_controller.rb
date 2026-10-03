@@ -8,7 +8,9 @@ module Api
       around_action :with_draft_lock, only: [ :create, :complete ]
 
       def index
-        render json: { resources: @curriculum.curriculum_resources.ready.order(:id).map(&:resource_json) }
+        resources = @curriculum.curriculum_resources
+        resources = resources.ready unless current_user.staff?
+        render json: { resources: resources.order(:id).map(&:resource_json) }
       end
 
       def create

@@ -12,6 +12,6 @@ class CurriculumResource < ApplicationRecord
 
   def resource_json
     { id: "file-#{id}", download_id: id, title: title, filename: filename,
-      file_size: file_size, url: "", category: "download", description: "Course learner ZIP", curriculum_id: curriculum_id }
+      file_size: file_size, ready: ready?, url: "", category: "download", description: "Course learner ZIP", curriculum_id: curriculum_id }
   end
 end
