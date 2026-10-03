@@ -2175,20 +2175,8 @@
     "lesson_title": "Archive: Pre-Work Orientation and Computer Setup",
     "content_block_id": 528,
     "source_id": "AQKjAnGmbdo",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Course Introduction and Policies",
-        "start_seconds": 3,
-        "end_seconds": 480,
-        "required": false
-      },
-      {
-        "label": "Slack, GitHub, and Google Classroom Overview",
-        "start_seconds": 480,
-        "end_seconds": 1080,
-        "required": false
-      },
       {
         "label": "Programming Fundamentals and Tools",
         "start_seconds": 1080,
@@ -2221,14 +2209,8 @@
     "lesson_title": "Development Environment Setup and Tooling Overview",
     "content_block_id": 530,
     "source_id": "h675xGfYNXw",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "YouTube Playlist and Recording Logistics",
-        "start_seconds": 2,
-        "end_seconds": 120,
-        "required": false
-      },
       {
         "label": "Terminal Commands and GitHub Basics",
         "start_seconds": 240,
@@ -2261,7 +2243,7 @@
     "lesson_title": "VS Code Setup and Terminal Fundamentals",
     "content_block_id": 532,
     "source_id": "Lsd1eBAgFtw",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "VS Code Settings and Extensions Overview",
@@ -2289,7 +2271,7 @@
     "lesson_title": "Archive: Create Repo and Push to GitHub Demo",
     "content_block_id": 534,
     "source_id": "PYPOcrSHFKM",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Verifying local state and creating GitHub repo",
@@ -2323,14 +2305,8 @@
     "lesson_title": "Internship Onboarding and Agile Workflow",
     "content_block_id": 536,
     "source_id": "7XhVK-HiE5E",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Internship Welcome and Goals",
-        "start_seconds": 3,
-        "end_seconds": 120,
-        "required": false
-      },
       {
         "label": "Agile Sprints and Workflow Introduction",
         "start_seconds": 120,
@@ -2341,18 +2317,6 @@
         "label": "ClickUp for Task Management and Initial Sprint Tasks",
         "start_seconds": 241,
         "end_seconds": 360,
-        "required": false
-      },
-      {
-        "label": "Project Overviews: Hafa GPT and Airport Golf Registration",
-        "start_seconds": 360,
-        "end_seconds": 481,
-        "required": false
-      },
-      {
-        "label": "First Sprint Assignment: Local Setup and Onboarding Philosophy",
-        "start_seconds": 481,
-        "end_seconds": 600,
         "required": false
       },
       {
@@ -2381,14 +2345,8 @@
     "lesson_title": "Ruby Basics: Syntax, Data Types, and Variables",
     "content_block_id": 538,
     "source_id": "5MRnQ9TOyk8",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Environment Setup and Ruby Introduction",
-        "start_seconds": 360,
-        "end_seconds": 841,
-        "required": false
-      },
       {
         "label": "Data Types and Printing with Puts",
         "start_seconds": 841,
@@ -2415,7 +2373,7 @@
     "lesson_title": "Ruby Basics: Data Types, Variables, and Conditionals",
     "content_block_id": 540,
     "source_id": "504RErd01qA",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Introduction to Ruby, Data Types, and Variables",
@@ -2461,24 +2419,12 @@
     "lesson_title": "Conditionals and Loops",
     "content_block_id": 542,
     "source_id": "BBmkZItxVrE",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Terminal Hotkeys: Up Arrow and Tab Completion",
-        "start_seconds": 359,
-        "end_seconds": 474,
-        "required": false
-      },
       {
         "label": "Conditional Logic: Temperature Checker and Write/Test Strategy",
         "start_seconds": 842,
         "end_seconds": 1201,
-        "required": false
-      },
-      {
-        "label": "Code Review: Grading System Exercise and Indentation",
-        "start_seconds": 2160,
-        "end_seconds": 2400,
         "required": false
       },
       {
@@ -2513,14 +2459,8 @@
     "lesson_title": "Archive: Conditional Loops, Arrays, and Nested Data",
     "content_block_id": 544,
     "source_id": "QIK3PymCCE4",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Number Guessing Game Implementation",
-        "start_seconds": 360,
-        "end_seconds": 1312,
-        "required": false
-      },
       {
         "label": "Array Basics and Manipulation",
         "start_seconds": 3604,
@@ -2547,14 +2487,8 @@
     "lesson_title": "Nested Loops and Ruby Methods",
     "content_block_id": 546,
     "source_id": "2ZElkWfOWnA",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Review of Arrays and Nested Arrays",
-        "start_seconds": 605,
-        "end_seconds": 1201,
-        "required": false
-      },
       {
         "label": "Nested .each Loops",
         "start_seconds": 1201,
@@ -2565,12 +2499,6 @@
         "label": "Nested While Loops Implementation",
         "start_seconds": 1801,
         "end_seconds": 2700,
-        "required": false
-      },
-      {
-        "label": "Code Indentation Best Practices",
-        "start_seconds": 2700,
-        "end_seconds": 3301,
         "required": false
       },
       {
@@ -2599,7 +2527,7 @@
     "lesson_title": "Functions, Arrays, and Deliberate Practice Methodology",
     "content_block_id": 548,
     "source_id": "T1dwoZxEe8I",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Ruby function review: parameters, return values, and array iteration",
@@ -2630,12 +2558,6 @@
         "start_seconds": 4560,
         "end_seconds": 5280,
         "required": false
-      },
-      {
-        "label": "Guided deliberate practice and follow-up assignment",
-        "start_seconds": 5280,
-        "end_seconds": 5880,
-        "required": false
       }
     ]
   },
@@ -2645,14 +2567,8 @@
     "lesson_title": "CLI Shopping List and Method Refactoring",
     "content_block_id": 550,
     "source_id": "Bblw2mYZ8AU",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Hotkey and Homework Logistics",
-        "start_seconds": 240,
-        "end_seconds": 480,
-        "required": false
-      },
       {
         "label": "CLI Demo and Loop Mechanics",
         "start_seconds": 961,
@@ -2676,12 +2592,6 @@
         "start_seconds": 5641,
         "end_seconds": 6120,
         "required": false
-      },
-      {
-        "label": "Solution Walkthrough and Homework",
-        "start_seconds": 6961,
-        "end_seconds": 7243,
-        "required": false
       }
     ]
   },
@@ -2691,7 +2601,7 @@
     "lesson_title": "Hashes and Nested Data Structures",
     "content_block_id": 552,
     "source_id": "49X1v-Gawys",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Review of Functions and Scope",
@@ -2737,14 +2647,8 @@
     "lesson_title": "Nested Data Structures and Iteration",
     "content_block_id": 554,
     "source_id": "trI89N2-qmg",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Hotkey demonstration for code indentation",
-        "start_seconds": 479,
-        "end_seconds": 600,
-        "required": false
-      },
       {
         "label": "Review of Ruby hashes and basic iteration",
         "start_seconds": 600,
@@ -2789,7 +2693,7 @@
     "lesson_title": "CLI Catalog Application: Arrays, Hashes, and User Input",
     "content_block_id": 556,
     "source_id": "n6lQewG3QIo",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Review of Arrays, Hashes, and Data Structures",
@@ -2798,21 +2702,9 @@
         "required": false
       },
       {
-        "label": "Exercise Introduction: CLI Catalog Skeleton",
-        "start_seconds": 2280,
-        "end_seconds": 2640,
-        "required": false
-      },
-      {
         "label": "Live Coding: Implementing Add Item Logic",
         "start_seconds": 3359,
         "end_seconds": 3834,
-        "required": false
-      },
-      {
-        "label": "Student Demo: View and Bonus Delete Functionality",
-        "start_seconds": 4440,
-        "end_seconds": 5041,
         "required": false
       },
       {
@@ -2829,20 +2721,8 @@
     "lesson_title": "Git and GitHub Setup and Workflow",
     "content_block_id": 558,
     "source_id": "o8djxlXAV9Q",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Goals and Career Advice",
-        "start_seconds": 0,
-        "end_seconds": 960,
-        "required": false
-      },
-      {
-        "label": "Ruby Bonus Review: Delete Logic",
-        "start_seconds": 960,
-        "end_seconds": 2280,
-        "required": false
-      },
       {
         "label": "Introduction to Git and GitHub",
         "start_seconds": 2280,
@@ -2866,12 +2746,6 @@
         "start_seconds": 6960,
         "end_seconds": 9360,
         "required": false
-      },
-      {
-        "label": "Homework Assignment and Closing",
-        "start_seconds": 10560,
-        "end_seconds": 10744,
-        "required": false
       }
     ]
   },
@@ -2881,14 +2755,8 @@
     "lesson_title": "Error Handling in Ruby",
     "content_block_id": 560,
     "source_id": "26dJVWudKHQ",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Case statement review and homework debugging",
-        "start_seconds": 360,
-        "end_seconds": 1079,
-        "required": false
-      },
       {
         "label": "Syntax errors vs Runtime exceptions",
         "start_seconds": 1075,
@@ -2927,7 +2795,7 @@
     "lesson_title": "Object-Oriented Programming in Ruby",
     "content_block_id": 562,
     "source_id": "yvkN9G6qeQ4",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Introduction to OOP concepts",
@@ -2964,12 +2832,6 @@
         "start_seconds": 7576,
         "end_seconds": 8280,
         "required": false
-      },
-      {
-        "label": "Homework assignment and wrap-up",
-        "start_seconds": 8280,
-        "end_seconds": 8453,
-        "required": false
       }
     ]
   },
@@ -2979,14 +2841,8 @@
     "lesson_title": "Ruby OOP: Inheritance, Super, and Polymorphism",
     "content_block_id": 564,
     "source_id": "yquPzuV__80",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Intro to IRB and binding.pry for debugging",
-        "start_seconds": 840,
-        "end_seconds": 1080,
-        "required": false
-      },
       {
         "label": "Concept of Inheritance and Vehicle example",
         "start_seconds": 2279,
@@ -3010,12 +2866,6 @@
         "start_seconds": 6002,
         "end_seconds": 6480,
         "required": false
-      },
-      {
-        "label": "Guided Exercise: Library/Zoo System Planning and Coding",
-        "start_seconds": 6599,
-        "end_seconds": 8759,
-        "required": false
       }
     ]
   },
@@ -3025,7 +2875,7 @@
     "lesson_title": "Modules, Mixins, and Namespacing",
     "content_block_id": 566,
     "source_id": "nWoc0Z5xfbA",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Introduction to Modules and Namespacing",
@@ -3040,27 +2890,9 @@
         "required": false
       },
       {
-        "label": "Exercise: Namespacing Mammals and Birds",
-        "start_seconds": 1318,
-        "end_seconds": 1560,
-        "required": false
-      },
-      {
         "label": "Introduction to Mixins and Logging Example",
         "start_seconds": 3004,
         "end_seconds": 3480,
-        "required": false
-      },
-      {
-        "label": "Exercise: Creating a Drivable Mixin",
-        "start_seconds": 3593,
-        "end_seconds": 3831,
-        "required": false
-      },
-      {
-        "label": "Homework Assignment: CLI with Classes",
-        "start_seconds": 6462,
-        "end_seconds": 7199,
         "required": false
       }
     ]
@@ -3071,20 +2903,8 @@
     "lesson_title": "Object-Oriented Programming Review and RSpec Introduction",
     "content_block_id": 568,
     "source_id": "jusG7bIV1TM",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Student Presentation: Book Class Implementation",
-        "start_seconds": 841,
-        "end_seconds": 1198,
-        "required": false
-      },
-      {
-        "label": "Code Review: Instance Variables and CLI Logic",
-        "start_seconds": 1441,
-        "end_seconds": 2159,
-        "required": false
-      },
       {
         "label": "OOP Concept Review: Classes, Instances, and Accessors",
         "start_seconds": 4082,
@@ -3111,7 +2931,7 @@
     "lesson_title": "File I/O and Persistent Data Storage",
     "content_block_id": 570,
     "source_id": "J854XCB8hqs",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Introduction to File I/O and Reading Files",
@@ -3142,12 +2962,6 @@
         "start_seconds": 8879,
         "end_seconds": 9840,
         "required": false
-      },
-      {
-        "label": "Integrating File I/O into Contact CLI",
-        "start_seconds": 9960,
-        "end_seconds": 10085,
-        "required": false
       }
     ]
   },
@@ -3157,7 +2971,7 @@
     "lesson_title": "OOP Abstraction, Encapsulation, and Private Methods",
     "content_block_id": 572,
     "source_id": "FEGMBWoCOYo",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Introduction to Abstraction and Encapsulation",
@@ -3184,27 +2998,9 @@
         "required": false
       },
       {
-        "label": "Exercise: Defining Private Methods",
-        "start_seconds": 1559,
-        "end_seconds": 1800,
-        "required": false
-      },
-      {
-        "label": "Live Debugging: Return vs. Print and Variable Scope",
-        "start_seconds": 1800,
-        "end_seconds": 2869,
-        "required": false
-      },
-      {
         "label": "Library Class: Integrating File I/O with OOP",
         "start_seconds": 3840,
         "end_seconds": 4680,
-        "required": false
-      },
-      {
-        "label": "Group Exercise: Movie Watchlist CLI and Pair Programming",
-        "start_seconds": 5040,
-        "end_seconds": 5628,
         "required": false
       }
     ]
@@ -3215,20 +3011,8 @@
     "lesson_title": "Ruby File I/O, API Requests, and Rails Introduction",
     "content_block_id": 574,
     "source_id": "hSrlt7WuJvw",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Project Review: Debugging File I/O and Watchlist Logic",
-        "start_seconds": 0,
-        "end_seconds": 361,
-        "required": false
-      },
-      {
-        "label": "Implementing Filtered Views for Watched/Unwatched Movies",
-        "start_seconds": 361,
-        "end_seconds": 479,
-        "required": false
-      },
       {
         "label": "API Fundamentals and HTTP Requests in Ruby",
         "start_seconds": 479,
@@ -3246,12 +3030,6 @@
         "start_seconds": 900,
         "end_seconds": 1080,
         "required": false
-      },
-      {
-        "label": "Rails Installation and Setup Instructions",
-        "start_seconds": 1084,
-        "end_seconds": 1187,
-        "required": false
       }
     ]
   },
@@ -3261,20 +3039,8 @@
     "lesson_title": "Rails Controllers, Routes, and Models",
     "content_block_id": 576,
     "source_id": "KNssgeDZpUk",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Icebreaker and casual chat",
-        "start_seconds": 3,
-        "end_seconds": 598,
-        "required": false
-      },
-      {
-        "label": "VS Code workspace management advice",
-        "start_seconds": 601,
-        "end_seconds": 840,
-        "required": false
-      },
       {
         "label": "Review of MVC, HTTP verbs, and CRUD operations",
         "start_seconds": 840,
@@ -3298,18 +3064,6 @@
         "start_seconds": 2280,
         "end_seconds": 2639,
         "required": false
-      },
-      {
-        "label": "Exercise: Generating a new controller",
-        "start_seconds": 2639,
-        "end_seconds": 3119,
-        "required": false
-      },
-      {
-        "label": "Student demos and debugging controller/route issues",
-        "start_seconds": 4561,
-        "end_seconds": 5402,
-        "required": false
       }
     ]
   },
@@ -3319,14 +3073,8 @@
     "lesson_title": "Models, Migrations, and Rails Console CRUD",
     "content_block_id": 578,
     "source_id": "9sEDEsIzgc8",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Side Project Demo & Context",
-        "start_seconds": 2,
-        "end_seconds": 829,
-        "required": false
-      },
       {
         "label": "Model Generation and Migrations",
         "start_seconds": 825,
@@ -3340,21 +3088,9 @@
         "required": false
       },
       {
-        "label": "Student Demos",
-        "start_seconds": 4683,
-        "end_seconds": 5400,
-        "required": false
-      },
-      {
         "label": "Rails Console CRUD: Update and Destroy",
         "start_seconds": 5400,
         "end_seconds": 6482,
-        "required": false
-      },
-      {
-        "label": "Connecting Models to Controllers and Routes",
-        "start_seconds": 7559,
-        "end_seconds": 10680,
         "required": false
       }
     ]
@@ -3365,14 +3101,8 @@
     "lesson_title": "Complete CRUD Implementation in Rails APIs",
     "content_block_id": 580,
     "source_id": "9W_dm6FkTAs",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Project Setup and Git Configuration",
-        "start_seconds": 118,
-        "end_seconds": 479,
-        "required": false
-      },
       {
         "label": "Model Generation and Index/Show Implementation",
         "start_seconds": 479,
@@ -3405,7 +3135,7 @@
     "lesson_title": "Building a Rails API: CRUD Operations",
     "content_block_id": 582,
     "source_id": "T8XADrBM0VU",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Project Setup and Model Creation",
@@ -3436,12 +3166,6 @@
         "start_seconds": 9240,
         "end_seconds": 9592,
         "required": false
-      },
-      {
-        "label": "Homework Assignment and Git Push",
-        "start_seconds": 9840,
-        "end_seconds": 10362,
-        "required": false
       }
     ]
   },
@@ -3451,20 +3175,8 @@
     "lesson_title": "Building Rails APIs from Scratch and CRUD Implementation",
     "content_block_id": 584,
     "source_id": "uEaKq0i4YzQ",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Class intro and student learning preferences",
-        "start_seconds": 2,
-        "end_seconds": 599,
-        "required": false
-      },
-      {
-        "label": "Student code reviews and debugging session",
-        "start_seconds": 599,
-        "end_seconds": 2641,
-        "required": false
-      },
       {
         "label": "Explanation of the HTTP request cycle",
         "start_seconds": 2641,
@@ -3476,30 +3188,6 @@
         "start_seconds": 2881,
         "end_seconds": 7560,
         "required": false
-      },
-      {
-        "label": "Break announcement",
-        "start_seconds": 7560,
-        "end_seconds": 7800,
-        "required": false
-      },
-      {
-        "label": "Student practice and Git workflow assistance",
-        "start_seconds": 7800,
-        "end_seconds": 8655,
-        "required": false
-      },
-      {
-        "label": "Debugging Git and Rails command errors",
-        "start_seconds": 8651,
-        "end_seconds": 9117,
-        "required": false
-      },
-      {
-        "label": "Discussion on reserved keywords and naming conflicts",
-        "start_seconds": 9119,
-        "end_seconds": 10217,
-        "required": false
       }
     ]
   },
@@ -3509,7 +3197,7 @@
     "lesson_title": "Building a CRUD API and Validations",
     "content_block_id": 586,
     "source_id": "XvTFrGjVMLo",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "API Setup and Git Workflow",
@@ -3555,18 +3243,12 @@
     "lesson_title": "Validations and Migrations",
     "content_block_id": 588,
     "source_id": "iU7JR_ItTR4",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Validations Demo: Presence and Numericality",
         "start_seconds": 2160,
         "end_seconds": 2641,
-        "required": false
-      },
-      {
-        "label": "Break",
-        "start_seconds": 3478,
-        "end_seconds": 3600,
         "required": false
       },
       {
@@ -3580,12 +3262,6 @@
         "start_seconds": 5159,
         "end_seconds": 6121,
         "required": false
-      },
-      {
-        "label": "Collaborative Git Workflow Exercise",
-        "start_seconds": 7680,
-        "end_seconds": 9543,
-        "required": false
       }
     ]
   },
@@ -3595,14 +3271,8 @@
     "lesson_title": "Migrations and Associations",
     "content_block_id": 590,
     "source_id": "T_WgtxO-fUc",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Review of validations and migrations",
-        "start_seconds": 600,
-        "end_seconds": 842,
-        "required": false
-      },
       {
         "label": "Demonstration: Adding a column via migration",
         "start_seconds": 1199,
@@ -3625,12 +3295,6 @@
         "label": "Guided Exercise: Genre-Movie Association",
         "start_seconds": 3601,
         "end_seconds": 4307,
-        "required": false
-      },
-      {
-        "label": "Live Troubleshooting and Wrap-up",
-        "start_seconds": 4689,
-        "end_seconds": 6119,
         "required": false
       }
     ]
@@ -3675,14 +3339,8 @@
     "lesson_title": "Database Seeding and Faker",
     "content_block_id": 592,
     "source_id": "xvekMkwHwN8",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "VS Code Command P Hotkey",
-        "start_seconds": 479,
-        "end_seconds": 600,
-        "required": false
-      },
       {
         "label": "Introduction to Seeds and Setup",
         "start_seconds": 4201,
@@ -3706,12 +3364,6 @@
         "start_seconds": 8160,
         "end_seconds": 8880,
         "required": false
-      },
-      {
-        "label": "PostgreSQL Process Troubleshooting",
-        "start_seconds": 9480,
-        "end_seconds": 9959,
-        "required": false
       }
     ]
   },
@@ -3721,14 +3373,8 @@
     "lesson_title": "Active Model Serializers and Group Integration",
     "content_block_id": 594,
     "source_id": "mbkrFwA9m-4",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Review of Seeds and Faker",
-        "start_seconds": 599,
-        "end_seconds": 901,
-        "required": false
-      },
       {
         "label": "Introduction to Active Model Serializers",
         "start_seconds": 901,
@@ -3746,24 +3392,6 @@
         "start_seconds": 2039,
         "end_seconds": 2403,
         "required": false
-      },
-      {
-        "label": "Individual Practice Instructions",
-        "start_seconds": 2399,
-        "end_seconds": 2640,
-        "required": false
-      },
-      {
-        "label": "Group Exercise: Blog API Setup",
-        "start_seconds": 7321,
-        "end_seconds": 8040,
-        "required": false
-      },
-      {
-        "label": "Collaborative Coding and Debugging",
-        "start_seconds": 8040,
-        "end_seconds": 8050,
-        "required": false
       }
     ]
   },
@@ -3773,14 +3401,8 @@
     "lesson_title": "Rails Validations, Serializers, and Callbacks",
     "content_block_id": 596,
     "source_id": "Ugt-7pUF6l0",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Review of API setup, migrations, seeds, and associations",
-        "start_seconds": 4,
-        "end_seconds": 401,
-        "required": false
-      },
       {
         "label": "Demonstration and testing of model validations",
         "start_seconds": 401,
@@ -3813,14 +3435,8 @@
     "lesson_title": "Many-to-Many Associations and Join Tables",
     "content_block_id": 598,
     "source_id": "aEv6D6UNd74",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Introduction to DB visualizer and lesson topic",
-        "start_seconds": 479,
-        "end_seconds": 720,
-        "required": false
-      },
       {
         "label": "Review of one-to-many associations and foreign keys",
         "start_seconds": 720,
@@ -3844,12 +3460,6 @@
         "start_seconds": 2642,
         "end_seconds": 3359,
         "required": false
-      },
-      {
-        "label": "Group exercise instructions",
-        "start_seconds": 3359,
-        "end_seconds": 3873,
-        "required": false
       }
     ]
   },
@@ -3859,14 +3469,8 @@
     "lesson_title": "JWT Authentication and Authorization",
     "content_block_id": 600,
     "source_id": "pfSrtsnlubg",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Class check-in and Kanban board demo",
-        "start_seconds": 3,
-        "end_seconds": 261,
-        "required": false
-      },
       {
         "label": "Authentication concepts and gem setup",
         "start_seconds": 257,
@@ -3899,7 +3503,7 @@
     "lesson_title": "Implementing JWT Authentication and Password Hashing",
     "content_block_id": 602,
     "source_id": "LFZZzolWDCg",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Setting up User model and gems",
@@ -3926,27 +3530,9 @@
         "required": false
       },
       {
-        "label": "Practice exercise instructions",
-        "start_seconds": 2879,
-        "end_seconds": 3120,
-        "required": false
-      },
-      {
-        "label": "Debugging skip_before_action for signup/login",
-        "start_seconds": 6961,
-        "end_seconds": 7321,
-        "required": false
-      },
-      {
         "label": "Deep dive into password hashing and bcrypt",
         "start_seconds": 7321,
         "end_seconds": 8160,
-        "required": false
-      },
-      {
-        "label": "Explaining Rails credentials and secret_key_base",
-        "start_seconds": 8160,
-        "end_seconds": 8639,
         "required": false
       }
     ]
@@ -3957,7 +3543,7 @@
     "lesson_title": "Active Record Queries and Scopes",
     "content_block_id": 604,
     "source_id": "7ssqOvkSbag",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Introduction to Active Record and ORM",
@@ -3975,12 +3561,6 @@
         "label": "Chaining Methods: order, limit, pluck, select",
         "start_seconds": 3120,
         "end_seconds": 3960,
-        "required": false
-      },
-      {
-        "label": "Discovery Exercise and Student Demonstrations",
-        "start_seconds": 6240,
-        "end_seconds": 8642,
         "required": false
       },
       {
@@ -4003,54 +3583,36 @@
     "lesson_title": "Implementing Role-Based Authorization with Pundit",
     "content_block_id": 606,
     "source_id": "umR507m_B9I",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
-        "label": "Introduction to Authorization and Authentication Review",
+        "label": "Distinguish authentication from authorization",
         "start_seconds": 360,
-        "end_seconds": 601,
+        "end_seconds": 600,
         "required": false
       },
       {
-        "label": "Setting Up Associations and Foreign Keys",
-        "start_seconds": 720,
-        "end_seconds": 1080,
+        "label": "Install Pundit and handle authorization errors",
+        "start_seconds": 1680,
+        "end_seconds": 2040,
         "required": false
       },
       {
-        "label": "Adding Roles and Seeding Data with ChatGPT",
-        "start_seconds": 1080,
-        "end_seconds": 1440,
+        "label": "Validate roles and add user helpers",
+        "start_seconds": 2040,
+        "end_seconds": 2400,
         "required": false
       },
       {
-        "label": "Installing Pundit and Configuring Error Handling",
-        "start_seconds": 1681,
-        "end_seconds": 2041,
+        "label": "Build policy and scope logic",
+        "start_seconds": 2400,
+        "end_seconds": 3000,
         "required": false
       },
       {
-        "label": "Validating Roles and Adding Custom Methods to User Model",
-        "start_seconds": 2041,
-        "end_seconds": 2401,
-        "required": false
-      },
-      {
-        "label": "Generating Policies and Defining Scope Logic",
-        "start_seconds": 2402,
-        "end_seconds": 3002,
-        "required": false
-      },
-      {
-        "label": "Testing Authorization with HTTPie",
-        "start_seconds": 3002,
+        "label": "Test authorization with HTTPie",
+        "start_seconds": 3000,
         "end_seconds": 3600,
-        "required": false
-      },
-      {
-        "label": "Troubleshooting Master Key Issues",
-        "start_seconds": 6479,
-        "end_seconds": 7320,
         "required": false
       }
     ]
@@ -4061,7 +3623,7 @@
     "lesson_title": "Implementing Authorization with Pundit",
     "content_block_id": 608,
     "source_id": "UNr7VDqURHw",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Concepts and Setup",
@@ -4095,48 +3657,18 @@
     "lesson_title": "API Namespacing and Background Jobs",
     "content_block_id": 610,
     "source_id": "pTyaJQAN6tM",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
-        "label": "Concept: API Namespacing and Versioning",
-        "start_seconds": 10,
-        "end_seconds": 31,
+        "label": "Organize an API under /api/v1",
+        "start_seconds": 464,
+        "end_seconds": 1925,
         "required": false
       },
       {
-        "label": "Demo: Creating a Namespaced Controller and Routes",
-        "start_seconds": 31,
-        "end_seconds": 60,
-        "required": false
-      },
-      {
-        "label": "Review of Namespacing",
-        "start_seconds": 97,
-        "end_seconds": 100,
-        "required": false
-      },
-      {
-        "label": "Concept: Background Jobs and Sidekiq",
-        "start_seconds": 108,
-        "end_seconds": 120,
-        "required": false
-      },
-      {
-        "label": "Setup: Installing Sidekiq, Redis, and Configuring Initializer",
-        "start_seconds": 117,
-        "end_seconds": 140,
-        "required": false
-      },
-      {
-        "label": "Demo: Creating a Worker and Queuing a Job",
-        "start_seconds": 140,
-        "end_seconds": 150,
-        "required": false
-      },
-      {
-        "label": "Bonus: perform_in and perform_at Syntax",
-        "start_seconds": 191,
-        "end_seconds": 195,
+        "label": "Build and schedule background jobs",
+        "start_seconds": 6564,
+        "end_seconds": 8040,
         "required": false
       }
     ]
@@ -4147,14 +3679,8 @@
     "lesson_title": "Mini Capstone Planning and MVP Definition",
     "content_block_id": 612,
     "source_id": "DwYdLy-YxGw",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Icebreaker and Context Setting",
-        "start_seconds": 6,
-        "end_seconds": 601,
-        "required": false
-      },
       {
         "label": "Mini Capstone Overview and Goals",
         "start_seconds": 601,
@@ -4171,12 +3697,6 @@
         "label": "Schema Design and User Stories",
         "start_seconds": 840,
         "end_seconds": 1081,
-        "required": false
-      },
-      {
-        "label": "Benefits of Pre-planning",
-        "start_seconds": 1081,
-        "end_seconds": 1200,
         "required": false
       },
       {
@@ -4199,7 +3719,7 @@
     "lesson_title": "Mini Capstone Project Presentations and Engineering Practices",
     "content_block_id": 614,
     "source_id": "ZWi1decRIDM",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Tournament API presentation: schema, validations, authentication, and scoring",
@@ -4239,7 +3759,7 @@
     "lesson_title": "Full-Stack Rails and Tailwind CSS Styling",
     "content_block_id": 616,
     "source_id": "edRCFithOSM",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Completing CRUD and Views",
@@ -4264,12 +3784,6 @@
         "start_seconds": 2159,
         "end_seconds": 2520,
         "required": false
-      },
-      {
-        "label": "Full-Stack Rails Context and Wrap-up",
-        "start_seconds": 4080,
-        "end_seconds": 4459,
-        "required": false
       }
     ]
   },
@@ -4279,7 +3793,7 @@
     "lesson_title": "JavaScript Fundamentals: Variables, Data Types, Operators, and Conditionals",
     "content_block_id": 618,
     "source_id": "sDzzZ2Hvdb0",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "JavaScript Overview and Browser Console Setup",
@@ -4331,7 +3845,7 @@
     "lesson_title": "JavaScript Fundamentals: Loops, Functions, and Async Concepts",
     "content_block_id": 620,
     "source_id": "jvupC1Yr5pw",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Review: Variables, Conditions, and Equality Operators",
@@ -4365,7 +3879,7 @@
     "lesson_title": "Ternary Operator, Asynchronous JavaScript, and Variable Declarations (var, let, const)",
     "content_block_id": 622,
     "source_id": "Hn4tCQ9djE4",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Introduction to Ternary Operator",
@@ -4374,21 +3888,9 @@
         "required": false
       },
       {
-        "label": "Ternary Operator in Ruby and Practice",
-        "start_seconds": 1681,
-        "end_seconds": 1919,
-        "required": false
-      },
-      {
         "label": "Synchronous vs. Asynchronous JavaScript (setTimeout)",
         "start_seconds": 2219,
         "end_seconds": 2638,
-        "required": false
-      },
-      {
-        "label": "Asynchronous Task Exercise Setup",
-        "start_seconds": 2640,
-        "end_seconds": 2879,
         "required": false
       },
       {
@@ -4423,18 +3925,12 @@
     "lesson_title": "Introduction to HTML, CSS, and JavaScript DOM Manipulation",
     "content_block_id": 624,
     "source_id": "tUPxrIdwr_E",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Introduction to HTML: Structure and Common Tags",
         "start_seconds": 241,
         "end_seconds": 900,
-        "required": false
-      },
-      {
-        "label": "Creating and Viewing a Basic HTML File",
-        "start_seconds": 900,
-        "end_seconds": 1319,
         "required": false
       },
       {
@@ -4453,12 +3949,6 @@
         "label": "Introduction to CSS: Styling and Connection Methods",
         "start_seconds": 3419,
         "end_seconds": 4319,
-        "required": false
-      },
-      {
-        "label": "CSS Selectors and Properties Exercise",
-        "start_seconds": 4319,
-        "end_seconds": 4739,
         "required": false
       },
       {
@@ -4481,7 +3971,7 @@
     "lesson_title": "Modern JavaScript Tooling and Bundling",
     "content_block_id": 626,
     "source_id": "0U8Ls-Q-gv0",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Introduction to static JS and DOM manipulation",
@@ -4512,12 +4002,6 @@
         "start_seconds": 7199,
         "end_seconds": 8162,
         "required": false
-      },
-      {
-        "label": "Comparison with Rails and Express.js introduction",
-        "start_seconds": 10081,
-        "end_seconds": 10319,
-        "required": false
       }
     ]
   },
@@ -4527,7 +4011,7 @@
     "lesson_title": "JavaScript Fundamentals: Variables, Data Types, Functions, and Scope",
     "content_block_id": 628,
     "source_id": "T9FF_HXbjiU",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Introduction to JavaScript and Node.js",
@@ -4551,12 +4035,6 @@
         "label": "Understanding JavaScript Variable Declarations: const",
         "start_seconds": 1319,
         "end_seconds": 1679,
-        "required": false
-      },
-      {
-        "label": "Practice: var, let, and const",
-        "start_seconds": 1679,
-        "end_seconds": 2281,
         "required": false
       },
       {
@@ -4585,7 +4063,7 @@
     "lesson_title": "React Fundamentals: Vite Setup, Component Architecture, and Props",
     "content_block_id": 630,
     "source_id": "izJnOViNZHw",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Modern JS Review and Vite Setup",
@@ -4625,7 +4103,7 @@
     "lesson_title": "Introduction to React Components and Dynamic Rendering",
     "content_block_id": 632,
     "source_id": "OZ8u9dyzk7Y",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Review of Modern JS Setup & Intro to React",
@@ -4640,33 +4118,15 @@
         "required": false
       },
       {
-        "label": "Exercise: Create React App & Basic Edits",
-        "start_seconds": 1380,
-        "end_seconds": 1671,
-        "required": false
-      },
-      {
         "label": "Building Static UI in React (HTML-like)",
         "start_seconds": 2263,
         "end_seconds": 2939,
         "required": false
       },
       {
-        "label": "Exercise: Build Static UI with Footer & Index",
-        "start_seconds": 2934,
-        "end_seconds": 4679,
-        "required": false
-      },
-      {
         "label": "Refactoring into React Components",
         "start_seconds": 5520,
         "end_seconds": 6360,
-        "required": false
-      },
-      {
-        "label": "Exercise: Convert UI to Components",
-        "start_seconds": 6360,
-        "end_seconds": 7680,
         "required": false
       },
       {
@@ -4741,7 +4201,7 @@
     "lesson_title": "React Show Modals and Component Organization",
     "content_block_id": 634,
     "source_id": "5tgaEBR1khI",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Implementing handleShow function and passing it via props",
@@ -4756,18 +4216,6 @@
         "required": false
       },
       {
-        "label": "Practice: Create handleShow and pass it to index component",
-        "start_seconds": 1439,
-        "end_seconds": 1918,
-        "required": false
-      },
-      {
-        "label": "Reviewing student solutions and common pitfalls",
-        "start_seconds": 1918,
-        "end_seconds": 2397,
-        "required": false
-      },
-      {
         "label": "Detailed explanation of JavaScript event handler behavior",
         "start_seconds": 2398,
         "end_seconds": 2999,
@@ -4777,12 +4225,6 @@
         "label": "Creating and rendering a modal component with conditional display",
         "start_seconds": 2999,
         "end_seconds": 3463,
-        "required": false
-      },
-      {
-        "label": "Practice: Create modal.css and modal.jsx, render modal",
-        "start_seconds": 3460,
-        "end_seconds": 4078,
         "required": false
       },
       {
@@ -4799,24 +4241,12 @@
     "lesson_title": "React CRUD: Show and Create Actions",
     "content_block_id": 636,
     "source_id": "ONQWBuboH6A",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Recap of previous week's progress (Index & Show)",
-        "start_seconds": 522,
-        "end_seconds": 600,
-        "required": false
-      },
       {
         "label": "Detailed review and implementation of the 'Show' action with modals",
         "start_seconds": 600,
         "end_seconds": 1340,
-        "required": false
-      },
-      {
-        "label": "Guided practice: Implementing 'Show' action for students",
-        "start_seconds": 1340,
-        "end_seconds": 3001,
         "required": false
       },
       {
@@ -4826,21 +4256,9 @@
         "required": false
       },
       {
-        "label": "Guided practice: Implementing HTML form submission for 'Create'",
-        "start_seconds": 4308,
-        "end_seconds": 4921,
-        "required": false
-      },
-      {
         "label": "Transition to React-controlled forms: `handleSubmit`, `event.preventDefault`, and prop drilling",
         "start_seconds": 4921,
         "end_seconds": 5520,
-        "required": false
-      },
-      {
-        "label": "Guided practice: Setting up React-controlled form submission",
-        "start_seconds": 5520,
-        "end_seconds": 6720,
         "required": false
       },
       {
@@ -4857,54 +4275,18 @@
     "lesson_title": "Implementing CRUD: Create, Update, and Destroy Actions in React",
     "content_block_id": 638,
     "source_id": "jq7eXTuQRmc",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
-        "label": "Review of Create Action Implementation",
-        "start_seconds": 480,
-        "end_seconds": 1078,
+        "label": "Build the update form and handler",
+        "start_seconds": 2343,
+        "end_seconds": 3000,
         "required": false
       },
       {
-        "label": "Student Setup and Debugging Create Action",
-        "start_seconds": 1078,
-        "end_seconds": 2220,
-        "required": false
-      },
-      {
-        "label": "Setting up Update Form and Default Values",
-        "start_seconds": 2220,
-        "end_seconds": 2761,
-        "required": false
-      },
-      {
-        "label": "Connecting Update Form to HandleUpdate Function via Props",
-        "start_seconds": 2761,
-        "end_seconds": 3119,
-        "required": false
-      },
-      {
-        "label": "Update Action Exercise Instructions",
-        "start_seconds": 3119,
-        "end_seconds": 3359,
-        "required": false
-      },
-      {
-        "label": "Student Work Period (Skipped)",
-        "start_seconds": 3360,
-        "end_seconds": 4439,
-        "required": false
-      },
-      {
-        "label": "Debugging Update Action and Props Discussion",
-        "start_seconds": 4440,
-        "end_seconds": 6119,
-        "required": false
-      },
-      {
-        "label": "Implementing Update Action Logic and Dynamic UI Update",
+        "label": "Patch the record and replace it in state",
         "start_seconds": 6960,
-        "end_seconds": 7919,
+        "end_seconds": 7920,
         "required": false
       }
     ]
@@ -4915,7 +4297,7 @@
     "lesson_title": "AI-Assisted Frontend Generation and CORS",
     "content_block_id": 640,
     "source_id": "trMel2NI1W0",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Introduction to AI Frontend Tools and Prompting",
@@ -4948,21 +4330,9 @@
         "required": false
       },
       {
-        "label": "Exercise: Generate Frontend for Mini Capstone",
-        "start_seconds": 1501,
-        "end_seconds": 1742,
-        "required": false
-      },
-      {
         "label": "CORS Setup Details and API Mode Discussion",
         "start_seconds": 1741,
         "end_seconds": 2099,
-        "required": false
-      },
-      {
-        "label": "Troubleshooting AI-Generated Frontend Setup",
-        "start_seconds": 6360,
-        "end_seconds": 7320,
         "required": false
       }
     ]
@@ -4973,14 +4343,8 @@
     "lesson_title": "React CRUD: Create Action with Props and Axios",
     "content_block_id": 642,
     "source_id": "PLGjYy871mQ",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Git reset demonstration and initial setup",
-        "start_seconds": 472,
-        "end_seconds": 710,
-        "required": false
-      },
       {
         "label": "Implementing handleCreate and passing as prop",
         "start_seconds": 710,
@@ -5004,24 +4368,6 @@
         "start_seconds": 1499,
         "end_seconds": 1681,
         "required": false
-      },
-      {
-        "label": "Student exercise introduction and discussion",
-        "start_seconds": 1681,
-        "end_seconds": 1919,
-        "required": false
-      },
-      {
-        "label": "Guided implementation of handleCreate prop passing",
-        "start_seconds": 1919,
-        "end_seconds": 2939,
-        "required": false
-      },
-      {
-        "label": "Guided implementation of handleSubmit and form data extraction",
-        "start_seconds": 2939,
-        "end_seconds": 3296,
-        "required": false
       }
     ]
   },
@@ -5031,7 +4377,7 @@
     "lesson_title": "Navigating New Full-Stack Applications",
     "content_block_id": 644,
     "source_id": "32Ig8EKM57U",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Introduction to application setup and README importance",
@@ -5058,27 +4404,9 @@
         "required": false
       },
       {
-        "label": "Retrospective on documentation and initial setup challenges",
-        "start_seconds": 480,
-        "end_seconds": 719,
-        "required": false
-      },
-      {
-        "label": "Discussion on AI tools for coding and project updates",
-        "start_seconds": 719,
-        "end_seconds": 961,
-        "required": false
-      },
-      {
         "label": "Safe local development with Git branching",
         "start_seconds": 961,
         "end_seconds": 1199,
-        "required": false
-      },
-      {
-        "label": "Upcoming sprint tasks and project collaboration",
-        "start_seconds": 1199,
-        "end_seconds": 1416,
         "required": false
       }
     ]
@@ -5141,7 +4469,7 @@
     "lesson_title": "Introduction to LLMs and Basic Chatbot Development",
     "content_block_id": 646,
     "source_id": "qTh6G1_MyI8",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Introduction to LLMs and AI Engineering",
@@ -5177,12 +4505,6 @@
         "label": "Building and Testing the First Chatbot",
         "start_seconds": 1980,
         "end_seconds": 2341,
-        "required": false
-      },
-      {
-        "label": "Practice: Create Your First Simple Chatbot",
-        "start_seconds": 2341,
-        "end_seconds": 2640,
         "required": false
       },
       {
@@ -5257,7 +4579,7 @@
     "lesson_title": "Introduction to RSpec and Automated Testing",
     "content_block_id": 648,
     "source_id": "u4X-I72QtwI",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Introduction to RSpec and Setup",
@@ -5278,12 +4600,6 @@
         "required": false
       },
       {
-        "label": "Testing Subtract Method and Exercise Assignment",
-        "start_seconds": 4080,
-        "end_seconds": 4440,
-        "required": false
-      },
-      {
         "label": "Testing Person/Student/Teacher Classes",
         "start_seconds": 6720,
         "end_seconds": 7321,
@@ -5297,7 +4613,7 @@
     "lesson_title": "Professional Git Workflow for Team Collaboration",
     "content_block_id": 650,
     "source_id": "vxbP0MP_DVA",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Concept: Branching and Pull Requests",
@@ -5331,24 +4647,12 @@
     "lesson_title": "Mini Capstone Planning and Professional Engineering Practices",
     "content_block_id": 652,
     "source_id": "5qBkLnM-gu8",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Casual check-in and breakfast discussion",
-        "start_seconds": 3,
-        "end_seconds": 299,
-        "required": false
-      },
       {
         "label": "Mini Capstone Instructions and Planning Requirements",
         "start_seconds": 299,
         "end_seconds": 720,
-        "required": false
-      },
-      {
-        "label": "Student introductions and context setting",
-        "start_seconds": 840,
-        "end_seconds": 1019,
         "required": false
       },
       {
@@ -5374,12 +4678,6 @@
         "start_seconds": 3300,
         "end_seconds": 4200,
         "required": false
-      },
-      {
-        "label": "Guided Work Period and Capstone Launch",
-        "start_seconds": 5459,
-        "end_seconds": 5710,
-        "required": false
       }
     ]
   },
@@ -5389,7 +4687,7 @@
     "lesson_title": "RSpec and Factory Bot Setup for Rails",
     "content_block_id": 654,
     "source_id": "ZRFsDlaxcBE",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Introduction and Project Setup",
@@ -5414,12 +4712,6 @@
         "start_seconds": 7440,
         "end_seconds": 8161,
         "required": false
-      },
-      {
-        "label": "Lesson Wrap-up and Next Steps",
-        "start_seconds": 9000,
-        "end_seconds": 9200,
-        "required": false
       }
     ]
   },
@@ -5429,14 +4721,8 @@
     "lesson_title": "RSpec Request Specs and Introduction to Full-Stack Rails",
     "content_block_id": 656,
     "source_id": "nKxzE55BajU",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Idea Generation and Context",
-        "start_seconds": 2,
-        "end_seconds": 601,
-        "required": false
-      },
       {
         "label": "RSpec Setup Review and Factory Bot Explanation",
         "start_seconds": 601,
@@ -5487,52 +4773,22 @@
     "lesson_title": "Deploying Rails Backend to Render and React Frontend to Netlify",
     "content_block_id": 658,
     "source_id": "Otzinb2xcuQ",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
-        "label": "Introduction to deployment with Render (backend/database) and Netlify (frontend)",
+        "label": "Deploy Rails and PostgreSQL on Render",
         "start_seconds": 3,
-        "end_seconds": 119,
-        "required": false
-      },
-      {
-        "label": "Creating a PostgreSQL database on Render",
-        "start_seconds": 119,
-        "end_seconds": 239,
-        "required": false
-      },
-      {
-        "label": "Deploying Rails backend to Render: connecting GitHub, configuring build/start commands, and free-tier seeding hack",
-        "start_seconds": 241,
-        "end_seconds": 600,
-        "required": false
-      },
-      {
-        "label": "Setting environment variables (database URL, Rails master key) and configuring Rails production settings",
-        "start_seconds": 600,
         "end_seconds": 718,
         "required": false
       },
       {
-        "label": "Preparing React frontend for deployment and discussing API URL configuration",
+        "label": "Deploy React on Netlify and connect production",
         "start_seconds": 721,
-        "end_seconds": 898,
-        "required": false
-      },
-      {
-        "label": "Deploying React frontend to Netlify and setting the backend API URL environment variable",
-        "start_seconds": 900,
-        "end_seconds": 1080,
-        "required": false
-      },
-      {
-        "label": "Post-deployment adjustments for Rails backend (removing seed command) and initial testing",
-        "start_seconds": 1080,
         "end_seconds": 1199,
         "required": false
       },
       {
-        "label": "Debugging CORS errors and updating Rails backend CORS configuration",
+        "label": "Diagnose and fix production CORS",
         "start_seconds": 1199,
         "end_seconds": 1439,
         "required": false
@@ -5545,20 +4801,8 @@
     "lesson_title": "Advanced Deployment Concepts: Microservices, AWS S3, and Docker",
     "content_block_id": 660,
     "source_id": "5G5Tr3biTM0",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Introduction to multi-backend architecture and AI-powered invoice maker",
-        "start_seconds": 3,
-        "end_seconds": 119,
-        "required": false
-      },
-      {
-        "label": "Demonstration of AI invoice maker and rationale for FastAPI integration",
-        "start_seconds": 119,
-        "end_seconds": 360,
-        "required": false
-      },
       {
         "label": "Discussion on microservices vs. monoliths and polyglot persistence",
         "start_seconds": 360,
@@ -5572,27 +4816,9 @@
         "required": false
       },
       {
-        "label": "Overview of Cornerstone Accounting app and AWS S3 demonstration",
-        "start_seconds": 1079,
-        "end_seconds": 1319,
-        "required": false
-      },
-      {
         "label": "Introduction to Docker and its benefits for consistent environments",
         "start_seconds": 1319,
         "end_seconds": 1559,
-        "required": false
-      },
-      {
-        "label": "AI-assisted project planning workflow and Product Requirement Documents (PRDs)",
-        "start_seconds": 1559,
-        "end_seconds": 2518,
-        "required": false
-      },
-      {
-        "label": "Setting up and running Airport Tournament and HuffleGPT locally with Clerk and Neon",
-        "start_seconds": 2518,
-        "end_seconds": 3239,
         "required": false
       }
     ]
@@ -5603,14 +4829,8 @@
     "lesson_title": "Archive: Reflecting on Learning Curves and External Resources",
     "content_block_id": 662,
     "source_id": "TCJ7cjsp76M",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Instructor introduces reflection topic on teaching and intimidation.",
-        "start_seconds": 3,
-        "end_seconds": 123,
-        "required": false
-      },
       {
         "label": "Student discusses overcoming fear of Rails routes and controllers via group work.",
         "start_seconds": 120,
@@ -5640,12 +4860,6 @@
         "start_seconds": 599,
         "end_seconds": 720,
         "required": false
-      },
-      {
-        "label": "Instructor explains backend vs frontend preferences and capstone presentation logistics.",
-        "start_seconds": 720,
-        "end_seconds": 848,
-        "required": false
       }
     ]
   },
@@ -5655,14 +4869,8 @@
     "lesson_title": "Resume Building and Job Search Strategy",
     "content_block_id": 664,
     "source_id": "L3nx3P7p_3c",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Introduction to Career Services and Ryan Styver Recording",
-        "start_seconds": 2,
-        "end_seconds": 601,
-        "required": false
-      },
       {
         "label": "ATS Mechanics and Resume Purpose",
         "start_seconds": 601,
@@ -5701,7 +4909,7 @@
     "lesson_title": "Technical Interview Preparation: LeetCode and Whiteboarding",
     "content_block_id": 666,
     "source_id": "dpv0zOdzmY8",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Introduction to LeetCode and Interview Types",
@@ -5735,18 +4943,12 @@
     "lesson_title": "Technical Interview Strategies and Data Structures",
     "content_block_id": 668,
     "source_id": "63HiSNt1dFw",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Interview Types and Take-Home Challenge Review",
         "start_seconds": 3,
         "end_seconds": 722,
-        "required": false
-      },
-      {
-        "label": "Rails Enum and Scope Implementation",
-        "start_seconds": 720,
-        "end_seconds": 1080,
         "required": false
       },
       {
@@ -5760,12 +4962,6 @@
         "start_seconds": 3842,
         "end_seconds": 6718,
         "required": false
-      },
-      {
-        "label": "NotebookLM for Technical Study",
-        "start_seconds": 7561,
-        "end_seconds": 9364,
-        "required": false
       }
     ]
   },
@@ -5775,7 +4971,7 @@
     "lesson_title": "Capstone Project Planning and MVP Definition",
     "content_block_id": 670,
     "source_id": "0i1BAAW6GhQ",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Introduction to Capstone and MVP Concept",
@@ -5821,7 +5017,7 @@
     "lesson_title": "Capstone Presentation Prep & Post-Cohort Opportunities",
     "content_block_id": 672,
     "source_id": "M56EpVXGOm4",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Capstone Presentation Guidelines and Structure",
@@ -5879,7 +5075,7 @@
     "lesson_title": "Post-Program Opportunities and Continued Learning",
     "content_block_id": 674,
     "source_id": "bciCP4ARZIY",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
       {
         "label": "Introduction to the Optional Internship Program",
@@ -5937,14 +5133,8 @@
     "lesson_title": "Archive: Capstone Presentations - Spam Bots Cohort",
     "content_block_id": 676,
     "source_id": "bWuS_YuiRzI",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "alumni_library_transcript_reviewed",
     "video_segments": [
-      {
-        "label": "Icebreaker: 'When did you feel like a developer?'",
-        "start_seconds": 0,
-        "end_seconds": 689,
-        "required": false
-      },
       {
         "label": "Adrian's Music Library Capstone Presentation",
         "start_seconds": 689,

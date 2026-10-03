@@ -41,12 +41,17 @@ Saved watch progress and an explicit `?t=` deep link still control the initial r
 
 `api/config/focused_recording_segments.json` is the reviewed override catalog for the focused student path. Each entry is keyed by both production lesson ID and recording source ID. This prevents a reviewed range from being attached to the wrong lesson or to a replacement video.
 
+`api/config/focused_alumni_recording_segments.json` is the equivalent reviewed catalog for the self-directed alumni library. Alumni sections stay Optional because the library has no required-work contract, but the catalog still removes classroom logistics, breaks, student work periods, and unrelated troubleshooting from the prominent path.
+
+The October 2026 alumni pass covers 75 published recordings with 341 focused sections. It reduces the prominent library path from about 78.4 hours to 59.5 hours without removing any complete recording from the archive.
+
 After editing the focused catalog, rebuild the resolved catalog:
 
 ```sh
 python3 scripts/build_video_segment_catalog.py \
   --base-catalog api/config/video_segments.json \
   --focused-catalog api/config/focused_recording_segments.json \
+  --focused-catalog api/config/focused_alumni_recording_segments.json \
   --output api/config/video_segments.json
 ```
 

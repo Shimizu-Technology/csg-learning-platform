@@ -1,0 +1,2573 @@
+[
+  {
+    "lesson_id": 318,
+    "source_id": "AQKjAnGmbdo",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Programming Fundamentals and Tools",
+        "start_seconds": 1080,
+        "end_seconds": 1561,
+        "required": false
+      },
+      {
+        "label": "WSL and Ubuntu Installation Troubleshooting",
+        "start_seconds": 1561,
+        "end_seconds": 2761,
+        "required": false
+      },
+      {
+        "label": "Homebrew and Zsh Configuration",
+        "start_seconds": 4320,
+        "end_seconds": 6119,
+        "required": false
+      },
+      {
+        "label": "Ruby Setup and Wrap-Up",
+        "start_seconds": 6724,
+        "end_seconds": 7323,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 319,
+    "source_id": "h675xGfYNXw",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Terminal Commands and GitHub Basics",
+        "start_seconds": 240,
+        "end_seconds": 599,
+        "required": false
+      },
+      {
+        "label": "GitHub Version Control Concept",
+        "start_seconds": 599,
+        "end_seconds": 844,
+        "required": false
+      },
+      {
+        "label": "Ruby Installation via rbenv and Homebrew",
+        "start_seconds": 2280,
+        "end_seconds": 2761,
+        "required": false
+      },
+      {
+        "label": "VS Code WSL Integration and File Creation",
+        "start_seconds": 3360,
+        "end_seconds": 3721,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 320,
+    "source_id": "Lsd1eBAgFtw",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "VS Code Settings and Extensions Overview",
+        "start_seconds": 2,
+        "end_seconds": 480,
+        "required": false
+      },
+      {
+        "label": "Terminal Navigation and Tab Completion",
+        "start_seconds": 480,
+        "end_seconds": 959,
+        "required": false
+      },
+      {
+        "label": "File Creation and Manipulation Commands",
+        "start_seconds": 959,
+        "end_seconds": 1321,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 321,
+    "source_id": "PYPOcrSHFKM",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Verifying local state and creating GitHub repo",
+        "start_seconds": 0,
+        "end_seconds": 119,
+        "required": false
+      },
+      {
+        "label": "Initializing git and pushing initial content",
+        "start_seconds": 119,
+        "end_seconds": 239,
+        "required": false
+      },
+      {
+        "label": "Staging, committing, and pushing subsequent changes",
+        "start_seconds": 239,
+        "end_seconds": 360,
+        "required": false
+      },
+      {
+        "label": "Demonstrating the iterative add-commit-push workflow",
+        "start_seconds": 360,
+        "end_seconds": 444,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 322,
+    "source_id": "7XhVK-HiE5E",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Agile Sprints and Workflow Introduction",
+        "start_seconds": 120,
+        "end_seconds": 241,
+        "required": false
+      },
+      {
+        "label": "ClickUp for Task Management and Initial Sprint Tasks",
+        "start_seconds": 241,
+        "end_seconds": 360,
+        "required": false
+      },
+      {
+        "label": "Sprint Planning, Retrospectives, and Daily Stand-ups",
+        "start_seconds": 600,
+        "end_seconds": 839,
+        "required": false
+      },
+      {
+        "label": "Branching, Pull Requests, and AI-Powered Code Editors (Cursor Demo)",
+        "start_seconds": 839,
+        "end_seconds": 1080,
+        "required": false
+      },
+      {
+        "label": "Communication, Project Repositories, and Tech Stacks",
+        "start_seconds": 1080,
+        "end_seconds": 1320,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 323,
+    "source_id": "5MRnQ9TOyk8",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Data Types and Printing with Puts",
+        "start_seconds": 841,
+        "end_seconds": 1200,
+        "required": false
+      },
+      {
+        "label": "Variables and String Interpolation vs Concatenation",
+        "start_seconds": 4560,
+        "end_seconds": 5040,
+        "required": false
+      },
+      {
+        "label": "Debugging Errors and Type Conversion",
+        "start_seconds": 5760,
+        "end_seconds": 6001,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 324,
+    "source_id": "504RErd01qA",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Introduction to Ruby, Data Types, and Variables",
+        "start_seconds": 480,
+        "end_seconds": 840,
+        "required": false
+      },
+      {
+        "label": "String Concatenation and Interpolation",
+        "start_seconds": 1321,
+        "end_seconds": 1562,
+        "required": false
+      },
+      {
+        "label": "Arithmetic Operators and Modulo",
+        "start_seconds": 4080,
+        "end_seconds": 4439,
+        "required": false
+      },
+      {
+        "label": "String Manipulation Methods",
+        "start_seconds": 5521,
+        "end_seconds": 5759,
+        "required": false
+      },
+      {
+        "label": "User Input with gets.chomp",
+        "start_seconds": 7081,
+        "end_seconds": 7317,
+        "required": false
+      },
+      {
+        "label": "Conditionals and Comparison Operators",
+        "start_seconds": 8161,
+        "end_seconds": 8641,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 325,
+    "source_id": "BBmkZItxVrE",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Conditional Logic: Temperature Checker and Write/Test Strategy",
+        "start_seconds": 842,
+        "end_seconds": 1201,
+        "required": false
+      },
+      {
+        "label": "Logical Operators: And, Or, and Boolean Conversion",
+        "start_seconds": 3000,
+        "end_seconds": 3719,
+        "required": false
+      },
+      {
+        "label": "While Loops: Counting and Infinite Loop Prevention",
+        "start_seconds": 6353,
+        "end_seconds": 6839,
+        "required": false
+      },
+      {
+        "label": "Until Loops: Password Prompt Example",
+        "start_seconds": 7800,
+        "end_seconds": 8160,
+        "required": false
+      },
+      {
+        "label": "Loop Control: Break, Next, and Complex Filtering Exercise",
+        "start_seconds": 9359,
+        "end_seconds": 11400,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 326,
+    "source_id": "QIK3PymCCE4",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Array Basics and Manipulation",
+        "start_seconds": 3604,
+        "end_seconds": 5400,
+        "required": false
+      },
+      {
+        "label": "While Loops vs Each Iterators",
+        "start_seconds": 7095,
+        "end_seconds": 9840,
+        "required": false
+      },
+      {
+        "label": "Introduction to Nested Arrays",
+        "start_seconds": 9840,
+        "end_seconds": 11199,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 327,
+    "source_id": "2ZElkWfOWnA",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Nested .each Loops",
+        "start_seconds": 1201,
+        "end_seconds": 1801,
+        "required": false
+      },
+      {
+        "label": "Nested While Loops Implementation",
+        "start_seconds": 1801,
+        "end_seconds": 2700,
+        "required": false
+      },
+      {
+        "label": "Introduction to Ruby Methods",
+        "start_seconds": 5040,
+        "end_seconds": 6001,
+        "required": false
+      },
+      {
+        "label": "Parameters, Arguments, and Data Types",
+        "start_seconds": 5998,
+        "end_seconds": 7200,
+        "required": false
+      },
+      {
+        "label": "Return vs. Puts",
+        "start_seconds": 8279,
+        "end_seconds": 9300,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 328,
+    "source_id": "T1dwoZxEe8I",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Ruby function review: parameters, return values, and array iteration",
+        "start_seconds": 364,
+        "end_seconds": 1078,
+        "required": false
+      },
+      {
+        "label": "Live coding and debugging: reversing words and multiplying arrays",
+        "start_seconds": 1320,
+        "end_seconds": 2640,
+        "required": false
+      },
+      {
+        "label": "Solution walkthrough: iteration, output, and explicit data flow",
+        "start_seconds": 3120,
+        "end_seconds": 3848,
+        "required": false
+      },
+      {
+        "label": "Introduction to deliberate practice repository and the 30-second rule",
+        "start_seconds": 3841,
+        "end_seconds": 4440,
+        "required": false
+      },
+      {
+        "label": "Debugging workflow and breaking problems into smaller steps",
+        "start_seconds": 4560,
+        "end_seconds": 5280,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 329,
+    "source_id": "Bblw2mYZ8AU",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "CLI Demo and Loop Mechanics",
+        "start_seconds": 961,
+        "end_seconds": 1439,
+        "required": false
+      },
+      {
+        "label": "Variable Scope Explanation",
+        "start_seconds": 2279,
+        "end_seconds": 2521,
+        "required": false
+      },
+      {
+        "label": "Peter Jang Notation and Debugging",
+        "start_seconds": 3479,
+        "end_seconds": 3960,
+        "required": false
+      },
+      {
+        "label": "Method Refactoring Demo",
+        "start_seconds": 5641,
+        "end_seconds": 6120,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 330,
+    "source_id": "49X1v-Gawys",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Review of Functions and Scope",
+        "start_seconds": 839,
+        "end_seconds": 1440,
+        "required": false
+      },
+      {
+        "label": "Interactive Function Debugging",
+        "start_seconds": 1440,
+        "end_seconds": 2521,
+        "required": false
+      },
+      {
+        "label": "Introduction to Hashes",
+        "start_seconds": 5639,
+        "end_seconds": 6839,
+        "required": false
+      },
+      {
+        "label": "Hash Manipulation (Add, Update, Delete)",
+        "start_seconds": 6841,
+        "end_seconds": 7560,
+        "required": false
+      },
+      {
+        "label": "Iterating Through Hashes",
+        "start_seconds": 8162,
+        "end_seconds": 8641,
+        "required": false
+      },
+      {
+        "label": "Nested Data Structures and API Context",
+        "start_seconds": 9238,
+        "end_seconds": 10201,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 331,
+    "source_id": "trI89N2-qmg",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Review of Ruby hashes and basic iteration",
+        "start_seconds": 600,
+        "end_seconds": 840,
+        "required": false
+      },
+      {
+        "label": "Nested arrays: Creating and accessing grid data",
+        "start_seconds": 1680,
+        "end_seconds": 1923,
+        "required": false
+      },
+      {
+        "label": "Iterating nested arrays with each and while loops",
+        "start_seconds": 2523,
+        "end_seconds": 3007,
+        "required": false
+      },
+      {
+        "label": "Nested hashes: Structure, access, and modification",
+        "start_seconds": 3600,
+        "end_seconds": 4681,
+        "required": false
+      },
+      {
+        "label": "Looping through nested hashes safely",
+        "start_seconds": 6121,
+        "end_seconds": 6600,
+        "required": false
+      },
+      {
+        "label": "Real-world exercise: Manipulating an array of product hashes",
+        "start_seconds": 7199,
+        "end_seconds": 8399,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 332,
+    "source_id": "n6lQewG3QIo",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Review of Arrays, Hashes, and Data Structures",
+        "start_seconds": 720,
+        "end_seconds": 2160,
+        "required": false
+      },
+      {
+        "label": "Live Coding: Implementing Add Item Logic",
+        "start_seconds": 3359,
+        "end_seconds": 3834,
+        "required": false
+      },
+      {
+        "label": "Class Walkthrough: View All Items and Debugging",
+        "start_seconds": 5041,
+        "end_seconds": 6480,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 333,
+    "source_id": "o8djxlXAV9Q",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Introduction to Git and GitHub",
+        "start_seconds": 2280,
+        "end_seconds": 2640,
+        "required": false
+      },
+      {
+        "label": "Git Installation and SSH Key Setup",
+        "start_seconds": 2640,
+        "end_seconds": 4320,
+        "required": false
+      },
+      {
+        "label": "Cloning Repositories and SSH Troubleshooting",
+        "start_seconds": 5040,
+        "end_seconds": 6960,
+        "required": false
+      },
+      {
+        "label": "Creating Repositories and Push Workflow",
+        "start_seconds": 6960,
+        "end_seconds": 9360,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 334,
+    "source_id": "26dJVWudKHQ",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Syntax errors vs Runtime exceptions",
+        "start_seconds": 1075,
+        "end_seconds": 1680,
+        "required": false
+      },
+      {
+        "label": "Begin, Rescue, and Ensure blocks",
+        "start_seconds": 1680,
+        "end_seconds": 2637,
+        "required": false
+      },
+      {
+        "label": "Using Raise for custom exceptions",
+        "start_seconds": 3590,
+        "end_seconds": 4320,
+        "required": false
+      },
+      {
+        "label": "Handling multiple exceptions and external errors",
+        "start_seconds": 6600,
+        "end_seconds": 9003,
+        "required": false
+      },
+      {
+        "label": "Practical application in CLI and Agile context",
+        "start_seconds": 9000,
+        "end_seconds": 10198,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 335,
+    "source_id": "yvkN9G6qeQ4",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Introduction to OOP concepts",
+        "start_seconds": 2040,
+        "end_seconds": 2281,
+        "required": false
+      },
+      {
+        "label": "Defining classes and creating instances",
+        "start_seconds": 2281,
+        "end_seconds": 2761,
+        "required": false
+      },
+      {
+        "label": "Instance variables, setters, and getters",
+        "start_seconds": 3959,
+        "end_seconds": 4680,
+        "required": false
+      },
+      {
+        "label": "The initialize method",
+        "start_seconds": 5879,
+        "end_seconds": 6599,
+        "required": false
+      },
+      {
+        "label": "attr_reader and attr_writer shortcuts",
+        "start_seconds": 6599,
+        "end_seconds": 7200,
+        "required": false
+      },
+      {
+        "label": "attr_accessor and custom methods",
+        "start_seconds": 7576,
+        "end_seconds": 8280,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 336,
+    "source_id": "yquPzuV__80",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Concept of Inheritance and Vehicle example",
+        "start_seconds": 2279,
+        "end_seconds": 2640,
+        "required": false
+      },
+      {
+        "label": "Implementing Inheritance with Person, Student, Teacher",
+        "start_seconds": 3359,
+        "end_seconds": 3840,
+        "required": false
+      },
+      {
+        "label": "Using super for initialization and methods",
+        "start_seconds": 3840,
+        "end_seconds": 4320,
+        "required": false
+      },
+      {
+        "label": "Polymorphism and Method Overwriting demonstration",
+        "start_seconds": 6002,
+        "end_seconds": 6480,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 337,
+    "source_id": "nWoc0Z5xfbA",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Introduction to Modules and Namespacing",
+        "start_seconds": 600,
+        "end_seconds": 840,
+        "required": false
+      },
+      {
+        "label": "Demonstration of Namespacing with PDF and Network Tools",
+        "start_seconds": 840,
+        "end_seconds": 1318,
+        "required": false
+      },
+      {
+        "label": "Introduction to Mixins and Logging Example",
+        "start_seconds": 3004,
+        "end_seconds": 3480,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 338,
+    "source_id": "jusG7bIV1TM",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "OOP Concept Review: Classes, Instances, and Accessors",
+        "start_seconds": 4082,
+        "end_seconds": 4798,
+        "required": false
+      },
+      {
+        "label": "Live Coding: Car/Book Classes and Modules",
+        "start_seconds": 5400,
+        "end_seconds": 6000,
+        "required": false
+      },
+      {
+        "label": "Introduction to RSpec and Unit Testing",
+        "start_seconds": 6479,
+        "end_seconds": 7192,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 339,
+    "source_id": "J854XCB8hqs",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Introduction to File I/O and Reading Files",
+        "start_seconds": 361,
+        "end_seconds": 720,
+        "required": false
+      },
+      {
+        "label": "Error Handling and Absolute Paths",
+        "start_seconds": 843,
+        "end_seconds": 1200,
+        "required": false
+      },
+      {
+        "label": "Writing and Appending to Files",
+        "start_seconds": 1800,
+        "end_seconds": 2395,
+        "required": false
+      },
+      {
+        "label": "Looping Through Files with each_line",
+        "start_seconds": 6599,
+        "end_seconds": 7440,
+        "required": false
+      },
+      {
+        "label": "Working with JSON: Serialization and Parsing",
+        "start_seconds": 8879,
+        "end_seconds": 9840,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 340,
+    "source_id": "FEGMBWoCOYo",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Introduction to Abstraction and Encapsulation",
+        "start_seconds": 720,
+        "end_seconds": 840,
+        "required": false
+      },
+      {
+        "label": "Demonstration of Private Methods and Inheritance",
+        "start_seconds": 840,
+        "end_seconds": 1200,
+        "required": false
+      },
+      {
+        "label": "Coffee Machine Example: Private Methods in Action",
+        "start_seconds": 1200,
+        "end_seconds": 1441,
+        "required": false
+      },
+      {
+        "label": "Real-world Example: Password Reset Code Generation",
+        "start_seconds": 1441,
+        "end_seconds": 1559,
+        "required": false
+      },
+      {
+        "label": "Library Class: Integrating File I/O with OOP",
+        "start_seconds": 3840,
+        "end_seconds": 4680,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 341,
+    "source_id": "hSrlt7WuJvw",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "API Fundamentals and HTTP Requests in Ruby",
+        "start_seconds": 479,
+        "end_seconds": 721,
+        "required": false
+      },
+      {
+        "label": "Parsing Nested JSON and Navigating Data Structures",
+        "start_seconds": 721,
+        "end_seconds": 899,
+        "required": false
+      },
+      {
+        "label": "Introduction to Ruby on Rails Framework",
+        "start_seconds": 900,
+        "end_seconds": 1080,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 342,
+    "source_id": "KNssgeDZpUk",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Review of MVC, HTTP verbs, and CRUD operations",
+        "start_seconds": 840,
+        "end_seconds": 1319,
+        "required": false
+      },
+      {
+        "label": "Controller logic and render vs return explanation",
+        "start_seconds": 1319,
+        "end_seconds": 1920,
+        "required": false
+      },
+      {
+        "label": "Introduction to HTTPie for API testing",
+        "start_seconds": 1920,
+        "end_seconds": 2280,
+        "required": false
+      },
+      {
+        "label": "Debugging routing errors and actions",
+        "start_seconds": 2280,
+        "end_seconds": 2639,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 343,
+    "source_id": "9sEDEsIzgc8",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Model Generation and Migrations",
+        "start_seconds": 825,
+        "end_seconds": 1560,
+        "required": false
+      },
+      {
+        "label": "Rails Console CRUD: Create and Read",
+        "start_seconds": 1560,
+        "end_seconds": 2160,
+        "required": false
+      },
+      {
+        "label": "Rails Console CRUD: Update and Destroy",
+        "start_seconds": 5400,
+        "end_seconds": 6482,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 344,
+    "source_id": "9W_dm6FkTAs",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Model Generation and Index/Show Implementation",
+        "start_seconds": 479,
+        "end_seconds": 960,
+        "required": false
+      },
+      {
+        "label": "Create and Update Actions with Params",
+        "start_seconds": 7799,
+        "end_seconds": 10201,
+        "required": false
+      },
+      {
+        "label": "Safe Update Logic and Debugging",
+        "start_seconds": 10201,
+        "end_seconds": 11641,
+        "required": false
+      },
+      {
+        "label": "Destroy Action and Final Review",
+        "start_seconds": 11641,
+        "end_seconds": 12241,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 345,
+    "source_id": "T8XADrBM0VU",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Project Setup and Model Creation",
+        "start_seconds": 361,
+        "end_seconds": 840,
+        "required": false
+      },
+      {
+        "label": "Index and Show Implementation",
+        "start_seconds": 959,
+        "end_seconds": 1426,
+        "required": false
+      },
+      {
+        "label": "Create Action Implementation",
+        "start_seconds": 7321,
+        "end_seconds": 7560,
+        "required": false
+      },
+      {
+        "label": "Update Action and Dynamic Parameters",
+        "start_seconds": 8401,
+        "end_seconds": 8880,
+        "required": false
+      },
+      {
+        "label": "Destroy Action Implementation",
+        "start_seconds": 9240,
+        "end_seconds": 9592,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 346,
+    "source_id": "uEaKq0i4YzQ",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Explanation of the HTTP request cycle",
+        "start_seconds": 2641,
+        "end_seconds": 2881,
+        "required": false
+      },
+      {
+        "label": "Instructor demo: Building a Recipes API from scratch",
+        "start_seconds": 2881,
+        "end_seconds": 7560,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 347,
+    "source_id": "XvTFrGjVMLo",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "API Setup and Git Workflow",
+        "start_seconds": 0,
+        "end_seconds": 241,
+        "required": false
+      },
+      {
+        "label": "Model Generation and Console Testing",
+        "start_seconds": 241,
+        "end_seconds": 478,
+        "required": false
+      },
+      {
+        "label": "Controller, Routes, and CRUD Implementation",
+        "start_seconds": 478,
+        "end_seconds": 723,
+        "required": false
+      },
+      {
+        "label": "Debugging Params and Forking Workflow",
+        "start_seconds": 723,
+        "end_seconds": 962,
+        "required": false
+      },
+      {
+        "label": "Model Validations (Presence and Numericality)",
+        "start_seconds": 1561,
+        "end_seconds": 1920,
+        "required": false
+      },
+      {
+        "label": "Production-Error Handling Pattern",
+        "start_seconds": 2159,
+        "end_seconds": 2413,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 348,
+    "source_id": "iU7JR_ItTR4",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Validations Demo: Presence and Numericality",
+        "start_seconds": 2160,
+        "end_seconds": 2641,
+        "required": false
+      },
+      {
+        "label": "Graceful Error Handling and Status Codes",
+        "start_seconds": 4076,
+        "end_seconds": 4782,
+        "required": false
+      },
+      {
+        "label": "Migrations: Add, Rename, and Remove Columns",
+        "start_seconds": 5159,
+        "end_seconds": 6121,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 349,
+    "source_id": "T_WgtxO-fUc",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Demonstration: Adding a column via migration",
+        "start_seconds": 1199,
+        "end_seconds": 1561,
+        "required": false
+      },
+      {
+        "label": "Introduction to Associations and Foreign Keys",
+        "start_seconds": 2041,
+        "end_seconds": 2519,
+        "required": false
+      },
+      {
+        "label": "Implementing Author-Article Association",
+        "start_seconds": 2760,
+        "end_seconds": 3241,
+        "required": false
+      },
+      {
+        "label": "Guided Exercise: Genre-Movie Association",
+        "start_seconds": 3601,
+        "end_seconds": 4307,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 350,
+    "source_id": "xvekMkwHwN8",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Introduction to Seeds and Setup",
+        "start_seconds": 4201,
+        "end_seconds": 4798,
+        "required": false
+      },
+      {
+        "label": "Database Commands: Reset and Rollback",
+        "start_seconds": 5870,
+        "end_seconds": 6300,
+        "required": false
+      },
+      {
+        "label": "Dynamic Supplier ID in Seeds",
+        "start_seconds": 6959,
+        "end_seconds": 7500,
+        "required": false
+      },
+      {
+        "label": "Faker Gem Integration",
+        "start_seconds": 8160,
+        "end_seconds": 8880,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 351,
+    "source_id": "mbkrFwA9m-4",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Introduction to Active Model Serializers",
+        "start_seconds": 901,
+        "end_seconds": 1440,
+        "required": false
+      },
+      {
+        "label": "Demonstrating Custom Attributes and Computed Data",
+        "start_seconds": 1440,
+        "end_seconds": 2039,
+        "required": false
+      },
+      {
+        "label": "Handling Associations in Serializers",
+        "start_seconds": 2039,
+        "end_seconds": 2403,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 352,
+    "source_id": "Ugt-7pUF6l0",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Demonstration and testing of model validations",
+        "start_seconds": 401,
+        "end_seconds": 900,
+        "required": false
+      },
+      {
+        "label": "Introduction and implementation of ActiveModel::Serializer",
+        "start_seconds": 900,
+        "end_seconds": 1401,
+        "required": false
+      },
+      {
+        "label": "Explanation and demonstration of controller callbacks (before_action/after_action)",
+        "start_seconds": 3000,
+        "end_seconds": 4201,
+        "required": false
+      },
+      {
+        "label": "Refactoring code with callbacks for DRY principles",
+        "start_seconds": 4201,
+        "end_seconds": 5401,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 353,
+    "source_id": "aEv6D6UNd74",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Review of one-to-many associations and foreign keys",
+        "start_seconds": 720,
+        "end_seconds": 1201,
+        "required": false
+      },
+      {
+        "label": "Conceptual explanation of many-to-many and join tables",
+        "start_seconds": 1201,
+        "end_seconds": 2041,
+        "required": false
+      },
+      {
+        "label": "Real-world example and Rails console demonstration",
+        "start_seconds": 2158,
+        "end_seconds": 2639,
+        "required": false
+      },
+      {
+        "label": "Live coding: migrations, models, and debugging",
+        "start_seconds": 2642,
+        "end_seconds": 3359,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 354,
+    "source_id": "pfSrtsnlubg",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Authentication concepts and gem setup",
+        "start_seconds": 257,
+        "end_seconds": 481,
+        "required": false
+      },
+      {
+        "label": "User model and sign-up implementation",
+        "start_seconds": 481,
+        "end_seconds": 1081,
+        "required": false
+      },
+      {
+        "label": "Sessions controller and JWT generation",
+        "start_seconds": 1081,
+        "end_seconds": 1680,
+        "required": false
+      },
+      {
+        "label": "Authorization and protected routes",
+        "start_seconds": 1680,
+        "end_seconds": 2460,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 355,
+    "source_id": "LFZZzolWDCg",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Setting up User model and gems",
+        "start_seconds": 361,
+        "end_seconds": 721,
+        "required": false
+      },
+      {
+        "label": "Creating Users controller and debugging CSRF errors",
+        "start_seconds": 721,
+        "end_seconds": 1323,
+        "required": false
+      },
+      {
+        "label": "Implementing Sessions controller and login",
+        "start_seconds": 1681,
+        "end_seconds": 2040,
+        "required": false
+      },
+      {
+        "label": "Adding authorization callbacks and debugging order of operations",
+        "start_seconds": 2040,
+        "end_seconds": 2760,
+        "required": false
+      },
+      {
+        "label": "Deep dive into password hashing and bcrypt",
+        "start_seconds": 7321,
+        "end_seconds": 8160,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 356,
+    "source_id": "7ssqOvkSbag",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Introduction to Active Record and ORM",
+        "start_seconds": 480,
+        "end_seconds": 841,
+        "required": false
+      },
+      {
+        "label": "Core Query Methods: find, find_by, where",
+        "start_seconds": 1079,
+        "end_seconds": 1680,
+        "required": false
+      },
+      {
+        "label": "Chaining Methods: order, limit, pluck, select",
+        "start_seconds": 3120,
+        "end_seconds": 3960,
+        "required": false
+      },
+      {
+        "label": "Applying Queries in Controllers and Pagination",
+        "start_seconds": 8642,
+        "end_seconds": 9361,
+        "required": false
+      },
+      {
+        "label": "Defining and Using Scopes",
+        "start_seconds": 9361,
+        "end_seconds": 11497,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 357,
+    "source_id": "umR507m_B9I",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Distinguish authentication from authorization",
+        "start_seconds": 360,
+        "end_seconds": 600,
+        "required": false
+      },
+      {
+        "label": "Install Pundit and handle authorization errors",
+        "start_seconds": 1680,
+        "end_seconds": 2040,
+        "required": false
+      },
+      {
+        "label": "Validate roles and add user helpers",
+        "start_seconds": 2040,
+        "end_seconds": 2400,
+        "required": false
+      },
+      {
+        "label": "Build policy and scope logic",
+        "start_seconds": 2400,
+        "end_seconds": 3000,
+        "required": false
+      },
+      {
+        "label": "Test authorization with HTTPie",
+        "start_seconds": 3000,
+        "end_seconds": 3600,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 358,
+    "source_id": "UNr7VDqURHw",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Concepts and Setup",
+        "start_seconds": 480,
+        "end_seconds": 1199,
+        "required": false
+      },
+      {
+        "label": "Index Scope and Testing",
+        "start_seconds": 1199,
+        "end_seconds": 1800,
+        "required": false
+      },
+      {
+        "label": "Create Policy and Authorization",
+        "start_seconds": 3000,
+        "end_seconds": 3359,
+        "required": false
+      },
+      {
+        "label": "Flow and Best Practices",
+        "start_seconds": 6241,
+        "end_seconds": 7201,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 359,
+    "source_id": "pTyaJQAN6tM",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Organize an API under /api/v1",
+        "start_seconds": 464,
+        "end_seconds": 1925,
+        "required": false
+      },
+      {
+        "label": "Build and schedule background jobs",
+        "start_seconds": 6564,
+        "end_seconds": 8040,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 360,
+    "source_id": "DwYdLy-YxGw",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Mini Capstone Overview and Goals",
+        "start_seconds": 601,
+        "end_seconds": 720,
+        "required": false
+      },
+      {
+        "label": "Defining the MVP Scope",
+        "start_seconds": 720,
+        "end_seconds": 840,
+        "required": false
+      },
+      {
+        "label": "Schema Design and User Stories",
+        "start_seconds": 840,
+        "end_seconds": 1081,
+        "required": false
+      },
+      {
+        "label": "Kanban Board and Task Management",
+        "start_seconds": 1200,
+        "end_seconds": 1439,
+        "required": false
+      },
+      {
+        "label": "Implementation Steps and Review Process",
+        "start_seconds": 1439,
+        "end_seconds": 1554,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 361,
+    "source_id": "ZWi1decRIDM",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Tournament API presentation: schema, validations, authentication, and scoring",
+        "start_seconds": 2876,
+        "end_seconds": 4442,
+        "required": false
+      },
+      {
+        "label": "Video rental API presentation: associations, inventory, and returns",
+        "start_seconds": 4560,
+        "end_seconds": 5639,
+        "required": false
+      },
+      {
+        "label": "Recipe finder API presentation: favorites, JWT, namespacing, and search",
+        "start_seconds": 5639,
+        "end_seconds": 6834,
+        "required": false
+      },
+      {
+        "label": "Additional capstone demonstration and implementation discussion",
+        "start_seconds": 6842,
+        "end_seconds": 7801,
+        "required": false
+      },
+      {
+        "label": "Engineering reflection: break complex work into manageable steps",
+        "start_seconds": 7801,
+        "end_seconds": 8204,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 362,
+    "source_id": "edRCFithOSM",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Completing CRUD and Views",
+        "start_seconds": 480,
+        "end_seconds": 1560,
+        "required": false
+      },
+      {
+        "label": "Browser Developer Tools Overview",
+        "start_seconds": 1560,
+        "end_seconds": 1800,
+        "required": false
+      },
+      {
+        "label": "Introduction to CSS and Tailwind",
+        "start_seconds": 1800,
+        "end_seconds": 2159,
+        "required": false
+      },
+      {
+        "label": "Installing Tailwind and bin/dev Explanation",
+        "start_seconds": 2159,
+        "end_seconds": 2520,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 363,
+    "source_id": "sDzzZ2Hvdb0",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "JavaScript Overview and Browser Console Setup",
+        "start_seconds": 359,
+        "end_seconds": 600,
+        "required": false
+      },
+      {
+        "label": "Console.log and Arithmetic Operators",
+        "start_seconds": 600,
+        "end_seconds": 840,
+        "required": false
+      },
+      {
+        "label": "Installing Node.js and Local Execution",
+        "start_seconds": 1440,
+        "end_seconds": 1678,
+        "required": false
+      },
+      {
+        "label": "Variables (let, const, var) and Naming Conventions",
+        "start_seconds": 3360,
+        "end_seconds": 3841,
+        "required": false
+      },
+      {
+        "label": "Data Types: Strings, Numbers, Booleans, Null, Objects, Arrays",
+        "start_seconds": 3841,
+        "end_seconds": 4561,
+        "required": false
+      },
+      {
+        "label": "Comparison Operators: Loose vs. Strict Equality",
+        "start_seconds": 7201,
+        "end_seconds": 8163,
+        "required": false
+      },
+      {
+        "label": "Logical Operators and Conditional Statements (if/else)",
+        "start_seconds": 8640,
+        "end_seconds": 9480,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 364,
+    "source_id": "jvupC1Yr5pw",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Review: Variables, Conditions, and Equality Operators",
+        "start_seconds": 360,
+        "end_seconds": 721,
+        "required": false
+      },
+      {
+        "label": "Loops: For, While, Do-While, For...of, For...in, Break/Continue",
+        "start_seconds": 4681,
+        "end_seconds": 6120,
+        "required": false
+      },
+      {
+        "label": "Functions: Declaration, Parameters, Return, and Template Literals",
+        "start_seconds": 8281,
+        "end_seconds": 8761,
+        "required": false
+      },
+      {
+        "label": "Async vs Sync: Demonstrating setTimeout and Event Loop behavior",
+        "start_seconds": 10081,
+        "end_seconds": 10680,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 365,
+    "source_id": "Hn4tCQ9djE4",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Introduction to Ternary Operator",
+        "start_seconds": 1326,
+        "end_seconds": 1558,
+        "required": false
+      },
+      {
+        "label": "Synchronous vs. Asynchronous JavaScript (setTimeout)",
+        "start_seconds": 2219,
+        "end_seconds": 2638,
+        "required": false
+      },
+      {
+        "label": "Solution: Callbacks for Sequential Asynchronous Tasks",
+        "start_seconds": 4319,
+        "end_seconds": 4800,
+        "required": false
+      },
+      {
+        "label": "Variable Declarations: var (Function Scoped)",
+        "start_seconds": 4800,
+        "end_seconds": 5399,
+        "required": false
+      },
+      {
+        "label": "Variable Declarations: let (Block Scoped)",
+        "start_seconds": 5401,
+        "end_seconds": 5878,
+        "required": false
+      },
+      {
+        "label": "Variable Declarations: const (Block Scoped, Immutability)",
+        "start_seconds": 5878,
+        "end_seconds": 6358,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 366,
+    "source_id": "tUPxrIdwr_E",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Introduction to HTML: Structure and Common Tags",
+        "start_seconds": 241,
+        "end_seconds": 900,
+        "required": false
+      },
+      {
+        "label": "HTML Attributes, IDs, and Classes",
+        "start_seconds": 1920,
+        "end_seconds": 2638,
+        "required": false
+      },
+      {
+        "label": "Proper HTML Document Structure",
+        "start_seconds": 2638,
+        "end_seconds": 2994,
+        "required": false
+      },
+      {
+        "label": "Introduction to CSS: Styling and Connection Methods",
+        "start_seconds": 3419,
+        "end_seconds": 4319,
+        "required": false
+      },
+      {
+        "label": "Introduction to JavaScript and the Document Object Model (DOM)",
+        "start_seconds": 5461,
+        "end_seconds": 6359,
+        "required": false
+      },
+      {
+        "label": "Manipulating DOM Elements and Event Listeners with JavaScript",
+        "start_seconds": 6359,
+        "end_seconds": 8340,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 367,
+    "source_id": "0U8Ls-Q-gv0",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Introduction to static JS and DOM manipulation",
+        "start_seconds": 480,
+        "end_seconds": 1081,
+        "required": false
+      },
+      {
+        "label": "Installing packages with npm and using libraries",
+        "start_seconds": 2041,
+        "end_seconds": 3001,
+        "required": false
+      },
+      {
+        "label": "Introducing Webpack for bundling and require syntax",
+        "start_seconds": 3361,
+        "end_seconds": 4200,
+        "required": false
+      },
+      {
+        "label": "Configuring Webpack and integrating Babel for ES6+",
+        "start_seconds": 5760,
+        "end_seconds": 6601,
+        "required": false
+      },
+      {
+        "label": "Setting up Webpack Dev Server and hot reloading",
+        "start_seconds": 7199,
+        "end_seconds": 8162,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 368,
+    "source_id": "T9FF_HXbjiU",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Introduction to JavaScript and Node.js",
+        "start_seconds": 2,
+        "end_seconds": 240,
+        "required": false
+      },
+      {
+        "label": "Understanding JavaScript Variable Declarations: var",
+        "start_seconds": 240,
+        "end_seconds": 840,
+        "required": false
+      },
+      {
+        "label": "Understanding JavaScript Variable Declarations: let",
+        "start_seconds": 840,
+        "end_seconds": 1321,
+        "required": false
+      },
+      {
+        "label": "Understanding JavaScript Variable Declarations: const",
+        "start_seconds": 1319,
+        "end_seconds": 1679,
+        "required": false
+      },
+      {
+        "label": "JavaScript Data Types: Strings, Numbers, Booleans, Null, Undefined, Objects, Arrays",
+        "start_seconds": 2278,
+        "end_seconds": 2939,
+        "required": false
+      },
+      {
+        "label": "JavaScript Naming Conventions (Camel Case)",
+        "start_seconds": 3000,
+        "end_seconds": 3240,
+        "required": false
+      },
+      {
+        "label": "String Concatenation and Interpolation",
+        "start_seconds": 3549,
+        "end_seconds": 3841,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 369,
+    "source_id": "izJnOViNZHw",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Modern JS Review and Vite Setup",
+        "start_seconds": 2,
+        "end_seconds": 1681,
+        "required": false
+      },
+      {
+        "label": "React Introduction and Vite CLI Usage",
+        "start_seconds": 1681,
+        "end_seconds": 2399,
+        "required": false
+      },
+      {
+        "label": "JSX Syntax and Initial App Structure",
+        "start_seconds": 3241,
+        "end_seconds": 3959,
+        "required": false
+      },
+      {
+        "label": "Component-Based Architecture and Refactoring",
+        "start_seconds": 5880,
+        "end_seconds": 6960,
+        "required": false
+      },
+      {
+        "label": "Props and Dynamic Rendering with Map",
+        "start_seconds": 7801,
+        "end_seconds": 10721,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 370,
+    "source_id": "OZ8u9dyzk7Y",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Review of Modern JS Setup & Intro to React",
+        "start_seconds": 480,
+        "end_seconds": 840,
+        "required": false
+      },
+      {
+        "label": "Creating First React App & JSX Basics",
+        "start_seconds": 840,
+        "end_seconds": 1380,
+        "required": false
+      },
+      {
+        "label": "Building Static UI in React (HTML-like)",
+        "start_seconds": 2263,
+        "end_seconds": 2939,
+        "required": false
+      },
+      {
+        "label": "Refactoring into React Components",
+        "start_seconds": 5520,
+        "end_seconds": 6360,
+        "required": false
+      },
+      {
+        "label": "Dynamic Data with Props and Map Function",
+        "start_seconds": 7680,
+        "end_seconds": 8281,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 371,
+    "source_id": "5tgaEBR1khI",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Implementing handleShow function and passing it via props",
+        "start_seconds": 360,
+        "end_seconds": 1078,
+        "required": false
+      },
+      {
+        "label": "Deep dive into anonymous functions for event handlers",
+        "start_seconds": 1078,
+        "end_seconds": 1438,
+        "required": false
+      },
+      {
+        "label": "Detailed explanation of JavaScript event handler behavior",
+        "start_seconds": 2398,
+        "end_seconds": 2999,
+        "required": false
+      },
+      {
+        "label": "Creating and rendering a modal component with conditional display",
+        "start_seconds": 2999,
+        "end_seconds": 3463,
+        "required": false
+      },
+      {
+        "label": "Managing modal visibility with useState and onClose prop",
+        "start_seconds": 4078,
+        "end_seconds": 4561,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 372,
+    "source_id": "ONQWBuboH6A",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Detailed review and implementation of the 'Show' action with modals",
+        "start_seconds": 600,
+        "end_seconds": 1340,
+        "required": false
+      },
+      {
+        "label": "Introduction to 'Create' action: HTML form submission to Rails API",
+        "start_seconds": 3720,
+        "end_seconds": 4312,
+        "required": false
+      },
+      {
+        "label": "Transition to React-controlled forms: `handleSubmit`, `event.preventDefault`, and prop drilling",
+        "start_seconds": 4921,
+        "end_seconds": 5520,
+        "required": false
+      },
+      {
+        "label": "Capturing form data, sending Axios POST requests, and handling parameters",
+        "start_seconds": 6720,
+        "end_seconds": 7320,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 373,
+    "source_id": "jq7eXTuQRmc",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Build the update form and handler",
+        "start_seconds": 2343,
+        "end_seconds": 3000,
+        "required": false
+      },
+      {
+        "label": "Patch the record and replace it in state",
+        "start_seconds": 6960,
+        "end_seconds": 7920,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 374,
+    "source_id": "trMel2NI1W0",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Introduction to AI Frontend Tools and Prompting",
+        "start_seconds": 2,
+        "end_seconds": 360,
+        "required": false
+      },
+      {
+        "label": "Refining AI Prompts and Initial Frontend Demo",
+        "start_seconds": 360,
+        "end_seconds": 600,
+        "required": false
+      },
+      {
+        "label": "Comparing AI-Generated vs. Manual Frontend Code",
+        "start_seconds": 600,
+        "end_seconds": 841,
+        "required": false
+      },
+      {
+        "label": "Downloading, Running, and Initial Debugging",
+        "start_seconds": 841,
+        "end_seconds": 1140,
+        "required": false
+      },
+      {
+        "label": "Understanding and Fixing CORS Errors",
+        "start_seconds": 1140,
+        "end_seconds": 1501,
+        "required": false
+      },
+      {
+        "label": "CORS Setup Details and API Mode Discussion",
+        "start_seconds": 1741,
+        "end_seconds": 2099,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 375,
+    "source_id": "PLGjYy871mQ",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Implementing handleCreate and passing as prop",
+        "start_seconds": 710,
+        "end_seconds": 1070,
+        "required": false
+      },
+      {
+        "label": "Extracting form data and passing parameters",
+        "start_seconds": 1070,
+        "end_seconds": 1320,
+        "required": false
+      },
+      {
+        "label": "Making Axios POST request to backend",
+        "start_seconds": 1320,
+        "end_seconds": 1499,
+        "required": false
+      },
+      {
+        "label": "Updating UI with spread operator",
+        "start_seconds": 1499,
+        "end_seconds": 1681,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 376,
+    "source_id": "32Ig8EKM57U",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Introduction to application setup and README importance",
+        "start_seconds": 3,
+        "end_seconds": 121,
+        "required": false
+      },
+      {
+        "label": "Configuring React frontend environment variables (.env)",
+        "start_seconds": 121,
+        "end_seconds": 239,
+        "required": false
+      },
+      {
+        "label": "Starting React server and reviewing frontend tech stack",
+        "start_seconds": 239,
+        "end_seconds": 360,
+        "required": false
+      },
+      {
+        "label": "Configuring Rails backend and database setup",
+        "start_seconds": 360,
+        "end_seconds": 480,
+        "required": false
+      },
+      {
+        "label": "Safe local development with Git branching",
+        "start_seconds": 961,
+        "end_seconds": 1199,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 377,
+    "source_id": "qTh6G1_MyI8",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Introduction to LLMs and AI Engineering",
+        "start_seconds": 759,
+        "end_seconds": 960,
+        "required": false
+      },
+      {
+        "label": "LLMs as Statistical Next-Word Predictors",
+        "start_seconds": 960,
+        "end_seconds": 1201,
+        "required": false
+      },
+      {
+        "label": "OpenAI Chatbot Demo and Training Data",
+        "start_seconds": 1201,
+        "end_seconds": 1440,
+        "required": false
+      },
+      {
+        "label": "Setting Up Python Environment with UV and Virtual Environments",
+        "start_seconds": 1440,
+        "end_seconds": 1680,
+        "required": false
+      },
+      {
+        "label": "Obtaining OpenAI API Key and Project Setup",
+        "start_seconds": 1680,
+        "end_seconds": 1980,
+        "required": false
+      },
+      {
+        "label": "Building and Testing the First Chatbot",
+        "start_seconds": 1980,
+        "end_seconds": 2341,
+        "required": false
+      },
+      {
+        "label": "Running Local LLMs with LM Studio",
+        "start_seconds": 3480,
+        "end_seconds": 4078,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 378,
+    "source_id": "u4X-I72QtwI",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Introduction to RSpec and Setup",
+        "start_seconds": 3120,
+        "end_seconds": 3481,
+        "required": false
+      },
+      {
+        "label": "Creating Calculator Class and Spec",
+        "start_seconds": 3601,
+        "end_seconds": 3839,
+        "required": false
+      },
+      {
+        "label": "Writing and Running First Test",
+        "start_seconds": 3839,
+        "end_seconds": 4080,
+        "required": false
+      },
+      {
+        "label": "Testing Person/Student/Teacher Classes",
+        "start_seconds": 6720,
+        "end_seconds": 7321,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 379,
+    "source_id": "vxbP0MP_DVA",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Concept: Branching and Pull Requests",
+        "start_seconds": 479,
+        "end_seconds": 1200,
+        "required": false
+      },
+      {
+        "label": "Practice: First PR Cycle",
+        "start_seconds": 2038,
+        "end_seconds": 2519,
+        "required": false
+      },
+      {
+        "label": "Practice: Review and Merge Cycle",
+        "start_seconds": 3000,
+        "end_seconds": 3480,
+        "required": false
+      },
+      {
+        "label": "Practice: Clone and Branching",
+        "start_seconds": 5998,
+        "end_seconds": 6602,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 380,
+    "source_id": "5qBkLnM-gu8",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Mini Capstone Instructions and Planning Requirements",
+        "start_seconds": 299,
+        "end_seconds": 720,
+        "required": false
+      },
+      {
+        "label": "Guest Speaker Noah's Journey and Learning Path",
+        "start_seconds": 1020,
+        "end_seconds": 1800,
+        "required": false
+      },
+      {
+        "label": "Professional Challenges: Debugging, Documentation, and GitHub",
+        "start_seconds": 1800,
+        "end_seconds": 2700,
+        "required": false
+      },
+      {
+        "label": "AI in Engineering and Personal Projects",
+        "start_seconds": 2700,
+        "end_seconds": 3300,
+        "required": false
+      },
+      {
+        "label": "Career Advice and Industry Workflows",
+        "start_seconds": 3300,
+        "end_seconds": 4200,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 381,
+    "source_id": "ZRFsDlaxcBE",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Introduction and Project Setup",
+        "start_seconds": 3,
+        "end_seconds": 359,
+        "required": false
+      },
+      {
+        "label": "RSpec Configuration and Directory Structure",
+        "start_seconds": 359,
+        "end_seconds": 840,
+        "required": false
+      },
+      {
+        "label": "Creating Factories and Model Specs",
+        "start_seconds": 1920,
+        "end_seconds": 2521,
+        "required": false
+      },
+      {
+        "label": "Testing Model Scopes",
+        "start_seconds": 7440,
+        "end_seconds": 8161,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 382,
+    "source_id": "nKxzE55BajU",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "RSpec Setup Review and Factory Bot Explanation",
+        "start_seconds": 601,
+        "end_seconds": 960,
+        "required": false
+      },
+      {
+        "label": "Controller Generation and Index/Show Request Specs",
+        "start_seconds": 960,
+        "end_seconds": 1441,
+        "required": false
+      },
+      {
+        "label": "Testing Show Action and Error Analysis",
+        "start_seconds": 1442,
+        "end_seconds": 1799,
+        "required": false
+      },
+      {
+        "label": "Exercise and Create Action Implementation",
+        "start_seconds": 1799,
+        "end_seconds": 3601,
+        "required": false
+      },
+      {
+        "label": "Testing Create Action Success and Failure Cases",
+        "start_seconds": 3601,
+        "end_seconds": 4184,
+        "required": false
+      },
+      {
+        "label": "Introduction to Full-Stack Rails and ERB",
+        "start_seconds": 5998,
+        "end_seconds": 6601,
+        "required": false
+      },
+      {
+        "label": "Full-Stack Demo and Breakout Room Assignment",
+        "start_seconds": 6601,
+        "end_seconds": 7307,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 383,
+    "source_id": "Otzinb2xcuQ",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Deploy Rails and PostgreSQL on Render",
+        "start_seconds": 3,
+        "end_seconds": 718,
+        "required": false
+      },
+      {
+        "label": "Deploy React on Netlify and connect production",
+        "start_seconds": 721,
+        "end_seconds": 1199,
+        "required": false
+      },
+      {
+        "label": "Diagnose and fix production CORS",
+        "start_seconds": 1199,
+        "end_seconds": 1439,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 384,
+    "source_id": "5G5Tr3biTM0",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Discussion on microservices vs. monoliths and polyglot persistence",
+        "start_seconds": 360,
+        "end_seconds": 779,
+        "required": false
+      },
+      {
+        "label": "Explanation of AWS S3 for file storage and private S3 buckets",
+        "start_seconds": 779,
+        "end_seconds": 1079,
+        "required": false
+      },
+      {
+        "label": "Introduction to Docker and its benefits for consistent environments",
+        "start_seconds": 1319,
+        "end_seconds": 1559,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 385,
+    "source_id": "TCJ7cjsp76M",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Student discusses overcoming fear of Rails routes and controllers via group work.",
+        "start_seconds": 120,
+        "end_seconds": 240,
+        "required": false
+      },
+      {
+        "label": "Student reflects on Rails API setup and improving explanation skills.",
+        "start_seconds": 240,
+        "end_seconds": 359,
+        "required": false
+      },
+      {
+        "label": "Student discusses comfort with CLI and VS Code navigation.",
+        "start_seconds": 359,
+        "end_seconds": 481,
+        "required": false
+      },
+      {
+        "label": "Instructor acknowledges reflections and introduces external resources.",
+        "start_seconds": 478,
+        "end_seconds": 599,
+        "required": false
+      },
+      {
+        "label": "Discussion of Udemy, Coursera, and Frontend Masters.",
+        "start_seconds": 599,
+        "end_seconds": 720,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 386,
+    "source_id": "L3nx3P7p_3c",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "ATS Mechanics and Resume Purpose",
+        "start_seconds": 601,
+        "end_seconds": 1799,
+        "required": false
+      },
+      {
+        "label": "Four Rules of Resume Writing and Data Quadrants",
+        "start_seconds": 1799,
+        "end_seconds": 2999,
+        "required": false
+      },
+      {
+        "label": "Formatting Guidelines and Work History Exercise",
+        "start_seconds": 2999,
+        "end_seconds": 5040,
+        "required": false
+      },
+      {
+        "label": "Bullet Point Construction and CAR Formula",
+        "start_seconds": 5756,
+        "end_seconds": 7441,
+        "required": false
+      },
+      {
+        "label": "LinkedIn Optimization and Networking Strategy",
+        "start_seconds": 9240,
+        "end_seconds": 11210,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 387,
+    "source_id": "dpv0zOdzmY8",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Introduction to LeetCode and Interview Types",
+        "start_seconds": 479,
+        "end_seconds": 599,
+        "required": false
+      },
+      {
+        "label": "Setting up LeetCode and Analyzing Two Sum",
+        "start_seconds": 3120,
+        "end_seconds": 3480,
+        "required": false
+      },
+      {
+        "label": "Implementing Nested While Loops",
+        "start_seconds": 3480,
+        "end_seconds": 3835,
+        "required": false
+      },
+      {
+        "label": "Collaborative Debugging of Edge Cases",
+        "start_seconds": 4200,
+        "end_seconds": 5880,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 388,
+    "source_id": "63HiSNt1dFw",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Interview Types and Take-Home Challenge Review",
+        "start_seconds": 3,
+        "end_seconds": 722,
+        "required": false
+      },
+      {
+        "label": "LeetCode Two Sum Solution",
+        "start_seconds": 1920,
+        "end_seconds": 2759,
+        "required": false
+      },
+      {
+        "label": "Longest Common Prefix and Big O Analysis",
+        "start_seconds": 3842,
+        "end_seconds": 6718,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 389,
+    "source_id": "0i1BAAW6GhQ",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Introduction to Capstone and MVP Concept",
+        "start_seconds": 3,
+        "end_seconds": 121,
+        "required": false
+      },
+      {
+        "label": "Daily Goal: Planning and Schema Development",
+        "start_seconds": 121,
+        "end_seconds": 240,
+        "required": false
+      },
+      {
+        "label": "Introduction to the Capstone Project Guide",
+        "start_seconds": 240,
+        "end_seconds": 360,
+        "required": false
+      },
+      {
+        "label": "Detailed Planning Phase: Schema, User Stories, AI Use",
+        "start_seconds": 360,
+        "end_seconds": 480,
+        "required": false
+      },
+      {
+        "label": "Third-Party APIs and Project Management Tools",
+        "start_seconds": 480,
+        "end_seconds": 600,
+        "required": false
+      },
+      {
+        "label": "Backend/Frontend Tech Choices and Presentation Prep",
+        "start_seconds": 600,
+        "end_seconds": 719,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 390,
+    "source_id": "M56EpVXGOm4",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Capstone Presentation Guidelines and Structure",
+        "start_seconds": 3,
+        "end_seconds": 359,
+        "required": false
+      },
+      {
+        "label": "Post-Cohort Internship Opportunity with Shimzu Technology",
+        "start_seconds": 359,
+        "end_seconds": 601,
+        "required": false
+      },
+      {
+        "label": "Internship Details and Presentation Logistics (Virtual)",
+        "start_seconds": 601,
+        "end_seconds": 780,
+        "required": false
+      },
+      {
+        "label": "Demonstration: Hafa GBT (Chamorro Language Learning App)",
+        "start_seconds": 780,
+        "end_seconds": 1320,
+        "required": false
+      },
+      {
+        "label": "Demonstration: Recipe Extractor iOS App",
+        "start_seconds": 1320,
+        "end_seconds": 1740,
+        "required": false
+      },
+      {
+        "label": "Student Project Discussion and Iteration Philosophy",
+        "start_seconds": 1740,
+        "end_seconds": 2041,
+        "required": false
+      },
+      {
+        "label": "App Store Submission Process and Challenges",
+        "start_seconds": 2041,
+        "end_seconds": 2281,
+        "required": false
+      },
+      {
+        "label": "Recipe Extractor Features and Final Thoughts on Development",
+        "start_seconds": 2281,
+        "end_seconds": 2564,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 391,
+    "source_id": "bciCP4ARZIY",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Introduction to the Optional Internship Program",
+        "start_seconds": 2,
+        "end_seconds": 360,
+        "required": false
+      },
+      {
+        "label": "Overview of the After Program Guide and Continuous Learning",
+        "start_seconds": 360,
+        "end_seconds": 779,
+        "required": false
+      },
+      {
+        "label": "Student AI Chatbot Project Showcase: Ron's Spartacus Bot",
+        "start_seconds": 841,
+        "end_seconds": 1260,
+        "required": false
+      },
+      {
+        "label": "Student AI Chatbot Project Showcase: Lana's Survival Game",
+        "start_seconds": 1260,
+        "end_seconds": 1799,
+        "required": false
+      },
+      {
+        "label": "Lana's Chatbot Code Walkthrough and UseRef Explanation",
+        "start_seconds": 1799,
+        "end_seconds": 2279,
+        "required": false
+      },
+      {
+        "label": "Discussion on Project Creativity and Future Enhancements",
+        "start_seconds": 2279,
+        "end_seconds": 2521,
+        "required": false
+      },
+      {
+        "label": "Graduation Skills Check and Technical Interview Preparation",
+        "start_seconds": 3120,
+        "end_seconds": 3419,
+        "required": false
+      },
+      {
+        "label": "TA Opportunities, Alumni Network, and Closing Remarks",
+        "start_seconds": 3419,
+        "end_seconds": 3775,
+        "required": false
+      }
+    ]
+  },
+  {
+    "lesson_id": 392,
+    "source_id": "bWuS_YuiRzI",
+    "review_method": "alumni_library_transcript_reviewed",
+    "video_segments": [
+      {
+        "label": "Adrian's Music Library Capstone Presentation",
+        "start_seconds": 689,
+        "end_seconds": 1200,
+        "required": false
+      },
+      {
+        "label": "Junior's Island Math Capstone Presentation",
+        "start_seconds": 1200,
+        "end_seconds": 2160,
+        "required": false
+      },
+      {
+        "label": "Ron's Blue Star Navigation App Capstone Presentation",
+        "start_seconds": 2160,
+        "end_seconds": 3591,
+        "required": false
+      },
+      {
+        "label": "Kiko's Shared Shores Rental App Capstone Presentation",
+        "start_seconds": 3591,
+        "end_seconds": 4291,
+        "required": false
+      },
+      {
+        "label": "Matt's Recipe Finder Capstone Presentation",
+        "start_seconds": 4291,
+        "end_seconds": 4736,
+        "required": false
+      }
+    ]
+  }
+]
