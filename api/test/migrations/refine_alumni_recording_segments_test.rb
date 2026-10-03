@@ -50,11 +50,25 @@ class RefineAlumniRecordingSegmentsTest < ActiveSupport::TestCase
     assert_includes instructions.body, "What you should be able to do"
     assert_equal "keep", instructions.metadata.fetch("notes")
 
+    migration.define_singleton_method(:alumni_catalog) { [] }
     migration.migrate(:down)
 
     assert_equal 1, matching.reload.metadata.fetch("video_segments_version")
     assert_equal old_segments, matching.metadata.fetch("video_segments")
     assert_equal instruction_body, instructions.reload.body
+  end
+
+  test "migration leaves unrelated recommended viewing lists unchanged" do
+    lesson = create_lesson
+    matching = ContentBlock.create!(lesson: lesson, block_type: :recording, position: 0, title: "Matching", video_url: "https://youtube.com/watch?v=focused", metadata: {})
+    unrelated_body = "<p><strong>Class archive:</strong> <a href=\"https://youtube.com/watch?v=focused\">Recording</a></p><h2>Recommended viewing</h2><ul><li><a href=\"https://example.com/book\">Read this book</a></li></ul>"
+    unrelated = ContentBlock.create!(lesson: lesson, block_type: :exercise, position: 1, title: "Reading", body: unrelated_body, metadata: {})
+    migration = migration_with_catalog([ entry_for(matching, "focused") ])
+
+    migration.migrate(:up)
+
+    assert_equal unrelated_body, unrelated.reload.body
+    refute unrelated.metadata.key?(RefineAlumniRecordingSegments::INSTRUCTION_OWNERSHIP_KEY)
   end
 
   test "rollback preserves staff changes made after the migration" do
@@ -127,7 +141,7 @@ class RefineAlumniRecordingSegmentsTest < ActiveSupport::TestCase
   end
 
   def instruction_body
-    "<p><strong>Class archive:</strong> Complete recording</p><h2>Recommended viewing</h2><ul><li>Old timestamp</li></ul><h2>What you should be able to do</h2><p>Keep this section.</p>"
+    "<p><strong>Class archive:</strong> <a href=\"https://youtube.com/watch?v=focused\">Complete recording</a></p><h2>Recommended viewing</h2><ul><li><a href=\"https://youtube.com/watch?v=focused&amp;t=10s\">0:10–0:20</a> — Old timestamp</li></ul><h2>What you should be able to do</h2><p>Keep this section.</p>"
   end
 
   def entry_for(block, source_id)
