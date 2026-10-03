@@ -31,7 +31,7 @@ export default function UpdatesScreen() {
   const { api, user } = useSession();
   const { cohorts, selectedCohortId, selectCohort } = useCohort();
   const routedCohortIsAccessible = Boolean(routedCohortId && cohorts.some((cohort) => cohort.id === routedCohortId));
-  const focusedCohortId = routedCohortId && !routedCohortIsAccessible ? routedCohortId : selectedCohortId;
+  const focusedCohortId = routedCohortId ?? selectedCohortId;
   const isStaff = Boolean(user?.is_staff);
   const { workspaces } = useWorkspace();
   const queryClient = useQueryClient();

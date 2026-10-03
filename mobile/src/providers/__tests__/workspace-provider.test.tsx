@@ -31,10 +31,12 @@ function WorkspaceObserver() {
 }
 
 beforeEach(async () => {
+  jest.restoreAllMocks();
   global.requestAnimationFrame = (callback) => { callback(0); return 0; };
   observedWorkspace = null;
   mockCohortState.current = { selectedCohortId: 2, selectCohort: mockSelectCohort };
-  mockWorkspacesRequest.mockClear();
+  mockWorkspacesRequest.mockReset();
+  mockWorkspacesRequest.mockResolvedValue({ workspaces });
   mockSelectCohort.mockClear();
   await AsyncStorage.clear();
 });
@@ -75,4 +77,68 @@ it('moves messages when the global cohort changes', async () => {
   view.rerender(<WorkspaceProvider><WorkspaceObserver /></WorkspaceProvider>);
 
   await waitFor(() => expect(observedWorkspace?.activeWorkspaceId).toBe(11));
+});
+
+it('clears the previous cohort workspace when the selected cohort has no workspace', async () => {
+  const view = render(<WorkspaceProvider><WorkspaceObserver /></WorkspaceProvider>);
+  await waitFor(() => expect(observedWorkspace?.activeWorkspaceId).toBe(22));
+
+  mockCohortState.current = { selectedCohortId: 3, selectCohort: mockSelectCohort };
+  view.rerender(<WorkspaceProvider><WorkspaceObserver /></WorkspaceProvider>);
+
+  await waitFor(() => expect(observedWorkspace?.activeWorkspaceId).toBeNull());
+  expect(await AsyncStorage.getItem(activeWorkspaceCacheKey(7))).toBeNull();
+});
+
+it('preserves an explicit community override when the selected cohort has no workspace', async () => {
+  const view = render(<WorkspaceProvider><WorkspaceObserver /></WorkspaceProvider>);
+  await waitFor(() => expect(observedWorkspace?.activeWorkspaceId).toBe(22));
+  await act(async () => { await observedWorkspace?.selectWorkspace(99); });
+
+  mockCohortState.current = { selectedCohortId: 3, selectCohort: mockSelectCohort };
+  view.rerender(<WorkspaceProvider><WorkspaceObserver /></WorkspaceProvider>);
+
+  await waitFor(() => expect(observedWorkspace?.activeWorkspaceId).toBe(99));
+  expect(await AsyncStorage.getItem(activeWorkspaceCacheKey(7))).toBe('99');
+
+  mockCohortState.current = { selectedCohortId: 2, selectCohort: mockSelectCohort };
+  view.rerender(<WorkspaceProvider><WorkspaceObserver /></WorkspaceProvider>);
+  await waitFor(() => expect(observedWorkspace?.activeWorkspaceId).toBe(22));
+});
+
+it('reconciles an in-flight refresh against the latest cohort selection', async () => {
+  let resolveRequest!: (value: { workspaces: WorkspaceSummary[] }) => void;
+  mockWorkspacesRequest.mockReturnValueOnce(new Promise((resolve) => { resolveRequest = resolve; }));
+  const view = render(<WorkspaceProvider><WorkspaceObserver /></WorkspaceProvider>);
+
+  mockCohortState.current = { selectedCohortId: 1, selectCohort: mockSelectCohort };
+  view.rerender(<WorkspaceProvider><WorkspaceObserver /></WorkspaceProvider>);
+  await act(async () => { resolveRequest({ workspaces }); });
+
+  await waitFor(() => expect(observedWorkspace?.activeWorkspaceId).toBe(11));
+  expect(await AsyncStorage.getItem(activeWorkspaceCacheKey(7))).toBe('11');
+});
+
+it('does not advance in-memory selection when persistence fails and remains retryable', async () => {
+  const view = render(<WorkspaceProvider><WorkspaceObserver /></WorkspaceProvider>);
+  await waitFor(() => expect(observedWorkspace?.activeWorkspaceId).toBe(22));
+  const originalSetItem = (AsyncStorage.setItem as jest.Mock).getMockImplementation()!;
+  let failSelectionWrite = true;
+  const setItem = jest.spyOn(AsyncStorage, 'setItem').mockImplementation(async (key, value) => {
+    if (key === activeWorkspaceCacheKey(7) && value === '11' && failSelectionWrite) {
+      failSelectionWrite = false;
+      throw new Error('storage unavailable');
+    }
+    return originalSetItem(key, value);
+  });
+
+  mockCohortState.current = { selectedCohortId: 1, selectCohort: mockSelectCohort };
+  view.rerender(<WorkspaceProvider><WorkspaceObserver /></WorkspaceProvider>);
+  await waitFor(() => expect(setItem).toHaveBeenCalledWith(activeWorkspaceCacheKey(7), '11'));
+  expect(observedWorkspace?.activeWorkspaceId).toBe(22);
+
+  mockWorkspacesRequest.mockResolvedValueOnce({ workspaces: [...workspaces] });
+  await act(async () => { await observedWorkspace?.refresh(); });
+  await waitFor(() => expect(observedWorkspace?.activeWorkspaceId).toBe(11));
+  await waitFor(async () => expect(await AsyncStorage.getItem(activeWorkspaceCacheKey(7))).toBe('11'));
 });
