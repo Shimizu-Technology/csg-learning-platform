@@ -443,7 +443,7 @@ export function Layout({ children }: LayoutProps) {
             {!collapsed && <span className="truncate font-bold tracking-tight text-slate-950">CSG Learning</span>}
           </Link>
         </div>
-        <div className={`border-b border-slate-100 ${collapsed ? 'px-2 py-3' : 'px-4 py-3'}`}><CohortSwitcher compact={collapsed} /></div>
+        <div className={`border-b border-slate-100 ${collapsed ? 'px-2 py-3' : 'px-4 py-3'}`}><CohortSwitcher iconOnly={collapsed} /></div>
         <nav className={`flex-1 ${collapsed ? 'p-2' : 'p-4'} space-y-1`}>
           <button type="button" onClick={() => setCommandPaletteOpen(true)} aria-label="Search and go" className={`group relative mb-2 flex min-h-11 w-full items-center rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:border-primary-300 hover:text-primary-700 ${collapsed ? 'justify-center px-2' : 'gap-3 px-3'}`}><Search className="h-5 w-5" />{!collapsed && <><span>Search</span><kbd className="ml-auto rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-400">⌘K</kbd></>}</button>
           {navItems.map((item) => (
