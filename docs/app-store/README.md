@@ -1,6 +1,6 @@
 # CSG Connect App Store Release Record
 
-Last updated: 2026-09-30 (Pacific/Guam)
+Last updated: 2026-10-03 (Pacific/Guam)
 
 This directory is the durable source record for the App Store presentation of the completed mobile-parity program. It records what was uploaded, how the images were produced, and what remains before public App Review.
 
@@ -9,13 +9,13 @@ This directory is the durable source record for the App Store presentation of th
 | Item | State |
 | --- | --- |
 | Marketing version | `1.0.0` |
-| Latest uploaded iOS build | `1.0.0 (31)`; Apple processing and tester availability are not yet verified |
-| Latest verified EAS build ID | Not applicable — build 31 was signed locally |
-| Latest uploaded source commit | `236f0d22e8e695fd0fc7c50063d5a0fca70f1804` (`main`, merged PRs #160–#162) |
-| Latest release delivery | EAS submission `5151cded-c8e0-4f8c-8772-f00266caa5aa` uploaded successfully to App Store Connect |
-| Latest verified App Store Connect state | Build 23: `VALID` and internal `IN_BETA_TESTING`; Leon separately confirmed build 29 in TestFlight; build 31 is processing after a successful upload |
-| Next release candidate | Build 31, pending Apple processing and physical-device acceptance |
-| Release artifact fingerprint | Build 31 IPA SHA-256 `3b1507e71b41513b0050b1b2a95885eb2f63d6f89008b7f147aa2b8d29d69989` |
+| Latest uploaded iOS build | `1.0.0 (32)`; Apple processing and tester availability are not yet verified |
+| Latest verified EAS build ID | `114406be-ce54-48f3-984f-f17e08ab0e64` |
+| Latest uploaded source commit | `6860be47b5d4d4416551205464440b866020aa57` (`main`, merged PRs #164–#165) |
+| Latest release delivery | EAS submission `b952fa6e-6dc7-4c4f-b9ca-74bcdb211d58` finished successfully and uploaded build 32 to App Store Connect |
+| Latest verified App Store Connect state | Leon separately confirmed build 29 in TestFlight; build 32 is processing after a successful upload |
+| Next release candidate | Build 32, pending Apple processing and physical-device acceptance |
+| Release artifact fingerprint | Build 32 IPA SHA-256 `a0c559e4654b6d694d1b492462ed353abbd33124ac473bd5e982bf8eece465d4` |
 | Phase 0–1 release candidate | `1.0.0 (9)` |
 | App Store version | `1.0`, Prepare for Submission |
 | Internal group | `CSG Internal` |
@@ -52,6 +52,8 @@ Build 30 follows Leon's confirmation that build 29 is available in TestFlight. M
 
 Build 31 is the post-course-readiness dependency candidate from exact merged-main commit `236f0d22e8e695fd0fc7c50063d5a0fca70f1804`. PR #161 aligns Expo packages with the installed SDK 57 baseline, PR #162 resolves the applicable `brace-expansion` lockfile advisories, and PR #160 adds guided-course access and support dates to the Rails and web experience. PR #160 does not add a new native administration screen, so its access-date controls must be accepted on the web app. The mobile gate passed 71 suites / 402 tests, strict TypeScript, Expo lint, dependency policy, and Expo dependency compatibility. Expo Doctor passed 20 of 21 checks with the already documented React Native Directory metadata warning for `react-native-render-html` and the Solana mobile wallet adapter. The locally signed IPA identifies itself as `com.codeschoolofguam.connect` version `1.0.0 (31)`, uses team `4T358A5S74`, has the production push entitlement with `get-task-allow=false`, and passed strict deep code-signature verification. The IPA is 31,994,918 bytes with SHA-256 `3b1507e71b41513b0050b1b2a95885eb2f63d6f89008b7f147aa2b8d29d69989`. EAS submission `5151cded-c8e0-4f8c-8772-f00266caa5aa` uploaded the binary successfully to App Store Connect. Apple processing and internal tester availability are not yet confirmed. Focused tester steps are in [`WHAT_TO_TEST_1.0.0_31.md`](WHAT_TO_TEST_1.0.0_31.md).
 
+Build 32 is the global-cohort-scope candidate from exact merged-main commit `6860be47b5d4d4416551205464440b866020aa57`. PR #164 makes the selected cohort the shared scope across native navigation and messaging, keeps community message workspaces as explicit temporary overrides, and applies the same global model on the web. PR #165 fixes the collapsed desktop web switcher and does not add native code. The mobile gate passed strict TypeScript, Expo lint, 72 suites / 411 tests, dependency policy, and Expo dependency compatibility. Expo Doctor passed 20 of 21 checks with the existing React Native Directory metadata warnings for `react-native-render-html` and `@solana-mobile/mobile-wallet-adapter-protocol`. EAS production environment verification confirmed the live API URL and `EXPO_PUBLIC_DEMO_MODE=false`. EAS cloud build `114406be-ce54-48f3-984f-f17e08ab0e64` produced `com.codeschoolofguam.connect` version `1.0.0 (32)` with production signing. The 31,992,617-byte IPA passed strict deep code-signature verification, carries the production push entitlement, and has SHA-256 `a0c559e4654b6d694d1b492462ed353abbd33124ac473bd5e982bf8eece465d4`. EAS submission `b952fa6e-6dc7-4c4f-b9ca-74bcdb211d58` finished successfully and uploaded the binary to App Store Connect. Apple processing and internal tester availability are not yet confirmed because the App Store Connect session requires a fresh sign-in and no Apple processing notice has arrived in the checked Code School or Shimizu Technology mailbox. Focused tester steps are in [`WHAT_TO_TEST_1.0.0_32.md`](WHAT_TO_TEST_1.0.0_32.md).
+
 Verified iOS production history:
 
 | Build | EAS build ID | Submission or delivery ID | Submission and Apple state |
@@ -75,6 +77,7 @@ Verified iOS production history:
 | `29` | Local signed archive; no cloud EAS build ID | `4c1817bc-9348-4a40-918c-e7bab513b18c` | EAS reported successful upload; Leon confirmed TestFlight availability. |
 | `30` | Local signed archive; no cloud EAS build ID | `d6781187-7333-4fcf-9cfb-9319b19c9166` | EAS finished without error; Apple processing and internal availability unverified. |
 | `31` | Local signed archive; no cloud EAS build ID | `5151cded-c8e0-4f8c-8772-f00266caa5aa` | EAS reported a successful App Store Connect upload; Apple processing and internal availability are pending. |
+| `32` | `114406be-ce54-48f3-984f-f17e08ab0e64` | `b952fa6e-6dc7-4c4f-b9ca-74bcdb211d58` | EAS build and submission finished successfully; Apple processing and internal availability are pending. |
 
 These are EAS or Apple delivery states plus App Store Connect status checks. Leon confirmed build 29 is available in TestFlight. Public App Review remains separate.
 
@@ -184,7 +187,7 @@ Messaging-smoothness candidate preflight recorded on 2026-09-24:
 
 ## Physical TestFlight acceptance
 
-The invited tester must install the **exact build selected for public App Review** through TestFlight and complete this acceptance pass with real authorized accounts. Build 31 is the latest uploaded candidate as of 2026-09-30; its Apple processing and internal availability remain unverified. Confirm the build number on the device before testing. The focused [build 31 script](WHAT_TO_TEST_1.0.0_31.md) supplements this broader checklist.
+The invited tester must install the **exact build selected for public App Review** through TestFlight and complete this acceptance pass with real authorized accounts. Build 32 is the latest uploaded candidate as of 2026-10-03; its Apple processing and internal availability remain unverified. Confirm the build number on the device before testing. The focused [build 32 script](WHAT_TO_TEST_1.0.0_32.md) supplements this broader checklist.
 
 - sign in with Google and confirm unauthorized accounts receive the explicit no-access state;
 - verify student, instructor, and admin role scoping where test accounts are available;
