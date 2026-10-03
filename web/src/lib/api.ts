@@ -376,6 +376,15 @@ function queryString(params?: Record<string, string | number | boolean | null | 
   return query ? `?${query}` : '';
 }
 
+// Course files contain literal shell/SQL/HTML teaching examples. Transport the
+// UTF-8 file as base64; the API decodes and applies the same bounded validation.
+function coursePackageBody(packageData: unknown): string {
+  const bytes = new TextEncoder().encode(JSON.stringify(packageData))
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return JSON.stringify({ package_base64: btoa(binary) })
+}
+
 export const api = {
   // Auth
   getCourseOfferings: () =>
@@ -742,9 +751,9 @@ export const api = {
   getCurriculum: (id: number) =>
     fetchApi<CurriculumResponse>(`/api/v1/curricula/${id}`),
   previewCoursePackage: (packageData: unknown) =>
-    fetchApi<{ preview: { key: string; revision: string; title: string; modules: number; lessons: number; blocks: number; existing_curriculum_id: number | null; unchanged: boolean; status: string; assigned: boolean } }>('/api/v1/course_packages/preview', { method: 'POST', body: JSON.stringify({ package: packageData }) }),
+    fetchApi<{ preview: { key: string; revision: string; title: string; modules: number; lessons: number; blocks: number; existing_curriculum_id: number | null; unchanged: boolean; status: string; assigned: boolean } }>('/api/v1/course_packages/preview', { method: 'POST', body: coursePackageBody(packageData) }),
   importCoursePackage: (packageData: unknown) =>
-    fetchApi<{ import: { curriculum_id: number; unchanged: boolean } }>('/api/v1/course_packages', { method: 'POST', body: JSON.stringify({ package: packageData }) }),
+    fetchApi<{ import: { curriculum_id: number; unchanged: boolean } }>('/api/v1/course_packages', { method: 'POST', body: coursePackageBody(packageData) }),
 
   createCurriculum: (data: { name: string; description?: string; total_weeks?: number; status?: string }) =>
     fetchApi<CurriculumResponse>('/api/v1/curricula', {

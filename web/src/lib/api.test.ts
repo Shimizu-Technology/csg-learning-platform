@@ -184,3 +184,20 @@ describe('curriculum structure API', () => {
     ])
   })
 })
+
+
+describe('course package file transport', () => {
+  it('round trips UTF-8 teaching code through both endpoints', async () => {
+    const fetchMock = successfulFetch()
+    vi.stubGlobal('fetch', fetchMock)
+    const teaching = { title: 'Håfa adai — 海', body: 'curl -X DELETE /items/1; SELECT * FROM studies; <script>example</script>' }
+    await api.previewCoursePackage(teaching)
+    await api.importCoursePackage(teaching)
+    for (const [, options] of fetchMock.mock.calls) {
+      const wire = JSON.parse(String(options.body))
+      expect(Object.keys(wire)).toEqual(['package_base64'])
+      const bytes = Uint8Array.from(atob(wire.package_base64), (character) => character.charCodeAt(0))
+      expect(JSON.parse(new TextDecoder().decode(bytes))).toEqual(teaching)
+    }
+  })
+})
