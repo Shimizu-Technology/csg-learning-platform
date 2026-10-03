@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_03_030000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_03_180000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -251,12 +251,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_030000) do
   end
 
   create_table "curricula", force: :cascade do |t|
+    t.string "course_package_content_snapshot"
+    t.string "course_package_digest"
+    t.string "course_package_key"
+    t.string "course_package_revision"
     t.datetime "created_at", null: false
     t.text "description"
     t.string "name", null: false
     t.integer "status", default: 0, null: false
     t.integer "total_weeks"
     t.datetime "updated_at", null: false
+    t.index ["course_package_key"], name: "index_curricula_on_course_package_key", unique: true
   end
 
   create_table "data_deletion_requests", force: :cascade do |t|
@@ -627,6 +632,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_030000) do
   end
 
   create_table "modules", force: :cascade do |t|
+    t.string "course_package_key"
     t.datetime "created_at", null: false
     t.bigint "curriculum_id", null: false
     t.integer "day_offset", default: 0, null: false
@@ -637,6 +643,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_030000) do
     t.string "schedule_days", default: "weekdays", null: false
     t.integer "total_days"
     t.datetime "updated_at", null: false
+    t.index ["curriculum_id", "course_package_key"], name: "index_modules_on_curriculum_id_and_course_package_key", unique: true
     t.index ["curriculum_id", "position"], name: "index_modules_on_curriculum_id_and_position"
     t.index ["curriculum_id"], name: "index_modules_on_curriculum_id"
   end

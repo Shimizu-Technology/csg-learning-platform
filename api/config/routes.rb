@@ -112,6 +112,9 @@ Rails.application.routes.draw do
         end
       end
 
+      post "course_packages/preview", to: "course_packages#preview"
+      resources :course_packages, only: [ :create ]
+
       # Curricula with nested modules
       resources :curricula, only: [ :index, :show, :create, :update, :destroy ] do
         resources :modules, only: [ :index, :create ]

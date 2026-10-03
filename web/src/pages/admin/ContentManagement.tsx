@@ -11,12 +11,14 @@ import {
   Plus,
   CalendarPlus,
   RotateCcw,
+  Upload,
 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { NewExerciseModal } from './NewExerciseModal'
 import { NewModuleModal } from './NewModuleModal'
 import { NewCurriculumModal } from './NewCurriculumModal'
+import { ImportCoursePackageModal } from './ImportCoursePackageModal'
 import { ALL_DAY_NAMES, SCHEDULE_DAY_INDICES } from '../../lib/scheduleConstants'
 import { useUpload } from '../../contexts/UploadContext'
 import { useToast } from '../../contexts/ToastContext'
@@ -93,6 +95,7 @@ export function ContentManagement() {
   } | null>(null)
   const [newModuleModal, setNewModuleModal] = useState<{ curriculumId: number; moduleCount: number } | null>(null)
   const [showNewCurriculum, setShowNewCurriculum] = useState(false)
+  const [showPackageImport, setShowPackageImport] = useState(false)
   const [exerciseSaving, setExerciseSaving] = useState(false)
   const [moduleSaving, setModuleSaving] = useState(false)
   const [curriculumSaving, setCurriculumSaving] = useState(false)
@@ -213,9 +216,9 @@ export function ContentManagement() {
           <h1 className="app-title mt-2">Content</h1>
           <p className="app-description mt-2">Shape reusable modules and lessons before assigning them to a cohort.</p>
         </div>
-        {canManageModules && <button type="button" onClick={() => { setCurriculumCreateError(''); setShowNewCurriculum(true) }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-extrabold text-white transition-colors hover:bg-primary-700">
+        {canManageModules && <div className="flex flex-wrap gap-2"><button type="button" onClick={() => setShowPackageImport(true)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-700 hover:bg-slate-50"><Upload className="h-4 w-4" /> Import course package</button><button type="button" onClick={() => { setCurriculumCreateError(''); setShowNewCurriculum(true) }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-extrabold text-white transition-colors hover:bg-primary-700">
           <Plus className="h-4 w-4" /> New curriculum
-        </button>}
+        </button></div>}
       </header>
 
       {curricula.map((curriculum) => (
@@ -343,6 +346,8 @@ export function ContentManagement() {
           }}
         />
       )}
+
+      {showPackageImport && <ImportCoursePackageModal onClose={() => setShowPackageImport(false)} onImported={async () => { await loadCurricula(); toast.success('Course package draft is ready for editing') }} />}
 
       {showNewCurriculum && (
         <NewCurriculumModal
