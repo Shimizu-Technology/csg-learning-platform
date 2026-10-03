@@ -1,6 +1,12 @@
+// @vitest-environment jsdom
+
+import { act } from 'react'
+import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CohortSwitcher } from './CohortSwitcher'
+
+const { selectCohort } = vi.hoisted(() => ({ selectCohort: vi.fn() }))
 
 vi.mock('../../contexts/AuthContext', () => ({
   useAuthContext: () => ({ user: { id: 7, is_staff: true } }),
@@ -15,11 +21,13 @@ vi.mock('../../contexts/CohortContext', () => ({
     selectedCohort: { id: 1, name: 'Web Dev Cohort 4', status: 'active' },
     loading: false,
     error: null,
-    selectCohort: vi.fn(),
+    selectCohort,
   }),
 }))
 
 describe('CohortSwitcher', () => {
+  afterEach(() => selectCohort.mockClear())
+
   it('uses a bounded icon-only control in the collapsed sidebar', () => {
     const html = renderToStaticMarkup(<CohortSwitcher iconOnly />)
 
@@ -38,5 +46,21 @@ describe('CohortSwitcher', () => {
     expect(html).toContain('Web Dev Cohort 4')
     expect(html).toContain('lucide-chevron-down')
     expect(html).not.toContain('data-cohort-switcher-visual="icon-only"')
+  })
+
+  it('changes cohorts through the native control in icon-only mode', () => {
+    const container = document.createElement('div')
+    const root = createRoot(container)
+
+    act(() => root.render(<CohortSwitcher iconOnly />))
+    const select = container.querySelector('select')!
+    act(() => {
+      select.value = '2'
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+
+    expect(selectCohort).toHaveBeenCalledOnce()
+    expect(selectCohort).toHaveBeenCalledWith(2)
+    act(() => root.unmount())
   })
 })
