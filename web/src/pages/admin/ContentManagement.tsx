@@ -19,6 +19,7 @@ import { NewExerciseModal } from './NewExerciseModal'
 import { NewModuleModal } from './NewModuleModal'
 import { NewCurriculumModal } from './NewCurriculumModal'
 import { ImportCoursePackageModal } from './ImportCoursePackageModal'
+import { CourseResourcesPanel } from './CourseResourcesPanel'
 import { ALL_DAY_NAMES, SCHEDULE_DAY_INDICES } from '../../lib/scheduleConstants'
 import { useUpload } from '../../contexts/UploadContext'
 import { useToast } from '../../contexts/ToastContext'
@@ -248,6 +249,7 @@ export function ContentManagement() {
             </div>
           </div>
 
+          <CourseResourcesPanel curriculumId={curriculum.id} draft={curriculum.status === 'draft'} />
           <div className="divide-y divide-slate-200">
             {curriculum.modules?.map((mod) => (
               <ModuleSection

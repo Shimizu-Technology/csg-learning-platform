@@ -7,6 +7,7 @@ class Curriculum < ApplicationRecord
   has_many :cohorts, dependent: :restrict_with_error
   has_many :learning_objectives, -> { ordered }, dependent: :destroy
   has_many :rubrics, dependent: :destroy
+  has_many :curriculum_resources, dependent: :restrict_with_error
 
   validates :name, presence: true
 end

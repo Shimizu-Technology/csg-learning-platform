@@ -117,6 +117,12 @@ Rails.application.routes.draw do
 
       # Curricula with nested modules
       resources :curricula, only: [ :index, :show, :create, :update, :destroy ] do
+        resources :resources, only: [ :index, :create, :destroy ], controller: "curriculum_resources" do
+          member do
+            post :complete
+            post :download
+          end
+        end
         resources :modules, only: [ :index, :create ]
       end
       resources :learning_objectives, only: [ :index, :create, :update, :destroy ]
