@@ -108,11 +108,11 @@ export function Announcements() {
 
   const updateCohortFilter = useCallback((value: string) => {
     const next = new URLSearchParams(searchParams)
-    next.set('cohort_id', value)
+    if (value === 'all') next.delete('cohort_id')
+    else next.set('cohort_id', value)
     next.set('page', '1')
-    setSearchParams(next)
-    setSelectedCohort(value === 'all' ? null : Number(value))
-  }, [searchParams, setSearchParams, setSelectedCohort])
+    setSelectedCohort(value === 'all' ? null : Number(value), { searchParams: next })
+  }, [searchParams, setSelectedCohort])
 
   const loadAnnouncements = useCallback(async ({ background = false }: { background?: boolean } = {}) => {
     if (!background) setLoading(true)

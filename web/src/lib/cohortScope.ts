@@ -22,3 +22,22 @@ export function initialScopedWorkspaceId({
     ?? workspaces[0]?.id
     ?? null
 }
+
+export function shouldKeepMessageTarget(targetWorkspaceId: number | null | undefined, workspaceId: number) {
+  return targetWorkspaceId === workspaceId
+}
+
+export function resolveTargetWorkspaceSync({
+  targetWorkspaceId,
+  selectedWorkspaceId,
+  pendingCohortWorkspaceId,
+}: {
+  targetWorkspaceId: number
+  selectedWorkspaceId: number | null
+  pendingCohortWorkspaceId: number | null
+}) {
+  if (pendingCohortWorkspaceId !== null) {
+    return targetWorkspaceId === pendingCohortWorkspaceId ? 'complete' : 'wait'
+  }
+  return selectedWorkspaceId !== null && selectedWorkspaceId !== targetWorkspaceId ? 'promote' : 'stay'
+}

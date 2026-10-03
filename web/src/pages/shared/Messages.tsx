@@ -85,7 +85,7 @@ import { Modal } from '../../components/shared/Modal'
 import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
 import { helpRequestPath, submissionPath } from '../../lib/routes'
 import { firstUnreadMessageId, latestVisibleReadReceipts, mergeConversationSummary, recentConversations } from '../../lib/messagingPresentation'
-import { initialScopedWorkspaceId, workspaceIdForCohort } from '../../lib/cohortScope'
+import { initialScopedWorkspaceId, resolveTargetWorkspaceSync, shouldKeepMessageTarget, workspaceIdForCohort } from '../../lib/cohortScope'
 import type {
   ChannelMessage,
   ChannelMessageEvent,
@@ -942,6 +942,7 @@ export function Messages() {
   const realtimeSubscriptionRef = useRef<RealtimeSubscription | null>(null)
   const typingExpiryTimersRef = useRef(new Map<number, number>())
   const lastAppliedCohortWorkspaceRef = useRef<string | null | undefined>(undefined)
+  const pendingCohortWorkspaceIdRef = useRef<number | null>(null)
   const preserveRoutedWorkspaceRef = useRef(Boolean(requestedWorkspaceId || channelId || dmId))
   const typingStopTimerRef = useRef<number | null>(null)
   const outboundTypingRef = useRef<{
@@ -1740,10 +1741,16 @@ export function Messages() {
     if (!selectedTarget) return
     const workspaceId = selectedChannel?.workspace_id || selectedDm?.workspace_id
     if (!workspaceId) return
-    const movedAcrossWorkspaces = selectedWorkspaceId !== null && selectedWorkspaceId !== workspaceId
+    const sync = resolveTargetWorkspaceSync({
+      targetWorkspaceId: workspaceId,
+      selectedWorkspaceId,
+      pendingCohortWorkspaceId: pendingCohortWorkspaceIdRef.current,
+    })
+    if (sync === 'wait') return
+    if (sync === 'complete') pendingCohortWorkspaceIdRef.current = null
     setSelectedWorkspaceId(workspaceId)
     const workspace = workspaces.find((item) => item.id === workspaceId)
-    if (movedAcrossWorkspaces && workspace?.cohort_id) setSelectedCohort(workspace.cohort_id)
+    if (sync === 'promote' && workspace?.cohort_id) setSelectedCohort(workspace.cohort_id)
   }, [selectedTarget, selectedChannel, selectedDm, selectedWorkspaceId, setSelectedCohort, workspaces])
 
   useEffect(() => {
@@ -1768,14 +1775,21 @@ export function Messages() {
     lastAppliedCohortWorkspaceRef.current = selectionKey
     setSelectedWorkspaceId(workspaceId)
     setChannelForm((current) => ({ ...current, workspace_id: String(workspaceId) }))
+    const selectedTargetWorkspaceId = selectedChannel?.workspace_id || selectedDm?.workspace_id
+    if (shouldKeepMessageTarget(selectedTargetWorkspaceId, workspaceId)) {
+      pendingCohortWorkspaceIdRef.current = null
+      return
+    }
     const target = initialMessageTarget(
       channels.filter((channel) => channel.workspace_id === workspaceId),
       directConversations.filter((conversation) => conversation.workspace_id === workspaceId),
     )
     if (target) {
+      pendingCohortWorkspaceIdRef.current = workspaceId
       selectTarget(target)
       return
     }
+    pendingCohortWorkspaceIdRef.current = null
     navigate('/messages')
     setSelectedTarget(null)
     setUnreadBoundaryId(null)
@@ -1785,7 +1799,7 @@ export function Messages() {
     setEditing(null)
     setConversationView('messages')
     if (!isDesktop) setMobilePane('list')
-  }, [channels, cohortsLoading, directConversations, selectedCohortId, selectedWorkspaceId, setSelectedCohort, workspaces])
+  }, [channels, cohortsLoading, directConversations, selectedChannel, selectedCohortId, selectedDm, selectedWorkspaceId, setSelectedCohort, workspaces])
 
   useEffect(() => {
     if (!selectedTarget) return
