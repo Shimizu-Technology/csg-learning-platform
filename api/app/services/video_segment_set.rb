@@ -1,4 +1,5 @@
 class VideoSegmentSet
+  CURRENT_VERSION = 2
   MAX_SEGMENTS = 40
   MAX_LABEL_LENGTH = 120
 

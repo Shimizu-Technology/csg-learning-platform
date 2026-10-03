@@ -25,6 +25,45 @@ export function firstCoreSegmentStart(segments: VideoSegment[]) {
   return (segments.find((segment) => segment.required) || segments[0])?.start_seconds || 0;
 }
 
+export function videoSegmentKey(segment: VideoSegment) {
+  return `${segment.start_seconds}:${segment.end_seconds}:${segment.label}`;
+}
+
+export function isVideoSegmentSeekPosition(seconds: number, segment: VideoSegment) {
+  return seconds >= Math.max(0, segment.start_seconds - 1) && seconds < segment.end_seconds;
+}
+
+export function totalVideoSegmentSeconds(segments: VideoSegment[], requiredOnly = false) {
+  const ranges = segments
+    .filter((segment) => !requiredOnly || segment.required)
+    .map((segment) => [segment.start_seconds, segment.end_seconds] as const)
+    .sort((left, right) => left[0] - right[0]);
+  let total = 0;
+  let currentStart: number | null = null;
+  let currentEnd = 0;
+  for (const [start, end] of ranges) {
+    if (currentStart === null) {
+      currentStart = start;
+      currentEnd = end;
+    } else if (start <= currentEnd) {
+      currentEnd = Math.max(currentEnd, end);
+    } else {
+      total += currentEnd - currentStart;
+      currentStart = start;
+      currentEnd = end;
+    }
+  }
+  return currentStart === null ? 0 : total + currentEnd - currentStart;
+}
+
+export function formatVideoDuration(seconds: number) {
+  const minutes = Math.max(1, Math.ceil(seconds / 60));
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const remaining = minutes % 60;
+  return remaining ? `${hours} hr ${remaining} min` : `${hours} hr`;
+}
+
 export function segmentPlaybackStart(segments: VideoSegment[], savedPosition = 0) {
   return savedPosition > 0 ? Math.floor(savedPosition) : firstCoreSegmentStart(segments);
 }

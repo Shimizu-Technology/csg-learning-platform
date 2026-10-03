@@ -282,7 +282,9 @@ module Api
         if payload.key?(:video_segments)
           attributes[:metadata] = (block.metadata || {}).merge(
             "video_segments" => VideoSegmentSet.normalize(payload[:video_segments]),
-            "video_segments_version" => 1
+            "video_segments_version" => VideoSegmentSet::CURRENT_VERSION,
+            "video_segments_review_method" => "staff_authored",
+            "video_segments_reviewed_at" => Date.current.iso8601
           )
         end
         if payload.key?(:s3_video_key) && payload[:s3_video_key] != old_s3_key

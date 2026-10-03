@@ -49,6 +49,7 @@ describe('embeddedMediaHtml', () => {
     expect(html).toContain('youtube.com/iframe_api');
     expect(html).toContain('ReactNativeWebView.postMessage');
     expect(html).toContain('window.csgSeekTo');
+    expect(html).toContain('window.csgPause');
     expect(html).toContain('pendingSeek');
     expect(html).toContain('if(applySeek(pendingSeek))pendingSeek=null');
     expect(html).not.toContain('javascript:');
@@ -60,6 +61,7 @@ describe('embeddedMediaHtml', () => {
     const html = embeddedMediaHtml(source);
     expect(html).toContain('pendingSeek');
     expect(html).toContain('player.ready().then');
+    expect(html).toContain('window.csgPause');
     expect(html).toContain('if(applySeek(pendingSeek))pendingSeek=null');
   });
 

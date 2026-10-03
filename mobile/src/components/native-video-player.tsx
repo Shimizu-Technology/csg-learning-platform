@@ -18,6 +18,8 @@ interface NativeVideoPlayerProps {
   fetchStream: () => Promise<StreamResponse>;
   saveProgress: (progress: VideoProgressInput) => Promise<void>;
   onProgressSaved?: (progress: VideoProgressInput) => void;
+  stopAtSeconds?: number | null;
+  onStopAtReached?: () => void;
   trackProgress?: boolean;
 }
 
@@ -25,7 +27,7 @@ const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
 
 export interface NativeVideoPlayerHandle { seekTo: (seconds: number, play?: boolean) => void }
 
-export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideoPlayerProps>(function NativeVideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStream, saveProgress, onProgressSaved, trackProgress = true }, ref) {
+export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideoPlayerProps>(function NativeVideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStream, saveProgress, onProgressSaved, stopAtSeconds = null, onStopAtReached, trackProgress = true }, ref) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState(false);
@@ -54,10 +56,14 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
   const lastPlayingAtRef = useRef(0);
   const saveProgressRef = useRef(saveProgress);
   const onProgressSavedRef = useRef(onProgressSaved);
+  const stopAtSecondsRef = useRef(stopAtSeconds);
+  const onStopAtReachedRef = useRef(onStopAtReached);
   useEffect(() => {
     saveProgressRef.current = saveProgress;
     onProgressSavedRef.current = onProgressSaved;
-  }, [onProgressSaved, saveProgress]);
+    stopAtSecondsRef.current = stopAtSeconds;
+    onStopAtReachedRef.current = onStopAtReached;
+  }, [onProgressSaved, onStopAtReached, saveProgress, stopAtSeconds]);
 
   const player = useVideoPlayer(null, (instance) => {
     instance.timeUpdateEventInterval = 1;
@@ -165,6 +171,12 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
     currentTimeRef.current = nextTime;
     lastTickAtRef.current = now;
     setCurrentTime(nextTime);
+    const stopAt = stopAtSecondsRef.current;
+    if (stopAt !== null && nextTime >= stopAt) {
+      stopAtSecondsRef.current = null;
+      player.pause();
+      onStopAtReachedRef.current?.();
+    }
     if (now - lastSavedAtRef.current >= PROGRESS_SAVE_INTERVAL_MS) {
       lastSavedAtRef.current = now;
       enqueueProgress(false);

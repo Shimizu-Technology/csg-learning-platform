@@ -128,7 +128,7 @@ User
 - **Grading & Feedback** — Submission queue, A/B/C/R grading, redo workflow, GitHub issue integration
 - **Communication Hub** — Announcements, cohort channels, direct messages, push notifications, and reviewed native voice-to-text drafts in the same app
 - **Contextual Student Support** — Durable lesson/exercise/recording help requests with visible acknowledgment, instructor response, and a shared staff queue
-- **Recordings Library** — Self-hosted AWS S3 uploads are the preferred path, with legacy external video support during migration
+- **Recordings Library** — Self-hosted AWS S3 uploads are the preferred path, with legacy external video support and transcript-reviewed, auto-stopping lesson sections during migration
 - **Office Hours** — One-time and timezone-aware recurring help sessions surfaced on student dashboards
 - **Live Classroom Platform (Deferred)** — Documented future direction; Zoom remains operational while learning-feedback and intervention work takes priority
 - **Role-Based Access** — Student, instructor, and admin roles with appropriate UI and API gates
@@ -142,6 +142,7 @@ User
 | [`docs/PRODUCT_VISION.md`](docs/PRODUCT_VISION.md) | Why this product exists and where it's going |
 | [`docs/PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md`](docs/PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md) | Current audit, platform research, learning strategy, KPIs, and phased plan |
 | [`docs/VOICE_TO_TEXT_PLAN.md`](docs/VOICE_TO_TEXT_PLAN.md) | Voice-draft product flow, privacy, architecture, rollout, and quality gates |
+| [`docs/RECORDING_SECTIONS.md`](docs/RECORDING_SECTIONS.md) | How to review, author, validate, release, and verify focused recording sections |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | What to build now, next, and later |
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Step-by-step deployment for Render + Netlify |
 | [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md) | All API endpoints with request/response details |

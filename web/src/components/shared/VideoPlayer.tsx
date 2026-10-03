@@ -14,6 +14,8 @@ interface VideoPlayerProps {
   fetchStreamUrl: () => Promise<string | null>
   onSaveProgress: (data: VideoProgressData, ended: boolean) => void
   onCompleted?: () => void
+  stopAtSeconds?: number | null
+  onStopAtReached?: () => void
   trackProgress?: boolean
 }
 
@@ -23,7 +25,7 @@ export interface VideoPlayerHandle {
 
 const URL_REFRESH_MS = 90 * 60 * 1000
 
-export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStreamUrl, onSaveProgress, onCompleted, trackProgress = true }, ref) {
+export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStreamUrl, onSaveProgress, onCompleted, stopAtSeconds = null, onStopAtReached, trackProgress = true }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const totalWatchedRef = useRef(initialTotalWatched)
@@ -35,6 +37,13 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const lastTickAtRef = useRef<number | null>(null)
   const hasRestoredInitialPosition = useRef(false)
   const pendingSeekRef = useRef<{ seconds: number; play: boolean } | null>(null)
+  const stopAtSecondsRef = useRef(stopAtSeconds)
+  const onStopAtReachedRef = useRef(onStopAtReached)
+
+  useEffect(() => {
+    stopAtSecondsRef.current = stopAtSeconds
+    onStopAtReachedRef.current = onStopAtReached
+  }, [onStopAtReached, stopAtSeconds])
 
   const [streamUrl, setStreamUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -157,6 +166,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       lastTimeRef.current = now
       lastTickAtRef.current = tickNow
       setCurrentTime(now)
+      const stopAt = stopAtSecondsRef.current
+      if (stopAt !== null && now >= stopAt) {
+        stopAtSecondsRef.current = null
+        video.pause()
+        onStopAtReachedRef.current?.()
+      }
     }
     const handlePlay = () => {
       lastTickAtRef.current = performance.now()

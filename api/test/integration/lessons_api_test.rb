@@ -345,7 +345,9 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert_response :success
     metadata = @video_block.reload.metadata
     assert_equal "current", metadata.fetch("archive_role")
-    assert_equal 1, metadata.fetch("video_segments_version")
+    assert_equal VideoSegmentSet::CURRENT_VERSION, metadata.fetch("video_segments_version")
+    assert_equal "staff_authored", metadata.fetch("video_segments_review_method")
+    assert_equal Date.current.iso8601, metadata.fetch("video_segments_reviewed_at")
     assert_equal [ "Schema planning", "Optional Q&A" ], metadata.fetch("video_segments").pluck("label")
   end
 
