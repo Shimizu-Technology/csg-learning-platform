@@ -741,6 +741,11 @@ export const api = {
     fetchApi<CurriculaListResponse>('/api/v1/curricula'),
   getCurriculum: (id: number) =>
     fetchApi<CurriculumResponse>(`/api/v1/curricula/${id}`),
+  previewCoursePackage: (packageData: unknown) =>
+    fetchApi<{ preview: { key: string; revision: string; title: string; modules: number; lessons: number; blocks: number; existing_curriculum_id: number | null; unchanged: boolean; status: string; assigned: boolean } }>('/api/v1/course_packages/preview', { method: 'POST', body: JSON.stringify({ package: packageData }) }),
+  importCoursePackage: (packageData: unknown) =>
+    fetchApi<{ import: { curriculum_id: number; unchanged: boolean } }>('/api/v1/course_packages', { method: 'POST', body: JSON.stringify({ package: packageData }) }),
+
   createCurriculum: (data: { name: string; description?: string; total_weeks?: number; status?: string }) =>
     fetchApi<CurriculumResponse>('/api/v1/curricula', {
       method: 'POST',

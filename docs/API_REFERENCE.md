@@ -755,3 +755,7 @@ Common HTTP status codes:
 - `403` — Insufficient role permissions
 - `404` — Resource not found
 - `422` — Validation errors
+
+## Course packages
+
+Admin-only `POST /api/v1/course_packages/preview` and `POST /api/v1/course_packages` accept `{ "package": <schema-v1 object> }` for reusable recording curricula. Preview writes nothing; import creates an unassigned draft or safely revises an untouched, unassigned draft. Private keys stay in block solutions; recordings use the existing upload flow. See [Course packages](COURSE_PACKAGES.md) for the schema, limits and revision rules.
