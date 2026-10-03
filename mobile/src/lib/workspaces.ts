@@ -11,6 +11,11 @@ export function resolveActiveWorkspaceId(workspaces: WorkspaceSummary[], preferr
   return workspaces[0]?.id ?? null;
 }
 
+export function workspaceIdForCohort(workspaces: WorkspaceSummary[], cohortId: number | null) {
+  if (!cohortId) return null;
+  return workspaces.find((workspace) => workspace.cohort_id === cohortId)?.id ?? null;
+}
+
 export function buildWorkspaceCards(
   workspaces: WorkspaceSummary[],
   channels: ChannelSummary[],

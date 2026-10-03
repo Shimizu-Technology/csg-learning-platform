@@ -4,6 +4,7 @@ import { Bell, Check, ChevronLeft, ChevronRight, Megaphone, Pin, Send, Sparkles,
 import { api } from '../../lib/api'
 import { browserPushEnabled, disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
 import { useAuthContext } from '../../contexts/AuthContext'
+import { useCohortContext } from '../../contexts/CohortContext'
 import { useToast } from '../../contexts/ToastContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -49,6 +50,7 @@ export function Announcements() {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useAuthContext()
+  const { selectedCohortId, setSelectedCohort } = useCohortContext()
   const isStaff = Boolean(user?.is_staff)
   const manageMode = isStaff && searchParams.get('scope') === 'manage'
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
@@ -78,7 +80,7 @@ export function Announcements() {
   const statusFilter: AnnouncementStatus | 'all' = searchParams.get('status') === 'draft' || searchParams.get('status') === 'published' || searchParams.get('status') === 'archived'
     ? searchParams.get('status') as AnnouncementStatus
     : manageMode ? 'published' : 'all'
-  const cohortFilter = searchParams.get('cohort_id') || 'all'
+  const cohortFilter = searchParams.get('cohort_id') || (selectedCohortId ? String(selectedCohortId) : 'all')
   const sortFilter: AnnouncementSort = (() => {
     const value = searchParams.get('sort')
     if (value === 'published_asc' || value === 'created_desc' || value === 'created_asc' || value === 'updated_desc' || value === 'updated_asc') {
@@ -104,6 +106,14 @@ export function Announcements() {
     setSearchParams(next)
   }, [searchParams, setSearchParams])
 
+  const updateCohortFilter = useCallback((value: string) => {
+    const next = new URLSearchParams(searchParams)
+    if (value === 'all') next.delete('cohort_id')
+    else next.set('cohort_id', value)
+    next.set('page', '1')
+    setSelectedCohort(value === 'all' ? null : Number(value), { searchParams: next })
+  }, [searchParams, setSelectedCohort])
+
   const loadAnnouncements = useCallback(async ({ background = false }: { background?: boolean } = {}) => {
     if (!background) setLoading(true)
 
@@ -113,7 +123,7 @@ export function Announcements() {
       per_page: 12,
       audience: audienceFilter === 'all' ? undefined : audienceFilter,
       status: manageMode && statusFilter !== 'all' ? statusFilter : undefined,
-      cohort_id: cohortFilter === 'all' ? undefined : Number(cohortFilter),
+      cohort_id: cohortFilter === 'all' || (manageMode && audienceFilter !== 'cohort') ? undefined : Number(cohortFilter),
       read: !manageMode && readFilter !== 'all' ? readFilter : undefined,
       sort: sortFilter,
     })
@@ -433,7 +443,7 @@ export function Announcements() {
                 </select>
                 <select
                   value={cohortFilter}
-                  onChange={(event) => updateQuery({ cohort_id: event.target.value, page: '1' })}
+                  onChange={(event) => updateCohortFilter(event.target.value)}
                   disabled={audienceFilter !== 'cohort'}
                   className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-50 disabled:text-slate-400"
                 >

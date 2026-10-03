@@ -22,12 +22,14 @@ const demoDmPartner = demoUser.is_staff ? demoMaya : demoAdminUser;
 
 export const demoWorkspaces: WorkspaceSummary[] = [
   { id: 1, name: 'Web Dev Cohort 4', slug: 'web-dev-cohort-4', workspace_type: 'cohort', status: 'active', cohort_id: 4, cohort_name: 'Web Dev Cohort 4', description: 'Workspace for Web Dev Cohort 4', member_count: 12, can_manage: false, created_at: ago(20_000), updated_at: ago(8) },
+  { id: 3, name: 'CSG Alumni', slug: 'csg-alumni', workspace_type: 'cohort', status: 'active', cohort_id: 5, cohort_name: 'CSG Alumni', description: 'Workspace for Code School alumni', member_count: 34, can_manage: demoUser.is_staff, created_at: ago(15_000), updated_at: ago(46) },
   { id: 2, name: 'CSG Community', slug: 'csg-community', workspace_type: 'community', status: 'active', cohort_id: null, cohort_name: null, description: 'Code School alumni, opportunities, and community events.', member_count: 46, can_manage: demoUser.is_staff, created_at: ago(10_000), updated_at: ago(92) },
 ];
 
 export const demoChannels: ChannelSummary[] = [
   { id: 12, workspace_id: 1, workspace_name: 'Web Dev Cohort 4', workspace_type: 'cohort', cohort_id: 4, cohort_name: 'Web Dev Cohort 4', name: 'general', description: 'Questions, wins, and class-wide updates.', visibility: 'cohort', status: 'active', position: 0, muted: false, unread_count: 3, last_read_at: ago(180), latest_message: { id: 104, body: formattedDemoMessage, created_at: ago(8), author_name: 'Leon Shimizu' }, created_at: ago(20_000), updated_at: ago(8) },
   { id: 13, workspace_id: 1, workspace_name: 'Web Dev Cohort 4', workspace_type: 'cohort', cohort_id: 4, cohort_name: 'Web Dev Cohort 4', name: 'help-desk', description: 'Bring your blockers. Leave with a next step.', visibility: 'cohort', status: 'active', position: 1, muted: false, unread_count: 1, last_read_at: ago(240), latest_message: { id: 105, body: 'I found the issue — my route was nested one level too deep.', created_at: ago(34), author_name: 'Maya Santos' }, created_at: ago(20_000), updated_at: ago(34) },
+  { id: 15, workspace_id: 3, workspace_name: 'CSG Alumni', workspace_type: 'cohort', cohort_id: 5, cohort_name: 'CSG Alumni', name: 'alumni-chat', description: 'Ongoing discussion and support for Code School alumni.', visibility: 'cohort', status: 'active', position: 0, muted: false, unread_count: 0, last_read_at: ago(120), latest_message: null, created_at: ago(15_000), updated_at: ago(120) },
   { id: 14, workspace_id: 2, workspace_name: 'CSG Community', workspace_type: 'community', cohort_id: null, cohort_name: null, name: 'opportunities', description: 'Jobs, internships, events, and ways to keep building.', visibility: 'cohort', status: 'active', position: 0, muted: true, unread_count: 0, last_read_at: ago(60), latest_message: { id: 106, body: 'Guam Code Camp mentor applications close Friday.', created_at: ago(92), author_name: 'Ari Cruz' }, created_at: ago(10_000), updated_at: ago(92) },
 ];
 
@@ -44,6 +46,7 @@ export const demoMessages: Record<string, Message[]> = {
   ],
   'channel:13': [],
   'channel:14': [],
+  'channel:15': [],
   'dm:31': [
     { id: 201, channel_id: null, direct_conversation_id: 31, parent_message_id: null, body: demoUser.is_staff ? 'Your component structure is solid. The redirect loop is probably in the layout guard.' : 'Can I send you the repo before office hours?', mention_user_ids: [], edited_at: null, deleted_at: null, pinned_at: null, created_at: ago(40), updated_at: ago(40), mine: true, reactions: [], attachments: [], author: demoUser },
     { id: 203, channel_id: null, direct_conversation_id: 31, parent_message_id: null, body: demoUser.is_staff ? 'Can I send you the repo before office hours?' : 'Your component structure is solid. The redirect loop is probably in the layout guard.', mention_user_ids: [], edited_at: null, deleted_at: null, pinned_at: null, created_at: ago(16), updated_at: ago(16), mine: false, reactions: [], attachments: [], author: demoDmPartner },

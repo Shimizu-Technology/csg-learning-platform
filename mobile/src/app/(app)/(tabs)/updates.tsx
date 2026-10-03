@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { Archive, Bell, CheckCheck, ChevronRight, FileCheck2, Inbox, Megaphone, MessageCircle, PenLine, Pin, Send, Users, X } from 'lucide-react-native';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -13,6 +13,7 @@ import { mobileNotificationPath } from '@/lib/notification-path';
 import type { Announcement, AppNotification, PaginationMeta } from '@/lib/types';
 import { readAllNotifications, readAnnouncement, readAnnouncementNotification, readNotification, updatesKeys, upsertAnnouncement, type AnnouncementListPayload, type NotificationListPayload } from '@/lib/updates-cache';
 import { useCsgAuth } from '@/providers/auth-provider';
+import { useCohort } from '@/providers/cohort-provider';
 import { useSession } from '@/providers/session-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
@@ -25,9 +26,12 @@ function demoMeta(totalCount: number): PaginationMeta {
 export default function UpdatesScreen() {
   const router = useRouter();
   const { cohort_id } = useLocalSearchParams<{ cohort_id?: string }>();
-  const focusedCohortId = cohort_id && Number(cohort_id) > 0 ? Number(cohort_id) : null;
+  const routedCohortId = cohort_id && Number(cohort_id) > 0 ? Number(cohort_id) : null;
   const auth = useCsgAuth();
   const { api, user } = useSession();
+  const { cohorts, selectedCohortId, selectCohort } = useCohort();
+  const routedCohortIsAccessible = Boolean(routedCohortId && cohorts.some((cohort) => cohort.id === routedCohortId));
+  const focusedCohortId = routedCohortId ?? selectedCohortId;
   const isStaff = Boolean(user?.is_staff);
   const { workspaces } = useWorkspace();
   const queryClient = useQueryClient();
@@ -37,6 +41,15 @@ export default function UpdatesScreen() {
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
   const [showEditor, setShowEditor] = useState(false);
   const [managing, setManaging] = useState(false);
+
+  useEffect(() => {
+    if (!routedCohortId || !routedCohortIsAccessible) return;
+    if (selectedCohortId !== routedCohortId) {
+      void selectCohort(routedCohortId);
+      return;
+    }
+    router.setParams({ cohort_id: undefined });
+  }, [routedCohortId, routedCohortIsAccessible, router, selectCohort, selectedCohortId]);
   const announcementKey = useMemo(() => updatesKeys.announcements(userId, managing && isStaff, focusedCohortId), [focusedCohortId, isStaff, managing, userId]);
   const notificationKey = useMemo(() => updatesKeys.notifications(userId), [userId]);
   const announcementQuery = useQuery({

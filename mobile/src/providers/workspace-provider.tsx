@@ -1,10 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { demoWorkspaces } from '@/lib/demo-data';
 import type { WorkspaceSummary } from '@/lib/types';
-import { resolveActiveWorkspaceId } from '@/lib/workspaces';
+import { resolveActiveWorkspaceId, workspaceIdForCohort } from '@/lib/workspaces';
 import { useCsgAuth } from './auth-provider';
+import { useCohort } from './cohort-provider';
 import { useSession } from './session-provider';
 
 interface WorkspaceValue {
@@ -25,6 +26,7 @@ export function activeWorkspaceCacheKey(userId: number) { return `csg.workspace.
 export function WorkspaceProvider({ children }: PropsWithChildren) {
   const auth = useCsgAuth();
   const { api, user } = useSession();
+  const { selectedCohortId, selectCohort } = useCohort();
   const userId = user?.id ?? null;
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>(auth.demo ? demoWorkspaces : []);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<number | null>(auth.demo ? demoWorkspaces[0]?.id ?? null : null);
@@ -32,9 +34,55 @@ export function WorkspaceProvider({ children }: PropsWithChildren) {
   const [error, setError] = useState<string | null>(null);
   const workspaceCountRef = useRef(workspaces.length);
   const activeUserIdRef = useRef<number | null>(userId);
+  const selectedCohortIdRef = useRef(selectedCohortId);
+  const communityOverrideRef = useRef<{ workspaceId: number; cohortId: number | null } | null>(null);
+  const lastAppliedCohortWorkspaceRef = useRef<string | null | undefined>(undefined);
+  const persistenceGenerationRef = useRef(0);
+  const persistenceQueueRef = useRef<Promise<void>>(Promise.resolve());
+  useLayoutEffect(() => {
+    selectedCohortIdRef.current = selectedCohortId;
+  }, [selectedCohortId]);
   useEffect(() => {
     workspaceCountRef.current = workspaces.length;
   }, [workspaces.length]);
+
+  const persistWorkspaceSelection = useCallback(async (workspaceId: number | null, isCurrent: () => boolean) => {
+    if (!userId) return false;
+    const generation = ++persistenceGenerationRef.current;
+    let applied = false;
+    const operation = persistenceQueueRef.current.catch(() => undefined).then(async () => {
+      if (generation !== persistenceGenerationRef.current || !isCurrent()) return;
+      const key = activeWorkspaceCacheKey(userId);
+      if (workspaceId === null) await AsyncStorage.removeItem(key);
+      else await AsyncStorage.setItem(key, String(workspaceId));
+      if (generation !== persistenceGenerationRef.current || !isCurrent()) return;
+      applied = true;
+    });
+    persistenceQueueRef.current = operation.catch(() => undefined);
+    await operation;
+    return applied;
+  }, [userId]);
+
+  const resolveCurrentWorkspace = useCallback((nextWorkspaces: WorkspaceSummary[], storedId: number | null) => {
+    const cohortId = selectedCohortIdRef.current;
+    const cohortWorkspaceId = workspaceIdForCohort(nextWorkspaces, cohortId);
+    const override = communityOverrideRef.current;
+    const accessibleOverride = override && nextWorkspaces.some((workspace) => workspace.id === override.workspaceId && workspace.workspace_type === 'community')
+      ? override
+      : null;
+    if (override && !accessibleOverride) communityOverrideRef.current = null;
+    if (cohortWorkspaceId && accessibleOverride?.cohortId !== cohortId) {
+      communityOverrideRef.current = null;
+      return cohortWorkspaceId;
+    }
+    if (accessibleOverride) {
+      if (!cohortWorkspaceId && accessibleOverride.cohortId !== cohortId) {
+        accessibleOverride.cohortId = cohortId;
+      }
+      return accessibleOverride.workspaceId;
+    }
+    return cohortId === null ? resolveActiveWorkspaceId(nextWorkspaces, storedId) : cohortWorkspaceId;
+  }, []);
 
   const refresh = useCallback(async () => {
     if (!userId) {
@@ -51,20 +99,23 @@ export function WorkspaceProvider({ children }: PropsWithChildren) {
     try {
       const nextWorkspaces = auth.demo ? demoWorkspaces : (await api.workspaces()).workspaces;
       const storedId = Number(await AsyncStorage.getItem(activeKey)) || null;
-      const nextActiveId = resolveActiveWorkspaceId(nextWorkspaces, storedId);
+      const nextActiveId = resolveCurrentWorkspace(nextWorkspaces, storedId);
       setWorkspaces(nextWorkspaces);
-      setActiveWorkspaceId(nextActiveId);
+      if (selectedCohortIdRef.current === null || communityOverrideRef.current) {
+        setActiveWorkspaceId(nextActiveId);
+      }
       setError(null);
       await AsyncStorage.setItem(listKey, JSON.stringify(nextWorkspaces));
-      if (nextActiveId) await AsyncStorage.setItem(activeKey, String(nextActiveId));
-      else await AsyncStorage.removeItem(activeKey);
     } catch (requestError) {
       const [cachedList, cachedActive] = await Promise.all([AsyncStorage.getItem(listKey), AsyncStorage.getItem(activeKey)]);
       if (cachedList) {
         try {
           const cachedWorkspaces = JSON.parse(cachedList) as WorkspaceSummary[];
           setWorkspaces(cachedWorkspaces);
-          setActiveWorkspaceId(resolveActiveWorkspaceId(cachedWorkspaces, Number(cachedActive) || null));
+          const cachedActiveId = resolveCurrentWorkspace(cachedWorkspaces, Number(cachedActive) || null);
+          if (selectedCohortIdRef.current === null || communityOverrideRef.current) {
+            setActiveWorkspaceId(cachedActiveId);
+          }
         } catch {
           await AsyncStorage.multiRemove([listKey, activeKey]);
           setWorkspaces([]);
@@ -75,12 +126,15 @@ export function WorkspaceProvider({ children }: PropsWithChildren) {
     } finally {
       setLoading(false);
     }
-  }, [api, auth.demo, userId]);
+  }, [api, auth.demo, resolveCurrentWorkspace, userId]);
 
   useEffect(() => {
     const nextUserId = userId;
     if (activeUserIdRef.current !== nextUserId) {
       activeUserIdRef.current = nextUserId;
+      persistenceGenerationRef.current += 1;
+      communityOverrideRef.current = null;
+      lastAppliedCohortWorkspaceRef.current = undefined;
       setWorkspaces(auth.demo ? demoWorkspaces : []);
       setActiveWorkspaceId(auth.demo ? demoWorkspaces[0]?.id ?? null : null);
       workspaceCountRef.current = auth.demo ? demoWorkspaces.length : 0;
@@ -89,11 +143,56 @@ export function WorkspaceProvider({ children }: PropsWithChildren) {
     return () => cancelAnimationFrame(frame);
   }, [auth.demo, refresh, userId]);
 
+  useEffect(() => {
+    if (!userId) {
+      lastAppliedCohortWorkspaceRef.current = undefined;
+      return;
+    }
+    if (selectedCohortId === null) {
+      lastAppliedCohortWorkspaceRef.current = null;
+      return;
+    }
+    const workspaceId = workspaceIdForCohort(workspaces, selectedCohortId);
+    const override = communityOverrideRef.current;
+    if (override && !workspaceId) {
+      override.cohortId = selectedCohortId;
+      return;
+    }
+    if (override?.cohortId === selectedCohortId) return;
+    communityOverrideRef.current = null;
+    const selectionKey = `${selectedCohortId}:${workspaceId ?? 'none'}`;
+    if (lastAppliedCohortWorkspaceRef.current === selectionKey) return;
+    const isCurrent = () => activeUserIdRef.current === userId && selectedCohortIdRef.current === selectedCohortId && communityOverrideRef.current === null;
+    void persistWorkspaceSelection(workspaceId, isCurrent).then((applied) => {
+      if (!applied) return;
+      lastAppliedCohortWorkspaceRef.current = selectionKey;
+      setActiveWorkspaceId(workspaceId);
+    }).catch((storageError) => {
+      if (isCurrent()) setError((storageError as Error).message);
+    });
+  }, [persistWorkspaceSelection, selectedCohortId, userId, workspaces]);
+
   const selectWorkspace = useCallback(async (workspaceId: number) => {
-    if (!userId || !workspaces.some((workspace) => workspace.id === workspaceId)) return;
-    setActiveWorkspaceId(workspaceId);
-    await AsyncStorage.setItem(activeWorkspaceCacheKey(userId), String(workspaceId));
-  }, [userId, workspaces]);
+    const workspace = workspaces.find((item) => item.id === workspaceId);
+    if (!userId || !workspace) return;
+    const override = workspace.workspace_type === 'community'
+      ? { workspaceId, cohortId: selectedCohortIdRef.current }
+      : null;
+    communityOverrideRef.current = override;
+    const isCurrent = () => activeUserIdRef.current === userId && communityOverrideRef.current === override;
+    try {
+      const applied = await persistWorkspaceSelection(workspaceId, isCurrent);
+      if (!applied) return;
+      lastAppliedCohortWorkspaceRef.current = override ? `community:${workspaceId}` : null;
+      setActiveWorkspaceId(workspaceId);
+      if (workspace.cohort_id) await selectCohort(workspace.cohort_id);
+    } catch (storageError) {
+      if (isCurrent()) {
+        if (override) communityOverrideRef.current = null;
+        setError((storageError as Error).message);
+      }
+    }
+  }, [persistWorkspaceSelection, selectCohort, userId, workspaces]);
 
   const activeWorkspace = useMemo(
     () => workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? null,

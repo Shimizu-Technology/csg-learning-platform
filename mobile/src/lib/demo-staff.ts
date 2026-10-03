@@ -5,15 +5,22 @@ const ago = (days: number) => new Date(now - days * 86_400_000).toISOString();
 
 export const demoStaffDashboard: StaffDashboard = {
   user: { id: 7, full_name: 'Leon Shimizu', role: 'admin' },
-  cohorts: [{
-    cohort: { id: 4, name: 'Web Dev Cohort 4', start_date: '2026-06-01', status: 'active', active_count: 12, enrolled_count: 12 },
-    ungraded_count: 3,
-    students: [
-      { user_id: 18, full_name: 'Maya Santos', email: 'maya@example.com', github_username: 'mayasantos', progress_percentage: 46, completed_blocks: 19, total_blocks: 41, last_sign_in_at: ago(1), last_seen_at: ago(1), last_activity_at: ago(1), blocks_this_week: 4, submissions_this_week: 2, ungraded_count: 1, redo_count: 1, enrollment_status: 'active' },
-      { user_id: 19, full_name: 'Noah Cruz', email: 'noah@example.com', github_username: 'noahcruz', progress_percentage: 28, completed_blocks: 11, total_blocks: 41, last_sign_in_at: ago(9), last_seen_at: ago(9), last_activity_at: ago(9), blocks_this_week: 0, submissions_this_week: 0, ungraded_count: 0, redo_count: 0, enrollment_status: 'active' },
-      { user_id: 20, full_name: 'Kai Perez', email: 'kai@example.com', github_username: 'kaiperez', progress_percentage: 61, completed_blocks: 25, total_blocks: 41, last_sign_in_at: ago(0), last_seen_at: ago(0), last_activity_at: ago(0), blocks_this_week: 6, submissions_this_week: 1, ungraded_count: 2, redo_count: 0, enrollment_status: 'active' },
-    ],
-  }],
+  cohorts: [
+    {
+      cohort: { id: 4, name: 'Web Dev Cohort 4', start_date: '2026-06-01', status: 'active', active_count: 12, enrolled_count: 12 },
+      ungraded_count: 3,
+      students: [
+        { user_id: 18, full_name: 'Maya Santos', email: 'maya@example.com', github_username: 'mayasantos', progress_percentage: 46, completed_blocks: 19, total_blocks: 41, last_sign_in_at: ago(1), last_seen_at: ago(1), last_activity_at: ago(1), blocks_this_week: 4, submissions_this_week: 2, ungraded_count: 1, redo_count: 1, enrollment_status: 'active' },
+        { user_id: 19, full_name: 'Noah Cruz', email: 'noah@example.com', github_username: 'noahcruz', progress_percentage: 28, completed_blocks: 11, total_blocks: 41, last_sign_in_at: ago(9), last_seen_at: ago(9), last_activity_at: ago(9), blocks_this_week: 0, submissions_this_week: 0, ungraded_count: 0, redo_count: 0, enrollment_status: 'active' },
+        { user_id: 20, full_name: 'Kai Perez', email: 'kai@example.com', github_username: 'kaiperez', progress_percentage: 61, completed_blocks: 25, total_blocks: 41, last_sign_in_at: ago(0), last_seen_at: ago(0), last_activity_at: ago(0), blocks_this_week: 6, submissions_this_week: 1, ungraded_count: 2, redo_count: 0, enrollment_status: 'active' },
+      ],
+    },
+    {
+      cohort: { id: 5, name: 'CSG Alumni', start_date: '2025-01-01', status: 'active', active_count: 0, enrolled_count: 0 },
+      ungraded_count: 0,
+      students: [],
+    },
+  ],
 };
 
 export const demoStaffCurriculum: StaffCurriculum = {

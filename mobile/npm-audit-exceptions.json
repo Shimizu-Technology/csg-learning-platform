@@ -1,5 +1,7 @@
 {
   "advisories": {
+    "https://github.com/advisories/GHSA-86w9-cpqp-85rv": "No patched node-forge release exists. The affected package is a transitive dependency of the Expo CLI and code-signing certificate tooling used only during local or CI builds; it is not shipped as application runtime code. Remove this exception when Expo publishes a patched dependency graph.",
+    "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm": "No patched braces release exists. The affected package is reached through Jest's test-file matching tooling and processes only repository-controlled patterns during local or CI tests; it is not shipped as application runtime code. Remove this exception when Jest publishes a patched dependency graph.",
     "https://github.com/advisories/GHSA-w3rx-r6r6-pgpr": "No patched image-size release exists. The affected package is a transitive dependency of Metro and processes only trusted, checked-in app assets during local or CI bundling; it is not shipped as application runtime code and never handles user uploads. Remove this exception when Expo/Metro publishes a patched dependency graph.",
     "https://github.com/advisories/GHSA-5p2g-fcmc-qvqq": "No patched image-size release exists. The affected package is a transitive dependency of Metro and processes only trusted, checked-in app assets during local or CI bundling; it is not shipped as application runtime code and never handles user uploads. Remove this exception when Expo/Metro publishes a patched dependency graph."
   }

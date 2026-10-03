@@ -10,13 +10,14 @@ interface CohortContextValue {
   selectedCohortId: number | null
   loading: boolean
   error: string | null
+  setSelectedCohort: (id: number | null, options?: { searchParams?: URLSearchParams }) => void
   selectCohort: (id: number | null) => void
   refreshCohorts: () => Promise<void>
 }
 
 const CohortContext = createContext<CohortContextValue>({
   cohorts: [], selectedCohort: null, selectedCohortId: null, loading: false, error: null,
-  selectCohort: () => {}, refreshCohorts: async () => {},
+  setSelectedCohort: () => {}, selectCohort: () => {}, refreshCohorts: async () => {},
 })
 
 export function useCohortContext() { return useContext(CohortContext) }
@@ -97,20 +98,44 @@ export function CohortProvider({ children }: { children: ReactNode }) {
     try { localStorage.setItem(storageKey, String(selectedCohort.id)) } catch { /* Storage can be unavailable. */ }
   }, [selectedCohort, storageKey])
 
-  const selectCohort = useCallback((id: number | null) => {
+  const setSelectedCohort = useCallback((id: number | null, options?: { searchParams?: URLSearchParams }) => {
+    const syncExplicitQuery = (cohortId: number | null) => {
+      const search = options?.searchParams
+        ? new URLSearchParams(options.searchParams)
+        : new URLSearchParams(location.search)
+      if (!options?.searchParams && !search.has('cohort_id')) return
+      if (cohortId === null) search.delete('cohort_id')
+      else search.set('cohort_id', String(cohortId))
+      const nextSearch = search.toString()
+      navigate({ pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : '' }, { replace: true })
+    }
+
     if (id === null && isStaff) {
       setPreferredId(null)
       if (storageKey) try { localStorage.removeItem(storageKey) } catch { /* Storage can be unavailable. */ }
-      navigate('/admin')
+      syncExplicitQuery(null)
       return
     }
     const cohort = visibleCohorts.find((item) => item.id === id)
     if (!cohort) return
     setPreferredId(cohort.id)
-    navigate(isStaff ? `/admin/cohorts/${cohort.id}` : `/cohorts/${cohort.id}`)
-  }, [visibleCohorts, isStaff, navigate, storageKey])
+    if (storageKey) try { localStorage.setItem(storageKey, String(cohort.id)) } catch { /* Storage can be unavailable. */ }
+    syncExplicitQuery(cohort.id)
+  }, [visibleCohorts, isStaff, storageKey, location.pathname, location.search, navigate])
 
-  const value = useMemo(() => ({ cohorts: visibleCohorts, selectedCohort, selectedCohortId, loading, error, selectCohort, refreshCohorts }),
-    [visibleCohorts, selectedCohort, selectedCohortId, loading, error, selectCohort, refreshCohorts])
+  const selectCohort = useCallback((id: number | null) => {
+    if (id === null && isStaff) {
+      setSelectedCohort(null)
+      navigate('/admin')
+      return
+    }
+    const cohort = visibleCohorts.find((item) => item.id === id)
+    if (!cohort) return
+    setSelectedCohort(cohort.id)
+    navigate(isStaff ? `/admin/cohorts/${cohort.id}` : `/cohorts/${cohort.id}`)
+  }, [visibleCohorts, isStaff, navigate, setSelectedCohort])
+
+  const value = useMemo(() => ({ cohorts: visibleCohorts, selectedCohort, selectedCohortId, loading, error, setSelectedCohort, selectCohort, refreshCohorts }),
+    [visibleCohorts, selectedCohort, selectedCohortId, loading, error, setSelectedCohort, selectCohort, refreshCohorts])
   return <CohortContext.Provider value={value}>{children}</CohortContext.Provider>
 }

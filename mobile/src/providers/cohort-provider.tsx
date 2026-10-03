@@ -30,13 +30,13 @@ function defaultCohortId(cohorts: AccessibleCohort[], isAdmin: boolean): number 
 
 function demoCohorts(isStaff: boolean): AccessibleCohort[] {
   if (isStaff) return demoStaffDashboard.cohorts.map(({ cohort }) => ({
-    id: cohort.id, name: cohort.name, status: cohort.status, cohort_type: 'bootcamp',
-    curriculum_name: 'Code School curriculum', workspace_id: null, enrollment_status: null,
+    id: cohort.id, name: cohort.name, status: cohort.status, cohort_type: cohort.id === 5 ? 'alumni' : 'bootcamp',
+    curriculum_name: 'Code School curriculum', workspace_id: cohort.id === 4 ? 1 : cohort.id === 5 ? 3 : null, enrollment_status: null,
   }));
   return demoDashboard.cohort ? [{
     id: demoDashboard.cohort.id, name: demoDashboard.cohort.name,
     status: demoDashboard.cohort.status, cohort_type: demoDashboard.cohort.cohort_type,
-    curriculum_name: 'Code School curriculum', workspace_id: null, enrollment_status: 'active',
+    curriculum_name: 'Code School curriculum', workspace_id: demoDashboard.cohort.id === 4 ? 1 : null, enrollment_status: 'active',
   }] : [];
 }
 
