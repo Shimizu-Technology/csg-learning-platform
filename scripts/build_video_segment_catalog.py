@@ -24,6 +24,10 @@ from urllib.parse import parse_qs, urlparse
 TIME = r"(?:\d+:)?\d{1,2}:\d{2}"
 RANGE = re.compile(rf"({TIME})\s*[–-]\s*({TIME})")
 VIMEO_DURATIONS = {"841388530": 328, "841390794": 529, "841396051": 372}
+FOCUSED_REVIEW_METHODS = {
+    "student_path_transcript_reviewed",
+    "alumni_library_transcript_reviewed",
+}
 
 
 def seconds(value: str) -> int:
@@ -142,7 +146,7 @@ def apply_focused_catalog(catalog: list[dict], focused: list[dict]) -> list[dict
     existing_focused_lessons = {
         int(entry["lesson_id"])
         for entry in catalog
-        if entry.get("review_method") == "student_path_transcript_reviewed"
+        if entry.get("review_method") in FOCUSED_REVIEW_METHODS
     }
     removed_lessons = sorted(existing_focused_lessons - focused_by_lesson.keys())
     if removed_lessons:
@@ -169,7 +173,11 @@ def apply_focused_catalog(catalog: list[dict], focused: list[dict]) -> list[dict
                 f"but the catalog uses {catalog_entry.get('source_id') or 'no source'}"
             )
 
-        catalog_entry["review_method"] = "student_path_transcript_reviewed"
+        review_method = focused_entry.get("review_method", "student_path_transcript_reviewed")
+        if review_method not in FOCUSED_REVIEW_METHODS:
+            raise ValueError(f"Focused lesson {lesson_id} uses unsupported review method {review_method}")
+
+        catalog_entry["review_method"] = review_method
         catalog_entry["video_segments"] = focused_entry["video_segments"]
 
     return catalog
@@ -182,7 +190,7 @@ def main() -> None:
     parser.add_argument("--alumni-manifest", type=Path)
     parser.add_argument("--lance", type=Path, action="append", default=[])
     parser.add_argument("--captions-dir", type=Path)
-    parser.add_argument("--focused-catalog", type=Path)
+    parser.add_argument("--focused-catalog", type=Path, action="append", default=[])
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
@@ -228,7 +236,10 @@ def main() -> None:
             })
 
     if args.focused_catalog:
-        catalog = apply_focused_catalog(catalog, json.loads(args.focused_catalog.read_text()))
+        focused = []
+        for focused_path in args.focused_catalog:
+            focused.extend(json.loads(focused_path.read_text()))
+        catalog = apply_focused_catalog(catalog, focused)
 
     block_ids = [entry["content_block_id"] for entry in catalog]
     if len(catalog) != len(inventory) or len(block_ids) != len(set(block_ids)):
