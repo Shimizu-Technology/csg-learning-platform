@@ -404,7 +404,19 @@ export const api = {
   getRecordings: (cohortId?: number) =>
     fetchApi<RecordingsResponse>(`/api/v1/recordings${queryString({ cohort_id: cohortId })}`),
   getResources: (cohortId?: number) =>
-    fetchApi<ResourcesResponse>(`/api/v1/resources${queryString({ cohort_id: cohortId })}`),
+    fetchApi<ResourcesResponse>(`/api/v1/resources${queryString({ cohort_id: cohortId, include_course_files: true })}`),
+  getCurriculumResources: (curriculumId: number) =>
+    fetchApi<ResourcesResponse>(`/api/v1/curricula/${curriculumId}/resources`),
+  createCurriculumResource: (curriculumId: number, data: { title: string; filename: string; file_size: number }) =>
+    fetchApi<{ resource: { download_id: number }; upload_url: string; fields: Record<string, string> }>(`/api/v1/curricula/${curriculumId}/resources`, {
+      method: 'POST', body: JSON.stringify(data),
+    }),
+  completeCurriculumResource: (curriculumId: number, resourceId: number) =>
+    fetchApi<{ resource: unknown }>(`/api/v1/curricula/${curriculumId}/resources/${resourceId}/complete`, { method: 'POST' }),
+  abandonCurriculumResource: (curriculumId: number, resourceId: number) =>
+    fetchApi<null>(`/api/v1/curricula/${curriculumId}/resources/${resourceId}`, { method: 'DELETE' }),
+  downloadCurriculumResource: (curriculumId: number, resourceId: number) =>
+    fetchApi<{ url: string; expires_in: number }>(`/api/v1/curricula/${curriculumId}/resources/${resourceId}/download`, { method: 'POST' }),
   getAnnouncements: (params?: {
     scope?: 'manage';
     page?: number;

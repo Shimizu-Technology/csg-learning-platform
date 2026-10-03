@@ -104,10 +104,18 @@ class S3Service
       {
         content_type: resp.content_type,
         content_length: resp.content_length,
+        etag: resp.etag,
         last_modified: resp.last_modified
       }
     rescue Aws::S3::Errors::NotFound, Aws::S3::Errors::NoSuchKey
       nil
+    end
+
+    def copy_object(source_key, destination_key, etag:)
+      s3_client.copy_object(
+        bucket: bucket_name, key: destination_key,
+        copy_source: "#{bucket_name}/#{source_key}", copy_source_if_match: etag
+      )
     end
 
     private

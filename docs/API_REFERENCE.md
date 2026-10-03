@@ -759,3 +759,15 @@ Common HTTP status codes:
 ## Course packages
 
 Admin-only `POST /api/v1/course_packages/preview` and `POST /api/v1/course_packages` accept `{ "package": <schema-v1 object> }` for reusable recording curricula. Preview writes nothing; import creates an unassigned draft or safely revises an untouched, unassigned draft. Private keys stay in block solutions; recordings use the existing upload flow. See [Course packages](COURSE_PACKAGES.md) for the schema, limits and revision rules.
+
+## Protected curriculum learner ZIPs
+
+Staff prepare a course-specific ZIP in a draft curriculum through Content → Learner ZIP files. This does not activate a course, create enrollments or change access terms. Admins can manage any curriculum; instructors need a cohort assignment for that curriculum. Native/older clients continue receiving link resources only; web Resources explicitly requests protected file metadata.
+
+- `GET /api/v1/curricula/:id/resources`: ready ZIP metadata for authorized staff or a currently active, unexpired matching-curriculum enrollment. No object keys or signed download URLs are returned.
+- `POST /api/v1/curricula/:id/resources`: staff, draft only. JSON `title`, ZIP `filename`, integer `file_size` (1–50 MiB). Returns server-owned pending resource ID and a bounded `application/zip` S3 POST. Send the ZIP using the returned fields.
+- `POST /api/v1/curricula/:id/resources/:resource_id/complete`: staff, draft only. Checks staging object type and exact declared size, copies its matching ETag to a separate published object, then marks the resource ready. Repeated completion does not recopy a ready file. Failed/pending files never appear to learners.
+- `DELETE /api/v1/curricula/:id/resources/:resource_id`: staff may abandon an unfinished upload; removes its staging/published orphan objects and pending row. Published resources cannot be abandoned.
+- `POST /api/v1/curricula/:id/resources/:resource_id/download`: fresh authorization against active, unexpired enrollment in the matching curriculum, or admin/assigned instructor. Returns an S3 URL expiring within five minutes and no later than the selected enrollment's access expiry. Response is `no-store`; POST avoids offline GET-cache fallback. A downloaded local file remains the learner's copy; a previously issued URL may work until its short expiry.
+
+Use the existing private S3 bucket and authenticated frontend CORS configuration. Do not make course objects public. Staging is isolated under `course_resource_uploads/`; published files use `course_resources/`. Configure a short staging-only object expiration policy operationally to clean interrupted/expired uploads or late PUTs; never apply it to published course files. No storage policy or credentials are changed by this feature. Actual deployed upload and enrolled/unenrolled download checks remain a release rehearsal, using a course-specific bundle and approved test accounts.

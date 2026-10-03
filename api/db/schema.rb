@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_03_180000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_04_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -262,6 +262,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_180000) do
     t.integer "total_weeks"
     t.datetime "updated_at", null: false
     t.index ["course_package_key"], name: "index_curricula_on_course_package_key", unique: true
+  end
+
+  create_table "curriculum_resources", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "curriculum_id", null: false
+    t.bigint "file_size", null: false
+    t.string "filename", null: false
+    t.boolean "ready", default: false, null: false
+    t.string "s3_key", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.datetime "upload_expires_at", null: false
+    t.string "upload_key", null: false
+    t.index ["curriculum_id"], name: "index_curriculum_resources_on_curriculum_id"
+    t.index ["s3_key"], name: "index_curriculum_resources_on_s3_key", unique: true
+    t.index ["upload_key"], name: "index_curriculum_resources_on_upload_key", unique: true
   end
 
   create_table "data_deletion_requests", force: :cascade do |t|
@@ -1164,6 +1180,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_180000) do
   add_foreign_key "content_reports", "users", column: "reviewed_by_id"
   add_foreign_key "course_purchases", "cohorts"
   add_foreign_key "course_purchases", "users"
+  add_foreign_key "curriculum_resources", "curricula", column: "curriculum_id"
   add_foreign_key "data_deletion_requests", "users"
   add_foreign_key "data_deletion_requests", "users", column: "resolved_by_id"
   add_foreign_key "direct_conversation_members", "direct_conversations"

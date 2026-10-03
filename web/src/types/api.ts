@@ -1199,11 +1199,15 @@ export interface RecordingItem {
 }
 
 export interface ResourceEntry {
-  id: number;
+  id: number | string;
   title: string;
   url: string;
   category: string;
   description: string | null;
+  download_id?: number;
+  curriculum_id?: number;
+  filename?: string;
+  file_size?: number;
 }
 
 // First-class recording library entries (returned by /api/v1/cohorts/:id/recordings)

@@ -7,14 +7,9 @@ import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { IconButton } from '../../components/ui/Button'
+import type { ResourceEntry } from '../../types/api'
 
-interface ResourceItem {
-  id: number
-  title: string
-  url: string
-  category: string
-  description: string | null
-}
+type ResourceItem = ResourceEntry
 
 const categoryConfig: Record<string, { label: string; icon: typeof Globe; color: string }> = {
   meeting: { label: 'Meeting', icon: Video, color: 'bg-blue-50 text-blue-700 border-blue-200' },
@@ -33,7 +28,7 @@ export function Resources() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showingSavedData, setShowingSavedData] = useState(false)
   const [query, setQuery] = useState('')
-  const [copiedResourceId, setCopiedResourceId] = useState<number | null>(null)
+  const [copiedResourceId, setCopiedResourceId] = useState<number | string | null>(null)
   const resourcesRequest = useRef(0)
 
   const loadResources = useCallback(() => {
@@ -225,6 +220,27 @@ function HotkeyCard({
 }
 
 function ResourceCard({ resource, compact = false }: { resource: ResourceItem; compact?: boolean }) {
+          const [downloading, setDownloading] = useState(false)
+          const [error, setError] = useState('')
+          const download = async () => {
+            if (!resource.download_id || !resource.curriculum_id || downloading) return
+            setDownloading(true); setError('')
+            try {
+              const result = await api.downloadCurriculumResource(resource.curriculum_id, resource.download_id)
+              if (!result.data) throw new Error(result.error || 'Could not download this file.')
+              const url = sanitizeUrl(result.data.url)
+              if (!url.startsWith('https://')) throw new Error('File storage returned an invalid download link.')
+              const link = document.createElement('a')
+              link.href = url; link.download = resource.filename || 'course-resources.zip'; link.rel = 'noreferrer'
+              link.click()
+            } catch (cause) { setError(cause instanceof Error ? cause.message : 'Download failed.') }
+            finally { setDownloading(false) }
+          }
+          if (resource.download_id) return <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-sm font-semibold text-slate-900">{resource.title}</h2><p className="mt-1 break-all text-sm text-slate-600">{resource.filename}</p></div>
+              <button type="button" disabled={downloading} onClick={() => void download()} className="min-h-11 rounded-xl bg-primary-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{downloading ? 'Preparing download…' : 'Download ZIP'}</button></div>
+            {error && <p role="alert" className="mt-2 text-sm text-red-700">{error}</p>}
+          </div>
           const cat = categoryConfig[resource.category] || categoryConfig.general
           const Icon = cat.icon
           return (
