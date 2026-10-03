@@ -7,6 +7,7 @@ import { fonts, palette } from '@/constants/csg-theme';
 import { openExternalPage } from '@/lib/external-links';
 import { embeddedMediaHtml, isAllowedMediaNavigation, resolveMediaSource } from '@/lib/media-source';
 import type { VideoProgressInput } from '@/lib/types';
+import { isVideoSegmentSeekPosition } from '@/lib/video-segments';
 import { creditedPlaybackSeconds, normalizedProgress, PROGRESS_SAVE_INTERVAL_MS } from '@/lib/video-progress';
 import { NativeVideoPlayer, type NativeVideoPlayerHandle } from './native-video-player';
 
@@ -21,7 +22,7 @@ interface InAppMediaPlayerProps {
   url: string;
 }
 
-export interface InAppMediaPlayerHandle { seekTo: (seconds: number, play?: boolean) => void }
+export interface InAppMediaPlayerHandle { seekTo: (seconds: number, play?: boolean, stopAtSeconds?: number) => void }
 
 export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPlayerProps>(function InAppMediaPlayer({ initialPosition = 0, initialTotalWatched = 0, saveProgress, stopAtSeconds = null, onStopAtReached, title, trackProgress = false, url }, ref) {
   const source = useMemo(() => resolveMediaSource(url), [url]);
@@ -43,6 +44,7 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
   const webViewRef = useRef<WebView>(null);
   const nativeVideoRef = useRef<NativeVideoPlayerHandle>(null);
   const pendingWebSeekRef = useRef<{ seconds: number; play: boolean } | null>(null);
+  const pendingStopStartRef = useRef<number | null>(null);
   const stopAtSecondsRef = useRef(stopAtSeconds);
   const onStopAtReachedRef = useRef(onStopAtReached);
   const openOriginal = useCallback(() => void openExternalPage(source?.originalUrl).catch(() => undefined), [source?.originalUrl]);
@@ -107,8 +109,13 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
     lastTickAtRef.current = now;
     setPlaying(Boolean(message.playing));
     const stopAt = stopAtSecondsRef.current;
-    if (stopAt !== null && position >= stopAt) {
+    const pendingStopStart = pendingStopStartRef.current;
+    if (pendingStopStart !== null && stopAt !== null && isVideoSegmentSeekPosition(position, { label: '', start_seconds: pendingStopStart, end_seconds: stopAt, required: true })) {
+      pendingStopStartRef.current = null;
+    }
+    if (stopAt !== null && pendingStopStartRef.current === null && position >= stopAt) {
       stopAtSecondsRef.current = null;
+      pendingStopStartRef.current = null;
       webViewRef.current?.injectJavaScript('window.csgPause && window.csgPause(); true;');
       onStopAtReachedRef.current?.();
     }
@@ -125,13 +132,17 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
   }, [trackProgress]);
 
   useImperativeHandle(ref, () => ({
-    seekTo(seconds: number, play = true) {
+    seekTo(seconds: number, play = true, selectedStopAt?: number) {
       const requested = Math.max(0, Math.floor(seconds));
       if (source?.type === 'direct') {
         nativeVideoRef.current?.seekTo(requested, play);
         return;
       }
       if (source?.type !== 'embed') return;
+      if (selectedStopAt !== undefined) {
+        stopAtSecondsRef.current = selectedStopAt;
+        pendingStopStartRef.current = requested;
+      }
       pendingWebSeekRef.current = { seconds: requested, play };
       webViewRef.current?.injectJavaScript(`window.csgSeekTo && window.csgSeekTo(${requested}, ${play ? 'true' : 'false'}); true;`);
     },

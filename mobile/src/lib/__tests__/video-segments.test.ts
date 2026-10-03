@@ -1,4 +1,4 @@
-import { firstCoreSegmentStart, formatVideoDuration, formatVideoTimestamp, normalizeVideoSegments, segmentPlaybackStart, totalVideoSegmentSeconds, videoSegmentKey } from '../video-segments';
+import { firstCoreSegmentStart, formatVideoDuration, formatVideoTimestamp, isVideoSegmentSeekPosition, normalizeVideoSegments, segmentPlaybackStart, totalVideoSegmentSeconds, videoSegmentKey } from '../video-segments';
 
 describe('video segments', () => {
   const segments = normalizeVideoSegments({ video_segments: [
@@ -33,5 +33,12 @@ describe('video segments', () => {
     expect(totalVideoSegmentSeconds(ranges)).toBe(145);
     expect(formatVideoDuration(3_661)).toBe('1 hr 2 min');
     expect(videoSegmentKey(ranges[0])).toBe('0:90:One');
+  });
+
+  it('does not arm an earlier section until its seek takes effect', () => {
+    const earlier = { label: 'Earlier', start_seconds: 10, end_seconds: 70, required: true };
+
+    expect(isVideoSegmentSeekPosition(300, earlier)).toBe(false);
+    expect(isVideoSegmentSeekPosition(10, earlier)).toBe(true);
   });
 });

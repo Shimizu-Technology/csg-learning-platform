@@ -139,6 +139,19 @@ def apply_focused_catalog(catalog: list[dict], focused: list[dict]) -> list[dict
             raise ValueError(f"Focused catalog repeats lesson {lesson_id}")
         focused_by_lesson[lesson_id] = entry
 
+    existing_focused_lessons = {
+        int(entry["lesson_id"])
+        for entry in catalog
+        if entry.get("review_method") == "student_path_transcript_reviewed"
+    }
+    removed_lessons = sorted(existing_focused_lessons - focused_by_lesson.keys())
+    if removed_lessons:
+        raise ValueError(
+            "Base catalog still contains removed focused lessons "
+            f"{removed_lessons}. Regenerate from the inventory, curriculum documents, "
+            "and captions before removing a focused override."
+        )
+
     catalog_by_lesson: dict[int, list[dict]] = {}
     for entry in catalog:
         catalog_by_lesson.setdefault(int(entry["lesson_id"]), []).append(entry)

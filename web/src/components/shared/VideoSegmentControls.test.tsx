@@ -25,5 +25,7 @@ describe('VideoSegmentControls', () => {
     expect(markup).toContain('Playing this section')
     expect(markup).toContain('Section finished')
     expect(markup).toContain('aria-pressed="true"')
+    expect(markup).toContain('aria-live="polite"')
+    expect(markup).toContain('section finished')
   })
 })

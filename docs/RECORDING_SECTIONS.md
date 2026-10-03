@@ -50,7 +50,7 @@ python3 scripts/build_video_segment_catalog.py \
   --output api/config/video_segments.json
 ```
 
-The command fails if a focused lesson is missing, duplicated, or points to a different recording source. Rails tests also verify all focused entries, sources, ranges, and metadata normalization.
+The command fails if a focused lesson is missing, duplicated, points to a different recording source, or was removed while stale reviewed data remains in the resolved catalog. Regenerate from the inventory, curriculum documents, and captions when removing an override. Rails tests also verify all focused entries, sources, ranges, and metadata normalization.
 
 Production receives reviewed catalog changes through a versioned data migration. The migration checks the content-block ID and recording source before changing metadata, preserves unrelated metadata, skips a newer edit, and restores the prior values on rollback.
 

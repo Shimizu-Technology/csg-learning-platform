@@ -1,3 +1,5 @@
+require "uri"
+
 class RefineFocusedRecordingSegments < ActiveRecord::Migration[8.1]
   VERSION = 2
   CATALOG_PATH = Rails.root.join("config", "video_segments.json")
@@ -17,6 +19,7 @@ class RefineFocusedRecordingSegments < ActiveRecord::Migration[8.1]
   REVIEWED_INSTRUCTION = "**Watch:** Use the reviewed recording sections above. Each selection skips unrelated class time and pauses at its stop time."
 
   def up
+    applied_lesson_ids = []
     focused_catalog.each do |entry|
       block = ContentBlock.find_by(id: entry.fetch("content_block_id"))
       next unless block&.video? || block&.recording?
@@ -24,23 +27,25 @@ class RefineFocusedRecordingSegments < ActiveRecord::Migration[8.1]
       next if block.metadata.to_h.fetch("video_segments_version", 0).to_i >= VERSION
 
       metadata = block.metadata.to_h
+      installed = {
+        "video_segments" => VideoSegmentSet.normalize(entry.fetch("video_segments")),
+        "video_segments_version" => VERSION,
+        "video_segments_review_method" => REVIEW_METHOD,
+        "video_segments_reviewed_at" => "2026-10-03"
+      }
       previous = {
         "present_keys" => MANAGED_KEYS.select { |key| metadata.key?(key) },
-        "values" => metadata.slice(*MANAGED_KEYS)
+        "values" => metadata.slice(*MANAGED_KEYS),
+        "installed_values" => installed
       }
       block.update_columns(
-        metadata: metadata.merge(
-          "video_segments" => VideoSegmentSet.normalize(entry.fetch("video_segments")),
-          "video_segments_version" => VERSION,
-          "video_segments_review_method" => REVIEW_METHOD,
-          "video_segments_reviewed_at" => "2026-10-03",
-          OWNERSHIP_KEY => previous
-        ),
+        metadata: metadata.merge(installed).merge(OWNERSHIP_KEY => previous),
         updated_at: Time.current
       )
+      applied_lesson_ids << block.lesson_id
     end
 
-    update_reviewed_instructions
+    update_reviewed_instructions(applied_lesson_ids)
   end
 
   def down
@@ -52,9 +57,13 @@ class RefineFocusedRecordingSegments < ActiveRecord::Migration[8.1]
       marker = metadata&.fetch(OWNERSHIP_KEY, nil)
       next unless marker.is_a?(Hash)
 
-      restored = metadata.except(*MANAGED_KEYS, OWNERSHIP_KEY)
-      marker.fetch("present_keys", []).each do |key|
-        restored[key] = marker.fetch("values", {})[key]
+      if metadata.slice(*MANAGED_KEYS) == marker.fetch("installed_values", {})
+        restored = metadata.except(*MANAGED_KEYS, OWNERSHIP_KEY)
+        marker.fetch("present_keys", []).each do |key|
+          restored[key] = marker.fetch("values", {})[key]
+        end
+      else
+        restored = metadata.except(OWNERSHIP_KEY)
       end
       block.update_columns(metadata: restored, updated_at: Time.current)
     end
@@ -72,8 +81,10 @@ class RefineFocusedRecordingSegments < ActiveRecord::Migration[8.1]
     INSTRUCTION_RANGES
   end
 
-  def update_reviewed_instructions
+  def update_reviewed_instructions(applied_lesson_ids)
     instruction_ranges.each do |lesson_id, previous_range|
+      next unless applied_lesson_ids.include?(lesson_id)
+
       lesson = Lesson.find_by(id: lesson_id)
       next unless lesson
 
@@ -91,7 +102,7 @@ class RefineFocusedRecordingSegments < ActiveRecord::Migration[8.1]
         end.join
         block.update_columns(
           body: updated_body,
-          metadata: metadata.merge(INSTRUCTION_OWNERSHIP_KEY => { "body" => block.body }),
+          metadata: metadata.merge(INSTRUCTION_OWNERSHIP_KEY => { "body" => block.body, "installed_body" => updated_body }),
           updated_at: Time.current
         )
       end
@@ -105,7 +116,7 @@ class RefineFocusedRecordingSegments < ActiveRecord::Migration[8.1]
       next unless marker.is_a?(Hash) && marker.key?("body")
 
       block.update_columns(
-        body: marker.fetch("body"),
+        body: block.body == marker.fetch("installed_body", nil) ? marker.fetch("body") : block.body,
         metadata: metadata.except(INSTRUCTION_OWNERSHIP_KEY),
         updated_at: Time.current
       )
@@ -126,6 +137,23 @@ class RefineFocusedRecordingSegments < ActiveRecord::Migration[8.1]
   end
 
   def source_matches?(url, expected)
-    expected.blank? || url.to_s.include?(expected)
+    expected.blank? || recording_source_id(url) == expected
+  end
+
+  def recording_source_id(url)
+    uri = URI.parse(url.to_s)
+    host = uri.host.to_s.downcase.delete_prefix("www.")
+    path = uri.path.to_s.split("/").reject(&:blank?)
+
+    if host == "youtu.be"
+      path.first
+    elsif host == "youtube.com" || host.end_with?(".youtube.com") || host == "youtube-nocookie.com" || host.end_with?(".youtube-nocookie.com")
+      return URI.decode_www_form(uri.query.to_s).to_h["v"] if path.first == "watch"
+      path.second if %w[embed shorts live].include?(path.first)
+    elsif host == "vimeo.com" || host.end_with?(".vimeo.com")
+      path.first == "video" ? path.second : path.find { |part| part.match?(/\A\d+\z/) }
+    end
+  rescue URI::InvalidURIError, ArgumentError
+    nil
   end
 end

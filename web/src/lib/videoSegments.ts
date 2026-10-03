@@ -35,6 +35,10 @@ export function videoSegmentKey(segment: VideoSegment) {
   return `${segment.start_seconds}:${segment.end_seconds}:${segment.label}`
 }
 
+export function isVideoSegmentSeekPosition(seconds: number, segment: VideoSegment) {
+  return seconds >= Math.max(0, segment.start_seconds - 1) && seconds < segment.end_seconds
+}
+
 export function totalVideoSegmentSeconds(segments: VideoSegment[], requiredOnly = false) {
   const ranges = segments
     .filter((segment) => !requiredOnly || segment.required)

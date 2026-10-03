@@ -13,7 +13,7 @@ import { CODE_RUNNER_TIMEOUT_MS, codeRunnerLanguageFromEditor, normalizeCodeRunn
 import { formatShortDateTime } from '../../lib/format'
 import { useToast } from '../../contexts/ToastContext'
 import { analyticsAgeBucket, captureProductEvent } from '../../lib/analytics'
-import { normalizeVideoSegments, playbackStart, type VideoSegment } from '../../lib/videoSegments'
+import { isVideoSegmentSeekPosition, normalizeVideoSegments, playbackStart, type VideoSegment } from '../../lib/videoSegments'
 
 interface ContentBlock {
   id: number
@@ -107,6 +107,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
   const ytIframeRef = useRef<HTMLIFrameElement>(null)
   const s3VideoRef = useRef<VideoPlayerHandle>(null)
   const activeVideoSegmentRef = useRef<VideoSegment | null>(null)
+  const pendingVideoSegmentRef = useRef<VideoSegment | null>(null)
   const isCompletedRef = useRef(isCompleted)
   const trackedFeedbackRef = useRef<number | null>(null)
   useEffect(() => { isCompletedRef.current = isCompleted }, [isCompleted])
@@ -114,9 +115,8 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
     setIsCompleted(block.progress?.status === 'completed')
   }, [block.id, block.progress?.status])
   useEffect(() => {
-    activeVideoSegmentRef.current = activeVideoSegment
-  }, [activeVideoSegment])
-  useEffect(() => {
+    activeVideoSegmentRef.current = null
+    pendingVideoSegmentRef.current = null
     setActiveVideoSegment(null)
     setCompletedVideoSegment(null)
   }, [block.id])
@@ -154,10 +154,22 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
   }, [block.id])
   const initialVideoPosition = playbackStart(videoSegments, block.progress?.video_last_position || 0, deepLinkedPosition)
 
+  const segmentForPlaybackPosition = useCallback((seconds: number) => {
+    const pending = pendingVideoSegmentRef.current
+    if (pending) {
+      if (!isVideoSegmentSeekPosition(seconds, pending)) return null
+      pendingVideoSegmentRef.current = null
+      activeVideoSegmentRef.current = pending
+      return pending
+    }
+    return activeVideoSegmentRef.current
+  }, [])
+
   const finishActiveVideoSegment = useCallback(() => {
     const segment = activeVideoSegmentRef.current
     if (!segment) return
     activeVideoSegmentRef.current = null
+    pendingVideoSegmentRef.current = null
     setActiveVideoSegment(null)
     setCompletedVideoSegment(segment)
   }, [])
@@ -236,7 +248,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
 
     player.on('ended', markVideoCompleted)
     player.on('timeupdate', ({ seconds }) => {
-      const segment = activeVideoSegmentRef.current
+      const segment = segmentForPlaybackPosition(seconds)
       if (!segment || seconds < segment.end_seconds) return
       void player.pause().catch(() => undefined)
       finishActiveVideoSegment()
@@ -250,7 +262,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
       player.destroy()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [block.id, block.block_type, block.video_url, finishActiveVideoSegment, initialVideoPosition, markVideoCompleted])
+  }, [block.id, block.block_type, block.video_url, finishActiveVideoSegment, initialVideoPosition, markVideoCompleted, segmentForPlaybackPosition])
 
   // YouTube completion tracking via iframe API postMessage
   useEffect(() => {
@@ -269,8 +281,8 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
           markVideoCompleted()
         }
         const currentTime = Number(data?.info?.currentTime)
-        const segment = activeVideoSegmentRef.current
-        if (data?.event === 'infoDelivery' && segment && Number.isFinite(currentTime) && currentTime >= segment.end_seconds) {
+        const segment = data?.event === 'infoDelivery' && Number.isFinite(currentTime) ? segmentForPlaybackPosition(currentTime) : null
+        if (segment && currentTime >= segment.end_seconds) {
           ytIframeRef.current?.contentWindow?.postMessage(
             JSON.stringify({ event: 'command', func: 'pauseVideo', args: [] }),
             'https://www.youtube.com'
@@ -308,7 +320,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [block.id, block.block_type, block.video_url, finishActiveVideoSegment, markVideoCompleted])
+  }, [block.id, block.block_type, block.video_url, finishActiveVideoSegment, markVideoCompleted, segmentForPlaybackPosition])
 
   const blockIcons: Record<string, React.ReactNode> = {
     video: <Play className="h-4 w-4" />,
@@ -368,7 +380,6 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
 
   const handleVideoSegmentSelect = useCallback((segment: VideoSegment) => {
     const seconds = segment.start_seconds
-    activeVideoSegmentRef.current = segment
     setActiveVideoSegment(segment)
     setCompletedVideoSegment(null)
     if (typeof window !== 'undefined') {
@@ -378,10 +389,14 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
     }
 
     if (block.s3_video_key) {
+      pendingVideoSegmentRef.current = null
+      activeVideoSegmentRef.current = segment
       s3VideoRef.current?.seekTo(seconds, true)
       return
     }
     if (block.video_url && getYouTubeId(block.video_url)) {
+      activeVideoSegmentRef.current = null
+      pendingVideoSegmentRef.current = segment
       ytIframeRef.current?.contentWindow?.postMessage(
         JSON.stringify({ event: 'command', func: 'seekTo', args: [seconds, true] }),
         'https://www.youtube.com'
@@ -393,6 +408,8 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
       return
     }
     if (vimeoPlayerRef.current) {
+      activeVideoSegmentRef.current = null
+      pendingVideoSegmentRef.current = segment
       void vimeoPlayerRef.current.setCurrentTime(seconds).then(() => vimeoPlayerRef.current?.play()).catch(() => undefined)
     }
   }, [block.s3_video_key, block.video_url])

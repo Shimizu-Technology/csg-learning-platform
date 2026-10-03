@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { firstRequiredSegmentStart, formatVideoDuration, formatVideoTimestamp, normalizeVideoSegments, playbackStart, totalVideoSegmentSeconds, videoSegmentKey } from './videoSegments'
+import { firstRequiredSegmentStart, formatVideoDuration, formatVideoTimestamp, isVideoSegmentSeekPosition, normalizeVideoSegments, playbackStart, totalVideoSegmentSeconds, videoSegmentKey } from './videoSegments'
 
 describe('video segments', () => {
   const metadata = {
@@ -52,5 +52,12 @@ describe('video segments', () => {
     expect(formatVideoDuration(120)).toBe('2 min')
     expect(formatVideoDuration(3_661)).toBe('1 hr 2 min')
     expect(videoSegmentKey(segments[0])).toBe('0:90:One')
+  })
+
+  it('does not arm an earlier section until its seek takes effect', () => {
+    const earlier = { label: 'Earlier', start_seconds: 10, end_seconds: 70, required: true }
+
+    expect(isVideoSegmentSeekPosition(300, earlier)).toBe(false)
+    expect(isVideoSegmentSeekPosition(10, earlier)).toBe(true)
   })
 })

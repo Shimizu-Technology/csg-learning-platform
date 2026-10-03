@@ -21,7 +21,7 @@ class RefineFocusedRecordingSegmentsTest < ActiveSupport::TestCase
   test "migration updates only matching older metadata and restores it on rollback" do
     lesson = create_lesson
     matching = ContentBlock.create!(lesson: lesson, block_type: :recording, position: 0, title: "Matching", video_url: "https://youtube.com/watch?v=focused", metadata: { "notes" => "keep", "video_segments_version" => 1, "video_segments" => old_segments })
-    wrong_source = ContentBlock.create!(lesson: lesson, block_type: :recording, position: 1, title: "Wrong", video_url: "https://youtube.com/watch?v=other", metadata: { "video_segments_version" => 1, "video_segments" => old_segments })
+    wrong_source = ContentBlock.create!(lesson: lesson, block_type: :recording, position: 1, title: "Wrong", video_url: "https://youtube.com/watch?v=other&next=expected", metadata: { "video_segments_version" => 1, "video_segments" => old_segments })
     newer = ContentBlock.create!(lesson: lesson, block_type: :video, position: 2, title: "Newer", video_url: "https://youtube.com/watch?v=newer", metadata: { "video_segments_version" => 3, "video_segments" => old_segments })
     instructions = ContentBlock.create!(lesson: lesson, block_type: :exercise, position: 3, title: "Practice", body: "**Goal:** Learn it.\n\n**Watch:** 39:03–50:00 and 1:56:00–2:40:15. Keep this explanation.\n\n**Exercise:** Build it.", metadata: { "notes" => "keep" })
     migration = migration_with_catalog([
@@ -52,6 +52,47 @@ class RefineFocusedRecordingSegmentsTest < ActiveSupport::TestCase
     refute instructions.metadata.key?(RefineFocusedRecordingSegments::INSTRUCTION_OWNERSHIP_KEY)
   end
 
+  test "migration leaves instructions alone when the reviewed sections were skipped" do
+    lesson = create_lesson
+    skipped = ContentBlock.create!(lesson: lesson, block_type: :recording, position: 0, title: "Wrong source", video_url: "https://youtube.com/watch?v=other", metadata: { "video_segments_version" => 1, "video_segments" => old_segments })
+    instructions = ContentBlock.create!(lesson: lesson, block_type: :exercise, position: 1, title: "Practice", body: "**Watch:** 39:03–50:00 and 1:56:00–2:40:15.\n", metadata: {})
+    migration = migration_with_catalog([ entry_for(skipped, "focused") ])
+
+    migration.migrate(:up)
+
+    assert_equal "**Watch:** 39:03–50:00 and 1:56:00–2:40:15.\n", instructions.reload.body
+    refute instructions.metadata.key?(RefineFocusedRecordingSegments::INSTRUCTION_OWNERSHIP_KEY)
+  end
+
+  test "rollback preserves section and instruction edits made after migration" do
+    lesson = create_lesson
+    matching = ContentBlock.create!(lesson: lesson, block_type: :recording, position: 0, title: "Matching", video_url: "https://youtu.be/focused", metadata: { "video_segments_version" => 1, "video_segments" => old_segments })
+    instructions = ContentBlock.create!(lesson: lesson, block_type: :exercise, position: 1, title: "Practice", body: "**Watch:** 39:03–50:00 and 1:56:00–2:40:15.\n", metadata: {})
+    migration = migration_with_catalog([ entry_for(matching, "focused") ])
+
+    migration.migrate(:up)
+    matching.update_columns(metadata: matching.reload.metadata.merge("video_segments" => staff_segments, "video_segments_version" => 3))
+    instructions.update_columns(body: "**Watch:** Staff reviewed this instruction after release.\n")
+
+    migration.migrate(:down)
+
+    assert_equal staff_segments, matching.reload.metadata.fetch("video_segments")
+    assert_equal 3, matching.metadata.fetch("video_segments_version")
+    refute matching.metadata.key?(RefineFocusedRecordingSegments::OWNERSHIP_KEY)
+    assert_equal "**Watch:** Staff reviewed this instruction after release.\n", instructions.reload.body
+    refute instructions.metadata.key?(RefineFocusedRecordingSegments::INSTRUCTION_OWNERSHIP_KEY)
+  end
+
+  test "source matching compares the active YouTube or Vimeo identifier exactly" do
+    migration = RefineFocusedRecordingSegments.new
+
+    assert migration.send(:source_matches?, "https://youtube.com/watch?v=focused", "focused")
+    assert migration.send(:source_matches?, "https://www.youtube-nocookie.com/embed/focused?autoplay=1", "focused")
+    assert migration.send(:source_matches?, "https://player.vimeo.com/video/12345?h=private", "12345")
+    refute migration.send(:source_matches?, "https://youtube.com/watch?v=other&next=focused", "focused")
+    refute migration.send(:source_matches?, "https://vimeo.com/99999?next=12345", "12345")
+  end
+
   private
 
   def create_lesson
@@ -62,6 +103,10 @@ class RefineFocusedRecordingSegmentsTest < ActiveSupport::TestCase
 
   def old_segments
     [ { "label" => "Old", "start_seconds" => 0, "end_seconds" => 10, "required" => true } ]
+  end
+
+  def staff_segments
+    [ { "label" => "Staff edit", "start_seconds" => 30, "end_seconds" => 45, "required" => true } ]
   end
 
   def entry_for(block, source_id)

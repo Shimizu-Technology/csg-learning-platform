@@ -291,7 +291,7 @@ function LessonVideo({ block, lesson }: { block: LessonContentBlock; lesson: Les
     setActiveVideoSegment(segment);
     setCompletedVideoSegment(null);
     hostedPlayerRef.current?.seekTo(segment.start_seconds, true);
-    linkedPlayerRef.current?.seekTo(segment.start_seconds, true);
+    linkedPlayerRef.current?.seekTo(segment.start_seconds, true, segment.end_seconds);
   };
   const finishSegment = () => {
     if (!activeVideoSegment) return;

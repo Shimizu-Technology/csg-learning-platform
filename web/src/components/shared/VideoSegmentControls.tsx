@@ -28,6 +28,7 @@ export function VideoSegmentControls({ segments, onSelect, activeSegment = null,
           <p className="mt-1 text-xs font-bold text-primary-700">{requiredSeconds > 0 ? `${formatVideoDuration(requiredSeconds)} core viewing` : `${formatVideoDuration(totalSeconds)} optional viewing`}</p>
         </div>
       </div>
+      {completedSegment && <p className="sr-only" role="status" aria-live="polite">Finished {completedSegment.label}</p>}
       <ol className="divide-y divide-slate-200">
         {segments.map((segment, index) => {
           const key = videoSegmentKey(segment)
@@ -38,7 +39,7 @@ export function VideoSegmentControls({ segments, onSelect, activeSegment = null,
               type="button"
               onClick={() => onSelect(segment)}
               className={`group flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 ${isActive ? 'bg-white ring-1 ring-inset ring-primary-200' : 'hover:bg-white'}`}
-              aria-label={`Play ${segment.label}, ${formatVideoTimestamp(segment.start_seconds)} to ${formatVideoTimestamp(segment.end_seconds)}`}
+              aria-label={`Play ${segment.label}, ${formatVideoTimestamp(segment.start_seconds)} to ${formatVideoTimestamp(segment.end_seconds)}${isCompleted ? ', section finished' : isActive ? ', playing this section' : ''}`}
               aria-pressed={isActive}
             >
               <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white transition-transform duration-150 group-hover:scale-105 ${isCompleted ? 'bg-success-600' : 'bg-primary-600'}`}>
