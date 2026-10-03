@@ -51,7 +51,44 @@ class CoursePackagesTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "encoded imports preserve unicode and literal teaching code with identical validation" do
+    body = "Håfa adai — 海: curl -X DELETE http://localhost:3000/items/1; SELECT * FROM studies; <script>example</script>"
+    @package["modules"][0]["lessons"][0]["blocks"][0]["body"] = body
+    encoded = Base64.strict_encode64(JSON.generate(@package))
+    as_user(@admin) { post "/api/v1/course_packages/preview", params: { package_base64: encoded }, headers: auth_headers, as: :json }
+    assert_response :success
+    assert_nil JSON.parse(response.body).dig("preview", "existing_curriculum_id")
+    as_user(@admin) { post "/api/v1/course_packages", params: { package_base64: encoded }, headers: auth_headers, as: :json }
+    assert_response :created
+    curriculum = Curriculum.find(JSON.parse(response.body).dig("import", "curriculum_id"))
+    assert curriculum.draft?
+    assert_equal body, curriculum.modules.first.lessons.first.content_blocks.first.body
+    assert_empty curriculum.cohorts
+    as_user(@admin) { post "/api/v1/course_packages", params: { package: @package }, headers: auth_headers, as: :json }
+    assert_response :created
+    assert JSON.parse(response.body).dig("import", "unchanged")
+  end
+
+  test "encoded payload cannot bypass roles or decoded file limits" do
+    encoded = Base64.strict_encode64(JSON.generate(@package))
+    [ @student, @instructor ].each do |user|
+      as_user(user) { post "/api/v1/course_packages", params: { package_base64: encoded }, headers: auth_headers, as: :json }
+      assert_response :forbidden
+    end
+    invalid = [ nil, [], "not base64!", Base64.strict_encode64("[]"), Base64.strict_encode64("{"),
+                Base64.strict_encode64([ 255 ].pack("C")), Base64.strict_encode64("x" * (CoursePackageImporter::MAX_BYTES + 1)) ]
+    invalid.each do |data|
+      assert_no_difference "Curriculum.count" do
+        as_user(@admin) { post "/api/v1/course_packages", params: { package_base64: data }, headers: auth_headers, as: :json }
+      end
+      assert_response :unprocessable_entity
+    end
+    as_user(@admin) { post "/api/v1/course_packages", params: { package: @package, package_base64: encoded }, headers: auth_headers, as: :json }
+    assert_response :unprocessable_entity
+  end
+
   private
+
 
   def auth_headers
     { "Authorization" => "Bearer test_token" }
