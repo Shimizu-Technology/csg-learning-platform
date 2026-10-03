@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { firstRequiredSegmentStart, formatVideoTimestamp, normalizeVideoSegments, playbackStart } from './videoSegments'
+import { firstRequiredSegmentStart, formatVideoDuration, formatVideoTimestamp, normalizeVideoSegments, playbackStart, totalVideoSegmentSeconds, videoSegmentKey } from './videoSegments'
 
 describe('video segments', () => {
   const metadata = {
@@ -38,5 +38,19 @@ describe('video segments', () => {
   it('formats short and long timestamps consistently', () => {
     expect(formatVideoTimestamp(75)).toBe('1:15')
     expect(formatVideoTimestamp(3675)).toBe('1:01:15')
+  })
+
+  it('summarizes viewing time without double-counting overlapping ranges', () => {
+    const segments = [
+      { label: 'One', start_seconds: 0, end_seconds: 90, required: true },
+      { label: 'Overlap', start_seconds: 60, end_seconds: 120, required: true },
+      { label: 'Optional', start_seconds: 180, end_seconds: 205, required: false },
+    ]
+
+    expect(totalVideoSegmentSeconds(segments, true)).toBe(120)
+    expect(totalVideoSegmentSeconds(segments)).toBe(145)
+    expect(formatVideoDuration(120)).toBe('2 min')
+    expect(formatVideoDuration(3_661)).toBe('1 hr 2 min')
+    expect(videoSegmentKey(segments[0])).toBe('0:90:One')
   })
 })

@@ -265,6 +265,8 @@ function LessonVideo({ block, lesson }: { block: LessonContentBlock; lesson: Les
   const trackedCompletionRef = useRef(block.progress?.status === 'completed');
   const hostedPlayerRef = useRef<NativeVideoPlayerHandle>(null);
   const linkedPlayerRef = useRef<InAppMediaPlayerHandle>(null);
+  const [activeVideoSegment, setActiveVideoSegment] = useState<VideoSegment | null>(null);
+  const [completedVideoSegment, setCompletedVideoSegment] = useState<VideoSegment | null>(null);
   const videoSegments = useMemo(() => normalizeVideoSegments(block.metadata), [block.metadata]);
   const initialPosition = segmentPlaybackStart(videoSegments, block.progress?.video_last_position || 0);
   const fetchStream = useCallback(async () => {
@@ -286,12 +288,19 @@ function LessonVideo({ block, lesson }: { block: LessonContentBlock; lesson: Les
 
   if (block.metadata?.staged_video_upload) return <View style={styles.stagedVideo}><Film color={palette.rubySoft} size={18} /><View style={styles.flex}><Text style={styles.stagedVideoTitle}>Hosted video ready to save</Text><Text style={styles.stagedVideoCopy}>Playback becomes available as soon as this lesson draft is saved.</Text></View></View>;
   const seekToSegment = (segment: VideoSegment) => {
+    setActiveVideoSegment(segment);
+    setCompletedVideoSegment(null);
     hostedPlayerRef.current?.seekTo(segment.start_seconds, true);
     linkedPlayerRef.current?.seekTo(segment.start_seconds, true);
   };
-  if (block.has_s3_video) return <View style={styles.nativeVideo}><NativeVideoPlayer ref={hostedPlayerRef} fetchStream={fetchStream} initialPosition={initialPosition} initialTotalWatched={block.progress?.video_total_watched || 0} saveProgress={saveProgress} title={block.title || lesson.title} trackProgress={!user?.is_staff} /><VideoSegmentControls segments={videoSegments} onSelect={seekToSegment} /></View>;
+  const finishSegment = () => {
+    if (!activeVideoSegment) return;
+    setCompletedVideoSegment(activeVideoSegment);
+    setActiveVideoSegment(null);
+  };
+  if (block.has_s3_video) return <View style={styles.nativeVideo}><NativeVideoPlayer ref={hostedPlayerRef} fetchStream={fetchStream} initialPosition={initialPosition} initialTotalWatched={block.progress?.video_total_watched || 0} saveProgress={saveProgress} stopAtSeconds={activeVideoSegment?.end_seconds ?? null} onStopAtReached={finishSegment} title={block.title || lesson.title} trackProgress={!user?.is_staff} /><VideoSegmentControls segments={videoSegments} activeSegment={activeVideoSegment} completedSegment={completedVideoSegment} onSelect={seekToSegment} /></View>;
   if (!block.video_url) return user?.is_staff ? <View style={styles.stagedVideo}><Film color={palette.quiet} size={18} /><View style={styles.flex}><Text style={styles.stagedVideoTitle}>No video source attached</Text><Text style={styles.stagedVideoCopy}>Add a link or hosted file in the editor.</Text></View></View> : null;
-  return <View style={styles.nativeVideo}><InAppMediaPlayer ref={linkedPlayerRef} initialPosition={initialPosition} initialTotalWatched={block.progress?.video_total_watched || 0} saveProgress={saveProgress} title={block.title || lesson.title} trackProgress={!user?.is_staff} url={block.video_url} /><VideoSegmentControls segments={videoSegments} onSelect={seekToSegment} /></View>;
+  return <View style={styles.nativeVideo}><InAppMediaPlayer ref={linkedPlayerRef} initialPosition={initialPosition} initialTotalWatched={block.progress?.video_total_watched || 0} saveProgress={saveProgress} stopAtSeconds={activeVideoSegment?.end_seconds ?? null} onStopAtReached={finishSegment} title={block.title || lesson.title} trackProgress={!user?.is_staff} url={block.video_url} /><VideoSegmentControls segments={videoSegments} activeSegment={activeVideoSegment} completedSegment={completedVideoSegment} onSelect={seekToSegment} /></View>;
 }
 
 function SubmissionStatus({ submission, redo }: { submission: NonNullable<LessonContentBlock['submissions']>[number]; redo: boolean }) {

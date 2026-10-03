@@ -14,6 +14,8 @@ interface InAppMediaPlayerProps {
   initialPosition?: number;
   initialTotalWatched?: number;
   saveProgress?: (progress: VideoProgressInput) => Promise<void>;
+  stopAtSeconds?: number | null;
+  onStopAtReached?: () => void;
   title: string;
   trackProgress?: boolean;
   url: string;
@@ -21,7 +23,7 @@ interface InAppMediaPlayerProps {
 
 export interface InAppMediaPlayerHandle { seekTo: (seconds: number, play?: boolean) => void }
 
-export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPlayerProps>(function InAppMediaPlayer({ initialPosition = 0, initialTotalWatched = 0, saveProgress, title, trackProgress = false, url }, ref) {
+export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPlayerProps>(function InAppMediaPlayer({ initialPosition = 0, initialTotalWatched = 0, saveProgress, stopAtSeconds = null, onStopAtReached, title, trackProgress = false, url }, ref) {
   const source = useMemo(() => resolveMediaSource(url), [url]);
   const [reloadKey, setReloadKey] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -41,9 +43,15 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
   const webViewRef = useRef<WebView>(null);
   const nativeVideoRef = useRef<NativeVideoPlayerHandle>(null);
   const pendingWebSeekRef = useRef<{ seconds: number; play: boolean } | null>(null);
+  const stopAtSecondsRef = useRef(stopAtSeconds);
+  const onStopAtReachedRef = useRef(onStopAtReached);
   const openOriginal = useCallback(() => void openExternalPage(source?.originalUrl).catch(() => undefined), [source?.originalUrl]);
 
-  useEffect(() => { saveProgressRef.current = saveProgress; }, [saveProgress]);
+  useEffect(() => {
+    saveProgressRef.current = saveProgress;
+    stopAtSecondsRef.current = stopAtSeconds;
+    onStopAtReachedRef.current = onStopAtReached;
+  }, [onStopAtReached, saveProgress, stopAtSeconds]);
 
   const drainSaves = useCallback(async () => {
     if (savingRef.current || !saveProgressRef.current) return;
@@ -98,6 +106,12 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
     lastTimeRef.current = position;
     lastTickAtRef.current = now;
     setPlaying(Boolean(message.playing));
+    const stopAt = stopAtSecondsRef.current;
+    if (stopAt !== null && position >= stopAt) {
+      stopAtSecondsRef.current = null;
+      webViewRef.current?.injectJavaScript('window.csgPause && window.csgPause(); true;');
+      onStopAtReachedRef.current?.();
+    }
     if (message.ended) setCompleted(true);
     if (message.ended || !message.playing || now - lastSavedAtRef.current >= PROGRESS_SAVE_INTERVAL_MS) {
       lastSavedAtRef.current = now;
@@ -133,6 +147,8 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
         initialPosition={initialPosition || source.startSeconds}
         initialTotalWatched={initialTotalWatched}
         saveProgress={saveProgress || (() => Promise.resolve())}
+        stopAtSeconds={stopAtSeconds}
+        onStopAtReached={onStopAtReached}
         title={title}
         trackProgress={trackProgress && Boolean(saveProgress)}
       />

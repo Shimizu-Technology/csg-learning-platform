@@ -5,12 +5,12 @@
     "lesson_title": "Optional: Integrated Rails API Review Lab",
     "content_block_id": 302,
     "source_id": "Ugt-7pUF6l0",
-    "review_method": "single_topic_caption_bounds",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
-        "label": "Optional: Integrated Rails API Review Lab",
-        "start_seconds": 4,
-        "end_seconds": 6824,
+        "label": "Integrated Rails API review",
+        "start_seconds": 0,
+        "end_seconds": 1260,
         "required": false
       }
     ]
@@ -53,11 +53,11 @@
     "lesson_title": "Deliver the Final Demo and Handoff",
     "content_block_id": 367,
     "source_id": "M56EpVXGOm4",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
         "label": "Deliver the final demo and handoff",
-        "start_seconds": 3,
+        "start_seconds": 0,
         "end_seconds": 313,
         "required": true
       }
@@ -69,11 +69,11 @@
     "lesson_title": "Lock the Final Scope",
     "content_block_id": 362,
     "source_id": "0i1BAAW6GhQ",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
         "label": "Lock the final scope",
-        "start_seconds": 3,
+        "start_seconds": 0,
         "end_seconds": 709,
         "required": true
       }
@@ -85,13 +85,13 @@
     "lesson_title": "Optional: Diagnose an Unfamiliar Frontend and CORS Failure",
     "content_block_id": 360,
     "source_id": "trMel2NI1W0",
-    "review_method": "single_topic_caption_bounds",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
-        "label": "Optional: Diagnose an Unfamiliar Frontend and CORS Failure",
-        "start_seconds": 2,
-        "end_seconds": 10163,
-        "required": true
+        "label": "Diagnose a frontend deployment and CORS failure",
+        "start_seconds": 906,
+        "end_seconds": 1482,
+        "required": false
       }
     ]
   },
@@ -101,11 +101,11 @@
     "lesson_title": "Deploy the React Client and Connect Production",
     "content_block_id": 358,
     "source_id": "Otzinb2xcuQ",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
         "label": "Deploy the React client and connect production",
-        "start_seconds": 735,
+        "start_seconds": 733,
         "end_seconds": 1490,
         "required": true
       }
@@ -117,11 +117,11 @@
     "lesson_title": "Deploy the Rails API and PostgreSQL Database",
     "content_block_id": 356,
     "source_id": "Otzinb2xcuQ",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
         "label": "Deploy the Rails API and PostgreSQL database",
-        "start_seconds": 3,
+        "start_seconds": 0,
         "end_seconds": 724,
         "required": true
       }
@@ -133,12 +133,12 @@
     "lesson_title": "Optional: Rebuild the CRUD Flow from a Blank Starter",
     "content_block_id": 352,
     "source_id": "PLGjYy871mQ",
-    "review_method": "single_topic_caption_bounds",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
-        "label": "Optional: Rebuild the CRUD Flow from a Blank Starter",
-        "start_seconds": 3,
-        "end_seconds": 4105,
+        "label": "Rebuild the React create flow",
+        "start_seconds": 433,
+        "end_seconds": 1770,
         "required": false
       }
     ]
@@ -149,12 +149,12 @@
     "lesson_title": "Delete Tasks from React",
     "content_block_id": 349,
     "source_id": "jq7eXTuQRmc",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
-        "label": "Delete tasks from React",
-        "start_seconds": 10232,
-        "end_seconds": 11013,
+        "label": "Delete a task and remove it from state",
+        "start_seconds": 10231,
+        "end_seconds": 11011,
         "required": true
       }
     ]
@@ -165,18 +165,18 @@
     "lesson_title": "Update Tasks from React",
     "content_block_id": 347,
     "source_id": "jq7eXTuQRmc",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
-        "label": "Update tasks from React \u00b7 Part 1",
-        "start_seconds": 2344,
-        "end_seconds": 3002,
+        "label": "Build the update form and handler",
+        "start_seconds": 2343,
+        "end_seconds": 3000,
         "required": true
       },
       {
-        "label": "Update tasks from React \u00b7 Part 2",
+        "label": "Patch the task and replace it in state",
         "start_seconds": 6960,
-        "end_seconds": 9616,
+        "end_seconds": 7920,
         "required": true
       }
     ]
@@ -187,12 +187,24 @@
     "lesson_title": "Optional: Add a Task Detail Modal",
     "content_block_id": 343,
     "source_id": "5tgaEBR1khI",
-    "review_method": "single_topic_caption_bounds",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
-        "label": "Optional: Add a Task Detail Modal",
-        "start_seconds": 3,
-        "end_seconds": 7830,
+        "label": "Connect a row action to handleShow",
+        "start_seconds": 549,
+        "end_seconds": 1457,
+        "required": false
+      },
+      {
+        "label": "Build the modal and track the selected task",
+        "start_seconds": 3018,
+        "end_seconds": 4474,
+        "required": false
+      },
+      {
+        "label": "Move task details into TasksShow",
+        "start_seconds": 5636,
+        "end_seconds": 7089,
         "required": false
       }
     ]
@@ -203,17 +215,17 @@
     "lesson_title": "Create Tasks from React",
     "content_block_id": 345,
     "source_id": "ONQWBuboH6A",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
-        "label": "Create tasks from React \u00b7 Part 1",
-        "start_seconds": 5060,
-        "end_seconds": 5437,
+        "label": "Connect the create form to a parent handler",
+        "start_seconds": 5059,
+        "end_seconds": 5439,
         "required": true
       },
       {
-        "label": "Create tasks from React \u00b7 Part 2",
-        "start_seconds": 6806,
+        "label": "Post the task and update React state",
+        "start_seconds": 6805,
         "end_seconds": 8650,
         "required": true
       }
@@ -241,17 +253,17 @@
     "lesson_title": "Load Tasks from the Rails API",
     "content_block_id": 341,
     "source_id": "3SW_W7PmEd4",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
-        "label": "Load tasks from the Rails API \u00b7 Part 1",
+        "label": "Install Axios and build the index request",
         "start_seconds": 1440,
         "end_seconds": 2644,
         "required": true
       },
       {
-        "label": "Load tasks from the Rails API \u00b7 Part 2",
-        "start_seconds": 5343,
+        "label": "Load API data with state and useEffect",
+        "start_seconds": 5341,
         "end_seconds": 7411,
         "required": true
       }
@@ -263,12 +275,12 @@
     "lesson_title": "Pass Task Data with Props",
     "content_block_id": 339,
     "source_id": "tUPxrIdwr_E",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
-        "label": "Pass task data with props",
-        "start_seconds": 7633,
-        "end_seconds": 9835,
+        "label": "Pass data with props and render it with map",
+        "start_seconds": 7680,
+        "end_seconds": 8280,
         "required": true
       }
     ]
@@ -295,12 +307,12 @@
     "lesson_title": "Split the Interface into Components",
     "content_block_id": 337,
     "source_id": "tUPxrIdwr_E",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
-        "label": "Split the interface into components",
-        "start_seconds": 5593,
-        "end_seconds": 7589,
+        "label": "Refactor the interface into React components",
+        "start_seconds": 5520,
+        "end_seconds": 6360,
         "required": true
       }
     ]
@@ -311,11 +323,11 @@
     "lesson_title": "Complete the Backend Acceptance Checklist",
     "content_block_id": 320,
     "source_id": "DwYdLy-YxGw",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
         "label": "Complete the backend acceptance checklist",
-        "start_seconds": 794,
+        "start_seconds": 793,
         "end_seconds": 1505,
         "required": true
       }
@@ -327,7 +339,7 @@
     "lesson_title": "Reconfirm the Organizer MVP",
     "content_block_id": 318,
     "source_id": "DwYdLy-YxGw",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
         "label": "Reconfirm the organizer MVP",
@@ -343,12 +355,12 @@
     "lesson_title": "Organize the API Under /api/v1",
     "content_block_id": 316,
     "source_id": "pTyaJQAN6tM",
-    "review_method": "single_topic_caption_bounds",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
-        "label": "Organize the API Under /api/v1",
-        "start_seconds": 2,
-        "end_seconds": 11832,
+        "label": "Organize the API under /api/v1",
+        "start_seconds": 464,
+        "end_seconds": 1925,
         "required": true
       }
     ]
@@ -359,12 +371,36 @@
     "lesson_title": "Optional: Add Policy-Based Authorization with Pundit",
     "content_block_id": 314,
     "source_id": "umR507m_B9I",
-    "review_method": "single_topic_caption_bounds",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
-        "label": "Optional: Add Policy-Based Authorization with Pundit",
-        "start_seconds": 2,
-        "end_seconds": 7221,
+        "label": "Distinguish authentication from authorization",
+        "start_seconds": 360,
+        "end_seconds": 600,
+        "required": false
+      },
+      {
+        "label": "Install Pundit and handle authorization errors",
+        "start_seconds": 1680,
+        "end_seconds": 2040,
+        "required": false
+      },
+      {
+        "label": "Validate roles and add user helpers",
+        "start_seconds": 2040,
+        "end_seconds": 2400,
+        "required": false
+      },
+      {
+        "label": "Build policy and scope logic",
+        "start_seconds": 2400,
+        "end_seconds": 3000,
+        "required": false
+      },
+      {
+        "label": "Test authorization with HTTPie",
+        "start_seconds": 3000,
+        "end_seconds": 3600,
         "required": false
       }
     ]
@@ -375,7 +411,7 @@
     "lesson_title": "Protect Task Endpoints and Scope Data",
     "content_block_id": 312,
     "source_id": "pfSrtsnlubg",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
         "label": "Protect task endpoints and scope data",
@@ -391,11 +427,11 @@
     "lesson_title": "Build Login and Issue a JWT",
     "content_block_id": 310,
     "source_id": "pfSrtsnlubg",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
         "label": "Build login and issue a JWT",
-        "start_seconds": 5990,
+        "start_seconds": 5991,
         "end_seconds": 6750,
         "required": true
       }
@@ -407,12 +443,18 @@
     "lesson_title": "Create the Organizer React Client",
     "content_block_id": 335,
     "source_id": "tUPxrIdwr_E",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
-        "label": "Create the organizer React client",
-        "start_seconds": 829,
-        "end_seconds": 2943,
+        "label": "Create the React app and learn JSX basics",
+        "start_seconds": 840,
+        "end_seconds": 1380,
+        "required": true
+      },
+      {
+        "label": "Build the first static interface",
+        "start_seconds": 2280,
+        "end_seconds": 2940,
         "required": true
       }
     ]
@@ -423,12 +465,12 @@
     "lesson_title": "Build the Signup Endpoint",
     "content_block_id": 308,
     "source_id": "pfSrtsnlubg",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
         "label": "Build the signup endpoint",
-        "start_seconds": 4739,
-        "end_seconds": 5169,
+        "start_seconds": 4740,
+        "end_seconds": 5160,
         "required": true
       }
     ]
@@ -439,12 +481,12 @@
     "lesson_title": "Optional: See Asynchronous JavaScript in Action",
     "content_block_id": 333,
     "source_id": "Hn4tCQ9djE4",
-    "review_method": "single_topic_caption_bounds",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
-        "label": "Optional: See Asynchronous JavaScript in Action",
-        "start_seconds": 2,
-        "end_seconds": 6950,
+        "label": "See asynchronous JavaScript in action",
+        "start_seconds": 2207,
+        "end_seconds": 2716,
         "required": false
       }
     ]
@@ -455,11 +497,11 @@
     "lesson_title": "Secure User Passwords",
     "content_block_id": 306,
     "source_id": "pfSrtsnlubg",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
         "label": "Secure user passwords",
-        "start_seconds": 1464,
+        "start_seconds": 1463,
         "end_seconds": 3004,
         "required": true
       }
@@ -471,12 +513,18 @@
     "lesson_title": "Practice Decomposition with Task Data",
     "content_block_id": 331,
     "source_id": "63HiSNt1dFw",
-    "review_method": "single_topic_caption_bounds",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
-        "label": "Practice Decomposition with Task Data",
-        "start_seconds": 3,
-        "end_seconds": 9364,
+        "label": "Break down the Two Sum problem",
+        "start_seconds": 1920,
+        "end_seconds": 2760,
+        "required": true
+      },
+      {
+        "label": "Trace a longer problem and discuss complexity",
+        "start_seconds": 3840,
+        "end_seconds": 5145,
         "required": true
       }
     ]
@@ -487,12 +535,12 @@
     "lesson_title": "Optional: Understand Background Jobs",
     "content_block_id": 322,
     "source_id": "pTyaJQAN6tM",
-    "review_method": "single_topic_caption_bounds",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
-        "label": "Optional: Understand Background Jobs",
-        "start_seconds": 2,
-        "end_seconds": 11832,
+        "label": "Understand background jobs",
+        "start_seconds": 6564,
+        "end_seconds": 8040,
         "required": false
       }
     ]
@@ -503,12 +551,36 @@
     "lesson_title": "Translate Ruby Fundamentals into JavaScript",
     "content_block_id": 325,
     "source_id": "sDzzZ2Hvdb0",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
-        "label": "Translate Ruby fundamentals into JavaScript",
-        "start_seconds": 247,
-        "end_seconds": 4613,
+        "label": "Use JavaScript in the browser console",
+        "start_seconds": 360,
+        "end_seconds": 600,
+        "required": true
+      },
+      {
+        "label": "Practice console.log and arithmetic",
+        "start_seconds": 600,
+        "end_seconds": 840,
+        "required": true
+      },
+      {
+        "label": "Run JavaScript locally with Node",
+        "start_seconds": 1440,
+        "end_seconds": 1680,
+        "required": true
+      },
+      {
+        "label": "Declare variables with let and const",
+        "start_seconds": 3360,
+        "end_seconds": 3840,
+        "required": true
+      },
+      {
+        "label": "Use strings, numbers, objects, and arrays",
+        "start_seconds": 3840,
+        "end_seconds": 4560,
         "required": true
       }
     ]
@@ -519,12 +591,12 @@
     "lesson_title": "Make Decisions with JavaScript",
     "content_block_id": 327,
     "source_id": "sDzzZ2Hvdb0",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
         "label": "Make decisions with JavaScript",
         "start_seconds": 8085,
-        "end_seconds": 9405,
+        "end_seconds": 9404,
         "required": true
       }
     ]
@@ -599,12 +671,12 @@
     "lesson_title": "Loop Through Collections",
     "content_block_id": 329,
     "source_id": "jvupC1Yr5pw",
-    "review_method": "transcript_range_caption_boundary",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
         "label": "Loop through collections",
-        "start_seconds": 4675,
-        "end_seconds": 5544,
+        "start_seconds": 4674,
+        "end_seconds": 5540,
         "required": true
       }
     ]
@@ -631,12 +703,12 @@
     "lesson_title": "Optional: Many-to-Many Associations Preview",
     "content_block_id": 304,
     "source_id": "aEv6D6UNd74",
-    "review_method": "single_topic_caption_bounds",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
-        "label": "Optional: Many-to-Many Associations Preview",
-        "start_seconds": 3,
-        "end_seconds": 3873,
+        "label": "Many-to-many associations preview",
+        "start_seconds": 492,
+        "end_seconds": 2634,
         "required": false
       }
     ]
@@ -647,12 +719,12 @@
     "lesson_title": "Build Your First Serializer",
     "content_block_id": 296,
     "source_id": "mbkrFwA9m-4",
-    "review_method": "single_topic_caption_bounds",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
-        "label": "Build Your First Serializer",
-        "start_seconds": 3,
-        "end_seconds": 8050,
+        "label": "Build the first serializer",
+        "start_seconds": 705,
+        "end_seconds": 1964,
         "required": true
       }
     ]
@@ -663,12 +735,12 @@
     "lesson_title": "Serialize Relationships Without Recursive JSON",
     "content_block_id": 298,
     "source_id": "mbkrFwA9m-4",
-    "review_method": "single_topic_caption_bounds",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
-        "label": "Serialize Relationships Without Recursive JSON",
-        "start_seconds": 3,
-        "end_seconds": 8050,
+        "label": "Serialize relationships without recursive JSON",
+        "start_seconds": 1902,
+        "end_seconds": 2820,
         "required": true
       }
     ]
@@ -679,12 +751,12 @@
     "lesson_title": "Optional: Associations and Foreign Keys Review",
     "content_block_id": 300,
     "source_id": "IVqzUmIdFPk",
-    "review_method": "single_topic_caption_bounds",
+    "review_method": "student_path_transcript_reviewed",
     "video_segments": [
       {
-        "label": "Optional: Associations and Foreign Keys Review",
-        "start_seconds": 3,
-        "end_seconds": 9386,
+        "label": "Associations and foreign keys review",
+        "start_seconds": 527,
+        "end_seconds": 1560,
         "required": false
       }
     ]

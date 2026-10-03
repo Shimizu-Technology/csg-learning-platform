@@ -5,6 +5,11 @@ The alumni manifest and Lance curriculum documents already contain transcript-
 reviewed teaching ranges. This script converts those ranges to structured data,
 snaps their edges to real caption cues, and gives single-topic videos one exact
 first-spoken-cue to final-spoken-cue range.
+
+Focused student-path ranges are maintained in a small, explicit catalog keyed by
+production lesson and recording source. Those entries override generated ranges
+without caption snapping so the structured controls exactly match the reviewed
+times shown in the lesson copy.
 """
 
 from __future__ import annotations
@@ -125,47 +130,92 @@ def parse_lance(paths: list[Path]) -> dict[str, list[dict]]:
     return output
 
 
+def apply_focused_catalog(catalog: list[dict], focused: list[dict]) -> list[dict]:
+    """Replace generated ranges with transcript-reviewed, lesson-specific ranges."""
+    focused_by_lesson: dict[int, dict] = {}
+    for entry in focused:
+        lesson_id = int(entry["lesson_id"])
+        if lesson_id in focused_by_lesson:
+            raise ValueError(f"Focused catalog repeats lesson {lesson_id}")
+        focused_by_lesson[lesson_id] = entry
+
+    catalog_by_lesson: dict[int, list[dict]] = {}
+    for entry in catalog:
+        catalog_by_lesson.setdefault(int(entry["lesson_id"]), []).append(entry)
+
+    for lesson_id, focused_entry in focused_by_lesson.items():
+        matches = catalog_by_lesson.get(lesson_id, [])
+        if len(matches) != 1:
+            raise ValueError(f"Focused lesson {lesson_id} must match exactly one recording block; found {len(matches)}")
+
+        catalog_entry = matches[0]
+        expected_source = focused_entry["source_id"]
+        if catalog_entry.get("source_id") != expected_source:
+            raise ValueError(
+                f"Focused lesson {lesson_id} expects source {expected_source}, "
+                f"but the catalog uses {catalog_entry.get('source_id') or 'no source'}"
+            )
+
+        catalog_entry["review_method"] = "student_path_transcript_reviewed"
+        catalog_entry["video_segments"] = focused_entry["video_segments"]
+
+    return catalog
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--inventory", type=Path, required=True)
-    parser.add_argument("--alumni-manifest", type=Path, required=True)
+    parser.add_argument("--base-catalog", type=Path)
+    parser.add_argument("--inventory", type=Path)
+    parser.add_argument("--alumni-manifest", type=Path)
     parser.add_argument("--lance", type=Path, action="append", default=[])
-    parser.add_argument("--captions-dir", type=Path, required=True)
+    parser.add_argument("--captions-dir", type=Path)
+    parser.add_argument("--focused-catalog", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
-    inventory = json.loads(args.inventory.read_text())
-    alumni = parse_alumni(args.alumni_manifest)
-    lance = parse_lance(args.lance)
-    catalog = []
-    for block in inventory:
-        video_id = source_id(block.get("video_url"))
-        cues = load_cues(args.captions_dir, video_id)
-        duration = duration_for(args.captions_dir, video_id, cues)
-        ranges = alumni.get(int(block["lesson_id"])) if int(block["curriculum_id"]) == 2 else lance.get(block["lesson"].lower())
-        if ranges:
-            segments = []
-            for raw in ranges:
-                start = snap_start(raw["start_seconds"], cues)
-                end = snap_end(raw["end_seconds"], cues, duration)
-                if end <= start:
-                    end = min(duration, start + 1)
-                segments.append({**raw, "start_seconds": start, "end_seconds": end})
-            review_method = "transcript_range_caption_boundary"
-        else:
-            start = round(cues[0][0]) if cues else 0
-            end = min(duration, round(cues[-1][1])) if cues else duration
-            segments = [{"label": block["lesson"], "start_seconds": start, "end_seconds": max(start + 1, end), "required": bool(block["lesson_required"]) if int(block["curriculum_id"]) == 1 else False}]
-            review_method = "single_topic_caption_bounds" if cues else "source_duration"
-        catalog.append({
-            "curriculum_id": int(block["curriculum_id"]),
-            "lesson_id": int(block["lesson_id"]),
-            "lesson_title": block["lesson"],
-            "content_block_id": int(block["block_id"]),
-            "source_id": video_id,
-            "review_method": review_method,
-            "video_segments": segments,
-        })
+    if args.base_catalog:
+        catalog = json.loads(args.base_catalog.read_text())
+        inventory = catalog
+    else:
+        missing = [name for name in ("inventory", "alumni_manifest", "captions_dir") if getattr(args, name) is None]
+        if missing:
+            parser.error(f"generation mode requires: {', '.join('--' + name.replace('_', '-') for name in missing)}")
+
+        inventory = json.loads(args.inventory.read_text())
+        alumni = parse_alumni(args.alumni_manifest)
+        lance = parse_lance(args.lance)
+        catalog = []
+        for block in inventory:
+            video_id = source_id(block.get("video_url"))
+            cues = load_cues(args.captions_dir, video_id)
+            duration = duration_for(args.captions_dir, video_id, cues)
+            ranges = alumni.get(int(block["lesson_id"])) if int(block["curriculum_id"]) == 2 else lance.get(block["lesson"].lower())
+            if ranges:
+                segments = []
+                for raw in ranges:
+                    start = snap_start(raw["start_seconds"], cues)
+                    end = snap_end(raw["end_seconds"], cues, duration)
+                    if end <= start:
+                        end = min(duration, start + 1)
+                    segments.append({**raw, "start_seconds": start, "end_seconds": end})
+                review_method = "transcript_range_caption_boundary"
+            else:
+                start = round(cues[0][0]) if cues else 0
+                end = min(duration, round(cues[-1][1])) if cues else duration
+                segments = [{"label": block["lesson"], "start_seconds": start, "end_seconds": max(start + 1, end), "required": bool(block["lesson_required"]) if int(block["curriculum_id"]) == 1 else False}]
+                review_method = "single_topic_caption_bounds" if cues else "source_duration"
+            catalog.append({
+                "curriculum_id": int(block["curriculum_id"]),
+                "lesson_id": int(block["lesson_id"]),
+                "lesson_title": block["lesson"],
+                "content_block_id": int(block["block_id"]),
+                "source_id": video_id,
+                "review_method": review_method,
+                "video_segments": segments,
+            })
+
+    if args.focused_catalog:
+        catalog = apply_focused_catalog(catalog, json.loads(args.focused_catalog.read_text()))
 
     block_ids = [entry["content_block_id"] for entry in catalog]
     if len(catalog) != len(inventory) or len(block_ids) != len(set(block_ids)):

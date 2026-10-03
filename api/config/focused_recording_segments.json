@@ -1,0 +1,248 @@
+[
+  {
+    "lesson_id": 198,
+    "source_id": "mbkrFwA9m-4",
+    "video_segments": [
+      { "label": "Build the first serializer", "start_seconds": 705, "end_seconds": 1964, "required": true }
+    ]
+  },
+  {
+    "lesson_id": 199,
+    "source_id": "mbkrFwA9m-4",
+    "video_segments": [
+      { "label": "Serialize relationships without recursive JSON", "start_seconds": 1902, "end_seconds": 2820, "required": true }
+    ]
+  },
+  {
+    "lesson_id": 200,
+    "source_id": "IVqzUmIdFPk",
+    "video_segments": [
+      { "label": "Associations and foreign keys review", "start_seconds": 527, "end_seconds": 1560, "required": false }
+    ]
+  },
+  {
+    "lesson_id": 201,
+    "source_id": "Ugt-7pUF6l0",
+    "video_segments": [
+      { "label": "Integrated Rails API review", "start_seconds": 0, "end_seconds": 1260, "required": false }
+    ]
+  },
+  {
+    "lesson_id": 202,
+    "source_id": "aEv6D6UNd74",
+    "video_segments": [
+      { "label": "Many-to-many associations preview", "start_seconds": 492, "end_seconds": 2634, "required": false }
+    ]
+  },
+  {
+    "lesson_id": 203,
+    "source_id": "pfSrtsnlubg",
+    "video_segments": [
+      { "label": "Secure user passwords", "start_seconds": 1463, "end_seconds": 3004, "required": true }
+    ]
+  },
+  {
+    "lesson_id": 204,
+    "source_id": "pfSrtsnlubg",
+    "video_segments": [
+      { "label": "Build the signup endpoint", "start_seconds": 4740, "end_seconds": 5160, "required": true }
+    ]
+  },
+  {
+    "lesson_id": 205,
+    "source_id": "pfSrtsnlubg",
+    "video_segments": [
+      { "label": "Build login and issue a JWT", "start_seconds": 5991, "end_seconds": 6750, "required": true }
+    ]
+  },
+  {
+    "lesson_id": 206,
+    "source_id": "pfSrtsnlubg",
+    "video_segments": [
+      { "label": "Protect task endpoints and scope data", "start_seconds": 8558, "end_seconds": 9480, "required": true }
+    ]
+  },
+  {
+    "lesson_id": 207,
+    "source_id": "umR507m_B9I",
+    "video_segments": [
+      { "label": "Distinguish authentication from authorization", "start_seconds": 360, "end_seconds": 600, "required": false },
+      { "label": "Install Pundit and handle authorization errors", "start_seconds": 1680, "end_seconds": 2040, "required": false },
+      { "label": "Validate roles and add user helpers", "start_seconds": 2040, "end_seconds": 2400, "required": false },
+      { "label": "Build policy and scope logic", "start_seconds": 2400, "end_seconds": 3000, "required": false },
+      { "label": "Test authorization with HTTPie", "start_seconds": 3000, "end_seconds": 3600, "required": false }
+    ]
+  },
+  {
+    "lesson_id": 208,
+    "source_id": "pTyaJQAN6tM",
+    "video_segments": [
+      { "label": "Organize the API under /api/v1", "start_seconds": 464, "end_seconds": 1925, "required": true }
+    ]
+  },
+  {
+    "lesson_id": 209,
+    "source_id": "DwYdLy-YxGw",
+    "video_segments": [
+      { "label": "Reconfirm the organizer MVP", "start_seconds": 507, "end_seconds": 1505, "required": true }
+    ]
+  },
+  {
+    "lesson_id": 210,
+    "source_id": "DwYdLy-YxGw",
+    "video_segments": [
+      { "label": "Complete the backend acceptance checklist", "start_seconds": 793, "end_seconds": 1505, "required": true }
+    ]
+  },
+  {
+    "lesson_id": 211,
+    "source_id": "pTyaJQAN6tM",
+    "video_segments": [
+      { "label": "Understand background jobs", "start_seconds": 6564, "end_seconds": 8040, "required": false }
+    ]
+  },
+  {
+    "lesson_id": 213,
+    "source_id": "sDzzZ2Hvdb0",
+    "video_segments": [
+      { "label": "Use JavaScript in the browser console", "start_seconds": 360, "end_seconds": 600, "required": true },
+      { "label": "Practice console.log and arithmetic", "start_seconds": 600, "end_seconds": 840, "required": true },
+      { "label": "Run JavaScript locally with Node", "start_seconds": 1440, "end_seconds": 1680, "required": true },
+      { "label": "Declare variables with let and const", "start_seconds": 3360, "end_seconds": 3840, "required": true },
+      { "label": "Use strings, numbers, objects, and arrays", "start_seconds": 3840, "end_seconds": 4560, "required": true }
+    ]
+  },
+  {
+    "lesson_id": 214,
+    "source_id": "sDzzZ2Hvdb0",
+    "video_segments": [
+      { "label": "Make decisions with JavaScript", "start_seconds": 8085, "end_seconds": 9404, "required": true }
+    ]
+  },
+  {
+    "lesson_id": 215,
+    "source_id": "jvupC1Yr5pw",
+    "video_segments": [
+      { "label": "Loop through collections", "start_seconds": 4674, "end_seconds": 5540, "required": true }
+    ]
+  },
+  {
+    "lesson_id": 216,
+    "source_id": "63HiSNt1dFw",
+    "video_segments": [
+      { "label": "Break down the Two Sum problem", "start_seconds": 1920, "end_seconds": 2760, "required": true },
+      { "label": "Trace a longer problem and discuss complexity", "start_seconds": 3840, "end_seconds": 5145, "required": true }
+    ]
+  },
+  {
+    "lesson_id": 217,
+    "source_id": "Hn4tCQ9djE4",
+    "video_segments": [
+      { "label": "See asynchronous JavaScript in action", "start_seconds": 2207, "end_seconds": 2716, "required": false }
+    ]
+  },
+  {
+    "lesson_id": 218,
+    "source_id": "tUPxrIdwr_E",
+    "video_segments": [
+      { "label": "Create the React app and learn JSX basics", "start_seconds": 840, "end_seconds": 1380, "required": true },
+      { "label": "Build the first static interface", "start_seconds": 2280, "end_seconds": 2940, "required": true }
+    ]
+  },
+  {
+    "lesson_id": 219,
+    "source_id": "tUPxrIdwr_E",
+    "video_segments": [
+      { "label": "Refactor the interface into React components", "start_seconds": 5520, "end_seconds": 6360, "required": true }
+    ]
+  },
+  {
+    "lesson_id": 220,
+    "source_id": "tUPxrIdwr_E",
+    "video_segments": [
+      { "label": "Pass data with props and render it with map", "start_seconds": 7680, "end_seconds": 8280, "required": true }
+    ]
+  },
+  {
+    "lesson_id": 221,
+    "source_id": "3SW_W7PmEd4",
+    "video_segments": [
+      { "label": "Install Axios and build the index request", "start_seconds": 1440, "end_seconds": 2644, "required": true },
+      { "label": "Load API data with state and useEffect", "start_seconds": 5341, "end_seconds": 7411, "required": true }
+    ]
+  },
+  {
+    "lesson_id": 222,
+    "source_id": "5tgaEBR1khI",
+    "video_segments": [
+      { "label": "Connect a row action to handleShow", "start_seconds": 549, "end_seconds": 1457, "required": false },
+      { "label": "Build the modal and track the selected task", "start_seconds": 3018, "end_seconds": 4474, "required": false },
+      { "label": "Move task details into TasksShow", "start_seconds": 5636, "end_seconds": 7089, "required": false }
+    ]
+  },
+  {
+    "lesson_id": 223,
+    "source_id": "ONQWBuboH6A",
+    "video_segments": [
+      { "label": "Connect the create form to a parent handler", "start_seconds": 5059, "end_seconds": 5439, "required": true },
+      { "label": "Post the task and update React state", "start_seconds": 6805, "end_seconds": 8650, "required": true }
+    ]
+  },
+  {
+    "lesson_id": 224,
+    "source_id": "jq7eXTuQRmc",
+    "video_segments": [
+      { "label": "Build the update form and handler", "start_seconds": 2343, "end_seconds": 3000, "required": true },
+      { "label": "Patch the task and replace it in state", "start_seconds": 6960, "end_seconds": 7920, "required": true }
+    ]
+  },
+  {
+    "lesson_id": 225,
+    "source_id": "jq7eXTuQRmc",
+    "video_segments": [
+      { "label": "Delete a task and remove it from state", "start_seconds": 10231, "end_seconds": 11011, "required": true }
+    ]
+  },
+  {
+    "lesson_id": 227,
+    "source_id": "PLGjYy871mQ",
+    "video_segments": [
+      { "label": "Rebuild the React create flow", "start_seconds": 433, "end_seconds": 1770, "required": false }
+    ]
+  },
+  {
+    "lesson_id": 230,
+    "source_id": "Otzinb2xcuQ",
+    "video_segments": [
+      { "label": "Deploy the Rails API and PostgreSQL database", "start_seconds": 0, "end_seconds": 724, "required": true }
+    ]
+  },
+  {
+    "lesson_id": 231,
+    "source_id": "Otzinb2xcuQ",
+    "video_segments": [
+      { "label": "Deploy the React client and connect production", "start_seconds": 733, "end_seconds": 1490, "required": true }
+    ]
+  },
+  {
+    "lesson_id": 232,
+    "source_id": "trMel2NI1W0",
+    "video_segments": [
+      { "label": "Diagnose a frontend deployment and CORS failure", "start_seconds": 906, "end_seconds": 1482, "required": false }
+    ]
+  },
+  {
+    "lesson_id": 233,
+    "source_id": "0i1BAAW6GhQ",
+    "video_segments": [
+      { "label": "Lock the final scope", "start_seconds": 0, "end_seconds": 709, "required": true }
+    ]
+  },
+  {
+    "lesson_id": 237,
+    "source_id": "M56EpVXGOm4",
+    "video_segments": [
+      { "label": "Deliver the final demo and handoff", "start_seconds": 0, "end_seconds": 313, "required": true }
+    ]
+  }
+]
