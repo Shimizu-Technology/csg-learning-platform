@@ -29,7 +29,7 @@ void SplashScreen.preventAutoHideAsync();
 function AppProviders() {
   return (
     <SessionProvider>
-      <AnalyticsProvider><ServerStateProvider><WorkspaceProvider><CohortProvider><VoiceRecorderProvider>
+      <AnalyticsProvider><ServerStateProvider><CohortProvider><WorkspaceProvider><VoiceRecorderProvider>
         <StatusBar style="light" />
         <NotificationObserver />
         <Stack screenOptions={{ contentStyle: { backgroundColor: palette.ink }, headerStyle: { backgroundColor: palette.ink }, headerTintColor: palette.text, headerShadowVisible: false }}>
@@ -37,7 +37,7 @@ function AppProviders() {
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen name="(app)" options={{ headerShown: false }} />
         </Stack>
-      </VoiceRecorderProvider></CohortProvider></WorkspaceProvider></ServerStateProvider></AnalyticsProvider>
+      </VoiceRecorderProvider></WorkspaceProvider></CohortProvider></ServerStateProvider></AnalyticsProvider>
     </SessionProvider>
   );
 }

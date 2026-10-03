@@ -78,12 +78,14 @@ import {
   type UploadedMessageAttachment,
 } from '../../lib/messageComposerState'
 import { useAuthContext } from '../../contexts/AuthContext'
+import { useCohortContext } from '../../contexts/CohortContext'
 import { useToast } from '../../contexts/ToastContext'
 import { MessagesLoadingShell } from '../../components/shared/MessagesLoadingShell'
 import { Modal } from '../../components/shared/Modal'
 import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
 import { helpRequestPath, submissionPath } from '../../lib/routes'
 import { firstUnreadMessageId, latestVisibleReadReceipts, mergeConversationSummary, recentConversations } from '../../lib/messagingPresentation'
+import { initialScopedWorkspaceId, workspaceIdForCohort } from '../../lib/cohortScope'
 import type {
   ChannelMessage,
   ChannelMessageEvent,
@@ -829,6 +831,7 @@ export function Messages() {
   const routedMessageId = Number(searchParams.get('message_id')) || null
   const requestedWorkspaceId = Number(searchParams.get('workspace_id')) || null
   const { user } = useAuthContext()
+  const { loading: cohortsLoading, selectedCohortId, setSelectedCohort } = useCohortContext()
   const toast = useToast()
   const composerHelpId = useId()
   const isStaff = Boolean(user?.is_staff)
@@ -938,6 +941,8 @@ export function Messages() {
   const pendingAttachmentsRef = useRef(pendingAttachments)
   const realtimeSubscriptionRef = useRef<RealtimeSubscription | null>(null)
   const typingExpiryTimersRef = useRef(new Map<number, number>())
+  const lastAppliedCohortWorkspaceRef = useRef<string | null | undefined>(undefined)
+  const preserveRoutedWorkspaceRef = useRef(Boolean(requestedWorkspaceId || channelId || dmId))
   const typingStopTimerRef = useRef<number | null>(null)
   const outboundTypingRef = useRef<{
     target: Target
@@ -1281,23 +1286,31 @@ export function Messages() {
 
   const loadLists = async () => {
     const [workspaceRes, channelRes, dmRes] = await Promise.all([api.getWorkspaces(), api.getChannels(), api.getDirectConversations()])
-    if (workspaceRes.data) setWorkspaces(workspaceRes.data.workspaces)
+    const loadedWorkspaces = workspaceRes.data?.workspaces || []
+    if (workspaceRes.data) setWorkspaces(loadedWorkspaces)
     if (channelRes.data) setChannels(channelRes.data.channels)
     if (dmRes.data) setDirectConversations(dmRes.data.direct_conversations)
 
     const loadedChannels = channelRes.data?.channels || []
     const loadedDirectConversations = dmRes.data?.direct_conversations || []
-    const firstTarget = initialMessageTarget(loadedChannels, loadedDirectConversations)
-    const firstTargetWorkspaceId = firstTarget?.type === 'channel'
-      ? loadedChannels.find((channel) => channel.id === firstTarget.id)?.workspace_id
-      : loadedDirectConversations.find((conversation) => conversation.id === firstTarget?.id)?.workspace_id
+    const routedWorkspaceId = channelId
+      ? loadedChannels.find((channel) => channel.id === Number(channelId))?.workspace_id
+      : dmId
+        ? loadedDirectConversations.find((conversation) => conversation.id === Number(dmId))?.workspace_id
+        : null
+    const initialWorkspaceId = initialScopedWorkspaceId({
+      workspaces: loadedWorkspaces,
+      routedWorkspaceId,
+      requestedWorkspaceId,
+      cohortWorkspaceId: workspaceIdForCohort(loadedWorkspaces, selectedCohortId),
+    })
+    const initialTarget = initialMessageTarget(
+      loadedChannels.filter((channel) => channel.workspace_id === initialWorkspaceId),
+      loadedDirectConversations.filter((conversation) => conversation.workspace_id === initialWorkspaceId),
+    )
 
-    const requestedWorkspace = workspaceRes.data?.workspaces.find((workspace) => workspace.id === requestedWorkspaceId)
-    setSelectedTarget((current) => current || (requestedWorkspace ? initialMessageTarget(
-      loadedChannels.filter((channel) => channel.workspace_id === requestedWorkspace.id),
-      loadedDirectConversations.filter((conversation) => conversation.workspace_id === requestedWorkspace.id),
-    ) : firstTarget))
-    setSelectedWorkspaceId((current) => requestedWorkspace?.id || current || firstTargetWorkspaceId || workspaceRes.data?.workspaces[0]?.id || null)
+    setSelectedTarget((current) => current || initialTarget)
+    setSelectedWorkspaceId((current) => current || initialWorkspaceId)
     setLoading(false)
   }
 
@@ -1726,8 +1739,53 @@ export function Messages() {
   useEffect(() => {
     if (!selectedTarget) return
     const workspaceId = selectedChannel?.workspace_id || selectedDm?.workspace_id
-    if (workspaceId) setSelectedWorkspaceId(workspaceId)
-  }, [selectedTarget, selectedChannel, selectedDm])
+    if (!workspaceId) return
+    const movedAcrossWorkspaces = selectedWorkspaceId !== null && selectedWorkspaceId !== workspaceId
+    setSelectedWorkspaceId(workspaceId)
+    const workspace = workspaces.find((item) => item.id === workspaceId)
+    if (movedAcrossWorkspaces && workspace?.cohort_id) setSelectedCohort(workspace.cohort_id)
+  }, [selectedTarget, selectedChannel, selectedDm, selectedWorkspaceId, setSelectedCohort, workspaces])
+
+  useEffect(() => {
+    if (cohortsLoading || workspaces.length === 0) return
+    const routedWorkspace = workspaces.find((workspace) => workspace.id === selectedWorkspaceId)
+    if (preserveRoutedWorkspaceRef.current && routedWorkspace) {
+      if (routedWorkspace.cohort_id && routedWorkspace.cohort_id !== selectedCohortId) {
+        setSelectedCohort(routedWorkspace.cohort_id)
+        return
+      }
+      const cohortWorkspaceId = workspaceIdForCohort(workspaces, selectedCohortId)
+      lastAppliedCohortWorkspaceRef.current = selectedCohortId && cohortWorkspaceId
+        ? `${selectedCohortId}:${cohortWorkspaceId}`
+        : null
+      preserveRoutedWorkspaceRef.current = false
+      return
+    }
+    const workspaceId = workspaceIdForCohort(workspaces, selectedCohortId)
+    if (!workspaceId || !workspaces.some((workspace) => workspace.id === workspaceId)) return
+    const selectionKey = `${selectedCohortId}:${workspaceId}`
+    if (lastAppliedCohortWorkspaceRef.current === selectionKey) return
+    lastAppliedCohortWorkspaceRef.current = selectionKey
+    setSelectedWorkspaceId(workspaceId)
+    setChannelForm((current) => ({ ...current, workspace_id: String(workspaceId) }))
+    const target = initialMessageTarget(
+      channels.filter((channel) => channel.workspace_id === workspaceId),
+      directConversations.filter((conversation) => conversation.workspace_id === workspaceId),
+    )
+    if (target) {
+      selectTarget(target)
+      return
+    }
+    navigate('/messages')
+    setSelectedTarget(null)
+    setUnreadBoundaryId(null)
+    setMessages([])
+    setPinnedMessages([])
+    setActiveThreadRootId(null)
+    setEditing(null)
+    setConversationView('messages')
+    if (!isDesktop) setMobilePane('list')
+  }, [channels, cohortsLoading, directConversations, selectedCohortId, selectedWorkspaceId, setSelectedCohort, workspaces])
 
   useEffect(() => {
     if (!selectedTarget) return
@@ -2227,6 +2285,9 @@ export function Messages() {
   }
 
   const selectWorkspace = (id: number) => {
+    preserveRoutedWorkspaceRef.current = false
+    const workspace = workspaces.find((item) => item.id === id)
+    if (workspace?.cohort_id) setSelectedCohort(workspace.cohort_id)
     startNavigationTransition(() => {
       setSelectedWorkspaceId(id)
       setChannelForm((prev) => ({ ...prev, workspace_id: String(id) }))

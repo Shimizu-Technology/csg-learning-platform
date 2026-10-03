@@ -3,8 +3,9 @@ import { createContext, type PropsWithChildren, useCallback, useContext, useEffe
 
 import { demoWorkspaces } from '@/lib/demo-data';
 import type { WorkspaceSummary } from '@/lib/types';
-import { resolveActiveWorkspaceId } from '@/lib/workspaces';
+import { resolveActiveWorkspaceId, workspaceIdForCohort } from '@/lib/workspaces';
 import { useCsgAuth } from './auth-provider';
+import { useCohort } from './cohort-provider';
 import { useSession } from './session-provider';
 
 interface WorkspaceValue {
@@ -25,6 +26,7 @@ export function activeWorkspaceCacheKey(userId: number) { return `csg.workspace.
 export function WorkspaceProvider({ children }: PropsWithChildren) {
   const auth = useCsgAuth();
   const { api, user } = useSession();
+  const { selectedCohortId, selectCohort } = useCohort();
   const userId = user?.id ?? null;
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>(auth.demo ? demoWorkspaces : []);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<number | null>(auth.demo ? demoWorkspaces[0]?.id ?? null : null);
@@ -32,6 +34,7 @@ export function WorkspaceProvider({ children }: PropsWithChildren) {
   const [error, setError] = useState<string | null>(null);
   const workspaceCountRef = useRef(workspaces.length);
   const activeUserIdRef = useRef<number | null>(userId);
+  const lastAppliedCohortWorkspaceRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
     workspaceCountRef.current = workspaces.length;
   }, [workspaces.length]);
@@ -81,6 +84,7 @@ export function WorkspaceProvider({ children }: PropsWithChildren) {
     const nextUserId = userId;
     if (activeUserIdRef.current !== nextUserId) {
       activeUserIdRef.current = nextUserId;
+      lastAppliedCohortWorkspaceRef.current = undefined;
       setWorkspaces(auth.demo ? demoWorkspaces : []);
       setActiveWorkspaceId(auth.demo ? demoWorkspaces[0]?.id ?? null : null);
       workspaceCountRef.current = auth.demo ? demoWorkspaces.length : 0;
@@ -89,11 +93,33 @@ export function WorkspaceProvider({ children }: PropsWithChildren) {
     return () => cancelAnimationFrame(frame);
   }, [auth.demo, refresh, userId]);
 
-  const selectWorkspace = useCallback(async (workspaceId: number) => {
-    if (!userId || !workspaces.some((workspace) => workspace.id === workspaceId)) return;
+  useEffect(() => {
+    if (!userId) {
+      lastAppliedCohortWorkspaceRef.current = undefined;
+      return;
+    }
+    if (selectedCohortId === null) {
+      lastAppliedCohortWorkspaceRef.current = null;
+      return;
+    }
+    const workspaceId = workspaceIdForCohort(workspaces, selectedCohortId);
+    if (!workspaceId) return;
+    const selectionKey = `${selectedCohortId}:${workspaceId}`;
+    if (lastAppliedCohortWorkspaceRef.current === selectionKey) return;
+    lastAppliedCohortWorkspaceRef.current = selectionKey;
     setActiveWorkspaceId(workspaceId);
-    await AsyncStorage.setItem(activeWorkspaceCacheKey(userId), String(workspaceId));
-  }, [userId, workspaces]);
+    void AsyncStorage.setItem(activeWorkspaceCacheKey(userId), String(workspaceId));
+  }, [selectedCohortId, userId, workspaces]);
+
+  const selectWorkspace = useCallback(async (workspaceId: number) => {
+    const workspace = workspaces.find((item) => item.id === workspaceId);
+    if (!userId || !workspace) return;
+    setActiveWorkspaceId(workspaceId);
+    await Promise.all([
+      AsyncStorage.setItem(activeWorkspaceCacheKey(userId), String(workspaceId)),
+      workspace.cohort_id ? selectCohort(workspace.cohort_id) : Promise.resolve(),
+    ]);
+  }, [selectCohort, userId, workspaces]);
 
   const activeWorkspace = useMemo(
     () => workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? null,

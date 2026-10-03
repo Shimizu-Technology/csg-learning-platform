@@ -10,13 +10,14 @@ interface CohortContextValue {
   selectedCohortId: number | null
   loading: boolean
   error: string | null
+  setSelectedCohort: (id: number | null) => void
   selectCohort: (id: number | null) => void
   refreshCohorts: () => Promise<void>
 }
 
 const CohortContext = createContext<CohortContextValue>({
   cohorts: [], selectedCohort: null, selectedCohortId: null, loading: false, error: null,
-  selectCohort: () => {}, refreshCohorts: async () => {},
+  setSelectedCohort: () => {}, selectCohort: () => {}, refreshCohorts: async () => {},
 })
 
 export function useCohortContext() { return useContext(CohortContext) }
@@ -97,20 +98,31 @@ export function CohortProvider({ children }: { children: ReactNode }) {
     try { localStorage.setItem(storageKey, String(selectedCohort.id)) } catch { /* Storage can be unavailable. */ }
   }, [selectedCohort, storageKey])
 
-  const selectCohort = useCallback((id: number | null) => {
+  const setSelectedCohort = useCallback((id: number | null) => {
     if (id === null && isStaff) {
       setPreferredId(null)
       if (storageKey) try { localStorage.removeItem(storageKey) } catch { /* Storage can be unavailable. */ }
-      navigate('/admin')
       return
     }
     const cohort = visibleCohorts.find((item) => item.id === id)
     if (!cohort) return
     setPreferredId(cohort.id)
-    navigate(isStaff ? `/admin/cohorts/${cohort.id}` : `/cohorts/${cohort.id}`)
-  }, [visibleCohorts, isStaff, navigate, storageKey])
+    if (storageKey) try { localStorage.setItem(storageKey, String(cohort.id)) } catch { /* Storage can be unavailable. */ }
+  }, [visibleCohorts, isStaff, storageKey])
 
-  const value = useMemo(() => ({ cohorts: visibleCohorts, selectedCohort, selectedCohortId, loading, error, selectCohort, refreshCohorts }),
-    [visibleCohorts, selectedCohort, selectedCohortId, loading, error, selectCohort, refreshCohorts])
+  const selectCohort = useCallback((id: number | null) => {
+    if (id === null && isStaff) {
+      setSelectedCohort(null)
+      navigate('/admin')
+      return
+    }
+    const cohort = visibleCohorts.find((item) => item.id === id)
+    if (!cohort) return
+    setSelectedCohort(cohort.id)
+    navigate(isStaff ? `/admin/cohorts/${cohort.id}` : `/cohorts/${cohort.id}`)
+  }, [visibleCohorts, isStaff, navigate, setSelectedCohort])
+
+  const value = useMemo(() => ({ cohorts: visibleCohorts, selectedCohort, selectedCohortId, loading, error, setSelectedCohort, selectCohort, refreshCohorts }),
+    [visibleCohorts, selectedCohort, selectedCohortId, loading, error, setSelectedCohort, selectCohort, refreshCohorts])
   return <CohortContext.Provider value={value}>{children}</CohortContext.Provider>
 }

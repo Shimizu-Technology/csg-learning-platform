@@ -16,9 +16,9 @@ const cohorts = [
 ]
 
 function TestSurface() {
-  const { selectedCohort, selectedCohortId } = useCohortContext()
+  const { selectedCohort, selectedCohortId, setSelectedCohort } = useCohortContext()
   const location = useLocation()
-  return <><CohortSwitcher /><output>{location.pathname} · {selectedCohort?.name || 'All cohorts'} · {selectedCohortId ?? 'none'}</output></>
+  return <><CohortSwitcher /><button onClick={() => setSelectedCohort(1)}>Set cohort scope</button><output>{location.pathname} · {selectedCohort?.name || 'All cohorts'} · {selectedCohortId ?? 'none'}</output></>
 }
 
 describe('cohort selection', () => {
@@ -57,6 +57,18 @@ describe('cohort selection', () => {
     await act(async () => { root.render(<RouterProvider router={router} />) })
     expect(container.textContent).toContain('All cohorts')
     expect(container.querySelectorAll('option').length).toBe(1)
+  })
+
+  it('updates the global cohort preference without forcing navigation', async () => {
+    vi.spyOn(api, 'getAccessibleCohorts').mockResolvedValue({ data: { cohorts }, error: null, status: 200 })
+    const router = createMemoryRouter([{ path: '*', element: <CohortProvider><TestSurface /></CohortProvider> }], { initialEntries: ['/messages'] })
+    await act(async () => { root.render(<RouterProvider router={router} />) })
+
+    const button = Array.from(container.querySelectorAll('button')).find((item) => item.textContent === 'Set cohort scope')!
+    await act(async () => { button.click() })
+
+    expect(container.textContent).toContain('/messages · Cohort One · 1')
+    expect(localStorage.getItem('csg-selected-cohort:7')).toBe('1')
   })
 
   it('preserves an inaccessible explicit cohort for the API to reject', async () => {
