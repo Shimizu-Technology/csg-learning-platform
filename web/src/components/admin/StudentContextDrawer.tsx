@@ -39,7 +39,7 @@ export function StudentContextDrawer({ open, cohortId, studentId, onClose, sourc
     setError(null)
     Promise.all([
       api.getStudentProgress(studentId, cohortId),
-      api.getSubmissions({ user_id: String(studentId) }),
+      api.getSubmissions({ user_id: String(studentId), cohort_id: String(cohortId) }),
       api.getHelpRequests({ cohort_id: cohortId, student_id: studentId }),
     ]).then(([progressResult, submissionResult, helpResult]) => {
       if (cancelled) return

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -82,8 +82,10 @@ export function StudentWorkspace() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [openingMessage, setOpeningMessage] = useState(false)
+  const loadGenerationRef = useRef(0)
 
   const load = useCallback(async () => {
+    const generation = ++loadGenerationRef.current
     if (!Number.isInteger(cohortId) || !Number.isInteger(studentId)) {
       setError('This student workspace link is invalid.')
       setLoading(false)
@@ -94,11 +96,12 @@ export function StudentWorkspace() {
     const [progressResult, cohortResult, submissionsResult, helpResult, recordingsResult, lessonVideosResult] = await Promise.all([
       api.getStudentProgress(studentId, cohortId),
       api.getCohort(cohortId),
-      api.getSubmissions({ user_id: String(studentId) }),
+      api.getSubmissions({ user_id: String(studentId), cohort_id: String(cohortId) }),
       api.getHelpRequests({ cohort_id: cohortId, student_id: studentId }),
       api.getStudentWatchProgress(studentId, cohortId),
       api.getStudentLessonVideoProgress(studentId, cohortId),
     ])
+    if (generation !== loadGenerationRef.current) return
     if (!progressResult.data || !cohortResult.data) {
       setError(progressResult.error || cohortResult.error || 'Could not load this student workspace.')
       setLoading(false)
@@ -109,6 +112,7 @@ export function StudentWorkspace() {
       api.getInterventions({ enrollment_id: progressResult.data.enrollment.id }),
       api.getRecoveryPlans({ enrollment_id: progressResult.data.enrollment.id }),
     ])
+    if (generation !== loadGenerationRef.current) return
     setData({
       progress: progressResult.data,
       cohort: cohortResult.data.cohort,
@@ -122,7 +126,10 @@ export function StudentWorkspace() {
     setLoading(false)
   }, [cohortId, studentId])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    void load()
+    return () => { loadGenerationRef.current += 1 }
+  }, [load])
 
   useEffect(() => {
     if (params.tab && !tabIds.has(params.tab as StudentWorkspaceTab) && Number.isInteger(cohortId) && Number.isInteger(studentId)) {

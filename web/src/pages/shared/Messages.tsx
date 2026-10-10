@@ -1182,6 +1182,9 @@ export function Messages() {
   }
 
   const editor = useEditor({
+    // Create the editor after commit so concurrent rendering cannot outlive
+    // Tiptap's pre-mount destruction timer. Deep links restore drafts immediately.
+    immediatelyRender: false,
     extensions: [
       StarterKit.configure({
         link: false,
@@ -1241,12 +1244,12 @@ export function Messages() {
   })
 
   useEffect(() => {
-    if (!editor) return
+    if (!editor || editor.isDestroyed) return
     editor.view.dispatch(editor.state.tr)
   }, [editor, mentionPatterns])
 
   useEffect(() => {
-    if (!editor || !user || !selectedTarget || typeof window === 'undefined') return
+    if (!editor || editor.isDestroyed || !user || !selectedTarget || typeof window === 'undefined') return
 
     const nextKey = composerDestinationKey(user.id, selectedTarget, activeThreadRootId)
     const previousKey = activeDraftKeyRef.current

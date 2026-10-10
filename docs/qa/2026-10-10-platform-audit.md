@@ -1,0 +1,68 @@
+# CSG Learn application review and QA — October 10, 2026
+
+## Scope and product brief
+
+Agent-executed comprehensive web QA requested by Leon: reproduce the student-profile Message crash, identify its cause, fix confirmed defects, and inspect the other main learning/staff journeys. Initial source: `origin/main` at `9b65ffb`; primary checkout `d7cd282` was left unchanged. Worktree: `codex/student-messaging-app-qa-20261010`.
+
+CSG Learn brings the school's curriculum, access, learning activity, recordings, support, and communication into one system. Students need a clear next lesson and a durable record of work and feedback. Staff need cohort/student context, a grading queue, and a way to intervene without moving between separate tools. It replaces the fragmented prework-grader, Slack, recording links, and manual tracking workflows. Reusable curricula contain modules, lessons, and content blocks; enrollments connect people to cohorts and schedules. Student progress/submissions are enrollment scoped. Staff overrides and snapshotted course/support dates govern access. Completion and watch time do not establish demonstrated learning; objective evidence comes from aligned graded work, rubrics, and retrieval checks.
+
+Sources: `docs/PRODUCT_VISION.md`, `docs/PRODUCT_STRATEGY_AND_LEARNING_EXPERIENCE_PLAN.md`, `docs/DEPLOYMENT.md`, `api/app/controllers/api/v1/progress_controller.rb`, and Brain Dump `code-school/csg-learning-platform-plan.md` (February 27 original plan, historical). Current app includes cohort/community messaging, guided/self-paced course enrollment, alumni content, private meetings, and an Expo companion. Payments, media, and notifications require distinct provider acceptance; a source document's complete/planned label is not runtime evidence.
+
+Architecture: React 19/Vite/Tailwind web on Netlify; Rails JSON API on Render Singapore; Neon PostgreSQL; Clerk identity; S3 media/files; ActionCable realtime; Resend and browser/native push; GitHub submission integration; PostHog. CI checks API tests/RuboCop/Brakeman/dependency audit, web lint/typecheck/unit/routing/build/audit, mobile check/Expo bundle exports, and the production health monitor.
+
+## Acceptance and fixtures
+
+Required fix acceptance: profile Message opens the right cohort-scoped DM; direct URL/reload and channel routes work; saved drafts survive route changes; thread/root and other-conversation drafts stay separate; formatting and sending remain usable. Additional confirmed access/cohort defects require regression cases and their affected acceptance before merge.
+
+Production fixture: existing signed-in CSGAdmin Chrome session, cohort 1 student 6 and existing DM 8. User browser is borrowed. Production actions are read/navigation only, including reopening the existing DM. No real student messages, grades, enrollment edits, payments, invitations, or content publication. Local simulated communication must be explicitly marked as simulation. Destructive/provider cases need isolated fixtures and must not mutate live records.
+
+## Scenario ledger
+
+Each ID counts once. Desktop Chrome is required for the production investigation. Narrow web is required for the messaging fix; native iOS/Android are excluded from this web task and remain not run. Preview-as-student proves staff preview behavior, not a student account's authorization.
+
+| ID | Journey / expected outcome | Environment | Status | Evidence / limits |
+|---|---|---|---|---|
+| Q01 | Student Learning → Message opens matching DM/composer | Production admin + fixed isolated component | failed → fixed locally | Production profile Learning → DM 8 reproduced the global boundary. Exact console stack maps to draft restoration. Fixed real component: profile → DM at 1440×900 passed. Production release retest pending. |
+| Q02 | Reload/deep-link existing DM opens composer | Fixed isolated component | passed | DM reload rendered history and composer; concurrent React/Tiptap regressions restore saved DM/channel drafts. Production release retest pending. |
+| Q03 | Main Messages → channel → existing DM, context preserved | Production admin + isolated component | passed | Production Messages list → existing DM worked; drawer linked to matching full workspace. Fixed phone channel selection and desktop DM entry passed. |
+| Q04 | Draft preserved across DM/channel navigation and reload | Isolated local fixture | passed | Typed different DM/channel drafts; switching restored each; DM reload retained its draft. |
+| Q05 | Root/thread drafts independent; return preserves content | Isolated local fixture | passed | Opened seed-message thread, typed thread draft, closed to original root draft, reopened to retained thread draft. |
+| Q06 | Formatting, send result, retry after failure, duplicate prevention | Isolated local fixture | passed | Bold toolbar produced a saved strong element. Simulated failed send displayed Not sent/error/Retry; retry succeeded and reload showed one saved message. Delivery/provider persistence excluded. |
+| Q07 | Narrow web DM and channel, reachable composer/back navigation | Fixed isolated component | passed | 390×844: back to conversations → General; channel draft restored, composer and send reachable. 1440×900: profile → DM, formatting, student drawer. Browser dimensions do not prove native device behavior. |
+| Q08 | Profile Overview/Activity/Work/Learning/Support/Communication/Access keep student/cohort | Production admin | passed | All seven student tabs rendered matching cohort/student, learning 7/233, valid Work/Support empty states, activity and access metadata. Read only. |
+| Q09 | Student switcher retains tab; previous/next boundaries correct | Production admin | passed | Previous from learner 5/5 → 4/5 retained Access; next returned 5/5 with correct boundary. |
+| Q10 | Student preview: Today, Learn, locked lessons, selected student retained | Production admin preview | partial | Today, Continue learning → Learn, Messages privacy placeholder, Profile and return passed; selected student query retained. Fixture had no locked lessons, so locked preview not exercised. Does not prove learner authorization. |
+| Q11 | Staff home → cohort → grading queue → submission context/recovery | Production admin | partial | Cohort → Grading loaded queue; submission 249 showed matching learner, GitHub commit-needed state, feedback controls, next/back and preserved grading return path. No grade saved. |
+| Q12 | Support queue → help/intervention records → student context | Production admin | partial | Queue, summary, explainable signals and URL-backed Resolved/Urgent filters rendered. No help/intervention records existed for this cohort; detail and saved response not exercised. |
+| Q13 | Cohort switch across staff views preserves correct scope | Production admin | passed | Search → Alumni changed sidebar cohort; grading contained alumni modules and zero submissions; This cohort returned cohort 4. Cohort 1 links returned correct scope. |
+| Q14 | Alumni Learn/recordings preview retains course path and locks | Production admin preview | partial | Alumni Today/library, optional-learning text, curriculum links and preserved enrollment preview rendered. Playback, download, locked media and provider authorization not exercised in browser. |
+| Q15 | Content library/editor safe navigation, existing lesson preview | Production admin | partial | Expanded alumni module and opened existing lesson student preview, rendered orientation/resources; returned to content. No editing/saving/import/publishing. |
+| Q16 | Private meetings: navigation, availability/empty state and timezone | Production admin | partial | Private meetings rendered pilot availability across three weeks in Guam GMT+10 with 0 bookings. Booking/conflict/cancellation/provider delivery not exercised. |
+| Q17 | Updates, safety queue, team, profile load/recovery | Production admin | partial | Updates empty inbox, safety/deletion empty queues, active team and account/preferences profile rendered. No live notification, moderation, team-access or account change. |
+| Q18 | Search/navigation and invalid record recovery | Production admin | passed | Search filtered Alumni and opened correct cohort. Missing learner 999999 produced recoverable 404 with Try again; retry preserved shell, This cohort navigated away. |
+| Q19 | Expired/current/completed course read and media access enforce dates | Isolated Rails fixtures | passed | 10 new expiry regressions: self-paced/guided/completed expiry, inclusive Guam deadline, current/indefinite controls, community retained, denied expired watch write, capped signed URL TTL and staff access. Initial 6 failures, full fixed gate 766 tests/3829 assertions. Real S3 delivery excluded. |
+| Q20 | Shared curriculum cohorts show only current enrollment submissions | Isolated real web components | passed | Same learner/content block, two cohort submissions: A showed only submission 21/Grade next 21; B only 22. DM drawer 1 to review/Grade next 21. Both async navigation phases tested out of order. |
+| Q21 | Public entry and authentication boundary; signed-out protected navigation | Signed-out in-app browser | passed | Protected DM redirected to Clerk sign-in with no private history; Back home rendered public welcome and invitation/sign-in links. No account creation. |
+| Q22 | Lesson/student submission and saved learning result | Real learner account | blocked | No isolated signed-in learner browser fixture. Existing automated submission/progress coverage runs in API/client gates, but no real learner UI save asserted. Production student records not mutated. |
+
+## Confirmed defects and regression evidence
+
+D01 — Messaging editor lifetime race. Production stack maps to draft restoration's `editor.commands.setContent`. Tiptap creates an editor during React render and schedules destruction after 1 ms if the component has not committed. A concurrent render that yields can retain the destroyed instance until its effects execute; Tiptap clears `commandManager` during destroy. A real React/Tiptap component regression forces concurrent yielding before commit and reproduces the exact production error. Creating the editor after commit (`immediatelyRender: false`) makes that same regression pass; effects also ignore destroyed instances. This is an editor lifecycle failure, not a DM-creation API error.
+
+D02 — Cohort-specific access checks omit enrollment expiry. Fixed in PR #173: usable active/completed enrollment scope for reads, current active scope for writes, and signed video URL lifetime capped to access expiry. Community membership and indefinite completed history remain available. Regression coverage includes exact inclusive Guam deadline; a URL issued before deployment or downloaded copy cannot be revoked by this patch.
+
+D03 — Student workspace retrieves all student submissions and filters content block IDs only. Since two cohorts can share those IDs, Work/Grade next can show work from another enrollment. Current progress API explicitly declares enrollment-scoped evidence. Both full workspace and messaging context drawer now request cohort-scoped submissions. Two regression cases failed before the filter and pass after it.
+
+D04 — Student workspace asynchronous response race. A slow load for cohort/student A could overwrite a later B response while actions still target B. Request generations now reject stale results after both asynchronous batches and invalidate on route cleanup. Two out-of-order regression cases reproduced the failure and now pass.
+
+D05 — Release dependency gates failed on source-map-js and shell-quote advisories; Expo compatibility also required eight SDK 57 patch updates. PR #174 upgrades affected locks and supported Expo patches. No audit exceptions added; four existing mobile tooling exceptions remain. Passing configured audit gates is not a claim of zero raw advisories. Native signed release acceptance remains separate.
+
+## Execution state
+
+22 journey groups tracked: 12 passed, 8 partial, 1 failed then fixed locally awaiting production retest, 1 blocked. The scoped messaging/student-workspace acceptance passes locally. Full-app acceptance is not claimed: remaining subcases above require isolated learner/provider fixtures. Native devices, live sends/payments, production writes, and actual learner-account saving remain unverified.
+
+Root full web gate passed: ESLint, strict TypeScript, 44 files/167 tests, Netlify routing checks and production build. Independent final source/tests review found no material findings (blob identities recorded in session). Backend slice full gate passed 766 tests/3829 assertions, RuboCop, Brakeman and bundler-audit. Dependency slice passed client audits, web 161 baseline tests, mobile 413 tests, Expo compatibility and iOS/Android exports. CI/release integration pending; CI browser/a11y jobs skipped because the repository Clerk configuration is absent. Manual browser checks above do not substitute for that missing CI setup.
+
+Lifecycle `01a1234c-55a9-7e72-bb74-42f13a5cac73`: baseline audited, machine protection profile read; existing Chrome tab and protected PostgreSQL/Redis/services borrowed. Runtime starts and cleanup must be recorded below before completion.
+
+Owned local Vite fixture server (PID 74879, port 5199) stopped; owned in-app tabs 1 and 2 closed; temporary viewport reset and fixture harness removed. Borrowed Chrome and protected services unchanged. Dedicated backend fixture DB was dropped by its owner after verification. Screenshot of synthetic fixed messaging UI saved outside repository as `csg-messaging-fixed.png` in this session’s visualization directory. No real student communications sent.
