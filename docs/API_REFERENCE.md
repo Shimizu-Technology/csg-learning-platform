@@ -167,9 +167,9 @@ Returns one normalized `items` list. Students receive published recordings acros
 | `POST` | `/api/v1/cohorts/:cohort_id/recordings` | Staff | Creates an uploaded recording from managed-upload metadata, or a hosted recording from an HTTPS `source_url` |
 | `PATCH` | `/api/v1/cohorts/:cohort_id/recordings/:id` | Staff | Updates recording details, status, and the URL/provider of a hosted recording |
 | `DELETE` | `/api/v1/cohorts/:cohort_id/recordings/:id` | Staff | Deletes a recording; managed uploaded media is cleaned up asynchronously |
-| `GET` | `/api/v1/cohorts/:cohort_id/recordings/:id/stream_url` | Staff or active cohort member | Returns a two-hour `stream_url` and ISO 8601 `expires_at` for uploaded media; hosted recordings return `422` |
+| `GET` | `/api/v1/cohorts/:cohort_id/recordings/:id/stream_url` | Staff or active cohort member | Returns a `stream_url` valid for up to two hours, capped by the learner enrollment deadline, and ISO 8601 `expires_at` for uploaded media; hosted recordings return `422` |
 | `PATCH` | `/api/v1/watch_progress` | Staff or active cohort member | Saves monotonic watch time and resume position; completes at 90% |
-| `GET` | `/api/v1/content_blocks/:id/video_stream` | Authorized lesson viewer | Returns a two-hour lesson-video `stream_url`, `expires_at`, and current progress |
+| `GET` | `/api/v1/content_blocks/:id/video_stream` | Authorized lesson viewer | Returns a lesson-video `stream_url` valid for up to two hours, capped by the learner enrollment deadline, plus `expires_at` and current progress |
 | `PATCH` | `/api/v1/content_blocks/:id/video_progress` | Authorized lesson viewer | Saves authoritative lesson-video progress |
 | `POST` | `/api/v1/content_blocks/:id/video_presign` | Staff | Presigns a normal upload for an existing lesson video block |
 | `POST` | `/api/v1/video_presign` | Staff | Presigns a normal upload before a lesson video block exists |
