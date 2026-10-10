@@ -116,7 +116,7 @@ class User < ApplicationRecord
     return Cohort.all if admin?
     return assigned_cohorts if instructor?
 
-    Cohort.where(id: enrollments.where(status: [ Enrollment.statuses[:active], Enrollment.statuses[:completed] ]).select(:cohort_id))
+    Cohort.where(id: enrollments.with_read_access.select(:cohort_id))
   end
 
   def can_access_cohort?(cohort)
@@ -124,7 +124,7 @@ class User < ApplicationRecord
     return true if admin?
     return cohort_instructor_assignments.exists?(cohort_id: cohort.id) if instructor?
 
-    enrollments.where(status: [ Enrollment.statuses[:active], Enrollment.statuses[:completed] ]).exists?(cohort_id: cohort.id)
+    enrollments.with_read_access.exists?(cohort_id: cohort.id)
   end
 
   def can_teach_cohort?(cohort)

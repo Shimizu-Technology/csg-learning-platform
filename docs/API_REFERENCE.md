@@ -167,9 +167,9 @@ Returns one normalized `items` list. Students receive published recordings acros
 | `POST` | `/api/v1/cohorts/:cohort_id/recordings` | Staff | Creates an uploaded recording from managed-upload metadata, or a hosted recording from an HTTPS `source_url` |
 | `PATCH` | `/api/v1/cohorts/:cohort_id/recordings/:id` | Staff | Updates recording details, status, and the URL/provider of a hosted recording |
 | `DELETE` | `/api/v1/cohorts/:cohort_id/recordings/:id` | Staff | Deletes a recording; managed uploaded media is cleaned up asynchronously |
-| `GET` | `/api/v1/cohorts/:cohort_id/recordings/:id/stream_url` | Staff or active cohort member | Returns a two-hour `stream_url` and ISO 8601 `expires_at` for uploaded media; hosted recordings return `422` |
+| `GET` | `/api/v1/cohorts/:cohort_id/recordings/:id/stream_url` | Staff or active cohort member | Returns a `stream_url` valid for up to two hours, capped by the learner enrollment deadline, and ISO 8601 `expires_at` for uploaded media; hosted recordings return `422` |
 | `PATCH` | `/api/v1/watch_progress` | Staff or active cohort member | Saves monotonic watch time and resume position; completes at 90% |
-| `GET` | `/api/v1/content_blocks/:id/video_stream` | Authorized lesson viewer | Returns a two-hour lesson-video `stream_url`, `expires_at`, and current progress |
+| `GET` | `/api/v1/content_blocks/:id/video_stream` | Authorized lesson viewer | Returns a lesson-video `stream_url` valid for up to two hours, capped by the learner enrollment deadline, plus `expires_at` and current progress |
 | `PATCH` | `/api/v1/content_blocks/:id/video_progress` | Authorized lesson viewer | Saves authoritative lesson-video progress |
 | `POST` | `/api/v1/content_blocks/:id/video_presign` | Staff | Presigns a normal upload for an existing lesson video block |
 | `POST` | `/api/v1/video_presign` | Staff | Presigns a normal upload before a lesson video block exists |
@@ -771,3 +771,9 @@ Staff prepare a course-specific ZIP in a draft curriculum through Content → Le
 - `POST /api/v1/curricula/:id/resources/:resource_id/download`: fresh authorization against active, unexpired enrollment in the matching curriculum, or admin/assigned instructor. Returns an S3 URL expiring within five minutes and no later than the selected enrollment's access expiry. Response is `no-store`; POST avoids offline GET-cache fallback. A downloaded local file remains the learner's copy; a previously issued URL may work until its short expiry.
 
 Use the existing private S3 bucket and authenticated frontend CORS configuration. Do not make course objects public. Staging is isolated under `course_resource_uploads/`; published files use `course_resources/`. Configure a short staging-only object expiration policy operationally to clean interrupted/expired uploads or late PUTs; never apply it to published course files. No storage policy or credentials are changed by this feature. Actual deployed upload and enrolled/unenrolled download checks remain a release rehearsal, using a course-specific bundle and approved test accounts.
+
+## Enrollment access deadlines
+
+Learner read access requires an active or completed enrollment whose snapshotted `access_expires_at` is unset or still in the future. An explicit `cohort_id` follows the same deadline as automatic cohort selection. Expired courses disappear from the learner cohort switcher, workspaces, recordings, and cohort announcements; selected-course dashboard, lesson, module, recording, workspace, and weekly-plan requests return `403`. Completed program enrollments without a deadline retain read-only history. Staff retain their existing role and cohort authorization.
+
+New lesson-video and recording stream URLs expire no later than the enrollment's access deadline. Recording progress writes require an active, unexpired enrollment. These rules use the enrollment's agreed terms; changing cohort defaults does not rewrite existing deadlines.

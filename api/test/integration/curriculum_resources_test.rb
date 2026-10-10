@@ -51,8 +51,7 @@ class CurriculumResourcesTest < ActionDispatch::IntegrationTest
       as_user(@student) { post download_path, headers: headers }
       assert_response :forbidden
       as_user(@student) { get "/api/v1/resources", params: { cohort_id: @cohort.id, include_course_files: "true" }, headers: headers }
-      assert_response :success
-      assert_empty JSON.parse(response.body).fetch("resources")
+      assert_response :forbidden
     end
     assert_empty @signed
   end

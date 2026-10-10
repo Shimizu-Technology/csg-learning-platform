@@ -97,7 +97,7 @@ module Api
           .includes(:module_assignments, cohort: :cohort_module_schedules)
           .where(cohorts: { curriculum_id: curriculum_id })
         scope = if params[:cohort_id].present?
-          scope.where(cohort_id: params[:cohort_id], status: %i[active completed])
+          scope.with_read_access.where(cohort_id: params[:cohort_id])
         else
           scope.active
         end

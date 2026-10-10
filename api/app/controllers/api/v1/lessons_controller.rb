@@ -443,7 +443,7 @@ module Api
           .includes(:module_assignments, cohort: [ :cohort_module_schedules, :cohort_module_submission_windows ])
           .where(cohorts: { curriculum_id: @lesson.curriculum_module.curriculum_id })
         enrollments = if params[:cohort_id].present?
-          enrollments.where(cohort_id: params[:cohort_id], status: %i[active completed])
+          enrollments.with_read_access.where(cohort_id: params[:cohort_id])
         else
           enrollments.active
         end

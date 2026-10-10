@@ -89,7 +89,7 @@ class WeeklyPlanProjection
       ]
     )
     scope = if @cohort_id
-      scope.where(cohort_id: @cohort_id, status: %i[active completed])
+      scope.with_read_access.where(cohort_id: @cohort_id)
     else
       scope.active
     end
