@@ -2,7 +2,10 @@ class Enrollment < ApplicationRecord
   class StaleLearningWrite < StandardError; end
 
   enum :status, { active: 0, paused: 1, dropped: 2, completed: 3 }
-  scope :active, -> { where(status: statuses.fetch("active")).where("access_expires_at IS NULL OR access_expires_at > ?", Time.current) }
+  scope :unexpired, -> { where("enrollments.access_expires_at IS NULL OR enrollments.access_expires_at > ?", Time.current) }
+  scope :active, -> { where(status: statuses.fetch("active")).unexpired }
+  # Completed program enrollments retain read-only history, within any agreed deadline.
+  scope :with_read_access, -> { where(status: %i[active completed]).unexpired }
 
   belongs_to :user
   belongs_to :cohort

@@ -7,7 +7,7 @@ module Api
       # PATCH /api/v1/watch_progress
       def update
         recording = Recording.find(params[:recording_id])
-        enrollment = current_user.enrollments.find_by(cohort: recording.cohort, status: :active)
+        enrollment = current_user.enrollments.active.find_by(cohort: recording.cohort)
 
         unless enrollment && recording.published?
           render_forbidden("Recording is not available")

@@ -14,7 +14,7 @@ module Api
         if current_user.staff?
           render json: { recordings: recordings.map { |r| recording_json(r, staff: true) } }
         else
-          enrollment = current_user.enrollments.where(status: %i[active completed]).find_by(cohort: @cohort)
+          enrollment = current_user.enrollments.with_read_access.find_by(cohort: @cohort)
           unless enrollment
             render_forbidden("Not enrolled in this cohort")
             return
@@ -175,8 +175,11 @@ module Api
           return
         end
 
-        expires_at = S3Service::VIDEO_STREAM_EXPIRY.seconds.from_now
-        url = S3Service.generate_presigned_url(@recording.s3_key, expires_in: S3Service::VIDEO_STREAM_EXPIRY)
+        expiry = video_stream_expiry_for(@recording_read_enrollment)
+        return unless expiry
+
+        expires_at = expiry.seconds.from_now
+        url = S3Service.generate_presigned_url(@recording.s3_key, expires_in: expiry)
         render json: { stream_url: url, expires_at: expires_at.iso8601 }
       end
 
@@ -244,7 +247,8 @@ module Api
       end
 
       def enrolled_in_cohort?
-        current_user.enrollments.where(status: %i[active completed]).exists?(cohort: @cohort)
+        @recording_read_enrollment = current_user.enrollments.with_read_access.find_by(cohort: @cohort)
+        @recording_read_enrollment.present?
       end
 
       def recording_available_to_current_user?

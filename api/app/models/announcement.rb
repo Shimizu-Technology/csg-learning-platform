@@ -22,7 +22,7 @@ class Announcement < ApplicationRecord
     return none unless user
     return visible_for_staff(user) if user.staff?
 
-    cohort_ids = user.enrollments.where(status: %i[active completed]).select(:cohort_id)
+    cohort_ids = user.enrollments.with_read_access.select(:cohort_id)
     visible_now.where(audience: :global).or(
       visible_now.where(audience: :cohort, cohort_id: cohort_ids)
     )

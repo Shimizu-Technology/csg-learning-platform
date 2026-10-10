@@ -35,7 +35,7 @@ module Api
           ]
         )
         enrollment_scope = if @selected_cohort
-          enrollment_scope.where(cohort_id: @selected_cohort.id, status: %i[active completed])
+          enrollment_scope.with_read_access.where(cohort_id: @selected_cohort.id)
         else
           enrollment_scope.active
         end

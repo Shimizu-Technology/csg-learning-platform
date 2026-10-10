@@ -29,8 +29,8 @@ class Workspace < ApplicationRecord
       return cohort_scope.or(community_scope).includes(:cohort)
     end
 
-    enrollment_scope = where(cohort_id: user.enrollments.where(status: [ Enrollment.statuses[:active], Enrollment.statuses[:completed] ]).select(:cohort_id))
-    membership_scope = joins(:workspace_memberships).where(workspace_memberships: { user_id: user.id })
+    enrollment_scope = where(cohort_id: user.enrollments.with_read_access.select(:cohort_id))
+    membership_scope = community.joins(:workspace_memberships).where(workspace_memberships: { user_id: user.id })
 
     active.where(id: enrollment_scope.select(:id)).or(active.where(id: membership_scope.select(:id))).distinct
   end

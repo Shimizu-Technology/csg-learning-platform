@@ -159,8 +159,11 @@ module Api
           return
         end
 
-        expires_at = S3Service::VIDEO_STREAM_EXPIRY.seconds.from_now
-        url = S3Service.generate_presigned_url(@content_block.s3_video_key, expires_in: S3Service::VIDEO_STREAM_EXPIRY)
+        expiry = video_stream_expiry_for(@learning_read_enrollment)
+        return unless expiry
+
+        expires_at = expiry.seconds.from_now
+        url = S3Service.generate_presigned_url(@content_block.s3_video_key, expires_in: expiry)
         progress = current_user.progresses.find_by(enrollment: @learning_read_enrollment, content_block: @content_block) unless current_user.staff?
 
         render json: {
@@ -321,7 +324,7 @@ module Api
         scope = current_user.enrollments.joins(:cohort)
           .where(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
         scope = if params[:cohort_id].present?
-          scope.where(cohort_id: params[:cohort_id], status: %i[active completed])
+          scope.with_read_access.where(cohort_id: params[:cohort_id])
         else
           scope.active
         end

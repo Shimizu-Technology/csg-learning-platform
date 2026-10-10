@@ -23,6 +23,15 @@ class ApplicationController < ActionController::API
     false
   end
 
+  def video_stream_expiry_for(enrollment)
+    expiry = S3Service::VIDEO_STREAM_EXPIRY
+    expiry = [ expiry, (enrollment.access_expires_at - Time.current).floor ].min if enrollment&.access_expires_at
+    return expiry if expiry.positive?
+
+    render_forbidden("Course access has expired")
+    nil
+  end
+
   def capture_learning_request_started_at
     @learning_request_started_at = Time.current
   end
