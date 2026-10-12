@@ -74,7 +74,8 @@ function appendTextBlocks(blocks: MessageBlock[], text: string) {
     if (list) {
       flushParagraph()
       flushQuote()
-      const indent = list[1].replace(/\t/g, '    ').length
+      let indent = 0
+      for (const character of list[1]) indent += character === '\t' ? 4 - indent % 4 : 1
       appendListItem(indent, /^\d/.test(list[2]) ? 'orderedList' : 'bulletList', list[3].trim())
       return
     }

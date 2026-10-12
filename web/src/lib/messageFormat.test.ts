@@ -60,6 +60,17 @@ describe('parseMessageBlocks', () => {
     ])
   })
 
+  it('expands tabs to four-column stops when spaces and tabs mix', () => {
+    expect(parseMessageBlocks('- Parent\n  \t- A\n    - B\n- Next')).toEqual([{
+      type: 'bulletList', items: [
+        { text: 'Parent', children: [{ type: 'bulletList', items: [
+          { text: 'A', children: [] }, { text: 'B', children: [] },
+        ] }] },
+        { text: 'Next', children: [] },
+      ],
+    }])
+  })
+
   it('does not interpret hyphens in normal sentences as list markers', () => {
     expect(parseMessageBlocks('A mobile-first message stays a paragraph.')).toEqual([
       { type: 'paragraph', text: 'A mobile-first message stays a paragraph.' },
