@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { cachedWindowIsContiguous, conversationPath, FormattedMessage, MessageEditSurface, mergeMessageWindow, restoreFailedSends, typingIndicatorLabel } from './Messages'
@@ -37,6 +38,19 @@ describe('FormattedMessage', () => {
     expect(html).toContain('<u>Second</u>')
     expect(html).toContain('<del>Two</del>')
     expect(html.match(/<li/g)).toHaveLength(4)
+  })
+
+  it('renders nested list items inside the parent item after sending or reloading', () => {
+    const html = renderToStaticMarkup(
+      <FormattedMessage body={'- 1\n  - a\n  - b\n  - c\n- 2\n- 3'} />,
+    )
+    const document = new DOMParser().parseFromString(html, 'text/html')
+    const root = document.querySelector('ul')!
+    const parents = Array.from(root.children)
+
+    expect(parents.map((item) => item.firstChild?.textContent)).toEqual(['1', '2', '3'])
+    expect(Array.from(parents[0].querySelectorAll('ul > li')).map((item) => item.textContent)).toEqual(['a', 'b', 'c'])
+    expect(parents[1].querySelector('ul')).toBeNull()
   })
 
   it('preserves combined marks and formatted link labels after sending', () => {

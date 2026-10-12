@@ -1,9 +1,13 @@
 import type { JSONContent } from '@tiptap/core'
 
+export type MessageListBlock =
+  | { type: 'bulletList'; items: MessageListItem[] }
+  | { type: 'orderedList'; items: MessageListItem[] }
+export type MessageListItem = { text: string; children: MessageListBlock[] }
+
 export type MessageBlock =
   | { type: 'paragraph'; text: string }
-  | { type: 'bulletList'; items: string[] }
-  | { type: 'orderedList'; items: string[] }
+  | MessageListBlock
   | { type: 'blockquote'; text: string }
   | { type: 'code'; code: string; language: string }
   | { type: 'spacer' }
@@ -11,8 +15,7 @@ export type MessageBlock =
 function appendTextBlocks(blocks: MessageBlock[], text: string) {
   const lines = text.replace(/^\n+|\n+$/g, '').split('\n')
   let paragraph: string[] = []
-  let listType: 'bulletList' | 'orderedList' | null = null
-  let listItems: string[] = []
+  let listLevels: { indent: number; block: MessageListBlock }[] = []
   let quoteLines: string[] = []
 
   const flushParagraph = () => {
@@ -22,9 +25,30 @@ function appendTextBlocks(blocks: MessageBlock[], text: string) {
   }
 
   const flushList = () => {
-    if (listType && listItems.length > 0) blocks.push({ type: listType, items: listItems })
-    listType = null
-    listItems = []
+    listLevels = []
+  }
+
+  const appendListItem = (indent: number, type: MessageListBlock['type'], text: string) => {
+    while (listLevels.length && listLevels[listLevels.length - 1].indent > indent) listLevels.pop()
+
+    let current = listLevels[listLevels.length - 1]
+    if (!current || current.indent < indent || current.block.type !== type) {
+      const block: MessageListBlock = type === 'bulletList'
+        ? { type: 'bulletList', items: [] }
+        : { type: 'orderedList', items: [] }
+      if (current && current.indent < indent) {
+        current.block.items.at(-1)?.children.push(block)
+      } else if (listLevels.length > 1) {
+        listLevels[listLevels.length - 2].block.items.at(-1)?.children.push(block)
+        listLevels.pop()
+      } else {
+        blocks.push(block)
+        listLevels = []
+      }
+      listLevels.push({ indent, block })
+      current = listLevels[listLevels.length - 1]
+    }
+    current.block.items.push({ text, children: [] })
   }
 
   const flushQuote = () => {
@@ -46,23 +70,12 @@ function appendTextBlocks(blocks: MessageBlock[], text: string) {
       return
     }
 
-    const bullet = line.match(/^\s*[-*]\s+(.+)$/)
-    if (bullet) {
+    const list = line.match(/^([ \t]*)([-*]|\d+[.)])\s+(.+)$/)
+    if (list) {
       flushParagraph()
       flushQuote()
-      if (listType && listType !== 'bulletList') flushList()
-      listType = 'bulletList'
-      listItems.push(bullet[1].trim())
-      return
-    }
-
-    const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/)
-    if (ordered) {
-      flushParagraph()
-      flushQuote()
-      if (listType && listType !== 'orderedList') flushList()
-      listType = 'orderedList'
-      listItems.push(ordered[1].trim())
+      const indent = list[1].replace(/\t/g, '    ').length
+      appendListItem(indent, /^\d/.test(list[2]) ? 'orderedList' : 'bulletList', list[3].trim())
       return
     }
 
