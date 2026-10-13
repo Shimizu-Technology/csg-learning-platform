@@ -1,7 +1,7 @@
 export type MessageListBlock =
   | { type: 'bulletList'; items: MessageListItem[] }
   | { type: 'orderedList'; items: MessageListItem[] }
-export type MessageListItem = { text: string; children: Array<MessageListBlock | { type: 'paragraph'; text: string } | { type: 'blockquote'; text: string }> }
+export type MessageListItem = { text: string; children: (MessageListBlock | { type: 'paragraph'; text: string } | { type: 'blockquote'; text: string })[] }
 
 export type MessageBlock =
   | { type: 'paragraph'; text: string }
