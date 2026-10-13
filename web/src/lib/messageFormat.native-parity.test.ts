@@ -1,14 +1,17 @@
+/// <reference types="node" />
 import { describe, it, expect } from 'vitest'
 import ts from 'typescript'
-import nativeSource from '../../../mobile/src/lib/message-format.ts?raw'
+import { readFileSync } from 'node:fs'
+import { runInNewContext } from 'node:vm'
 import { parseMessageBlocks as parseWebMessageBlocks, editorJsonToMarkdown, type MessageBlock } from './messageFormat'
 
 // Compile the dependency-free native parser without resolving Expo's tsconfig:
 // the frontend CI job installs web dependencies only.
+const nativeSource = readFileSync(new URL('../../../mobile/src/lib/message-format.ts', import.meta.url), 'utf8')
 const nativeExports: { parseMessageBlocks?: (body: string) => MessageBlock[] } = {}
-new Function('exports', ts.transpileModule(nativeSource, {
+runInNewContext(ts.transpileModule(nativeSource, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-}).outputText)(nativeExports)
+}).outputText, { exports: nativeExports })
 const parseMessageBlocks = nativeExports.parseMessageBlocks!
 
 describe('web/native list compatibility', () => {
