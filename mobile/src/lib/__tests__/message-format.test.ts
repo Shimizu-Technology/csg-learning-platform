@@ -66,3 +66,9 @@ it('keeps continuation paragraphs before and after children in order', () => {
     { text: 'Sibling', children: [] },
   ] }]);
 });
+
+it('keeps a loose-list child nested after an unindented blank', () => {
+  expect(parseMessageBlocks('- Parent\n\n  - Child')).toEqual([{ type: 'bulletList', items: [
+    { text: 'Parent', children: [{ type: 'bulletList', items: [{ text: 'Child', children: [] }] }] },
+  ] }]);
+});

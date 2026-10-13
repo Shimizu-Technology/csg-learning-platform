@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
   list: { gap: 3 },
   listRow: { flexDirection: 'row', alignItems: 'flex-start', paddingRight: 2 },
   listMarker: { ...typography.body, minWidth: 23, flexShrink: 0, color: palette.muted, fontFamily: fonts.semibold, textAlign: 'right', paddingRight: 7 },
-  listItem: { flex: 1, minWidth: 0, gap: 3 },
+  listItem: { flexShrink: 1, minWidth: 0, gap: 3 },
   blockquote: { borderLeftWidth: 3, borderLeftColor: palette.rubySoft, paddingLeft: 10, paddingVertical: 2 },
   mineBlockquote: { borderLeftColor: '#FFE4E8' },
   quoteText: { color: '#D6D9E1' },

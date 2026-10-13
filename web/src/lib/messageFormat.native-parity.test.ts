@@ -1,9 +1,19 @@
 import { describe, it, expect } from 'vitest'
-import { parseMessageBlocks } from '../../../mobile/src/lib/message-format'
-import { parseMessageBlocks as parseWebMessageBlocks, editorJsonToMarkdown } from './messageFormat'
+import ts from 'typescript'
+import nativeSource from '../../../mobile/src/lib/message-format.ts?raw'
+import { parseMessageBlocks as parseWebMessageBlocks, editorJsonToMarkdown, type MessageBlock } from './messageFormat'
+
+// Compile the dependency-free native parser without resolving Expo's tsconfig:
+// the frontend CI job installs web dependencies only.
+const nativeExports: { parseMessageBlocks?: (body: string) => MessageBlock[] } = {}
+new Function('exports', ts.transpileModule(nativeSource, {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText)(nativeExports)
+const parseMessageBlocks = nativeExports.parseMessageBlocks!
 
 describe('web/native list compatibility', () => {
   const fixtures = [
+    '- Parent\n\n  - Child\n\n    continuation\n- Sibling',
     '1. One\n  - a\n  - b\n  - c\n2. Two\n3. Three',
     '- Parent\n  1. Ordered\n    - Deep\n  - Mixed\n- Sibling',
     '- Parent\n  before\n  - Child\n  after\n  > quote\n  > continued\n- Sibling',
@@ -13,6 +23,14 @@ describe('web/native list compatibility', () => {
   it.each(fixtures)('preserves the web block tree for %s', (body) => {
     expect(parseMessageBlocks(body)).toEqual(parseWebMessageBlocks(body));
   });
+  it('keeps a child nested after an unindented blank line', () => {
+    const body = '- Parent\n\n  - Child'
+    const expected = [{ type: 'bulletList', items: [
+      { text: 'Parent', children: [{ type: 'bulletList', items: [{ text: 'Child', children: [] }] }] },
+    ] }]
+    expect(parseMessageBlocks(body)).toEqual(expected)
+    expect(parseWebMessageBlocks(body)).toEqual(expected)
+  })
   it('preserves actual web editor multiline list serialization', () => {
     const text = (value: string) => ({ type: 'text', text: value });
     const paragraph = (value: string) => ({ type: 'paragraph', content: [text(value)] });
