@@ -62,7 +62,7 @@ import { isMessageTypingEvent, subscribeToUserMessages, type RealtimeSubscriptio
 import { isVisiblePage, shouldPollMessages } from '../../lib/backgroundActivity'
 import { browserPushEnabled, disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
 import { formatFileSize, uploadToS3 } from '../../lib/uploadToS3'
-import { editorJsonToMarkdown, normalizeMessageMarkdown, parseMessageBlocks } from '../../lib/messageFormat'
+import { editorJsonToMarkdown, normalizeMessageMarkdown, parseMessageBlocks, type MessageListBlock } from '../../lib/messageFormat'
 import {
   MESSAGE_BODY_LIMIT,
   composerBodyMatchesDestination,
@@ -4625,6 +4625,24 @@ function ConversationButton({
   )
 }
 
+function FormattedMessageList({ block, mentionPatterns, depth = 0 }: { block: MessageListBlock; mentionPatterns: MentionPattern[]; depth?: number }) {
+  const items = block.items.map((item, index) => (
+    <li key={index} className="pl-1">
+      {formatInline(item.text, mentionPatterns)}
+      {item.children.map((child, childIndex) => child.type === 'paragraph'
+        ? <p key={childIndex} className="whitespace-pre-wrap">{formatInline(child.text, mentionPatterns)}</p>
+        : child.type === 'blockquote'
+          ? <blockquote key={childIndex} className="border-l-2 border-slate-300 pl-3 text-slate-600"><p className="whitespace-pre-wrap">{formatInline(child.text, mentionPatterns)}</p></blockquote>
+        : <FormattedMessageList key={childIndex} block={child} mentionPatterns={mentionPatterns} depth={depth + 1} />)}
+    </li>
+  ))
+  const className = "ml-5 list-outside space-y-1 pr-1 marker:text-slate-400"
+  const bulletStyle = depth === 0 ? 'list-disc' : depth === 1 ? 'list-[circle]' : 'list-[square]'
+  return block.type === 'bulletList'
+    ? <ul className={`${className} ${bulletStyle}`}>{items}</ul>
+    : <ol className={`${className} list-decimal marker:font-medium`}>{items}</ol>
+}
+
 export function FormattedMessage({ body, mentionPatterns = [] }: { body: string; mentionPatterns?: MentionPattern[] }) {
   const blocks = useMemo(() => parseMessageBlocks(body), [body])
 
@@ -4659,24 +4677,8 @@ export function FormattedMessage({ body, mentionPatterns = [] }: { body: string;
           )
         }
 
-        if (block.type === 'bulletList') {
-          return (
-            <ul key={key} className="ml-5 list-outside list-disc space-y-1 pr-1 marker:text-slate-400">
-              {block.items.map((item, itemIndex) => (
-                <li key={`${key}-${itemIndex}`} className="pl-1">{formatInline(item, mentionPatterns)}</li>
-              ))}
-            </ul>
-          )
-        }
-
-        if (block.type === 'orderedList') {
-          return (
-            <ol key={key} className="ml-5 list-outside list-decimal space-y-1 pr-1 marker:font-medium marker:text-slate-500">
-              {block.items.map((item, itemIndex) => (
-                <li key={`${key}-${itemIndex}`} className="pl-1">{formatInline(item, mentionPatterns)}</li>
-              ))}
-            </ol>
-          )
+        if (block.type === 'bulletList' || block.type === 'orderedList') {
+          return <FormattedMessageList key={key} block={block} mentionPatterns={mentionPatterns} />
         }
 
         if (block.type === 'blockquote') {

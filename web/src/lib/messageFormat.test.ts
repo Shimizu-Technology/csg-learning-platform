@@ -4,9 +4,9 @@ import { editorJsonToMarkdown, normalizeMessageMarkdown, parseMessageBlocks } fr
 describe('parseMessageBlocks', () => {
   it('groups bulleted and numbered lines into semantic list blocks', () => {
     expect(parseMessageBlocks('- First item\n- Second item\n\n1. One\n2. Two')).toEqual([
-      { type: 'bulletList', items: ['First item', 'Second item'] },
+      { type: 'bulletList', items: [{ text: 'First item', children: [] }, { text: 'Second item', children: [] }] },
       { type: 'spacer' },
-      { type: 'orderedList', items: ['One', 'Two'] },
+      { type: 'orderedList', items: [{ text: 'One', children: [] }, { text: 'Two', children: [] }] },
     ])
   })
 
@@ -16,6 +16,99 @@ describe('parseMessageBlocks', () => {
       { type: 'spacer' },
       { type: 'blockquote', text: 'A useful note' },
       { type: 'code', language: 'ts', code: 'const ready = true' },
+    ])
+  })
+
+  it('keeps nested bullets under their parent across siblings and mixed list types', () => {
+    const body = '- 1\n  - a\n  - b\n    1. deep\n  - c\n- 2\n  1. first\n  2. second\n- 3'
+    expect(parseMessageBlocks(body)).toEqual([{
+      type: 'bulletList',
+      items: [
+        { text: '1', children: [{ type: 'bulletList', items: [
+          { text: 'a', children: [] },
+          { text: 'b', children: [{ type: 'orderedList', items: [{ text: 'deep', children: [] }] }] },
+          { text: 'c', children: [] },
+        ] }] },
+        { text: '2', children: [{ type: 'orderedList', items: [
+          { text: 'first', children: [] }, { text: 'second', children: [] },
+        ] }] },
+        { text: '3', children: [] },
+      ],
+    }])
+  })
+
+  it('keeps mixed list types as siblings when indentation stays the same', () => {
+    expect(parseMessageBlocks('1. One\n  - Child\n  1. Another child\n2. Two\n- A bullet')).toEqual([
+      { type: 'orderedList', items: [
+        { text: 'One', children: [
+          { type: 'bulletList', items: [{ text: 'Child', children: [] }] },
+          { type: 'orderedList', items: [{ text: 'Another child', children: [] }] },
+        ] },
+        { text: 'Two', children: [] },
+      ] },
+      { type: 'bulletList', items: [{ text: 'A bullet', children: [] }] },
+    ])
+  })
+
+  it('supports indented and tab-indented messages, and keeps code fences literal', () => {
+    expect(parseMessageBlocks('  - Parent\n\t- Child\n  - Sibling\n\n```md\n  - not a list\n```')).toEqual([
+      { type: 'bulletList', items: [
+        { text: 'Parent', children: [{ type: 'bulletList', items: [{ text: 'Child', children: [] }] }] },
+        { text: 'Sibling', children: [] },
+      ] },
+      { type: 'code', language: 'md', code: '  - not a list' },
+    ])
+  })
+
+  it('expands tabs to four-column stops when spaces and tabs mix', () => {
+    expect(parseMessageBlocks('- Parent\n  \t- A\n    - B\n- Next')).toEqual([{
+      type: 'bulletList', items: [
+        { text: 'Parent', children: [{ type: 'bulletList', items: [
+          { text: 'A', children: [] }, { text: 'B', children: [] },
+        ] }] },
+        { text: 'Next', children: [] },
+      ],
+    }])
+  })
+
+  it('keeps continuation paragraphs on their parent before and after a nested list', () => {
+    expect(parseMessageBlocks('1. Parent\n  Before children\n  - Child\n    Child continuation\n  After children\n2. Next')).toEqual([{
+      type: 'orderedList', items: [
+        { text: 'Parent', children: [
+          { type: 'paragraph', text: 'Before children' },
+          { type: 'bulletList', items: [{ text: 'Child', children: [{ type: 'paragraph', text: 'Child continuation' }] }] },
+          { type: 'paragraph', text: 'After children' },
+        ] },
+        { text: 'Next', children: [] },
+      ],
+    }])
+  })
+
+  it('keeps repeated hard-break continuations inside a list while blank message separators close it', () => {
+    expect(parseMessageBlocks('- Parent\n  First\n  \n  Second\n  - Child\n- Next\n\nOutside')).toEqual([
+      { type: 'bulletList', items: [
+        { text: 'Parent', children: [{ type: 'paragraph', text: 'First\n\nSecond' }, { type: 'bulletList', items: [{ text: 'Child', children: [] }] }] },
+        { text: 'Next', children: [] },
+      ] },
+      { type: 'spacer' },
+      { type: 'paragraph', text: 'Outside' },
+    ])
+  })
+
+  it('keeps quoted continuations formatted inside their list item', () => {
+    expect(parseMessageBlocks('1. Parent\n  > Quoted note\n  > Another line\n  - Child\n2. Next')).toEqual([{
+      type: 'orderedList', items: [
+        { text: 'Parent', children: [{ type: 'blockquote', text: 'Quoted note\nAnother line' }, { type: 'bulletList', items: [{ text: 'Child', children: [] }] }] },
+        { text: 'Next', children: [] },
+      ],
+    }])
+  })
+
+  it('ends a list at an unindented paragraph rather than absorbing unrelated text', () => {
+    expect(parseMessageBlocks('- First\nOutside the list\n- Second')).toEqual([
+      { type: 'bulletList', items: [{ text: 'First', children: [] }] },
+      { type: 'paragraph', text: 'Outside the list' },
+      { type: 'bulletList', items: [{ text: 'Second', children: [] }] },
     ])
   })
 
@@ -58,6 +151,54 @@ describe('editorJsonToMarkdown', () => {
         { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Second' }] }] },
       ],
     })).toBe('1. First\n2. Second')
+  })
+
+  it('round-trips the composer’s nested bullets through the sent-message parser', () => {
+    const body = editorJsonToMarkdown({ type: 'bulletList', content: [
+      { type: 'listItem', content: [
+        { type: 'paragraph', content: [{ type: 'text', text: '1' }] },
+        { type: 'bulletList', content: ['a', 'b', 'c'].map((text) => ({
+          type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+        })) },
+      ] },
+      { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '2' }] }] },
+      { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '3' }] }] },
+    ] })
+    expect(body).toBe('- 1\n  - a\n  - b\n  - c\n- 2\n- 3')
+    expect(parseMessageBlocks(normalizeMessageMarkdown(body))).toEqual([{
+      type: 'bulletList', items: [
+        { text: '1', children: [{ type: 'bulletList', items: ['a', 'b', 'c'].map((text) => ({ text, children: [] })) }] },
+        { text: '2', children: [] }, { text: '3', children: [] },
+      ],
+    }])
+  })
+
+  it.each(['parent', 'child'])('round-trips a hard break in a %s list item without splitting the list', (target) => {
+    const paragraph = (text: string, multiline = false) => ({ type: 'paragraph', content: [
+      { type: 'text', text }, ...(multiline ? [{ type: 'hardBreak' }, { type: 'text', text: 'continued' }] : []),
+    ] })
+    const body = normalizeMessageMarkdown(editorJsonToMarkdown({ type: 'orderedList', content: [
+      { type: 'listItem', content: [paragraph('Parent', target === 'parent'), { type: 'bulletList', content: [
+        { type: 'listItem', content: [paragraph('a', target === 'child')] },
+        { type: 'listItem', content: [paragraph('b')] },
+      ] }] },
+      { type: 'listItem', content: [paragraph('Next')] },
+    ] }))
+    expect(body).toBe(target === 'parent'
+      ? '1. Parent\n  continued\n  - a\n  - b\n2. Next'
+      : '1. Parent\n  - a\n    continued\n  - b\n2. Next')
+    expect(parseMessageBlocks(body)).toEqual([{
+      type: 'orderedList', items: [
+        { text: 'Parent', children: [
+          ...(target === 'parent' ? [{ type: 'paragraph', text: 'continued' }] : []),
+          { type: 'bulletList', items: [
+            { text: 'a', children: target === 'child' ? [{ type: 'paragraph', text: 'continued' }] : [] },
+            { text: 'b', children: [] },
+          ] },
+        ] },
+        { text: 'Next', children: [] },
+      ],
+    }])
   })
 
   it('preserves every inline format supported by the composer', () => {
