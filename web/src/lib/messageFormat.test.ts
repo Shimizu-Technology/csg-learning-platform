@@ -71,6 +71,47 @@ describe('parseMessageBlocks', () => {
     }])
   })
 
+  it('keeps continuation paragraphs on their parent before and after a nested list', () => {
+    expect(parseMessageBlocks('1. Parent\n  Before children\n  - Child\n    Child continuation\n  After children\n2. Next')).toEqual([{
+      type: 'orderedList', items: [
+        { text: 'Parent', children: [
+          { type: 'paragraph', text: 'Before children' },
+          { type: 'bulletList', items: [{ text: 'Child', children: [{ type: 'paragraph', text: 'Child continuation' }] }] },
+          { type: 'paragraph', text: 'After children' },
+        ] },
+        { text: 'Next', children: [] },
+      ],
+    }])
+  })
+
+  it('keeps repeated hard-break continuations inside a list while blank message separators close it', () => {
+    expect(parseMessageBlocks('- Parent\n  First\n  \n  Second\n  - Child\n- Next\n\nOutside')).toEqual([
+      { type: 'bulletList', items: [
+        { text: 'Parent', children: [{ type: 'paragraph', text: 'First\n\nSecond' }, { type: 'bulletList', items: [{ text: 'Child', children: [] }] }] },
+        { text: 'Next', children: [] },
+      ] },
+      { type: 'spacer' },
+      { type: 'paragraph', text: 'Outside' },
+    ])
+  })
+
+  it('keeps quoted continuations formatted inside their list item', () => {
+    expect(parseMessageBlocks('1. Parent\n  > Quoted note\n  > Another line\n  - Child\n2. Next')).toEqual([{
+      type: 'orderedList', items: [
+        { text: 'Parent', children: [{ type: 'blockquote', text: 'Quoted note\nAnother line' }, { type: 'bulletList', items: [{ text: 'Child', children: [] }] }] },
+        { text: 'Next', children: [] },
+      ],
+    }])
+  })
+
+  it('ends a list at an unindented paragraph rather than absorbing unrelated text', () => {
+    expect(parseMessageBlocks('- First\nOutside the list\n- Second')).toEqual([
+      { type: 'bulletList', items: [{ text: 'First', children: [] }] },
+      { type: 'paragraph', text: 'Outside the list' },
+      { type: 'bulletList', items: [{ text: 'Second', children: [] }] },
+    ])
+  })
+
   it('does not interpret hyphens in normal sentences as list markers', () => {
     expect(parseMessageBlocks('A mobile-first message stays a paragraph.')).toEqual([
       { type: 'paragraph', text: 'A mobile-first message stays a paragraph.' },
@@ -128,6 +169,34 @@ describe('editorJsonToMarkdown', () => {
       type: 'bulletList', items: [
         { text: '1', children: [{ type: 'bulletList', items: ['a', 'b', 'c'].map((text) => ({ text, children: [] })) }] },
         { text: '2', children: [] }, { text: '3', children: [] },
+      ],
+    }])
+  })
+
+  it.each(['parent', 'child'])('round-trips a hard break in a %s list item without splitting the list', (target) => {
+    const paragraph = (text: string, multiline = false) => ({ type: 'paragraph', content: [
+      { type: 'text', text }, ...(multiline ? [{ type: 'hardBreak' }, { type: 'text', text: 'continued' }] : []),
+    ] })
+    const body = normalizeMessageMarkdown(editorJsonToMarkdown({ type: 'orderedList', content: [
+      { type: 'listItem', content: [paragraph('Parent', target === 'parent'), { type: 'bulletList', content: [
+        { type: 'listItem', content: [paragraph('a', target === 'child')] },
+        { type: 'listItem', content: [paragraph('b')] },
+      ] }] },
+      { type: 'listItem', content: [paragraph('Next')] },
+    ] }))
+    expect(body).toBe(target === 'parent'
+      ? '1. Parent\n  continued\n  - a\n  - b\n2. Next'
+      : '1. Parent\n  - a\n    continued\n  - b\n2. Next')
+    expect(parseMessageBlocks(body)).toEqual([{
+      type: 'orderedList', items: [
+        { text: 'Parent', children: [
+          ...(target === 'parent' ? [{ type: 'paragraph', text: 'continued' }] : []),
+          { type: 'bulletList', items: [
+            { text: 'a', children: target === 'child' ? [{ type: 'paragraph', text: 'continued' }] : [] },
+            { text: 'b', children: [] },
+          ] },
+        ] },
+        { text: 'Next', children: [] },
       ],
     }])
   })

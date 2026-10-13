@@ -53,6 +53,26 @@ describe('FormattedMessage', () => {
     expect(parents[1].querySelector('ul')).toBeNull()
   })
 
+  it('keeps paragraphs around child lists in order and preserves ordered root numbering', () => {
+    const html = renderToStaticMarkup(<FormattedMessage body={'1. Parent\n  Before\n  - Child\n    Continued\n  After\n2. Next'} />)
+    const document = new DOMParser().parseFromString(html, 'text/html')
+    const root = document.querySelector('ol')!
+    expect(root.children).toHaveLength(2)
+    const parent = root.children[0]
+    expect(Array.from(parent.children).filter((element) => ['P', 'UL'].includes(element.tagName)).map((element) => element.tagName)).toEqual(['P', 'UL', 'P'])
+    expect(parent.querySelector('ul > li > p')?.textContent).toBe('Continued')
+    expect(parent.children[parent.children.length - 1].textContent).toBe('After')
+    expect(root.children[1].textContent).toBe('Next')
+  })
+
+  it('renders a quoted list continuation without exposing the Markdown marker', () => {
+    const html = renderToStaticMarkup(<FormattedMessage body={'1. Parent\n  > **Quoted** note\n  - Child\n2. Next'} />)
+    const document = new DOMParser().parseFromString(html, 'text/html')
+    expect(document.querySelector('ol > li > blockquote strong')?.textContent).toBe('Quoted')
+    expect(document.querySelector('blockquote')?.textContent).toBe('Quoted note')
+    expect(document.querySelectorAll('ol > li')).toHaveLength(2)
+  })
+
   it('preserves combined marks and formatted link labels after sending', () => {
     const html = renderToStaticMarkup(
       <FormattedMessage body={'_**Bold italic**_ and [++underlined link++](https://example.com)'} />,

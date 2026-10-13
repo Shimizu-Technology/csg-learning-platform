@@ -4629,7 +4629,11 @@ function FormattedMessageList({ block, mentionPatterns, depth = 0 }: { block: Me
   const items = block.items.map((item, index) => (
     <li key={index} className="pl-1">
       {formatInline(item.text, mentionPatterns)}
-      {item.children.map((child, childIndex) => <FormattedMessageList key={childIndex} block={child} mentionPatterns={mentionPatterns} depth={depth + 1} />)}
+      {item.children.map((child, childIndex) => child.type === 'paragraph'
+        ? <p key={childIndex} className="whitespace-pre-wrap">{formatInline(child.text, mentionPatterns)}</p>
+        : child.type === 'blockquote'
+          ? <blockquote key={childIndex} className="border-l-2 border-slate-300 pl-3 text-slate-600"><p className="whitespace-pre-wrap">{formatInline(child.text, mentionPatterns)}</p></blockquote>
+        : <FormattedMessageList key={childIndex} block={child} mentionPatterns={mentionPatterns} depth={depth + 1} />)}
     </li>
   ))
   const className = "ml-5 list-outside space-y-1 pr-1 marker:text-slate-400"

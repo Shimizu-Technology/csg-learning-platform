@@ -3,7 +3,7 @@ import type { JSONContent } from '@tiptap/core'
 export type MessageListBlock =
   | { type: 'bulletList'; items: MessageListItem[] }
   | { type: 'orderedList'; items: MessageListItem[] }
-export type MessageListItem = { text: string; children: MessageListBlock[] }
+export type MessageListItem = { text: string; children: Array<MessageListBlock | { type: 'paragraph'; text: string } | { type: 'blockquote'; text: string }> }
 
 export type MessageBlock =
   | { type: 'paragraph'; text: string }
@@ -16,6 +16,12 @@ function appendTextBlocks(blocks: MessageBlock[], text: string) {
   const lines = text.replace(/^\n+|\n+$/g, '').split('\n')
   let paragraph: string[] = []
   let listLevels: { indent: number; block: MessageListBlock }[] = []
+
+  const indentation = (whitespace: string) => {
+    let columns = 0
+    for (const character of whitespace) columns += character === '\t' ? 4 - columns % 4 : 1
+    return columns
+  }
   let quoteLines: string[] = []
 
   const flushParagraph = () => {
@@ -51,6 +57,23 @@ function appendTextBlocks(blocks: MessageBlock[], text: string) {
     current.block.items.push({ text, children: [] })
   }
 
+  const appendListContinuation = (line: string) => {
+    // Keep continuation paragraphs in order with sublists on their owning item.
+    const leadingWhitespace = line.match(/^[ \t]*/)?.[0] || ''
+    const continuationIndent = indentation(leadingWhitespace)
+    if (!listLevels.length || continuationIndent <= listLevels[0].indent) return false
+    while (listLevels.length > 1 && listLevels.at(-1)!.indent >= continuationIndent) listLevels.pop()
+    const item = listLevels.at(-1)!.block.items.at(-1)!
+    const previous = item.children.at(-1)
+    const continuation = line.slice(leadingWhitespace.length)
+    const quote = continuation.match(/^>\s?(.*)$/)
+    const type = quote ? 'blockquote' : 'paragraph'
+    const text = quote ? quote[1] : continuation
+    if (previous?.type === type) previous.text += `\n${text}`
+    else item.children.push({ type, text })
+    return true
+  }
+
   const flushQuote = () => {
     const value = quoteLines.join('\n').trim()
     if (value) blocks.push({ type: 'blockquote', text: value })
@@ -65,6 +88,7 @@ function appendTextBlocks(blocks: MessageBlock[], text: string) {
 
   lines.forEach((line) => {
     if (!line.trim()) {
+      if (appendListContinuation(line)) return
       flushAll()
       if (blocks.length > 0 && blocks.at(-1)?.type !== 'spacer') blocks.push({ type: 'spacer' })
       return
@@ -74,11 +98,11 @@ function appendTextBlocks(blocks: MessageBlock[], text: string) {
     if (list) {
       flushParagraph()
       flushQuote()
-      let indent = 0
-      for (const character of list[1]) indent += character === '\t' ? 4 - indent % 4 : 1
-      appendListItem(indent, /^\d/.test(list[2]) ? 'orderedList' : 'bulletList', list[3].trim())
+      appendListItem(indentation(list[1]), /^\d/.test(list[2]) ? 'orderedList' : 'bulletList', list[3].trim())
       return
     }
+
+    if (appendListContinuation(line)) return
 
     const quote = line.match(/^\s*>\s?(.*)$/)
     if (quote) {
@@ -162,7 +186,7 @@ export function editorJsonToMarkdown(node?: JSONContent): string {
 function serializeList(node: JSONContent, ordered: boolean): string {
   const items = (node.content || []).map((item) => {
     const [firstChild, ...remainingChildren] = item.content || []
-    const firstLine = firstChild ? editorJsonToMarkdown(firstChild) : ''
+    const firstLine = firstChild ? editorJsonToMarkdown(firstChild).replace(/\n/g, '\n  ') : ''
     const continuation = remainingChildren
       .map((child) => editorJsonToMarkdown(child))
       .filter(Boolean)
