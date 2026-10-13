@@ -53,6 +53,15 @@ describe('FormattedMessage', () => {
     expect(parents[1].querySelector('ul')).toBeNull()
   })
 
+  it('keeps a loose-list child inside its parent after a blank line', () => {
+    const html = renderToStaticMarkup(<FormattedMessage body={'- Parent\n\n  - Child\n- Sibling'} />)
+    const document = new DOMParser().parseFromString(html, 'text/html')
+    const root = document.querySelector('ul')!
+    expect(root.children).toHaveLength(2)
+    expect(root.children[0].querySelector('ul > li')?.textContent).toBe('Child')
+    expect(root.children[1].textContent).toBe('Sibling')
+  })
+
   it('keeps paragraphs around child lists in order and preserves ordered root numbering', () => {
     const html = renderToStaticMarkup(<FormattedMessage body={'1. Parent\n  Before\n  - Child\n    Continued\n  After\n2. Next'} />)
     const document = new DOMParser().parseFromString(html, 'text/html')

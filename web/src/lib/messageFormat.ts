@@ -16,6 +16,7 @@ function appendTextBlocks(blocks: MessageBlock[], text: string) {
   const lines = text.replace(/^\n+|\n+$/g, '').split('\n')
   let paragraph: string[] = []
   let listLevels: { indent: number; block: MessageListBlock }[] = []
+  let pendingListBreak = false
 
   const indentation = (whitespace: string) => {
     let columns = 0
@@ -89,9 +90,23 @@ function appendTextBlocks(blocks: MessageBlock[], text: string) {
   lines.forEach((line) => {
     if (!line.trim()) {
       if (appendListContinuation(line)) return
+      if (listLevels.length) {
+        pendingListBreak = true
+        return
+      }
       flushAll()
       if (blocks.length > 0 && blocks.at(-1)?.type !== 'spacer') blocks.push({ type: 'spacer' })
       return
+    }
+
+    if (pendingListBreak) {
+      pendingListBreak = false
+      // A loose list may have an unindented blank before a nested child.
+      // Wait for content before deciding whether the list has ended.
+      if (indentation(line.match(/^[ \t]*/)?.[0] || '') <= listLevels[0].indent) {
+        flushAll()
+        if (blocks.at(-1)?.type !== 'spacer') blocks.push({ type: 'spacer' })
+      }
     }
 
     const list = line.match(/^([ \t]*)([-*]|\d+[.)])\s+(.+)$/)

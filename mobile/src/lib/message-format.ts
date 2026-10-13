@@ -1,10 +1,14 @@
+export type MessageListBlock =
+  | { type: 'bulletList'; items: MessageListItem[] }
+  | { type: 'orderedList'; items: MessageListItem[] }
+export type MessageListItem = { text: string; children: (MessageListBlock | { type: 'paragraph'; text: string } | { type: 'blockquote'; text: string })[] }
+
 export type MessageBlock =
   | { type: 'paragraph'; text: string }
-  | { type: 'bulletList'; items: string[] }
-  | { type: 'orderedList'; items: string[] }
+  | MessageListBlock
   | { type: 'blockquote'; text: string }
   | { type: 'code'; code: string; language: string }
-  | { type: 'spacer' };
+  | { type: 'spacer' }
 
 const COMMON_FILE_EXTENSIONS = new Set([
   'css', 'csv', 'doc', 'docx', 'gif', 'html', 'jpeg', 'jpg', 'js', 'json', 'md',
@@ -13,99 +17,148 @@ const COMMON_FILE_EXTENSIONS = new Set([
 ]);
 
 function appendTextBlocks(blocks: MessageBlock[], text: string) {
-  const lines = text.replace(/^\n+|\n+$/g, '').split('\n');
-  let paragraph: string[] = [];
-  let listType: 'bulletList' | 'orderedList' | null = null;
-  let listItems: string[] = [];
-  let quoteLines: string[] = [];
+  const lines = text.replace(/^\n+|\n+$/g, '').split('\n')
+  let paragraph: string[] = []
+  let listLevels: { indent: number; block: MessageListBlock }[] = []
+  let pendingListBreak = false
+
+  const indentation = (whitespace: string) => {
+    let columns = 0
+    for (const character of whitespace) columns += character === '\t' ? 4 - columns % 4 : 1
+    return columns
+  }
+  let quoteLines: string[] = []
 
   const flushParagraph = () => {
-    const value = paragraph.join('\n').trim();
-    if (value) blocks.push({ type: 'paragraph', text: value });
-    paragraph = [];
-  };
+    const value = paragraph.join('\n').trim()
+    if (value) blocks.push({ type: 'paragraph', text: value })
+    paragraph = []
+  }
 
   const flushList = () => {
-    if (listType && listItems.length > 0) blocks.push({ type: listType, items: listItems });
-    listType = null;
-    listItems = [];
-  };
+    listLevels = []
+  }
+
+  const appendListItem = (indent: number, type: MessageListBlock['type'], text: string) => {
+    while (listLevels.length && listLevels[listLevels.length - 1].indent > indent) listLevels.pop()
+
+    let current = listLevels[listLevels.length - 1]
+    if (!current || current.indent < indent || current.block.type !== type) {
+      const block: MessageListBlock = type === 'bulletList'
+        ? { type: 'bulletList', items: [] }
+        : { type: 'orderedList', items: [] }
+      if (current && current.indent < indent) {
+        current.block.items.at(-1)?.children.push(block)
+      } else if (listLevels.length > 1) {
+        listLevels[listLevels.length - 2].block.items.at(-1)?.children.push(block)
+        listLevels.pop()
+      } else {
+        blocks.push(block)
+        listLevels = []
+      }
+      listLevels.push({ indent, block })
+      current = listLevels[listLevels.length - 1]
+    }
+    current.block.items.push({ text, children: [] })
+  }
+
+  const appendListContinuation = (line: string) => {
+    // Keep continuation paragraphs in order with sublists on their owning item.
+    const leadingWhitespace = line.match(/^[ \t]*/)?.[0] || ''
+    const continuationIndent = indentation(leadingWhitespace)
+    if (!listLevels.length || continuationIndent <= listLevels[0].indent) return false
+    while (listLevels.length > 1 && listLevels.at(-1)!.indent >= continuationIndent) listLevels.pop()
+    const item = listLevels.at(-1)!.block.items.at(-1)!
+    const previous = item.children.at(-1)
+    const continuation = line.slice(leadingWhitespace.length)
+    const quote = continuation.match(/^>\s?(.*)$/)
+    const type = quote ? 'blockquote' : 'paragraph'
+    const text = quote ? quote[1] : continuation
+    if (previous?.type === type) previous.text += `\n${text}`
+    else item.children.push({ type, text })
+    return true
+  }
 
   const flushQuote = () => {
-    const value = quoteLines.join('\n').trim();
-    if (value) blocks.push({ type: 'blockquote', text: value });
-    quoteLines = [];
-  };
+    const value = quoteLines.join('\n').trim()
+    if (value) blocks.push({ type: 'blockquote', text: value })
+    quoteLines = []
+  }
 
   const flushAll = () => {
-    flushParagraph();
-    flushList();
-    flushQuote();
-  };
+    flushParagraph()
+    flushList()
+    flushQuote()
+  }
 
   lines.forEach((line) => {
     if (!line.trim()) {
-      flushAll();
-      if (blocks.length > 0 && blocks.at(-1)?.type !== 'spacer') blocks.push({ type: 'spacer' });
-      return;
+      if (appendListContinuation(line)) return
+      if (listLevels.length) {
+        pendingListBreak = true
+        return
+      }
+      flushAll()
+      if (blocks.length > 0 && blocks.at(-1)?.type !== 'spacer') blocks.push({ type: 'spacer' })
+      return
     }
 
-    const bullet = line.match(/^\s*[-*]\s+(.+)$/);
-    if (bullet) {
-      flushParagraph();
-      flushQuote();
-      if (listType && listType !== 'bulletList') flushList();
-      listType = 'bulletList';
-      listItems.push(bullet[1].trim());
-      return;
+    if (pendingListBreak) {
+      pendingListBreak = false
+      // A loose list may have an unindented blank before a nested child.
+      // Wait for content before deciding whether the list has ended.
+      if (indentation(line.match(/^[ \t]*/)?.[0] || '') <= listLevels[0].indent) {
+        flushAll()
+        if (blocks.at(-1)?.type !== 'spacer') blocks.push({ type: 'spacer' })
+      }
     }
 
-    const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/);
-    if (ordered) {
-      flushParagraph();
-      flushQuote();
-      if (listType && listType !== 'orderedList') flushList();
-      listType = 'orderedList';
-      listItems.push(ordered[1].trim());
-      return;
+    const list = line.match(/^([ \t]*)([-*]|\d+[.)])\s+(.+)$/)
+    if (list) {
+      flushParagraph()
+      flushQuote()
+      appendListItem(indentation(list[1]), /^\d/.test(list[2]) ? 'orderedList' : 'bulletList', list[3].trim())
+      return
     }
 
-    const quote = line.match(/^\s*>\s?(.*)$/);
+    if (appendListContinuation(line)) return
+
+    const quote = line.match(/^\s*>\s?(.*)$/)
     if (quote) {
-      flushParagraph();
-      flushList();
-      quoteLines.push(quote[1]);
-      return;
+      flushParagraph()
+      flushList()
+      quoteLines.push(quote[1])
+      return
     }
 
-    flushList();
-    flushQuote();
-    paragraph.push(line);
-  });
+    flushList()
+    flushQuote()
+    paragraph.push(line)
+  })
 
-  flushAll();
+  flushAll()
 }
 
 export function parseMessageBlocks(body: string): MessageBlock[] {
-  const blocks: MessageBlock[] = [];
-  const fencePattern = /```([^\n`]*)\n?([\s\S]*?)(?:```|$)/g;
-  let cursor = 0;
-  let match: RegExpExecArray | null;
+  const blocks: MessageBlock[] = []
+  const fencePattern = /```([^\n`]*)\n?([\s\S]*?)(?:```|$)/g
+  let cursor = 0
+  let match: RegExpExecArray | null
 
   while ((match = fencePattern.exec(body)) !== null) {
-    if (match.index > cursor) appendTextBlocks(blocks, body.slice(cursor, match.index));
+    if (match.index > cursor) appendTextBlocks(blocks, body.slice(cursor, match.index))
     blocks.push({
       type: 'code',
       language: match[1].trim(),
       code: match[2].replace(/^\n+|\n+$/g, ''),
-    });
-    cursor = fencePattern.lastIndex;
+    })
+    cursor = fencePattern.lastIndex
   }
 
-  if (cursor < body.length) appendTextBlocks(blocks, body.slice(cursor));
+  if (cursor < body.length) appendTextBlocks(blocks, body.slice(cursor))
 
-  while (blocks.at(-1)?.type === 'spacer') blocks.pop();
-  return blocks.length > 0 ? blocks : [{ type: 'paragraph', text: body }];
+  while (blocks.at(-1)?.type === 'spacer') blocks.pop()
+  return blocks.length > 0 ? blocks : [{ type: 'paragraph', text: body }]
 }
 
 export function plainMessageText(body: string, fallback = 'Attachment') {

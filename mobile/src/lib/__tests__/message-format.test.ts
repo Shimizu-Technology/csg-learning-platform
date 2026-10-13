@@ -5,7 +5,7 @@ describe('message formatting', () => {
     expect(parseMessageBlocks('Intro\n\n- First\n- Second\n\n> Note\n\n```sh\nls - list\n```')).toEqual([
       { type: 'paragraph', text: 'Intro' },
       { type: 'spacer' },
-      { type: 'bulletList', items: ['First', 'Second'] },
+      { type: 'bulletList', items: [{ text: 'First', children: [] }, { text: 'Second', children: [] }] },
       { type: 'spacer' },
       { type: 'blockquote', text: 'Note' },
       { type: 'code', language: 'sh', code: 'ls - list' },
@@ -46,4 +46,29 @@ describe('message formatting', () => {
       trailing: ').',
     });
   });
+});
+
+it('keeps nested siblings attached to their parent instead of flattening them', () => {
+  expect(parseMessageBlocks('1. One\n  - a\n  - b\n2. Two')).toEqual([{ type: 'orderedList', items: [
+    { text: 'One', children: [{ type: 'bulletList', items: [{ text: 'a', children: [] }, { text: 'b', children: [] }] }] },
+    { text: 'Two', children: [] },
+  ] }]);
+});
+
+it('keeps continuation paragraphs before and after children in order', () => {
+  expect(parseMessageBlocks('- Parent\n  before\n  - Child\n  after\n  > quote\n- Sibling')).toEqual([{ type: 'bulletList', items: [
+    { text: 'Parent', children: [
+      { type: 'paragraph', text: 'before' },
+      { type: 'bulletList', items: [{ text: 'Child', children: [] }] },
+      { type: 'paragraph', text: 'after' },
+      { type: 'blockquote', text: 'quote' },
+    ] },
+    { text: 'Sibling', children: [] },
+  ] }]);
+});
+
+it('keeps a loose-list child nested after an unindented blank', () => {
+  expect(parseMessageBlocks('- Parent\n\n  - Child')).toEqual([{ type: 'bulletList', items: [
+    { text: 'Parent', children: [{ type: 'bulletList', items: [{ text: 'Child', children: [] }] }] },
+  ] }]);
 });

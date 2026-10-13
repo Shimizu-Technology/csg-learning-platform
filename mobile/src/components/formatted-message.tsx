@@ -6,6 +6,7 @@ import { MessageCodeBlock } from '@/components/message-code-block';
 import { fontScaleLimits, fonts, palette, typography } from '@/constants/csg-theme';
 import { messageSegments } from '@/lib/mentions';
 import { normalizeMessageLink, parseMessageBlocks, splitTrailingUrlPunctuation } from '@/lib/message-format';
+import type { MessageListBlock } from '@/lib/message-format';
 import type { UserSummary } from '@/lib/types';
 
 type Props = {
@@ -30,16 +31,7 @@ export function FormattedMessage({ body, mentionUsers, mine = false }: Props) {
         }
 
         if (block.type === 'bulletList' || block.type === 'orderedList') {
-          return (
-            <View key={key} style={styles.list}>
-              {block.items.map((item, itemIndex) => (
-                <View key={`${key}-${itemIndex}`} style={styles.listRow}>
-                  <Text maxFontSizeMultiplier={fontScaleLimits.content} style={[styles.listMarker, mine && styles.mineText]}>{block.type === 'bulletList' ? '•' : `${itemIndex + 1}.`}</Text>
-                  <Text maxFontSizeMultiplier={fontScaleLimits.content} style={[styles.body, styles.listItem, mine && styles.mineText]}>{formatInline(item, mentionUsers, mine, `${key}-${itemIndex}`)}</Text>
-                </View>
-              ))}
-            </View>
-          );
+          return renderList(block, mentionUsers, mine, key);
         }
 
         if (block.type === 'blockquote') {
@@ -51,6 +43,35 @@ export function FormattedMessage({ body, mentionUsers, mine = false }: Props) {
         }
 
         return <Text key={key} maxFontSizeMultiplier={fontScaleLimits.content} style={[styles.body, mine && styles.mineText]}>{formatInline(block.text, mentionUsers, mine, key)}</Text>;
+      })}
+    </View>
+  );
+}
+
+function renderList(block: MessageListBlock, mentionUsers: UserSummary[], mine: boolean, key: string, depth = 0): ReactNode {
+  const bullet = ['•', '◦', '▪'][depth % 3];
+  return (
+    <View key={key} style={styles.list}>
+      {block.items.map((item, index) => {
+        const itemKey = `${key}-${index}`;
+        return (
+          <View key={itemKey} style={styles.listRow}>
+            <Text maxFontSizeMultiplier={fontScaleLimits.content} style={[styles.listMarker, mine && styles.mineText]}>{block.type === 'bulletList' ? bullet : `${index + 1}.`}</Text>
+            <View style={styles.listItem}>
+              <Text maxFontSizeMultiplier={fontScaleLimits.content} style={[styles.body, mine && styles.mineText]}>{formatInline(item.text, mentionUsers, mine, itemKey)}</Text>
+              {item.children.map((child, childIndex) => {
+                const childKey = `${itemKey}-child-${childIndex}`;
+                if (child.type === 'bulletList' || child.type === 'orderedList') return renderList(child, mentionUsers, mine, childKey, depth + 1);
+                if (child.type === 'blockquote') return (
+                  <View key={childKey} style={[styles.blockquote, mine && styles.mineBlockquote]}>
+                    <Text maxFontSizeMultiplier={fontScaleLimits.content} style={[styles.body, styles.quoteText, mine && styles.mineText]}>{formatInline(child.text, mentionUsers, mine, childKey)}</Text>
+                  </View>
+                );
+                return <Text key={childKey} maxFontSizeMultiplier={fontScaleLimits.content} style={[styles.body, mine && styles.mineText]}>{formatInline(child.text, mentionUsers, mine, childKey)}</Text>;
+              })}
+            </View>
+          </View>
+        );
       })}
     </View>
   );
@@ -229,8 +250,8 @@ const styles = StyleSheet.create({
   mineInlineCode: { color: '#FFFFFF', backgroundColor: 'rgba(6, 9, 14, 0.28)' },
   list: { gap: 3 },
   listRow: { flexDirection: 'row', alignItems: 'flex-start', paddingRight: 2 },
-  listMarker: { ...typography.body, width: 23, color: palette.muted, fontFamily: fonts.semibold, textAlign: 'right', paddingRight: 7 },
-  listItem: { flex: 1 },
+  listMarker: { ...typography.body, minWidth: 23, flexShrink: 0, color: palette.muted, fontFamily: fonts.semibold, textAlign: 'right', paddingRight: 7 },
+  listItem: { flexShrink: 1, minWidth: 0, gap: 3 },
   blockquote: { borderLeftWidth: 3, borderLeftColor: palette.rubySoft, paddingLeft: 10, paddingVertical: 2 },
   mineBlockquote: { borderLeftColor: '#FFE4E8' },
   quoteText: { color: '#D6D9E1' },
