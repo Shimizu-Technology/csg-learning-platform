@@ -26,6 +26,22 @@
   --color-success-700: #15803d;
   --color-success-800: #166534;
   --color-success-900: #14532d;
+
+  /* CSG family status roles (Brain Dump FRONTEND_DESIGN_GUIDE "CSG family tokens"). */
+  --color-warning-50: #fffbeb;
+  --color-warning-200: #fde68a;
+  --color-warning-800: #92400e;
+  --color-pending-50: #f1f5f9;
+  --color-pending-200: #e2e8f0;
+  --color-pending-700: #334155;
+  --color-danger-50: #fef2f2;
+  --color-danger-200: #fecaca;
+  --color-danger-700: #b91c1c;
+  --color-info-50: #f0f9ff;
+  --color-info-800: #075985;
+  --color-ruby-600: #9c292b;
+  --color-ruby-700: #842225;
+  --color-ruby-800: #6f1c1f;
 }
 
 body {
@@ -378,7 +394,8 @@ body {
   font-size: 13px;
   line-height: 1.65;
   border-radius: 0.5rem;
-  padding: 1.25rem 1.25rem 1.25rem 1.25rem;
+  /* Top padding keeps the first code line clear of the Copy button on phones. */
+  padding: 2.75rem 1.25rem 1.25rem 1.25rem;
   background-color: #f8fafc;
   color: #1e293b;
   overflow-x: auto;
@@ -387,7 +404,7 @@ body {
   white-space: pre;
   word-spacing: normal;
   word-break: normal;
-  tab-size: 2;
+  tab-size: 4;
   margin: 0;
 }
 
@@ -403,8 +420,9 @@ body {
 /* Copy Code button */
 .exercise-content .copy-code-btn {
   position: absolute;
-  top: 0.625rem;
-  right: 0.625rem;
+  top: 0.5rem;
+  right: 0.5rem;
+  min-height: 2rem;
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
@@ -416,18 +434,24 @@ body {
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
   box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   z-index: 2;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: inherit;
 }
 
-.exercise-content .copy-code-btn:hover {
-  background-color: #dc2626;
-  border-color: #b91c1c;
-  color: #ffffff;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px 0 rgb(0 0 0 / 0.1);
+@media (hover: hover) and (pointer: fine) {
+  .exercise-content .copy-code-btn:hover {
+    background-color: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #0f172a;
+  }
+}
+
+.exercise-content .copy-code-btn[data-state="failed"] {
+  border-color: #fde68a;
+  background-color: #fffbeb;
+  color: #92400e;
 }
 
 /* Links — like prework grader */
@@ -497,4 +521,14 @@ body {
   border: none;
   border-top: 1px solid #e2e8f0;
   margin: 1.5rem 0;
+}
+
+/* iOS zooms the page when a focused field is smaller than 16px. Keep form
+   fields at 16px on touch screens (including Clerk's sign-in fields). */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select,
+  textarea:not(.inputarea) {
+    font-size: 16px !important;
+  }
 }

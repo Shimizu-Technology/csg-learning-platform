@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import DOMPurify from 'dompurify'
 import { Copy, Check } from 'lucide-react'
 import { analyticsLanguage, captureProductEvent } from '../../lib/analytics'
+import { copyText } from '../../lib/clipboard'
 
 interface MarkdownRendererProps {
   content: string
@@ -14,31 +15,35 @@ function isHtml(str: string): boolean {
 }
 
 function CopyButton({ text, language }: { text: string; language?: string }) {
-  const [copied, setCopied] = useState(false)
+  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle')
 
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(text).then(() => {
-      captureProductEvent('code_block_copied', { surface: 'lesson', language: analyticsLanguage(language) })
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+    void copyText(text).then((copied) => {
+      if (copied) captureProductEvent('code_block_copied', { surface: 'lesson', language: analyticsLanguage(language) })
+      setState(copied ? 'copied' : 'failed')
+      setTimeout(() => setState('idle'), copied ? 2000 : 4000)
     })
-  }, [text])
+  }, [language, text])
 
   return (
     <button
+      type="button"
       onClick={handleCopy}
       className="copy-code-btn"
-      title="Copy code"
+      data-state={state}
+      aria-live="polite"
     >
-      {copied ? (
+      {state === 'copied' ? (
         <>
-          <Check className="h-3.5 w-3.5" />
+          <Check className="h-3.5 w-3.5" aria-hidden="true" />
           <span>Copied</span>
         </>
+      ) : state === 'failed' ? (
+        <span>Copy failed — select the code instead</span>
       ) : (
         <>
-          <Copy className="h-3.5 w-3.5" />
-          <span>Copy Code</span>
+          <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>Copy code</span>
         </>
       )}
     </button>
@@ -69,17 +74,19 @@ function HtmlContentRenderer({ html }: { html: string }) {
       wrapper.appendChild(pre)
 
       const btn = document.createElement('button')
+      btn.type = 'button'
       btn.className = 'copy-code-btn'
-      btn.title = 'Copy code'
-      btn.innerHTML = `${COPY_SVG}<span>Copy Code</span>`
+      btn.innerHTML = `${COPY_SVG}<span>Copy code</span>`
       btn.addEventListener('click', () => {
         const text = pre.textContent || ''
-        navigator.clipboard.writeText(text).then(() => {
-          captureProductEvent('code_block_copied', { surface: 'lesson', language: 'other' })
-          btn.innerHTML = `${CHECK_SVG}<span>Copied</span>`
+        void copyText(text).then((copied) => {
+          if (copied) captureProductEvent('code_block_copied', { surface: 'lesson', language: 'other' })
+          btn.dataset.state = copied ? 'copied' : 'failed'
+          btn.innerHTML = copied ? `${CHECK_SVG}<span>Copied</span>` : '<span>Copy failed — select the code instead</span>'
           setTimeout(() => {
-            btn.innerHTML = `${COPY_SVG}<span>Copy Code</span>`
-          }, 2000)
+            btn.dataset.state = 'idle'
+            btn.innerHTML = `${COPY_SVG}<span>Copy code</span>`
+          }, copied ? 2000 : 4000)
         })
       })
       wrapper.insertBefore(btn, pre)
