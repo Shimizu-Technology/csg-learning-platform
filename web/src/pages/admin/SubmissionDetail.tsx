@@ -14,6 +14,7 @@ import { GradeDisplay } from '../../components/shared/GradeDisplay'
 import { useToast } from '../../contexts/ToastContext'
 import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
 import type { RubricRating, StudentProgressResponse, Submission } from '../../types/api'
+import { FeedbackBody, FeedbackFormattingHint } from '../../components/shared/FeedbackBody'
 
 interface ValidatedWorkspaceContext {
   cohortId: number
@@ -213,12 +214,13 @@ export function SubmissionDetail() {
 
         <aside className="app-surface self-start p-5 sm:p-6 xl:sticky xl:top-20">
           <h2 className="text-lg font-extrabold text-slate-950">Review and feedback</h2>
-          {submission.grade === 'R' && submission.feedback && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900"><p className="font-bold">Current redo feedback</p><p className="mt-1 whitespace-pre-wrap">{submission.feedback}</p></div>}
+          {submission.grade === 'R' && submission.feedback && <div className="mt-4 rounded-xl border border-warning-200 bg-warning-50 p-3 text-sm text-warning-800"><p className="font-bold">Current redo feedback</p><FeedbackBody feedback={submission.feedback} className="mt-1" /></div>}
 
           {submission.rubric && <div className="mt-5 space-y-4"><div><p className="text-xs font-bold uppercase tracking-wide text-green-700">Rubric</p><p className="mt-1 font-extrabold text-slate-900">{submission.rubric.title}</p></div>{submission.rubric.criteria.map((criterion) => <div key={criterion.id} className="rounded-xl border border-slate-200 p-3"><p className="text-sm font-extrabold text-slate-900">{criterion.title}</p><p className="mt-1 text-xs leading-5 text-slate-500">{criterion.description}</p><div className="mt-3 grid grid-cols-2 gap-2">{([['exceeds', 'Exceeds'], ['meets', 'Meets'], ['developing', 'Developing'], ['redo', 'Revision']] as Array<[RubricRating, string]>).map(([rating, label]) => <button key={rating} type="button" onClick={() => setCriterionResults((current) => ({ ...current, [criterion.id]: { rating, feedback: current[criterion.id]?.feedback || '' } }))} className={`min-h-11 rounded-xl border px-2 text-xs font-bold ${criterionResults[criterion.id]?.rating === rating ? 'border-green-500 bg-green-50 text-green-800' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{label}</button>)}</div><textarea aria-label={`Feedback for ${criterion.title}`} value={criterionResults[criterion.id]?.feedback || ''} onChange={(event) => setCriterionResults((current) => ({ ...current, [criterion.id]: { rating: current[criterion.id]?.rating || null, feedback: event.target.value } }))} placeholder="Optional criterion feedback" className="mt-2 min-h-20 w-full rounded-xl border border-slate-300 p-3 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200" /></div>)}</div>}
 
           <label htmlFor="submission-feedback" className="mt-5 block text-sm font-extrabold text-slate-900">Overall feedback</label>
           <textarea id="submission-feedback" value={feedback} onChange={(event) => setFeedback(event.target.value)} rows={7} placeholder="Give the student a clear next step…" className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm leading-6 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200" />
+          <FeedbackFormattingHint value={feedback} />
           <div className="mt-4 grid grid-cols-2 gap-2">
             {['A', 'B', 'C'].map((gradeValue) => <Button key={gradeValue} variant="secondary" onClick={() => void grade(gradeValue)} disabled={grading}><CheckCircle2 className="h-4 w-4" />Grade {gradeValue}</Button>)}
             <Button variant="danger" onClick={() => void grade('R')} disabled={grading}><RotateCcw className="h-4 w-4" />Request redo</Button>

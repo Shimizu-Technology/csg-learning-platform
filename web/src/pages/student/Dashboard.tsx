@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowRight, BookOpen, Clock, Lock, PlayCircle, CalendarDays, CheckCircle2, RotateCcw, RefreshCw, WifiOff, Link2, ExternalLink } from 'lucide-react'
+import { ArrowRight, BookOpen, Clock, Lock, PlayCircle, CalendarDays, CheckCircle2, RotateCcw, RefreshCw, WifiOff, Link2, ExternalLink, MessageCircle, Hourglass } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useCohortContext } from '../../contexts/CohortContext'
@@ -11,6 +11,7 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import { formatShortDateTime } from '../../lib/format'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { WeeklyPlanCard } from '../../components/student/WeeklyPlan'
+import { markdownExcerpt } from '../../lib/plainText'
 import type { DashboardData, WeeklyPlan } from '../../types/api'
 
 function formatDate(dateStr: string | null | undefined): string {
@@ -149,7 +150,12 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
         .map((lesson) => `${lesson.moduleId}:${lesson.submission_window?.week_number}`)
     ).size
 
+    const lessonCount = modules.reduce((sum, mod) => sum + mod.lessons.length, 0)
+    const awaitingReviewCount = modules.reduce((sum, mod) => sum + mod.lessons.filter((lesson) => lesson.review_status === 'awaiting_review').length, 0)
+
     return {
+      courseNotOpen: modules.length === 0 || lessonCount === 0,
+      awaitingReviewCount,
       nextAvailableLesson,
       nextLockedLesson,
       nextSubmissionDeadline,
@@ -185,6 +191,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
 
   const progress = data.overall_progress
   const showWeeklyFallback = weeklyPlanLoaded && !weeklyPlan?.enrolled
+  const courseNotOpen = derived.courseNotOpen
 
   return (
     <div className="app-page max-w-5xl">
@@ -203,10 +210,19 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
               Welcome back, {data.user.full_name.split(' ')[0]}
             </h1>
             <p className="mt-2 text-sm leading-6 text-slate-500 sm:text-base">
-              {data.cohort?.name} · {progress?.completed || 0} of {progress?.total || 0} blocks completed
+              {data.cohort?.name}{!courseNotOpen && ` · ${progress?.completed || 0} of ${progress?.total || 0} ${progress?.total === 1 ? 'block' : 'blocks'} completed`}
             </p>
 
-            {derived.nextAvailableLesson ? (
+            {courseNotOpen ? (
+              <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
+                <p className="flex items-center gap-2 text-base font-extrabold text-slate-950"><Hourglass className="h-5 w-5 shrink-0 text-slate-500" aria-hidden="true" />Your course isn’t open yet</p>
+                <p className="mt-1 text-sm leading-6 text-slate-600">Your lessons will appear here as soon as your instructor opens them. If you expected to start already, message your instructor.</p>
+                <Link to="/messages" className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 hover:bg-slate-100">
+                  <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                  Message your instructor
+                </Link>
+              </div>
+            ) : derived.nextAvailableLesson ? (
               <div className="mt-6 rounded-2xl bg-slate-950 p-4 text-white sm:p-5">
                 <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-primary-300">Continue your path</p>
                 <p className="mt-1.5 text-lg font-extrabold tracking-tight text-white">{derived.nextAvailableLesson.title}</p>
@@ -227,15 +243,20 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
                   {derived.nextLockedLesson.moduleName} · unlocks {formatDate(derived.nextLockedLesson.unlock_date)}
                 </p>
               </div>
+            ) : derived.awaitingReviewCount > 0 ? (
+              <div className="mt-6 flex items-center gap-3 rounded-2xl border border-pending-200 bg-pending-50 p-4">
+                <Clock className="h-5 w-5 shrink-0 text-pending-700" aria-hidden="true" />
+                <p className="text-sm font-bold text-pending-700">Everything open is submitted. Your instructor is reviewing {derived.awaitingReviewCount === 1 ? 'one piece of work' : `${derived.awaitingReviewCount} pieces of work`}.</p>
+              </div>
             ) : (
-              <div className="mt-6 flex items-center gap-3 rounded-2xl border border-green-200 bg-green-50 p-4">
-                <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600" />
-                <p className="text-sm font-bold text-green-800">You’re fully caught up right now.</p>
+              <div className="mt-6 flex items-center gap-3 rounded-2xl border border-success-200 bg-success-50 p-4">
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-success-700" aria-hidden="true" />
+                <p className="text-sm font-bold text-success-700">You’re caught up. New lessons will appear here when they open.</p>
               </div>
             )}
           </div>
 
-          {progress && (
+          {progress && !courseNotOpen && (
             <div className="flex shrink-0 flex-col items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
               <ProgressRing percentage={progress.percentage} size={90} label="Overall" />
               <div className="grid grid-cols-2 gap-2 text-center text-xs text-slate-500 w-full min-w-[180px]">
@@ -253,7 +274,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
         </div>
       </section>
 
-      {weeklyPlan?.enrolled && <WeeklyPlanCard plan={weeklyPlan} />}
+      {weeklyPlan?.enrolled && !courseNotOpen && <WeeklyPlanCard plan={weeklyPlan} />}
 
       {data.private_meetings_enabled && (
         <Link to="/meetings" className="group flex min-h-20 items-center justify-between gap-4 rounded-2xl border border-primary-200 bg-primary-50 px-5 py-4 transition hover:border-primary-400 hover:bg-primary-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600">
@@ -282,7 +303,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
                     </div>
                     <ArrowRight className="h-4 w-4 shrink-0 text-amber-600 transition-transform group-hover:translate-x-1" />
                   </div>
-                  {item.feedback && <p className="mt-2 border-l-2 border-amber-300 pl-2 text-xs leading-5 text-slate-600">{item.feedback}</p>}
+                  {item.feedback && <p className="mt-2 line-clamp-3 border-l-2 border-amber-300 pl-2 text-xs leading-5 text-slate-600">{markdownExcerpt(item.feedback)}</p>}
                 </Link>
               </li>
             ))}
@@ -418,7 +439,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      {!courseNotOpen && <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="rounded-2xl bg-white border border-slate-200 p-4">
           <div className="flex items-center gap-2 text-slate-500">
             <PlayCircle className="h-4 w-4" />
@@ -443,9 +464,9 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
           <p className="mt-2 text-lg font-bold text-slate-900">{data.cohort?.name}</p>
           <p className="text-xs text-slate-500">Started {formatDate(data.cohort?.start_date)}</p>
         </div>
-      </div>
+      </div>}
 
-      <div className="space-y-4">
+      {!courseNotOpen && <div className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="app-eyebrow">Your course</p>
@@ -524,7 +545,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
             </Link>
           )
         })}
-      </div>
+      </div>}
     </div>
   )
 }

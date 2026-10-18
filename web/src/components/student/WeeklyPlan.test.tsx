@@ -54,4 +54,35 @@ describe('WeeklyPlanCard', () => {
     expect(html).not.toContain('Required work')
     expect(html).not.toContain('This Week')
   })
+
+  it('labels submitted work as awaiting review and never shows 100% for an empty week', () => {
+    const html = renderToStaticMarkup(<MemoryRouter><WeeklyPlanCard plan={{
+      ...plan,
+      required: [{ ...plan.required![0], state: 'completed', review_status: 'awaiting_review' }],
+    }} /></MemoryRouter>)
+    expect(html).toContain('Submitted · awaiting review')
+    expect(html).not.toContain('>completed<')
+    expect(html).toContain('Try again.')
+
+    const empty = renderToStaticMarkup(<MemoryRouter><WeeklyPlanCard plan={{
+      ...plan,
+      summary: { required_count: 0, required_completed_count: 0, open_redo_count: 0, optional_count: 0 },
+      required: [],
+      optional: [],
+      redos: [],
+    }} /></MemoryRouter>)
+    expect(empty).toContain('No required work is scheduled this week.')
+    expect(empty).not.toContain('100%')
+  })
+
+  it('shows a redo row with the warning label and a plain-text feedback excerpt', () => {
+    const html = renderToStaticMarkup(<MemoryRouter><WeeklyPlanCard plan={{
+      ...plan,
+      required: [{ ...plan.required![0], state: 'open', review_status: 'redo_requested' }],
+      redos: [{ ...plan.redos![0], feedback: 'Explain **why**' }],
+    }} /></MemoryRouter>)
+    expect(html).toContain('Redo requested')
+    expect(html).toContain('Explain why')
+    expect(html).not.toContain('**why**')
+  })
 })

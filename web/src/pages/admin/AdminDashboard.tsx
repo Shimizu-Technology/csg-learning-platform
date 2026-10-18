@@ -7,6 +7,7 @@ import { cohortStudentPath } from '../../lib/routes'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { PageHeader } from '../../components/ui/PageHeader'
+import { UnassignedLearnersWarning } from '../../components/admin/UnassignedLearnersWarning'
 
 interface AdminDashboardData {
   user: { full_name?: string; role?: string }
@@ -17,6 +18,7 @@ interface AdminDashboardData {
     status: string
     enrolled_count: number
     active_count: number
+    students_without_modules_count?: number
   }
   students?: Array<{
     user_id: number
@@ -28,6 +30,7 @@ interface AdminDashboardData {
     total_blocks: number
     last_sign_in_at: string | null
     enrollment_status: string
+    assigned_module_count?: number
   }>
   ungraded_count?: number
 }
@@ -83,6 +86,8 @@ export function AdminDashboard() {
           </Link>
         )}
       />
+
+      {data.cohort && <UnassignedLearnersWarning cohortId={data.cohort.id} count={data.cohort.students_without_modules_count || 0} learners={(data.students || []).filter((student) => student.enrollment_status === 'active' && student.assigned_module_count === 0)} />}
 
       <section aria-labelledby="attention-heading" className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]">
         <div className="overflow-hidden rounded-[1.75rem] bg-slate-950 p-5 text-white shadow-[0_20px_50px_rgba(15,23,42,0.13)] sm:p-6">

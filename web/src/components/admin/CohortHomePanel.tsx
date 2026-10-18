@@ -3,6 +3,7 @@ import { ArrowRight, CalendarDays, ClipboardCheck, LifeBuoy, Megaphone, MessageS
 import { formatShortDateTime } from '../../lib/format'
 import { cohortStudentPath } from '../../lib/routes'
 import type { CohortHome } from '../../types/api'
+import { UnassignedLearnersWarning } from './UnassignedLearnersWarning'
 
 function ActionCard({ value, label, detail, to, icon: Icon, tone = 'slate' }: { value: number; label: string; detail: string; to: string; icon: typeof Users; tone?: 'slate' | 'primary' }) {
   return <Link to={to} className={`group flex min-h-36 flex-col justify-between rounded-2xl border p-4 transition-colors focus-visible:outline-2 focus-visible:outline-primary-600 ${tone === 'primary' ? 'border-primary-200 bg-primary-50 hover:bg-primary-100' : 'border-slate-200 bg-white hover:border-primary-200'}`}>
@@ -20,7 +21,10 @@ export function CohortHomePanel({ home }: { home: CohortHome }) {
   })
   const attention = students.filter((student) => student.ungraded_count || student.redo_count || student.invite_delivery_status === 'failed').slice(0, 5)
 
+  const withoutModules = students.filter((student) => student.status === 'active' && student.assigned_module_count === 0)
+
   return <div className="space-y-5">
+    <UnassignedLearnersWarning cohortId={cohortId} count={counts?.without_modules || 0} learners={withoutModules} />
     <section aria-labelledby="cohort-at-glance" className="space-y-3"><div className="flex flex-wrap items-end justify-between gap-2"><div><p className="app-eyebrow">This cohort</p><h2 id="cohort-at-glance" className="mt-1 text-xl font-extrabold tracking-tight text-slate-950">At a glance</h2></div><span className="text-sm font-medium text-slate-500">{home.cohort.curriculum_name}</span></div>
       {counts && <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"><ActionCard value={counts.ungraded} label="Ready to grade" detail="Review submitted work" to={`/admin/grading?cohort_id=${cohortId}`} icon={ClipboardCheck} tone="primary" /><ActionCard value={counts.open_help} label="Open help requests" detail="Respond to students" to={`/admin/support?cohort_id=${cohortId}`} icon={LifeBuoy} /><ActionCard value={counts.active_students} label="Active students" detail={`${counts.joined} joined cohort · ${counts.invited} added, not yet opened`} to={`/admin/cohorts/${cohortId}?tab=students`} icon={Users} /></div>}
     </section>

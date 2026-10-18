@@ -1,10 +1,13 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, BookOpen, CalendarClock, Check, CircleAlert, Clock3, Film, LockKeyhole, RotateCcw, Sparkles } from 'lucide-react'
+import { ArrowRight, BookOpen, CalendarClock, Check, CircleAlert, Film, LockKeyhole, RotateCcw, Sparkles } from 'lucide-react'
 
 import { captureProductEvent } from '../../lib/analytics'
 import { formatShortDateTime } from '../../lib/format'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
+import { markdownExcerpt } from '../../lib/plainText'
+import { LEARNER_STATUS, STATUS_TONE_CLASSES, weeklyItemStatus } from '../../lib/learningStatus'
+import { StatusBadge, StatusIcon } from '../shared/StatusBadge'
 import type { WeeklyPlan, WeeklyPlanLessonItem } from '../../types/api'
 
 export function WeeklyPlanCard({ plan }: { plan: WeeklyPlan }) {
@@ -28,7 +31,9 @@ export function WeeklyPlanCard({ plan }: { plan: WeeklyPlan }) {
   if (!plan.enrolled) return null
   if (plan.mode === 'library' && plan.library_summary) return <LibraryPlan plan={plan} />
   if (!summary) return null
-  const completion = summary.required_count ? Math.round((summary.required_completed_count / summary.required_count) * 100) : 100
+  const hasRequired = summary.required_count > 0
+  const completion = hasRequired ? Math.round((summary.required_completed_count / summary.required_count) * 100) : 0
+  const awaitingReview = required.filter((item) => weeklyItemStatus(item) === 'awaiting_review').length
   const cohortQuery = plan.cohort?.id ? `?cohort_id=${plan.cohort.id}` : ''
 
   return (
@@ -40,10 +45,15 @@ export function WeeklyPlanCard({ plan }: { plan: WeeklyPlan }) {
             <h2 id="this-week-title" className="mt-1 text-2xl font-extrabold tracking-tight">This Week</h2>
             <p className="mt-1 text-sm text-slate-400">{weekRange(plan.starts_on, plan.ends_on)} · Required work stays clear even when you work ahead.</p>
           </div>
-          <div className="min-w-52">
-            <div className="flex items-center justify-between text-xs font-bold text-slate-300"><span>{summary.required_completed_count} of {summary.required_count} required done</span><span>{completion}%</span></div>
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-700"><div className="h-full rounded-full bg-primary-500 transition-all" style={{ width: `${completion}%` }} /></div>
-          </div>
+          {hasRequired ? (
+            <div className="min-w-52">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-300"><span>{summary.required_completed_count} of {summary.required_count} required submitted or done</span><span className="tabular-nums">{completion}%</span></div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-700" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={completion} aria-label="Required work this week"><div className="h-full rounded-full bg-slate-200 transition-[width] duration-300" style={{ width: `${completion}%` }} /></div>
+              {awaitingReview > 0 && <p className="mt-1.5 text-xs text-slate-400">{awaitingReview} awaiting your instructor's review</p>}
+            </div>
+          ) : (
+            <p className="text-xs font-bold text-slate-300">No required work is scheduled this week.</p>
+          )}
         </div>
       </div>
 
@@ -51,7 +61,7 @@ export function WeeklyPlanCard({ plan }: { plan: WeeklyPlan }) {
         <div className="p-5 sm:p-6 lg:border-r lg:border-slate-200">
           {(plan.redos || []).length > 0 && <PlanSection title="Redo first" icon={RotateCcw} tone="amber">
             {(plan.redos || []).map((redo) => <Link key={redo.id} to={`/lessons/${redo.lesson_id}${cohortQuery}`} className="group flex min-h-14 items-start gap-3 border-b border-amber-200 py-3 last:border-0">
-              <span className="mt-0.5 rounded-lg bg-amber-100 p-2"><RotateCcw className="h-4 w-4 text-amber-700" /></span><span className="min-w-0 flex-1"><span className="block text-sm font-extrabold text-slate-950">{redo.title}</span><span className="mt-0.5 block text-xs text-slate-600">{redo.lesson_title}{redo.state === 'closed' ? ' · submission window closed' : ''}</span>{redo.feedback && <span className="mt-1.5 line-clamp-2 block text-xs leading-5 text-slate-600">{redo.feedback}</span>}</span><ArrowRight className="mt-2 h-4 w-4 shrink-0 text-amber-600 transition-transform group-hover:translate-x-1" />
+              <span className="mt-0.5 rounded-lg bg-amber-100 p-2"><RotateCcw className="h-4 w-4 text-amber-700" /></span><span className="min-w-0 flex-1"><span className="block text-sm font-extrabold text-slate-950">{redo.title}</span><span className="mt-0.5 block text-xs text-slate-600">{redo.lesson_title}{redo.state === 'closed' ? ' · submission window closed' : ''}</span>{redo.feedback && <span className="mt-1.5 line-clamp-2 block text-xs leading-5 text-slate-600">{markdownExcerpt(redo.feedback)}</span>}</span><ArrowRight className="mt-2 h-4 w-4 shrink-0 text-amber-600 transition-transform group-hover:translate-x-1" />
             </Link>)}
           </PlanSection>}
 
@@ -111,8 +121,8 @@ function LessonGroups({ items, cohortQuery }: { items: WeeklyPlanLessonItem[]; c
 }
 
 function LessonRow({ item, cohortQuery }: { item: WeeklyPlanLessonItem; cohortQuery: string }) {
-  const closed = item.state === 'closed'
-  return <Link to={`/lessons/${item.lesson_id}${cohortQuery}`} className="group flex min-h-14 items-center gap-3 border-b border-slate-200 py-3 last:border-0"><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${item.state === 'completed' ? 'bg-green-100 text-green-700' : item.state === 'upcoming' ? 'bg-slate-100 text-slate-500' : closed ? 'bg-red-50 text-red-700' : 'bg-primary-50 text-primary-700'}`}>{item.state === 'completed' ? <Check className="h-4 w-4" /> : item.state === 'upcoming' ? <Clock3 className="h-4 w-4" /> : closed ? <LockKeyhole className="h-4 w-4" /> : <CircleAlert className="h-4 w-4" />}</span><span className="min-w-0 flex-1"><span className="block text-sm font-extrabold text-slate-950">{item.title}</span><span className="mt-0.5 block text-xs text-slate-500">{item.module_title} · {item.carried_forward ? 'Open from earlier' : dateLabel(item.scheduled_for)}{item.submission_close_at ? ` · closes ${formatShortDateTime(item.submission_close_at)}` : ''}</span></span><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-extrabold uppercase tracking-wide text-slate-600">{item.state}</span><ArrowRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:translate-x-1" /></Link>
+  const status = weeklyItemStatus(item)
+  return <Link to={`/lessons/${item.lesson_id}${cohortQuery}`} className="group flex min-h-14 items-center gap-3 border-b border-slate-200 py-3 last:border-0"><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${STATUS_TONE_CLASSES[LEARNER_STATUS[status].tone]}`}><StatusIcon status={status} /></span><span className="min-w-0 flex-1"><span className="block text-sm font-extrabold text-slate-950">{item.title}</span><span className="mt-0.5 block text-xs text-slate-500">{item.module_title} · {item.carried_forward ? 'Open from earlier' : dateLabel(item.scheduled_for)}{item.submission_close_at ? ` · closes ${formatShortDateTime(item.submission_close_at)}` : ''}</span>{status !== 'open' && <span className="mt-1.5 block sm:hidden"><StatusBadge status={status} /></span>}</span><span className="hidden sm:block"><StatusBadge status={status} /></span><ArrowRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:translate-x-1" /></Link>
 }
 
 function PlanSection({ title, icon: Icon, children, tone, subtle }: { title: string; icon: typeof CircleAlert; children: ReactNode; tone?: 'amber'; subtle?: boolean }) { return <div className={`mb-6 last:mb-0 ${tone === 'amber' ? 'rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3' : subtle ? 'rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3' : ''}`}><h3 className={`mb-2 flex items-center gap-2 text-sm font-extrabold ${tone === 'amber' ? 'text-amber-900' : 'text-slate-950'}`}><Icon className={`h-4 w-4 ${tone === 'amber' ? 'text-amber-700' : 'text-primary-600'}`} />{title}</h3>{children}</div> }

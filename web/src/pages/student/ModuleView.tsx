@@ -7,6 +7,8 @@ import { useAuthContext } from '../../contexts/AuthContext'
 import { formatShortDateTime } from '../../lib/format'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
+import { StatusBadge } from '../../components/shared/StatusBadge'
+import { learnerLessonStatus, type ReviewStatus } from '../../lib/learningStatus'
 
 interface ModuleData {
   id: number
@@ -42,7 +44,7 @@ export function ModuleView() {
   const { user } = useAuthContext()
   const [mod, setMod] = useState<ModuleData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [progressData, setProgressData] = useState<Record<number, { status: string; completedBlocks: number; totalBlocks: number; submissionWindow?: { submissions_close_at: string | null; submissions_closed: boolean } }>>({})
+  const [progressData, setProgressData] = useState<Record<number, { status: string; completedBlocks: number; totalBlocks: number; reviewStatus?: ReviewStatus; submissionWindow?: { submissions_close_at: string | null; submissions_closed: boolean } }>>({})
   const [moduleProgress, setModuleProgress] = useState<{ completedBlocks: number; totalBlocks: number } | null>(null)
 
   useEffect(() => {
@@ -68,12 +70,13 @@ export function ModuleView() {
       if (dashRes.data?.dashboard?.modules) {
         const targetMod = dashRes.data.dashboard.modules.find((m: any) => m.id === Number(id))
         if (targetMod) {
-          const map: Record<number, { status: string; completedBlocks: number; totalBlocks: number; submissionWindow?: { submissions_close_at: string | null; submissions_closed: boolean } }> = {}
+          const map: Record<number, { status: string; completedBlocks: number; totalBlocks: number; reviewStatus?: ReviewStatus; submissionWindow?: { submissions_close_at: string | null; submissions_closed: boolean } }> = {}
           targetMod.lessons.forEach((l: any) => {
             map[l.id] = {
               status: l.completed ? 'completed' : l.available ? 'available' : 'locked',
               completedBlocks: l.completed_blocks || 0,
               totalBlocks: l.total_blocks || 0,
+              reviewStatus: l.review_status,
               submissionWindow: l.submission_window,
             }
           })
@@ -165,6 +168,14 @@ export function ModuleView() {
                             const isCompleted = lessonProgress?.status === 'completed'
                             const isPartial = !isCompleted && (lessonProgress?.completedBlocks || 0) > 0
                             const submissionWindow = lessonProgress?.submissionWindow
+                            const blockCount = lessonProgress?.totalBlocks || lesson.content_blocks.length
+                            const status = lessonProgress ? learnerLessonStatus({
+                              completed: isCompleted,
+                              submissionsClosed: submissionWindow?.submissions_closed,
+                              reviewStatus: lessonProgress.reviewStatus,
+                              partial: isPartial,
+                            }) : null
+                            const isDone = status === 'done'
 
                             return (
                               <Link
@@ -172,39 +183,29 @@ export function ModuleView() {
                                 to={`/lessons/${lesson.id}${cohortQuery}`}
                                 className="group flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition duration-200 hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-md hover:shadow-slate-900/5 sm:items-center"
                               >
-                                <div className={`shrink-0 ${isCompleted ? 'text-success-500' : 'text-slate-400'}`}>
-                                  {isCompleted ? <CheckCircle2 className="h-5 w-5" /> : lessonTypeIcons[lesson.lesson_type] || <FileText className="h-5 w-5" />}
+                                <div className={`shrink-0 ${isDone ? 'text-success-700' : 'text-slate-400'}`}>
+                                  {isDone ? <CheckCircle2 className="h-5 w-5" /> : lessonTypeIcons[lesson.lesson_type] || <FileText className="h-5 w-5" />}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className={`text-sm font-medium ${isCompleted ? 'text-slate-500' : 'text-slate-900'}`}>
+                                  <p className={`text-sm font-medium ${isDone ? 'text-slate-600' : 'text-slate-900'}`}>
                                     {lesson.title}
                                   </p>
                                   <div className="mt-0.5 flex flex-wrap items-center gap-2">
                                     <span className="text-xs text-slate-400 capitalize">{lesson.lesson_type}</span>
-                                    <span className="text-xs text-slate-400">· {(lessonProgress?.totalBlocks || lesson.content_blocks.length)} blocks</span>
-                                    {isPartial && (
-                                      <span className="text-xs font-medium text-amber-600">
+                                    <span className="text-xs text-slate-500">· {blockCount} {blockCount === 1 ? 'block' : 'blocks'}</span>
+                                    {isPartial && status === 'in_progress' && (
+                                      <span className="text-xs font-medium text-slate-600">
                                         · {lessonProgress?.completedBlocks}/{lessonProgress?.totalBlocks} done
                                       </span>
                                     )}
                                     {submissionWindow?.submissions_close_at && (
-                                      <span className={`text-xs font-medium ${submissionWindow.submissions_closed ? 'text-red-600' : 'text-slate-400'}`}>
+                                      <span className="text-xs font-medium text-slate-500">
                                         · {submissionWindow.submissions_closed ? 'submissions closed' : 'submissions close'} {formatShortDateTime(submissionWindow.submissions_close_at)}
                                       </span>
                                     )}
                                   </div>
                                 </div>
-                                {submissionWindow?.submissions_closed && (
-                                  <span className="text-xs font-medium text-red-700 bg-red-50 px-2 py-0.5 rounded-full">Closed</span>
-                                )}
-                                {isCompleted && (
-                                  <span className="text-xs font-medium text-success-600 bg-success-50 px-2 py-0.5 rounded-full">Done</span>
-                                )}
-                                {isPartial && (
-                                  <span className="text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
-                                    {lessonProgress?.completedBlocks}/{lessonProgress?.totalBlocks} done
-                                  </span>
-                                )}
+                                {status && status !== 'open' && <StatusBadge status={status} short />}
                               </Link>
                             )
                           })}

@@ -7,7 +7,7 @@ const gradeColors: Record<string, string> = {
   A: 'bg-success-100 text-success-700 border-success-200',
   B: 'bg-blue-100 text-blue-700 border-blue-200',
   C: 'bg-amber-100 text-amber-700 border-amber-200',
-  R: 'bg-primary-100 text-primary-700 border-primary-200',
+  R: 'bg-warning-50 text-warning-800 border-warning-200',
 }
 
 const gradeLabels: Record<string, string> = {
@@ -28,7 +28,7 @@ export function GradeDisplay({ grade, size = 'md' }: GradeDisplayProps) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-lg border font-semibold ${gradeColors[grade] || 'bg-slate-100 text-slate-700 border-slate-200'} ${sizeClasses[size]}`}
+      className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg border font-semibold ${gradeColors[grade] || 'bg-slate-100 text-slate-700 border-slate-200'} ${sizeClasses[size]}`}
     >
       {grade}
       {size !== 'sm' && <span className="font-normal opacity-75">· {gradeLabels[grade]}</span>}

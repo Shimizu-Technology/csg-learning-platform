@@ -112,3 +112,43 @@ describe('Dashboard alumni preview', () => {
     expect(container.textContent).not.toContain('5available lessons')
   })
 })
+
+describe('Dashboard empty and review states', () => {
+  it('says the course is not open (never 100% or caught up) when nothing is assigned', () => {
+    const html = renderToStaticMarkup(
+      <MemoryRouter>
+        <Dashboard previewData={{ ...previewData, overall_progress: { completed: 0, total: 0, percentage: 0 }, modules: [], continue_lesson: null }} previewWeeklyPlan={null} disableStaffRedirect />
+      </MemoryRouter>,
+    )
+
+    expect(html).toContain('Your course isn’t open yet')
+    expect(html).toContain('Message your instructor')
+    expect(html).not.toContain('caught up')
+    expect(html).not.toContain('100%')
+    expect(html).not.toContain('0 of 0')
+  })
+
+  it('says work is awaiting review instead of calling the learner caught up', () => {
+    const module = previewData.modules![0]
+    const html = renderToStaticMarkup(
+      <MemoryRouter>
+        <Dashboard previewData={{ ...previewData, modules: [{ ...module, lessons: [{ ...module.lessons[0], completed: true, review_status: 'awaiting_review' }] }] }} previewWeeklyPlan={null} disableStaffRedirect />
+      </MemoryRouter>,
+    )
+
+    expect(html).toContain('Your instructor is reviewing one piece of work')
+    expect(html).not.toContain('caught up')
+  })
+
+  it('shows redo feedback as a plain-text excerpt', () => {
+    const html = renderToStaticMarkup(
+      <MemoryRouter>
+        <Dashboard previewData={{ ...previewData, action_items: [{ type: 'redo', submission_id: 1, lesson_id: 239, lesson_title: 'E2', content_block_title: 'E2', feedback: 'Explain *why* with **one** sentence.\n\n```python\nprint(x)\n```' }] }} previewWeeklyPlan={null} disableStaffRedirect />
+      </MemoryRouter>,
+    )
+
+    expect(html).toContain('Explain why with one sentence. print(x)')
+    expect(html).not.toContain('*why*')
+    expect(html).not.toContain('```')
+  })
+})

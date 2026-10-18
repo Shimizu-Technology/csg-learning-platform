@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import Player, { type VimeoUrl } from '@vimeo/player'
-import { Play, FileText, Code, CheckCircle2, Circle, ChevronDown, ChevronUp, Send, BadgeCheck, RotateCcw, ExternalLink, Globe, GitBranch, Lock } from 'lucide-react'
+import { Play, FileText, Code, CheckCircle2, Circle, ChevronDown, ChevronUp, Send, RotateCcw, ExternalLink, Globe, GitBranch, Lock, RefreshCw, History } from 'lucide-react'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { GradeDisplay } from './GradeDisplay'
+import { FeedbackBody } from './FeedbackBody'
+import { StatusBadge } from './StatusBadge'
 import { CodeEditor, detectLanguage } from './CodeEditor'
 import { CodeRunner } from './CodeRunner'
 import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
@@ -13,6 +15,10 @@ import { CODE_RUNNER_TIMEOUT_MS, codeRunnerLanguageFromEditor, normalizeCodeRunn
 import { formatShortDateTime } from '../../lib/format'
 import { useToast } from '../../contexts/ToastContext'
 import { analyticsAgeBucket, captureProductEvent } from '../../lib/analytics'
+import { useAuthContext } from '../../contexts/AuthContext'
+import { submissionStatus } from '../../lib/learningStatus'
+import { clearSubmissionDraft, readSubmissionDraft, submissionDraftKey, writeSubmissionDraft } from '../../lib/submissionDrafts'
+import { friendlySaveError } from '../../lib/friendlyError'
 import { isVideoSegmentSeekPosition, normalizeVideoSegments, playbackStart, type VideoSegment } from '../../lib/videoSegments'
 
 interface ContentBlock {
@@ -77,10 +83,12 @@ function getVimeoEmbed(url: string): { id: string; hash?: string } | null {
 
 export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub, requiresSubmission = true, repositoryName, submissionsLocked = false, submissionsCloseAt, submissionWeekNumber, analyticsContext, onProgressUpdate }: ContentBlockRendererProps) {
   const toast = useToast()
+  const { user } = useAuthContext()
+  const draftKey = submissionDraftKey({ userId: user?.id, cohortId, blockId: block.id })
+  const [restoredDraftAt, setRestoredDraftAt] = useState<string | null>(null)
   const submissions = block.submissions ?? []
   const latestSubmission = submissions[0] || null
   const hasRedoRequest = latestSubmission?.grade === 'R'
-  const hasPassingGrade = submissions.some((s) => s.grade !== null && s.grade !== 'R')
   const [isCompleted, setIsCompleted] = useState(block.progress?.status === 'completed')
   const [showSolution, setShowSolution] = useState(false)
   const [submissionText, setSubmissionText] = useState('')
@@ -93,6 +101,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
   const [showAdvancedRepoFields, setShowAdvancedRepoFields] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submissionError, setSubmissionError] = useState<string | null>(null)
+  const [submissionRetryable, setSubmissionRetryable] = useState(false)
   const [submissionSuccess, setSubmissionSuccess] = useState<string | null>(null)
   const [hasEditedSubmissionDraft, setHasEditedSubmissionDraft] = useState(false)
   const [knowledgeCheckDraft, setKnowledgeCheckDraft] = useState<{ blockId: number; value: NonNullable<ContentBlock['knowledge_check']> } | null>(null)
@@ -132,18 +141,23 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
   }, [analyticsContext, latestSubmission?.grade, latestSubmission?.graded_at, latestSubmission?.id])
 
   const isExerciseType = block.block_type === 'exercise' || block.block_type === 'code_challenge'
+  // Checkpoints with an explicit reviewed submission type (the Python pilot's
+  // weekly checkpoints) are graded work, exactly like an exercise.
+  const isSubmissionCheckpoint = block.block_type === 'checkpoint' && !knowledgeCheck &&
+    ['text_submission', 'repo_url_submission', 'repo_and_live_url_submission'].includes(block.submission_type || '')
+  const isWorkBlock = isExerciseType || isSubmissionCheckpoint
   const detectedLang = detectLanguage(block.filename, block.metadata?.language)
   const runnerFallbackLanguage = codeRunnerLanguageFromEditor(detectedLang) || 'ruby'
   const runnerConfig = normalizeCodeRunnerConfig(block.submission_config, runnerFallbackLanguage)
   const submissionType = block.submission_type || (requiresSubmission ? (requiresGithub ? 'prework_github_sync' : 'text_submission') : 'manual_complete')
   const usesManualExerciseCompletion = isExerciseType && submissionType === 'manual_complete'
   const usesGithubSyncSubmission = isExerciseType && submissionType === 'prework_github_sync'
-  const usesTextSubmission = isExerciseType && submissionType === 'text_submission'
-  const usesRepoArtifactSubmission = isExerciseType && (submissionType === 'repo_url_submission' || submissionType === 'repo_and_live_url_submission')
+  const usesTextSubmission = isWorkBlock && submissionType === 'text_submission'
+  const usesRepoArtifactSubmission = isWorkBlock && (submissionType === 'repo_url_submission' || submissionType === 'repo_and_live_url_submission')
   const requiresLiveUrl = submissionType === 'repo_and_live_url_submission'
-  const workLocked = submissionsLocked && (isExerciseType || (block.block_type === 'checkpoint' && !knowledgeCheck))
+  const workLocked = submissionsLocked && (isWorkBlock || (block.block_type === 'checkpoint' && !knowledgeCheck))
+  const latestStatus = submissionStatus(latestSubmission)
   const lockCopy = submissionWeekNumber ? `Week ${submissionWeekNumber} submissions are closed` : 'Submissions are closed'
-  const hasUngradedSubmission = submissions.length > 0 && !hasRedoRequest && !hasPassingGrade
   const videoSegments = useMemo(() => normalizeVideoSegments(block.metadata), [block.metadata])
   const deepLinkedPosition = useMemo(() => {
     if (typeof window === 'undefined') return null
@@ -184,6 +198,27 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
   useEffect(() => {
     if (hasEditedSubmissionDraft) return
 
+    // A draft kept on this device (after a failed submit, a reload, or leaving
+    // the page) wins over the last saved submission.
+    const draft = !isStaff && (usesTextSubmission || usesRepoArtifactSubmission) ? readSubmissionDraft(draftKey) : null
+    const draftDiffers = draft && (usesTextSubmission
+      ? (draft.text ?? '') !== (latestSubmission?.text ?? '')
+      : (draft.repoUrl ?? '') !== (latestSubmission?.repo_url ?? '') || (draft.liveUrl ?? '') !== (latestSubmission?.live_url ?? '') || (draft.notes ?? '') !== (latestSubmission?.notes ?? ''))
+    if (draft && draftDiffers) {
+      setSubmissionText(draft.text ?? '')
+      setRepoUrl(draft.repoUrl ?? '')
+      setPrUrl(draft.prUrl ?? '')
+      setLiveUrl(draft.liveUrl ?? '')
+      setBranchName(draft.branch ?? '')
+      setCommitSha(draft.commitSha ?? '')
+      setSubmissionNotes(draft.notes ?? '')
+      setShowAdvancedRepoFields(Boolean(draft.prUrl || draft.branch || draft.commitSha))
+      setRestoredDraftAt(draft.savedAt)
+      setHasEditedSubmissionDraft(true)
+      return
+    }
+    if (draft) clearSubmissionDraft(draftKey)
+
     setSubmissionText(usesTextSubmission ? latestSubmission?.text ?? '' : '')
     setRepoUrl(usesRepoArtifactSubmission ? latestSubmission?.repo_url ?? '' : '')
     setPrUrl(usesRepoArtifactSubmission ? latestSubmission?.pr_url ?? '' : '')
@@ -200,13 +235,37 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
         (!requiresLiveUrl && latestSubmission?.live_url)
       )
     ))
-  }, [block.id, hasEditedSubmissionDraft, latestSubmission?.id, requiresLiveUrl, usesRepoArtifactSubmission, usesTextSubmission])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [block.id, draftKey, hasEditedSubmissionDraft, isStaff, latestSubmission?.id, requiresLiveUrl, usesRepoArtifactSubmission, usesTextSubmission])
 
+  const resetBlockIdRef = useRef(block.id)
   useEffect(() => {
+    // Only reset when the renderer is reused for a different block; on mount
+    // the draft-restore effect above has already set the initial state.
+    if (resetBlockIdRef.current === block.id) return
+    resetBlockIdRef.current = block.id
     setHasEditedSubmissionDraft(false)
     setSubmissionError(null)
     setSubmissionSuccess(null)
+    setRestoredDraftAt(null)
   }, [block.id])
+
+  useEffect(() => {
+    if (isStaff || !hasEditedSubmissionDraft || !(usesTextSubmission || usesRepoArtifactSubmission)) return
+    const timer = window.setTimeout(() => {
+      writeSubmissionDraft(draftKey, usesTextSubmission
+        ? { text: submissionText }
+        : { repoUrl, prUrl, liveUrl, branch: branchName, commitSha, notes: submissionNotes })
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [branchName, commitSha, draftKey, hasEditedSubmissionDraft, isStaff, liveUrl, prUrl, repoUrl, submissionNotes, submissionText, usesRepoArtifactSubmission, usesTextSubmission])
+
+  const discardDraft = () => {
+    clearSubmissionDraft(draftKey)
+    setRestoredDraftAt(null)
+    setSubmissionError(null)
+    setHasEditedSubmissionDraft(false)
+  }
 
   const markVideoCompleted = useCallback(async () => {
     if (isStaff) return
@@ -418,6 +477,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
     if (isStaff) return
 
     setSubmissionError(null)
+    setSubmissionRetryable(false)
     setSubmissionSuccess(null)
 
     if (workLocked) {
@@ -455,9 +515,17 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
       } : {}),
     })
     if (res.error) {
-      setSubmissionError(res.error)
-      toast.error(res.error)
+      const message = friendlySaveError(res, isSubmissionCheckpoint ? 'your checkpoint' : 'your submission')
+      setSubmissionError(message)
+      setSubmissionRetryable(res.errorKind === 'network' || res.errorKind === 'timeout' || res.errorKind === 'server')
+      // Keep the draft on this device right away so a reload cannot lose it.
+      writeSubmissionDraft(draftKey, usesTextSubmission
+        ? { text: submissionText }
+        : { repoUrl, prUrl, liveUrl, branch: branchName, commitSha, notes: submissionNotes })
+      toast.error(isSubmissionCheckpoint ? 'Your checkpoint was not sent yet.' : 'Your submission was not sent yet.')
     } else {
+      clearSubmissionDraft(draftKey)
+      setRestoredDraftAt(null)
       setHasEditedSubmissionDraft(false)
       const savedSubmission = res.data?.submission
       const attempt = savedSubmission?.num_submissions || (latestSubmission?.num_submissions || 0) + 1
@@ -478,7 +546,9 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
         block_type: block.block_type,
         source: 'submission',
       })
-      const message = latestSubmission ? 'Resubmission saved successfully.' : 'Submission saved successfully.'
+      const message = latestSubmission
+        ? 'Resubmitted. Your instructor will review it and reply here.'
+        : 'Submitted. Your instructor will review it and reply here.'
       setSubmissionSuccess(message)
       toast.success(message)
       onProgressUpdate?.()
@@ -576,33 +646,41 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
     )
   }
 
+  const submissionStatusMessage = (submissionError || submissionSuccess || restoredDraftAt) ? (
+    <div aria-live="polite" className="space-y-2">
+      {restoredDraftAt && !submissionError && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-info-50 bg-info-50 px-3 py-2 text-sm text-info-800">
+          <p>Restored your unsent draft from {formatShortDateTime(restoredDraftAt, 'earlier')}.</p>
+          <button type="button" onClick={discardDraft} className="min-h-9 rounded-lg px-2 text-xs font-semibold underline underline-offset-2 hover:bg-white/60">Discard draft</button>
+        </div>
+      )}
+      {submissionError && (
+        <div role="alert" className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700">
+          <p className="min-w-0 flex-1">{submissionError}</p>
+          {submissionRetryable && (
+            <button type="button" onClick={() => void handleSubmit()} disabled={isSubmitting} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-danger-200 bg-white px-3 text-xs font-semibold text-danger-700 hover:bg-danger-50 disabled:opacity-50">
+              <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+              Try again
+            </button>
+          )}
+        </div>
+      )}
+      {submissionSuccess && !submissionError && (
+        <div className="rounded-lg border border-success-200 bg-success-50 px-3 py-2 text-sm text-success-700">{submissionSuccess}</div>
+      )}
+    </div>
+  ) : null
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-      <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 border-b border-slate-200">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 bg-slate-50 border-b border-slate-200">
         <div className="text-slate-500">{blockIcons[block.block_type]}</div>
         <span className="text-sm font-medium text-slate-700 capitalize">{block.block_type.replace('_', ' ')}</span>
-        {block.title && <span className="text-sm text-slate-500">· {block.title}</span>}
-        {hasRedoRequest && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-orange-50 border border-orange-200 px-2 py-0.5 text-xs font-medium text-orange-700">
-            <RotateCcw className="h-3.5 w-3.5" />
-            Redo Requested
-          </span>
-        )}
-        {!hasRedoRequest && hasPassingGrade && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-success-50 border border-success-200 px-2 py-0.5 text-xs font-medium text-success-700">
-            <BadgeCheck className="h-3.5 w-3.5" />
-            Graded
-          </span>
-        )}
-        {hasUngradedSubmission && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-xs font-medium text-amber-700">
-            <Send className="h-3.5 w-3.5" />
-            Submitted
-          </span>
-        )}
+        {block.title && <span className="min-w-0 text-sm text-slate-500">· {block.title}</span>}
+        {latestStatus && <StatusBadge status={latestStatus} />}
         {workLocked && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-red-50 border border-red-200 px-2 py-0.5 text-xs font-medium text-red-700">
-            <Lock className="h-3.5 w-3.5" />
+          <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600">
+            <Lock className="h-3.5 w-3.5" aria-hidden="true" />
             Submissions closed
           </span>
         )}
@@ -622,31 +700,24 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                 <Circle className="h-5 w-5 text-slate-300 hover:text-slate-400" />
               )}
             </button>
-          ) : isExerciseType ? (
-            hasPassingGrade ? (
-              <CheckCircle2 className="h-5 w-5 text-success-500" />
-            ) : hasRedoRequest ? (
-              <RotateCcw className="h-4 w-4 text-orange-500" />
-            ) : submissions.length > 0 ? (
-              <Circle className="h-5 w-5 text-amber-400" />
-            ) : (
-              <Circle className="h-5 w-5 text-slate-200" />
-            )
-          ) : knowledgeCheck ? (
+          ) : isWorkBlock ? null : knowledgeCheck ? (
             isCompleted || knowledgeCheck.latest_attempt?.correct
-              ? <CheckCircle2 className="h-5 w-5 text-success-500" />
-              : <Circle className="h-5 w-5 text-slate-300" />
+              ? <span role="img" aria-label="Check complete"><CheckCircle2 className="h-5 w-5 text-success-700" aria-hidden="true" /></span>
+              : <span role="img" aria-label="Check not answered yet"><Circle className="h-5 w-5 text-slate-400" aria-hidden="true" /></span>
           ) : (
             <button
+              type="button"
               onClick={handleToggleComplete}
               disabled={workLocked && !isCompleted}
-              className="flex items-center gap-1.5 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              aria-pressed={isCompleted}
+              className="flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isCompleted ? (
-                <CheckCircle2 className="h-5 w-5 text-success-500" />
+                <CheckCircle2 className="h-5 w-5 text-success-700" aria-hidden="true" />
               ) : (
-                <Circle className="h-5 w-5 text-slate-300 hover:text-slate-400" />
+                <Circle className="h-5 w-5 text-slate-400" aria-hidden="true" />
               )}
+              {isCompleted ? 'Done' : 'Mark done'}
             </button>
           )}
         </div>
@@ -799,15 +870,15 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
           </div>
         )}
 
-        {!isStaff && (block.block_type === 'exercise' || block.block_type === 'code_challenge') && submissionType !== 'manual_complete' && (
+        {!isStaff && isWorkBlock && submissionType !== 'manual_complete' && (
           <div className="mt-4 space-y-3">
             {workLocked && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <div className="flex items-start gap-2">
-                  <Lock className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+                  <Lock className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
                   <div>
-                    <p className="text-sm font-semibold text-red-800">{lockCopy}</p>
-                    <p className="mt-1 text-xs leading-5 text-red-700">
+                    <p className="text-sm font-semibold text-slate-900">{lockCopy}</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">
                       Closed {formatShortDateTime(submissionsCloseAt, 'the close time')}. Existing submissions and feedback remain visible, but new submissions and redo resubmissions are disabled.
                     </p>
                   </div>
@@ -815,30 +886,36 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
               </div>
             )}
             {latestSubmission?.grade && (
-              <div className={`rounded-xl border px-4 py-3 ${
-                hasRedoRequest ? 'border-orange-200 bg-orange-50' : 'border-success-200 bg-success-50'
-              }`}>
+              <div className={`rounded-xl border px-4 py-3 ${hasRedoRequest ? 'border-warning-200 bg-warning-50' : 'border-success-200 bg-success-50'}`}>
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1">
-                    <p className={`text-xs font-semibold uppercase tracking-wide ${
-                      hasRedoRequest ? 'text-orange-700' : 'text-success-700'
-                    }`}>
-                      {hasRedoRequest ? 'Redo requested — please review and resubmit' : 'Latest submission graded'}
+                  <div className="min-w-0 flex-1">
+                    <p className={`flex items-center gap-1.5 text-sm font-semibold ${hasRedoRequest ? 'text-warning-800' : 'text-success-700'}`}>
+                      {hasRedoRequest ? <RotateCcw className="h-4 w-4 shrink-0" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />}
+                      {hasRedoRequest ? 'Redo requested — read the feedback, then resubmit below' : 'Reviewed by your instructor'}
                     </p>
-                    {latestSubmission.feedback && (
-                      <div className={`mt-2 rounded-lg border p-3 ${
-                        hasRedoRequest ? 'border-orange-200 bg-white' : 'border-success-200 bg-white'
-                      }`}>
-                        <p className="text-sm text-slate-800 whitespace-pre-wrap">{latestSubmission.feedback}</p>
+                    {latestSubmission.feedback ? (
+                      <div className="mt-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                        <FeedbackBody feedback={latestSubmission.feedback} />
                       </div>
-                    )}
+                    ) : hasRedoRequest ? (
+                      <p className="mt-1 text-sm text-slate-700">Review the instructions and try again. Message your instructor if you are not sure what to change.</p>
+                    ) : null}
                   </div>
                   <GradeDisplay grade={latestSubmission.grade} size="md" />
                 </div>
               </div>
             )}
+            {latestStatus === 'awaiting_review' && (
+              <div className="flex items-start gap-2 rounded-xl border border-pending-200 bg-pending-50 px-4 py-3 text-sm text-pending-700">
+                <History className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <p><span className="font-semibold">Submitted · awaiting review.</span> Your instructor will reply here. You can still revise and resubmit before they review it.</p>
+              </div>
+            )}
             {block.submissions && block.submissions.length > 0 && (
               <div className="space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  {block.submissions.length === 1 ? 'Your submission' : `Your submissions (${block.submissions.length})`}
+                </p>
                 {block.submissions.map((sub, idx) => {
                   const isLatest = idx === 0
                   const isRedo = sub.grade === 'R'
@@ -846,39 +923,18 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                   return (
                     <div
                       key={sub.id}
-                      className={`rounded-xl border p-4 ${
-                        isLatest && isRedo
-                          ? 'border-orange-200 bg-orange-50'
-                          : isLatest && isGraded
-                          ? 'border-success-200 bg-success-50'
-                          : isLatest
-                          ? 'border-primary-200 bg-primary-50'
-                          : 'border-slate-200 bg-slate-50'
-                      }`}
+                      className={`rounded-xl border p-4 ${isLatest ? 'border-slate-200 bg-white' : 'border-slate-200 bg-slate-50'}`}
                     >
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="text-xs font-medium text-slate-500">
+                      <div className="mb-3 flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-medium text-slate-600">
                           Submission #{sub.num_submissions}
                         </span>
-                        <span className="text-xs text-slate-400">
+                        <span className="text-xs text-slate-500">
                           {new Date(sub.created_at).toLocaleDateString()}
                         </span>
-                        {isLatest && (
-                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                            isRedo
-                              ? 'text-orange-700 bg-orange-100'
-                              : isGraded
-                              ? 'text-green-700 bg-green-100'
-                              : 'text-primary-600 bg-primary-100'
-                          }`}>
-                            Latest
-                          </span>
-                        )}
-                        {!isLatest && (
-                          <span className="text-xs font-medium text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full">
-                            Previous
-                          </span>
-                        )}
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                          {isLatest ? 'Latest' : 'Previous'}
+                        </span>
                         {isGraded && <GradeDisplay grade={sub.grade} size="md" />}
                       </div>
 
@@ -899,23 +955,24 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
 
                       {submissionArtifacts(sub)}
 
-                      {isGraded && (sub.feedback || isRedo) && (
-                        <div className={`mt-3 rounded-lg border bg-white p-3 ${isRedo ? 'border-orange-200' : 'border-success-200'}`}>
-                          <div className="flex items-center justify-between mb-1">
-                            <p className={`text-xs font-semibold ${isRedo ? 'text-orange-700' : 'text-success-700'}`}>
-                              {isRedo ? 'Instructor Feedback — Redo' : 'Instructor Feedback'}
+                      {/* The latest feedback is shown once, in the card above. */}
+                      {!isLatest && isGraded && (sub.feedback || isRedo) && (
+                        <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
+                          <div className="mb-1 flex items-center justify-between gap-2">
+                            <p className="text-xs font-semibold text-slate-600">
+                              {isRedo ? 'Earlier feedback · redo requested' : 'Earlier feedback'}
                             </p>
                             {sub.graded_at && (
-                              <p className="text-xs text-slate-400">
+                              <p className="text-xs text-slate-500">
                                 {new Date(sub.graded_at).toLocaleDateString()}
                               </p>
                             )}
                           </div>
                           {sub.feedback ? (
-                            <p className="text-sm text-slate-700 whitespace-pre-wrap">{sub.feedback}</p>
-                          ) : isRedo ? (
-                            <p className="text-xs text-slate-400 italic">Please review the exercise instructions and try again.</p>
-                          ) : null}
+                            <FeedbackBody feedback={sub.feedback} />
+                          ) : (
+                            <p className="text-xs italic text-slate-500">No written feedback.</p>
+                          )}
                         </div>
                       )}
                     </div>
@@ -954,6 +1011,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                   language={detectedLang}
                   minHeight={240}
                   readOnly={workLocked}
+                  showKeyboardHelp
                 />
                 {runnerConfig.enabled && (
                   <CodeRunner
@@ -962,30 +1020,16 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                     timeoutMs={CODE_RUNNER_TIMEOUT_MS}
                   />
                 )}
-                {(submissionError || submissionSuccess) && (
-                  <div
-                    aria-live="polite"
-                    className={`rounded-lg border px-3 py-2 text-sm ${
-                      submissionError
-                        ? 'border-red-200 bg-red-50 text-red-700'
-                        : 'border-success-200 bg-success-50 text-success-700'
-                    }`}
-                  >
-                    {submissionError || submissionSuccess}
-                  </div>
-                )}
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-slate-400">
-                    {detectedLang.charAt(0).toUpperCase() + detectedLang.slice(1)}
-                    {' · '}Tab = 2 spaces
-                  </p>
+                {submissionStatusMessage}
+                <div className="flex items-center justify-end">
                   <button
-                    onClick={handleSubmit}
+                    type="button"
+                    onClick={() => void handleSubmit()}
                     disabled={workLocked || isSubmitting || !submissionText.trim()}
-                    className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-ruby-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-ruby-700 active:bg-ruby-800 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <Send className="h-4 w-4" />
-                    {workLocked ? 'Closed' : isSubmitting ? 'Submitting…' : 'Submit'}
+                    <Send className="h-4 w-4" aria-hidden="true" />
+                    {workLocked ? 'Closed' : isSubmitting ? 'Submitting…' : latestSubmission ? (isSubmissionCheckpoint ? 'Resubmit checkpoint' : 'Resubmit') : (isSubmissionCheckpoint ? 'Submit checkpoint' : 'Submit')}
                   </button>
                 </div>
               </div>
@@ -1090,18 +1134,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                     </div>
                   )}
                 </div>
-                {(submissionError || submissionSuccess) && (
-                  <div
-                    aria-live="polite"
-                    className={`rounded-lg border px-3 py-2 text-sm ${
-                      submissionError
-                        ? 'border-red-200 bg-red-50 text-red-700'
-                        : 'border-success-200 bg-success-50 text-success-700'
-                    }`}
-                  >
-                    {submissionError || submissionSuccess}
-                  </div>
-                )}
+                {submissionStatusMessage}
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-slate-400">
                     {requiresLiveUrl
