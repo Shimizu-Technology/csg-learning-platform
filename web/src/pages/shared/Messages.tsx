@@ -3237,17 +3237,16 @@ export function Messages() {
             <div className="min-h-0 min-w-0 rounded-lg bg-slate-50/70 sm:rounded-xl">
               <EditorContent editor={editor} />
             </div>
-            {pasteNotice && editor && editor.state.doc === pasteNotice.doc && (
+            {pasteNotice && editor && editor.state.doc.eq(pasteNotice.doc) && (
               <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-600" role="status">
                 <span>{pasteNotice.mode === 'code' ? 'Pasted as code so the indentation stays.' : 'Pasted as text.'}</span>
                 <span className="flex items-center gap-1">
                   <button
                     type="button"
-                    onPointerDown={(event) => event.preventDefault()}
                     onClick={() => {
                       const notice = pasteNotice
                       setPasteNotice(null)
-                      if (!editor || editor.state.doc !== notice.doc) return
+                      if (!editor || !editor.state.doc.eq(notice.doc)) return
                       editor.commands.undo()
                       if (notice.mode === 'code') {
                         editor.chain().focus().insertContent(notice.text.split('\n').map((line) => ({ type: 'paragraph', content: line ? [{ type: 'text', text: line }] : [] }))).run()
@@ -3255,6 +3254,8 @@ export function Messages() {
                         insertPastedCodeBlock(editor.view, notice.text)
                         editor.commands.focus()
                       }
+                      // Offer the opposite choice so the learner can switch back.
+                      setPasteNotice({ mode: notice.mode === 'code' ? 'text' : 'code', text: notice.text, doc: editor.state.doc })
                     }}
                     className="min-h-9 rounded-md px-2 font-semibold text-slate-900 underline underline-offset-2 hover:bg-slate-100"
                   >
