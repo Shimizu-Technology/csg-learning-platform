@@ -37,6 +37,7 @@ class PrivateMeetingsTest < ActionDispatch::IntegrationTest
     cohort = JSON.parse(response.body).fetch("cohorts").first
     assert_equal @cohort.id, cohort.fetch("id")
     assert_equal 24, cohort.fetch("reschedule_cutoff_hours")
+    assert_equal @instructor.id, cohort.fetch("instructor_id"), "the learner page links straight to the instructor conversation"
     assert_equal 1, cohort.fetch("max_student_changes")
     assert_equal true, cohort.fetch("slots").first.fetch("available")
     assert_equal [ 1, 2, 3 ], cohort.fetch("bookable_week_numbers")

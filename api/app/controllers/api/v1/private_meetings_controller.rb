@@ -26,6 +26,7 @@ module Api
             name: cohort.name,
             start_date: cohort.start_date,
             end_date: cohort.end_date,
+            instructor_id: config.instructor_id,
             instructor_name: config.instructor.full_name,
             weeks: config.weeks,
             reschedule_cutoff_hours: config.reschedule_cutoff_hours,

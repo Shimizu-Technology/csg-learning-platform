@@ -29,7 +29,7 @@ class Lesson < ApplicationRecord
   end
 
   def primary_assignment_block
-    content_blocks.find(&:exercise_like?)
+    content_blocks.find(&:exercise_like?) || content_blocks.find(&:submission_checkpoint?)
   end
 
   def completion_blocks

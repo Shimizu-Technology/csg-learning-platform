@@ -91,6 +91,7 @@ class CohortHomeProjection
         joined_at: enrollment.joined_at,
         invite_delivery_status: user.invite_delivery_status,
         progress_percentage: assigned_ids.any? ? (completed_count.to_f / assigned_ids.size * 100).round(1) : 0,
+        assigned_module_count: enrollment.module_assignments.size,
         ungraded_count: submissions.count { |submission| submission.grade.nil? },
         redo_count: submissions.count { |submission| submission.grade == "R" },
         last_seen_at: user.last_seen_at
@@ -104,7 +105,9 @@ class CohortHomeProjection
         active_students: active.size,
         ungraded: students.sum { |student| student[:ungraded_count] },
         redos: students.sum { |student| student[:redo_count] },
-        open_help: @cohort.help_requests.active_queue.count
+        open_help: @cohort.help_requests.active_queue.count,
+        # Learners in a running cohort with nothing assigned see an empty course.
+        without_modules: @cohort.active? ? active.count { |enrollment| enrollment.module_assignments.empty? } : 0
       },
       students: students
     }

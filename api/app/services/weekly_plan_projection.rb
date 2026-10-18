@@ -132,6 +132,7 @@ class WeeklyPlanProjection
       scheduled_for: unlock_on,
       carried_forward: carried_forward,
       state: lesson_state(completed: completed, available: lesson_available?(lesson), window: window),
+      review_status: LessonReviewStatus.for(lesson, @latest_submissions),
       submission_close_at: window[:submissions_close_at],
       submissions_closed: window[:submissions_closed]
     }
