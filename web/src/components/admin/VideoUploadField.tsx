@@ -317,7 +317,7 @@ export function VideoUploadField({
             value={videoUrl}
             onChange={e => onVideoUrlChange(e.target.value)}
             placeholder="https://youtube.com/watch?v=..."
-            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-focus focus:border-transparent"
           />
         </div>
       )}

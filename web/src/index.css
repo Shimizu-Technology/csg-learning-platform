@@ -4,18 +4,66 @@
 @theme {
   --font-sans: "Manrope Variable", "Avenir Next", sans-serif;
 
-  --color-primary-50: #fef2f2;
-  --color-primary-100: #fee2e2;
-  --color-primary-200: #fecaca;
-  --color-primary-300: #fca5a5;
-  --color-primary-400: #f87171;
-  --color-primary-500: #ef4444;
-  --color-primary-600: #dc2626;
-  --color-primary-700: #b91c1c;
-  --color-primary-800: #991b1b;
-  --color-primary-900: #7f1d1d;
-  --color-primary-950: #450a0a;
+  /*
+   * CSG Learn color roles (Brain Dump FRONTEND_DESIGN_GUIDE "CSG family tokens").
+   * Ruby is the brand and the primary action. Red is reserved for errors and
+   * destructive actions (danger-* / Tailwind red-*). `primary-*` is kept as an
+   * alias of the ruby ramp so older staff screens stop reading as "error red".
+   */
+  --color-ruby-50: #fbf4f4;
+  --color-ruby-100: #f5e3e3;
+  --color-ruby-200: #ebc5c6;
+  --color-ruby-300: #dc9c9d;
+  --color-ruby-400: #c76668;
+  --color-ruby-500: #b23e40;
+  --color-ruby-600: #9c292b;
+  --color-ruby-700: #842225;
+  --color-ruby-800: #6f1c1f;
+  --color-ruby-900: #5c1a1c;
+  --color-ruby-950: #330b0c;
 
+  --color-primary-50: var(--color-ruby-50);
+  --color-primary-100: var(--color-ruby-100);
+  --color-primary-200: var(--color-ruby-200);
+  --color-primary-300: var(--color-ruby-300);
+  --color-primary-400: var(--color-ruby-400);
+  --color-primary-500: var(--color-ruby-500);
+  --color-primary-600: var(--color-ruby-600);
+  --color-primary-700: var(--color-ruby-700);
+  --color-primary-800: var(--color-ruby-800);
+  --color-primary-900: var(--color-ruby-900);
+  --color-primary-950: var(--color-ruby-950);
+
+  /* Actions */
+  --color-action-primary: #9c292b;
+  --color-action-primary-hover: #842225;
+  --color-action-primary-pressed: #6f1c1f;
+  --color-on-action: #ffffff;
+
+  /* Surfaces: page, raised (cards), sunken (wells), inverse (max one per screen) */
+  --color-surface-page: #f8f7f4;
+  --color-surface-raised: #ffffff;
+  --color-surface-sunken: #f3f2ee;
+  --color-surface-inverse: #0f172a;
+
+  /* Text tiers */
+  --color-ink: #0f172a;
+  --color-ink-secondary: #475569;
+  /* #64748b (slate-500) is 4.44:1 on the page surface; nudged darker to pass AA
+     on page, sunken and slate-100 wells. slate-500 follows, because it is this
+     codebase's muted-text colour. */
+  --color-ink-muted: #5f6b7f;
+  --color-slate-500: #5f6b7f;
+  --color-ink-disabled: #94a3b8;
+
+  /* Borders */
+  --color-line: #e2e8f0;
+  --color-line-strong: #cbd5e1;
+
+  /* Focus ring: must differ from brand and danger */
+  --color-focus: #1d4ed8;
+
+  /* Status roles */
   --color-success-50: #f0fdf4;
   --color-success-100: #dcfce7;
   --color-success-200: #bbf7d0;
@@ -27,27 +75,67 @@
   --color-success-800: #166534;
   --color-success-900: #14532d;
 
-  /* CSG family status roles (Brain Dump FRONTEND_DESIGN_GUIDE "CSG family tokens"). */
   --color-warning-50: #fffbeb;
+  --color-warning-100: #fef3c7;
   --color-warning-200: #fde68a;
+  --color-warning-300: #fcd34d;
+  --color-warning-700: #b45309;
   --color-warning-800: #92400e;
+  --color-warning-900: #78350f;
+
   --color-pending-50: #f1f5f9;
+  --color-pending-100: #e2e8f0;
   --color-pending-200: #e2e8f0;
+  --color-pending-300: #cbd5e1;
   --color-pending-700: #334155;
+
   --color-danger-50: #fef2f2;
+  --color-danger-100: #fee2e2;
   --color-danger-200: #fecaca;
+  --color-danger-300: #fca5a5;
+  --color-danger-600: #dc2626;
   --color-danger-700: #b91c1c;
+  --color-danger-800: #991b1b;
+
   --color-info-50: #f0f9ff;
+  --color-info-100: #e0f2fe;
+  --color-info-200: #bae6fd;
+  --color-info-700: #0369a1;
   --color-info-800: #075985;
-  --color-ruby-600: #9c292b;
-  --color-ruby-700: #842225;
-  --color-ruby-800: #6f1c1f;
+
+  /* Two shadows: raised cards (with a border) and overlays (sheets, menus, toasts) */
+  --shadow-raised: 0 1px 2px rgb(15 23 42 / 0.04);
+  --shadow-overlay: 0 16px 48px rgb(15 23 42 / 0.16), 0 0 0 1px rgb(15 23 42 / 0.06);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+:root {
+  /* Plain-CSS aliases for the role tokens above. */
+  --brand-ruby: var(--color-ruby-600);
+  --action-primary: var(--color-action-primary);
+  --action-primary-hover: var(--color-action-primary-hover);
+  --action-primary-pressed: var(--color-action-primary-pressed);
+  --focus-ring: var(--color-focus);
+  --focus-ring-on-inverse: #ffffff;
+  --duration-press: 120ms;
+  --duration-local: 180ms;
+  --duration-panel: 240ms;
+  --duration-milestone: 600ms;
+  color-scheme: light;
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
   min-width: 320px;
-  background: #f7f8fa;
-  color: #0f172a;
+  background: var(--color-surface-page);
+  color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -55,13 +143,33 @@ body {
 }
 
 ::selection {
-  background: #fecaca;
-  color: #450a0a;
+  background: var(--color-ruby-100);
+  color: var(--color-ruby-950);
 }
 
+/* One focus ring everywhere. It follows each control's border radius. */
 :focus-visible {
-  outline: 2px solid #dc2626;
-  outline-offset: 3px;
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* On the inverse (dark) surface the ring turns white so it stays visible. */
+.surface-inverse :focus-visible,
+.surface-inverse:focus-visible {
+  outline-color: var(--focus-ring-on-inverse);
+}
+
+/* Taps fire immediately (no double-tap zoom delay) and control labels are not
+   selected by a long press. Content text stays selectable. */
+button,
+[role="button"] {
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+a {
+  touch-action: manipulation;
 }
 
 @layer components {
@@ -73,33 +181,130 @@ body {
     @apply mx-auto w-full max-w-[1500px] space-y-6 pb-20 lg:space-y-8 lg:pb-8;
   }
 
+  /* One eyebrow per page header: 12px/600, 0.08em, secondary text, never red. */
   .app-eyebrow {
-    @apply text-xs font-bold uppercase tracking-[0.18em] text-primary-700;
+    @apply text-xs font-semibold uppercase tracking-[0.08em] text-ink-secondary;
   }
 
   .app-title {
-    @apply text-2xl font-bold tracking-[-0.025em] text-slate-950 sm:text-3xl;
+    @apply text-2xl font-bold tracking-[-0.025em] text-ink sm:text-3xl;
   }
 
   .app-description {
-    @apply max-w-2xl text-sm leading-6 text-slate-600 sm:text-base;
+    @apply max-w-2xl text-sm leading-6 text-ink-secondary sm:text-base;
   }
 
   .app-surface {
-    @apply rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)];
+    @apply rounded-2xl border border-line bg-surface-raised shadow-raised;
   }
 
   .app-surface-muted {
-    @apply rounded-2xl border border-slate-200/70 bg-slate-100/65;
+    @apply rounded-2xl border border-line bg-surface-sunken;
   }
 
   .app-control {
-    @apply min-h-11 rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm transition duration-150 placeholder:text-slate-400 hover:border-slate-400 focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400;
+    @apply min-h-11 rounded-xl border border-line-strong bg-white px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-disabled hover:border-slate-400 focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-ink-disabled;
+    transition: border-color var(--duration-local) var(--ease-out), box-shadow var(--duration-local) var(--ease-out);
   }
 
   .app-link {
-    @apply rounded-md font-semibold text-primary-700 underline-offset-4 transition-colors hover:text-primary-800 hover:underline;
+    @apply rounded-md font-semibold text-ruby-700 underline-offset-4 hover:text-ruby-800 hover:underline;
+    transition: color var(--duration-local) ease;
   }
+
+  /* Rows that act as links/buttons get the same press feedback as buttons. */
+  .pressable {
+    transition: transform var(--duration-press) var(--ease-out), background-color var(--duration-local) ease, border-color var(--duration-local) ease, color var(--duration-local) ease;
+  }
+
+  .pressable:active {
+    transform: scale(0.985);
+  }
+
+  /* Selected navigation item, tab, or conversation: neutral fill + 3px ruby indicator. */
+  .nav-selected {
+    @apply bg-slate-100 text-ink;
+    box-shadow: inset 3px 0 0 var(--brand-ruby);
+  }
+
+  .tab-selected {
+    @apply text-ink;
+    box-shadow: inset 0 -3px 0 var(--brand-ruby);
+  }
+}
+
+/* ---------- Overlays: modal / bottom sheet / drawer ---------- */
+
+@keyframes overlay-enter {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes sheet-enter {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes dialog-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+.app-modal-overlay {
+  animation: overlay-enter var(--duration-panel) var(--ease-out);
+}
+
+/* Phones: the dialog is a bottom sheet that slides up on the drawer curve. */
+.app-modal {
+  animation: sheet-enter var(--duration-panel) var(--ease-drawer);
+  overscroll-behavior: contain;
+}
+
+@media (min-width: 640px) {
+  .app-modal {
+    animation: dialog-enter var(--duration-local) var(--ease-out);
+  }
+}
+
+/* Small popover menus grow from their trigger. */
+@keyframes popover-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.97);
+  }
+}
+
+.account-menu {
+  transform-origin: bottom left;
+  animation: popover-enter 150ms var(--ease-out);
+}
+
+/* Toasts drop in quickly from the top edge. */
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+.app-toast {
+  animation: toast-enter var(--duration-local) var(--ease-out);
+}
+
+/* ---------- Milestone: "Week N complete" ring fill ---------- */
+
+@keyframes milestone-ring-fill {
+  from {
+    stroke-dashoffset: var(--ring-circumference);
+  }
+}
+
+.milestone-ring-animate {
+  animation: milestone-ring-fill var(--duration-milestone) var(--ease-out);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -110,6 +315,25 @@ body {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* Reduced motion: overlays still fade (opacity only, no movement) so the
+   change of context is not abrupt. These selectors outrank the reset above. */
+@media (prefers-reduced-motion: reduce) {
+  .app-modal.app-modal,
+  .app-modal-overlay.app-modal-overlay {
+    animation-name: overlay-enter !important;
+    animation-duration: var(--duration-local) !important;
+    animation-timing-function: linear !important;
+  }
+
+  .milestone-ring-animate.milestone-ring-animate {
+    animation: none !important;
+  }
+
+  .pressable:active {
+    transform: none;
   }
 }
 
@@ -169,47 +393,38 @@ body {
 }
 
 .message-composer ul,
-.message-composer ol,
-.exercise-content ul,
-.exercise-content ol {
+.message-composer ol {
   margin: 0.25rem 0;
   padding-left: 1.25rem;
 }
 
 /* Tailwind's reset removes list markers, so TipTap lists need them restored. */
-.message-composer ul,
-.exercise-content ul {
+.message-composer ul {
   list-style-type: disc;
 }
 
-.message-composer ol,
-.exercise-content ol {
+.message-composer ol {
   list-style-type: decimal;
 }
 
-.message-composer ul ul,
-.exercise-content ul ul {
+.message-composer ul ul {
   list-style-type: circle;
 }
 
-.message-composer ul ul ul,
-.exercise-content ul ul ul {
+.message-composer ul ul ul {
   list-style-type: square;
 }
 
-.message-composer li,
-.exercise-content li {
+.message-composer li {
   padding-left: 0.125rem;
 }
 
-.message-composer li::marker,
-.exercise-content li::marker {
+.message-composer li::marker {
   color: #64748b;
   font-weight: 600;
 }
 
-.message-composer li > p,
-.exercise-content li > p {
+.message-composer li > p {
   margin: 0;
 }
 
@@ -218,16 +433,18 @@ body {
 }
 
 .message-composer a {
-  color: #b91c1c;
+  color: var(--color-ruby-700);
   font-weight: 600;
   text-decoration: underline;
-  text-decoration-color: #fca5a5;
+  text-decoration-color: var(--color-ruby-300);
   text-underline-offset: 0.15em;
 }
 
-.message-composer a:hover {
-  color: #991b1b;
-  text-decoration-color: currentColor;
+@media (hover: hover) and (pointer: fine) {
+  .message-composer a:hover {
+    color: var(--color-ruby-800);
+    text-decoration-color: currentColor;
+  }
 }
 
 .message-composer blockquote {
@@ -284,13 +501,13 @@ body {
 
 @keyframes message-highlight-pulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.28);
+    box-shadow: 0 0 0 0 rgb(29 78 216 / 0.24);
   }
   70% {
-    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+    box-shadow: 0 0 0 10px rgb(29 78 216 / 0);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    box-shadow: 0 0 0 0 rgb(29 78 216 / 0);
   }
 }
 
@@ -305,8 +522,10 @@ body {
   }
 }
 
-.message-row {
-  animation: message-row-enter 160ms ease-out;
+/* Only messages that arrive while the conversation is open animate in;
+   the initial history renders still. */
+.message-row-enter {
+  animation: message-row-enter var(--duration-local) var(--ease-out);
 }
 
 .message-row-highlight {
@@ -314,7 +533,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .message-row,
+  .message-row-enter,
   .message-row-highlight {
     animation: none;
   }
@@ -327,200 +546,184 @@ body {
 }
 
 /* ============================================
-   Student-facing exercise content
-   Matches csg-prework-grader exercise-page.css
+   Lesson prose and code blocks (learner-facing).
+   Layered so Tailwind utilities on the same element still win
+   (for example the staff rich-text editor's text-sm leading-7).
    ============================================ */
 
-.exercise-content {
-  font-size: 15px;
-  line-height: 1.7;
-  color: #334155;
-}
-
-.exercise-content p {
-  margin: 0 0 1rem 0;
-}
-
-.exercise-content h1,
-.exercise-content h2,
-.exercise-content h3,
-.exercise-content strong {
-  color: #0f172a;
-}
-
-.exercise-content h1 { font-size: 1.5em; font-weight: 700; margin: 1.5rem 0 0.75rem; }
-.exercise-content h2 { font-size: 1.25em; font-weight: 700; margin: 1.25rem 0 0.5rem; }
-.exercise-content h3 { font-size: 1.1em; font-weight: 600; margin: 1.25rem 0 0.5rem; }
-
-.exercise-content ul,
-.exercise-content ol {
-  margin: 0.5rem 0 1rem 0;
-  padding-left: 1.5rem;
-}
-
-.exercise-content li {
-  margin-bottom: 0.25rem;
-}
-
-.exercise-content blockquote {
-  border-left: 3px solid #e2e8f0;
-  padding: 0.5rem 1rem;
-  margin: 1rem 0;
-  color: #64748b;
-  background-color: #f8fafc;
-  border-radius: 0 0.375rem 0.375rem 0;
-}
-
-/* Inline code — like prework grader */
-.exercise-content .inline-code {
-  background-color: #f1f5f9;
-  font-size: 0.88em;
-  padding: 0.125rem 0.4rem;
-  border-radius: 4px;
-  border: 1px solid #e2e8f0;
-  font-family: Monaco, Menlo, 'Courier New', monospace;
-  color: #0f172a;
-  font-weight: 500;
-}
-
-/* Code blocks — like prework grader with copy button */
-.exercise-content .code-block-wrapper {
-  position: relative;
-  margin: 1.25rem 0 1.5rem 0;
-}
-
-.exercise-content .code-block-wrapper pre {
-  font-family: Monaco, Menlo, 'Courier New', monospace;
-  font-size: 13px;
-  line-height: 1.65;
-  border-radius: 0.5rem;
-  /* Top padding keeps the first code line clear of the Copy button on phones. */
-  padding: 2.75rem 1.25rem 1.25rem 1.25rem;
-  background-color: #f8fafc;
-  color: #1e293b;
-  overflow-x: auto;
-  border: 2px solid #e2e8f0;
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04);
-  white-space: pre;
-  word-spacing: normal;
-  word-break: normal;
-  tab-size: 4;
-  margin: 0;
-}
-
-.exercise-content .code-block-wrapper pre code {
-  background-color: transparent;
-  padding: 0;
-  border: none;
-  font-size: inherit;
-  color: inherit;
-  font-weight: normal;
-}
-
-/* Copy Code button */
-.exercise-content .copy-code-btn {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  min-height: 2rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  border-radius: 0.375rem;
-  border: 1px solid #e2e8f0;
-  background-color: #ffffff;
-  color: #64748b;
-  padding: 0.3rem 0.65rem;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  z-index: 2;
-  font-family: inherit;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .exercise-content .copy-code-btn:hover {
-    background-color: #f1f5f9;
-    border-color: #cbd5e1;
-    color: #0f172a;
+@layer components {
+  .exercise-content {
+    font-size: 16px;
+    line-height: 1.7;
+    color: #334155;
+    max-width: 70ch;
   }
-}
 
-.exercise-content .copy-code-btn[data-state="failed"] {
-  border-color: #fde68a;
-  background-color: #fffbeb;
-  color: #92400e;
-}
+  .exercise-content p {
+    margin: 0 0 1rem 0;
+  }
 
-/* Links — like prework grader */
-.exercise-content a {
-  color: #dc2626;
-  text-decoration: none;
-  font-weight: 500;
-  transition: color 0.15s ease;
-}
+  .exercise-content h1,
+  .exercise-content h2,
+  .exercise-content h3,
+  .exercise-content strong {
+    color: var(--color-ink);
+  }
 
-.exercise-content a:hover {
-  color: #b91c1c;
-  text-decoration: underline;
-}
+  .exercise-content h1 { font-size: 1.5rem; line-height: 2rem; font-weight: 700; margin: 1.5rem 0 0.75rem; }
+  .exercise-content h2 { font-size: 1.25rem; line-height: 1.75rem; font-weight: 700; margin: 1.25rem 0 0.5rem; }
+  .exercise-content h3 { font-size: 1.125rem; line-height: 1.75rem; font-weight: 600; margin: 1.25rem 0 0.5rem; }
 
-/* Standalone <pre> (from Quill HTML output) — same as code-block-wrapper pre */
-.exercise-content > div > pre,
-.exercise-content > pre {
-  font-family: Monaco, Menlo, 'Courier New', monospace;
-  font-size: 13px;
-  line-height: 1.65;
-  border-radius: 0.5rem;
-  padding: 1.25rem;
-  background-color: #f8fafc;
-  color: #1e293b;
-  overflow-x: auto;
-  border: 2px solid #e2e8f0;
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04);
-  white-space: pre;
-  word-spacing: normal;
-  word-break: normal;
-  tab-size: 2;
-  margin: 1.25rem 0 1.5rem 0;
-}
+  .exercise-content ul,
+  .exercise-content ol {
+    margin: 0.5rem 0 1rem 0;
+    padding-left: 1.5rem;
+  }
 
-/* Quill code blocks use the ql-syntax class */
-.exercise-content pre.ql-syntax {
-  font-family: Monaco, Menlo, 'Courier New', monospace;
-  font-size: 13px;
-  line-height: 1.65;
-  border-radius: 0.5rem;
-  padding: 1.25rem;
-  background-color: #f8fafc;
-  color: #1e293b;
-  overflow-x: auto;
-  border: 2px solid #e2e8f0;
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04);
-  white-space: pre;
-  tab-size: 2;
-  margin: 1.25rem 0 1.5rem 0;
-}
+  /* Tailwind's reset removes list markers, so restore them. */
+  .exercise-content ul { list-style-type: disc; }
+  .exercise-content ol { list-style-type: decimal; }
+  .exercise-content ul ul { list-style-type: circle; }
+  .exercise-content ul ul ul { list-style-type: square; }
 
-/* Standalone inline <code> not inside pre — same as .inline-code */
-.exercise-content code:not(pre code):not(.inline-code) {
-  background-color: #f1f5f9;
-  font-size: 0.88em;
-  padding: 0.125rem 0.4rem;
-  border-radius: 4px;
-  border: 1px solid #e2e8f0;
-  font-family: Monaco, Menlo, 'Courier New', monospace;
-  color: #0f172a;
-  font-weight: 500;
-}
+  .exercise-content li {
+    margin-bottom: 0.25rem;
+    padding-left: 0.125rem;
+  }
 
-/* Horizontal rules */
-.exercise-content hr {
-  border: none;
-  border-top: 1px solid #e2e8f0;
-  margin: 1.5rem 0;
+  .exercise-content li::marker {
+    color: var(--color-ink-muted);
+    font-weight: 600;
+  }
+
+  .exercise-content li > p {
+    margin: 0;
+  }
+
+  .exercise-content blockquote {
+    border-left: 3px solid var(--color-line);
+    padding: 0.5rem 1rem;
+    margin: 1rem 0;
+    color: var(--color-ink-secondary);
+    background-color: #f8fafc;
+    border-radius: 0 0.375rem 0.375rem 0;
+  }
+
+  .exercise-content .inline-code,
+  .exercise-content code:not(pre code):not(.inline-code) {
+    background-color: #f1f5f9;
+    font-size: 0.875em;
+    padding: 0.125rem 0.375rem;
+    border-radius: 4px;
+    border: 1px solid var(--color-line);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    color: var(--color-ink);
+    font-weight: 500;
+  }
+
+  /* Code blocks: 1px border, no shadow, quiet Copy button. */
+  .exercise-content .code-block-wrapper {
+    position: relative;
+    margin: 1.25rem 0 1.5rem 0;
+  }
+
+  .exercise-content .code-block-wrapper pre,
+  .exercise-content > div > pre,
+  .exercise-content > pre,
+  .exercise-content pre.ql-syntax {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    font-size: 14px;
+    line-height: 1.65;
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    background-color: #f8fafc;
+    color: #1e293b;
+    overflow-x: auto;
+    border: 1px solid var(--color-line);
+    white-space: pre;
+    word-spacing: normal;
+    word-break: normal;
+    tab-size: 4;
+    margin: 1.25rem 0 1.5rem 0;
+  }
+
+  .exercise-content .code-block-wrapper pre {
+    /* Top padding keeps the first code line clear of the Copy button on phones. */
+    padding-top: 2.75rem;
+    margin: 0;
+  }
+
+  .exercise-content .code-block-wrapper pre code {
+    background-color: transparent;
+    padding: 0;
+    border: none;
+    font-size: inherit;
+    color: inherit;
+    font-weight: normal;
+  }
+
+  .exercise-content .copy-code-btn {
+    position: absolute;
+    top: 0.375rem;
+    right: 0.375rem;
+    min-height: 2rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    border-radius: 0.5rem;
+    border: 0;
+    background-color: transparent;
+    color: var(--color-ink-muted);
+    padding: 0.25rem 0.625rem;
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color var(--duration-local) ease, color var(--duration-local) ease, transform var(--duration-press) var(--ease-out);
+    z-index: 2;
+  }
+
+  .exercise-content .copy-code-btn:active {
+    transform: scale(0.97);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .exercise-content .copy-code-btn:hover {
+      background-color: #eef2f6;
+      color: var(--color-ink);
+    }
+  }
+
+  .exercise-content .copy-code-btn[data-state="copied"] {
+    color: var(--color-success-700);
+  }
+
+  .exercise-content .copy-code-btn[data-state="failed"] {
+    background-color: var(--color-warning-50);
+    color: var(--color-warning-800);
+  }
+
+  .exercise-content a {
+    color: var(--color-ruby-700);
+    text-decoration: underline;
+    text-decoration-color: var(--color-ruby-200);
+    text-underline-offset: 0.15em;
+    font-weight: 600;
+    transition: color var(--duration-local) ease, text-decoration-color var(--duration-local) ease;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .exercise-content a:hover {
+      color: var(--color-ruby-800);
+      text-decoration-color: currentColor;
+    }
+  }
+
+  .exercise-content hr {
+    border: none;
+    border-top: 1px solid var(--color-line);
+    margin: 1.5rem 0;
+  }
 }
 
 /* iOS zooms the page when a focused field is smaller than 16px. Keep form

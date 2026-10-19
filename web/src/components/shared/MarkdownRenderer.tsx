@@ -31,6 +31,7 @@ function CopyButton({ text, language }: { text: string; language?: string }) {
       onClick={handleCopy}
       className="copy-code-btn"
       data-state={state}
+      aria-label={state === 'idle' ? 'Copy code' : undefined}
       aria-live="polite"
     >
       {state === 'copied' ? (
@@ -43,7 +44,7 @@ function CopyButton({ text, language }: { text: string; language?: string }) {
       ) : (
         <>
           <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-          <span>Copy code</span>
+          <span>Copy</span>
         </>
       )}
     </button>
@@ -76,16 +77,19 @@ function HtmlContentRenderer({ html }: { html: string }) {
       const btn = document.createElement('button')
       btn.type = 'button'
       btn.className = 'copy-code-btn'
-      btn.innerHTML = `${COPY_SVG}<span>Copy code</span>`
+      btn.setAttribute('aria-label', 'Copy code')
+      btn.innerHTML = `${COPY_SVG}<span>Copy</span>`
       btn.addEventListener('click', () => {
         const text = pre.textContent || ''
         void copyText(text).then((copied) => {
           if (copied) captureProductEvent('code_block_copied', { surface: 'lesson', language: 'other' })
           btn.dataset.state = copied ? 'copied' : 'failed'
           btn.innerHTML = copied ? `${CHECK_SVG}<span>Copied</span>` : '<span>Copy failed — select the code instead</span>'
+          btn.removeAttribute('aria-label')
           setTimeout(() => {
             btn.dataset.state = 'idle'
-            btn.innerHTML = `${COPY_SVG}<span>Copy code</span>`
+            btn.setAttribute('aria-label', 'Copy code')
+            btn.innerHTML = `${COPY_SVG}<span>Copy</span>`
           }, copied ? 2000 : 4000)
         })
       })

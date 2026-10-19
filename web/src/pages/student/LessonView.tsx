@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, ChevronLeft, Lock, RotateCcw } from 'lucide-react'
+import { useParams } from 'react-router-dom'
+import { ArrowLeft, ArrowRight, ChevronDown, ChevronLeft, Lock, RotateCcw } from 'lucide-react'
 import { api } from '../../lib/api'
 import { ContentBlockRenderer } from '../../components/shared/ContentBlockRenderer'
 import { RubricPanel } from '../../components/shared/RubricPanel'
@@ -13,6 +13,30 @@ import { captureProductEvent } from '../../lib/analytics'
 import type { HelpRequest } from '../../types/api'
 import { LearningObjectivesPanel } from '../../components/shared/LearningObjectivesPanel'
 import type { LessonObjective } from '../../types/api'
+import { Badge } from '../../components/ui/Badge'
+import { LinkButton, buttonClasses } from '../../components/ui/Button'
+import { useMediaQuery } from '../../lib/useMediaQuery'
+
+const LESSON_TYPE_LABELS: Record<string, string> = {
+  video: 'Video lesson',
+  exercise: 'Exercise',
+  reading: 'Reading',
+  project: 'Project',
+  checkpoint: 'Checkpoint',
+}
+
+/** Learners never see an empty video placeholder: a video block with no video and no text is hidden. */
+export function isEmptyMediaBlock(block: { block_type: string; video_url?: string | null; s3_video_key?: string | null; body?: string | null }) {
+  return (block.block_type === 'video' || block.block_type === 'recording') && !block.video_url && !block.s3_video_key && !block.body?.trim()
+}
+
+function scrollToBlock(blockId: number) {
+  const target = document.getElementById(`block-${blockId}`)
+  if (!target) return
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  target.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
+  target.focus({ preventScroll: true })
+}
 
 interface LessonData {
   id: number
@@ -47,6 +71,8 @@ export function LessonView() {
   const { user } = useAuthContext()
   const { selectedCohortId } = useCohortContext()
   const requestId = useRef(0)
+  const isPhone = useMediaQuery('(max-width: 1023px)')
+  const scrolledToRedoRef = useRef<number | null>(null)
   const activeCohortId = useRef(selectedCohortId)
   activeCohortId.current = selectedCohortId
 
@@ -94,42 +120,63 @@ export function LessonView() {
     })
   }, [lesson?.id, lesson?.module_id])
 
-  if (loading) return <LoadingSpinner message="Loading lesson..." />
-  if (!lesson) return <div className="text-center text-slate-500 py-12">{!user?.is_staff && !selectedCohortId ? 'Choose a cohort to view this lesson.' : 'Lesson not found or unavailable in this cohort.'}</div>
+  // Arriving from "Read feedback and resubmit" (#redo) lands on the first redo block.
+  useEffect(() => {
+    if (!lesson || window.location.hash !== '#redo' || scrolledToRedoRef.current === lesson.id) return
+    const redo = lesson.content_blocks.find((block: any) => block.submissions?.[0]?.grade === 'R')
+    if (!redo) return
+    scrolledToRedoRef.current = lesson.id
+    requestAnimationFrame(() => scrollToBlock(redo.id))
+  }, [lesson])
 
-  const redoBlocks = lesson.content_blocks.filter((block: any) => block.submissions?.[0]?.grade === 'R')
+  if (loading) return <LoadingSpinner message="Loading lesson..." />
+  if (!lesson) return <div className="py-12 text-center text-ink-muted">{!user?.is_staff && !selectedCohortId ? 'Choose a cohort to view this lesson.' : 'Lesson not found or unavailable in this cohort.'}</div>
+
+  const visibleBlocks = user?.is_staff ? lesson.content_blocks : lesson.content_blocks.filter((block: any) => !isEmptyMediaBlock(block))
+  const redoBlocks = visibleBlocks.filter((block: any) => block.submissions?.[0]?.grade === 'R')
   const cohortQuery = lesson.cohort_id ? `?cohort_id=${lesson.cohort_id}` : ''
+  const typeLabel = LESSON_TYPE_LABELS[lesson.lesson_type] || 'Lesson'
+  const objectives = lesson.objectives || []
+  const activeObjectiveCount = objectives.filter((objective) => objective.active).length
 
   return (
     <article className="app-page max-w-3xl">
       {/* Back link */}
-      <Link
-        to={`/modules/${lesson.module_id}${cohortQuery}`}
-        className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-      >
-        <ChevronLeft className="h-4 w-4" />
-        Back to Module
-      </Link>
+      <LinkButton to={`/modules/${lesson.module_id}${cohortQuery}`} variant="quiet" size="sm" className="-ml-2">
+        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+        Back to module
+      </LinkButton>
 
-      {/* Lesson header */}
-      <header className="relative overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_16px_50px_rgba(15,23,42,0.05)] before:absolute before:inset-y-0 before:left-0 before:w-1.5 before:bg-primary-600">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="app-eyebrow">Lesson</p>
-            <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">{lesson.title}</h1>
-            <div className="mt-1 flex items-center gap-2 text-sm text-slate-500">
-              <span className="capitalize">{lesson.lesson_type}</span>
-              <span>· {lesson.content_blocks.length} {lesson.content_blocks.length === 1 ? 'block' : 'blocks'}</span>
-              {lesson.required && <span className="text-primary-500 font-medium">Required</span>}
-            </div>
+      {/* Lesson header: one muted eyebrow (the real lesson type), the title, and a quiet help action. */}
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="app-eyebrow">{typeLabel}</p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink [overflow-wrap:anywhere] sm:text-3xl">{lesson.title}</h1>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-ink-muted">
+            <span className="tabular-nums">{visibleBlocks.length} {visibleBlocks.length === 1 ? 'part' : 'parts'}</span>
+            {lesson.required && <Badge tone="neutral">Required</Badge>}
           </div>
-          {!user?.is_staff && lesson.cohort_id && (
-            <ContextualHelp cohortId={lesson.cohort_id} contextType="lesson" contextId={lesson.id} contextLabel={lesson.title} requests={helpRequests} requestsLoading={helpRequestsLoading} onRequestsChange={setHelpRequests} onRequestsRefresh={loadHelpRequests} />
-          )}
         </div>
+        {!user?.is_staff && lesson.cohort_id && (
+          <div className="shrink-0">
+            <ContextualHelp cohortId={lesson.cohort_id} contextType="lesson" contextId={lesson.id} contextLabel={lesson.title} requests={helpRequests} requestsLoading={helpRequestsLoading} onRequestsChange={setHelpRequests} onRequestsRefresh={loadHelpRequests} />
+          </div>
+        )}
       </header>
 
-      <LearningObjectivesPanel objectives={lesson.objectives || []} />
+      {isPhone && activeObjectiveCount > 0 ? (
+        <details className="group app-surface overflow-hidden">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
+            <span>What success looks like <span className="font-normal tabular-nums text-ink-muted">({activeObjectiveCount})</span></span>
+            <ChevronDown className="h-4 w-4 shrink-0 text-ink-muted transition-transform duration-[180ms] group-open:rotate-180" aria-hidden="true" />
+          </summary>
+          <div className="border-t border-line">
+            <LearningObjectivesPanel objectives={objectives} />
+          </div>
+        </details>
+      ) : (
+        <LearningObjectivesPanel objectives={objectives} />
+      )}
 
       {lesson.submission_window?.submissions_close_at && (
         <div className={`rounded-2xl border p-4 ${lesson.submission_window.submissions_closed ? 'border-slate-200 bg-slate-50' : 'border-warning-200 bg-warning-50'}`}>
@@ -150,23 +197,31 @@ export function LessonView() {
       )}
 
       {redoBlocks.length > 0 && (
-        <div className="rounded-2xl border border-warning-200 bg-warning-50 p-4">
+        <div className="flex flex-col gap-3 rounded-2xl border border-warning-200 bg-warning-50 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
-            <RotateCcw className="h-5 w-5 text-warning-800 shrink-0 mt-0.5" aria-hidden="true" />
+            <RotateCcw className="mt-0.5 h-5 w-5 shrink-0 text-warning-800" aria-hidden="true" />
             <div>
-              <h2 className="text-sm font-semibold text-warning-800">Redo requested in this lesson</h2>
-              <p className="mt-1 text-sm text-warning-800">
-                {redoBlocks.length === 1 ? 'One part needs' : `${redoBlocks.length} parts need`} an updated submission. <a href={`#block-${redoBlocks[0].id}`} className="font-semibold underline underline-offset-2">Read the feedback and resubmit</a>.
+              <h2 className="text-sm font-semibold text-warning-800">Redo requested</h2>
+              <p className="mt-0.5 text-sm text-warning-800">
+                {redoBlocks.length === 1 ? 'One part needs' : `${redoBlocks.length} parts need`} an updated submission.
               </p>
             </div>
           </div>
+          <a
+            href={`#block-${redoBlocks[0].id}`}
+            onClick={(event) => { event.preventDefault(); scrollToBlock(redoBlocks[0].id) }}
+            className={buttonClasses({ variant: 'secondary', size: 'sm', className: 'shrink-0' })}
+          >
+            Go to the feedback
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </a>
         </div>
       )}
 
       {/* Content blocks */}
       <div className="space-y-4">
-        {lesson.content_blocks.map((block: any) => (
-          <div key={block.id} id={`block-${block.id}`} className="scroll-mt-24 space-y-2">
+        {visibleBlocks.map((block: any) => (
+          <div key={block.id} id={`block-${block.id}`} tabIndex={-1} className="scroll-mt-20 space-y-2 rounded-2xl outline-none">
             <RubricPanel rubric={block.rubric} />
             <ContentBlockRenderer
               block={block}
@@ -190,38 +245,29 @@ export function LessonView() {
         ))}
       </div>
 
-      {/* Navigation */}
-      <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+      {/* Navigation: secondary actions; the work inside the lesson owns the primary action. */}
+      <nav aria-label="Lesson navigation" className="flex items-center justify-between gap-3 border-t border-line pt-4">
         {lesson.prev_lesson ? (
-          <Link
-            to={`/lessons/${lesson.prev_lesson.id}${cohortQuery}`}
-            className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">{lesson.prev_lesson.title}</span>
+          <LinkButton to={`/lessons/${lesson.prev_lesson.id}${cohortQuery}`} variant="quiet" className="min-w-0 max-w-[48%]">
+            <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span className="hidden truncate sm:inline">{lesson.prev_lesson.title}</span>
             <span className="sm:hidden">Previous</span>
-          </Link>
+          </LinkButton>
         ) : (
           <div />
         )}
         {lesson.next_lesson ? (
-          <Link
-            to={`/lessons/${lesson.next_lesson.id}${cohortQuery}`}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-600 transition-colors"
-          >
-            <span className="hidden sm:inline">{lesson.next_lesson.title}</span>
+          <LinkButton to={`/lessons/${lesson.next_lesson.id}${cohortQuery}`} variant="secondary" className="min-w-0 max-w-[48%]">
+            <span className="hidden truncate sm:inline">{lesson.next_lesson.title}</span>
             <span className="sm:hidden">Next</span>
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+            <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+          </LinkButton>
         ) : (
-          <Link
-            to={`/modules/${lesson.module_id}${cohortQuery}`}
-            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
-          >
+          <LinkButton to={`/modules/${lesson.module_id}${cohortQuery}`} variant="secondary">
             Back to module
-          </Link>
+          </LinkButton>
         )}
-      </div>
+      </nav>
     </article>
   )
 }

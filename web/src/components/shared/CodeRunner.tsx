@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Loader2, Play, Square, Terminal } from 'lucide-react'
+import { Button } from '../ui/Button'
 import type { CodeRunnerLanguage } from '../../lib/codeRunner'
 
 interface CodeRunnerProps {
@@ -139,33 +140,24 @@ export function CodeRunner({ code, language, timeoutMs }: CodeRunnerProps) {
   const languageLabel = language === 'ruby' ? 'Ruby' : 'JavaScript'
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white">
-      <div className="flex flex-col gap-3 border-b border-slate-200 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
-          <Terminal className="h-4 w-4 text-slate-500" />
-          Browser Runner
-          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-500">{languageLabel}</span>
+    <div className="overflow-hidden rounded-xl border border-line bg-surface-raised">
+      <div className="flex flex-col gap-3 border-b border-line px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+          <Terminal className="h-4 w-4 text-ink-muted" aria-hidden="true" />
+          Try it in your browser
+          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-normal text-ink-muted">{languageLabel}</span>
         </div>
         <div className="flex items-center gap-2">
           {runState.status === 'running' ? (
-            <button
-              type="button"
-              onClick={handleStop}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              <Square className="h-3.5 w-3.5" />
+            <Button variant="secondary" size="sm" onClick={handleStop}>
+              <Square className="h-3.5 w-3.5" aria-hidden="true" />
               Stop
-            </button>
+            </Button>
           ) : (
-            <button
-              type="button"
-              onClick={handleRun}
-              disabled={!code.trim()}
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Play className="h-3.5 w-3.5" />
+            <Button variant="secondary" size="sm" onClick={handleRun} disabled={!code.trim()}>
+              <Play className="h-3.5 w-3.5" aria-hidden="true" />
               Run
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -182,7 +174,7 @@ export function CodeRunner({ code, language, timeoutMs }: CodeRunnerProps) {
         {runState.stdout && <pre className="whitespace-pre-wrap break-words text-slate-100">{runState.stdout}</pre>}
         {runState.stderr && <pre className="whitespace-pre-wrap break-words text-red-300">{runState.stderr}</pre>}
       </div>
-      <div className="flex items-center justify-between border-t border-slate-800 bg-slate-900 px-3 py-1.5 text-[11px] text-slate-400">
+      <div className="flex items-center justify-between border-t border-slate-800 bg-slate-900 px-3 py-1.5 text-xs tabular-nums text-slate-300">
         <span>{runState.status === 'timeout' ? 'Stopped' : runState.status === 'error' ? 'Finished with errors' : runState.status === 'success' ? 'Finished' : 'Ready'}</span>
         <span>{runState.durationMs === null ? `${timeoutMs}ms limit` : `${runState.durationMs}ms`}</span>
       </div>

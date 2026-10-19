@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowRight, BookOpen, Clock, Lock, PlayCircle, CalendarDays, CheckCircle2, RotateCcw, RefreshCw, WifiOff, Link2, ExternalLink, MessageCircle, Hourglass } from 'lucide-react'
+import { ArrowRight, BookOpen, Clock, Lock, CalendarDays, CheckCircle2, RotateCcw, RefreshCw, WifiOff, Link2, ExternalLink, MessageCircle, Hourglass, Pin } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useCohortContext } from '../../contexts/CohortContext'
-import { ProgressRing } from '../../components/shared/ProgressRing'
-import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { formatShortDateTime } from '../../lib/format'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { WeeklyPlanCard } from '../../components/student/WeeklyPlan'
 import { markdownExcerpt } from '../../lib/plainText'
+import { AnchorButton, Button, LinkButton } from '../../components/ui/Button'
+import { Badge } from '../../components/ui/Badge'
 import type { DashboardData, WeeklyPlan } from '../../types/api'
 
 function formatDate(dateStr: string | null | undefined): string {
@@ -108,14 +108,10 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
   }, [previewData, selectedCohortId, selectedEnrollment?.cohort.course_delivery, user])
 
   const retryAction = (
-    <button
-      type="button"
-      onClick={loadDashboard}
-      className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-600"
-    >
-      <RefreshCw className="h-4 w-4" />
+    <Button variant="secondary" onClick={loadDashboard}>
+      <RefreshCw className="h-4 w-4" aria-hidden="true" />
       Try again
-    </button>
+    </Button>
   )
 
   const derived = useMemo(() => {
@@ -193,117 +189,111 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
   const showWeeklyFallback = weeklyPlanLoaded && !weeklyPlan?.enrolled
   const courseNotOpen = derived.courseNotOpen
 
+  const cohortQuery = selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''
+  const redoItems = data.action_items?.filter((item) => item.type === 'redo') || []
+  const firstRedo = redoItems[0] || null
+  const firstName = data.user.full_name.split(' ')[0]
+  const percentage = Math.round(progress?.percentage || 0)
+
   return (
     <div className="app-page max-w-5xl">
       {previewBanner}
       {showingSavedData && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="rounded-2xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-800">
           Showing saved dashboard data while your connection catches up.
         </div>
       )}
-      <section className="relative overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_20px_60px_rgba(15,23,42,0.06)] sm:p-7">
-        <span className="absolute inset-y-0 left-0 w-1.5 bg-primary-600" />
-        <div className="flex flex-col gap-7 lg:flex-row lg:items-center">
-          <div className="flex-1">
-            <p className="app-eyebrow">Today</p>
-            <h1 className="mt-2 text-3xl font-extrabold tracking-[-0.035em] text-slate-950 sm:text-4xl">
-              Welcome back, {data.user.full_name.split(' ')[0]}
-            </h1>
-            <p className="mt-2 text-sm leading-6 text-slate-500 sm:text-base">
-              {data.cohort?.name}{!courseNotOpen && ` · ${progress?.completed || 0} of ${progress?.total || 0} ${progress?.total === 1 ? 'block' : 'blocks'} completed`}
-            </p>
 
-            {courseNotOpen ? (
-              <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
-                <p className="flex items-center gap-2 text-base font-extrabold text-slate-950"><Hourglass className="h-5 w-5 shrink-0 text-slate-500" aria-hidden="true" />Your course isn’t open yet</p>
-                <p className="mt-1 text-sm leading-6 text-slate-600">Your lessons will appear here as soon as your instructor opens them. If you expected to start already, message your instructor.</p>
-                <Link to="/messages" className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 hover:bg-slate-100">
-                  <MessageCircle className="h-4 w-4" aria-hidden="true" />
-                  Message your instructor
-                </Link>
-              </div>
-            ) : derived.nextAvailableLesson ? (
-              <div className="mt-6 rounded-2xl bg-slate-950 p-4 text-white sm:p-5">
-                <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-primary-300">Continue your path</p>
-                <p className="mt-1.5 text-lg font-extrabold tracking-tight text-white">{derived.nextAvailableLesson.title}</p>
-                <p className="mt-0.5 text-sm text-slate-400">{derived.nextAvailableLesson.moduleName}</p>
-                <Link
-                  to={`/lessons/${derived.nextAvailableLesson.id}${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}`}
-                  className="group mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-primary-500"
-                >
-                  Continue learning
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                </Link>
-              </div>
-            ) : derived.nextLockedLesson ? (
-              <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-100/70 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Upcoming</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900">{derived.nextLockedLesson.title}</p>
-                <p className="text-sm text-slate-500">
-                  {derived.nextLockedLesson.moduleName} · unlocks {formatDate(derived.nextLockedLesson.unlock_date)}
-                </p>
-              </div>
-            ) : derived.awaitingReviewCount > 0 ? (
-              <div className="mt-6 flex items-center gap-3 rounded-2xl border border-pending-200 bg-pending-50 p-4">
-                <Clock className="h-5 w-5 shrink-0 text-pending-700" aria-hidden="true" />
-                <p className="text-sm font-bold text-pending-700">Everything open is submitted. Your instructor is reviewing {derived.awaitingReviewCount === 1 ? 'one piece of work' : `${derived.awaitingReviewCount} pieces of work`}.</p>
-              </div>
-            ) : (
-              <div className="mt-6 flex items-center gap-3 rounded-2xl border border-success-200 bg-success-50 p-4">
-                <CheckCircle2 className="h-5 w-5 shrink-0 text-success-700" aria-hidden="true" />
-                <p className="text-sm font-bold text-success-700">You’re caught up. New lessons will appear here when they open.</p>
-              </div>
-            )}
+      {/* One hero: who you are, where you stand, and the single next action. */}
+      <section aria-labelledby="dashboard-title" className="app-surface p-5 sm:p-6">
+        <h1 id="dashboard-title" className="text-2xl font-bold tracking-[-0.02em] text-ink sm:text-3xl">
+          Welcome back, {firstName}
+        </h1>
+        <p className="mt-1 text-sm text-ink-muted">
+          {data.cohort?.name}
+          {!courseNotOpen && progress && (
+            <> · <span className="tabular-nums">{progress.completed} of {progress.total} {progress.total === 1 ? 'block' : 'blocks'} done ({percentage}%)</span></>
+          )}
+        </p>
+        {!courseNotOpen && progress && (
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-label="Course progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percentage} aria-valuetext={`${percentage}% of the course done`}>
+            <div className="h-full origin-left rounded-full bg-ruby-600" style={{ transform: `scaleX(${Math.min(Math.max(percentage, 0), 100) / 100})` }} />
           </div>
+        )}
 
-          {progress && !courseNotOpen && (
-            <div className="flex shrink-0 flex-col items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-              <ProgressRing percentage={progress.percentage} size={90} label="Overall" />
-              <div className="grid grid-cols-2 gap-2 text-center text-xs text-slate-500 w-full min-w-[180px]">
-                <div className="rounded-xl bg-white border border-slate-200 px-3 py-2">
-                  <p className="text-lg font-semibold text-slate-900">{derived.activeModules}</p>
-                  <p>Active modules</p>
-                </div>
-                <div className="rounded-xl bg-white border border-slate-200 px-3 py-2">
-                  <p className="text-lg font-semibold text-slate-900">{derived.completedModules}</p>
-                  <p>Completed</p>
-                </div>
-              </div>
-            </div>
+        <div className="mt-5" data-region="next-action">
+          {courseNotOpen ? (
+            <NextAction
+              icon={<Hourglass className="h-5 w-5 text-ink-muted" aria-hidden="true" />}
+              title="Your course isn’t open yet"
+              detail="Your lessons will appear here as soon as your instructor opens them. If you expected to start already, message your instructor."
+              action={<LinkButton to="/messages" variant="secondary"><MessageCircle className="h-4 w-4" aria-hidden="true" />Message your instructor</LinkButton>}
+            />
+          ) : firstRedo ? (
+            <NextAction
+              label={<Badge tone="warning" icon={<RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />}>Redo requested</Badge>}
+              title={firstRedo.content_block_title || firstRedo.lesson_title}
+              detail={firstRedo.content_block_title && firstRedo.content_block_title !== firstRedo.lesson_title ? firstRedo.lesson_title : undefined}
+              excerpt={firstRedo.feedback ? markdownExcerpt(firstRedo.feedback) : undefined}
+              note={redoItems.length > 1 ? `${redoItems.length - 1} more ${redoItems.length - 1 === 1 ? 'redo is' : 'redos are'} listed below.` : undefined}
+              action={<LinkButton to={`/lessons/${firstRedo.lesson_id}${cohortQuery}#redo`}>Read feedback and resubmit<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
+            />
+          ) : derived.nextAvailableLesson ? (
+            <NextAction
+              label={<span className="text-xs font-semibold text-ink-muted">Next up</span>}
+              title={derived.nextAvailableLesson.title}
+              detail={derived.nextAvailableLesson.moduleName}
+              action={<LinkButton to={`/lessons/${derived.nextAvailableLesson.id}${cohortQuery}`}>Continue learning<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
+            />
+          ) : derived.awaitingReviewCount > 0 ? (
+            <NextAction
+              label={<Badge tone="pending" icon={<Clock className="h-3.5 w-3.5" aria-hidden="true" />}>Awaiting review</Badge>}
+              title="Everything open is submitted"
+              detail={`Your instructor is reviewing ${derived.awaitingReviewCount === 1 ? 'one piece of work' : `${derived.awaitingReviewCount} pieces of work`}. Feedback will show up on the lesson and here.`}
+            />
+          ) : derived.nextLockedLesson ? (
+            <NextAction
+              label={<span className="text-xs font-semibold text-ink-muted">Upcoming</span>}
+              title={derived.nextLockedLesson.title}
+              detail={`${derived.nextLockedLesson.moduleName} · unlocks ${formatDate(derived.nextLockedLesson.unlock_date)}`}
+            />
+          ) : (
+            <NextAction
+              label={<Badge tone="success" icon={<CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}>Caught up</Badge>}
+              title="You’re caught up"
+              detail="New lessons will appear here when they open."
+            />
           )}
         </div>
       </section>
 
-      {weeklyPlan?.enrolled && !courseNotOpen && <WeeklyPlanCard plan={weeklyPlan} />}
+      {weeklyPlan?.enrolled && !courseNotOpen && <WeeklyPlanCard plan={weeklyPlan} hideFirstRedo={Boolean(firstRedo)} />}
 
       {data.private_meetings_enabled && (
-        <Link to="/meetings" className="group flex min-h-20 items-center justify-between gap-4 rounded-2xl border border-primary-200 bg-primary-50 px-5 py-4 transition hover:border-primary-400 hover:bg-primary-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-primary-700"><CalendarDays className="h-5 w-5" /></span>
-            <div><p className="font-bold text-slate-950">Your private meetings</p><p className="text-sm text-slate-700">See your weekly one-to-one schedule and available times.</p></div>
+        <Link to="/meetings" className="pressable group flex min-h-16 items-center justify-between gap-4 rounded-2xl border border-line bg-surface-raised px-4 py-3 shadow-raised hover:border-line-strong sm:px-5">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><CalendarDays className="h-5 w-5" aria-hidden="true" /></span>
+            <div className="min-w-0"><p className="font-semibold text-ink">Your private meetings</p><p className="text-sm text-ink-muted">See your weekly one-to-one schedule and available times.</p></div>
           </div>
-          <ArrowRight className="h-5 w-5 shrink-0 text-primary-700 transition-transform group-hover:translate-x-1" />
+          <ArrowRight className="h-5 w-5 shrink-0 text-ink-muted transition-transform duration-[180ms] group-hover:translate-x-0.5" aria-hidden="true" />
         </Link>
       )}
 
-      {showWeeklyFallback && data.action_items && data.action_items.length > 0 && (
-        <section className="rounded-2xl border border-amber-300 bg-amber-50 p-4 sm:p-5">
-          <h2 className="flex items-center gap-2 text-sm font-extrabold text-amber-900">
-            <RotateCcw className="h-4 w-4" />
-            Feedback needs your attention
+      {(showWeeklyFallback || weeklyPlan?.mode === 'library') && redoItems.length > 1 && (
+        <section className="app-surface p-4 sm:p-5">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-ink">
+            <RotateCcw className="h-4 w-4 text-warning-800" aria-hidden="true" />
+            Other feedback to act on
           </h2>
-          <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-            {data.action_items.map((item, i) => (
-              <li key={i}>
-                <Link to={`/lessons/${item.lesson_id}${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}`} className="group block h-full rounded-xl border border-amber-200 bg-white p-3.5 transition hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-md hover:shadow-amber-900/5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-slate-950">{item.content_block_title}</p>
-                      <p className="truncate text-xs text-slate-500">{item.lesson_title}</p>
-                    </div>
-                    <ArrowRight className="h-4 w-4 shrink-0 text-amber-600 transition-transform group-hover:translate-x-1" />
-                  </div>
-                  {item.feedback && <p className="mt-2 line-clamp-3 border-l-2 border-amber-300 pl-2 text-xs leading-5 text-slate-600">{markdownExcerpt(item.feedback)}</p>}
+          <ul className="mt-2 divide-y divide-line">
+            {redoItems.slice(1).map((item) => (
+              <li key={item.submission_id}>
+                <Link to={`/lessons/${item.lesson_id}${cohortQuery}#redo`} className="pressable group flex min-h-14 items-center justify-between gap-3 rounded-lg py-3">
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold text-ink">{item.content_block_title || item.lesson_title}</span>
+                    {item.feedback && <span className="mt-0.5 line-clamp-2 block text-sm text-ink-muted">{markdownExcerpt(item.feedback)}</span>}
+                  </span>
+                  <ArrowRight className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
                 </Link>
               </li>
             ))}
@@ -312,52 +302,50 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
       )}
 
       {showWeeklyFallback && (derived.nextSubmissionDeadline || derived.closedSubmissionWindowCount > 0) && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="app-surface p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                <Lock className="h-4 w-4 text-primary-500" />
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
+                <Lock className="h-4 w-4 text-ink-muted" aria-hidden="true" />
                 Submission windows
               </h3>
               {derived.nextSubmissionDeadline ? (
-                <p className="mt-1 text-sm text-slate-600">
-                  Next close: <span className="font-medium text-slate-900">{derived.nextSubmissionDeadline.title}</span> closes {formatShortDateTime(derived.nextSubmissionDeadline.submission_window?.submissions_close_at)}.
+                <p className="mt-1 text-sm text-ink-secondary">
+                  Next close: <span className="font-medium text-ink">{derived.nextSubmissionDeadline.title}</span> closes <span className="tabular-nums">{formatShortDateTime(derived.nextSubmissionDeadline.submission_window?.submissions_close_at)}</span>.
                 </p>
               ) : (
-                <p className="mt-1 text-sm text-slate-600">No upcoming submission close times right now.</p>
+                <p className="mt-1 text-sm text-ink-secondary">No upcoming submission close times right now.</p>
               )}
             </div>
             {derived.closedSubmissionWindowCount > 0 && (
-              <span className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
+              <Badge tone="neutral" icon={<Lock className="h-3.5 w-3.5" aria-hidden="true" />}>
                 {derived.closedSubmissionWindowCount} closed window{derived.closedSubmissionWindowCount !== 1 ? 's' : ''}
-              </span>
+              </Badge>
             )}
           </div>
         </div>
       )}
 
       {showWeeklyFallback && data.office_hours && data.office_hours.length > 0 && (
-        <div className="rounded-2xl bg-white border border-slate-200 p-4 space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-              <Clock className="h-4 w-4 text-primary-500" />
-              Live schedule
-            </h3>
-          </div>
-          <div className="rounded-xl border border-primary-200 bg-primary-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-primary-700">Next session</p>
-            <p className="mt-1 text-base font-semibold text-slate-900">{data.office_hours[0].title}</p>
-            <p className="mt-0.5 text-sm text-slate-600">{formatShortDateTime(data.office_hours[0].starts_at, 'TBD', data.office_hours[0].timezone)}</p>
-            {data.office_hours[0].description && <p className="mt-2 text-sm text-slate-600">{data.office_hours[0].description}</p>}
-            <a
+        <div className="app-surface space-y-3 p-4">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
+            <Clock className="h-4 w-4 text-ink-muted" aria-hidden="true" />
+            Live schedule
+          </h3>
+          <div className="rounded-xl border border-line bg-surface-sunken p-4">
+            <p className="text-xs font-semibold text-ink-muted">Next session</p>
+            <p className="mt-1 text-base font-semibold text-ink">{data.office_hours[0].title}</p>
+            <p className="mt-0.5 text-sm tabular-nums text-ink-secondary">{formatShortDateTime(data.office_hours[0].starts_at, 'TBD', data.office_hours[0].timezone)}</p>
+            {data.office_hours[0].description && <p className="mt-2 text-sm text-ink-secondary">{data.office_hours[0].description}</p>}
+            <AnchorButton
               href={sanitizeUrl(data.office_hours[0].meeting_url)}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 transition-colors"
+              className="mt-3"
             >
               Join session
-              <ExternalLink className="h-4 w-4" />
-            </a>
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            </AnchorButton>
           </div>
           {data.office_hours.length > 1 && (
             <div className="grid gap-2 sm:grid-cols-2">
@@ -367,10 +355,10 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
                   href={sanitizeUrl(session.meeting_url)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 hover:border-primary-200"
+                  className="pressable rounded-xl border border-line bg-surface-raised px-4 py-3 hover:border-line-strong"
                 >
-                  <p className="text-sm font-medium text-slate-900">{session.title}</p>
-                  <p className="mt-0.5 text-xs text-slate-500">{formatShortDateTime(session.starts_at, 'TBD', session.timezone)}</p>
+                  <p className="text-sm font-medium text-ink">{session.title}</p>
+                  <p className="mt-0.5 text-xs tabular-nums text-ink-muted">{formatShortDateTime(session.starts_at, 'TBD', session.timezone)}</p>
                 </a>
               ))}
             </div>
@@ -379,10 +367,10 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
       )}
 
       {data.cohort?.announcements && data.cohort.announcements.length > 0 && (
-        <div className="rounded-2xl bg-white border border-slate-200 p-4 space-y-3">
+        <section className="app-surface space-y-3 p-4">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-semibold text-slate-900">Class Notices</h3>
-            <Link to="/announcements" className="text-xs font-medium text-primary-600 hover:text-primary-700">
+            <h2 className="text-base font-semibold text-ink">Class notices</h2>
+            <Link to="/announcements" className="app-link inline-flex min-h-11 items-center px-1 text-sm">
               View all
             </Link>
           </div>
@@ -390,30 +378,28 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
             .slice()
             .sort((a, b) => Number(b.pinned) - Number(a.pinned) || announcementTimestamp(b.published_at) - announcementTimestamp(a.published_at))
             .map((announcement, idx) => (
-              <Link key={`${announcement.published_at}-${idx}`} to={`/announcements/${announcement.id}`} className={`block rounded-xl border px-4 py-3 ${announcement.pinned ? 'border-primary-200 bg-primary-50' : 'border-slate-200 bg-slate-50'} hover:border-primary-200`}>
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-slate-900">{announcement.title || 'Announcement'}</p>
-                  {announcement.pinned && (
-                    <span className="rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-700">Pinned</span>
-                  )}
+              <Link key={`${announcement.published_at}-${idx}`} to={`/announcements/${announcement.id}`} className="pressable block rounded-xl border border-line bg-surface-raised px-4 py-3 hover:border-line-strong hover:bg-surface-sunken">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-semibold text-ink">{announcement.title || 'Announcement'}</p>
+                  {announcement.pinned && <Badge tone="info" icon={<Pin className="h-3 w-3" aria-hidden="true" />}>Pinned</Badge>}
                 </div>
-                <p className="mt-1 text-xs text-slate-500">
-                  {announcement.author?.full_name || announcement.cohort_name || 'CSG'} · {formatDate(announcement.published_at)}
+                <p className="mt-1 text-xs text-ink-muted">
+                  {announcement.author?.full_name || announcement.cohort_name || 'CSG'} · <span className="tabular-nums">{formatDate(announcement.published_at)}</span>
                 </p>
-                {announcement.body && <p className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{announcement.body}</p>}
+                {announcement.body && <p className="mt-1 line-clamp-3 text-sm text-ink-secondary">{markdownExcerpt(announcement.body)}</p>}
               </Link>
             ))}
-        </div>
+        </section>
       )}
 
       {data.resources && data.resources.length > 0 && (
-        <div className="rounded-2xl bg-white border border-slate-200 p-4 space-y-3">
+        <section className="app-surface space-y-3 p-4">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-              <Link2 className="h-4 w-4 text-primary-500" />
-              Class Resources
-            </h3>
-            <Link to="/resources" className="text-xs font-medium text-primary-600 hover:text-primary-700">
+            <h2 className="flex items-center gap-2 text-base font-semibold text-ink">
+              <Link2 className="h-4 w-4 text-ink-muted" aria-hidden="true" />
+              Class resources
+            </h2>
+            <Link to="/resources" className="app-link inline-flex min-h-11 items-center px-1 text-sm">
               View all
             </Link>
           </div>
@@ -424,128 +410,84 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
                 href={sanitizeUrl(resource.url)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 hover:border-primary-200"
+                className="pressable flex min-h-14 items-start justify-between gap-3 rounded-xl border border-line bg-surface-raised px-4 py-3 hover:border-line-strong hover:bg-surface-sunken"
               >
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold text-slate-900">{resource.title}</span>
+                  <span className="block truncate text-sm font-semibold text-ink">{resource.title}</span>
                   {resource.description && (
-                    <span className="mt-0.5 line-clamp-1 block text-xs text-slate-500">{resource.description}</span>
+                    <span className="mt-0.5 line-clamp-1 block text-xs text-ink-muted">{resource.description}</span>
                   )}
                 </span>
-                <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
               </a>
             ))}
           </div>
-        </div>
+        </section>
       )}
 
-      {!courseNotOpen && <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="rounded-2xl bg-white border border-slate-200 p-4">
-          <div className="flex items-center gap-2 text-slate-500">
-            <PlayCircle className="h-4 w-4" />
-            <span className="text-sm font-medium">Ready now</span>
-          </div>
-          <p className="mt-2 text-2xl font-bold text-slate-900">{derived.availableLessonsCount}</p>
-          <p className="text-xs text-slate-500">Available incomplete lessons</p>
-        </div>
-        <div className="rounded-2xl bg-white border border-slate-200 p-4">
-          <div className="flex items-center gap-2 text-slate-500">
-            <Lock className="h-4 w-4" />
-            <span className="text-sm font-medium">Next unlock</span>
-          </div>
-          <p className="mt-2 text-lg font-bold text-slate-900">{derived.nextLockedLesson ? formatDate(derived.nextLockedLesson.unlock_date) : '—'}</p>
-          <p className="text-xs text-slate-500">{derived.nextLockedLesson?.title || 'No locked lessons queued'}</p>
-        </div>
-        <div className="rounded-2xl bg-white border border-slate-200 p-4">
-          <div className="flex items-center gap-2 text-slate-500">
-            <CalendarDays className="h-4 w-4" />
-            <span className="text-sm font-medium">Cohort</span>
-          </div>
-          <p className="mt-2 text-lg font-bold text-slate-900">{data.cohort?.name}</p>
-          <p className="text-xs text-slate-500">Started {formatDate(data.cohort?.start_date)}</p>
-        </div>
-      </div>}
-
-      {!courseNotOpen && <div className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="app-eyebrow">Your course</p>
-            <h2 className="mt-1 text-xl font-extrabold tracking-tight text-slate-950">Learning path</h2>
-          </div>
-          <p className="hidden text-sm text-slate-500 sm:block">Follow the unlocked path and keep momentum.</p>
-        </div>
-        {data.modules?.map((mod) => {
-          const upcomingLessons = mod.lessons.filter((l) => l.available && !l.completed).slice(0, 3)
-          const lockedCount = mod.lessons.filter((l) => !l.available).length
-          return (
-            <Link
-              key={mod.id}
-              to={mod.available ? `/modules/${mod.id}${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}` : '#'}
-              onClick={(e) => {
-                if (!mod.available) e.preventDefault()
-              }}
-              className={`block rounded-2xl border p-5 transition-all ${mod.available ? 'bg-white border-slate-200 hover:border-primary-200 hover:shadow-sm' : 'bg-slate-50 border-slate-200 opacity-80 cursor-not-allowed'}`}
-            >
-              <div className="flex items-center gap-4">
-                <ProgressRing percentage={mod.progress_percentage} size={64} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-semibold text-slate-900">{mod.name}</h3>
-                    {!mod.available && (
-                      <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
-                        Locked
-                      </span>
-                    )}
-                    {mod.available && mod.completed_blocks === mod.total_blocks && mod.total_blocks > 0 && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-green-700">
-                        <CheckCircle2 className="h-3 w-3" />
-                        Complete
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-slate-500 capitalize mt-0.5">
-                    {mod.module_type.replace('_', ' ')}
-                    {!mod.available && mod.unlock_date ? ` · unlocks ${formatDate(mod.unlock_date)}` : ''}
-                  </p>
-                  <div className="mt-3">
-                    <ProgressBar
-                      value={mod.completed_blocks}
-                      max={mod.total_blocks}
-                      showPercentage={false}
-                      size="sm"
-                    />
-                  </div>
-                </div>
-                <div className="text-sm text-slate-500 text-right">
-                  <div>{mod.completed_blocks}/{mod.total_blocks}</div>
-                  {lockedCount > 0 && <div className="text-xs text-slate-400 mt-1">{lockedCount} locked</div>}
-                </div>
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                {upcomingLessons.length > 0 ? (
-                  upcomingLessons.map((lesson) => (
-                    <span key={lesson.id} className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
-                      <Clock className="h-3 w-3" />
-                      {lesson.title.length > 30 ? `${lesson.title.slice(0, 30)}...` : lesson.title}
+      {!courseNotOpen && data.modules && data.modules.length > 0 && (
+        <section aria-labelledby="learning-path-title" className="space-y-3">
+          <h2 id="learning-path-title" className="text-lg font-semibold text-ink">Your course</h2>
+          <ul className="app-surface divide-y divide-line overflow-hidden">
+            {data.modules.map((mod) => {
+              const lockedCount = mod.lessons.filter((l) => !l.available).length
+              const complete = mod.available && mod.total_blocks > 0 && mod.completed_blocks === mod.total_blocks
+              const content = (
+                <>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-ink">{mod.name}</span>
+                      {!mod.available && <Badge tone="neutral" icon={<Lock className="h-3 w-3" aria-hidden="true" />}>Locked</Badge>}
+                      {complete && <Badge tone="success" icon={<CheckCircle2 className="h-3 w-3" aria-hidden="true" />}>Complete</Badge>}
                     </span>
-                  ))
-                ) : mod.available ? (
-                  <span className="inline-flex items-center gap-1 rounded-lg bg-green-50 px-2.5 py-1 text-xs text-green-700">
-                    <CheckCircle2 className="h-3 w-3" />
-                    Nothing pending in this module right now
+                    <span className="mt-0.5 block text-sm text-ink-muted">
+                      <span className="tabular-nums">{mod.completed_blocks} of {mod.total_blocks}</span> blocks done
+                      {lockedCount > 0 && <> · <span className="tabular-nums">{lockedCount}</span> locked</>}
+                      {!mod.available && mod.unlock_date ? ` · unlocks ${formatDate(mod.unlock_date)}` : ''}
+                    </span>
                   </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
-                    <Lock className="h-3 w-3" />
-                    Module not unlocked yet
-                  </span>
-                )}
-              </div>
-            </Link>
-          )
-        })}
-      </div>}
+                  {mod.available && <ArrowRight className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />}
+                </>
+              )
+              return (
+                <li key={mod.id}>
+                  {mod.available ? (
+                    <Link to={`/modules/${mod.id}${cohortQuery}`} className="pressable flex min-h-16 items-center gap-3 px-4 py-3 hover:bg-surface-sunken sm:px-5">
+                      {content}
+                    </Link>
+                  ) : (
+                    <div className="flex min-h-16 items-center gap-3 px-4 py-3 text-ink-muted sm:px-5">{content}</div>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
+    </div>
+  )
+}
+
+interface NextActionProps {
+  label?: ReactNode
+  icon?: ReactNode
+  title: string
+  detail?: string
+  excerpt?: string
+  note?: string
+  action?: ReactNode
+}
+
+/** The dashboard's single next step, on a light well inside the hero. */
+function NextAction({ label, icon, title, detail, excerpt, note, action }: NextActionProps) {
+  return (
+    <div className="rounded-2xl border border-line bg-surface-sunken p-4 sm:p-5">
+      {label && <div className="mb-2">{label}</div>}
+      <p className="flex items-start gap-2 text-lg font-semibold leading-7 text-ink">{icon}<span className="min-w-0 [overflow-wrap:anywhere]">{title}</span></p>
+      {detail && <p className="mt-0.5 text-sm text-ink-secondary">{detail}</p>}
+      {excerpt && <p className="mt-2 line-clamp-3 border-l-2 border-warning-300 pl-3 text-sm leading-6 text-ink-secondary">{excerpt}</p>}
+      {note && <p className="mt-2 text-xs text-ink-muted">{note}</p>}
+      {action && <div className="mt-4 flex flex-wrap gap-2">{action}</div>}
     </div>
   )
 }

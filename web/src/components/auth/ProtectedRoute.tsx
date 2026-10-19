@@ -5,6 +5,7 @@ import { useAuthContext } from '../../contexts/AuthContext'
 import { LoadingSpinner } from '../shared/LoadingSpinner'
 import { MessagesLoadingShell } from '../shared/MessagesLoadingShell'
 import { EmptyState } from '../shared/EmptyState'
+import { Button } from '../ui/Button'
 import { CommunityStandardsGate } from './CommunityStandardsGate'
 
 interface ProtectedRouteProps {
@@ -49,15 +50,10 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
         title="Could not connect to your account"
         description={sessionError || 'We could not load your CSG account yet. Check your connection and try again.'}
         action={
-          <button
-            type="button"
-            onClick={() => void handleRetry()}
-            disabled={retrying}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            {retrying ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          <Button onClick={() => void handleRetry()} disabled={retrying}>
+            {retrying ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
             {retrying ? 'Trying...' : 'Try again'}
-          </button>
+          </Button>
         }
       />
     )

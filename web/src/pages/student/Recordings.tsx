@@ -10,6 +10,9 @@ import { VideoPlayer } from '../../components/shared/VideoPlayer'
 import { ContextualHelp } from '../../components/student/ContextualHelp'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useCohortContext } from '../../contexts/CohortContext'
+import { Badge } from '../../components/ui/Badge'
+import { AnchorButton, Button } from '../../components/ui/Button'
+import { useMediaQuery } from '../../lib/useMediaQuery'
 import type { RecordingEntry, RecordingItem as ApiRecordingItem, S3Recording as ApiS3Recording } from '../../types/api'
 
 interface LegacyRecording {
@@ -112,6 +115,8 @@ export function Recordings() {
   const [selectedItem, setSelectedItem] = useState<RecordingItem | null>(null)
   const [query, setQuery] = useState('')
   const [playlistCollapsed, setPlaylistCollapsed] = useState(false)
+  // The playlist only collapses on phones and tablets; on desktop it is always shown.
+  const isDesktop = useMediaQuery('(min-width: 1024px)')
   const [activeTab, setActiveTab] = useState<RecordingTab>('all')
 
   const loadRecordings = useCallback(() => {
@@ -225,14 +230,10 @@ export function Recordings() {
         title="Could not load recordings"
         description={loadError}
         action={
-          <button
-            type="button"
-            onClick={loadRecordings}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-600"
-          >
-            <RefreshCw className="h-4 w-4" />
+          <Button onClick={loadRecordings}>
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
             Try again
-          </button>
+          </Button>
         }
       />
     )
@@ -258,18 +259,18 @@ export function Recordings() {
   return (
     <div className="app-page">
       {showingSavedData && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="rounded-2xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-800">
           Showing saved recordings while your connection catches up.
         </div>
       )}
       <header>
-        <Link to="/dashboard" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900">
-          <ArrowLeft className="h-4 w-4" />
+        <Link to="/dashboard" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-slate-200/70">
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Back to Dashboard
         </Link>
         <p className="app-eyebrow">Replay and review</p>
         <h1 className="app-title mt-2">Class recordings</h1>
-        <p className="app-description mt-2">
+        <p className="app-description mt-2 tabular-nums">
           {totalCount} recording{totalCount !== 1 ? 's' : ''} available
           {` · ${[...s3Recordings, ...legacyRecordings].filter(r => r.watch_progress?.completed).length} watched`}
         </p>
@@ -289,46 +290,43 @@ export function Recordings() {
                 onSaveProgress={saveSelectedProgress}
                 trackProgress={!isStaff}
               />
-              <div className="rounded-2xl border border-slate-200 bg-white p-5">
+              <div className="app-surface p-5">
                 <div className="flex items-start justify-between gap-3">
-                  <h2 className="text-lg font-semibold text-slate-900">{liveSelectedItem.title}</h2>
+                  <h2 className="min-w-0 text-lg font-semibold text-ink [overflow-wrap:anywhere]">{liveSelectedItem.title}</h2>
                   {liveSelectedItem.watch_progress?.completed && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 shrink-0">
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      Watched
-                    </span>
+                    <Badge tone="success" icon={<CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}>Watched</Badge>
                   )}
                 </div>
-                <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-500">
+                <div className="mt-2 flex flex-wrap items-center gap-3 text-sm tabular-nums text-ink-secondary">
                   {liveSelectedItem.recorded_date && (
                     <span className="inline-flex items-center gap-1">
-                      <CalendarDays className="h-3.5 w-3.5" />
+                      <CalendarDays className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                       {formatDate(liveSelectedItem.recorded_date)}
                     </span>
                   )}
                   {liveSelectedItem.duration_display && (
                     <span className="inline-flex items-center gap-1">
-                      <Clock className="h-3.5 w-3.5" />
+                      <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                       {liveSelectedItem.duration_display}
                     </span>
                   )}
                   <span className="inline-flex items-center gap-1">
-                    <Film className="h-3.5 w-3.5" />
+                    <Film className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                     {liveSelectedItem.file_size_display}
                   </span>
                 </div>
                 {liveSelectedItem.watch_progress && !liveSelectedItem.watch_progress.completed && liveSelectedItem.watch_progress.progress_percentage > 0 && (
                   <div className="mt-3">
-                    <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
+                    <div className="mb-1 flex items-center justify-between text-xs tabular-nums text-ink-secondary">
                       <span>{Math.round(liveSelectedItem.watch_progress.progress_percentage)}% watched</span>
                     </div>
-                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-primary-500 rounded-full transition-all" style={{ width: `${liveSelectedItem.watch_progress.progress_percentage}%` }} />
+                    <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">
+                      <div className="h-full rounded-full bg-slate-700 transition-[width] duration-200" style={{ width: `${liveSelectedItem.watch_progress.progress_percentage}%` }} />
                     </div>
                   </div>
                 )}
                 {liveSelectedItem.description && (
-                  <p className="mt-3 text-sm text-slate-600 leading-relaxed">{liveSelectedItem.description}</p>
+                  <p className="mt-3 text-sm leading-relaxed text-ink-secondary">{liveSelectedItem.description}</p>
                 )}
               </div>
             </div>
@@ -351,30 +349,42 @@ export function Recordings() {
 
         {/* Playlist sidebar */}
         <div className="lg:w-80 xl:w-96 shrink-0">
-          <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden lg:sticky lg:top-4">
-            <button
-              onClick={() => setPlaylistCollapsed(!playlistCollapsed)}
-              className="flex w-full items-center justify-between px-4 py-3 border-b border-slate-100 lg:cursor-default"
-            >
-              <span className="text-sm font-semibold text-slate-900">
+          <div className="app-surface overflow-hidden lg:sticky lg:top-4">
+            {isDesktop ? (
+              <h2 className="flex min-h-11 items-center border-b border-line px-4 py-3 text-sm font-semibold tabular-nums text-ink">
                 Playlist · {filtered.length}
-              </span>
-              <span className="lg:hidden text-slate-400">
-                {playlistCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-              </span>
-            </button>
+              </h2>
+            ) : (
+              <h2>
+                <button
+                  type="button"
+                  aria-expanded={!playlistCollapsed}
+                  onClick={() => setPlaylistCollapsed(!playlistCollapsed)}
+                  className="flex min-h-11 w-full items-center justify-between border-b border-line px-4 py-3 transition-colors duration-150 active:bg-surface-sunken"
+                >
+                  <span className="text-sm font-semibold tabular-nums text-ink">
+                    Playlist · {filtered.length}
+                  </span>
+                  <span className="text-ink-muted" aria-hidden="true">
+                    {playlistCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                  </span>
+                </button>
+              </h2>
+            )}
 
             <div className={`${playlistCollapsed ? 'hidden' : 'block'} lg:block`}>
               {showTabs && (
-                <div className="flex border-b border-slate-100">
+                <div className="flex border-b border-line" role="group" aria-label="Recording source">
                   {(['all', 'uploaded', 'youtube', 'external'] as const)
                     .filter((tab) => tab === 'all' || allRecordingsForTab(tab, s3Recordings, legacyRecordings).length > 0)
                     .map(tab => (
                     <button
                       key={tab}
+                      type="button"
+                      aria-pressed={activeTab === tab}
                       onClick={() => setActiveTab(tab)}
-                      className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
-                        activeTab === tab ? 'text-primary-600 border-b-2 border-primary-500' : 'text-slate-500 hover:text-slate-700'
+                      className={`min-h-11 flex-1 px-3 py-2 text-xs font-semibold transition-colors duration-150 active:bg-surface-sunken ${
+                        activeTab === tab ? 'tab-selected' : 'text-ink-secondary hover:text-ink'
                       }`}
                     >
                       {tab === 'all' ? 'All' : tab === 'uploaded' ? 'Uploaded' : tab === 'youtube' ? 'YouTube' : 'External'}
@@ -386,13 +396,14 @@ export function Recordings() {
               {allRecordings.length > 6 && (
                 <div className="px-3 pt-3">
                   <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" aria-hidden="true" />
                     <input
                       type="text"
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                       placeholder="Search recordings..."
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      aria-label="Search recordings"
+                      className="app-control w-full pl-9"
                     />
                   </div>
                 </div>
@@ -400,7 +411,7 @@ export function Recordings() {
 
               <div className="max-h-112 lg:max-h-[calc(100vh-14rem)] overflow-y-auto p-2">
                 {filtered.length === 0 ? (
-                  <p className="text-xs text-slate-400 text-center py-6">No recordings match your search.</p>
+                  <div className="py-6 text-center"><p className="text-sm text-ink-secondary">No recordings match your search.</p>{query && <Button variant="quiet" size="sm" className="mt-2" onClick={() => setQuery('')}>Clear search</Button>}</div>
                 ) : (
                   <div className="space-y-1">
                     {filtered.map((recording, idx) => {
@@ -411,48 +422,50 @@ export function Recordings() {
                       return (
                         <button
                           key={`${recording.source}-${recording.id}`}
+                          type="button"
+                          aria-current={isActive ? 'true' : undefined}
                           onClick={() => setSelectedItem(recording)}
-                          className={`w-full text-left rounded-xl px-3 py-2.5 transition-colors ${
+                          className={`pressable min-h-11 w-full rounded-xl px-3 py-2.5 text-left ${
                             isActive
-                              ? 'bg-primary-50 border border-primary-200'
-                              : 'hover:bg-slate-50 border border-transparent'
+                              ? 'nav-selected'
+                              : 'hover:bg-surface-sunken'
                           }`}
                         >
                           <div className="flex items-start gap-2.5">
-                            <span className="text-[11px] font-medium text-slate-400 mt-0.5 w-5 text-right shrink-0">
+                            <span className="mt-0.5 w-5 shrink-0 text-right text-xs font-medium tabular-nums text-ink-muted">
                               {idx + 1}
                             </span>
                             <div className="min-w-0 flex-1">
-                              <p className={`text-sm font-medium leading-snug truncate ${isActive ? 'text-primary-700' : 'text-slate-900'}`}>
+                              <p className={`truncate text-sm leading-snug text-ink ${isActive ? 'font-semibold' : 'font-medium'}`}>
                                 {recording.title}
                               </p>
-                              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              <div className="mt-0.5 flex flex-wrap items-center gap-2 tabular-nums">
                                 {isS3 && s3Rec?.recorded_date && (
-                                  <span className="text-[11px] text-slate-400">{formatDate(s3Rec.recorded_date)}</span>
+                                  <span className="text-xs text-ink-muted">{formatDate(s3Rec.recorded_date)}</span>
                                 )}
                                 {!isS3 && (recording as LegacyRecording).date && (
-                                  <span className="text-[11px] text-slate-400">{formatDate((recording as LegacyRecording).date)}</span>
+                                  <span className="text-xs text-ink-muted">{formatDate((recording as LegacyRecording).date)}</span>
                                 )}
                                 {isS3 && s3Rec?.duration_display && (
-                                  <span className="text-[11px] text-slate-400">{s3Rec.duration_display}</span>
+                                  <span className="text-xs text-ink-muted">{s3Rec.duration_display}</span>
                                 )}
                                 {!isS3 && (
-                                  <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
-                                    <ExternalLink className="h-2.5 w-2.5" />
+                                  <span className="flex items-center gap-0.5 text-xs text-ink-muted">
+                                    <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
                                     {recording.source === 'youtube' ? 'YouTube' : recording.source === 'direct' ? 'Direct video' : recording.source === 'external' ? 'External' : recording.source[0].toUpperCase() + recording.source.slice(1)}
                                   </span>
                                 )}
                               </div>
                               {progress && !progress.completed && progress.progress_percentage > 0 && (
-                                <div className="mt-1.5 h-1 bg-slate-100 rounded-full overflow-hidden">
-                                  <div className="h-full bg-primary-400 rounded-full" style={{ width: `${progress.progress_percentage}%` }} />
+                                <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-slate-200">
+                                  <div className="h-full rounded-full bg-slate-600" style={{ width: `${progress.progress_percentage}%` }} />
                                 </div>
                               )}
                             </div>
                             {progress?.completed ? (
-                              <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success-700" aria-label="Watched" />
                             ) : isActive ? (
-                              <PlayCircle className="h-4 w-4 text-primary-500 shrink-0 mt-0.5" />
+                              <PlayCircle className="mt-0.5 h-4 w-4 shrink-0 text-ink-secondary" aria-hidden="true" />
                             ) : null}
                           </div>
                         </button>
@@ -474,7 +487,7 @@ function LegacyPlayer({ recording }: { recording: LegacyRecording }) {
   if (youtubeId) {
     return (
       <div className="space-y-4">
-        <div className="relative w-full overflow-hidden rounded-2xl border border-slate-200 bg-black" style={{ paddingBottom: '56.25%' }}>
+        <div className="relative w-full overflow-hidden rounded-2xl border border-line bg-black" style={{ paddingBottom: '56.25%' }}>
           <iframe
             key={youtubeId}
             className="absolute inset-0 h-full w-full"
@@ -484,12 +497,12 @@ function LegacyPlayer({ recording }: { recording: LegacyRecording }) {
             allowFullScreen
           />
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <h2 className="text-lg font-semibold text-slate-900">{recording.title}</h2>
-          <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-500">
+        <div className="app-surface p-5">
+          <h2 className="min-w-0 text-lg font-semibold text-ink [overflow-wrap:anywhere]">{recording.title}</h2>
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-sm tabular-nums text-ink-secondary">
             {recording.date && (
               <span className="inline-flex items-center gap-1">
-                <CalendarDays className="h-3.5 w-3.5" />
+                <CalendarDays className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 {formatDate(recording.date)}
               </span>
             )}
@@ -497,14 +510,14 @@ function LegacyPlayer({ recording }: { recording: LegacyRecording }) {
               href={sanitizeUrl(recording.url)}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-primary-600 hover:text-primary-700 transition-colors"
+              className="app-link inline-flex min-h-11 items-center gap-1 lg:min-h-0"
             >
-              <ExternalLink className="h-3.5 w-3.5" />
+              <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               {recording.source === 'youtube' ? 'Watch on YouTube' : 'Open Recording'}
             </a>
           </div>
           {recording.description && (
-            <p className="mt-3 text-sm text-slate-600 leading-relaxed">{recording.description}</p>
+            <p className="mt-3 text-sm leading-relaxed text-ink-secondary">{recording.description}</p>
           )}
         </div>
       </div>
@@ -513,25 +526,25 @@ function LegacyPlayer({ recording }: { recording: LegacyRecording }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 py-24">
+      <div className="flex items-center justify-center rounded-2xl border border-line bg-surface-sunken py-24">
         <div className="text-center">
-          <PlayCircle className="h-12 w-12 text-slate-300 mx-auto mb-3" />
-          <p className="text-sm text-slate-500 mb-3">This recording can't be embedded.</p>
-          <a
+          <PlayCircle className="mx-auto mb-3 h-12 w-12 text-ink-disabled" aria-hidden="true" />
+          <p className="mb-3 text-sm text-ink-secondary">This recording can't be embedded.</p>
+          <AnchorButton
+            variant="primary"
             href={sanitizeUrl(recording.url)}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 transition-colors"
           >
-            <ExternalLink className="h-4 w-4" />
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
             Open Recording
-          </a>
+          </AnchorButton>
         </div>
       </div>
-      <div className="rounded-2xl border border-slate-200 bg-white p-5">
-        <h2 className="text-lg font-semibold text-slate-900">{recording.title}</h2>
+      <div className="app-surface p-5">
+        <h2 className="min-w-0 text-lg font-semibold text-ink [overflow-wrap:anywhere]">{recording.title}</h2>
         {recording.description && (
-          <p className="mt-2 text-sm text-slate-600">{recording.description}</p>
+          <p className="mt-2 text-sm text-ink-secondary">{recording.description}</p>
         )}
       </div>
     </div>

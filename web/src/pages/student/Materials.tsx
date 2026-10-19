@@ -11,6 +11,8 @@ import { formatShortDateTime } from '../../lib/format'
 import { markdownExcerpt } from '../../lib/plainText'
 import { LEARNER_STATUS, STATUS_TONE_CLASSES, learnerLessonStatus } from '../../lib/learningStatus'
 import { StatusBadge, StatusIcon } from '../../components/shared/StatusBadge'
+import { Badge } from '../../components/ui/Badge'
+import { Button, LinkButton } from '../../components/ui/Button'
 import type { DashboardData } from '../../types/api'
 
 type MaterialFilter = 'ready' | 'all' | 'redo' | 'submitted' | 'completed' | 'locked'
@@ -205,14 +207,10 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
         title="Could not load materials"
         description={loadError}
         action={
-          <button
-            type="button"
-            onClick={loadMaterials}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-600"
-          >
-            <RefreshCw className="h-4 w-4" />
+          <Button onClick={loadMaterials}>
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
             Try again
-          </button>
+          </Button>
         }
       />
     )
@@ -240,22 +238,22 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
   return (
     <div className="app-page">
       {showingSavedData && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="rounded-2xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-800">
           Showing saved materials while your connection catches up.
         </div>
       )}
-      <header className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_16px_50px_rgba(15,23,42,0.05)] sm:p-6">
+      <header className="app-surface p-5 sm:p-6">
         {courseAccess?.course_delivery !== 'self_paced' && (courseAccess?.access_expires_at || courseAccess?.support_expires_at) && (
-          <p className="mb-4 rounded-xl bg-primary-50 px-4 py-3 text-xs font-semibold text-primary-900">
+          <p className="mb-4 rounded-xl border border-info-200 bg-info-50 px-4 py-3 text-xs font-semibold text-info-800">
             {courseAccess.access_expires_at && `Lesson access through ${new Date(new Date(courseAccess.access_expires_at).getTime() - 1).toLocaleDateString('en-US', { timeZone: 'Pacific/Guam' })} (Guam time). `}
             {courseAccess.support_expires_at && (new Date(courseAccess.support_expires_at) > new Date()
               ? `Instructor support through ${new Date(new Date(courseAccess.support_expires_at).getTime() - 1).toLocaleDateString('en-US', { timeZone: 'Pacific/Guam' })} (Guam time).`
               : 'Instructor support has ended; you can still review lessons during your access period.')}
           </p>
         )}
-        {selectedEnrollment?.cohort.course_delivery === 'self_paced' && <p className="mb-4 rounded-xl bg-primary-50 px-4 py-3 text-xs font-semibold text-primary-900">Self-paced lesson access through {selectedEnrollment.access_expires_at ? new Date(selectedEnrollment.access_expires_at).toLocaleDateString() : 'your access period'}. {selectedEnrollment.support_expires_at ? (new Date(selectedEnrollment.support_expires_at) > new Date() ? `Instructor messaging through ${new Date(selectedEnrollment.support_expires_at).toLocaleDateString()}.` : 'Instructor messaging has ended.') : 'Instructor messaging starts when you first open the course.'}</p>}
+        {selectedEnrollment?.cohort.course_delivery === 'self_paced' && <p className="mb-4 rounded-xl border border-info-200 bg-info-50 px-4 py-3 text-xs font-semibold text-info-800">Self-paced lesson access through {selectedEnrollment.access_expires_at ? new Date(selectedEnrollment.access_expires_at).toLocaleDateString() : 'your access period'}. {selectedEnrollment.support_expires_at ? (new Date(selectedEnrollment.support_expires_at) > new Date() ? `Instructor messaging through ${new Date(selectedEnrollment.support_expires_at).toLocaleDateString()}.` : 'Instructor messaging has ended.') : 'Instructor messaging starts when you first open the course.'}</p>}
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div>
+          <div className="min-w-0">
             <p className="app-eyebrow">{data.cohort?.name || 'Your cohort'}</p>
             <h1 className="app-title mt-2">Learn</h1>
             <p className="app-description mt-2">
@@ -263,16 +261,16 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
             </p>
           </div>
           <div className="grid grid-cols-3 gap-2 text-center sm:min-w-[360px]">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-              <p className="text-lg font-semibold text-slate-900">{derived.readyCount}</p>
-              <p className="text-xs text-slate-500">Ready</p>
+            <div className="rounded-xl border border-line bg-surface-sunken px-3 py-2">
+              <p className="text-lg font-semibold tabular-nums text-ink">{derived.readyCount}</p>
+              <p className="text-xs text-ink-secondary">Ready</p>
             </div>
             <div className="rounded-xl border border-warning-200 bg-warning-50 px-3 py-2">
-              <p className="text-lg font-semibold text-warning-800">{derived.redoCount}</p>
+              <p className="text-lg font-semibold tabular-nums text-warning-800">{derived.redoCount}</p>
               <p className="text-xs text-warning-800">Redo</p>
             </div>
             <div className="rounded-xl border border-success-200 bg-success-50 px-3 py-2">
-              <p className="text-lg font-semibold text-success-700">{derived.completedCount}</p>
+              <p className="text-lg font-semibold tabular-nums text-success-700">{derived.completedCount}</p>
               <p className="text-xs text-success-700">Done</p>
             </div>
           </div>
@@ -281,7 +279,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" aria-hidden="true" />
           <input
             type="text"
             value={query}
@@ -298,47 +296,40 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
               type="button"
               onClick={() => setFilter(item.key)}
               aria-pressed={filter === item.key}
-              className={`min-h-11 shrink-0 rounded-full border px-3.5 py-2 text-sm font-bold transition-colors ${
+              className={`pressable min-h-11 shrink-0 rounded-full border px-3.5 py-2 text-sm font-semibold ${
                 filter === item.key
-                  ? 'border-primary-200 bg-primary-50 text-primary-700'
-                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  ? 'border-ink bg-slate-100 text-ink'
+                  : 'border-line bg-surface-raised text-ink-secondary hover:bg-surface-sunken hover:text-ink'
               }`}
             >
+              {filter === item.key && <span aria-hidden="true" className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-ruby-600 align-middle" />}
               {item.label}
-              <span className="ml-2 text-xs text-slate-400">{item.count}</span>
+              <span className="ml-2 text-xs tabular-nums text-ink-muted">{item.count}</span>
             </button>
           ))}
         </div>
       </div>
       {derived.visibleModules.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-          <p className="text-sm text-slate-500">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface-raised px-4 py-3">
+          <p className="text-sm tabular-nums text-ink-secondary">
             {derived.visibleModules.length} module{derived.visibleModules.length !== 1 ? 's' : ''} in view
             {derived.hasActiveSearch ? ' · search results expanded' : ''}
           </p>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={expandAllModules}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50"
-            >
+            <Button variant="secondary" size="sm" onClick={expandAllModules}>
               Expand all
-            </button>
-            <button
-              type="button"
-              onClick={() => collapseAllModules(derived.visibleModules.map((mod) => mod.id))}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50"
-            >
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => collapseAllModules(derived.visibleModules.map((mod) => mod.id))}>
               Collapse all
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
       {data.action_items && data.action_items.length > 0 && (
-        <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-orange-800">
-            <RotateCcw className="h-4 w-4" />
+        <div className="rounded-2xl border border-warning-200 bg-warning-50 p-4">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-warning-800">
+            <RotateCcw className="h-4 w-4 shrink-0" aria-hidden="true" />
             Redo requested
           </h2>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
@@ -346,11 +337,11 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
               <Link
                 key={item.submission_id}
                 to={`/lessons/${item.lesson_id}${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}`}
-                className="rounded-xl border border-orange-200 bg-white p-4 hover:border-orange-300 hover:shadow-sm"
+                className="pressable min-w-0 rounded-xl border border-warning-200 bg-surface-raised p-4 hover:border-warning-300"
               >
-                <p className="text-sm font-semibold text-slate-900">{item.content_block_title}</p>
-                <p className="mt-0.5 text-xs text-slate-500">{item.lesson_title}</p>
-                {item.feedback && <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-600">{markdownExcerpt(item.feedback)}</p>}
+                <p className="text-sm font-semibold text-ink [overflow-wrap:anywhere]">{item.content_block_title}</p>
+                <p className="mt-0.5 text-xs text-ink-secondary [overflow-wrap:anywhere]">{item.lesson_title}</p>
+                {item.feedback && <p className="mt-2 line-clamp-3 text-xs leading-5 text-ink-secondary">{markdownExcerpt(item.feedback)}</p>}
               </Link>
             ))}
           </div>
@@ -362,19 +353,23 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
           icon={Hourglass}
           title="Your course isn’t open yet"
           description="Your lessons will appear here as soon as your instructor opens them. If you expected to start already, message your instructor."
-          action={<Link to="/messages" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-100"><MessageCircle className="h-4 w-4" aria-hidden="true" />Message your instructor</Link>}
+          action={<LinkButton to="/messages" variant="secondary"><MessageCircle className="h-4 w-4" aria-hidden="true" />Message your instructor</LinkButton>}
         />
       ) : derived.noLessonsYet ? (
         <EmptyState
           icon={BookOpen}
           title="No lessons published yet"
           description="Your course is set up, but its lessons haven’t been published. Check back soon, or message your instructor if you expected to start."
+          action={<LinkButton to="/messages" variant="secondary"><MessageCircle className="h-4 w-4" aria-hidden="true" />Message your instructor</LinkButton>}
         />
       ) : derived.visibleModules.length === 0 ? (
         <EmptyState
           icon={Search}
           title={derived.hasActiveSearch ? 'No matching lessons' : 'Nothing here right now'}
           description={derived.hasActiveSearch ? 'Try a different search or switch filters to see more lessons.' : 'Switch to “All” to see every lesson in your course.'}
+          action={derived.hasActiveSearch
+            ? <Button variant="secondary" onClick={() => setQuery('')}>Clear search</Button>
+            : filter !== 'all' ? <Button variant="secondary" onClick={() => setFilter('all')}>Show all lessons</Button> : undefined}
         />
       ) : (
         <div className="space-y-4">
@@ -382,42 +377,40 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
             const isCollapsed = !derived.hasActiveSearch && collapsedModules.has(mod.id)
 
             return (
-            <section key={mod.id} className="app-surface relative overflow-hidden before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-primary-500/70">
+            <section key={mod.id} className="app-surface relative overflow-hidden before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-slate-200">
               <button
                 type="button"
                 onClick={() => toggleModuleCollapsed(mod.id)}
                 aria-expanded={!isCollapsed}
-                className="flex min-h-14 w-full flex-col gap-3 p-5 pl-6 text-left transition-colors hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between"
+                className="flex min-h-14 w-full flex-col gap-3 p-5 pl-6 text-left transition-colors duration-150 hover:bg-surface-sunken active:bg-slate-100 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0">
                   <div className="flex min-w-0 items-center gap-2">
                     {isCollapsed ? (
-                      <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+                      <ChevronRight className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
                     ) : (
-                      <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
+                      <ChevronDown className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
                     )}
-                    <h2 className="font-semibold text-slate-900">{mod.name}</h2>
+                    <h2 className="min-w-0 font-semibold text-ink [overflow-wrap:anywhere]">{mod.name}</h2>
                     {!mod.available && (
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                        Locked
-                      </span>
+                      <Badge>Locked</Badge>
                     )}
                   </div>
-                  <p className="mt-0.5 text-sm capitalize text-slate-500">
+                  <p className="mt-0.5 text-sm capitalize tabular-nums text-ink-secondary">
                     {formatTypeLabel(mod.module_type)}
                     {!mod.available && mod.unlock_date ? ` · unlocks ${formatDate(mod.unlock_date)}` : ''}
                   </p>
                 </div>
                 <div className="sm:min-w-[220px]">
                   <ProgressBar value={mod.completed_blocks} max={mod.total_blocks} showPercentage={false} size="sm" />
-                  <p className="mt-1 text-right text-xs text-slate-400">
+                  <p className="mt-1 text-right text-xs tabular-nums text-ink-muted">
                     {mod.completed_blocks}/{mod.total_blocks} blocks
                   </p>
                 </div>
               </button>
 
               {!isCollapsed && (
-              <div className="divide-y divide-slate-100 px-5 pb-5">
+              <div className="divide-y divide-line px-5 pb-5">
                 {mod.lessons.map((lesson) => {
                   const status = lessonStatus(lesson)
                   const isRedo = derived.redoLessonIds.has(lesson.id)
@@ -430,7 +423,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
                     partial: isPartial,
                   })
                   const rowClassName = `flex items-center gap-3 py-3 ${
-                    lesson.available ? 'hover:bg-slate-50' : 'cursor-not-allowed opacity-70'
+                    lesson.available ? 'pressable hover:bg-surface-sunken' : 'cursor-not-allowed opacity-70'
                   }`
                   const rowContent = (
                     <>
@@ -438,8 +431,8 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
                         <StatusIcon status={learnerStatus} />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-slate-900">{lesson.title}</p>
-                        <p className="mt-0.5 text-xs capitalize text-slate-500">
+                        <p className="truncate text-sm font-medium text-ink">{lesson.title}</p>
+                        <p className="mt-0.5 text-xs capitalize tabular-nums text-ink-secondary">
                           {formatTypeLabel(lesson.lesson_type)}
                           {status === 'locked' ? ` · unlocks ${formatDate(lesson.unlock_date)}` : ` · ${lesson.completed_blocks}/${lesson.total_blocks} blocks`}
                           {lesson.submission_window?.submissions_close_at && status !== 'locked'
@@ -449,9 +442,9 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
                             : ''}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex shrink-0 items-center gap-2">
                         {learnerStatus !== 'open' && learnerStatus !== 'upcoming' && <StatusBadge status={learnerStatus} short />}
-                        {lesson.available && <ArrowRight className="h-4 w-4 text-slate-300" />}
+                        {lesson.available && <ArrowRight className="h-4 w-4 text-ink-muted" aria-hidden="true" />}
                       </div>
                     </>
                   )

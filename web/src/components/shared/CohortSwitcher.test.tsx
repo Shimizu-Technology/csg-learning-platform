@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CohortSwitcher } from './CohortSwitcher'
 
-const { selectCohort } = vi.hoisted(() => ({ selectCohort: vi.fn() }))
+const { selectCohort, state } = vi.hoisted(() => ({ selectCohort: vi.fn(), state: { selectedName: 'Web Dev Cohort 4' } }))
 
 vi.mock('../../contexts/AuthContext', () => ({
   useAuthContext: () => ({ user: { id: 7, is_staff: true } }),
@@ -18,7 +18,7 @@ vi.mock('../../contexts/CohortContext', () => ({
       { id: 1, name: 'Web Dev Cohort 4', status: 'active' },
       { id: 2, name: 'CSG Alumni', status: 'completed' },
     ],
-    selectedCohort: { id: 1, name: 'Web Dev Cohort 4', status: 'active' },
+    selectedCohort: { id: 1, name: state.selectedName, status: 'active' },
     loading: false,
     error: null,
     selectCohort,
@@ -26,7 +26,7 @@ vi.mock('../../contexts/CohortContext', () => ({
 }))
 
 describe('CohortSwitcher', () => {
-  afterEach(() => selectCohort.mockClear())
+  afterEach(() => { selectCohort.mockClear(); state.selectedName = 'Web Dev Cohort 4' })
 
   it('uses a bounded icon-only control in the collapsed sidebar', () => {
     const html = renderToStaticMarkup(<CohortSwitcher iconOnly />)
@@ -46,6 +46,31 @@ describe('CohortSwitcher', () => {
     expect(html).toContain('Web Dev Cohort 4')
     expect(html).toContain('lucide-chevron-down')
     expect(html).not.toContain('data-cohort-switcher-visual="icon-only"')
+  })
+
+  it('renders the visible cohort name in a truncating span so long names end in an ellipsis', () => {
+    const container = document.createElement('div')
+    const root = createRoot(container)
+
+    act(() => root.render(<CohortSwitcher compact />))
+    const label = container.querySelector('[data-cohort-switcher-label]')!
+    expect(label.textContent).toBe('Web Dev Cohort 4')
+    expect(label.className).toContain('truncate')
+    expect(label.className).toContain('min-w-0')
+    expect(container.querySelector('select')!.className).toContain('opacity-0')
+    act(() => root.unmount())
+  })
+
+  it('keeps a very long cohort name whole in the label and title for truncation', () => {
+    const longName = 'Python Fundamentals — Saturday Evening Extended Practice Group (Hagåtña)'
+    state.selectedName = longName
+    const container = document.createElement('div')
+    const root = createRoot(container)
+
+    act(() => root.render(<CohortSwitcher compact />))
+    expect(container.querySelector('[data-cohort-switcher-label]')!.textContent).toBe(longName)
+    expect(container.querySelector('select')!.getAttribute('title')).toBe(longName)
+    act(() => root.unmount())
   })
 
   it('changes cohorts through the native control in icon-only mode', () => {

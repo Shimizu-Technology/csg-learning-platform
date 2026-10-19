@@ -741,7 +741,7 @@ export function CohortModuleGrading() {
                     onChange={(e) => setGridFeedback(e.target.value)}
                     placeholder="Leave feedback for the student... (visible on their end)"
                     rows={3}
-                    className="flex-1 rounded-lg border border-slate-200 p-2.5 text-sm resize-y min-h-[72px] focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="flex-1 rounded-lg border border-slate-200 p-2.5 text-sm resize-y min-h-[72px] focus:outline-none focus:ring-2 focus:ring-focus"
                   />
                   {gridModalSubmission.grade && (
                     <div className="flex flex-col items-center gap-1 shrink-0 pt-1">
@@ -1313,7 +1313,7 @@ export function CohortModuleGrading() {
                       value={feedback}
                       onChange={(e) => setFeedback(e.target.value)}
                       placeholder="Feedback for the student..."
-                      className="mt-1 w-full rounded-lg border border-slate-200 p-3 text-sm resize-y min-h-[100px] focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="mt-1 w-full rounded-lg border border-slate-200 p-3 text-sm resize-y min-h-[100px] focus:outline-none focus:ring-2 focus:ring-focus"
                     />
                     <FeedbackFormattingHint value={feedback} />
                   </div>

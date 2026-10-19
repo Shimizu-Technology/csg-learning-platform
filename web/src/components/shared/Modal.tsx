@@ -99,7 +99,7 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-slate-950/60 p-0 backdrop-blur-sm sm:items-start sm:p-4 sm:pt-[8vh]"
+      className="app-modal-overlay fixed inset-0 z-50 flex items-end justify-center overflow-y-auto overscroll-contain bg-slate-950/50 p-0 sm:items-start sm:p-4 sm:pt-[8vh]"
       onClick={(e) => {
         if (e.target === overlayRef.current) onClose()
       }}
@@ -112,17 +112,17 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
         aria-labelledby={titleId}
         aria-describedby={subtitle ? subtitleId : undefined}
         tabIndex={-1}
-        className={`w-full ${sizeMap[size]} max-h-[92dvh] overflow-hidden rounded-t-3xl bg-white shadow-2xl shadow-slate-950/20 outline-none sm:max-h-[84dvh] sm:rounded-2xl`}
+        className={`app-modal w-full ${sizeMap[size]} max-h-[92dvh] overflow-hidden rounded-t-3xl bg-surface-raised pb-[env(safe-area-inset-bottom,0px)] shadow-overlay outline-none sm:max-h-[84dvh] sm:rounded-2xl sm:pb-0`}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200/80 px-5 py-4 sm:px-6">
+        <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4 sm:px-6">
           <div className="flex items-center gap-3 min-w-0">
             {icon}
             <div className="min-w-0">
-              <h2 id={titleId} className="text-lg font-bold tracking-tight text-slate-950">{title}</h2>
-              {subtitle && <p id={subtitleId} className="mt-0.5 text-sm leading-5 text-slate-500">{subtitle}</p>}
+              <h2 id={titleId} className="text-lg font-bold tracking-tight text-ink">{title}</h2>
+              {subtitle && <p id={subtitleId} className="mt-0.5 text-sm leading-5 text-ink-muted">{subtitle}</p>}
             </div>
           </div>
-          <IconButton label={`Close ${title}`} onClick={onClose} className="-mr-2 -mt-1 text-slate-400">
+          <IconButton label={`Close ${title}`} onClick={onClose} className="-mr-2 -mt-1">
             <X className="h-5 w-5" />
           </IconButton>
         </div>
@@ -134,7 +134,7 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
         )}
 
         {footer && (
-          <div className="border-t border-slate-200 px-6 py-4">
+          <div className="border-t border-line px-5 py-4 sm:px-6">
             {footer}
           </div>
         )}

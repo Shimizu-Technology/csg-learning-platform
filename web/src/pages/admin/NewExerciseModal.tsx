@@ -230,7 +230,7 @@ export function NewExerciseModal({
               type="checkbox"
               checked={required}
               onChange={e => setRequired(e.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-focus"
             />
             <span>
               <span className="block text-sm font-semibold text-slate-800">

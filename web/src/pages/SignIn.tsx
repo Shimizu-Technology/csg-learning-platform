@@ -1,4 +1,5 @@
 import { SignIn, SignUp, useClerk, useUser } from '@clerk/clerk-react'
+import { CLERK_THEME_VARIABLES } from '../lib/clerkAppearance'
 import { useAuthContext } from '../contexts/AuthContext'
 import { Link, Navigate } from 'react-router-dom'
 import { ArrowLeft, BookOpenText, CheckCircle2, GraduationCap, Loader2, LogOut, MessageCircle, PlayCircle, RefreshCw, ShieldX } from 'lucide-react'
@@ -135,7 +136,7 @@ function AccessDeniedCard() {
           type="button"
           onClick={() => void handleCheckAccess()}
           disabled={checking || signingOut}
-          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 text-sm font-bold text-white transition hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 text-sm font-bold text-white transition hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           {checking ? 'Checking access…' : 'I’ve been invited — check again'}
@@ -144,7 +145,7 @@ function AccessDeniedCard() {
           type="button"
           onClick={() => void handleSignOut()}
           disabled={checking || signingOut}
-          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {signingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
           {signingOut ? 'Signing out…' : 'Use a different account'}
@@ -155,19 +156,15 @@ function AccessDeniedCard() {
 }
 
 const authAppearance = {
-  variables: {
-    colorPrimary: '#dc2626',
-    borderRadius: '0.875rem',
-    fontFamily: '"Manrope Variable", "Avenir Next", sans-serif',
-  },
+  variables: CLERK_THEME_VARIABLES,
   elements: {
     rootBox: 'mx-auto',
     card: 'shadow-none border border-slate-200 rounded-2xl',
     headerTitle: 'font-extrabold tracking-tight text-slate-950',
     headerSubtitle: 'text-slate-500',
-    formButtonPrimary: 'min-h-11 rounded-xl bg-primary-600 font-bold hover:bg-primary-700',
-    formFieldInput: 'min-h-11 rounded-xl border-slate-300 focus:border-primary-500 focus:ring-primary-100',
-    footerActionLink: 'font-bold text-primary-700 hover:text-primary-800',
+    formButtonPrimary: 'min-h-11 rounded-xl bg-action-primary font-semibold hover:bg-action-primary-hover active:bg-action-primary-pressed',
+    formFieldInput: 'min-h-11 rounded-xl border-slate-300 focus:border-focus focus:ring-focus/25',
+    footerActionLink: 'font-semibold text-ruby-700 hover:text-ruby-800',
   },
 }
 

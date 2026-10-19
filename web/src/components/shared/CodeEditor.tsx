@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import MonacoEditor, { type OnMount } from '@monaco-editor/react'
+import { Button } from '../ui/Button'
 import { Keyboard } from 'lucide-react'
 
 interface CodeEditorProps {
@@ -148,20 +149,21 @@ export function CodeEditor({
         />
       </div>
       {showKeyboardHelp && editable && (
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-slate-500">
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-ink-muted">
           <p id={helpId}>
             {languageLabel(language)} · Tab = {indentSize} spaces<span className="pointer-coarse:hidden"> · Press <kbd className="rounded border border-slate-300 bg-white px-1 font-sans">Esc</kbd> to leave the editor</span>
           </p>
-          <button
+          <Button
             ref={helpButtonRef}
-            type="button"
+            variant="quiet"
+            size="sm"
             aria-pressed={tabMovesFocus}
             onClick={() => setTabMovesFocus((current) => !current)}
-            className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 font-semibold text-slate-600 hover:bg-slate-200 hover:text-slate-900 pointer-coarse:hidden"
+            className="pointer-coarse:hidden"
           >
-            <Keyboard className="h-3.5 w-3.5" aria-hidden="true" />
+            <Keyboard className="h-4 w-4" aria-hidden="true" />
             {tabMovesFocus ? 'Tab moves focus' : 'Tab indents'}
-          </button>
+          </Button>
         </div>
       )}
     </div>

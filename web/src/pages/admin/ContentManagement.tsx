@@ -467,7 +467,7 @@ function ModuleSection({
               disabled={scheduleSaving}
               onClick={(event) => event.stopPropagation()}
               onChange={(event) => onChangeSchedule(event.target.value)}
-              className="min-h-11 rounded-xl border border-slate-200 bg-white px-2 text-xs font-medium text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-60"
+              className="min-h-11 rounded-xl border border-slate-200 bg-white px-2 text-xs font-medium text-slate-600 focus:outline-none focus:ring-2 focus:ring-focus disabled:opacity-60"
               aria-label={`Schedule pattern for ${mod.name}`}
             >
               {SCHEDULE_PATTERN_OPTIONS.map((option) => (

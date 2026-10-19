@@ -216,7 +216,7 @@ export function SupportQueue() {
           <div className="rounded-xl bg-slate-50 p-3 text-sm leading-6 text-slate-700">{resolving?.message}</div>
           <div>
             <label htmlFor="support-response" className="text-sm font-bold text-slate-900">Response visible to the student</label>
-            <textarea id="support-response" value={response} onChange={(event) => setResponse(event.target.value)} maxLength={2000} rows={6} required placeholder="Give a clear next step, explanation, or follow-up instruction." className="mt-2 w-full rounded-xl border border-slate-300 px-3.5 py-3 text-sm leading-6 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200" />
+            <textarea id="support-response" value={response} onChange={(event) => setResponse(event.target.value)} maxLength={2000} rows={6} required placeholder="Give a clear next step, explanation, or follow-up instruction." className="mt-2 w-full rounded-xl border border-slate-300 px-3.5 py-3 text-sm leading-6 outline-none focus:border-focus focus:ring-2 focus:ring-focus/25" />
             <p className="mt-1 text-right text-xs text-slate-400">{response.length}/2,000</p>
           </div>
           <Button type="submit" fullWidth disabled={!response.trim() || savingId === resolving?.id}><CheckCircle2 className="h-4 w-4" />{savingId === resolving?.id ? 'Sending…' : 'Send response and resolve'}</Button>

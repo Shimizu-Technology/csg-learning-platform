@@ -24,7 +24,7 @@ export function ProgressRing({ percentage, size = 80, strokeWidth = 6, label }: 
             cy={size / 2}
           />
           <circle
-            className="text-primary-500 transition-all duration-500"
+            className="text-ruby-600 transition-[stroke-dashoffset] duration-300 ease-out"
             strokeWidth={strokeWidth}
             strokeDasharray={circumference}
             strokeDashoffset={offset}
@@ -44,10 +44,10 @@ export function ProgressRing({ percentage, size = 80, strokeWidth = 6, label }: 
           aria-valuemax={100}
           aria-valuenow={Math.min(Math.max(Math.round(percentage), 0), 100)}
         >
-          <span className="text-sm font-bold text-slate-900">{Math.round(percentage)}%</span>
+          <span className="text-sm font-semibold tabular-nums text-ink">{Math.round(percentage)}%</span>
         </div>
       </div>
-      {label && <span className="text-xs font-medium text-slate-500">{label}</span>}
+      {label && <span className="text-xs font-medium text-ink-muted">{label}</span>}
     </div>
   )
 }

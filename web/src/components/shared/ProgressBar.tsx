@@ -15,11 +15,11 @@ export function ProgressBar({ value, max = 100, label, showPercentage = true, si
       {(label || showPercentage) && (
         <div className="flex items-center justify-between mb-1">
           {label && <span className="text-sm font-medium text-slate-700">{label}</span>}
-          {showPercentage && <span className="text-sm font-medium text-slate-500">{percentage}%</span>}
+          {showPercentage && <span className="text-sm font-medium tabular-nums text-ink-muted">{percentage}%</span>}
         </div>
       )}
       <div
-        className={`w-full rounded-full bg-slate-200 ${heightClass}`}
+        className={`w-full overflow-hidden rounded-full bg-slate-200 ${heightClass}`}
         role="progressbar"
         aria-label={label || 'Progress'}
         aria-valuemin={0}
@@ -28,8 +28,8 @@ export function ProgressBar({ value, max = 100, label, showPercentage = true, si
         aria-valuetext={`${percentage}%`}
       >
         <div
-          className={`rounded-full bg-primary-500 transition-all duration-500 ${heightClass}`}
-          style={{ width: `${percentage}%` }}
+          className={`origin-left rounded-full bg-ruby-600 transition-transform duration-300 ease-out ${heightClass}`}
+          style={{ transform: `scaleX(${percentage / 100})` }}
         />
       </div>
     </div>

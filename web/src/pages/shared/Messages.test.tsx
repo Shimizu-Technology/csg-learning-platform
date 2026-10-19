@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { cachedWindowIsContiguous, conversationPath, FormattedMessage, MessageEditSurface, mergeMessageWindow, restoreFailedSends, typingIndicatorLabel } from './Messages'
+import { cachedWindowIsContiguous, conversationPath, createMessageArrivals, forgetMessageArrival, FormattedMessage, MessageEditSurface, mergeMessageWindow, messageShouldAnimateEntry, recordMessageArrival, restoreFailedSends, typingIndicatorLabel } from './Messages'
 import type { ChannelMessage } from '../../types/api'
 
 function message(overrides: Partial<ChannelMessage>): ChannelMessage {
@@ -181,5 +181,37 @@ describe('conversation routes', () => {
     expect(conversationPath({ type: 'channel', id: 12 })).toBe('/messages/12')
     expect(conversationPath({ type: 'dm', id: 34 })).toBe('/messages/dm/34')
     expect(conversationPath({ type: 'dm', id: 34 }, 90)).toBe('/messages/dm/34?message_id=90')
+  })
+})
+
+describe('message enter animation', () => {
+  it('does not animate history, cached, or paginated messages that were never recorded as arrivals', () => {
+    const arrivals = createMessageArrivals('channel:2')
+    expect(messageShouldAnimateEntry(arrivals, 'channel:2', 10)).toBe(false)
+    expect(messageShouldAnimateEntry(createMessageArrivals(), null, 10)).toBe(false)
+  })
+
+  it('animates only messages that arrive while the conversation is open', () => {
+    let arrivals = createMessageArrivals()
+    arrivals = recordMessageArrival(arrivals, 'channel:2', 11)
+    arrivals = recordMessageArrival(arrivals, 'channel:2', -1)
+    expect(messageShouldAnimateEntry(arrivals, 'channel:2', 11)).toBe(true)
+    expect(messageShouldAnimateEntry(arrivals, 'channel:2', -1)).toBe(true)
+    expect(messageShouldAnimateEntry(arrivals, 'channel:2', 10)).toBe(false)
+  })
+
+  it('forgets arrivals when the conversation changes so switching back does not replay them', () => {
+    let arrivals = recordMessageArrival(createMessageArrivals(), 'channel:2', 11)
+    expect(messageShouldAnimateEntry(arrivals, 'dm:8', 11)).toBe(false)
+    arrivals = recordMessageArrival(arrivals, 'dm:8', 30)
+    expect(messageShouldAnimateEntry(arrivals, 'dm:8', 30)).toBe(true)
+    expect(messageShouldAnimateEntry(arrivals, 'channel:2', 11)).toBe(false)
+  })
+
+  it('stops animating a message once its enter animation has played', () => {
+    const arrivals = recordMessageArrival(createMessageArrivals(), 'channel:2', 11)
+    const settled = forgetMessageArrival(arrivals, 11)
+    expect(messageShouldAnimateEntry(settled, 'channel:2', 11)).toBe(false)
+    expect(forgetMessageArrival(settled, 99)).toBe(settled)
   })
 })

@@ -2,9 +2,9 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import Player, { type VimeoUrl } from '@vimeo/player'
 import { Play, FileText, Code, CheckCircle2, Circle, ChevronDown, ChevronUp, Send, RotateCcw, ExternalLink, Globe, GitBranch, Lock, RefreshCw, History } from 'lucide-react'
 import { MarkdownRenderer } from './MarkdownRenderer'
-import { GradeDisplay } from './GradeDisplay'
 import { FeedbackBody } from './FeedbackBody'
 import { StatusBadge } from './StatusBadge'
+import { Button } from '../ui/Button'
 import { CodeEditor, detectLanguage } from './CodeEditor'
 import { CodeRunner } from './CodeRunner'
 import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
@@ -55,6 +55,8 @@ interface ContentBlock {
     created_at: string
   }>
 }
+
+const GRADE_LABELS: Record<string, string> = { A: 'Excellent', B: 'Good', C: 'Satisfactory' }
 
 interface ContentBlockRendererProps {
   block: ContentBlock
@@ -627,28 +629,28 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
         {(sub.github_code_url || sub.repo_url || sub.pr_url || sub.live_url) && (
           <div className="flex flex-wrap gap-2">
             {sub.github_code_url && (
-              <a href={sanitizeUrl(sub.github_code_url)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 hover:border-primary-200 hover:text-primary-600">
+              <a href={sanitizeUrl(sub.github_code_url)} target="_blank" rel="noopener noreferrer" className="pressable inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
                 <Code className="h-3 w-3" />
                 GitHub Code
                 <ExternalLink className="h-3 w-3" />
               </a>
             )}
             {sub.repo_url && (
-              <a href={sanitizeUrl(sub.repo_url)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 hover:border-primary-200 hover:text-primary-600">
+              <a href={sanitizeUrl(sub.repo_url)} target="_blank" rel="noopener noreferrer" className="pressable inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
                 <Code className="h-3 w-3" />
                 Repo
                 <ExternalLink className="h-3 w-3" />
               </a>
             )}
             {sub.pr_url && (
-              <a href={sanitizeUrl(sub.pr_url)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 hover:border-primary-200 hover:text-primary-600">
+              <a href={sanitizeUrl(sub.pr_url)} target="_blank" rel="noopener noreferrer" className="pressable inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
                 <GitBranch className="h-3 w-3" />
                 PR
                 <ExternalLink className="h-3 w-3" />
               </a>
             )}
             {sub.live_url && (
-              <a href={sanitizeUrl(sub.live_url)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 hover:border-primary-200 hover:text-primary-600">
+              <a href={sanitizeUrl(sub.live_url)} target="_blank" rel="noopener noreferrer" className="pressable inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-secondary hover:border-line-strong hover:text-ink">
                 <Globe className="h-3 w-3" />
                 Live
                 <ExternalLink className="h-3 w-3" />
@@ -657,10 +659,10 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
           </div>
         )}
         {(sub.branch || sub.commit_sha || sub.notes) && (
-          <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600 space-y-1">
-            {sub.branch && <p><span className="font-medium text-slate-700">Branch:</span> {sub.branch}</p>}
-            {sub.commit_sha && <p><span className="font-medium text-slate-700">Commit:</span> <span className="font-mono">{sub.commit_sha}</span></p>}
-            {sub.notes && <p className="whitespace-pre-wrap"><span className="font-medium text-slate-700">Notes:</span> {sub.notes}</p>}
+          <div className="space-y-1 rounded-lg border border-line bg-surface-raised p-3 text-sm text-ink-secondary">
+            {sub.branch && <p><span className="font-medium text-ink">Branch:</span> {sub.branch}</p>}
+            {sub.commit_sha && <p><span className="font-medium text-ink">Commit:</span> <span className="font-mono">{sub.commit_sha}</span></p>}
+            {sub.notes && <p className="whitespace-pre-wrap"><span className="font-medium text-ink">Notes:</span> {sub.notes}</p>}
           </div>
         )}
       </div>
@@ -670,73 +672,70 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
   const submissionStatusMessage = (submissionError || submissionSuccess || restoredDraftAt) ? (
     <div aria-live="polite" className="space-y-2">
       {restoredDraftAt && !submissionError && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-info-50 bg-info-50 px-3 py-2 text-sm text-info-800">
-          <p>Restored your unsent draft from {formatShortDateTime(restoredDraftAt, 'earlier')}.</p>
-          <button type="button" onClick={discardDraft} className="min-h-9 rounded-lg px-2 text-xs font-semibold underline underline-offset-2 hover:bg-white/60">Discard draft</button>
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-info-200 bg-info-50 py-1 pl-3 pr-1 text-sm text-info-800">
+          <p className="py-1.5">Restored your unsent draft from <span className="tabular-nums">{formatShortDateTime(restoredDraftAt, 'earlier')}</span>.</p>
+          <Button variant="quiet" size="sm" onClick={discardDraft} className="text-info-800! hover:bg-info-100!">Discard draft</Button>
         </div>
       )}
       {submissionError && (
-        <div role="alert" className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700">
-          <p className="min-w-0 flex-1">{submissionError}</p>
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-danger-200 bg-danger-50 py-1 pl-3 pr-1 text-sm text-danger-700">
+          <p className="min-w-0 flex-1 py-1.5">{submissionError}</p>
           {submissionRetryable && (
-            <button type="button" onClick={() => void handleSubmit()} disabled={isSubmitting} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-danger-200 bg-white px-3 text-xs font-semibold text-danger-700 hover:bg-danger-50 disabled:opacity-50">
-              <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+            <Button variant="danger" size="sm" onClick={() => void handleSubmit()} disabled={isSubmitting}>
+              <RefreshCw className="h-4 w-4" aria-hidden="true" />
               Try again
-            </button>
+            </Button>
           )}
         </div>
       )}
       {submissionSuccess && !submissionError && (
-        <div className="rounded-lg border border-success-200 bg-success-50 px-3 py-2 text-sm text-success-700">{submissionSuccess}</div>
+        <div className="rounded-xl border border-success-200 bg-success-50 px-3 py-2 text-sm text-success-700">{submissionSuccess}</div>
       )}
     </div>
   ) : null
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 bg-slate-50 border-b border-slate-200">
-        <div className="text-slate-500">{blockIcons[block.block_type]}</div>
-        <span className="text-sm font-medium text-slate-700 capitalize">{block.block_type.replace('_', ' ')}</span>
-        {block.title && <span className="min-w-0 text-sm text-slate-500">· {block.title}</span>}
+    <div className="app-surface overflow-hidden">
+      <div className="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
+        <div className="text-ink-muted">{blockIcons[block.block_type]}</div>
+        <span className="text-sm font-semibold capitalize text-ink">{block.block_type.replace('_', ' ')}</span>
+        {block.title && <span className="min-w-0 text-sm text-ink-muted [overflow-wrap:anywhere]">· {block.title}</span>}
         {latestStatus && <StatusBadge status={latestStatus} />}
         {workLocked && (
-          <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600">
-            <Lock className="h-3.5 w-3.5" aria-hidden="true" />
-            Submissions closed
-          </span>
+          <StatusBadge status="closed" />
         )}
         <div className="ml-auto">
           {isStaff ? (
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Preview</span>
+            <span className="text-xs font-semibold text-ink-muted">Preview</span>
           ) : usesManualExerciseCompletion ? (
             <button
               onClick={handleToggleComplete}
               disabled={workLocked && !isCompleted}
-              className="flex items-center gap-1.5 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              className="pressable -my-1 flex h-11 w-11 items-center justify-center rounded-lg hover:bg-slate-200/60 disabled:cursor-not-allowed disabled:opacity-50"
               aria-label={isCompleted ? 'Mark exercise not done' : 'Mark exercise complete'}
             >
               {isCompleted ? (
-                <CheckCircle2 className="h-5 w-5 text-success-500" />
+                <CheckCircle2 className="h-5 w-5 text-success-700" aria-hidden="true" />
               ) : (
-                <Circle className="h-5 w-5 text-slate-300 hover:text-slate-400" />
+                <Circle className="h-5 w-5 text-ink-muted" aria-hidden="true" />
               )}
             </button>
           ) : isWorkBlock ? null : knowledgeCheck ? (
             isCompleted || knowledgeCheck.latest_attempt?.correct
               ? <span role="img" aria-label="Check complete"><CheckCircle2 className="h-5 w-5 text-success-700" aria-hidden="true" /></span>
-              : <span role="img" aria-label="Check not answered yet"><Circle className="h-5 w-5 text-slate-400" aria-hidden="true" /></span>
+              : <span role="img" aria-label="Check not answered yet"><Circle className="h-5 w-5 text-ink-muted" aria-hidden="true" /></span>
           ) : (
             <button
               type="button"
               onClick={handleToggleComplete}
               disabled={workLocked && !isCompleted}
               aria-pressed={isCompleted}
-              className="flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+              className="pressable -my-1 flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-ink-secondary hover:bg-slate-200/60 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isCompleted ? (
                 <CheckCircle2 className="h-5 w-5 text-success-700" aria-hidden="true" />
               ) : (
-                <Circle className="h-5 w-5 text-slate-400" aria-hidden="true" />
+                <Circle className="h-5 w-5 text-ink-muted" aria-hidden="true" />
               )}
               {isCompleted ? 'Done' : 'Mark done'}
             </button>
@@ -782,7 +781,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
               }
               return (
                 <div className="flex items-center justify-center h-full text-slate-400">
-                  <a href={sanitizeUrl(block.video_url!)} target="_blank" rel="noopener noreferrer" className="text-primary-500 hover:underline">
+                  <a href={sanitizeUrl(block.video_url!)} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded-lg px-3 font-semibold text-white underline underline-offset-4">
                     Open video
                   </a>
                 </div>
@@ -825,68 +824,62 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
         )}
 
         {knowledgeCheck && (
-          <section className="rounded-2xl border border-primary-100 bg-primary-50/40 p-4" aria-label="Quick retrieval check">
+          <section className="rounded-2xl border border-line bg-surface-sunken/60 p-4" aria-label="Quick retrieval check">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-700">Quick recall</p>
-              {knowledgeCheck.objective_code && <span className="rounded-full bg-white px-2 py-1 font-mono text-[11px] font-bold text-slate-600">{knowledgeCheck.objective_code}</span>}
+              <p className="text-xs font-semibold text-ink-muted">Quick recall</p>
+              {knowledgeCheck.objective_code && <span className="rounded-full border border-line bg-surface-raised px-2 py-0.5 font-mono text-xs font-semibold text-ink-secondary">{knowledgeCheck.objective_code}</span>}
             </div>
-            <p className="mt-2 text-base font-extrabold leading-6 text-slate-950">{knowledgeCheck.prompt}</p>
+            <p className="mt-2 text-base font-semibold leading-6 text-ink">{knowledgeCheck.prompt}</p>
             <div className="mt-4 grid gap-2">
               {knowledgeCheck.options.map((option, index) => {
                 const result = knowledgeCheck.latest_attempt
                 const isCorrectAnswer = result && index === result.correct_option
                 const wasIncorrectChoice = result && !result.correct && index === result.selected_option
-                return <button key={`${index}:${option}`} type="button" disabled={Boolean(isStaff || result?.correct)} onClick={() => { setSelectedCheckOption(index); setCheckError(null) }} className={`min-h-11 rounded-xl border px-4 py-2.5 text-left text-sm font-semibold transition ${isCorrectAnswer ? 'border-success-300 bg-success-50 text-success-800' : wasIncorrectChoice ? 'border-orange-300 bg-orange-50 text-orange-800' : selectedCheckOption === index ? 'border-primary-400 bg-white text-primary-800 ring-2 ring-primary-100' : 'border-slate-200 bg-white text-slate-700 hover:border-primary-300'} disabled:cursor-default`}>{option}</button>
+                return <button key={`${index}:${option}`} type="button" disabled={Boolean(isStaff || result?.correct)} onClick={() => { setSelectedCheckOption(index); setCheckError(null) }} aria-pressed={selectedCheckOption === index} className={`pressable min-h-11 rounded-xl border px-4 py-2.5 text-left text-sm font-medium ${isCorrectAnswer ? 'border-success-300 bg-success-50 text-success-800' : wasIncorrectChoice ? 'border-warning-300 bg-warning-50 text-warning-800' : selectedCheckOption === index ? 'border-ruby-600 bg-surface-raised text-ink ring-1 ring-ruby-600' : 'border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink'} disabled:cursor-default`}>{option}</button>
               })}
             </div>
-            {isStaff && knowledgeCheck.correct_option !== undefined ? <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-600"><p className="font-bold text-slate-900">Answer: {knowledgeCheck.options[knowledgeCheck.correct_option]}</p><p className="mt-1 leading-6">{knowledgeCheck.explanation}</p></div> : knowledgeCheck.latest_attempt ? <div aria-live="polite" className={`mt-4 rounded-xl border p-3 ${knowledgeCheck.latest_attempt.correct ? 'border-success-200 bg-success-50' : 'border-orange-200 bg-orange-50'}`}><p className={`text-sm font-bold ${knowledgeCheck.latest_attempt.correct ? 'text-success-800' : 'text-orange-800'}`}>{knowledgeCheck.latest_attempt.correct ? 'Correct — this check is complete.' : 'Not yet — review the explanation and try again.'}</p><p className="mt-1 text-sm leading-6 text-slate-700">{knowledgeCheck.latest_attempt.explanation}</p></div> : null}
-            {!isStaff && !knowledgeCheck.latest_attempt?.correct && <button type="button" disabled={selectedCheckOption === null || checkingAnswer} onClick={() => void handleKnowledgeCheck()} className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-primary-600 px-4 text-sm font-bold text-white disabled:opacity-40">{checkingAnswer ? 'Checking…' : knowledgeCheck.latest_attempt ? 'Try this answer' : 'Check answer'}</button>}
-            {checkError && <p className="mt-2 text-sm font-semibold text-red-700" role="alert">{checkError}</p>}
-            {knowledgeCheck.attempt_count > 0 && <p className="mt-2 text-xs text-slate-500">{knowledgeCheck.attempt_count} {knowledgeCheck.attempt_count === 1 ? 'attempt' : 'attempts'} recorded</p>}
+            {isStaff && knowledgeCheck.correct_option !== undefined ? <div className="mt-4 rounded-xl border border-line bg-surface-raised p-3 text-sm text-ink-secondary"><p className="font-semibold text-ink">Answer: {knowledgeCheck.options[knowledgeCheck.correct_option]}</p><p className="mt-1 leading-6">{knowledgeCheck.explanation}</p></div> : knowledgeCheck.latest_attempt ? <div aria-live="polite" className={`mt-4 rounded-xl border p-3 ${knowledgeCheck.latest_attempt.correct ? 'border-success-200 bg-success-50' : 'border-warning-200 bg-warning-50'}`}><p className={`text-sm font-semibold ${knowledgeCheck.latest_attempt.correct ? 'text-success-800' : 'text-warning-800'}`}>{knowledgeCheck.latest_attempt.correct ? 'Correct — this check is complete.' : 'Not yet — review the explanation and try again.'}</p><p className="mt-1 text-sm leading-6 text-ink-secondary">{knowledgeCheck.latest_attempt.explanation}</p></div> : null}
+            {!isStaff && !knowledgeCheck.latest_attempt?.correct && <Button disabled={selectedCheckOption === null || checkingAnswer} onClick={() => void handleKnowledgeCheck()} className="mt-4">{checkingAnswer ? 'Checking…' : knowledgeCheck.latest_attempt ? 'Try this answer' : 'Check answer'}</Button>}
+            {checkError && <p className="mt-2 text-sm font-semibold text-danger-700" role="alert">{checkError}</p>}
+            {knowledgeCheck.attempt_count > 0 && <p className="mt-2 text-xs tabular-nums text-ink-muted">{knowledgeCheck.attempt_count} {knowledgeCheck.attempt_count === 1 ? 'attempt' : 'attempts'} recorded</p>}
           </section>
         )}
 
         {block.filename && (
-          <div className="mt-3 inline-flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-600">
-            <Code className="h-3.5 w-3.5" />
+          <div className="mt-3 inline-flex max-w-full items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-ink-secondary [overflow-wrap:anywhere]">
+            <Code className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span className="font-mono">{block.filename}</span>
           </div>
         )}
 
         {!isStaff && usesManualExerciseCompletion && (
-          <div className={`mt-4 rounded-xl border px-4 py-3 ${isCompleted ? 'border-success-200 bg-success-50' : 'border-slate-200 bg-slate-50'}`}>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium text-slate-900">
+          <div className={`mt-4 rounded-xl border px-4 py-3 ${isCompleted ? 'border-success-200 bg-success-50' : 'border-line bg-surface-sunken/60'}`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className={`text-sm font-semibold ${isCompleted ? 'text-success-800' : 'text-ink'}`}>
                   {isCompleted ? 'Exercise marked complete' : 'Mark this exercise complete when you finish it'}
                 </p>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-sm text-ink-muted">
                   Use this for practice blocks that do not require a submission.
                 </p>
               </div>
-              <button
+              <Button
+                variant={isCompleted ? 'secondary' : 'primary'}
                 onClick={handleToggleComplete}
                 disabled={workLocked && !isCompleted}
-                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                  isCompleted
-                    ? 'border border-success-200 bg-white text-success-700 hover:bg-success-50'
-                    : workLocked
-                      ? 'bg-slate-200 text-slate-500'
-                      : 'bg-primary-500 text-white hover:bg-primary-600'
-                }`}
               >
                 {isCompleted ? (
                   <>
-                    <RotateCcw className="h-4 w-4" />
-                    Mark Not Done
+                    <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                    Mark not done
                   </>
                 ) : (
                   <>
-                    <CheckCircle2 className="h-4 w-4" />
-                    Mark Complete
+                    <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                    Mark complete
                   </>
                 )}
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -894,12 +887,12 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
         {!isStaff && isWorkBlock && submissionType !== 'manual_complete' && (
           <div className="mt-4 space-y-3">
             {workLocked && (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <div className="rounded-xl border border-line bg-surface-sunken/60 px-4 py-3">
                 <div className="flex items-start gap-2">
-                  <Lock className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
+                  <Lock className="mt-0.5 h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">{lockCopy}</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-600">
+                    <p className="text-sm font-semibold text-ink">{lockCopy}</p>
+                    <p className="mt-1 text-sm leading-6 text-ink-secondary">
                       Closed {formatShortDateTime(submissionsCloseAt, 'the close time')}. Existing submissions and feedback remain visible, but new submissions and redo resubmissions are disabled.
                     </p>
                   </div>
@@ -907,36 +900,33 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
               </div>
             )}
             {latestSubmission?.grade && (
-              <div className={`rounded-xl border px-4 py-3 ${hasRedoRequest ? 'border-warning-200 bg-warning-50' : 'border-success-200 bg-success-50'}`}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className={`flex items-center gap-1.5 text-sm font-semibold ${hasRedoRequest ? 'text-warning-800' : 'text-success-700'}`}>
-                      {hasRedoRequest ? <RotateCcw className="h-4 w-4 shrink-0" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />}
-                      {hasRedoRequest ? 'Redo requested — read the feedback, then resubmit below' : 'Reviewed by your instructor'}
-                    </p>
-                    {latestSubmission.feedback ? (
-                      <div className="mt-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
-                        <FeedbackBody feedback={latestSubmission.feedback} />
-                      </div>
-                    ) : hasRedoRequest ? (
-                      <p className="mt-1 text-sm text-slate-700">Review the instructions and try again. Message your instructor if you are not sure what to change.</p>
-                    ) : null}
-                  </div>
-                  <GradeDisplay grade={latestSubmission.grade} size="md" />
-                </div>
-              </div>
+              /* One card for the latest review: the feedback lives inside it; the status badge is in the block header. */
+              <section
+                aria-label={hasRedoRequest ? 'Instructor feedback: redo requested' : 'Instructor feedback'}
+                className={`rounded-xl border px-4 py-3 ${hasRedoRequest ? 'border-warning-200 bg-warning-50' : 'border-success-200 bg-success-50'}`}
+              >
+                <p className={`flex items-center gap-1.5 text-sm font-semibold ${hasRedoRequest ? 'text-warning-800' : 'text-success-800'}`}>
+                  {hasRedoRequest ? <RotateCcw className="h-4 w-4 shrink-0" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />}
+                  {hasRedoRequest ? 'Your instructor asked for a redo. Read the feedback, then resubmit below.' : `Reviewed by your instructor${GRADE_LABELS[latestSubmission.grade] ? ` · ${latestSubmission.grade} (${GRADE_LABELS[latestSubmission.grade]})` : ''}`}
+                </p>
+                {latestSubmission.feedback ? (
+                  <FeedbackBody feedback={latestSubmission.feedback} className="mt-2 text-ink" />
+                ) : hasRedoRequest ? (
+                  <p className="mt-1 text-sm text-ink-secondary">Review the instructions and try again. Message your instructor if you are not sure what to change.</p>
+                ) : null}
+              </section>
             )}
             {latestStatus === 'awaiting_review' && (
-              <div className="flex items-start gap-2 rounded-xl border border-pending-200 bg-pending-50 px-4 py-3 text-sm text-pending-700">
+              <div className="flex items-start gap-2 rounded-xl border border-pending-200 bg-pending-50 px-4 py-3 text-sm text-pending-700" role="status">
                 <History className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                 <p><span className="font-semibold">Submitted · awaiting review.</span> Your instructor will reply here. You can still revise and resubmit before they review it.</p>
               </div>
             )}
             {block.submissions && block.submissions.length > 0 && (
               <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  {block.submissions.length === 1 ? 'Your submission' : `Your submissions (${block.submissions.length})`}
-                </p>
+                <h3 className="text-sm font-semibold text-ink">
+                  {block.submissions.length === 1 ? 'Your submission' : <>Your submissions <span className="font-normal tabular-nums text-ink-muted">({block.submissions.length})</span></>}
+                </h3>
                 {block.submissions.map((sub, idx) => {
                   const isLatest = idx === 0
                   const isRedo = sub.grade === 'R'
@@ -944,20 +934,14 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                   return (
                     <div
                       key={sub.id}
-                      className={`rounded-xl border p-4 ${isLatest ? 'border-slate-200 bg-white' : 'border-slate-200 bg-slate-50'}`}
+                      className={`rounded-xl border border-line p-4 ${isLatest ? 'bg-surface-raised' : 'bg-surface-sunken/60'}`}
                     >
-                      <div className="mb-3 flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-medium text-slate-600">
-                          Submission #{sub.num_submissions}
-                        </span>
-                        <span className="text-xs text-slate-500">
-                          {new Date(sub.created_at).toLocaleDateString()}
-                        </span>
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                          {isLatest ? 'Latest' : 'Previous'}
-                        </span>
-                        {isGraded && <GradeDisplay grade={sub.grade} size="md" />}
-                      </div>
+                      <p className="mb-3 text-xs text-ink-muted">
+                        <span className="font-semibold text-ink-secondary tabular-nums">Submission #{sub.num_submissions}</span>
+                        {' · '}<span className="tabular-nums">{new Date(sub.created_at).toLocaleDateString()}</span>
+                        {' · '}{isLatest ? 'Latest' : 'Earlier'}
+                        {isGraded && <>{' · '}{isRedo ? 'Redo requested' : `Grade ${sub.grade}`}</>}
+                      </p>
 
                       <div className="mt-2">
                         {sub.text ? (
@@ -968,7 +952,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                             minHeight={120}
                           />
                         ) : (
-                          <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500">
+                          <div className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm text-ink-muted">
                             No inline code text submitted.
                           </div>
                         )}
@@ -978,13 +962,13 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
 
                       {/* The latest feedback is shown once, in the card above. */}
                       {!isLatest && isGraded && (sub.feedback || isRedo) && (
-                        <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
+                        <div className="mt-3 rounded-lg border border-line bg-surface-raised p-3">
                           <div className="mb-1 flex items-center justify-between gap-2">
-                            <p className="text-xs font-semibold text-slate-600">
+                            <p className="text-xs font-semibold text-ink-secondary">
                               {isRedo ? 'Earlier feedback · redo requested' : 'Earlier feedback'}
                             </p>
                             {sub.graded_at && (
-                              <p className="text-xs text-slate-500">
+                              <p className="text-xs tabular-nums text-ink-muted">
                                 {new Date(sub.graded_at).toLocaleDateString()}
                               </p>
                             )}
@@ -992,7 +976,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                           {sub.feedback ? (
                             <FeedbackBody feedback={sub.feedback} />
                           ) : (
-                            <p className="text-xs italic text-slate-500">No written feedback.</p>
+                            <p className="text-sm italic text-ink-muted">No written feedback.</p>
                           )}
                         </div>
                       )}
@@ -1003,25 +987,25 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
             )}
 
             {usesGithubSyncSubmission ? (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2">
-                <p className="text-sm font-medium text-slate-700">Submit via GitHub</p>
-                <p className="text-sm text-slate-500">
+              <div className="space-y-2 rounded-xl border border-line bg-surface-sunken/60 p-4">
+                <p className="text-sm font-semibold text-ink">Submit via GitHub</p>
+                <p className="text-sm text-ink-secondary">
                   Complete this exercise in your local environment{block.filename ? ` in the file ${block.filename}` : ''}, then push your changes to your{' '}
-                  <span className="font-semibold text-slate-700">{repositoryName || 'exercises'}</span> repository on GitHub.
+                  <span className="font-semibold text-ink">{repositoryName || 'exercises'}</span> repository on GitHub.
                 </p>
-                <p className="text-xs text-slate-400">
+                <p className="text-sm text-ink-muted">
                   {workLocked ? 'GitHub sync is disabled after the submission window closes.' : 'Your instructor will sync and review your code from GitHub.'}
                 </p>
               </div>
             ) : usesTextSubmission ? (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+              <div className="space-y-3 rounded-xl border border-line bg-surface-sunken/60 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-ink">
                     {hasRedoRequest ? 'Revise and resubmit' : block.submissions && block.submissions.length > 0 ? 'Revise your answer' : 'Write your solution'}
-                  </p>
+                  </h3>
                   {block.filename && (
-                    <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600 font-mono">
-                      <Code className="h-3 w-3" />
+                    <span className="inline-flex min-w-0 items-center gap-1.5 rounded-md bg-slate-200/60 px-2 py-1 font-mono text-xs text-ink-secondary [overflow-wrap:anywhere]">
+                      <Code className="h-3 w-3 shrink-0" aria-hidden="true" />
                       {block.filename}
                     </span>
                   )}
@@ -1045,133 +1029,132 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                 )}
                 {submissionStatusMessage}
                 <div className="flex items-center justify-end">
-                  <button
-                    type="button"
+                  <Button
                     onClick={() => void handleSubmit()}
                     disabled={workLocked || isSubmitting || !submissionText.trim()}
-                    className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-ruby-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-ruby-700 active:bg-ruby-800 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Send className="h-4 w-4" aria-hidden="true" />
                     {workLocked ? 'Closed' : isSubmitting ? 'Submitting…' : latestSubmission ? (isSubmissionCheckpoint ? 'Resubmit checkpoint' : 'Resubmit') : (isSubmissionCheckpoint ? 'Submit checkpoint' : 'Submit')}
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : usesRepoArtifactSubmission ? (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+              <div className="space-y-3 rounded-xl border border-line bg-surface-sunken/60 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-ink">
                     {hasRedoRequest ? 'Revise and resubmit' : latestSubmission ? 'Update submission' : 'Submit project'}
-                  </p>
-                  <span className="text-xs text-slate-400">
+                  </h3>
+                  <span className="text-xs text-ink-muted">
                     {requiresLiveUrl ? 'Repo + live URL required' : 'Repository URL required'}
                   </span>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   <label className="block">
-                    <span className="mb-1 block text-xs font-medium text-slate-600">Repository URL</span>
+                    <span className="mb-1 block text-sm font-medium text-ink-secondary">Repository URL</span>
                     <input
                       value={repoUrl}
                       onChange={(e) => handleDraftChange(() => setRepoUrl(e.target.value))}
                       disabled={workLocked || isSubmitting}
                       placeholder="https://github.com/username/project"
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500"
+                      className="app-control w-full"
                     />
                   </label>
                   {requiresLiveUrl && (
                     <label className="block">
-                      <span className="mb-1 block text-xs font-medium text-slate-600">Live URL</span>
+                      <span className="mb-1 block text-sm font-medium text-ink-secondary">Live URL</span>
                       <input
                         value={liveUrl}
                         onChange={(e) => handleDraftChange(() => setLiveUrl(e.target.value))}
                         disabled={workLocked || isSubmitting}
                         placeholder="https://your-app.example.com"
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500"
+                        className="app-control w-full"
                       />
                     </label>
                   )}
                 </div>
                 <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-slate-600">Notes (optional)</span>
+                  <span className="mb-1 block text-sm font-medium text-ink-secondary">Notes (optional)</span>
                   <textarea
                     value={submissionNotes}
                     onChange={(e) => handleDraftChange(() => setSubmissionNotes(e.target.value))}
                     disabled={workLocked || isSubmitting}
                     rows={4}
                     placeholder="Anything your instructor should know about this submission."
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500"
+                    className="app-control w-full"
                   />
                 </label>
                 <div className="space-y-3">
-                  <button
-                    type="button"
+                  <Button
+                    variant="quiet"
+                    size="sm"
+                    aria-expanded={showAdvancedRepoFields}
                     onClick={() => setShowAdvancedRepoFields((current) => !current)}
-                    className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700"
+                    className="-ml-2"
                   >
-                    {showAdvancedRepoFields ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                    {showAdvancedRepoFields ? <ChevronUp className="h-4 w-4" aria-hidden="true" /> : <ChevronDown className="h-4 w-4" aria-hidden="true" />}
                     {showAdvancedRepoFields ? 'Hide extra Git details' : 'Add PR / branch / commit details'}
-                  </button>
+                  </Button>
                   {showAdvancedRepoFields && (
                     <div className="grid gap-3 md:grid-cols-2">
                       {!requiresLiveUrl && (
                         <label className="block">
-                          <span className="mb-1 block text-xs font-medium text-slate-600">Live URL (optional)</span>
+                          <span className="mb-1 block text-sm font-medium text-ink-secondary">Live URL (optional)</span>
                           <input
                             value={liveUrl}
                             onChange={(e) => handleDraftChange(() => setLiveUrl(e.target.value))}
                             disabled={workLocked || isSubmitting}
                             placeholder="https://your-app.example.com"
-                            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500"
+                            className="app-control w-full"
                           />
                         </label>
                       )}
                       <label className="block">
-                        <span className="mb-1 block text-xs font-medium text-slate-600">Pull Request URL (optional)</span>
+                        <span className="mb-1 block text-sm font-medium text-ink-secondary">Pull Request URL (optional)</span>
                         <input
                           value={prUrl}
                           onChange={(e) => handleDraftChange(() => setPrUrl(e.target.value))}
                           disabled={workLocked || isSubmitting}
                           placeholder="https://github.com/.../pull/123"
-                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500"
+                          className="app-control w-full"
                         />
                       </label>
                       <label className="block">
-                        <span className="mb-1 block text-xs font-medium text-slate-600">Branch (optional)</span>
+                        <span className="mb-1 block text-sm font-medium text-ink-secondary">Branch (optional)</span>
                         <input
                           value={branchName}
                           onChange={(e) => handleDraftChange(() => setBranchName(e.target.value))}
                           disabled={workLocked || isSubmitting}
                           placeholder="main"
-                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500"
+                          className="app-control w-full"
                         />
                       </label>
                       <label className="block">
-                        <span className="mb-1 block text-xs font-medium text-slate-600">Commit SHA (optional)</span>
+                        <span className="mb-1 block text-sm font-medium text-ink-secondary">Commit SHA (optional)</span>
                         <input
                           value={commitSha}
                           onChange={(e) => handleDraftChange(() => setCommitSha(e.target.value))}
                           disabled={workLocked || isSubmitting}
                           placeholder="abc1234"
-                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500"
+                          className="app-control w-full"
                         />
                       </label>
                     </div>
                   )}
                 </div>
                 {submissionStatusMessage}
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-slate-400">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm text-ink-muted">
                     {requiresLiveUrl
                       ? 'Share the repo and deployed app you want reviewed.'
                       : 'Share the repo you want reviewed. Notes are optional.'}
                   </p>
-                  <button
-                    onClick={handleSubmit}
+                  <Button
+                    onClick={() => void handleSubmit()}
                     disabled={workLocked || isSubmitting || !repoUrl.trim() || (requiresLiveUrl && !liveUrl.trim())}
-                    className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    <Send className="h-4 w-4" />
-                    {workLocked ? 'Closed' : isSubmitting ? 'Submitting…' : 'Submit Links'}
-                  </button>
+                    <Send className="h-4 w-4" aria-hidden="true" />
+                    {workLocked ? 'Closed' : isSubmitting ? 'Submitting…' : 'Submit links'}
+                  </Button>
                 </div>
               </div>
             ) : null}
@@ -1180,13 +1163,10 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
 
         {isStaff && block.solution && (
           <div className="mt-4">
-            <button
-              onClick={() => setShowSolution(!showSolution)}
-              className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
-            >
-              {showSolution ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            <Button variant="quiet" size="sm" aria-expanded={showSolution} onClick={() => setShowSolution(!showSolution)} className="-ml-2">
+              {showSolution ? <ChevronUp className="h-4 w-4" aria-hidden="true" /> : <ChevronDown className="h-4 w-4" aria-hidden="true" />}
               Solution
-            </button>
+            </Button>
             {showSolution && (
               <div className="mt-2">
                 <CodeEditor

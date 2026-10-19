@@ -40,8 +40,8 @@ describe('staff lesson preview', () => {
   it('does not render manual completion controls for staff', () => {
     const staffMarkup = renderExercise('manual_complete', true)
 
-    expect(staffMarkup).not.toContain('Mark Complete')
-    expect(renderExercise('manual_complete', false)).toContain('Mark Complete')
+    expect(staffMarkup).not.toContain('Mark complete')
+    expect(renderExercise('manual_complete', false)).toContain('Mark complete')
   })
 
   it('does not render submission controls for staff', () => {
@@ -171,5 +171,46 @@ describe('submission drafts', () => {
     expect(localStorage.getItem('csg-learn:submission-draft:v1:me:2:138')).toContain('print(1)')
     spy.mockRestore()
     act(() => root.unmount())
+  })
+})
+
+describe('feedback block (one warning card, neutral history, one badge)', () => {
+  const redoBlock = {
+    id: 7,
+    block_type: 'exercise',
+    position: 0,
+    title: 'Repair two errors',
+    body: null,
+    video_url: null,
+    filename: 'exercise_02.py',
+    submission_type: 'text_submission',
+    metadata: {},
+    submissions: [
+      { id: 3, text: 'print(name)', grade: 'R', feedback: 'Define the name first.', graded_at: '2026-10-16T00:00:00Z', num_submissions: 2, created_at: '2026-10-16T00:00:00Z' },
+      { id: 2, text: 'print(nme)', grade: 'R', feedback: 'Look at the spelling.', graded_at: '2026-10-14T00:00:00Z', num_submissions: 1, created_at: '2026-10-14T00:00:00Z' },
+    ],
+  }
+
+  it('shows the latest feedback once, inside a single warning card', () => {
+    const html = renderToStaticMarkup(<ContentBlockRenderer block={redoBlock} cohortId={2} />)
+    const warningCards = html.match(/border-warning-200 bg-warning-50/g) || []
+    // One status badge (header) + one feedback card.
+    expect(warningCards.length).toBe(2)
+    expect(html.match(/Redo requested<\/span>/g)?.length).toBe(1)
+    expect(html).toContain('aria-label="Instructor feedback: redo requested"')
+    expect(html.match(/Define the name first\./g)?.length).toBe(1)
+  })
+
+  it('keeps submission history neutral', () => {
+    const html = renderToStaticMarkup(<ContentBlockRenderer block={redoBlock} cohortId={2} />)
+    const history = html.slice(html.indexOf('Your submissions'))
+    expect(history).not.toMatch(/warning-|danger-|red-/)
+    expect(history).toContain('Earlier feedback · redo requested')
+  })
+
+  it('has exactly one primary action in the exercise (Resubmit)', () => {
+    const html = renderToStaticMarkup(<ContentBlockRenderer block={redoBlock} cohortId={2} />)
+    expect(html.match(/data-variant="primary"/g)?.length).toBe(1)
+    expect(html).toContain('Resubmit')
   })
 })

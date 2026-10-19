@@ -427,10 +427,10 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
       {showLinkForm && (
         <div className="space-y-3 rounded-2xl border border-primary-200 bg-primary-50/50 p-4">
           <div className="flex items-start justify-between gap-3"><div><h4 className="text-sm font-semibold text-slate-900">Add a hosted recording</h4><p className="mt-1 text-xs text-slate-500">YouTube, Vimeo, Loom, direct video, or another secure link.</p></div><button type="button" onClick={() => setShowLinkForm(false)} className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-white" aria-label="Close link form"><X className="h-4 w-4" /></button></div>
-          <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-medium text-slate-700">Title *<input value={linkTitle} onChange={(event) => setLinkTitle(event.target.value)} placeholder="Week 1 class replay" className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" /></label><label className="text-xs font-medium text-slate-700">Date recorded<input type="date" value={linkDate} onChange={(event) => setLinkDate(event.target.value)} className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" /></label></div>
-          <label className="block text-xs font-medium text-slate-700">Secure video link *<input type="url" value={linkUrl} onChange={(event) => setLinkUrl(event.target.value)} placeholder="https://youtube.com/watch?v=..." className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" /></label>
-          <label className="block text-xs font-medium text-slate-700">Description<input value={linkDescription} onChange={(event) => setLinkDescription(event.target.value)} placeholder="Topics covered in this class" className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" /></label>
-          <label className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5"><input type="checkbox" checked={linkPublishImmediately} onChange={(event) => setLinkPublishImmediately(event.target.checked)} className="h-5 w-5 rounded border-slate-300 text-primary-600 focus:ring-primary-500" /><span><span className="block text-sm font-semibold text-slate-900">Publish immediately</span><span className="block text-xs text-slate-500">Leave off to review the link privately first.</span></span></label>
+          <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-medium text-slate-700">Title *<input value={linkTitle} onChange={(event) => setLinkTitle(event.target.value)} placeholder="Week 1 class replay" className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-focus" /></label><label className="text-xs font-medium text-slate-700">Date recorded<input type="date" value={linkDate} onChange={(event) => setLinkDate(event.target.value)} className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-focus" /></label></div>
+          <label className="block text-xs font-medium text-slate-700">Secure video link *<input type="url" value={linkUrl} onChange={(event) => setLinkUrl(event.target.value)} placeholder="https://youtube.com/watch?v=..." className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-focus" /></label>
+          <label className="block text-xs font-medium text-slate-700">Description<input value={linkDescription} onChange={(event) => setLinkDescription(event.target.value)} placeholder="Topics covered in this class" className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-focus" /></label>
+          <label className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5"><input type="checkbox" checked={linkPublishImmediately} onChange={(event) => setLinkPublishImmediately(event.target.checked)} className="h-5 w-5 rounded border-slate-300 text-primary-600 focus:ring-focus" /><span><span className="block text-sm font-semibold text-slate-900">Publish immediately</span><span className="block text-xs text-slate-500">Leave off to review the link privately first.</span></span></label>
           <div className="flex justify-end"><button type="button" onClick={() => void saveLink()} disabled={savingLink || !linkTitle.trim() || !linkUrl.trim()} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white hover:bg-primary-600 disabled:opacity-50">{savingLink && <Loader2 className="h-4 w-4 animate-spin" />}{savingLink ? 'Saving…' : linkPublishImmediately ? 'Add and publish' : 'Save as draft'}</button></div>
         </div>
       )}
@@ -467,7 +467,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
               type="checkbox"
               checked={publishImmediately}
               onChange={(event) => setPublishImmediately(event.target.checked)}
-              className="h-5 w-5 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+              className="h-5 w-5 rounded border-slate-300 text-primary-600 focus:ring-focus"
             />
             <span className="min-w-0">
               <span className="block text-sm font-semibold text-slate-900">Publish immediately</span>
@@ -500,7 +500,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
                       type="text"
                       value={draft.title}
                       onChange={(event) => updateDraft(draft.id, { title: event.target.value, error: undefined })}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                     />
                   </div>
 
@@ -511,7 +511,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
                         type="date"
                         value={draft.recordedDate}
                         onChange={(event) => updateDraft(draft.id, { recordedDate: event.target.value })}
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                       />
                     </div>
                     <div>
@@ -521,7 +521,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
                         value={draft.description}
                         onChange={(event) => updateDraft(draft.id, { description: event.target.value })}
                         placeholder="Optional description"
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                       />
                     </div>
                   </div>
@@ -719,22 +719,22 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
                     type="text"
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                   />
-                  {rec.source !== 'uploaded' && <input type="url" value={editUrl} onChange={(event) => setEditUrl(event.target.value)} placeholder="https://youtube.com/watch?v=..." className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />}
+                  {rec.source !== 'uploaded' && <input type="url" value={editUrl} onChange={(event) => setEditUrl(event.target.value)} placeholder="https://youtube.com/watch?v=..." className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus" />}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <input
                       type="date"
                       value={editDate}
                       onChange={(e) => setEditDate(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                     />
                     <input
                       type="text"
                       value={editDescription}
                       onChange={(e) => setEditDescription(e.target.value)}
                       placeholder="Description"
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                     />
                   </div>
                   <div className="flex justify-end gap-2">

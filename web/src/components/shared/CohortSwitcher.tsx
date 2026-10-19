@@ -39,7 +39,7 @@ export function CohortSwitcher({ compact = false, iconOnly = false }: CohortSwit
       <span
         aria-hidden="true"
         data-cohort-switcher-visual="icon-only"
-        className="pointer-events-none flex h-11 w-full items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-primary-600 transition peer-hover:border-primary-300 peer-focus-visible:border-primary-500 peer-focus-visible:ring-2 peer-focus-visible:ring-primary-200"
+        className="pointer-events-none flex h-11 w-full items-center justify-center rounded-xl border border-line bg-surface-sunken text-ink-secondary transition-colors duration-150 peer-hover:border-line-strong peer-focus-visible:border-focus peer-focus-visible:ring-2 peer-focus-visible:ring-focus/40"
       >
         <Layers3 className="h-5 w-5" />
       </span>
@@ -47,18 +47,29 @@ export function CohortSwitcher({ compact = false, iconOnly = false }: CohortSwit
     </div>
   }
 
-  return <div className={`relative min-w-0 ${compact ? 'flex-1' : 'w-full'}`}>
-    <Layers3 aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-primary-600" />
+  // The visible label is a real text span (ellipsis-truncated) laid under a
+  // transparent native select. Styling the select's own text clips glyphs
+  // mid-letter in WebKit at narrow widths; a span truncates cleanly.
+  const visibleLabel = selectedCohort?.name || (user.is_staff ? 'All cohorts' : 'Choose a cohort')
+  return <div className={`relative h-11 min-w-0 ${compact ? 'flex-1' : 'w-full'}`}>
     <select
       aria-label={accessibleLabel}
-      title={error || undefined}
+      title={error || selectedCohort?.name || undefined}
       value={selectedCohort?.id ?? ''}
       onChange={(event) => selectCohort(event.target.value ? Number(event.target.value) : null)}
-      className={`min-h-11 w-full min-w-0 appearance-none truncate rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-9 text-sm font-bold text-slate-800 outline-none transition hover:border-primary-300 focus-visible:border-primary-500 focus-visible:ring-2 focus-visible:ring-primary-200 ${compact ? '' : 'shadow-sm'}`}
+      className="peer absolute inset-0 z-10 h-11 w-full min-w-0 max-w-full cursor-pointer appearance-none opacity-0"
     >
       {options}
     </select>
-    <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+    <span
+      aria-hidden="true"
+      data-cohort-switcher-visual="label"
+      className={`pointer-events-none flex h-11 w-full min-w-0 items-center gap-2 rounded-xl border border-line bg-surface-sunken pl-3 pr-3 text-sm font-semibold text-ink transition-colors duration-150 peer-hover:border-line-strong peer-focus-visible:border-focus peer-focus-visible:ring-2 peer-focus-visible:ring-focus/40 ${compact ? '' : 'shadow-raised'}`}
+    >
+      <Layers3 className="h-4 w-4 shrink-0 text-ink-muted" />
+      <span data-cohort-switcher-label className="block min-w-0 flex-1 truncate py-0.5 leading-5">{visibleLabel}</span>
+      <ChevronDown className="h-4 w-4 shrink-0 text-ink-muted" />
+    </span>
     {error && <span className="sr-only" role="status">{error}</span>}
   </div>
 }
