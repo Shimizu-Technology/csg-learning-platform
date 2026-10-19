@@ -201,10 +201,16 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
     // A draft kept on this device (after a failed submit, a reload, or leaving
     // the page) wins over the last saved submission.
     const draft = !isStaff && (usesTextSubmission || usesRepoArtifactSubmission) ? readSubmissionDraft(draftKey) : null
+    const same = (a?: string | null, b?: string | null) => (a ?? '') === (b ?? '')
     const draftDiffers = draft && (usesTextSubmission
-      ? (draft.text ?? '') !== (latestSubmission?.text ?? '')
-      : (draft.repoUrl ?? '') !== (latestSubmission?.repo_url ?? '') || (draft.liveUrl ?? '') !== (latestSubmission?.live_url ?? '') || (draft.notes ?? '') !== (latestSubmission?.notes ?? ''))
-    if (draft && draftDiffers) {
+      ? !same(draft.text, latestSubmission?.text)
+      : !same(draft.repoUrl, latestSubmission?.repo_url) || !same(draft.prUrl, latestSubmission?.pr_url) ||
+        !same(draft.liveUrl, latestSubmission?.live_url) || !same(draft.branch, latestSubmission?.branch) ||
+        !same(draft.commitSha, latestSubmission?.commit_sha) || !same(draft.notes, latestSubmission?.notes))
+    // A draft older than the latest saved submission (for example, work later
+    // submitted from another device) is stale and must not replace it.
+    const draftIsStale = Boolean(draft && latestSubmission && Date.parse(draft.savedAt) < Date.parse(latestSubmission.created_at))
+    if (draft && draftDiffers && !draftIsStale) {
       setSubmissionText(draft.text ?? '')
       setRepoUrl(draft.repoUrl ?? '')
       setPrUrl(draft.prUrl ?? '')

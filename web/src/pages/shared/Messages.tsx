@@ -1265,7 +1265,10 @@ export function Messages() {
           return true
         }
         if (isMultiLinePaste(text)) {
-          window.setTimeout(() => setPasteNotice({ mode: 'text', text, doc: view.state.doc }), 0)
+          // Give the default paste its own undo step, then record the document
+          // right after ProseMirror applies it (synchronously, after this handler).
+          view.dispatch(closeHistory(view.state.tr))
+          queueMicrotask(() => setPasteNotice({ mode: 'text', text, doc: view.state.doc }))
         }
         return false
       },
@@ -3247,7 +3250,8 @@ export function Messages() {
                       const notice = pasteNotice
                       setPasteNotice(null)
                       if (!editor || !editor.state.doc.eq(notice.doc)) return
-                      editor.commands.undo()
+                      // Only replace the paste if undo actually removed it; otherwise we'd duplicate it.
+                      if (!editor.commands.undo()) return
                       if (notice.mode === 'code') {
                         editor.chain().focus().insertContent(notice.text.split('\n').map((line) => ({ type: 'paragraph', content: line ? [{ type: 'text', text: line }] : [] }))).run()
                       } else {

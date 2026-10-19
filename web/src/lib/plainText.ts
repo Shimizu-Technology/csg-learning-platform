@@ -5,7 +5,7 @@
 export function markdownExcerpt(markdown: string | null | undefined, maxLength = 180): string {
   if (!markdown) return ''
   let text = markdown
-    .replace(/<[^>]+>/g, ' ')
+    .replace(/<\/?[a-zA-Z][^<>]*>/g, ' ')
     .replace(/```[\w+-]*\n?([\s\S]*?)```/g, (_match, code: string) => ` ${code.trim().split('\n')[0] || ''} `)
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')

@@ -18,6 +18,8 @@ describe('code paste detection', () => {
     expect(looksLikeCode('print("hello")')).toBe(false)
     expect(looksLikeCode('Things to fix:\n  - the name\n  - the colon')).toBe(false)
     expect(looksLikeCode('```python\nprint(1)\n```')).toBe(false)
+    expect(looksLikeCode('Things to fix:\nsee the notes (above)')).toBe(false)
+    expect(looksLikeCode('foo()\nbar()')).toBe(true)
   })
 
   it('normalizes line endings and non-breaking spaces without touching indentation', () => {

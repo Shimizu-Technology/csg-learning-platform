@@ -31,7 +31,7 @@ function formatDate(dateStr: string | null | undefined): string {
 
 function lessonStatus(lesson: LessonItem) {
   if (!lesson.available) return 'locked'
-  if (lesson.review_status === 'awaiting_review') return 'submitted'
+  if (lesson.review_status === 'awaiting_review' && lesson.completed) return 'submitted'
   if (lesson.completed && lesson.review_status !== 'redo_requested') return 'completed'
   return 'ready'
 }

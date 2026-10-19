@@ -16,6 +16,10 @@ describe('markdownExcerpt', () => {
     expect(markdownExcerpt('Use fee_rate and 2 * 3 * 4')).toBe('Use fee_rate and 2 * 3 * 4')
   })
 
+  it('keeps comparison operators from code feedback', () => {
+    expect(markdownExcerpt('Check amount < 100 and total > 50')).toBe('Check amount < 100 and total > 50')
+  })
+
   it('removes HTML tags and truncates', () => {
     expect(markdownExcerpt('<p>Hello <img src=x onerror=alert(1)> there</p>')).toBe('Hello there')
     expect(markdownExcerpt('a'.repeat(300), 20)).toHaveLength(20)

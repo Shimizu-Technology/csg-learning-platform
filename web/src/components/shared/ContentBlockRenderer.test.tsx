@@ -130,4 +130,16 @@ describe('submission drafts', () => {
     expect(container.querySelector('[data-editor="editable"]')?.textContent).toBe('print("hi")')
     act(() => root.unmount())
   })
+
+  it('ignores a draft older than the latest saved submission', async () => {
+    localStorage.setItem('csg-learn:submission-draft:v1:me:2:138', JSON.stringify({ version: 1, text: 'old draft', savedAt: '2026-10-15T00:00:00Z' }))
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    await act(async () => { root.render(<ContentBlockRenderer block={checkpoint({ submissions: [submission()] })} cohortId={2} />) })
+    expect(container.querySelector('[data-editor="editable"]')?.textContent).toBe('print("hi")')
+    expect(container.textContent).not.toContain('Restored your unsent draft')
+    expect(localStorage.getItem('csg-learn:submission-draft:v1:me:2:138')).toBeNull()
+    act(() => root.unmount())
+  })
 })

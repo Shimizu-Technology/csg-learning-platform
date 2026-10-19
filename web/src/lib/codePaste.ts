@@ -1,4 +1,6 @@
-const CODE_LINE = /^\s*(def |class |if |elif |else:|for |while |return\b|import |from \S+ import|print\(|try:|except\b|with |async |await |const |let |var |function\b|end\b|puts |require |#include|<\/?[a-z][\w-]*[\s>/])|[{};]\s*$|^\s*[\w.[\]"']+\s*[+\-*/]?=\s*\S|\)\s*:?\s*$|:\s*$/
+// Strong per-line code signals only: keywords, assignments, bare calls, and
+// brace/semicolon endings. A trailing ':' or ')' alone is common in prose.
+const CODE_LINE = /^\s*(def |class |if |elif |else:|for |while |return\b|import |from \S+ import|print\(|try:|except\b|with |async |await |const |let |var |function\b|end\b|puts |require |#include|<\/?[a-z][\w-]*[\s>/])|[{};]\s*$|^\s*[\w.[\]"']+\s*[+\-*/]?=\s*\S|^\s*[A-Za-z_][\w.]*\([^()]*\)\s*$/
 
 /** Normalizes clipboard text: Windows line endings, non-breaking spaces, trailing blank lines. */
 export function normalizePastedCode(text: string): string {

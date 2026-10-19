@@ -86,16 +86,20 @@ export function CodeEditor({
     tabMovesFocusRef.current?.set(tabMovesFocus)
   }, [tabMovesFocus])
 
+  // Commands are registered for every editor (Monaco calls onMount once), so an
+  // editor that mounts read-only and later becomes editable still lets
+  // keyboard users leave it.
   const handleMount: OnMount = (editor, monaco) => {
-    if (!editable) return
     const tabKey = editor.createContextKey<boolean>('csgTabMovesFocus', false)
     tabMovesFocusRef.current = tabKey
     tabKey.set(tabMovesFocus)
     // Keyboard users must never be trapped: Escape leaves the editor (when no
     // suggestion or find widget is open), and Tab can optionally move focus.
     editor.addCommand(monaco.KeyCode.Escape, () => {
-      if (helpButtonRef.current) helpButtonRef.current.focus()
-      else focusOutside(containerRef.current, 1)
+      const help = helpButtonRef.current
+      // The help toggle is hidden on touch screens; fall back to the next control.
+      if (help && help.offsetParent !== null) help.focus()
+      if (!help || document.activeElement !== help) focusOutside(containerRef.current, 1)
     }, '!suggestWidgetVisible && !findWidgetVisible && !parameterHintsVisible && !renameInputVisible')
     editor.addCommand(monaco.KeyCode.Tab, () => focusOutside(containerRef.current, 1), 'csgTabMovesFocus && !suggestWidgetVisible')
     editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Tab, () => focusOutside(containerRef.current, -1), 'csgTabMovesFocus && !suggestWidgetVisible')

@@ -151,7 +151,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
     ).size
 
     const lessonCount = modules.reduce((sum, mod) => sum + mod.lessons.length, 0)
-    const awaitingReviewCount = modules.reduce((sum, mod) => sum + mod.lessons.filter((lesson) => lesson.review_status === 'awaiting_review').length, 0)
+    const awaitingReviewCount = modules.reduce((sum, mod) => sum + mod.lessons.filter((lesson) => lesson.completed && lesson.review_status === 'awaiting_review').length, 0)
 
     return {
       courseNotOpen: modules.length === 0 || lessonCount === 0,

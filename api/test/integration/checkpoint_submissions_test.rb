@@ -14,7 +14,7 @@ class CheckpointSubmissionsTest < ActionDispatch::IntegrationTest
     @student = User.create!(clerk_id: "checkpoint_student", email: "checkpoint-student@example.com", first_name: "Maria", last_name: "Santos", role: :student)
     @waiting = User.create!(clerk_id: "checkpoint_waiting", email: "checkpoint-waiting@example.com", first_name: "Kai", last_name: "Cruz", role: :student)
     @admin = User.create!(clerk_id: "checkpoint_admin", email: "checkpoint-admin@example.com", first_name: "Ana", last_name: "Admin", role: :admin)
-    @cohort = Cohort.create!(curriculum: @curriculum, name: "Pilot", start_date: Date.current.beginning_of_week, status: :active)
+    @cohort = Cohort.create!(curriculum: @curriculum, name: "Pilot", start_date: LearningCalendar.today.beginning_of_week(:monday), status: :active)
     @enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
     @enrollment.module_assignments.create!(curriculum_module: @mod, unlocked: true)
     Enrollment.create!(user: @waiting, cohort: @cohort, status: :active)

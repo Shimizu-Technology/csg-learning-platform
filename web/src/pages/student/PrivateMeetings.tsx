@@ -35,8 +35,9 @@ export function PrivateMeetings() {
 
   // Opens (or creates) the private conversation with the course's meeting
   // instructor instead of dropping the learner on the general inbox.
-  async function messageInstructor() {
-    const cohort = cohorts.find((entry) => entry.instructor_id)
+  async function messageInstructor(target?: PrivateMeetingCohort) {
+    if (openingMessages) return
+    const cohort = target ?? cohorts.find((entry) => entry.instructor_id)
     if (!cohort?.instructor_id) {
       navigate('/messages')
       return
@@ -45,7 +46,12 @@ export function PrivateMeetings() {
     const response = await api.createDirectConversation({ cohort_id: cohort.id, user_ids: [cohort.instructor_id] })
     setOpeningMessages(false)
     const conversationId = response.data?.direct_conversation?.id
-    navigate(conversationId ? `/messages/dm/${conversationId}` : '/messages')
+    if (!conversationId) {
+      toast.error(`We couldn't open your conversation with ${cohort.instructor_name}. Opening your messages instead.`)
+      navigate('/messages')
+      return
+    }
+    navigate(`/messages/dm/${conversationId}`)
   }
 
   async function selectSlot(slot: PrivateMeetingSlot, bookingId?: number) {
@@ -160,7 +166,7 @@ export function PrivateMeetings() {
                   {(!booking || changing) && (
                     <div className="mt-5">
                       <p className="mb-3 text-sm font-semibold text-slate-700">{changing ? 'Choose a new time' : weekClosed ? 'Scheduling help' : canBook ? (available.length > 0 ? `${available.length} ${available.length === 1 ? 'time' : 'times'} available` : 'Available times') : 'Scheduling help'}</p>
-                      {weekClosed && !changing ? <p className="text-sm leading-relaxed text-slate-600">Booking for Week {week} has closed. <button type="button" onClick={() => void messageInstructor()} className="font-semibold text-slate-900 underline underline-offset-2">Message your instructor</button> if you still need a meeting.</p> : !booking && !canBook ? <p className="text-sm leading-relaxed text-slate-600">You have used your schedule change for Week {week}. <button type="button" onClick={() => void messageInstructor()} className="font-semibold text-slate-900 underline underline-offset-2">Message your instructor</button> to arrange another time.</p> : available.length === 0 ? <p className="text-sm leading-relaxed text-slate-600">No times are open for Week {week} yet. <button type="button" onClick={() => void messageInstructor()} className="font-semibold text-slate-900 underline underline-offset-2">Message your instructor</button> if you need help.</p> : (
+                      {weekClosed && !changing ? <p className="text-sm leading-relaxed text-slate-600">Booking for Week {week} has closed. <button type="button" onClick={() => void messageInstructor(cohort)} disabled={openingMessages} className="font-semibold text-slate-900 underline underline-offset-2 disabled:opacity-60">Message your instructor</button> if you still need a meeting.</p> : !booking && !canBook ? <p className="text-sm leading-relaxed text-slate-600">You have used your schedule change for Week {week}. <button type="button" onClick={() => void messageInstructor(cohort)} disabled={openingMessages} className="font-semibold text-slate-900 underline underline-offset-2 disabled:opacity-60">Message your instructor</button> to arrange another time.</p> : available.length === 0 ? <p className="text-sm leading-relaxed text-slate-600">No times are open for Week {week} yet. <button type="button" onClick={() => void messageInstructor(cohort)} disabled={openingMessages} className="font-semibold text-slate-900 underline underline-offset-2 disabled:opacity-60">Message your instructor</button> if you need help.</p> : (
                         <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
                           {available.map((slot) => (
                             <button key={slot.id} type="button" disabled={busyId !== null} onClick={() => void selectSlot(slot, changing ? booking?.id : undefined)} className="flex min-h-12 w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left text-sm font-medium text-slate-800 transition-colors hover:border-slate-400 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 disabled:opacity-50">
@@ -178,7 +184,7 @@ export function PrivateMeetings() {
           <p className="text-sm leading-relaxed text-slate-600">Changes close {cohort.reschedule_cutoff_hours} hours before a meeting. You can reschedule or cancel and rebook up to {cohort.max_student_changes} {cohort.max_student_changes === 1 ? 'time' : 'times'}. You can still cancel after using a change, but ask your instructor to arrange another time.</p>
         </section>
       ))}
-      <p className="text-sm leading-relaxed text-slate-600">Need a different time? <button type="button" onClick={() => void messageInstructor()} className="font-semibold text-slate-900 underline underline-offset-2">Message your instructor</button>.</p>
+      <p className="text-sm leading-relaxed text-slate-600">Need a different time? <button type="button" onClick={() => void messageInstructor()} disabled={openingMessages} className="font-semibold text-slate-900 underline underline-offset-2 disabled:opacity-60">Message your instructor</button>.</p>
     </div>
   )
 }

@@ -29,7 +29,8 @@ interface LessonStatusInput {
  */
 export function learnerLessonStatus({ completed, available = true, submissionsClosed, reviewStatus, partial }: LessonStatusInput): LearnerStatus {
   if (reviewStatus === 'redo_requested') return 'redo'
-  if (reviewStatus === 'awaiting_review') return 'awaiting_review'
+  // A lesson is only awaiting review once all of its work is handed in.
+  if (reviewStatus === 'awaiting_review' && completed) return 'awaiting_review'
   if (completed) return 'done'
   if (!available) return 'upcoming'
   if (submissionsClosed) return 'closed'
