@@ -1,57 +1,21 @@
 import { useEffect } from 'react'
-import posthog from 'posthog-js'
-import { PostHogProvider as PHProvider, usePostHog } from 'posthog-js/react'
 import { useLocation } from 'react-router-dom'
+import { isPostHogEnabled, withPostHog } from '../lib/posthogClient'
 
-const POSTHOG_KEY = import.meta.env.VITE_PUBLIC_POSTHOG_KEY
-const POSTHOG_HOST = import.meta.env.VITE_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com'
-export const isPostHogEnabled = Boolean(POSTHOG_KEY && POSTHOG_KEY !== 'YOUR_POSTHOG_KEY')
+export { isPostHogEnabled }
 
-if (isPostHogEnabled && typeof window !== 'undefined') {
-  posthog.init(POSTHOG_KEY, {
-    api_host: POSTHOG_HOST,
-    capture_pageview: false,
-    capture_pageleave: false,
-    autocapture: false,
-    disable_session_recording: true,
-    loaded: (ph) => {
-      if (import.meta.env.DEV) {
-        ph.opt_out_capturing()
-      }
-    },
-  })
-}
-
+/** Records a pageview per route change. PostHog itself loads lazily (see lib/posthogClient). */
 export function PostHogPageView() {
   const location = useLocation()
-  const posthogClient = usePostHog()
 
   useEffect(() => {
-    if (posthogClient && isPostHogEnabled) {
-      posthogClient.capture('$pageview', {
-        $current_url: `${window.location.origin}${location.pathname}`,
-        $pathname: location.pathname,
-      })
-    }
-  }, [location, posthogClient])
+    if (!isPostHogEnabled) return
+    const url = `${window.location.origin}${location.pathname}`
+    const pathname = location.pathname
+    withPostHog((posthog) => {
+      posthog.capture('$pageview', { $current_url: url, $pathname: pathname })
+    })
+  }, [location])
 
   return null
 }
-
-interface PostHogProviderProps {
-  children: React.ReactNode
-}
-
-export function PostHogProvider({ children }: PostHogProviderProps) {
-  if (!isPostHogEnabled) {
-    return <>{children}</>
-  }
-
-  return (
-    <PHProvider client={posthog}>
-      {children}
-    </PHProvider>
-  )
-}
-
-export { usePostHog }

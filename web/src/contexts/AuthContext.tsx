@@ -1,9 +1,8 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { useAuth, useUser } from '@clerk/clerk-react'
-import posthog from 'posthog-js'
 import { api, clearApiCache, setApiCacheScope, setAuthTokenGetter } from '../lib/api'
-import { isPostHogEnabled } from '../providers/PostHogProvider'
+import { isPostHogEnabled, isPostHogLoaded, withPostHog } from '../lib/posthogClient'
 import { isAccessDeniedResponse } from '../lib/sessionAccess'
 import { clearComposerStateFromWindow } from '../lib/messageComposerState'
 import type { SessionEnrollment, User } from '../types/api'
@@ -81,9 +80,12 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
         setEnrollments(res.data.enrollments)
         if (isPostHogEnabled) {
           const activeCohortId = res.data.enrollments.find((enrollment) => enrollment.status === 'active')?.cohort.id
-          posthog.identify(String(res.data!.user.id), {
-            role: res.data!.user.role,
-            ...(activeCohortId ? { cohort_id: activeCohortId } : {}),
+          const identity = { id: String(res.data.user.id), role: res.data.user.role }
+          withPostHog((posthog) => {
+            posthog.identify(identity.id, {
+              role: identity.role,
+              ...(activeCohortId ? { cohort_id: activeCohortId } : {}),
+            })
           })
         }
         return true
@@ -119,8 +121,9 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
       setSessionError(null)
       setAccessDenied(false)
       setIsLoading(false)
-      if (isPostHogEnabled) {
-        posthog.reset()
+      // Reset after a real sign-out, without loading analytics for anonymous visitors.
+      if (isPostHogEnabled && (signedOutUserId || isPostHogLoaded())) {
+        withPostHog((posthog) => posthog.reset())
       }
       return
     }
