@@ -37,7 +37,9 @@
     <!-- Theme Color -->
     <!-- Cream on public and sign-in pages (matches codeschoolofguam.com), white to
          match the app header elsewhere. The boot script below and lib/brand.ts
-         applySurface() keep it in step with the route. -->
+         applySurface() keep it in step with the route. Newsreader is deliberately
+         not preloaded: on slow connections the preload competed with the app's
+         JavaScript and delayed the first headline (font-display: swap instead). -->
     <meta name="theme-color" content="#ffffff" />
     <script>
       (function () {
@@ -47,15 +49,6 @@
         document.documentElement.setAttribute('data-surface', isPublic ? 'public' : 'app');
         var meta = document.querySelector('meta[name="theme-color"]');
         if (meta) meta.setAttribute('content', isPublic ? '#faf7f0' : '#ffffff');
-        if (isPublic) {
-          var font = document.createElement('link');
-          font.rel = 'preload';
-          font.as = 'font';
-          font.type = 'font/woff2';
-          font.href = '/fonts/newsreader-latin-variable.woff2';
-          font.crossOrigin = 'anonymous';
-          document.head.appendChild(font);
-        }
       })();
     </script>
     <style>

@@ -85,3 +85,9 @@ describe('index.html', () => {
     expect(indexHtml).toMatch(/setTimeout\([\s\S]*boot-slow[\s\S]*8000\)/)
   })
 })
+
+describe('first-load budget', () => {
+  it('does not preload the display font (it delayed LCP on slow 3G)', () => {
+    expect(indexHtml).not.toMatch(/rel\s*=\s*['"]?preload['"]?[\s\S]{0,200}newsreader|font\.rel = 'preload'/i)
+  })
+})
