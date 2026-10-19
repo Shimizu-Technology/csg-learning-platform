@@ -1032,6 +1032,8 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                   language={detectedLang}
                   minHeight={240}
                   readOnly={workLocked}
+                  // Freeze the draft while it is being sent so a later edit can't be dropped on success.
+                  busy={isSubmitting}
                   showKeyboardHelp
                 />
                 {runnerConfig.enabled && (
@@ -1070,7 +1072,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                     <input
                       value={repoUrl}
                       onChange={(e) => handleDraftChange(() => setRepoUrl(e.target.value))}
-                      disabled={workLocked}
+                      disabled={workLocked || isSubmitting}
                       placeholder="https://github.com/username/project"
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500"
                     />
@@ -1081,7 +1083,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                       <input
                         value={liveUrl}
                         onChange={(e) => handleDraftChange(() => setLiveUrl(e.target.value))}
-                        disabled={workLocked}
+                        disabled={workLocked || isSubmitting}
                         placeholder="https://your-app.example.com"
                         className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500"
                       />
@@ -1093,7 +1095,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                   <textarea
                     value={submissionNotes}
                     onChange={(e) => handleDraftChange(() => setSubmissionNotes(e.target.value))}
-                    disabled={workLocked}
+                    disabled={workLocked || isSubmitting}
                     rows={4}
                     placeholder="Anything your instructor should know about this submission."
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500"
@@ -1116,7 +1118,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                           <input
                             value={liveUrl}
                             onChange={(e) => handleDraftChange(() => setLiveUrl(e.target.value))}
-                            disabled={workLocked}
+                            disabled={workLocked || isSubmitting}
                             placeholder="https://your-app.example.com"
                             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500"
                           />
@@ -1127,7 +1129,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                         <input
                           value={prUrl}
                           onChange={(e) => handleDraftChange(() => setPrUrl(e.target.value))}
-                          disabled={workLocked}
+                          disabled={workLocked || isSubmitting}
                           placeholder="https://github.com/.../pull/123"
                           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500"
                         />
@@ -1137,7 +1139,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                         <input
                           value={branchName}
                           onChange={(e) => handleDraftChange(() => setBranchName(e.target.value))}
-                          disabled={workLocked}
+                          disabled={workLocked || isSubmitting}
                           placeholder="main"
                           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500"
                         />
@@ -1147,7 +1149,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                         <input
                           value={commitSha}
                           onChange={(e) => handleDraftChange(() => setCommitSha(e.target.value))}
-                          disabled={workLocked}
+                          disabled={workLocked || isSubmitting}
                           placeholder="abc1234"
                           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500"
                         />

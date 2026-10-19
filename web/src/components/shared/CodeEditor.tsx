@@ -11,6 +11,8 @@ interface CodeEditorProps {
   height?: string
   /** Shows the keyboard hint and Tab-behaviour toggle under an editable editor. */
   showKeyboardHelp?: boolean
+  /** Temporarily blocks edits (for example while a submission is sending) without hiding the help row. */
+  busy?: boolean
 }
 
 // Derive Monaco language from filename first, then fall back to explicit admin hint.
@@ -73,6 +75,7 @@ export function CodeEditor({
   minHeight = 200,
   height,
   showKeyboardHelp = false,
+  busy = false,
 }: CodeEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const helpButtonRef = useRef<HTMLButtonElement>(null)
@@ -121,7 +124,7 @@ export function CodeEditor({
           onChange={(v) => onChange?.(v ?? '')}
           onMount={handleMount}
           options={{
-            readOnly,
+            readOnly: readOnly || busy,
             minimap: { enabled: false },
             scrollBeyondLastLine: false,
             // 16px on touch screens keeps iOS from zooming the page when the editor is focused.
