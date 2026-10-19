@@ -12,6 +12,7 @@ import { useAuthContext } from '../../contexts/AuthContext'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { Badge } from '../../components/ui/Badge'
 import { AnchorButton, Button } from '../../components/ui/Button'
+import { useMediaQuery } from '../../lib/useMediaQuery'
 import type { RecordingEntry, RecordingItem as ApiRecordingItem, S3Recording as ApiS3Recording } from '../../types/api'
 
 interface LegacyRecording {
@@ -114,6 +115,8 @@ export function Recordings() {
   const [selectedItem, setSelectedItem] = useState<RecordingItem | null>(null)
   const [query, setQuery] = useState('')
   const [playlistCollapsed, setPlaylistCollapsed] = useState(false)
+  // The playlist only collapses on phones and tablets; on desktop it is always shown.
+  const isDesktop = useMediaQuery('(min-width: 1024px)')
   const [activeTab, setActiveTab] = useState<RecordingTab>('all')
 
   const loadRecordings = useCallback(() => {
@@ -347,19 +350,25 @@ export function Recordings() {
         {/* Playlist sidebar */}
         <div className="lg:w-80 xl:w-96 shrink-0">
           <div className="app-surface overflow-hidden lg:sticky lg:top-4">
-            <button
-              type="button"
-              aria-expanded={!playlistCollapsed}
-              onClick={() => setPlaylistCollapsed(!playlistCollapsed)}
-              className="flex min-h-11 w-full items-center justify-between border-b border-line px-4 py-3 transition-colors duration-150 active:bg-surface-sunken lg:cursor-default lg:active:bg-transparent"
-            >
-              <span className="text-sm font-semibold tabular-nums text-ink">
+            {isDesktop ? (
+              <h2 className="flex min-h-11 items-center border-b border-line px-4 py-3 text-sm font-semibold tabular-nums text-ink">
                 Playlist · {filtered.length}
-              </span>
-              <span className="text-ink-muted lg:hidden" aria-hidden="true">
-                {playlistCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-              </span>
-            </button>
+              </h2>
+            ) : (
+              <button
+                type="button"
+                aria-expanded={!playlistCollapsed}
+                onClick={() => setPlaylistCollapsed(!playlistCollapsed)}
+                className="flex min-h-11 w-full items-center justify-between border-b border-line px-4 py-3 transition-colors duration-150 active:bg-surface-sunken"
+              >
+                <span className="text-sm font-semibold tabular-nums text-ink">
+                  Playlist · {filtered.length}
+                </span>
+                <span className="text-ink-muted" aria-hidden="true">
+                  {playlistCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                </span>
+              </button>
+            )}
 
             <div className={`${playlistCollapsed ? 'hidden' : 'block'} lg:block`}>
               {showTabs && (

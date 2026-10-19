@@ -338,7 +338,7 @@ export function Layout({ children }: LayoutProps) {
         Skip to main content
       </a>
       {/* Mobile header */}
-      <header aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-line bg-surface-raised px-2 lg:hidden">
+      <header aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-line bg-surface-raised pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))] lg:hidden">
         <IconButton
           ref={menuButtonRef}
           label="Open navigation"
@@ -369,7 +369,7 @@ export function Layout({ children }: LayoutProps) {
           aria-label="Site navigation"
           aria-hidden={!sidebarOpen}
           inert={!sidebarOpen}
-          className={`fixed inset-y-0 left-0 flex w-[min(88vw,320px)] flex-col overflow-y-auto overscroll-contain bg-surface-raised pb-[env(safe-area-inset-bottom,0px)] shadow-overlay transition-transform duration-[240ms] ease-drawer ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
+          className={`fixed inset-y-0 left-0 flex w-[min(88vw,320px)] flex-col overflow-y-auto overscroll-contain bg-surface-raised pb-[env(safe-area-inset-bottom,0px)] pl-[env(safe-area-inset-left,0px)] shadow-overlay transition-transform duration-[240ms] ease-drawer ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
         >
           <div className="flex h-14 shrink-0 items-center justify-between border-b border-line pl-4 pr-2">
             <Link to="/" onClick={() => closeMobileSidebar(false)} className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg" aria-label="Go to homepage">
@@ -517,13 +517,13 @@ export function Layout({ children }: LayoutProps) {
         </aside>
 
         {/* Main content */}
-        <main id="main-content" tabIndex={-1} className={`flex-1 min-w-0 overflow-x-hidden ${mainMargin} ${isMessagesRoute ? `${isStaff ? 'h-[calc(100dvh-3.5rem)]' : 'h-[calc(100dvh-7.75rem)]'} overflow-hidden lg:h-dvh` : ''}`}>
+        <main id="main-content" tabIndex={-1} className={`flex-1 min-w-0 overflow-x-hidden ${mainMargin} ${isMessagesRoute ? `${isStaff ? 'h-[calc(100dvh-3.5rem)]' : 'h-[calc(100dvh-7.75rem-env(safe-area-inset-bottom,0px))] [--composer-safe-bottom:0px] lg:[--composer-safe-bottom:env(safe-area-inset-bottom,0px)]'} overflow-hidden lg:h-dvh` : ''}`}>
           <div className={pageContentClassName}>{children ?? <Outlet />}</div>
         </main>
       </div>
 
       {!isStaff && (
-        <nav aria-label="Primary navigation" aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-line bg-surface-raised px-1 pb-[env(safe-area-inset-bottom,0px)] lg:hidden">
+        <nav aria-label="Primary navigation" aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-line bg-surface-raised pb-[env(safe-area-inset-bottom,0px)] pl-[max(0.25rem,env(safe-area-inset-left))] pr-[max(0.25rem,env(safe-area-inset-right))] lg:hidden">
           {studentBottomNav.map((item) => {
             const active = isActive(item.to, item.exact)
             const count = getNavUnreadCount(item.to)

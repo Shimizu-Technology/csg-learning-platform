@@ -29,8 +29,9 @@ interface AvatarProps {
  * or announced next to it, so the image itself has empty alt text.
  */
 export function Avatar({ name, src, size = 'md', className = '' }: AvatarProps) {
-  const [failed, setFailed] = useState(false)
-  const showImage = Boolean(src) && !failed
+  // Remember which URL failed so a new photo URL is tried again.
+  const [failedSrc, setFailedSrc] = useState<string | null>(null)
+  const showImage = Boolean(src) && src !== failedSrc
   return (
     <span
       aria-hidden="true"
@@ -38,7 +39,7 @@ export function Avatar({ name, src, size = 'md', className = '' }: AvatarProps) 
       className={`inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-full bg-slate-200 font-semibold text-slate-700 ring-1 ring-inset ring-slate-900/5 ${SIZES[size]} ${className}`.trim()}
     >
       {showImage ? (
-        <img src={src!} alt="" className="h-full w-full object-cover" onError={() => setFailed(true)} />
+        <img src={src!} alt="" className="h-full w-full object-cover" onError={() => setFailedSrc(src ?? null)} />
       ) : (
         initialsFor(name)
       )}

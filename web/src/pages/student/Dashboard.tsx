@@ -235,7 +235,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
               title={firstRedo.content_block_title || firstRedo.lesson_title}
               detail={firstRedo.content_block_title && firstRedo.content_block_title !== firstRedo.lesson_title ? firstRedo.lesson_title : undefined}
               excerpt={firstRedo.feedback ? markdownExcerpt(firstRedo.feedback) : undefined}
-              note={redoItems.length > 1 ? `${redoItems.length - 1} more ${redoItems.length - 1 === 1 ? 'redo is' : 'redos are'} listed in this week's plan.` : undefined}
+              note={redoItems.length > 1 ? `${redoItems.length - 1} more ${redoItems.length - 1 === 1 ? 'redo is' : 'redos are'} listed below.` : undefined}
               action={<LinkButton to={`/lessons/${firstRedo.lesson_id}${cohortQuery}#redo`}>Read feedback and resubmit<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
             />
           ) : derived.nextAvailableLesson ? (
@@ -279,7 +279,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
         </Link>
       )}
 
-      {showWeeklyFallback && redoItems.length > 1 && (
+      {(showWeeklyFallback || weeklyPlan?.mode === 'library') && redoItems.length > 1 && (
         <section className="app-surface p-4 sm:p-5">
           <h2 className="flex items-center gap-2 text-base font-semibold text-ink">
             <RotateCcw className="h-4 w-4 text-warning-800" aria-hidden="true" />

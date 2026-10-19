@@ -39,7 +39,9 @@ export function AccountMenu({ name, role, avatarUrl, compact = false, onNavigate
     }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        // Close only the innermost layer (this menu), not the drawer around it.
         event.preventDefault()
+        event.stopPropagation()
         setOpen(false)
         buttonRef.current?.focus()
         return
@@ -53,11 +55,11 @@ export function AccountMenu({ name, role, avatarUrl, compact = false, onNavigate
       list[next]?.focus()
     }
     document.addEventListener('pointerdown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
+    document.addEventListener('keydown', onKeyDown, true)
     return () => {
       cancelAnimationFrame(frame)
       document.removeEventListener('pointerdown', onPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('keydown', onKeyDown, true)
     }
   }, [open])
 

@@ -3191,7 +3191,7 @@ export function Messages() {
       <form
         ref={composerFormRef}
         onSubmit={handleSend}
-        className={`${inThreadPanel ? 'shrink-0 border-t border-slate-200 bg-white p-3' : 'shrink-0 border-t border-slate-200 bg-white px-2.5 pb-[calc(env(safe-area-inset-bottom)+0.625rem)] pt-2.5 sm:px-4 sm:pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:pt-3'}`}
+        className={`${inThreadPanel ? 'shrink-0 border-t border-slate-200 bg-white p-3' : 'shrink-0 border-t border-slate-200 bg-white px-2.5 pb-[calc(var(--composer-safe-bottom,env(safe-area-inset-bottom,0px))+0.625rem)] pt-2.5 sm:px-4 sm:pb-[calc(var(--composer-safe-bottom,env(safe-area-inset-bottom,0px))+0.75rem)] sm:pt-3'}`}
       >
         {typingLabel && (
           <div className="mb-1.5 flex min-h-5 items-center gap-2 px-2 text-xs font-semibold text-slate-500" role="status" aria-live="polite">
