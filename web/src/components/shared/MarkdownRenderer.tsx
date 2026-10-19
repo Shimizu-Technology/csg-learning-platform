@@ -1,12 +1,16 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import DOMPurify from 'dompurify'
 import { Copy, Check } from 'lucide-react'
 import { analyticsLanguage, captureProductEvent } from '../../lib/analytics'
 import { copyText } from '../../lib/clipboard'
+import { isHafaStarterLink, withLessonReturn } from '../../lib/hafaStarterLinks'
+import { HafaStarterLink, STARTER_HINTS, STARTER_HINT_CLASS, STARTER_LINK_CLASS, useStarterLinkSameTab, type StarterLinkContext } from './HafaStarterLink'
 
 interface MarkdownRendererProps {
   content: string
+  /** Inside a lesson: render Hafa Code starter links as buttons that return to this lesson. */
+  starterLinks?: StarterLinkContext
 }
 
 function isHtml(str: string): boolean {
@@ -58,8 +62,15 @@ const CHECK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14
  * Renders HTML content (from Quill or Trix) with copy buttons on code blocks.
  * Wraps each <pre> in a .code-block-wrapper and injects a copy button via DOM.
  */
-function HtmlContentRenderer({ html }: { html: string }) {
+function HtmlContentRenderer({ html, starterLinks }: { html: string; starterLinks?: StarterLinkContext }) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const sameTab = useStarterLinkSameTab()
+  const lessonReturnUrl = starterLinks?.lessonReturn.url
+  const lessonReturnLabel = starterLinks?.lessonReturn.label
+  const starterHint = starterLinks?.hint
+  // A stable object: React 19 rewrites innerHTML whenever this prop object changes,
+  // which would discard the copy buttons and link changes applied below.
+  const sanitizedHtml = useMemo(() => ({ __html: DOMPurify.sanitize(html) }), [html])
 
   useEffect(() => {
     const el = containerRef.current
@@ -105,23 +116,52 @@ function HtmlContentRenderer({ html }: { html: string }) {
     const links = el.querySelectorAll('a[href]')
     links.forEach((link) => {
       const href = link.getAttribute('href')
+      if (starterHint && lessonReturnUrl && isHafaStarterLink(href)) {
+        decorateStarterLink(link as HTMLAnchorElement, href, { lessonReturn: { url: lessonReturnUrl, label: lessonReturnLabel }, hint: starterHint }, sameTab)
+        return
+      }
       if (href?.startsWith('http')) {
         link.setAttribute('target', '_blank')
         link.setAttribute('rel', 'noopener noreferrer')
       }
     })
-  }, [html])
+  }, [html, lessonReturnUrl, lessonReturnLabel, starterHint, sameTab])
 
   return (
     <div className="exercise-content">
-      <div ref={containerRef} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
+      <div ref={containerRef} dangerouslySetInnerHTML={sanitizedHtml} />
     </div>
   )
 }
 
-export function MarkdownRenderer({ content }: MarkdownRendererProps) {
+let starterHintCount = 0
+
+/** Rich-text (HTML) bodies: the same starter button and hint, applied to the sanitized DOM. */
+function decorateStarterLink(link: HTMLAnchorElement, href: string, context: StarterLinkContext, sameTab: boolean) {
+  link.setAttribute('href', withLessonReturn(href, context.lessonReturn))
+  link.className = STARTER_LINK_CLASS
+  if (sameTab) {
+    link.removeAttribute('target')
+    link.removeAttribute('rel')
+  } else {
+    link.setAttribute('target', '_blank')
+    link.setAttribute('rel', 'noopener noreferrer')
+  }
+  if (!link.textContent?.trim() || link.textContent.trim() === href) link.textContent = 'Open starter in Hafa Code'
+  let hint = link.nextElementSibling
+  if (!(hint instanceof HTMLElement) || !hint.classList.contains('hafa-starter-hint')) {
+    hint = document.createElement('span')
+    hint.id = `hafa-starter-hint-${++starterHintCount}`
+    hint.className = STARTER_HINT_CLASS
+    link.after(hint)
+  }
+  hint.textContent = STARTER_HINTS[context.hint]
+  link.setAttribute('aria-describedby', hint.id)
+}
+
+export function MarkdownRenderer({ content, starterLinks }: MarkdownRendererProps) {
   if (isHtml(content)) {
-    return <HtmlContentRenderer html={content} />
+    return <HtmlContentRenderer html={content} starterLinks={starterLinks} />
   }
 
   return (
@@ -149,6 +189,9 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
             return <code className="inline-code" {...props}>{children}</code>
           },
           a({ href, children, ...props }) {
+            if (starterLinks && isHafaStarterLink(href)) {
+              return <HafaStarterLink href={href} context={starterLinks}>{children}</HafaStarterLink>
+            }
             return (
               <a
                 href={href}

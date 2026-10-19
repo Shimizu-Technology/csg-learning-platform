@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 vi.mock('../../contexts/ToastContext', () => ({
   useToast: () => ({ success: vi.fn(), error: vi.fn() }),
 }))
-vi.mock('./MarkdownRenderer', () => ({ MarkdownRenderer: () => null }))
+vi.mock('./MarkdownRenderer', () => ({ MarkdownRenderer: ({ starterLinks }: { starterLinks?: { lessonReturn: { url: string; label?: string | null }; hint: string } }) => (starterLinks ? <div data-starter-hint={starterLinks.hint} data-starter-return={starterLinks.lessonReturn.url} data-starter-label={starterLinks.lessonReturn.label ?? ''} /> : null) }))
 vi.mock('./CodeEditor', () => ({ CodeEditor: ({ value, readOnly, busy, onChange }: { value: string; readOnly?: boolean; busy?: boolean; onChange?: (value: string) => void }) => <pre data-editor={readOnly || busy ? 'readonly' : 'editable'} onClick={() => onChange?.(`${value}\n# edited`)}>{value}</pre>, detectLanguage: () => 'python' }))
 vi.mock('./FeedbackBody', () => ({ FeedbackBody: ({ feedback }: { feedback: string }) => <div data-feedback="">{feedback}</div> }))
 vi.mock('./CodeRunner', () => ({ CodeRunner: () => null }))
@@ -212,5 +212,26 @@ describe('feedback block (one warning card, neutral history, one badge)', () => 
     const html = renderToStaticMarkup(<ContentBlockRenderer block={redoBlock} cohortId={2} />)
     expect(html.match(/data-variant="primary"/g)?.length).toBe(1)
     expect(html).toContain('Resubmit')
+  })
+})
+
+describe('Hafa Code starter link context', () => {
+  const lessonReturn = { url: 'https://learn.codeschoolofguam.com/lessons/419?cohort_id=5#block-138', label: 'Orientation — your first run' }
+
+  it('tells learners to paste into a text submission and only to practice elsewhere', () => {
+    const submit = renderToStaticMarkup(<ContentBlockRenderer block={checkpoint({ body: 'Open the starter.' })} cohortId={2} lessonReturn={lessonReturn} />)
+    expect(submit).toContain('data-starter-hint="submit"')
+    expect(submit).toContain('data-starter-return="https://learn.codeschoolofguam.com/lessons/419?cohort_id=5#block-138"')
+    expect(submit).toContain('data-starter-label="Orientation — your first run"')
+
+    const reading = renderToStaticMarkup(<ContentBlockRenderer block={checkpoint({ block_type: 'text', submission_type: 'manual_complete', body: 'Worked example.' })} cohortId={2} lessonReturn={lessonReturn} />)
+    expect(reading).toContain('data-starter-hint="practice"')
+
+    const repo = renderToStaticMarkup(<ContentBlockRenderer block={checkpoint({ block_type: 'exercise', submission_type: 'repo_url_submission', body: 'Open the starter.' })} cohortId={2} lessonReturn={lessonReturn} />)
+    expect(repo).toContain('data-starter-hint="practice"')
+  })
+
+  it('passes no starter context outside a lesson', () => {
+    expect(renderToStaticMarkup(<ContentBlockRenderer block={checkpoint({ body: 'Open the starter.' })} cohortId={2} />)).not.toContain('data-starter-hint')
   })
 })

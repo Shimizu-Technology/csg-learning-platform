@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { useParams } from 'react-router-dom'
+import { useLocation, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, ChevronDown, ChevronLeft, Lock, RotateCcw } from 'lucide-react'
 import { api } from '../../lib/api'
 import { ContentBlockRenderer } from '../../components/shared/ContentBlockRenderer'
@@ -16,6 +16,7 @@ import type { LessonObjective } from '../../types/api'
 import { Badge } from '../../components/ui/Badge'
 import { LinkButton, buttonClasses } from '../../components/ui/Button'
 import { useMediaQuery } from '../../lib/useMediaQuery'
+import { lessonReturnUrl } from '../../lib/hafaStarterLinks'
 
 const LESSON_TYPE_LABELS: Record<string, string> = {
   video: 'Video lesson',
@@ -64,6 +65,7 @@ interface LessonData {
 
 export function LessonView() {
   const { id } = useParams<{ id: string }>()
+  const location = useLocation()
   const [lesson, setLesson] = useState<LessonData | null>(null)
   const [loading, setLoading] = useState(true)
   const [helpRequests, setHelpRequests] = useState<HelpRequest[]>([])
@@ -120,13 +122,18 @@ export function LessonView() {
     })
   }, [lesson?.id, lesson?.module_id])
 
-  // Arriving from "Read feedback and resubmit" (#redo) lands on the first redo block.
+  // Arriving from "Read feedback and resubmit" (#redo) lands on the first redo block;
+  // returning from Hafa Code (#block-<id>) lands on the block that opened the starter.
   useEffect(() => {
-    if (!lesson || window.location.hash !== '#redo' || scrolledToRedoRef.current === lesson.id) return
-    const redo = lesson.content_blocks.find((block: any) => block.submissions?.[0]?.grade === 'R')
-    if (!redo) return
+    if (!lesson || scrolledToRedoRef.current === lesson.id) return
+    const hash = window.location.hash
+    const blockId = /^#block-(\d+)$/.exec(hash)?.[1]
+    const target = hash === '#redo'
+      ? lesson.content_blocks.find((block: any) => block.submissions?.[0]?.grade === 'R')
+      : blockId ? lesson.content_blocks.find((block: any) => String(block.id) === blockId) : null
+    if (!target) return
     scrolledToRedoRef.current = lesson.id
-    requestAnimationFrame(() => scrollToBlock(redo.id))
+    requestAnimationFrame(() => scrollToBlock(target.id))
   }, [lesson])
 
   if (loading) return <LoadingSpinner message="Loading lesson..." />
@@ -234,6 +241,7 @@ export function LessonView() {
               submissionsCloseAt={lesson.submission_window?.submissions_close_at || null}
               submissionWeekNumber={lesson.submission_window?.week_number}
               analyticsContext={{ moduleId: lesson.module_id, lessonId: lesson.id }}
+              lessonReturn={{ url: lessonReturnUrl({ origin: window.location.origin, pathname: location.pathname, search: new URLSearchParams(location.search).has('cohort_id') ? location.search : cohortQuery }, `block-${block.id}`), label: lesson.title }}
               onProgressUpdate={() => loadLesson({ silent: true })}
             />
             {!user?.is_staff && lesson.cohort_id && ['exercise', 'code_challenge'].includes(block.block_type) && (

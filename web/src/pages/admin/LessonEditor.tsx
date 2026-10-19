@@ -673,6 +673,7 @@ export function LessonEditor() {
                 key={block.id}
                 block={block as any}
                 isStaff={false}
+                lessonReturn={{ url: `${window.location.origin}/lessons/${id}`, label: title }}
               />
             ))}
           </div>
