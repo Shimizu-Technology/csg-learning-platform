@@ -330,7 +330,7 @@ export function Layout({ children }: LayoutProps) {
     ? 'h-full p-0 lg:p-4'
     : isStaff
       ? 'p-4 sm:p-6 lg:p-8'
-      : 'py-4 pb-24 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] sm:py-6 sm:pb-24 sm:pl-[max(1.5rem,env(safe-area-inset-left))] sm:pr-[max(1.5rem,env(safe-area-inset-right))] lg:p-8'
+      : 'py-4 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] sm:py-6 sm:pb-[calc(6rem+env(safe-area-inset-bottom,0px))] sm:pl-[max(1.5rem,env(safe-area-inset-left))] sm:pr-[max(1.5rem,env(safe-area-inset-right))] lg:p-8'
 
   return (
     <div className={isMessagesRoute ? 'h-dvh overflow-hidden bg-surface-page' : 'min-h-dvh bg-surface-page'}>
@@ -409,7 +409,7 @@ export function Layout({ children }: LayoutProps) {
             ))}
           </nav>
           <div className="border-t border-line p-3">
-            <AccountMenu name={user?.full_name || user?.email || 'Your account'} role={user?.role} avatarUrl={user?.avatar_url} onNavigate={() => closeMobileSidebar(false)} />
+            <AccountMenu name={user?.full_name || user?.email || 'Your account'} role={user?.role} avatarUrl={user?.avatar_url} onNavigate={() => closeMobileSidebar()} />
           </div>
         </div>
       </div>
