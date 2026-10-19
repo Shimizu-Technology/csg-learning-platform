@@ -8,13 +8,14 @@ vi.mock('../../contexts/ToastContext', () => ({
   useToast: () => ({ success: vi.fn(), error: vi.fn() }),
 }))
 vi.mock('./MarkdownRenderer', () => ({ MarkdownRenderer: () => null }))
-vi.mock('./CodeEditor', () => ({ CodeEditor: ({ value, readOnly, onChange }: { value: string; readOnly?: boolean; onChange?: (value: string) => void }) => <pre data-editor={readOnly ? 'readonly' : 'editable'} onClick={() => onChange?.(`${value}\n# edited`)}>{value}</pre>, detectLanguage: () => 'python' }))
+vi.mock('./CodeEditor', () => ({ CodeEditor: ({ value, readOnly, busy, onChange }: { value: string; readOnly?: boolean; busy?: boolean; onChange?: (value: string) => void }) => <pre data-editor={readOnly || busy ? 'readonly' : 'editable'} onClick={() => onChange?.(`${value}\n# edited`)}>{value}</pre>, detectLanguage: () => 'python' }))
 vi.mock('./FeedbackBody', () => ({ FeedbackBody: ({ feedback }: { feedback: string }) => <div data-feedback="">{feedback}</div> }))
 vi.mock('./CodeRunner', () => ({ CodeRunner: () => null }))
 vi.mock('./VideoPlayer', () => ({ VideoPlayer: () => null }))
 vi.mock('./GradeDisplay', () => ({ GradeDisplay: () => null }))
 
 import { ContentBlockRenderer } from './ContentBlockRenderer'
+import { api } from '../../lib/api'
 
 function renderExercise(submissionType: string, isStaff: boolean) {
   return renderToStaticMarkup(
@@ -150,6 +151,25 @@ describe('submission drafts', () => {
     expect(container.querySelector('[data-editor="editable"]')?.textContent).toBe('print("hi")')
     expect(container.textContent).not.toContain('Restored your unsent draft')
     expect(localStorage.getItem('csg-learn:submission-draft:v1:me:2:138')).toBeNull()
+    act(() => root.unmount())
+  })
+
+  it('locks the editor while a submission is in flight and unlocks it after a failure', async () => {
+    let finish: (value: Awaited<ReturnType<typeof api.createSubmission>>) => void = () => {}
+    const spy = vi.spyOn(api, 'createSubmission').mockReturnValue(new Promise((resolve) => { finish = resolve }))
+    localStorage.setItem('csg-learn:submission-draft:v1:me:2:138', JSON.stringify({ version: 1, text: 'print(1)', savedAt: '2026-10-18T07:00:00Z' }))
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    await act(async () => { root.render(<ContentBlockRenderer block={checkpoint()} cohortId={2} />) })
+    const submit = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Submit checkpoint'))!
+    await act(async () => { submit.click() })
+    expect(container.querySelector('[data-editor]')?.getAttribute('data-editor')).toBe('readonly')
+    await act(async () => { finish({ data: null, error: 'Failed to fetch', errorKind: 'network' }) })
+    expect(container.querySelector('[data-editor]')?.getAttribute('data-editor')).toBe('editable')
+    expect(container.textContent).toContain("couldn't reach CSG Learn")
+    expect(localStorage.getItem('csg-learn:submission-draft:v1:me:2:138')).toContain('print(1)')
+    spy.mockRestore()
     act(() => root.unmount())
   })
 })
