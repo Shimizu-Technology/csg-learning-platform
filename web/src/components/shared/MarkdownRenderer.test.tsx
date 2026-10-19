@@ -110,4 +110,22 @@ describe('Hafa Code starter links in lesson content', () => {
     expect(other.getAttribute('href')).toBe('https://example.com')
     expect(other.className).toBe('')
   })
+
+  it('updates rich-text starter links when the lesson context changes and restores them without it', async () => {
+    mockTouch(false)
+    const html = `<p><a href="${STARTER.replace(/&/g, '&amp;')}">Open starter in Hafa Code</a></p>`
+    const container = await render(html, CONTEXT)
+    await act(async () => { root!.render(<MarkdownRenderer content={html} starterLinks={{ ...CONTEXT, lessonReturn: { ...CONTEXT.lessonReturn, label: 'Renamed lesson' } }} />) })
+    let link = container.querySelector('a')!
+    expect(hashParams(link.getAttribute('href')).get('returnLabel')).toBe('Renamed lesson')
+    expect(link.getAttribute('href')!.match(/return=/g)).toHaveLength(1)
+    expect(link.textContent).toBe('Open starter in Hafa Code (opens in a new tab)')
+    expect(container.querySelectorAll('.hafa-starter-hint')).toHaveLength(1)
+
+    await act(async () => { root!.render(<MarkdownRenderer content={html} />) })
+    link = container.querySelector('a')!
+    expect(link.getAttribute('href')).toBe(STARTER)
+    expect(link.className).toBe('')
+    expect(container.querySelector('.hafa-starter-hint')).toBeNull()
+  })
 })

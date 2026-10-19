@@ -673,7 +673,7 @@ export function LessonEditor() {
                 key={block.id}
                 block={block as any}
                 isStaff={false}
-                lessonReturn={{ url: `${window.location.origin}/lessons/${id}`, label: title }}
+                lessonReturn={{ url: `${window.location.origin}/admin/lessons/${id}/edit?preview=true`, label: title }}
               />
             ))}
           </div>

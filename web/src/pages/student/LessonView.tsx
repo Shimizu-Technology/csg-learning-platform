@@ -74,7 +74,7 @@ export function LessonView() {
   const { selectedCohortId } = useCohortContext()
   const requestId = useRef(0)
   const isPhone = useMediaQuery('(max-width: 1023px)')
-  const scrolledToRedoRef = useRef<number | null>(null)
+  const scrolledToHashRef = useRef<number | null>(null)
   const activeCohortId = useRef(selectedCohortId)
   activeCohortId.current = selectedCohortId
 
@@ -125,14 +125,14 @@ export function LessonView() {
   // Arriving from "Read feedback and resubmit" (#redo) lands on the first redo block;
   // returning from Hafa Code (#block-<id>) lands on the block that opened the starter.
   useEffect(() => {
-    if (!lesson || scrolledToRedoRef.current === lesson.id) return
+    if (!lesson || scrolledToHashRef.current === lesson.id) return
     const hash = window.location.hash
     const blockId = /^#block-(\d+)$/.exec(hash)?.[1]
     const target = hash === '#redo'
       ? lesson.content_blocks.find((block: any) => block.submissions?.[0]?.grade === 'R')
       : blockId ? lesson.content_blocks.find((block: any) => String(block.id) === blockId) : null
     if (!target) return
-    scrolledToRedoRef.current = lesson.id
+    scrolledToHashRef.current = lesson.id
     requestAnimationFrame(() => scrollToBlock(target.id))
   }, [lesson])
 
@@ -241,7 +241,7 @@ export function LessonView() {
               submissionsCloseAt={lesson.submission_window?.submissions_close_at || null}
               submissionWeekNumber={lesson.submission_window?.week_number}
               analyticsContext={{ moduleId: lesson.module_id, lessonId: lesson.id }}
-              lessonReturn={{ url: lessonReturnUrl({ origin: window.location.origin, pathname: location.pathname, search: new URLSearchParams(location.search).has('cohort_id') ? location.search : cohortQuery }, `block-${block.id}`), label: lesson.title }}
+              lessonReturn={{ url: lessonReturnUrl({ origin: window.location.origin, pathname: location.pathname, search: cohortQuery || location.search }, `block-${block.id}`), label: lesson.title }}
               onProgressUpdate={() => loadLesson({ silent: true })}
             />
             {!user?.is_staff && lesson.cohort_id && ['exercise', 'code_challenge'].includes(block.block_type) && (

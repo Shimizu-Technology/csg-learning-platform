@@ -68,7 +68,8 @@ function cleanLabel(label: string | null | undefined) {
  */
 export function withLessonReturn(href: string, lessonReturn: LessonReturn | null | undefined): string {
   if (!lessonReturn || !isHafaStarterLink(href)) return href
-  const url = parseHafaUrl(href)
+  const source = href.trim()
+  const url = parseHafaUrl(source)
   if (!url) return href
   const { hash, query } = linkParams(url)
   if (hash.has('return') || query.has('return')) return href
@@ -86,8 +87,8 @@ export function withLessonReturn(href: string, lessonReturn: LessonReturn | null
   if (label) extra.set('returnLabel', label)
 
   // Append rather than re-serialize so the project payload stays byte-for-byte intact.
-  const hashIndex = href.indexOf('#')
-  const base = hashIndex === -1 ? href : href.slice(0, hashIndex)
-  const existing = hashIndex === -1 ? '' : href.slice(hashIndex + 1).replace(/&+$/, '')
+  const hashIndex = source.indexOf('#')
+  const base = hashIndex === -1 ? source : source.slice(0, hashIndex)
+  const existing = hashIndex === -1 ? '' : source.slice(hashIndex + 1).replace(/&+$/, '')
   return `${base}#${existing ? `${existing}&` : ''}${extra.toString()}`
 }

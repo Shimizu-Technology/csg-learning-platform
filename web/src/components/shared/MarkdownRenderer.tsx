@@ -5,7 +5,7 @@ import { Copy, Check } from 'lucide-react'
 import { analyticsLanguage, captureProductEvent } from '../../lib/analytics'
 import { copyText } from '../../lib/clipboard'
 import { isHafaStarterLink, withLessonReturn } from '../../lib/hafaStarterLinks'
-import { HafaStarterLink, STARTER_HINTS, STARTER_HINT_CLASS, STARTER_LINK_CLASS, useStarterLinkSameTab, type StarterLinkContext } from './HafaStarterLink'
+import { DEFAULT_STARTER_LABEL, HafaStarterLink, STARTER_HINTS, STARTER_HINT_CLASS, STARTER_LINK_CLASS, useStarterLinkSameTab, type StarterLinkContext } from './HafaStarterLink'
 
 interface MarkdownRendererProps {
   content: string
@@ -68,9 +68,14 @@ function HtmlContentRenderer({ html, starterLinks }: { html: string; starterLink
   const lessonReturnUrl = starterLinks?.lessonReturn.url
   const lessonReturnLabel = starterLinks?.lessonReturn.label
   const starterHint = starterLinks?.hint
-  // A stable object: React 19 rewrites innerHTML whenever this prop object changes,
-  // which would discard the copy buttons and link changes applied below.
-  const sanitizedHtml = useMemo(() => ({ __html: DOMPurify.sanitize(html) }), [html])
+  // React 19 rewrites innerHTML whenever this prop object changes. Keep it stable so
+  // re-renders keep the copy buttons and link changes applied below, and rebuild it
+  // when the starter context changes so the effect decorates pristine HTML again.
+  const sanitizedHtml = useMemo(
+    () => ({ __html: DOMPurify.sanitize(html) }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the starter values reset the DOM on purpose
+    [html, lessonReturnUrl, lessonReturnLabel, starterHint, sameTab],
+  )
 
   useEffect(() => {
     const el = containerRef.current
@@ -125,7 +130,7 @@ function HtmlContentRenderer({ html, starterLinks }: { html: string; starterLink
         link.setAttribute('rel', 'noopener noreferrer')
       }
     })
-  }, [html, lessonReturnUrl, lessonReturnLabel, starterHint, sameTab])
+  }, [sanitizedHtml, lessonReturnUrl, lessonReturnLabel, starterHint, sameTab])
 
   return (
     <div className="exercise-content">
@@ -136,10 +141,13 @@ function HtmlContentRenderer({ html, starterLinks }: { html: string; starterLink
 
 let starterHintCount = 0
 
-/** Rich-text (HTML) bodies: the same starter button and hint, applied to the sanitized DOM. */
+/**
+ * Rich-text (HTML) bodies: the same starter button and hint as HafaStarterLink,
+ * applied to freshly sanitized DOM (the container is rebuilt when the context changes).
+ */
 function decorateStarterLink(link: HTMLAnchorElement, href: string, context: StarterLinkContext, sameTab: boolean) {
   link.setAttribute('href', withLessonReturn(href, context.lessonReturn))
-  link.className = STARTER_LINK_CLASS
+  link.classList.add(...STARTER_LINK_CLASS.split(' '))
   if (sameTab) {
     link.removeAttribute('target')
     link.removeAttribute('rel')
@@ -147,15 +155,19 @@ function decorateStarterLink(link: HTMLAnchorElement, href: string, context: Sta
     link.setAttribute('target', '_blank')
     link.setAttribute('rel', 'noopener noreferrer')
   }
-  if (!link.textContent?.trim() || link.textContent.trim() === href) link.textContent = 'Open starter in Hafa Code'
-  let hint = link.nextElementSibling
-  if (!(hint instanceof HTMLElement) || !hint.classList.contains('hafa-starter-hint')) {
-    hint = document.createElement('span')
-    hint.id = `hafa-starter-hint-${++starterHintCount}`
-    hint.className = STARTER_HINT_CLASS
-    link.after(hint)
+  const text = link.textContent?.trim()
+  if (!text || text === href.trim()) link.textContent = DEFAULT_STARTER_LABEL
+  if (!sameTab) {
+    const newTab = document.createElement('span')
+    newTab.className = 'sr-only'
+    newTab.textContent = ' (opens in a new tab)'
+    link.append(newTab)
   }
+  const hint = document.createElement('span')
+  hint.id = `hafa-starter-hint-${++starterHintCount}`
+  hint.className = STARTER_HINT_CLASS
   hint.textContent = STARTER_HINTS[context.hint]
+  link.after(hint)
   link.setAttribute('aria-describedby', hint.id)
 }
 

@@ -54,6 +54,12 @@ describe('withLessonReturn', () => {
     expect(hashParams(href).get('return')).toBe(LESSON.url)
   })
 
+  it('ignores surrounding whitespace in an authored href', () => {
+    const href = withLessonReturn(`  ${STARTER}\n`, LESSON)
+    expect(href.startsWith(`${STARTER}&return=`)).toBe(true)
+    expect(hashParams(href).get('returnLabel')).toBe(LESSON.label)
+  })
+
   it('leaves links that already name a return untouched', () => {
     const inHash = `${STARTER}&return=https%3A%2F%2Flearn.codeschoolofguam.com%2Flessons%2F7`
     const inQuery = `https://code.shimizu-technology.com/?lang=python&return=https%3A%2F%2Flearn.codeschoolofguam.com%2Flessons%2F7#project=${PAYLOAD}`
