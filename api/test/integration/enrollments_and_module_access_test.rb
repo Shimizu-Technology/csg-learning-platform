@@ -223,7 +223,7 @@ class EnrollmentsAndModuleAccessTest < ActionDispatch::IntegrationTest
     ma = ModuleAssignment.find_by(enrollment: enrollment, module_id: @mod1.id)
     assert_not_nil ma
     assert ma.unlocked?
-    assert_equal @mod1.next_start_date_on_or_after(Date.current), CohortModuleSchedule.find_by!(cohort: @cohort, curriculum_module: @mod1).start_date
+    assert_equal @mod1.next_start_date_on_or_after(LearningCalendar.today), CohortModuleSchedule.find_by!(cohort: @cohort, curriculum_module: @mod1).start_date
   end
 
   test "module_access stores explicit cohort module start dates" do
