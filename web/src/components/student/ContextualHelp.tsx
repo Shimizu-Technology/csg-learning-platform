@@ -6,6 +6,7 @@ import { formatShortDateTime } from '../../lib/format'
 import { useToast } from '../../contexts/ToastContext'
 import { Modal } from '../shared/Modal'
 import { Button } from '../ui/Button'
+import { Badge } from '../ui/Badge'
 import type { HelpCategory, HelpContextSource, HelpContextType, HelpRequest, HelpUrgency } from '../../types/api'
 
 const categories: Array<{ value: HelpCategory; label: string; description: string }> = [
@@ -108,41 +109,39 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
 
   return (
     <>
-      <button
-        type="button"
+      <Button
+        variant="secondary"
+        size="sm"
+        fullWidth={compact}
         onClick={() => {
           setOpen(true)
           if (onRequestsRefresh) void onRequestsRefresh()
           else void loadRequests()
         }}
-        className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 ${
-          activeRequest
-            ? 'border-amber-200 bg-amber-50 px-3 text-sm text-amber-800 hover:bg-amber-100'
-            : 'border-primary-200 bg-primary-50 px-3 text-sm text-primary-700 hover:bg-primary-100'
-        } ${compact ? 'w-full' : ''}`}
+        className={activeRequest ? 'border-pending-200! bg-pending-50! text-pending-700!' : 'text-ink-secondary!'}
       >
-        {activeRequest ? <Clock3 className="h-4 w-4" /> : <CircleHelp className="h-4 w-4" />}
+        {activeRequest ? <Clock3 className="h-4 w-4" aria-hidden="true" /> : <CircleHelp className="h-4 w-4" aria-hidden="true" />}
         {activeRequest ? statusLabel : "I'm stuck"}
-      </button>
+      </Button>
 
       <Modal
         open={open}
         onClose={() => setOpen(false)}
         title={activeRequest ? 'Your help request' : "Tell us where you're stuck"}
         subtitle={contextLabel}
-        icon={<span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-50 text-primary-600"><CircleHelp className="h-5 w-5" /></span>}
+        icon={<span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><CircleHelp className="h-5 w-5" aria-hidden="true" /></span>}
         size="md"
       >
         {loading ? (
-          <p className="py-8 text-center text-sm text-slate-500">Checking your help requests…</p>
+          <p className="py-8 text-center text-sm text-ink-muted">Checking your help requests…</p>
         ) : activeRequest ? (
           <div className="space-y-4">
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <div className="rounded-2xl border border-pending-200 bg-pending-50 p-4">
               <div className="flex items-start gap-3">
-                <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+                <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-pending-700" aria-hidden="true" />
                 <div>
-                  <p className="font-bold text-amber-950">{statusLabel}</p>
-                  <p className="mt-1 text-sm leading-6 text-amber-800">
+                  <p className="font-semibold text-ink">{statusLabel}</p>
+                  <p className="mt-1 text-sm leading-6 text-pending-700">
                     {activeRequest.status === 'acknowledged'
                       ? `${activeRequest.owner?.full_name || 'An instructor'} acknowledged this request.`
                       : 'It is visible in the staff support queue.'}
@@ -150,12 +149,12 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
                 </div>
               </div>
             </div>
-            <dl className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
-              <div><dt className="font-semibold text-slate-500">Your question</dt><dd className="mt-1 whitespace-pre-wrap leading-6 text-slate-800">{activeRequest.message}</dd></div>
-              <div className="flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
-                <span className="rounded-full bg-white px-2.5 py-1 capitalize">{activeRequest.category}</span>
-                {activeRequest.urgency === 'urgent' && <span className="rounded-full bg-red-100 px-2.5 py-1 text-red-700">Urgent</span>}
-                <span className="px-1 py-1 font-medium text-slate-400">Sent {formatShortDateTime(activeRequest.created_at)}</span>
+            <dl className="space-y-3 rounded-2xl border border-line bg-surface-sunken/60 p-4 text-sm">
+              <div><dt className="font-semibold text-ink-muted">Your question</dt><dd className="mt-1 whitespace-pre-wrap leading-6 text-ink [overflow-wrap:anywhere]">{activeRequest.message}</dd></div>
+              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-ink-secondary">
+                <Badge tone="neutral" className="capitalize">{activeRequest.category}</Badge>
+                {activeRequest.urgency === 'urgent' && <Badge tone="warning">Urgent</Badge>}
+                <span className="px-1 py-1 font-medium tabular-nums text-ink-muted">Sent {formatShortDateTime(activeRequest.created_at)}</span>
               </div>
             </dl>
             <Button variant="danger" onClick={cancelRequest} disabled={saving}>
@@ -165,33 +164,33 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
         ) : (
           <form className="space-y-5" onSubmit={submitRequest}>
             {latestResolved && (
-              <div className="rounded-2xl border border-green-200 bg-green-50 p-4">
+              <div className="rounded-2xl border border-success-200 bg-success-50 p-4">
                 <div className="flex items-start gap-3">
-                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-700" />
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success-700" aria-hidden="true" />
                   <div>
-                    <p className="font-bold text-green-950">Previous response</p>
-                    <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-green-800">{latestResolved.staff_response}</p>
-                    <p className="mt-2 text-xs font-medium text-green-700">You can send a new request if you still need help.</p>
+                    <p className="font-semibold text-success-800">Previous response</p>
+                    <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-ink [overflow-wrap:anywhere]">{latestResolved.staff_response}</p>
+                    <p className="mt-2 text-xs font-medium text-success-700">You can send a new request if you still need help.</p>
                   </div>
                 </div>
               </div>
             )}
 
             <fieldset>
-              <legend className="text-sm font-bold text-slate-900">What kind of help do you need?</legend>
+              <legend className="text-sm font-semibold text-ink">What kind of help do you need?</legend>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 {categories.map((option) => (
-                  <label key={option.value} className={`cursor-pointer rounded-xl border p-3 transition ${category === option.value ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-500' : 'border-slate-200 hover:bg-slate-50'}`}>
+                  <label key={option.value} className={`pressable cursor-pointer rounded-xl border p-3 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus ${category === option.value ? 'border-ruby-600 bg-surface-raised ring-1 ring-ruby-600' : 'border-line hover:bg-surface-sunken'}`}>
                     <input className="sr-only" type="radio" name="help-category" value={option.value} checked={category === option.value} onChange={() => setCategory(option.value)} />
-                    <span className="block text-sm font-bold text-slate-900">{option.label}</span>
-                    <span className="mt-0.5 block text-xs leading-5 text-slate-500">{option.description}</span>
+                    <span className="block text-sm font-semibold text-ink">{option.label}</span>
+                    <span className="mt-0.5 block text-sm leading-5 text-ink-muted">{option.description}</span>
                   </label>
                 ))}
               </div>
             </fieldset>
 
             <div>
-              <label htmlFor={`help-message-${contextType}-${contextId}`} className="text-sm font-bold text-slate-900">What have you tried, and where did you get stuck?</label>
+              <label htmlFor={`help-message-${contextType}-${contextId}`} className="text-sm font-semibold text-ink">What have you tried, and where did you get stuck?</label>
               <textarea
                 id={`help-message-${contextType}-${contextId}`}
                 value={message}
@@ -200,15 +199,15 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
                 rows={5}
                 required
                 placeholder="Share the step you reached, what you expected, and what happened instead."
-                className="mt-2 w-full rounded-xl border border-slate-300 px-3.5 py-3 text-sm leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-focus focus:ring-2 focus:ring-focus/25"
+                className="app-control mt-2 w-full leading-6"
               />
-              <p className="mt-1 text-right text-xs text-slate-400">{message.length}/2,000</p>
+              <p className="mt-1 text-right text-xs tabular-nums text-ink-muted">{message.length}/2,000</p>
             </div>
 
-            <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition ${urgency === 'urgent' ? 'border-red-300 bg-red-50' : 'border-slate-200'}`}>
-              <input type="checkbox" checked={urgency === 'urgent'} onChange={(event) => setUrgency(event.target.checked ? 'urgent' : 'normal')} className="mt-1 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-focus" />
-              <ShieldAlert className={`mt-0.5 h-5 w-5 shrink-0 ${urgency === 'urgent' ? 'text-red-600' : 'text-slate-400'}`} />
-              <span><span className="block text-sm font-bold text-slate-900">I am fully blocked</span><span className="mt-0.5 block text-xs leading-5 text-slate-500">Use urgent only when you cannot continue and need attention before the next class.</span></span>
+            <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${urgency === 'urgent' ? 'border-warning-300 bg-warning-50' : 'border-line'}`}>
+              <input type="checkbox" checked={urgency === 'urgent'} onChange={(event) => setUrgency(event.target.checked ? 'urgent' : 'normal')} className="mt-1 h-4 w-4 rounded border-line-strong accent-ruby-600" />
+              <ShieldAlert className={`mt-0.5 h-5 w-5 shrink-0 ${urgency === 'urgent' ? 'text-warning-800' : 'text-ink-muted'}`} aria-hidden="true" />
+              <span><span className="block text-sm font-semibold text-ink">I am fully blocked</span><span className="mt-0.5 block text-sm leading-5 text-ink-muted">Use urgent only when you cannot continue and need attention before the next class.</span></span>
             </label>
 
             <Button type="submit" fullWidth disabled={saving || !message.trim()}>

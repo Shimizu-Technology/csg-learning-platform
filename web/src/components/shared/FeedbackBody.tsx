@@ -1,5 +1,6 @@
 import { useId, useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
+import { Button } from '../ui/Button'
 import { MarkdownRenderer } from './MarkdownRenderer'
 
 /** Instructor feedback, rendered through the sanitized markdown renderer. */
@@ -25,17 +26,17 @@ export function FeedbackFormattingHint({ value }: { value: string }) {
         <p>
           Markdown works: <code className="rounded bg-slate-100 px-1">**bold**</code>, <code className="rounded bg-slate-100 px-1">`code`</code>, and <code className="rounded bg-slate-100 px-1">```python</code> code blocks.
         </p>
-        <button
-          type="button"
+        <Button
+          variant="quiet"
+          size="sm"
           aria-expanded={open}
           aria-controls={previewId}
           disabled={!hasContent}
           onClick={() => setOpen((current) => !current)}
-          className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40"
         >
-          {open ? <EyeOff className="h-3.5 w-3.5" aria-hidden="true" /> : <Eye className="h-3.5 w-3.5" aria-hidden="true" />}
+          {open ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
           {open ? 'Hide preview' : 'Preview as learner'}
-        </button>
+        </Button>
       </div>
       {open && hasContent && (
         <div id={previewId} className="mt-2 rounded-xl border border-slate-200 bg-white p-3">

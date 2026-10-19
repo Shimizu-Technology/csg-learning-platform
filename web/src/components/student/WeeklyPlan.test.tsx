@@ -29,7 +29,7 @@ describe('WeeklyPlanCard', () => {
   it('keeps required, redo, and optional work visibly distinct with lesson links', () => {
     const html = renderToStaticMarkup(<MemoryRouter><WeeklyPlanCard plan={plan} /></MemoryRouter>)
 
-    expect(html).toContain('This Week')
+    expect(html).toContain('This week')
     expect(html).toContain('Redo first')
     expect(html).toContain('Required work')
     expect(html).toContain('Optional stretch')
@@ -52,7 +52,7 @@ describe('WeeklyPlanCard', () => {
     expect(html).toContain('79')
     expect(html).toContain('href="/materials"')
     expect(html).not.toContain('Required work')
-    expect(html).not.toContain('This Week')
+    expect(html).not.toContain('This week')
   })
 
   it('labels submitted work as awaiting review and never shows 100% for an empty week', () => {

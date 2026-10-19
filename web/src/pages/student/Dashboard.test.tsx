@@ -152,3 +152,69 @@ describe('Dashboard empty and review states', () => {
     expect(html).not.toContain('```')
   })
 })
+
+describe('Dashboard hierarchy', () => {
+  const redo = { type: 'redo', submission_id: 1, lesson_id: 239, lesson_title: 'Lesson 2', content_block_title: 'E2 — repair two errors', feedback: 'Define the name first.' }
+  const weekly: WeeklyPlan = {
+    enrolled: true,
+    cohort: { id: 2, name: 'Python Fundamentals Pilot' },
+    week_number: 3,
+    starts_on: '2026-10-19',
+    ends_on: '2026-10-25',
+    timezone: 'Pacific/Guam',
+    summary: { required_count: 2, required_completed_count: 0, open_redo_count: 1, optional_count: 0 },
+    required: [
+      { id: 'l1', kind: 'lesson', lesson_id: 239, module_id: 1, title: 'E2 — repair two errors', module_title: 'Python Fundamentals', lesson_type: 'exercise', required: true, scheduled_for: '2026-10-19', carried_forward: true, state: 'open', review_status: 'redo_requested', submission_close_at: null, submissions_closed: false },
+      { id: 'l2', kind: 'lesson', lesson_id: 240, module_id: 1, title: 'Lesson 7', module_title: 'Python Fundamentals', lesson_type: 'reading', required: true, scheduled_for: '2026-10-19', carried_forward: false, state: 'open', submission_close_at: null, submissions_closed: false },
+    ],
+    optional: [],
+    redos: [{ id: 'r1', kind: 'redo', submission_id: 1, lesson_id: 239, title: 'E2 — repair two errors', lesson_title: 'Lesson 2', feedback: 'Define the name first.', state: 'open', submission_close_at: null }],
+    events: [],
+    upcoming_unlocks: [],
+    recording_catch_up: [],
+  }
+
+  function render(data: DashboardData, plan: WeeklyPlan | null) {
+    return renderToStaticMarkup(<MemoryRouter><Dashboard previewData={data} previewWeeklyPlan={plan} disableStaffRedirect /></MemoryRouter>)
+  }
+
+  it('puts a redo first in the single next-action hero, linking to the feedback', () => {
+    const html = render({ ...previewData, cohort: { ...previewData.cohort!, course_delivery: 'guided' } as DashboardData['cohort'], action_items: [redo] }, weekly)
+    const hero = html.slice(html.indexOf('data-region="next-action"'), html.indexOf('this-week-title'))
+    expect(hero).toContain('Redo requested')
+    expect(hero).toContain('href="/lessons/239#redo"')
+    expect(hero).toContain('Read feedback and resubmit')
+    // The plan does not repeat the redo the hero already shows.
+    expect(html).not.toContain('Redo first')
+  })
+
+  it('has exactly one primary action on the page (the hero) and no progress rings', () => {
+    const html = render({ ...previewData, action_items: [redo] }, weekly)
+    expect(html.match(/data-variant="primary"/g)?.length).toBe(1)
+    expect(html).not.toContain('role="progressbar" aria-label="Overall"')
+    expect(html.match(/role="progressbar"/g)?.length).toBe(2) // course + this week
+  })
+
+  it('keeps the weekly plan on a light surface with neutral open rows', () => {
+    const html = render(previewData, weekly)
+    const plan = html.slice(html.indexOf('this-week-title') - 200)
+    expect(plan).not.toContain('bg-slate-950')
+    expect(plan).not.toContain('surface-inverse')
+    expect(plan).not.toMatch(/\b(text|bg|border)-(red|primary)-\d/)
+    expect(plan).toContain('lucide-circle ')
+  })
+
+  it('shows a one-time week-complete moment when all required work is in', () => {
+    window.localStorage.clear()
+    const done: WeeklyPlan = {
+      ...weekly,
+      summary: { required_count: 2, required_completed_count: 2, open_redo_count: 0, optional_count: 0 },
+      required: weekly.required!.map((item) => ({ ...item, state: 'completed', review_status: 'reviewed' })),
+      redos: [],
+    }
+    const html = render(previewData, done)
+    expect(html).toContain('Week 3</span> complete')
+    expect(html).toContain('data-week-complete="animate"')
+    expect(html).toContain('milestone-ring-animate')
+  })
+})
