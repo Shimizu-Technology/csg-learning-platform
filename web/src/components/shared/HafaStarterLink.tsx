@@ -10,6 +10,8 @@ export type StarterHint = 'submit' | 'practice'
 export interface StarterLinkContext {
   lessonReturn: LessonReturn
   hint: StarterHint
+  /** Always open a new tab, even on touch devices (for example the staff editor preview). */
+  newTab?: boolean
 }
 
 export const DEFAULT_STARTER_LABEL = 'Open starter in Hafa Code'
@@ -40,7 +42,7 @@ function labelFor(children: ReactNode, href: string) {
 }
 
 export function HafaStarterLink({ href, children, context }: { href: string; children?: ReactNode; context: StarterLinkContext }) {
-  const sameTab = useStarterLinkSameTab()
+  const sameTab = useStarterLinkSameTab() && !context.newTab
   const hintId = useId()
   return (
     <span className="my-3 flex flex-col items-start gap-1.5" data-hafa-starter="">

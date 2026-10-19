@@ -73,6 +73,8 @@ interface ContentBlockRendererProps {
   analyticsContext?: { moduleId: number; lessonId: number }
   /** The lesson this block renders in; Hafa Code starter links return here. */
   lessonReturn?: LessonReturn
+  /** Always open Hafa Code starters in a new tab (editor preview keeps unsaved edits). */
+  starterOpensNewTab?: boolean
   onProgressUpdate?: () => void
 }
 
@@ -87,7 +89,7 @@ function getVimeoEmbed(url: string): { id: string; hash?: string } | null {
   return { id: match[1], hash: match[2] }
 }
 
-export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub, requiresSubmission = true, repositoryName, submissionsLocked = false, submissionsCloseAt, submissionWeekNumber, analyticsContext, lessonReturn, onProgressUpdate }: ContentBlockRendererProps) {
+export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub, requiresSubmission = true, repositoryName, submissionsLocked = false, submissionsCloseAt, submissionWeekNumber, analyticsContext, lessonReturn, starterOpensNewTab = false, onProgressUpdate }: ContentBlockRendererProps) {
   const toast = useToast()
   const { user } = useAuthContext()
   const draftKey = submissionDraftKey({ userId: user?.id, cohortId, blockId: block.id })
@@ -161,14 +163,15 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
   const usesTextSubmission = isWorkBlock && submissionType === 'text_submission'
   const usesRepoArtifactSubmission = isWorkBlock && (submissionType === 'repo_url_submission' || submissionType === 'repo_and_live_url_submission')
   const requiresLiveUrl = submissionType === 'repo_and_live_url_submission'
+  const workLocked = submissionsLocked && (isWorkBlock || (block.block_type === 'checkpoint' && !knowledgeCheck))
   const lessonReturnUrl = lessonReturn?.url
   const lessonReturnLabel = lessonReturn?.label
-  const starterHint = isWorkBlock && submissionType === 'text_submission' ? 'submit' : 'practice'
+  // "Paste it here" only when this learner has an open text box to paste into.
+  const starterHint = usesTextSubmission && !isStaff && !workLocked ? 'submit' : 'practice'
   const starterLinks = useMemo<StarterLinkContext | undefined>(
-    () => (lessonReturnUrl ? { lessonReturn: { url: lessonReturnUrl, label: lessonReturnLabel }, hint: starterHint } : undefined),
-    [lessonReturnUrl, lessonReturnLabel, starterHint],
+    () => (lessonReturnUrl ? { lessonReturn: { url: lessonReturnUrl, label: lessonReturnLabel }, hint: starterHint, newTab: starterOpensNewTab } : undefined),
+    [lessonReturnUrl, lessonReturnLabel, starterHint, starterOpensNewTab],
   )
-  const workLocked = submissionsLocked && (isWorkBlock || (block.block_type === 'checkpoint' && !knowledgeCheck))
   const latestStatus = submissionStatus(latestSubmission)
   const lockCopy = submissionWeekNumber ? `Week ${submissionWeekNumber} submissions are closed` : 'Submissions are closed'
   const videoSegments = useMemo(() => normalizeVideoSegments(block.metadata), [block.metadata])

@@ -64,7 +64,7 @@ const CHECK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14
  */
 function HtmlContentRenderer({ html, starterLinks }: { html: string; starterLinks?: StarterLinkContext }) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const sameTab = useStarterLinkSameTab()
+  const sameTab = useStarterLinkSameTab() && !starterLinks?.newTab
   const lessonReturnUrl = starterLinks?.lessonReturn.url
   const lessonReturnLabel = starterLinks?.lessonReturn.label
   const starterHint = starterLinks?.hint

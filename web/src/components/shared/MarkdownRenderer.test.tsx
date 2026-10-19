@@ -70,6 +70,12 @@ describe('Hafa Code starter links in lesson content', () => {
     expect(container.textContent).toContain('Run it there and try a change. Back to your lesson brings you here.')
   })
 
+  it('opens a new tab on touch devices when the context asks for one', async () => {
+    mockTouch(true)
+    const container = await render(`[Open starter in Hafa Code](${STARTER})`, { ...CONTEXT, newTab: true })
+    expect(container.querySelector('a')!.getAttribute('target')).toBe('_blank')
+  })
+
   it('keeps an existing return, leaves other links alone, and never renders javascript: links', async () => {
     mockTouch(false)
     const withReturn = `${STARTER}&return=https%3A%2F%2Flearn.codeschoolofguam.com%2Flessons%2F7`

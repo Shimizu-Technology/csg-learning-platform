@@ -674,6 +674,7 @@ export function LessonEditor() {
                 block={block as any}
                 isStaff={false}
                 lessonReturn={{ url: `${window.location.origin}/admin/lessons/${id}/edit?preview=true`, label: title }}
+                starterOpensNewTab
               />
             ))}
           </div>
