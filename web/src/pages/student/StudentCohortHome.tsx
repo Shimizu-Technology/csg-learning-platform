@@ -52,7 +52,7 @@ export function StudentCohortHome() {
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><BookOpen className="h-5 w-5" aria-hidden="true" /></span>
           <div className="min-w-0"><p className="text-xs font-semibold text-ink-muted">Learning</p><h2 className="text-xl font-bold text-ink">Your progress</h2></div>
         </div>
-        <p className="mt-6 text-4xl font-bold tabular-nums tracking-tight text-ink" data-testid="cohort-progress-percentage">{progress}%</p>
+        <p className="mt-6 text-3xl font-bold tabular-nums tracking-tight text-ink" data-testid="cohort-progress-percentage">{progress}%</p>
         <div className="mt-3"><ProgressBar value={progress} size="sm" showPercentage={false} /></div>
         <p className="mt-3 text-sm text-ink-secondary">Pick up where you left off in the curriculum.</p>
         <LinkButton to="/materials" className="mt-4">Open learning <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
