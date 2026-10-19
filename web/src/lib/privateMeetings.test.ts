@@ -24,3 +24,29 @@ describe('private meeting course weeks', () => {
     expect(currentBookingForWeek([booking], 1)).toBeUndefined()
   })
 })
+
+describe('private meeting copy and cutoffs', () => {
+  it('labels times in ChST instead of GMT+10', async () => {
+    const { formatGuamMeetingTime } = await import('./privateMeetings')
+    const label = formatGuamMeetingTime('2026-10-21T03:00:00Z')
+    expect(label).toMatch(/^Wednesday, October 21.*1:00 PM ChST$/)
+    expect(label).not.toContain('GMT')
+  })
+
+  it('closes a week once its last day is inside the learner cutoff', async () => {
+    const { isWeekBookingClosed, isPastLearnerCutoff } = await import('./privateMeetings')
+    const now = Date.parse('2026-10-18T07:00:00Z') // Sunday 5 PM in Guam
+    expect(isWeekBookingClosed('2026-10-05', 1, 24, now)).toBe(true)
+    expect(isWeekBookingClosed('2026-10-05', 2, 24, now)).toBe(true)
+    expect(isWeekBookingClosed('2026-10-05', 3, 24, now)).toBe(false)
+    expect(isPastLearnerCutoff('2026-10-19T00:00:00Z', 24, now)).toBe(true)
+    expect(isPastLearnerCutoff('2026-10-20T00:00:00Z', 24, now)).toBe(false)
+  })
+
+  it('warns when cancelling uses or has used the only change', async () => {
+    const { cancelConsequence } = await import('./privateMeetings')
+    expect(cancelConsequence(2, 0, 1)).toBe('Booking a new Week 2 time after cancelling uses your only schedule change for this week.')
+    expect(cancelConsequence(2, 1, 1)).toContain("you won't be able to book another Week 2 time yourself")
+    expect(cancelConsequence(2, 0, 3)).toContain('one of your 3 remaining')
+  })
+})

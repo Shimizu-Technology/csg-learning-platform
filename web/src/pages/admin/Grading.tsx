@@ -13,6 +13,7 @@ import { CODE_RUNNER_TIMEOUT_MS, codeRunnerLanguageFromEditor, normalizeCodeRunn
 import { useToast } from '../../contexts/ToastContext'
 import { appendFeedbackSnippet } from '../../lib/feedbackSnippets'
 import type { FeedbackSnippet, Rubric, RubricRating } from '../../types/api'
+import { FeedbackBody, FeedbackFormattingHint } from '../../components/shared/FeedbackBody'
 
 type QueueFilter = SubmissionQueueFilter
 
@@ -341,7 +342,7 @@ export function Grading() {
                 {selectedSubmission.grade === 'R' && selectedSubmission.feedback && (
                   <div className="rounded-xl border border-orange-200 bg-orange-50 p-3">
                     <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Current redo feedback</p>
-                    <p className="mt-1 text-sm text-orange-900">{selectedSubmission.feedback}</p>
+                    <FeedbackBody feedback={selectedSubmission.feedback} className="mt-1" />
                   </div>
                 )}
 
@@ -394,6 +395,7 @@ export function Grading() {
                     placeholder="Feedback for the student..."
                     className="mt-1 w-full rounded-lg border border-slate-200 p-3 text-sm resize-y min-h-[100px] focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
+                  <FeedbackFormattingHint value={feedback} />
                   <button type="button" disabled={!feedback.trim() || savingSnippet} onClick={() => void saveFeedbackSnippet()} className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-40"><BookmarkPlus className="h-4 w-4" />{savingSnippet ? 'Saving…' : 'Save draft as reusable snippet'}</button>
                 </div>
 

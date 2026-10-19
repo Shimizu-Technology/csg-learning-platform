@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, CalendarDays } from 'lucide-react'
 import { Modal } from '../components/shared/Modal'
 import { Button } from '../components/ui/Button'
 
@@ -9,6 +9,10 @@ interface ConfirmOptions {
   confirmLabel?: string
   cancelLabel?: string
   tone?: 'default' | 'danger'
+  /** 'calendar' is a neutral icon for scheduling confirmations that are not warnings. */
+  icon?: 'warning' | 'calendar'
+  /** Extra consequence text shown in a highlighted note under the description. */
+  note?: string
   confirmationText?: string
   confirmationLabel?: string
 }
@@ -46,7 +50,9 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
         onClose={() => finish(false)}
         title={options?.title || 'Confirm action'}
         subtitle={options?.description}
-        icon={<span className={`flex h-10 w-10 items-center justify-center rounded-xl ${options?.tone === 'danger' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}><AlertTriangle className="h-5 w-5" /></span>}
+        icon={options?.icon === 'calendar'
+          ? <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700"><CalendarDays className="h-5 w-5" aria-hidden="true" /></span>
+          : <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${options?.tone === 'danger' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}><AlertTriangle className="h-5 w-5" aria-hidden="true" /></span>}
         size="md"
         footer={
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -61,6 +67,9 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
           </div>
         }
       >
+        {options?.note && (
+          <p className="rounded-xl border border-warning-200 bg-warning-50 px-3 py-2 text-sm leading-6 text-warning-800">{options.note}</p>
+        )}
         {options?.confirmationText && (
           <label className="block">
             <span className="mb-2 block text-sm font-semibold text-slate-700">

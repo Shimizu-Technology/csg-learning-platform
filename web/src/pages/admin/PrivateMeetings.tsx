@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CalendarDays, CheckCircle2, Clock3, ExternalLink, Link2, Plus, RefreshCw, Trash2, Users, WifiOff } from 'lucide-react'
 import { api } from '../../lib/api'
-import { currentBookingForWeek, formatGuamMeetingTime, slotsForWeek } from '../../lib/privateMeetings'
+import { currentBookingForWeek, formatGuamMeetingTime, isPastLearnerCutoff, slotsForWeek } from '../../lib/privateMeetings'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
@@ -140,7 +140,7 @@ export function StaffPrivateMeetings() {
 
   return (
     <div className="app-page-wide space-y-8">
-      <PageHeader eyebrow="Student coaching" title="Private meetings" description="Publish the hours you can teach, then manage each student's weekly one-to-one session. Times are entered and shown in Guam time." actions={<Button variant="secondary" onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" />Refresh</Button>} />
+      <PageHeader eyebrow="Student coaching" title="Private meetings" description="Publish the hours you can teach, then manage each student's weekly one-to-one session. Times are entered and shown in Guam time (ChST)." actions={<Button variant="secondary" onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" />Refresh</Button>} />
       {error && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{error}</p>}
 
       {user?.is_admin && unconfigured.length > 0 && (
@@ -183,8 +183,14 @@ export function StaffPrivateMeetings() {
                 {Array.from({ length: selected.weeks }, (_, index) => index + 1).map((week) => {
                   const slots = slotsForWeek(selected.slots, selected.start_date, week, selected.weeks)
                   const bookings = selected.bookings.filter((booking) => currentBookingForWeek([booking], week))
-                  return <div key={week} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5"><div className="flex items-center justify-between gap-2"><h3 className="text-base font-bold text-slate-950">Week {week}</h3><span className="text-xs font-semibold text-slate-500">{bookings.length} booked · {slots.filter((slot) => slot.available).length} open</span></div>
-                    <div className="mt-4 space-y-2">{slots.length === 0 ? <p className="text-sm text-slate-600">No times published.</p> : slots.map((slot) => <div key={slot.id} className="flex items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2"><div className="min-w-0"><p className="text-sm font-semibold text-slate-800">{formatGuamMeetingTime(slot.starts_at)}</p><p className="text-xs text-slate-500">{slot.available ? 'Available' : 'Booked'}</p></div><button type="button" title="Remove time" aria-label={`Remove ${formatGuamMeetingTime(slot.starts_at)}`} disabled={!slot.available || busy !== null} onClick={() => void deleteSlot(slot.id)} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 disabled:opacity-30"><Trash2 className="h-4 w-4" /></button></div>)}</div>
+                  const learnerBookable = slots.filter((slot) => slot.available && !isPastLearnerCutoff(slot.starts_at, selected.reschedule_cutoff_hours)).length
+                  const pastCutoff = slots.filter((slot) => slot.available && isPastLearnerCutoff(slot.starts_at, selected.reschedule_cutoff_hours)).length
+                  return <div key={week} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-base font-bold text-slate-950">Week {week}</h3><span className="text-xs font-semibold text-slate-500">{bookings.length} booked · {learnerBookable} open to learners{pastCutoff > 0 ? ` · ${pastCutoff} past cutoff` : ''}</span></div>
+                    <div className="mt-4 space-y-2">{slots.length === 0 ? <p className="text-sm text-slate-600">No times published.</p> : slots.map((slot) => {
+                      const past = isPastLearnerCutoff(slot.starts_at, 0)
+                      const closedToLearners = slot.available && !past && isPastLearnerCutoff(slot.starts_at, selected.reschedule_cutoff_hours)
+                      return <div key={slot.id} className="flex items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2"><div className="min-w-0"><p className={`text-sm font-semibold ${past || closedToLearners ? 'text-slate-500' : 'text-slate-800'}`}>{formatGuamMeetingTime(slot.starts_at)}</p><p className="text-xs text-slate-500">{!slot.available ? 'Booked' : past ? 'Past — not booked' : closedToLearners ? `Past the ${selected.reschedule_cutoff_hours}-hour learner cutoff — learners can't book it; you can still move a booking here` : 'Open to learners'}</p></div><button type="button" title="Remove time" aria-label={`Remove ${formatGuamMeetingTime(slot.starts_at)}`} disabled={!slot.available || busy !== null} onClick={() => void deleteSlot(slot.id)} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 disabled:opacity-30"><Trash2 className="h-4 w-4" /></button></div>
+                    })}</div>
                   </div>
                 })}
               </div>

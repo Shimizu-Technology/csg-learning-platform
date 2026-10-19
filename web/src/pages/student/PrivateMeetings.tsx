@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { CalendarDays, Clock3, ExternalLink, MessageCircle, RefreshCw, Video, WifiOff } from 'lucide-react'
 import { api } from '../../lib/api'
-import { currentBookingForWeek, formatGuamMeetingTime, slotsForWeek } from '../../lib/privateMeetings'
+import { cancelConsequence, currentBookingForWeek, formatGuamMeetingTime, isWeekBookingClosed, slotsForWeek } from '../../lib/privateMeetings'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { useToast } from '../../contexts/ToastContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
@@ -10,7 +10,7 @@ import { Button } from '../../components/ui/Button'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
-import type { PrivateMeetingCohort, PrivateMeetingSlot } from '../../types/api'
+import type { PrivateMeetingBooking, PrivateMeetingCohort, PrivateMeetingSlot } from '../../types/api'
 
 export function PrivateMeetings() {
   const toast = useToast()
@@ -20,6 +20,8 @@ export function PrivateMeetings() {
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<number | null>(null)
   const [changingBookingId, setChangingBookingId] = useState<number | null>(null)
+  const [openingMessages, setOpeningMessages] = useState(false)
+  const navigate = useNavigate()
 
   const load = useCallback(async () => {
     setError(null)
@@ -31,11 +33,34 @@ export function PrivateMeetings() {
 
   useEffect(() => { void load() }, [load])
 
+  // Opens (or creates) the private conversation with the course's meeting
+  // instructor instead of dropping the learner on the general inbox.
+  async function messageInstructor(target?: PrivateMeetingCohort) {
+    if (openingMessages) return
+    const cohort = target ?? cohorts.find((entry) => entry.instructor_id)
+    if (!cohort?.instructor_id) {
+      navigate('/messages')
+      return
+    }
+    setOpeningMessages(true)
+    const response = await api.createDirectConversation({ cohort_id: cohort.id, user_ids: [cohort.instructor_id] })
+    setOpeningMessages(false)
+    const conversationId = response.data?.direct_conversation?.id
+    if (!conversationId) {
+      toast.error(`We couldn't open your conversation with ${cohort.instructor_name}. Opening your messages instead.`)
+      navigate('/messages')
+      return
+    }
+    navigate(`/messages/dm/${conversationId}`)
+  }
+
   async function selectSlot(slot: PrivateMeetingSlot, bookingId?: number) {
     const approved = await confirm({
       title: bookingId ? 'Move your private meeting?' : 'Book this private meeting?',
-      description: `${formatGuamMeetingTime(slot.starts_at)} with ${slot.instructor_name}. ${bookingId ? 'This uses your one learner reschedule.' : 'This reserves the full hour for you.'}`,
+      description: `${formatGuamMeetingTime(slot.starts_at)} with ${slot.instructor_name}. ${bookingId ? 'This uses your schedule change for this week.' : 'This reserves the full hour for you.'}`,
       confirmLabel: bookingId ? 'Move meeting' : 'Book meeting',
+      cancelLabel: 'Go back',
+      icon: 'calendar',
     })
     if (!approved) return
     setBusyId(slot.id)
@@ -53,11 +78,14 @@ export function PrivateMeetings() {
     await load()
   }
 
-  async function cancelBooking(bookingId: number) {
+  async function cancelBooking(booking: PrivateMeetingBooking, maxChanges: number) {
+    const bookingId = booking.id
     const approved = await confirm({
       title: 'Cancel this private meeting?',
-      description: 'Your reserved time will be released. Booking another time follows the course meeting policy.',
+      description: `${formatGuamMeetingTime(booking.starts_at)} will be released for someone else.`,
+      note: cancelConsequence(booking.week_number, booking.reschedule_count, maxChanges),
       confirmLabel: 'Cancel meeting',
+      cancelLabel: 'Keep meeting',
       tone: 'danger',
     })
     if (!approved) return
@@ -81,8 +109,8 @@ export function PrivateMeetings() {
       <PageHeader
         eyebrow="One hour, just for you"
         title="My meetings"
-        description="Choose one private 60-minute meeting for each course week. All times below are shown in Guam time."
-        actions={<Link to="/messages" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"><MessageCircle className="h-4 w-4" />Message your instructor</Link>}
+        description="Choose one private 60-minute meeting for each course week. All times are Guam time (ChST)."
+        actions={<button type="button" onClick={() => void messageInstructor()} disabled={openingMessages} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"><MessageCircle className="h-4 w-4" aria-hidden="true" />{openingMessages ? 'Opening…' : 'Message your instructor'}</button>}
       />
 
       {error && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{error}</p>}
@@ -108,17 +136,18 @@ export function PrivateMeetings() {
               const beforeCutoff = booking && Date.parse(booking.starts_at) > Date.now() + cutoff
               const canReschedule = beforeCutoff && booking.reschedule_count < cohort.max_student_changes
               const canBook = cohort.bookable_week_numbers.includes(week)
+              const weekClosed = isWeekBookingClosed(cohort.start_date, week, cohort.reschedule_cutoff_hours)
               return (
-                <article key={week} className={`min-w-0 rounded-2xl border bg-white p-5 ${booking ? 'border-primary-200 shadow-sm shadow-primary-950/5' : 'border-slate-200'}`}>
+                <article key={week} className={`min-w-0 rounded-2xl border bg-white p-5 ${booking ? 'border-slate-300 shadow-sm' : 'border-slate-200'}`}>
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="text-base font-bold text-slate-950">Week {week}</h3>
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${booking ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>{booking ? 'Booked' : 'To schedule'}</span>
+                    <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${booking ? 'border-success-200 bg-success-50 text-success-700' : weekClosed ? 'border-slate-200 bg-slate-50 text-slate-500' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>{booking ? 'Booked' : weekClosed ? 'Booking closed' : 'To schedule'}</span>
                   </div>
 
                   {booking && (
                     <div className="mt-5 space-y-3">
                       <div className="flex items-start gap-3">
-                        <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-primary-600" />
+                        <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" aria-hidden="true" />
                         <div>
                           <p className="font-semibold leading-snug text-slate-950">{formatGuamMeetingTime(booking.starts_at)}</p>
                           <p className="mt-1 text-sm text-slate-600">60 minutes with {booking.instructor_name}</p>
@@ -129,19 +158,19 @@ export function PrivateMeetings() {
                       ) : <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">Your Zoom link is being prepared. It will appear here before the meeting.</p>}
                       <div className="flex flex-wrap gap-2 pt-1">
                         {canReschedule && <Button variant="secondary" disabled={busyId !== null} onClick={() => setChangingBookingId(changing ? null : booking.id)}>{changing ? 'Keep current time' : 'Reschedule'}</Button>}
-                        {beforeCutoff && <Button variant="quiet" disabled={busyId !== null} onClick={() => void cancelBooking(booking.id)}>Cancel</Button>}
+                        {beforeCutoff && <Button variant="quiet" disabled={busyId !== null} onClick={() => void cancelBooking(booking, cohort.max_student_changes)}>Cancel meeting</Button>}
                       </div>
                     </div>
                   )}
 
                   {(!booking || changing) && (
                     <div className="mt-5">
-                      <p className="mb-3 text-sm font-semibold text-slate-700">{changing ? 'Choose a new time' : canBook ? 'Available times' : 'Scheduling help'}</p>
-                      {!booking && !canBook ? <p className="text-sm leading-relaxed text-slate-600">You have used your schedule change for this week. Message your instructor to arrange another time.</p> : available.length === 0 ? <p className="text-sm leading-relaxed text-slate-600">No times are open for this week yet. Message your instructor if you need help.</p> : (
+                      <p className="mb-3 text-sm font-semibold text-slate-700">{changing ? 'Choose a new time' : weekClosed ? 'Scheduling help' : canBook ? (available.length > 0 ? `${available.length} ${available.length === 1 ? 'time' : 'times'} available` : 'Available times') : 'Scheduling help'}</p>
+                      {weekClosed && !changing ? <p className="text-sm leading-relaxed text-slate-600">Booking for Week {week} has closed. <button type="button" onClick={() => void messageInstructor(cohort)} disabled={openingMessages} className="font-semibold text-slate-900 underline underline-offset-2 disabled:opacity-60">Message your instructor</button> if you still need a meeting.</p> : !booking && !canBook ? <p className="text-sm leading-relaxed text-slate-600">You have used your schedule change for Week {week}. <button type="button" onClick={() => void messageInstructor(cohort)} disabled={openingMessages} className="font-semibold text-slate-900 underline underline-offset-2 disabled:opacity-60">Message your instructor</button> to arrange another time.</p> : available.length === 0 ? <p className="text-sm leading-relaxed text-slate-600">No times are open for Week {week} yet. <button type="button" onClick={() => void messageInstructor(cohort)} disabled={openingMessages} className="font-semibold text-slate-900 underline underline-offset-2 disabled:opacity-60">Message your instructor</button> if you need help.</p> : (
                         <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
                           {available.map((slot) => (
-                            <button key={slot.id} type="button" disabled={busyId !== null} onClick={() => void selectSlot(slot, changing ? booking?.id : undefined)} className="flex min-h-12 w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left text-sm font-medium text-slate-800 transition hover:border-primary-400 hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 disabled:opacity-50">
-                              <span>{formatGuamMeetingTime(slot.starts_at)}</span><CalendarDays className="h-4 w-4 shrink-0 text-primary-600" />
+                            <button key={slot.id} type="button" disabled={busyId !== null} onClick={() => void selectSlot(slot, changing ? booking?.id : undefined)} className="flex min-h-12 w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left text-sm font-medium text-slate-800 transition-colors hover:border-slate-400 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 disabled:opacity-50">
+                              <span>{formatGuamMeetingTime(slot.starts_at)}</span><CalendarDays className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
                             </button>
                           ))}
                         </div>
@@ -155,7 +184,7 @@ export function PrivateMeetings() {
           <p className="text-sm leading-relaxed text-slate-600">Changes close {cohort.reschedule_cutoff_hours} hours before a meeting. You can reschedule or cancel and rebook up to {cohort.max_student_changes} {cohort.max_student_changes === 1 ? 'time' : 'times'}. You can still cancel after using a change, but ask your instructor to arrange another time.</p>
         </section>
       ))}
-      <p className="text-sm leading-relaxed text-slate-600">Need a different time? <Link to="/messages" className="font-semibold text-primary-700 underline underline-offset-2">Message your instructor</Link>.</p>
+      <p className="text-sm leading-relaxed text-slate-600">Need a different time? <button type="button" onClick={() => void messageInstructor()} disabled={openingMessages} className="font-semibold text-slate-900 underline underline-offset-2 disabled:opacity-60">Message your instructor</button>.</p>
     </div>
   )
 }

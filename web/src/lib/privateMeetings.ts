@@ -33,16 +33,48 @@ export function currentBookingForWeek(bookings: PrivateMeetingBooking[], week: n
   return bookings.find((booking) => booking.week_number === week && !['canceled', 'cancelled'].includes(booking.status))
 }
 
+/** Guam is UTC+10 all year; "ChST" is the name learners recognize (not "GMT+10"). */
 export function formatGuamMeetingTime(value: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return 'Time unavailable'
-  return new Intl.DateTimeFormat('en-US', {
+  const formatted = new Intl.DateTimeFormat('en-US', {
     timeZone: MEETING_TIME_ZONE,
     weekday: 'long',
     month: 'long',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-    timeZoneName: 'short',
   }).format(date)
+  return `${formatted} ChST`
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** Start of the day after a course week ends, as epoch ms (Guam midnight). */
+export function courseWeekEndsAt(startDate: string, week: number): number {
+  return Date.parse(`${startDate}T00:00:00+10:00`) + week * 7 * DAY_MS
+}
+
+/** Learners can only book or change a time more than the cutoff ahead of it. */
+export function isPastLearnerCutoff(startsAt: string, cutoffHours: number, now = Date.now()): boolean {
+  return Date.parse(startsAt) <= now + cutoffHours * 60 * 60 * 1000
+}
+
+/** True when no time in this course week can still be booked by a learner. */
+export function isWeekBookingClosed(startDate: string, week: number, cutoffHours: number, now = Date.now()): boolean {
+  return courseWeekEndsAt(startDate, week) <= now + cutoffHours * 60 * 60 * 1000
+}
+
+/**
+ * What cancelling costs the learner. Rebooking after a learner cancellation
+ * uses one learner change; once changes are used up, they cannot rebook.
+ */
+export function cancelConsequence(week: number, changesUsed: number, maxChanges: number): string {
+  if (changesUsed >= maxChanges) {
+    return `You have already used your schedule change for Week ${week}. If you cancel, you won't be able to book another Week ${week} time yourself — you'll need to message your instructor.`
+  }
+  const remaining = maxChanges - changesUsed
+  return remaining === 1
+    ? `Booking a new Week ${week} time after cancelling uses your only schedule change for this week.`
+    : `Booking a new Week ${week} time after cancelling uses one of your ${remaining} remaining schedule changes.`
 }

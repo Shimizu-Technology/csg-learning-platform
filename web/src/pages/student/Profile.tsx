@@ -132,12 +132,12 @@ export function Profile() {
       {/* User info */}
       <div className="rounded-2xl bg-white border border-slate-200 p-6 space-y-4">
         <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-100 text-primary-700 text-xl font-bold">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 text-xl font-bold" aria-hidden="true">
             {data.user.first_name?.[0]}{data.user.last_name?.[0]}
           </div>
-          <div>
-            <h2 className="text-xl font-semibold text-slate-900">{data.user.full_name}</h2>
-            <p className="text-sm text-slate-500">{data.user.email}</p>
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold text-slate-900 [overflow-wrap:anywhere]">{data.user.full_name}</h2>
+            <p className="text-sm text-slate-500 [overflow-wrap:anywhere]">{data.user.email}</p>
           </div>
         </div>
 
@@ -217,7 +217,7 @@ export function Profile() {
               disabled={savingNotifications}
               className={`relative mt-0.5 h-7 w-12 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2 disabled:opacity-50 ${emailNotificationsEnabled ? 'bg-primary-600' : 'bg-slate-300'}`}
             >
-              <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${emailNotificationsEnabled ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+              <span className={`absolute left-0 top-0.5 h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${emailNotificationsEnabled ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
             </button>
           )}
         </div>

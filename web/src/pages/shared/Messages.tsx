@@ -7,7 +7,10 @@ import Placeholder from '@tiptap/extension-placeholder'
 import TiptapLink from '@tiptap/extension-link'
 import UnderlineExtension from '@tiptap/extension-underline'
 import { Extension, type Editor } from '@tiptap/core'
-import { Plugin, PluginKey } from '@tiptap/pm/state'
+import { Plugin, PluginKey, TextSelection, type EditorState } from '@tiptap/pm/state'
+import { closeHistory } from '@tiptap/pm/history'
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
+import type { EditorView } from '@tiptap/pm/view'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import {
   Bell,
@@ -63,6 +66,7 @@ import { isVisiblePage, shouldPollMessages } from '../../lib/backgroundActivity'
 import { browserPushEnabled, disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
 import { formatFileSize, uploadToS3 } from '../../lib/uploadToS3'
 import { editorJsonToMarkdown, normalizeMessageMarkdown, parseMessageBlocks, type MessageListBlock } from '../../lib/messageFormat'
+import { isMultiLinePaste, looksLikeCode, normalizePastedCode } from '../../lib/codePaste'
 import {
   MESSAGE_BODY_LIMIT,
   composerBodyMatchesDestination,
@@ -824,6 +828,32 @@ const MentionHighlightExtension = Extension.create<{ getPatterns: () => MentionP
   },
 })
 
+function selectionInCodeBlock(state: EditorState) {
+  return state.selection.$from.parent.type.name === 'codeBlock'
+}
+
+/** Inserts pasted text as one code block, keeping its indentation, as its own undo step. */
+function insertPastedCodeBlock(view: EditorView, text: string) {
+  const { schema } = view.state
+  const codeBlockType = schema.nodes.codeBlock
+  if (!codeBlockType) return false
+  let tr = closeHistory(view.state.tr)
+  tr = tr.replaceSelectionWith(codeBlockType.create(null, schema.text(text)))
+  // Leave an empty paragraph after a trailing code block so typing can continue below it.
+  if (tr.doc.lastChild?.type === codeBlockType) {
+    tr = tr.insert(tr.doc.content.size, schema.nodes.paragraph.create())
+    tr = tr.setSelection(TextSelection.atEnd(tr.doc))
+  }
+  view.dispatch(tr.scrollIntoView())
+  return true
+}
+
+interface PasteNotice {
+  mode: 'code' | 'text'
+  text: string
+  doc: ProseMirrorNode
+}
+
 export function Messages() {
   const { channelId, dmId } = useParams()
   const navigate = useNavigate()
@@ -834,6 +864,7 @@ export function Messages() {
   const { loading: cohortsLoading, selectedCohortId, setSelectedCohort } = useCohortContext()
   const toast = useToast()
   const composerHelpId = useId()
+  const [pasteNotice, setPasteNotice] = useState<PasteNotice | null>(null)
   const isStaff = Boolean(user?.is_staff)
   const [channels, setChannels] = useState<ChannelSummary[]>([])
   const [directConversations, setDirectConversations] = useState<DirectConversationSummary[]>([])
@@ -1203,18 +1234,42 @@ export function Messages() {
       }),
     ],
     editorProps: {
-      attributes: {
-        class: 'message-composer px-3 py-2.5 text-base leading-6 text-slate-800 outline-none sm:py-3 sm:text-sm',
-        'aria-label': 'Write a message',
-        'aria-describedby': composerHelpId,
-        autocapitalize: 'sentences',
-        autocorrect: 'on',
-        spellcheck: 'true',
+      attributes: (state: EditorState) => {
+        // Phones must not "correct" code: no autocorrect, capitalization, or spellcheck in code blocks.
+        const inCode = selectionInCodeBlock(state)
+        return {
+          class: 'message-composer px-3 py-2.5 text-base leading-6 text-slate-800 outline-none sm:py-3 sm:text-sm',
+          'aria-label': 'Write a message',
+          'aria-describedby': composerHelpId,
+          autocapitalize: inCode ? 'off' : 'sentences',
+          autocorrect: inCode ? 'off' : 'on',
+          spellcheck: inCode ? 'false' : 'true',
+        }
       },
-      handlePaste: (_view, event) => {
+      handlePaste: (view, event) => {
         const files = Array.from(event.clipboardData?.files || [])
-        if (files.length === 0) return false
-        addFiles(files)
+        if (files.length > 0) {
+          addFiles(files)
+          return false
+        }
+        const raw = event.clipboardData?.getData('text/plain') || ''
+        if (!raw) return false
+        const text = normalizePastedCode(raw)
+        if (selectionInCodeBlock(view.state)) {
+          // Inside a code block, always paste verbatim (no HTML parsing).
+          view.dispatch(view.state.tr.insertText(text).scrollIntoView())
+          return true
+        }
+        if (looksLikeCode(text) && insertPastedCodeBlock(view, text)) {
+          setPasteNotice({ mode: 'code', text, doc: view.state.doc })
+          return true
+        }
+        if (isMultiLinePaste(text)) {
+          // Give the default paste its own undo step, then record the document
+          // right after ProseMirror applies it (synchronously, after this handler).
+          view.dispatch(closeHistory(view.state.tr))
+          queueMicrotask(() => setPasteNotice({ mode: 'text', text, doc: view.state.doc }))
+        }
         return false
       },
       handleDrop: (_view, event) => {
@@ -3185,6 +3240,35 @@ export function Messages() {
             <div className="min-h-0 min-w-0 rounded-lg bg-slate-50/70 sm:rounded-xl">
               <EditorContent editor={editor} />
             </div>
+            {pasteNotice && editor && editor.state.doc.eq(pasteNotice.doc) && (
+              <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-600" role="status">
+                <span>{pasteNotice.mode === 'code' ? 'Pasted as code so the indentation stays.' : 'Pasted as text.'}</span>
+                <span className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const notice = pasteNotice
+                      setPasteNotice(null)
+                      if (!editor || !editor.state.doc.eq(notice.doc)) return
+                      // Only replace the paste if undo actually removed it; otherwise we'd duplicate it.
+                      if (!editor.commands.undo()) return
+                      if (notice.mode === 'code') {
+                        editor.chain().focus().insertContent(notice.text.split('\n').map((line) => ({ type: 'paragraph', content: line ? [{ type: 'text', text: line }] : [] }))).run()
+                      } else {
+                        insertPastedCodeBlock(editor.view, notice.text)
+                        editor.commands.focus()
+                      }
+                      // Offer the opposite choice so the learner can switch back.
+                      setPasteNotice({ mode: notice.mode === 'code' ? 'text' : 'code', text: notice.text, doc: editor.state.doc })
+                    }}
+                    className="min-h-9 rounded-md px-2 font-semibold text-slate-900 underline underline-offset-2 hover:bg-slate-100"
+                  >
+                    {pasteNotice.mode === 'code' ? 'Paste as text instead' : 'Paste as code instead'}
+                  </button>
+                  <button type="button" onClick={() => setPasteNotice(null)} className="min-h-9 rounded-md px-2 text-slate-500 hover:bg-slate-100" aria-label="Dismiss paste options">OK</button>
+                </span>
+              </div>
+            )}
           </div>
           <div className="flex min-h-14 items-center justify-between gap-3 border-t border-slate-100 px-2.5 py-1.5 sm:min-h-0 sm:px-3 sm:py-2.5">
             <div id={composerHelpId} className={`min-w-0 text-xs ${composerOverLimit ? 'font-semibold text-red-600' : 'text-slate-400'}`} aria-live="polite">

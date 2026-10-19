@@ -810,6 +810,8 @@ export interface WeeklyPlanLessonItem {
   scheduled_for: string;
   carried_forward: boolean;
   state: 'completed' | 'open' | 'upcoming' | 'closed';
+  /** Additive: what happened to reviewed work in this lesson. */
+  review_status?: 'awaiting_review' | 'redo_requested' | 'reviewed' | null;
   submission_close_at: string | null;
   submissions_closed: boolean;
 }
@@ -950,6 +952,7 @@ export interface DashboardData {
       available: boolean;
       unlock_date: string | null;
       completed: boolean;
+      review_status?: 'awaiting_review' | 'redo_requested' | 'reviewed' | null;
       total_blocks: number;
       completed_blocks: number;
       submission_window?: SubmissionWindowStatus;
@@ -1737,6 +1740,7 @@ export interface CohortHomeStudent {
   progress_percentage: number;
   ungraded_count: number;
   redo_count: number;
+  assigned_module_count?: number;
   last_seen_at: string | null;
 }
 
@@ -1765,6 +1769,7 @@ export interface CohortHome {
     ungraded: number;
     redos: number;
     open_help: number;
+    without_modules?: number;
   };
   students?: CohortHomeStudent[];
   upcoming_events: Array<{
@@ -1838,6 +1843,7 @@ export interface PrivateMeetingCohort {
   name: string;
   start_date: string;
   end_date: string | null;
+  instructor_id?: number;
   instructor_name: string;
   weeks: number;
   reschedule_cutoff_hours: number;

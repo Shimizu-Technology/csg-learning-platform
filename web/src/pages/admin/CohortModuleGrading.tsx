@@ -14,6 +14,7 @@ import { MarkdownRenderer } from '../../components/shared/MarkdownRenderer'
 import { CODE_RUNNER_TIMEOUT_MS, codeRunnerLanguageFromEditor, normalizeCodeRunnerConfig } from '../../lib/codeRunner'
 import { useToast } from '../../contexts/ToastContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import { FeedbackBody, FeedbackFormattingHint } from '../../components/shared/FeedbackBody'
 
 type QueueFilter = 'ungraded' | 'redo' | 'all'
 type ViewMode = 'students' | 'queue' | 'grid'
@@ -752,6 +753,7 @@ export function CohortModuleGrading() {
                     </div>
                   )}
                 </div>
+                <FeedbackFormattingHint value={gridFeedback} />
                 <div className="flex flex-wrap gap-2">
                   {['A', 'B', 'C'].map((g) => (
                     <button
@@ -893,7 +895,7 @@ export function CohortModuleGrading() {
                             )}
                           </div>
                           {gridModalSubmission.feedback ? (
-                            <div className="text-sm text-slate-700 whitespace-pre-wrap">{gridModalSubmission.feedback}</div>
+                            <FeedbackBody feedback={gridModalSubmission.feedback} />
                           ) : (
                             <p className="text-sm text-slate-400 italic">No written feedback yet — add feedback below when grading</p>
                           )}
@@ -1254,7 +1256,7 @@ export function CohortModuleGrading() {
                   {selectedSubmission.grade === 'R' && selectedSubmission.feedback && (
                     <div className="rounded-xl border border-orange-200 bg-orange-50 p-3">
                       <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Current redo feedback</p>
-                      <p className="mt-1 text-sm text-orange-900">{selectedSubmission.feedback}</p>
+                      <FeedbackBody feedback={selectedSubmission.feedback} className="mt-1" />
                     </div>
                   )}
 
@@ -1313,6 +1315,7 @@ export function CohortModuleGrading() {
                       placeholder="Feedback for the student..."
                       className="mt-1 w-full rounded-lg border border-slate-200 p-3 text-sm resize-y min-h-[100px] focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
+                    <FeedbackFormattingHint value={feedback} />
                   </div>
 
                   <div className="flex flex-wrap gap-2">

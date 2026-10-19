@@ -60,6 +60,18 @@ class ContentBlock < ApplicationRecord
     exercise_like? || checkpoint?
   end
 
+  # Checkpoints normally complete through a toggle or a retrieval check. A
+  # checkpoint with an explicit reviewed submission type (the Python pilot's
+  # weekly checkpoints) is graded work exactly like an exercise.
+  def submission_checkpoint?
+    checkpoint? && submission_type.present? && REVIEW_REQUIRED_SUBMISSION_TYPES.include?(submission_type) &&
+      !submission_type_prework_github_sync?
+  end
+
+  def gradable_work_block?
+    exercise_like? || submission_checkpoint?
+  end
+
   private
 
   def delete_stored_video

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowRight, BookOpen, CheckCircle2, ChevronDown, ChevronRight, Clock, Lock, RefreshCw, RotateCcw, Search, WifiOff } from 'lucide-react'
+import { ArrowRight, BookOpen, ChevronDown, ChevronRight, Hourglass, MessageCircle, RefreshCw, RotateCcw, Search, WifiOff } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useCohortContext } from '../../contexts/CohortContext'
@@ -8,9 +8,12 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { formatShortDateTime } from '../../lib/format'
+import { markdownExcerpt } from '../../lib/plainText'
+import { LEARNER_STATUS, STATUS_TONE_CLASSES, learnerLessonStatus } from '../../lib/learningStatus'
+import { StatusBadge, StatusIcon } from '../../components/shared/StatusBadge'
 import type { DashboardData } from '../../types/api'
 
-type MaterialFilter = 'ready' | 'all' | 'redo' | 'completed' | 'locked'
+type MaterialFilter = 'ready' | 'all' | 'redo' | 'submitted' | 'completed' | 'locked'
 
 type MaterialsData = DashboardData
 type ModuleItem = NonNullable<MaterialsData['modules']>[number]
@@ -28,7 +31,8 @@ function formatDate(dateStr: string | null | undefined): string {
 
 function lessonStatus(lesson: LessonItem) {
   if (!lesson.available) return 'locked'
-  if (lesson.completed) return 'completed'
+  if (lesson.review_status === 'awaiting_review' && lesson.completed) return 'submitted'
+  if (lesson.completed && lesson.review_status !== 'redo_requested') return 'completed'
   return 'ready'
 }
 
@@ -159,6 +163,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
           if (filter === 'all') return true
           if (filter === 'redo') return redoLessonIds.has(lesson.id)
           if (filter === 'completed') return status === 'completed'
+          if (filter === 'submitted') return status === 'submitted'
           if (filter === 'locked') return status === 'locked'
           return status === 'ready' || redoLessonIds.has(lesson.id)
         })
@@ -172,6 +177,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
     const completedCount = allLessons.filter((lesson) => lessonStatus(lesson) === 'completed').length
     const lockedCount = allLessons.filter((lesson) => lessonStatus(lesson) === 'locked').length
     const redoCount = redoLessonIds.size
+    const submittedCount = allLessons.filter((lesson) => lessonStatus(lesson) === 'submitted').length
     const readyOrRedoCount = allLessons.filter((lesson) => lessonStatus(lesson) === 'ready' || redoLessonIds.has(lesson.id)).length
 
     return {
@@ -183,6 +189,9 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
       completedCount,
       lockedCount,
       redoCount,
+      submittedCount,
+      courseNotOpen: modules.length === 0,
+      noLessonsYet: modules.length > 0 && allLessons.length === 0,
       totalLessons: allLessons.length,
     }
   }, [data, filter, query])
@@ -223,6 +232,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
     { key: 'ready', label: 'To do', count: derived.readyOrRedoCount },
     { key: 'all', label: 'All', count: derived.totalLessons },
     { key: 'redo', label: 'Redo', count: derived.redoCount },
+    ...(derived.submittedCount > 0 ? [{ key: 'submitted' as const, label: 'In review', count: derived.submittedCount }] : []),
     { key: 'completed', label: 'Done', count: derived.completedCount },
     { key: 'locked', label: 'Locked', count: derived.lockedCount },
   ]
@@ -257,9 +267,9 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
               <p className="text-lg font-semibold text-slate-900">{derived.readyCount}</p>
               <p className="text-xs text-slate-500">Ready</p>
             </div>
-            <div className="rounded-xl border border-orange-200 bg-orange-50 px-3 py-2">
-              <p className="text-lg font-semibold text-orange-700">{derived.redoCount}</p>
-              <p className="text-xs text-orange-700">Redo</p>
+            <div className="rounded-xl border border-warning-200 bg-warning-50 px-3 py-2">
+              <p className="text-lg font-semibold text-warning-800">{derived.redoCount}</p>
+              <p className="text-xs text-warning-800">Redo</p>
             </div>
             <div className="rounded-xl border border-success-200 bg-success-50 px-3 py-2">
               <p className="text-lg font-semibold text-success-700">{derived.completedCount}</p>
@@ -340,18 +350,31 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
               >
                 <p className="text-sm font-semibold text-slate-900">{item.content_block_title}</p>
                 <p className="mt-0.5 text-xs text-slate-500">{item.lesson_title}</p>
-                {item.feedback && <p className="mt-2 text-xs leading-5 text-slate-600">{item.feedback}</p>}
+                {item.feedback && <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-600">{markdownExcerpt(item.feedback)}</p>}
               </Link>
             ))}
           </div>
         </div>
       )}
 
-      {derived.visibleModules.length === 0 ? (
+      {derived.courseNotOpen ? (
+        <EmptyState
+          icon={Hourglass}
+          title="Your course isn’t open yet"
+          description="Your lessons will appear here as soon as your instructor opens them. If you expected to start already, message your instructor."
+          action={<Link to="/messages" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-100"><MessageCircle className="h-4 w-4" aria-hidden="true" />Message your instructor</Link>}
+        />
+      ) : derived.noLessonsYet ? (
+        <EmptyState
+          icon={BookOpen}
+          title="No lessons published yet"
+          description="Your course is set up, but its lessons haven’t been published. Check back soon, or message your instructor if you expected to start."
+        />
+      ) : derived.visibleModules.length === 0 ? (
         <EmptyState
           icon={Search}
-          title="No matching materials"
-          description="Try a different search or switch filters to see more lessons."
+          title={derived.hasActiveSearch ? 'No matching lessons' : 'Nothing here right now'}
+          description={derived.hasActiveSearch ? 'Try a different search or switch filters to see more lessons.' : 'Switch to “All” to see every lesson in your course.'}
         />
       ) : (
         <div className="space-y-4">
@@ -399,15 +422,20 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
                   const status = lessonStatus(lesson)
                   const isRedo = derived.redoLessonIds.has(lesson.id)
                   const isPartial = status === 'ready' && lesson.completed_blocks > 0
+                  const learnerStatus = learnerLessonStatus({
+                    completed: lesson.completed,
+                    available: lesson.available,
+                    submissionsClosed: lesson.submission_window?.submissions_closed,
+                    reviewStatus: isRedo ? 'redo_requested' : lesson.review_status,
+                    partial: isPartial,
+                  })
                   const rowClassName = `flex items-center gap-3 py-3 ${
                     lesson.available ? 'hover:bg-slate-50' : 'cursor-not-allowed opacity-70'
                   }`
                   const rowContent = (
                     <>
-                      <div className={`shrink-0 ${
-                        isRedo ? 'text-orange-500' : status === 'completed' ? 'text-success-500' : status === 'locked' ? 'text-slate-400' : 'text-primary-500'
-                      }`}>
-                        {isRedo ? <RotateCcw className="h-5 w-5" /> : status === 'completed' ? <CheckCircle2 className="h-5 w-5" /> : status === 'locked' ? <Lock className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
+                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${STATUS_TONE_CLASSES[LEARNER_STATUS[learnerStatus].tone]}`}>
+                        <StatusIcon status={learnerStatus} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-slate-900">{lesson.title}</p>
@@ -422,10 +450,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        {isRedo && <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">Redo</span>}
-                        {isPartial && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">In progress</span>}
-                        {lesson.submission_window?.submissions_closed && <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">Closed</span>}
-                        {status === 'completed' && <span className="rounded-full bg-success-50 px-2 py-0.5 text-xs font-medium text-success-700">Done</span>}
+                        {learnerStatus !== 'open' && learnerStatus !== 'upcoming' && <StatusBadge status={learnerStatus} short />}
                         {lesson.available && <ArrowRight className="h-4 w-4 text-slate-300" />}
                       </div>
                     </>

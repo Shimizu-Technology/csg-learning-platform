@@ -12,10 +12,11 @@ module Api
         student_ids = @cohort.enrollments.active.pluck(:user_id)
         exercise_blocks = ContentBlock.joins(:lesson)
           .where(lessons: { module_id: @curriculum_module.id })
-          .where(block_type: [ :exercise, :code_challenge ])
+          .where(block_type: [ :exercise, :code_challenge, :checkpoint ])
           .includes(lesson: :curriculum_module)
           .order("lessons.release_day ASC, lessons.position ASC, content_blocks.position ASC")
           .to_a
+          .select(&:gradable_work_block?)
         block_ids = exercise_blocks.map(&:id)
 
         enrollment_ids = @cohort.enrollments.active.pluck(:id)

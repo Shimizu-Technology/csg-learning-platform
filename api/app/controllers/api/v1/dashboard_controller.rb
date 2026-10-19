@@ -65,6 +65,16 @@ module Api
         total_count = all_block_ids.size
         overall_percentage = total_count > 0 ? (completed_count.to_f / total_count * 100).round(1) : 0
 
+        latest_submission_ids = current_user.submissions
+          .where(enrollment_id: enrollment.id, content_block_id: all_block_ids)
+          .group(:content_block_id)
+          .select("MAX(id)")
+        latest_submissions = current_user.submissions
+          .where(id: latest_submission_ids)
+          .includes(content_block: :lesson)
+          .to_a
+        latest_submissions_by_block = latest_submissions.index_by(&:content_block_id)
+
         # Build module data with progress
         modules_data = modules.map do |mod|
           assignment = assignments_by_module_id[mod.id]
@@ -99,6 +109,7 @@ module Api
                 total_blocks: lesson_block_ids.size,
                 completed_blocks: lesson_completed,
                 completed: lesson_completed == lesson_block_ids.size && lesson_block_ids.any?,
+                review_status: LessonReviewStatus.for(l, latest_submissions_by_block),
                 submission_window: SubmissionWindowStatus.for_lesson(cohort: cohort, lesson: l)
               }
             }
@@ -116,14 +127,6 @@ module Api
           end
           break if continue_lesson
         end
-
-        latest_submission_ids = current_user.submissions
-          .where(enrollment_id: enrollment.id, content_block_id: all_block_ids)
-          .group(:content_block_id)
-          .select("MAX(id)")
-        latest_submissions = current_user.submissions
-          .where(id: latest_submission_ids)
-          .includes(content_block: :lesson)
 
         # An older redo must disappear once the student has submitted newer work.
         redo_submissions = latest_submissions.select { |submission| submission.grade == "R" }
@@ -292,7 +295,7 @@ module Api
 
         total_blocks = all_block_ids.size
 
-        enrollments = cohort.enrollments.active.joins(:user).includes(:user).merge(User.not_archived).to_a
+        enrollments = cohort.enrollments.active.joins(:user).includes(:user, :module_assignments).merge(User.not_archived).to_a
         user_ids = enrollments.map { |e| e.user.id }
 
         progresses_by_user = Progress.completed
@@ -338,7 +341,8 @@ module Api
             submissions_this_week: submissions_this_week,
             ungraded_count: ungraded_submissions,
             redo_count: redo_submissions,
-            enrollment_status: enrollment.status
+            enrollment_status: enrollment.status,
+            assigned_module_count: enrollment.module_assignments.size
           }
         end
 
@@ -353,7 +357,8 @@ module Api
             start_date: cohort.start_date,
             status: cohort.status,
             enrolled_count: cohort.enrollments.joins(:user).merge(User.not_archived).size,
-            active_count: enrollments.size
+            active_count: enrollments.size,
+            students_without_modules_count: cohort.active? ? enrollments.count { |enrollment| enrollment.module_assignments.empty? } : 0
           },
           students: students.sort_by { |s| -s[:progress_percentage] },
           ungraded_count: ungraded_count

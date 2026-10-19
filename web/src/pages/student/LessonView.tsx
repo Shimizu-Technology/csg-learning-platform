@@ -119,7 +119,7 @@ export function LessonView() {
             <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">{lesson.title}</h1>
             <div className="mt-1 flex items-center gap-2 text-sm text-slate-500">
               <span className="capitalize">{lesson.lesson_type}</span>
-              <span>· {lesson.content_blocks.length} blocks</span>
+              <span>· {lesson.content_blocks.length} {lesson.content_blocks.length === 1 ? 'block' : 'blocks'}</span>
               {lesson.required && <span className="text-primary-500 font-medium">Required</span>}
             </div>
           </div>
@@ -132,14 +132,14 @@ export function LessonView() {
       <LearningObjectivesPanel objectives={lesson.objectives || []} />
 
       {lesson.submission_window?.submissions_close_at && (
-        <div className={`rounded-2xl border p-4 ${lesson.submission_window.submissions_closed ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}`}>
+        <div className={`rounded-2xl border p-4 ${lesson.submission_window.submissions_closed ? 'border-slate-200 bg-slate-50' : 'border-warning-200 bg-warning-50'}`}>
           <div className="flex items-start gap-3">
-            <Lock className={`mt-0.5 h-5 w-5 shrink-0 ${lesson.submission_window.submissions_closed ? 'text-red-600' : 'text-amber-600'}`} />
+            <Lock className={`mt-0.5 h-5 w-5 shrink-0 ${lesson.submission_window.submissions_closed ? 'text-slate-500' : 'text-warning-800'}`} aria-hidden="true" />
             <div>
-              <h2 className={`text-sm font-semibold ${lesson.submission_window.submissions_closed ? 'text-red-800' : 'text-amber-800'}`}>
+              <h2 className={`text-sm font-semibold ${lesson.submission_window.submissions_closed ? 'text-slate-900' : 'text-warning-800'}`}>
                 {lesson.submission_window.submissions_closed ? `Week ${lesson.submission_window.week_number} submissions are closed` : `Week ${lesson.submission_window.week_number} submissions close soon`}
               </h2>
-              <p className={`mt-1 text-sm ${lesson.submission_window.submissions_closed ? 'text-red-700' : 'text-amber-700'}`}>
+              <p className={`mt-1 text-sm ${lesson.submission_window.submissions_closed ? 'text-slate-600' : 'text-warning-800'}`}>
                 {lesson.submission_window.submissions_closed
                   ? `Submissions closed ${formatShortDateTime(lesson.submission_window.submissions_close_at)}. You can still review videos, readings, and feedback, but new work cannot be submitted.`
                   : `Submissions close ${formatShortDateTime(lesson.submission_window.submissions_close_at)}.`}
@@ -150,13 +150,13 @@ export function LessonView() {
       )}
 
       {redoBlocks.length > 0 && (
-        <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
+        <div className="rounded-2xl border border-warning-200 bg-warning-50 p-4">
           <div className="flex items-start gap-3">
-            <RotateCcw className="h-5 w-5 text-orange-600 shrink-0 mt-0.5" />
+            <RotateCcw className="h-5 w-5 text-warning-800 shrink-0 mt-0.5" aria-hidden="true" />
             <div>
-              <h2 className="text-sm font-semibold text-orange-800">Redo requested in this lesson</h2>
-              <p className="mt-1 text-sm text-orange-700">
-                You have {redoBlocks.length} block{redoBlocks.length > 1 ? 's' : ''} that need an updated submission. Review the feedback below and resubmit your work.
+              <h2 className="text-sm font-semibold text-warning-800">Redo requested in this lesson</h2>
+              <p className="mt-1 text-sm text-warning-800">
+                {redoBlocks.length === 1 ? 'One part needs' : `${redoBlocks.length} parts need`} an updated submission. <a href={`#block-${redoBlocks[0].id}`} className="font-semibold underline underline-offset-2">Read the feedback and resubmit</a>.
               </p>
             </div>
           </div>
@@ -166,7 +166,7 @@ export function LessonView() {
       {/* Content blocks */}
       <div className="space-y-4">
         {lesson.content_blocks.map((block: any) => (
-          <div key={block.id} className="space-y-2">
+          <div key={block.id} id={`block-${block.id}`} className="scroll-mt-24 space-y-2">
             <RubricPanel rubric={block.rubric} />
             <ContentBlockRenderer
               block={block}
@@ -216,9 +216,9 @@ export function LessonView() {
         ) : (
           <Link
             to={`/modules/${lesson.module_id}${cohortQuery}`}
-            className="inline-flex items-center gap-2 rounded-lg bg-success-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-success-600 transition-colors"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
           >
-            Back to Module
+            Back to module
           </Link>
         )}
       </div>

@@ -27,6 +27,12 @@ function message(overrides: Partial<ChannelMessage>): ChannelMessage {
 }
 
 describe('FormattedMessage', () => {
+  it('keeps pasted Python indentation inside a code block', () => {
+    const html = renderToStaticMarkup(<FormattedMessage body={'```\nif amount < budget:\n    print("Under budget")\n```'} />)
+    expect(html).toContain('<pre')
+    expect(html).toContain('    print(&quot;Under budget&quot;)')
+  })
+
   it('renders mobile-safe semantic lists and formatting', () => {
     const html = renderToStaticMarkup(
       <FormattedMessage body={'- **First** item\n- ++Second++ item\n\n1. One\n2. ~~Two~~'} />,
