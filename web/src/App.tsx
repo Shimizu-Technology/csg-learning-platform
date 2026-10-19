@@ -1,5 +1,7 @@
 import { Suspense, useEffect, type ReactNode } from 'react'
 import { BrowserRouter, Navigate, Routes, Route, useLocation } from 'react-router-dom'
+import { applySurface, invitationDestination, PRODUCT_NAME, SCHOOL_NAME } from './lib/brand'
+import { HomePage } from './pages/Home'
 import { PostHogPageView } from './providers/PostHogProvider'
 import { Layout } from './components/shared/Layout'
 import ProtectedRoute from './components/auth/ProtectedRoute'
@@ -23,7 +25,6 @@ import {
   PrivateMeetings,
   StaffPrivateMeetings,
   Grading,
-  HomePage,
   LessonEditor,
   LessonView,
   Materials,
@@ -63,7 +64,7 @@ function SuspendedRoute({ children }: { children: ReactNode }) {
 }
 
 const routeTitles: Array<[RegExp, string]> = [
-  [/^\/$/, 'CSG Learning Hub'],
+  [/^\/$/, PRODUCT_NAME],
   [/^\/sign-in/, 'Sign in'],
   [/^\/sign-up/, 'Create account'],
   [/^\/courses/, 'Focused courses'],
@@ -104,11 +105,24 @@ function RouteTitle() {
   const location = useLocation()
 
   useEffect(() => {
-    const title = routeTitles.find(([pattern]) => pattern.test(location.pathname))?.[1] || 'CSG Learning Hub'
-    document.title = `${title} | Code School of Guam`
+    const title = routeTitles.find(([pattern]) => pattern.test(location.pathname))?.[1] || PRODUCT_NAME
+    document.title = title === PRODUCT_NAME ? `${PRODUCT_NAME} | ${SCHOOL_NAME}` : `${title} | ${PRODUCT_NAME}`
+    applySurface(location.pathname)
   }, [location.pathname])
 
   return null
+}
+
+/**
+ * The landing renders without waiting for a lazy chunk (it is the first page
+ * most visitors see). Clerk invitation links arrive here with a ticket and are
+ * forwarded to the sign-up or sign-in page that can accept it.
+ */
+function HomeRoute() {
+  const location = useLocation()
+  const destination = invitationDestination(location.search)
+  if (destination) return <Navigate to={destination} replace />
+  return <HomePage />
 }
 
 function AppRoutes() {
@@ -117,7 +131,7 @@ function AppRoutes() {
       <PostHogPageView />
       <RouteTitle />
       <Routes>
-        <Route path="/" element={<SuspendedRoute><HomePage /></SuspendedRoute>} />
+        <Route path="/" element={<HomeRoute />} />
         <Route path="/courses" element={<CourseCatalog />} />
         <Route path="/sign-in" element={<SuspendedRoute><SignInPage /></SuspendedRoute>} />
         <Route path="/sign-up" element={<SuspendedRoute><SignUpPage /></SuspendedRoute>} />

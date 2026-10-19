@@ -1,8 +1,26 @@
+/* Clerk's widget styles go in the `clerk` layer, below Tailwind components and
+   utilities, so the appearance classes in lib/clerkAppearance.ts take effect. */
+@layer theme, base, clerk, components, utilities;
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/*
+ * Newsreader (SIL Open Font License 1.1, see /fonts/Newsreader-OFL.txt), self-hosted
+ * like the Code School of Guam site. Display type for the public and sign-in
+ * surfaces and milestone moments only; the browser fetches it only when a
+ * `font-display` element renders, so the working app never downloads it.
+ */
+@font-face {
+  font-family: "Newsreader";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("/fonts/newsreader-latin-variable.woff2") format("woff2");
+}
+
 @theme {
   --font-sans: "Manrope Variable", "Avenir Next", sans-serif;
+  --font-display: "Newsreader", Georgia, "Times New Roman", serif;
 
   /*
    * CSG Learn color roles (Brain Dump FRONTEND_DESIGN_GUIDE "CSG family tokens").
@@ -45,6 +63,12 @@
   --color-surface-raised: #ffffff;
   --color-surface-sunken: #f3f2ee;
   --color-surface-inverse: #0f172a;
+
+  /* CSG site family (public + sign-in surfaces only; matches codeschoolofguam.com) */
+  --color-brand-cream: #faf7f0;
+  --color-brand-cream-sunken: #eee7da;
+  --color-brand-line: #ded7c9;
+  --color-brand-line-strong: #c8bfb0;
 
   /* Text tiers */
   --color-ink: #0f172a;
@@ -132,6 +156,14 @@ html {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Public and sign-in routes use the CSG site's cream page, including the
+   overscroll area and the space behind notches. Set by index.html before the
+   bundle loads and kept in sync on navigation (lib/brand.ts applySurface). */
+html[data-surface="public"],
+html[data-surface="public"] body {
+  background-color: var(--color-brand-cream);
+}
+
 body {
   min-width: 320px;
   background: var(--color-surface-page);
@@ -184,6 +216,24 @@ a {
   /* One eyebrow per page header: 12px/600, 0.08em, secondary text, never red. */
   .app-eyebrow {
     @apply text-xs font-semibold uppercase tracking-[0.08em] text-ink-secondary;
+  }
+
+  /* Public/sign-in eyebrow, after the CSG site's label: 12px/700, 0.12em, ruby. */
+  .brand-eyebrow {
+    @apply text-xs font-bold uppercase tracking-[0.12em] text-ruby-700;
+  }
+
+  /* Horizontal padding that clears landscape notches on public pages. */
+  .safe-px {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+
+  @media (min-width: 640px) {
+    .safe-px {
+      padding-left: max(2rem, env(safe-area-inset-left));
+      padding-right: max(2rem, env(safe-area-inset-right));
+    }
   }
 
   .app-title {

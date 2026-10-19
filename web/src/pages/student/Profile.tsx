@@ -234,7 +234,7 @@ export function Profile() {
         </div>
         <Link to="/privacy" className="pressable flex min-h-16 items-center gap-3 border-b border-line px-5 py-4 hover:bg-surface-sunken sm:px-6">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><ShieldCheck className="h-5 w-5" aria-hidden="true" /></span>
-          <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-ink">Privacy policy</span><span className="mt-1 block text-xs leading-5 text-ink-secondary">How CSG Connect handles account and learning data.</span></span>
+          <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-ink">Privacy policy</span><span className="mt-1 block text-xs leading-5 text-ink-secondary">How CSG Learn handles account and learning data.</span></span>
           <ChevronRight className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
         </Link>
         <Link to="/terms" className="pressable flex min-h-16 items-center gap-3 border-b border-line px-5 py-4 hover:bg-surface-sunken sm:px-6">

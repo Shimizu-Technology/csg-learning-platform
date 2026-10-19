@@ -1,5 +1,5 @@
-const CACHE_NAME = 'csg-learning-hub-v3';
-const RUNTIME_CACHE = 'csg-learning-runtime-v3';
+const CACHE_NAME = 'csg-learn-shell-v4';
+const RUNTIME_CACHE = 'csg-learn-runtime-v4';
 const OFFLINE_URL = '/offline.html';
 const APP_SHELL_ASSETS = [
   OFFLINE_URL,
@@ -106,11 +106,11 @@ self.addEventListener('push', (event) => {
     try {
       data = event.data.json();
     } catch {
-      data = { title: 'CSG Learning Hub', body: event.data.text() };
+      data = { title: 'CSG Learn', body: event.data.text() };
     }
   }
 
-  const title = data.title || 'CSG Learning Hub';
+  const title = data.title || 'CSG Learn';
   const options = {
     body: data.body || 'You have a new update.',
     icon: '/icon-192x192.png',

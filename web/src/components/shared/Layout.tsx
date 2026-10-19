@@ -9,7 +9,6 @@ import {
   ClipboardCheck,
   Menu,
   X,
-  GraduationCap,
   PlayCircle,
   Link2,
   Layers3,
@@ -25,6 +24,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useAuthContext } from '../../contexts/AuthContext'
+import { LOGO_SRC, PRODUCT_NAME } from '../../lib/brand'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { api } from '../../lib/api'
 import { refreshExistingPushSubscription, pushSupported, webPushPreferenceEnabled } from '../../lib/pushNotifications'
@@ -351,10 +351,8 @@ export function Layout({ children }: LayoutProps) {
           <Menu className="h-6 w-6" aria-hidden="true" />
         </IconButton>
         <Link to={isStaff ? '/admin' : '/dashboard'} className="pressable flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-1" aria-label="Go to your home">
-          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-ruby-600 text-white">
-            <GraduationCap className="h-4.5 w-4.5" aria-hidden="true" />
-          </span>
-          <span className="hidden truncate font-bold tracking-tight text-ink sm:inline">CSG Learning</span>
+          <img src={LOGO_SRC} alt="" width={32} height={32} className="h-8 w-8 shrink-0 rounded-md object-contain" />
+          <span className="hidden truncate font-bold tracking-tight text-ink sm:inline">{PRODUCT_NAME}</span>
         </Link>
         <CohortSwitcher compact />
         <IconButton label="Search and go" onClick={() => setCommandPaletteOpen(true)} className="ml-auto"><Search className="h-5 w-5" aria-hidden="true" /></IconButton>
@@ -373,8 +371,8 @@ export function Layout({ children }: LayoutProps) {
         >
           <div className="flex h-14 shrink-0 items-center justify-between border-b border-line pl-4 pr-2">
             <Link to="/" onClick={() => closeMobileSidebar(false)} className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg" aria-label="Go to homepage">
-              <GraduationCap className="h-6 w-6 shrink-0 text-ruby-600" aria-hidden="true" />
-              <span className="truncate font-semibold text-ink">CSG Learning Hub</span>
+              <img src={LOGO_SRC} alt="" width={28} height={28} className="h-7 w-7 shrink-0 rounded-md object-contain" />
+              <span className="truncate font-semibold text-ink">{PRODUCT_NAME}</span>
             </Link>
             <IconButton ref={closeButtonRef} label="Close navigation" onClick={() => closeMobileSidebar()}>
               <X className="h-5 w-5" aria-hidden="true" />
@@ -424,10 +422,8 @@ export function Layout({ children }: LayoutProps) {
             className={`flex min-h-11 min-w-0 items-center rounded-lg text-ink ${collapsed ? 'justify-center' : 'gap-2'}`}
             aria-label="Go to homepage"
           >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-ruby-600 text-white">
-              <GraduationCap className="h-4.5 w-4.5" aria-hidden="true" />
-            </span>
-            {!collapsed && <span className="truncate font-bold tracking-tight text-ink">CSG Learning</span>}
+            <img src={LOGO_SRC} alt="" width={32} height={32} className="h-8 w-8 shrink-0 rounded-md object-contain" />
+            {!collapsed && <span className="truncate font-bold tracking-tight text-ink">{PRODUCT_NAME}</span>}
           </Link>
         </div>
         <div className={`border-b border-line ${collapsed ? 'px-2 py-3' : 'px-4 py-3'}`}><CohortSwitcher iconOnly={collapsed} /></div>
