@@ -131,7 +131,7 @@ export function MarkdownEditor({ value, onChange, label, sublabel, placeholder, 
       </div>
 
       {tab === 'write' ? (
-        <div className="rounded-lg border border-slate-200 overflow-hidden focus-within:ring-2 focus-within:ring-primary-500 focus-within:border-transparent">
+        <div className="rounded-lg border border-slate-200 overflow-hidden focus-within:ring-2 focus-within:ring-focus focus-within:border-transparent">
           {/* Toolbar */}
           <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-slate-100 bg-slate-50">
             {FORMATS.map((f, i) => (

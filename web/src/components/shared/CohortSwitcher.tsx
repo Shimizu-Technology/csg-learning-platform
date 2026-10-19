@@ -39,7 +39,7 @@ export function CohortSwitcher({ compact = false, iconOnly = false }: CohortSwit
       <span
         aria-hidden="true"
         data-cohort-switcher-visual="icon-only"
-        className="pointer-events-none flex h-11 w-full items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-primary-600 transition peer-hover:border-primary-300 peer-focus-visible:border-primary-500 peer-focus-visible:ring-2 peer-focus-visible:ring-primary-200"
+        className="pointer-events-none flex h-11 w-full items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-primary-600 transition peer-hover:border-primary-300 peer-focus-visible:border-focus peer-focus-visible:ring-2 peer-focus-visible:ring-focus/25"
       >
         <Layers3 className="h-5 w-5" />
       </span>
@@ -54,7 +54,7 @@ export function CohortSwitcher({ compact = false, iconOnly = false }: CohortSwit
       title={error || undefined}
       value={selectedCohort?.id ?? ''}
       onChange={(event) => selectCohort(event.target.value ? Number(event.target.value) : null)}
-      className={`min-h-11 w-full min-w-0 appearance-none truncate rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-9 text-sm font-bold text-slate-800 outline-none transition hover:border-primary-300 focus-visible:border-primary-500 focus-visible:ring-2 focus-visible:ring-primary-200 ${compact ? '' : 'shadow-sm'}`}
+      className={`min-h-11 w-full min-w-0 appearance-none truncate rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-9 text-sm font-bold text-slate-800 outline-none transition hover:border-primary-300 focus-visible:border-focus focus-visible:ring-2 focus-visible:ring-focus/25 ${compact ? '' : 'shadow-sm'}`}
     >
       {options}
     </select>

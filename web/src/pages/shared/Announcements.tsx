@@ -349,12 +349,12 @@ export function Announcements() {
               onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
               placeholder="Title"
               required
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
             />
             <select
               value={form.audience}
               onChange={(event) => setForm((prev) => ({ ...prev, audience: event.target.value }))}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
             >
               <option value="cohort">Cohort</option>
               <option value="global">Everyone</option>
@@ -365,7 +365,7 @@ export function Announcements() {
               onChange={(event) => setForm((prev) => ({ ...prev, cohort_id: event.target.value }))}
               disabled={form.audience !== 'cohort'}
               required={form.audience === 'cohort'}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-50 disabled:text-slate-400"
+              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus disabled:bg-slate-50 disabled:text-slate-400"
             >
               {cohorts.map((cohort) => (
                 <option key={cohort.id} value={cohort.id}>{cohort.name}</option>
@@ -378,7 +378,7 @@ export function Announcements() {
             placeholder="What should students know?"
             required
             rows={4}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
           />
           {formError && (
             <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -392,7 +392,7 @@ export function Announcements() {
                   type="checkbox"
                   checked={form.pinned}
                   onChange={(event) => setForm((prev) => ({ ...prev, pinned: event.target.checked }))}
-                  className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                  className="rounded border-slate-300 text-primary-600 focus:ring-focus"
                 />
                 Pin this
               </label>
@@ -401,7 +401,7 @@ export function Announcements() {
                   type="checkbox"
                   checked={form.send_push}
                   onChange={(event) => setForm((prev) => ({ ...prev, send_push: event.target.checked }))}
-                  className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                  className="rounded border-slate-300 text-primary-600 focus:ring-focus"
                 />
                 Send push
               </label>
@@ -434,7 +434,7 @@ export function Announcements() {
                 <select
                   value={audienceFilter}
                   onChange={(event) => updateQuery({ audience: event.target.value, cohort_id: event.target.value === 'cohort' ? cohortFilter : null, page: '1' })}
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                 >
                   <option value="all">All audiences</option>
                   <option value="cohort">Cohorts</option>
@@ -445,7 +445,7 @@ export function Announcements() {
                   value={cohortFilter}
                   onChange={(event) => updateCohortFilter(event.target.value)}
                   disabled={audienceFilter !== 'cohort'}
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-slate-50 disabled:text-slate-400"
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus disabled:bg-slate-50 disabled:text-slate-400"
                 >
                   <option value="all">All cohorts</option>
                   {cohorts.map((cohort) => (
@@ -455,7 +455,7 @@ export function Announcements() {
                 <select
                   value={statusFilter}
                   onChange={(event) => updateQuery({ status: event.target.value, page: '1' })}
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                 >
                   <option value="published">Published</option>
                   <option value="draft">Drafts</option>
@@ -467,7 +467,7 @@ export function Announcements() {
               <select
                 value={readFilter}
                 onChange={(event) => updateQuery({ read: event.target.value, page: '1' })}
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
               >
                 <option value="all">All updates</option>
                 <option value="unread">Unread only</option>
@@ -477,7 +477,7 @@ export function Announcements() {
             <select
               value={sortFilter}
               onChange={(event) => updateQuery({ sort: event.target.value, page: '1' })}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
             >
               <option value="published_desc">Newest published</option>
               <option value="published_asc">Oldest published</option>

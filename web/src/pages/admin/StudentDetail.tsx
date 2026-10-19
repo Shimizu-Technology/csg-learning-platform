@@ -388,7 +388,7 @@ function LessonRow({
                 type="checkbox"
                 checked={form.unlocked}
                 onChange={(e) => onUpdate({ unlocked: e.target.checked })}
-                className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                className="rounded border-slate-300 text-primary-600 focus:ring-focus"
               />
               Unlock this lesson for this student
             </label>
@@ -398,7 +398,7 @@ function LessonRow({
                 type="date"
                 value={form.unlock_date_override}
                 onChange={(e) => onUpdate({ unlock_date_override: e.target.value })}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
               />
               <p className="mt-1 text-xs text-slate-400">Leave blank to use module/default schedule. A lesson-specific override wins over module timing.</p>
             </div>
@@ -1061,15 +1061,15 @@ export function StudentDetail() {
           >
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">First Name</label>
-              <input type="text" value={editForm.first_name} onChange={(e) => setEditForm((f) => ({ ...f, first_name: e.target.value }))} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <input type="text" value={editForm.first_name} onChange={(e) => setEditForm((f) => ({ ...f, first_name: e.target.value }))} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus" />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Last Name</label>
-              <input type="text" value={editForm.last_name} onChange={(e) => setEditForm((f) => ({ ...f, last_name: e.target.value }))} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <input type="text" value={editForm.last_name} onChange={(e) => setEditForm((f) => ({ ...f, last_name: e.target.value }))} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus" />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">GitHub Username</label>
-              <input type="text" value={editForm.github_username} onChange={(e) => setEditForm((f) => ({ ...f, github_username: e.target.value }))} placeholder="e.g., octocat" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <input type="text" value={editForm.github_username} onChange={(e) => setEditForm((f) => ({ ...f, github_username: e.target.value }))} placeholder="e.g., octocat" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus" />
             </div>
             <div className="flex items-end gap-2">
               <button type="submit" disabled={savingUser} className="rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 transition-colors">
@@ -1266,7 +1266,7 @@ export function StudentDetail() {
                       type="checkbox"
                       checked={form.unlocked}
                       onChange={(e) => updateAssignmentForm(assignment.id, { unlocked: e.target.checked })}
-                      className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                      className="rounded border-slate-300 text-primary-600 focus:ring-focus"
                     />
                     Allow access to this module
                   </label>
@@ -1277,7 +1277,7 @@ export function StudentDetail() {
                       type="date"
                       value={form.unlock_date_override}
                       onChange={(e) => updateAssignmentForm(assignment.id, { unlock_date_override: e.target.value })}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                     />
                     <p className="mt-1 text-xs text-slate-400">
                       Leave blank to use the module and lesson schedule.

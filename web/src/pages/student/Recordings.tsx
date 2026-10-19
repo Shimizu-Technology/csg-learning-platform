@@ -392,7 +392,7 @@ export function Recordings() {
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                       placeholder="Search recordings..."
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-focus focus:border-focus"
                     />
                   </div>
                 </div>

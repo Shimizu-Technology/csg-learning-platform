@@ -151,7 +151,7 @@ export function CohortManagement() {
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 placeholder="e.g., Cohort 4"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus focus:border-focus"
               />
             </div>
             <div>
@@ -159,7 +159,7 @@ export function CohortManagement() {
               <select
                 value={form.cohort_type}
                 onChange={(e) => setForm({ ...form, cohort_type: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus focus:border-focus"
               >
                 {COHORT_TYPES.map((t) => (
                   <option key={t.value} value={t.value}>{t.label}</option>
@@ -172,7 +172,7 @@ export function CohortManagement() {
                 required
                 value={form.curriculum_id}
                 onChange={(e) => setForm({ ...form, curriculum_id: e.target.value ? Number(e.target.value) : '' })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus focus:border-focus"
               >
                 <option value="">Select a curriculum...</option>
                 {curricula.map((c) => (
@@ -187,7 +187,7 @@ export function CohortManagement() {
                 required
                 value={form.start_date}
                 onChange={(e) => setForm({ ...form, start_date: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus focus:border-focus"
               />
             </div>
             <div>
@@ -196,7 +196,7 @@ export function CohortManagement() {
                 type="date"
                 value={form.end_date}
                 onChange={(e) => setForm({ ...form, end_date: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus focus:border-focus"
               />
             </div>
           </div>

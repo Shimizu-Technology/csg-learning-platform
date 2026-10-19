@@ -694,7 +694,7 @@ export function LessonEditor() {
                 type="text"
                 value={title}
                 onChange={e => setTitle(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-focus focus:border-transparent"
               />
             </div>
 
@@ -703,7 +703,7 @@ export function LessonEditor() {
                 type="checkbox"
                 checked={required}
                 onChange={e => setRequired(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-focus"
               />
               <span>
                 <span className="block text-sm font-semibold text-slate-800">
@@ -743,7 +743,7 @@ export function LessonEditor() {
                       value={filename}
                       onChange={e => setFilename(e.target.value)}
                       placeholder="e.g. 111.rb"
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-focus focus:border-transparent font-mono"
                     />
                     <p className="text-[11px] text-slate-400 mt-1">Leave blank if no submission</p>
                   </div>
@@ -752,7 +752,7 @@ export function LessonEditor() {
                     <select
                       value={submissionType}
                       onChange={e => handleSubmissionTypeChange(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-focus"
                     >
                       <option value="manual_complete">Practice only</option>
                       <option value="text_submission">Text/code submission</option>
@@ -809,7 +809,7 @@ export function LessonEditor() {
                     if (!event.target.value) return
                     setObjectiveAlignments((current) => [...current, { learning_objective_id: Number(event.target.value), content_block_id: null }])
                   }}
-                  className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-focus"
                 >
                   <option value="">Add existing objective…</option>
                   {availableObjectives.map((objective) => <option key={objective.id} value={objective.id}>{objective.code} · {objective.title}</option>)}
@@ -833,14 +833,14 @@ export function LessonEditor() {
                           <select
                             value={alignment.content_block_id || ''}
                             onChange={(event) => setObjectiveAlignments((current) => current.map((item) => item.learning_objective_id === objective.id ? { ...item, content_block_id: event.target.value ? Number(event.target.value) : null } : item))}
-                            className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold normal-case tracking-normal text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-500 sm:max-w-md"
+                            className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold normal-case tracking-normal text-slate-700 focus:outline-none focus:ring-2 focus:ring-focus sm:max-w-md"
                           >
                             <option value="">Entire lesson</option>
                             {lesson.content_blocks.map((block) => <option key={block.id} value={block.id}>{block.title || `${block.block_type} block`}</option>)}
                           </select>
                         </label>
                       </div>
-                      <button type="button" aria-label={`Remove ${objective.title}`} onClick={() => setObjectiveAlignments((current) => current.filter((item) => item.learning_objective_id !== objective.id))} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-white hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"><X className="h-4 w-4" /></button>
+                      <button type="button" aria-label={`Remove ${objective.title}`} onClick={() => setObjectiveAlignments((current) => current.filter((item) => item.learning_objective_id !== objective.id))} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-white hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"><X className="h-4 w-4" /></button>
                     </div>
                   </div>
                 )
@@ -850,10 +850,10 @@ export function LessonEditor() {
 
             {canCreateCurriculumResources && <div className="mt-5 rounded-2xl border border-primary-100 bg-primary-50/40 p-4">
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Objective code<input value={objectiveDraft.code} onChange={(event) => setObjectiveDraft((current) => ({ ...current, code: event.target.value }))} placeholder="TERM.1" className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 font-mono text-sm normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-primary-500" /></label>
-                <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Student-facing title<input value={objectiveDraft.title} onChange={(event) => setObjectiveDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Navigate folders from the terminal" className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-primary-500" /></label>
-                <label className="text-xs font-bold uppercase tracking-wide text-slate-600 sm:col-span-2">Context (optional)<textarea value={objectiveDraft.description} onChange={(event) => setObjectiveDraft((current) => ({ ...current, description: event.target.value }))} placeholder="What concept or skill this objective covers." rows={2} className="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-primary-500" /></label>
-                <label className="text-xs font-bold uppercase tracking-wide text-slate-600 sm:col-span-2">Success criteria<textarea value={objectiveDraft.success_criteria} onChange={(event) => setObjectiveDraft((current) => ({ ...current, success_criteria: event.target.value }))} placeholder="I can move into a requested folder, go back one level, and confirm where I am." rows={3} className="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-primary-500" /></label>
+                <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Objective code<input value={objectiveDraft.code} onChange={(event) => setObjectiveDraft((current) => ({ ...current, code: event.target.value }))} placeholder="TERM.1" className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 font-mono text-sm normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-focus" /></label>
+                <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Student-facing title<input value={objectiveDraft.title} onChange={(event) => setObjectiveDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Navigate folders from the terminal" className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-focus" /></label>
+                <label className="text-xs font-bold uppercase tracking-wide text-slate-600 sm:col-span-2">Context (optional)<textarea value={objectiveDraft.description} onChange={(event) => setObjectiveDraft((current) => ({ ...current, description: event.target.value }))} placeholder="What concept or skill this objective covers." rows={2} className="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-focus" /></label>
+                <label className="text-xs font-bold uppercase tracking-wide text-slate-600 sm:col-span-2">Success criteria<textarea value={objectiveDraft.success_criteria} onChange={(event) => setObjectiveDraft((current) => ({ ...current, success_criteria: event.target.value }))} placeholder="I can move into a requested folder, go back one level, and confirm where I am." rows={3} className="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-focus" /></label>
               </div>
               <button type="button" disabled={creatingObjective} onClick={() => void handleCreateObjective()} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-bold text-white transition hover:bg-slate-800 disabled:opacity-50"><Plus className="h-4 w-4" />{creatingObjective ? 'Creating…' : 'Create and add objective'}</button>
             </div>}
@@ -869,7 +869,7 @@ export function LessonEditor() {
               </div>
             </div>
             <label className="mt-5 block text-xs font-bold uppercase tracking-wide text-slate-600">Attached rubric
-              <select value={selectedRubricId || ''} onChange={(event) => setSelectedRubricId(event.target.value ? Number(event.target.value) : null)} className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold normal-case tracking-normal text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-500">
+              <select value={selectedRubricId || ''} onChange={(event) => setSelectedRubricId(event.target.value ? Number(event.target.value) : null)} className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold normal-case tracking-normal text-slate-700 focus:outline-none focus:ring-2 focus:ring-focus">
                 <option value="">No rubric</option>
                 {rubricCatalog.filter((rubric) => rubric.active !== false).map((rubric) => <option key={rubric.id} value={rubric.id}>{rubric.title} · {rubric.criteria.length} criteria</option>)}
               </select>
@@ -882,11 +882,11 @@ export function LessonEditor() {
             {canCreateCurriculumResources && <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
               <p className="text-sm font-bold text-slate-900">Create a reusable rubric</p>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Rubric title<input value={rubricDraft.title} onChange={(event) => setRubricDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Project quality" className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-primary-500" /></label>
-                <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Purpose (optional)<input value={rubricDraft.description} onChange={(event) => setRubricDraft((current) => ({ ...current, description: event.target.value }))} placeholder="What this rubric evaluates" className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-primary-500" /></label>
+                <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Rubric title<input value={rubricDraft.title} onChange={(event) => setRubricDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Project quality" className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-focus" /></label>
+                <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Purpose (optional)<input value={rubricDraft.description} onChange={(event) => setRubricDraft((current) => ({ ...current, description: event.target.value }))} placeholder="What this rubric evaluates" className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-focus" /></label>
               </div>
               <div className="mt-3 space-y-3">
-                {rubricDraft.criteria.map((criterion, index) => <div key={index} className="grid gap-2 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-[0.7fr_1.3fr_auto]"><input aria-label={`Criterion ${index + 1} title`} value={criterion.title} onChange={(event) => setRubricDraft((current) => ({ ...current, criteria: current.criteria.map((item, itemIndex) => itemIndex === index ? { ...item, title: event.target.value } : item) }))} placeholder="Criterion title" className="min-h-11 rounded-xl border border-slate-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" /><input aria-label={`Criterion ${index + 1} description`} value={criterion.description} onChange={(event) => setRubricDraft((current) => ({ ...current, criteria: current.criteria.map((item, itemIndex) => itemIndex === index ? { ...item, description: event.target.value } : item) }))} placeholder="What meeting this criterion looks like" className="min-h-11 rounded-xl border border-slate-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" /><button type="button" aria-label={`Remove criterion ${index + 1}`} disabled={rubricDraft.criteria.length === 1} onClick={() => setRubricDraft((current) => ({ ...current, criteria: current.criteria.filter((_, itemIndex) => itemIndex !== index) }))} className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-red-600 disabled:opacity-30"><X className="h-4 w-4" /></button></div>)}
+                {rubricDraft.criteria.map((criterion, index) => <div key={index} className="grid gap-2 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-[0.7fr_1.3fr_auto]"><input aria-label={`Criterion ${index + 1} title`} value={criterion.title} onChange={(event) => setRubricDraft((current) => ({ ...current, criteria: current.criteria.map((item, itemIndex) => itemIndex === index ? { ...item, title: event.target.value } : item) }))} placeholder="Criterion title" className="min-h-11 rounded-xl border border-slate-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-focus" /><input aria-label={`Criterion ${index + 1} description`} value={criterion.description} onChange={(event) => setRubricDraft((current) => ({ ...current, criteria: current.criteria.map((item, itemIndex) => itemIndex === index ? { ...item, description: event.target.value } : item) }))} placeholder="What meeting this criterion looks like" className="min-h-11 rounded-xl border border-slate-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-focus" /><button type="button" aria-label={`Remove criterion ${index + 1}`} disabled={rubricDraft.criteria.length === 1} onClick={() => setRubricDraft((current) => ({ ...current, criteria: current.criteria.filter((_, itemIndex) => itemIndex !== index) }))} className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-red-600 disabled:opacity-30"><X className="h-4 w-4" /></button></div>)}
               </div>
               <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => setRubricDraft((current) => ({ ...current, criteria: [...current.criteria, { title: '', description: '' }] }))} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700"><Plus className="h-4 w-4" />Add criterion</button><button type="button" disabled={creatingRubric} onClick={() => void handleCreateRubric()} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-bold text-white disabled:opacity-50"><ClipboardCheck className="h-4 w-4" />{creatingRubric ? 'Creating…' : 'Create and select rubric'}</button></div>
             </div>}

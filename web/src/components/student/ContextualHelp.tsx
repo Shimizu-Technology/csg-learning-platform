@@ -115,7 +115,7 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
           if (onRequestsRefresh) void onRequestsRefresh()
           else void loadRequests()
         }}
-        className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2 ${
+        className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 ${
           activeRequest
             ? 'border-amber-200 bg-amber-50 px-3 text-sm text-amber-800 hover:bg-amber-100'
             : 'border-primary-200 bg-primary-50 px-3 text-sm text-primary-700 hover:bg-primary-100'
@@ -200,13 +200,13 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
                 rows={5}
                 required
                 placeholder="Share the step you reached, what you expected, and what happened instead."
-                className="mt-2 w-full rounded-xl border border-slate-300 px-3.5 py-3 text-sm leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-200"
+                className="mt-2 w-full rounded-xl border border-slate-300 px-3.5 py-3 text-sm leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-focus focus:ring-2 focus:ring-focus/25"
               />
               <p className="mt-1 text-right text-xs text-slate-400">{message.length}/2,000</p>
             </div>
 
             <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition ${urgency === 'urgent' ? 'border-red-300 bg-red-50' : 'border-slate-200'}`}>
-              <input type="checkbox" checked={urgency === 'urgent'} onChange={(event) => setUrgency(event.target.checked ? 'urgent' : 'normal')} className="mt-1 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500" />
+              <input type="checkbox" checked={urgency === 'urgent'} onChange={(event) => setUrgency(event.target.checked ? 'urgent' : 'normal')} className="mt-1 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-focus" />
               <ShieldAlert className={`mt-0.5 h-5 w-5 shrink-0 ${urgency === 'urgent' ? 'text-red-600' : 'text-slate-400'}`} />
               <span><span className="block text-sm font-bold text-slate-900">I am fully blocked</span><span className="mt-0.5 block text-xs leading-5 text-slate-500">Use urgent only when you cannot continue and need attention before the next class.</span></span>
             </label>

@@ -200,7 +200,7 @@ export function StudentWorkspace() {
 
         <div className="grid items-center gap-2 border-t border-slate-100 bg-slate-50/70 px-4 py-2 sm:grid-cols-[minmax(0,1fr)_minmax(180px,260px)_minmax(0,1fr)] sm:px-6">
           <StudentStepper direction="previous" student={previousStudent} cohortId={cohortId} tab={activeTab} />
-          <label className="grid gap-1 text-center text-[10px] font-extrabold uppercase tracking-wide text-slate-400"><span>{studentIndex >= 0 ? `Student ${studentIndex + 1} of ${cohort.students.length}` : 'Historical enrollment'}</span><select aria-label={`Switch student in ${cohort.name}`} value={studentId} onChange={(event) => navigate(cohortStudentPath(cohortId, Number(event.target.value), activeTab))} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold normal-case tracking-normal text-slate-800 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100">{cohort.students.map((student) => <option key={student.enrollment_id} value={student.user_id}>{student.full_name || student.email}</option>)}</select></label>
+          <label className="grid gap-1 text-center text-[10px] font-extrabold uppercase tracking-wide text-slate-400"><span>{studentIndex >= 0 ? `Student ${studentIndex + 1} of ${cohort.students.length}` : 'Historical enrollment'}</span><select aria-label={`Switch student in ${cohort.name}`} value={studentId} onChange={(event) => navigate(cohortStudentPath(cohortId, Number(event.target.value), activeTab))} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold normal-case tracking-normal text-slate-800 focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25">{cohort.students.map((student) => <option key={student.enrollment_id} value={student.user_id}>{student.full_name || student.email}</option>)}</select></label>
           <StudentStepper direction="next" student={nextStudent} cohortId={cohortId} tab={activeTab} />
         </div>
       </section>
@@ -348,7 +348,7 @@ function CountBadge({ count, tone = 'primary' }: { count: number; tone?: 'primar
 }
 
 function LinkButton({ to, secondary = false, children }: { to: string; secondary?: boolean; children: ReactNode }) {
-  return <Link to={to} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2 ${secondary ? 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50' : 'bg-primary-600 text-white hover:bg-primary-700'}`}>{children}</Link>
+  return <Link to={to} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 ${secondary ? 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50' : 'bg-primary-600 text-white hover:bg-primary-700'}`}>{children}</Link>
 }
 
 function StudentStepper({ direction, student, cohortId, tab }: { direction: 'previous' | 'next'; student: CohortDetail['students'][number] | null; cohortId: number; tab: StudentWorkspaceTab }) {

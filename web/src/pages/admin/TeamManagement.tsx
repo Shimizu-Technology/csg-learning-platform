@@ -367,7 +367,7 @@ export function TeamManagement() {
               value={addEmail}
               onChange={(e) => setAddEmail(e.target.value)}
               placeholder="instructor@example.com"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
             />
           </div>
           <div>
@@ -375,7 +375,7 @@ export function TeamManagement() {
             <select
               value={addRole}
               onChange={(e) => setAddRole(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
             >
               <option value="instructor">Instructor</option>
               <option value="admin">Admin</option>
@@ -388,7 +388,7 @@ export function TeamManagement() {
               value={addGithub}
               onChange={(e) => setAddGithub(e.target.value)}
               placeholder="e.g., octocat"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
             />
           </div>
           <div className="flex items-center gap-2 pt-2">
@@ -427,7 +427,7 @@ export function TeamManagement() {
                   type="text"
                   value={editDraft.first_name}
                   onChange={(e) => setEditDraft({ ...editDraft, first_name: e.target.value })}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                   placeholder="First name"
                 />
               </div>
@@ -437,7 +437,7 @@ export function TeamManagement() {
                   type="text"
                   value={editDraft.last_name}
                   onChange={(e) => setEditDraft({ ...editDraft, last_name: e.target.value })}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                   placeholder="Last name"
                 />
               </div>
@@ -448,7 +448,7 @@ export function TeamManagement() {
                 type="text"
                 value={editDraft.github_username}
                 onChange={(e) => setEditDraft({ ...editDraft, github_username: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                 placeholder="e.g., octocat"
               />
             </div>
@@ -457,7 +457,7 @@ export function TeamManagement() {
               <select
                 value={editDraft.role}
                 onChange={(e) => setEditDraft({ ...editDraft, role: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
               >
                 <option value="instructor">Instructor</option>
                 <option value="admin">Admin</option>

@@ -19,7 +19,7 @@ export function CodeRunnerSettings({ value, onChange, compact = false }: CodeRun
           type="checkbox"
           checked={value.enabled}
           onChange={(event) => update({ enabled: event.target.checked })}
-          className="mt-1 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+          className="mt-1 rounded border-slate-300 text-primary-600 focus:ring-focus"
         />
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
@@ -39,7 +39,7 @@ export function CodeRunnerSettings({ value, onChange, compact = false }: CodeRun
             <select
               value={value.language}
               onChange={(event) => update({ language: event.target.value as CodeRunnerLanguage })}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-focus"
             >
               <option value="ruby">Ruby</option>
               <option value="javascript">JavaScript</option>

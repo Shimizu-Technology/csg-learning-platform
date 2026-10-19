@@ -820,7 +820,7 @@ export function CohortDetail() {
                 <select
                   value={editStatus}
                   onChange={(e) => setEditStatus(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                 >
                   {COHORT_STATUS_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
@@ -854,7 +854,7 @@ export function CohortDetail() {
               type="date"
               value={editStartDate}
               onChange={(e) => setEditStartDate(e.target.value)}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
             />
           </div>
           {editStartDate !== toDateInputValue(cohort.start_date) && (
@@ -904,7 +904,7 @@ export function CohortDetail() {
           <label htmlFor="cohort-github-organization" className="flex items-center gap-1.5 text-sm font-semibold text-slate-900"><Github className="h-4 w-4" /> GitHub organization</label>
           <p className="mt-1 text-xs text-slate-600">Used to check student membership and invitations. Add the organization name from its GitHub URL; resource links are managed separately.</p>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-            <input id="cohort-github-organization" type="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={editGithubOrganization} onChange={(e) => setEditGithubOrganization(e.target.value)} disabled={savingGithubOrganization} placeholder="e.g. Code-School-of-Guam-Alumni" className="min-h-11 w-full max-w-md rounded-xl border border-slate-300 px-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200 disabled:opacity-60" />
+            <input id="cohort-github-organization" type="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={editGithubOrganization} onChange={(e) => setEditGithubOrganization(e.target.value)} disabled={savingGithubOrganization} placeholder="e.g. Code-School-of-Guam-Alumni" className="min-h-11 w-full max-w-md rounded-xl border border-slate-300 px-3 text-sm text-slate-900 focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25 disabled:opacity-60" />
             {editGithubOrganization.trim() !== (cohort.github_organization_name || '') && <button type="button" onClick={() => void handleSaveGithubOrganization()} disabled={savingGithubOrganization} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 text-sm font-bold text-white hover:bg-primary-700 disabled:opacity-50"><Save className="h-4 w-4" />{savingGithubOrganization ? 'Saving...' : 'Save organization'}</button>}
           </div>
         </div>
@@ -994,7 +994,7 @@ export function CohortDetail() {
                   value={newModuleName}
                   onChange={(e) => setNewModuleName(e.target.value)}
                   placeholder="e.g., Live Class, Capstone Project"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                 />
               </div>
               <div>
@@ -1002,7 +1002,7 @@ export function CohortDetail() {
                 <select
                   value={newModuleType}
                   onChange={(e) => setNewModuleType(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                 >
                   <option value="prework">Prework</option>
                   <option value="live_class">Live Class</option>
@@ -1017,7 +1017,7 @@ export function CohortDetail() {
                 <select
                   value={newModuleScheduleDays}
                   onChange={(e) => setNewModuleScheduleDays(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                 >
                   <option value="weekdays">MTWTF / Mon - Fri</option>
                   <option value="weekdays_sat">Mon - Sat</option>
@@ -1177,7 +1177,7 @@ export function CohortDetail() {
                       type="date"
                       value={form.module_start_date}
                       onChange={(e) => updateForm(configureMod.id, { module_start_date: e.target.value })}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                     />
                     <p className="mt-1 text-xs text-slate-400">
                       This is the first actual release day of Week 1 for this cohort. Later lessons follow the module schedule from there.
@@ -1190,7 +1190,7 @@ export function CohortDetail() {
                       type="checkbox"
                       checked={form.unlocked}
                       onChange={(e) => updateForm(configureMod.id, { unlocked: e.target.checked })}
-                      className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                      className="rounded border-slate-300 text-primary-600 focus:ring-focus"
                     />
                     Make module accessible (lessons still follow their release-day schedule)
                   </label>
@@ -1201,7 +1201,7 @@ export function CohortDetail() {
                         type="checkbox"
                         checked={form.requires_github}
                         onChange={(e) => updateForm(configureMod.id, { requires_github: e.target.checked })}
-                        className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                        className="rounded border-slate-300 text-primary-600 focus:ring-focus"
                       />
                       <Github className="h-3.5 w-3.5" />
                       Require GitHub submissions for this module
@@ -1214,7 +1214,7 @@ export function CohortDetail() {
                           value={form.repository_name}
                           onChange={(e) => updateForm(configureMod.id, { repository_name: e.target.value })}
                           placeholder="e.g., prework-exercises"
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                         />
                         <p className="mt-1 text-xs text-slate-400">The repo name under each student's GitHub account to sync from.</p>
                       </div>
@@ -1282,7 +1282,7 @@ export function CohortDetail() {
                                     type="datetime-local"
                                     value={window.submissions_close_at}
                                     onChange={(event) => updateSubmissionWindow(configureMod.id, window.week_number, event.target.value)}
-                                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                                   />
                                   <button
                                     type="button"
@@ -1483,7 +1483,7 @@ export function CohortDetail() {
                   value={addStudentEmail}
                   onChange={(e) => setAddStudentEmail(e.target.value)}
                   placeholder="student@example.com"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                 />
               </div>
               <div>
@@ -1493,7 +1493,7 @@ export function CohortDetail() {
                   value={addStudentGithub}
                   onChange={(e) => setAddStudentGithub(e.target.value)}
                   placeholder="e.g., octocat"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                 />
               </div>
               <label className="flex items-center gap-2 text-sm text-slate-700">
@@ -1501,7 +1501,7 @@ export function CohortDetail() {
                   type="checkbox"
                   checked={sendInvite}
                   onChange={(e) => setSendInvite(e.target.checked)}
-                  className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                  className="rounded border-slate-300 text-primary-600 focus:ring-focus"
                 />
                 Send invite email
               </label>
@@ -1645,7 +1645,7 @@ export function CohortDetail() {
               <select
                 value={officeHourForm.event_kind}
                 onChange={(event) => setOfficeHourForm((current) => ({ ...current, event_kind: event.target.value as 'office_hours' | 'live_class' }))}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
               >
                 <option value="live_class">Live class</option>
                 <option value="office_hours">Office hours</option>
@@ -1658,7 +1658,7 @@ export function CohortDetail() {
                 required
                 value={officeHourForm.title}
                 onChange={(event) => setOfficeHourForm((current) => ({ ...current, title: event.target.value }))}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
               />
             </label>
             <label className="block">
@@ -1669,7 +1669,7 @@ export function CohortDetail() {
                 value={officeHourForm.meeting_url}
                 onChange={(event) => setOfficeHourForm((current) => ({ ...current, meeting_url: event.target.value }))}
                 placeholder="https://zoom.us/j/..."
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
               />
             </label>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -1680,7 +1680,7 @@ export function CohortDetail() {
                   required
                   value={officeHourForm.starts_at}
                   onChange={(event) => setOfficeHourForm((current) => ({ ...current, starts_at: event.target.value }))}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                 />
               </label>
               <label className="block">
@@ -1690,7 +1690,7 @@ export function CohortDetail() {
                   required
                   value={officeHourForm.ends_at}
                   onChange={(event) => setOfficeHourForm((current) => ({ ...current, ends_at: event.target.value }))}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                 />
               </label>
             </div>
@@ -1700,7 +1700,7 @@ export function CohortDetail() {
                 <select
                   value={officeHourForm.recurrence}
                   onChange={(event) => setOfficeHourForm((current) => ({ ...current, recurrence: event.target.value as 'once' | 'weekly' }))}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                 >
                   <option value="once">One-time</option>
                   <option value="weekly">Weekly</option>
@@ -1712,7 +1712,7 @@ export function CohortDetail() {
                   type="text"
                   value={officeHourForm.timezone}
                   onChange={(event) => setOfficeHourForm((current) => ({ ...current, timezone: event.target.value }))}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                 />
               </label>
             </div>
@@ -1723,7 +1723,7 @@ export function CohortDetail() {
                 onChange={(event) => setOfficeHourForm((current) => ({ ...current, description: event.target.value }))}
                 rows={3}
                 placeholder="Optional details students should know before joining."
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
               />
             </label>
             <div className="flex flex-wrap gap-2 pt-1">
@@ -1926,13 +1926,13 @@ export function CohortDetail() {
                     value={res.title}
                     onChange={(e) => setClassResources((prev) => prev.map((item, i) => i === idx ? { ...item, title: e.target.value } : item))}
                     placeholder="e.g., Class Zoom Link"
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                   />
                 </div>
                 <select
                   value={res.category || 'general'}
                   onChange={(e) => setClassResources((prev) => prev.map((item, i) => i === idx ? { ...item, category: e.target.value } : item))}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                 >
                   {RESOURCE_CATEGORY_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
@@ -1944,14 +1944,14 @@ export function CohortDetail() {
                 value={res.url}
                 onChange={(e) => setClassResources((prev) => prev.map((item, i) => i === idx ? { ...item, url: e.target.value } : item))}
                 placeholder="https://..."
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
               />
               <input
                 type="text"
                 value={res.description || ''}
                 onChange={(e) => setClassResources((prev) => prev.map((item, i) => i === idx ? { ...item, description: e.target.value } : item))}
                 placeholder="Optional description"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
               />
             </div>
           ))}

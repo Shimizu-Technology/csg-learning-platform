@@ -38,7 +38,7 @@ export function VideoSegmentControls({ segments, onSelect, activeSegment = null,
             <button
               type="button"
               onClick={() => onSelect(segment)}
-              className={`group flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 ${isActive ? 'bg-white ring-1 ring-inset ring-primary-200' : 'hover:bg-white'}`}
+              className={`group flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus ${isActive ? 'bg-white ring-1 ring-inset ring-primary-200' : 'hover:bg-white'}`}
               aria-label={`Play ${segment.label}, ${formatVideoTimestamp(segment.start_seconds)} to ${formatVideoTimestamp(segment.end_seconds)}${isCompleted ? ', section finished' : isActive ? ', playing this section' : ''}`}
               aria-pressed={isActive}
             >

@@ -758,7 +758,7 @@ export function ComposerToolbarButton({
         onMouseLeave={hideTooltip}
         onFocus={showTooltip}
         onBlur={hideTooltip}
-        className={`relative min-h-11 min-w-11 shrink-0 rounded-xl p-2 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 sm:min-h-9 sm:min-w-9 ${
+        className={`relative min-h-11 min-w-11 shrink-0 rounded-xl p-2 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:min-h-9 sm:min-w-9 ${
           active ? 'bg-slate-100 text-slate-900' : ''
         } ${className}`}
         aria-label={shortcut ? `${label} (${shortcut})` : label}
@@ -3193,7 +3193,7 @@ export function Messages() {
           </div>
         )}
         <div
-          className="relative min-w-0 overflow-visible rounded-xl border border-slate-200 bg-white shadow-[0_18px_42px_-30px_rgba(15,23,42,0.38)] transition-shadow focus-within:border-primary-200 focus-within:shadow-[0_20px_54px_-34px_rgba(239,68,68,0.42)] sm:rounded-2xl"
+          className="relative min-w-0 overflow-visible rounded-xl border border-slate-200 bg-white shadow-[0_18px_42px_-30px_rgba(15,23,42,0.38)] transition-shadow focus-within:border-focus focus-within:shadow-[0_20px_54px_-34px_rgba(239,68,68,0.42)] sm:rounded-2xl"
           onDragOver={(event) => event.preventDefault()}
           onDrop={handleDrop}
         >
@@ -3279,7 +3279,7 @@ export function Messages() {
             <button
               type="submit"
               disabled={sending || composerOverLimit || (!body.trim() && pendingAttachments.length === 0)}
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary-500 text-sm font-medium text-white shadow-sm transition hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:w-auto sm:px-4"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary-500 text-sm font-medium text-white shadow-sm transition hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:w-auto sm:px-4"
               aria-label={sending ? 'Sending message' : 'Send message'}
             >
               <Send className="h-4 w-4" />
@@ -3393,7 +3393,7 @@ export function Messages() {
               <button
                 type="button"
                 onClick={() => setShowWorkspaceSwitcher(true)}
-                className="group flex w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary-500 sm:py-2.5"
+                className="group flex w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-focus sm:py-2.5"
               >
                 <span className="flex min-w-0 items-center gap-3">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-xs font-semibold text-white">
@@ -3751,7 +3751,7 @@ export function Messages() {
                         type="button"
                         onClick={() => void loadOlderMessages()}
                         disabled={loadingOlder}
-                        className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 shadow-sm transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-wait disabled:opacity-60"
+                        className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 shadow-sm transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-wait disabled:opacity-60"
                       >
                         <RefreshCw className={`h-4 w-4 ${loadingOlder ? 'animate-spin' : ''}`} />
                         {loadingOlder ? 'Loading earlier messages…' : 'Load earlier messages'}
@@ -3831,7 +3831,7 @@ export function Messages() {
                   })}
                   {!activeThreadRoot && conversationView === 'messages' && messageWindowMeta?.has_newer && (
                     <div className="flex justify-center py-3">
-                      <button type="button" onClick={() => void loadNewerMessages()} disabled={loadingNewer} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 shadow-sm transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-wait disabled:opacity-60">
+                      <button type="button" onClick={() => void loadNewerMessages()} disabled={loadingNewer} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 shadow-sm transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-wait disabled:opacity-60">
                         <RefreshCw className={`h-4 w-4 ${loadingNewer ? 'animate-spin' : ''}`} />
                         {loadingNewer ? 'Loading newer messages…' : 'Load newer messages'}
                       </button>
@@ -3842,7 +3842,7 @@ export function Messages() {
                     <button
                       type="button"
                       onClick={() => void scrollToLatestMessage()}
-                      className="absolute bottom-3 left-1/2 z-20 inline-flex min-h-10 -translate-x-1/2 items-center gap-2 rounded-full border border-primary-100 bg-white px-3.5 py-2 text-xs font-semibold text-primary-700 shadow-lg shadow-slate-900/10 transition hover:-translate-y-0.5 hover:border-primary-200 hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+                      className="absolute bottom-3 left-1/2 z-20 inline-flex min-h-10 -translate-x-1/2 items-center gap-2 rounded-full border border-primary-100 bg-white px-3.5 py-2 text-xs font-semibold text-primary-700 shadow-lg shadow-slate-900/10 transition hover:-translate-y-0.5 hover:border-primary-200 hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
                       aria-label={hasUnreadBelow ? 'Jump to new messages' : 'Jump to latest message'}
                     >
                       <ChevronDown className="h-4 w-4" />
@@ -4140,7 +4140,7 @@ export function Messages() {
                 value={workspaceForm.name}
                 onChange={(event) => setWorkspaceForm((prev) => ({ ...prev, name: event.target.value }))}
                 placeholder="Workspace name"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
               />
             </div>
             <div className="space-y-2">
@@ -4150,7 +4150,7 @@ export function Messages() {
                 onChange={(event) => setWorkspaceForm((prev) => ({ ...prev, description: event.target.value }))}
                 placeholder="What is this workspace for?"
                 rows={3}
-                className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
@@ -4200,7 +4200,7 @@ export function Messages() {
                 <select
                   value={memberToAddId}
                   onChange={(event) => setMemberToAddId(event.target.value)}
-                  className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                 >
                   <option value="">Add a member</option>
                   {memberCandidates.map((candidate) => (
@@ -4264,7 +4264,7 @@ export function Messages() {
             <select
               value={channelForm.workspace_id}
               onChange={(event) => setChannelForm((prev) => ({ ...prev, workspace_id: event.target.value }))}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
             >
               {workspaces.map((workspace) => (
                 <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
@@ -4274,19 +4274,19 @@ export function Messages() {
               value={channelForm.name}
               onChange={(event) => setChannelForm((prev) => ({ ...prev, name: event.target.value }))}
               placeholder="Channel name"
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
             />
             <textarea
               value={channelForm.description}
               onChange={(event) => setChannelForm((prev) => ({ ...prev, description: event.target.value }))}
               placeholder="What is this channel for?"
               rows={3}
-              className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
             />
             <select
               value={channelForm.visibility}
               onChange={(event) => setChannelForm((prev) => ({ ...prev, visibility: event.target.value }))}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
             >
               <option value="cohort">Students and staff</option>
               <option value="staff_only">Staff only</option>
@@ -4480,7 +4480,7 @@ export function Messages() {
           <select
             value={dmUserId}
             onChange={(event) => setDmUserId(event.target.value)}
-            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
           >
             {availableUsers.map((availableUser) => (
               <option key={availableUser.id} value={availableUser.id}>
@@ -4523,7 +4523,7 @@ export function Messages() {
               id="message-link-text"
               value={linkText}
               onChange={(event) => setLinkText(event.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
               placeholder="Text to show"
               autoFocus
             />
@@ -4542,7 +4542,7 @@ export function Messages() {
               className={`mt-1 w-full rounded-xl border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 ${
                 linkError
                   ? 'border-red-200 focus:ring-red-500'
-                  : 'border-slate-200 focus:ring-primary-500'
+                  : 'border-slate-200 focus:ring-focus'
               }`}
               placeholder="https://example.com"
               aria-invalid={Boolean(linkError)}
@@ -5198,7 +5198,7 @@ function ConversationHeaderAction({
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-11 w-11 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-2.5 sm:text-sm"
+      className="inline-flex h-11 w-11 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-2.5 sm:text-sm"
       aria-label={ariaLabel}
     >
       {icon}
