@@ -508,7 +508,7 @@ export function Layout({ children }: LayoutProps) {
                 href="https://shimizu-technology.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex min-h-8 items-center text-xs text-ink-muted transition-colors hover:text-ink"
+                className="inline-block py-2 text-xs text-ink-muted transition-colors hover:text-ink"
               >
                 Built by <span className="font-medium">Shimizu Technology</span>
               </a>
