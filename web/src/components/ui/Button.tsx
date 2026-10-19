@@ -1,7 +1,44 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { forwardRef, type AnchorHTMLAttributes, type ButtonHTMLAttributes, type ReactNode } from 'react'
+import { Link, type LinkProps } from 'react-router-dom'
 
-type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'danger'
-type ButtonSize = 'sm' | 'md' | 'lg'
+export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'danger'
+/**
+ * md = 44px and lg = 48px everywhere. sm is a compact control for dense
+ * desktop toolbars only: it keeps the 44px touch target on phones and tablets
+ * and drops to 36px at the desktop breakpoint.
+ */
+export type ButtonSize = 'sm' | 'md' | 'lg'
+
+const base =
+  'inline-flex select-none items-center justify-center gap-2 rounded-xl font-semibold ' +
+  'transition-[background-color,border-color,color,box-shadow,scale] duration-[120ms] ease-out ' +
+  'active:scale-[0.97] motion-reduce:active:scale-100 ' +
+  'disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50'
+
+export const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
+  primary: 'bg-action-primary text-on-action shadow-raised hover:bg-action-primary-hover active:bg-action-primary-pressed',
+  secondary: 'border border-line-strong bg-surface-raised text-ink shadow-raised hover:border-slate-400 hover:bg-surface-sunken active:bg-slate-200/70',
+  quiet: 'text-ink-secondary hover:bg-surface-sunken hover:text-ink active:bg-slate-200/70',
+  danger: 'border border-danger-200 bg-surface-raised text-danger-700 shadow-raised hover:bg-danger-50 active:bg-danger-100',
+}
+
+export const BUTTON_SIZES: Record<ButtonSize, string> = {
+  sm: 'min-h-11 px-3 py-2 text-sm lg:min-h-9',
+  md: 'min-h-11 px-4 py-2.5 text-sm',
+  lg: 'min-h-12 px-5 py-3 text-base',
+}
+
+interface ButtonStyleOptions {
+  variant?: ButtonVariant
+  size?: ButtonSize
+  fullWidth?: boolean
+  className?: string
+}
+
+/** Class list for anything that should look like a Button (links included). */
+export function buttonClasses({ variant = 'primary', size = 'md', fullWidth = false, className = '' }: ButtonStyleOptions = {}) {
+  return `${base} ${BUTTON_VARIANTS[variant]} ${BUTTON_SIZES[size]} ${fullWidth ? 'w-full' : ''} ${className}`.replace(/\s+/g, ' ').trim()
+}
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode
@@ -10,36 +47,46 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   fullWidth?: boolean
 }
 
-const variants: Record<ButtonVariant, string> = {
-  primary: 'bg-primary-600 text-white shadow-sm shadow-primary-950/10 hover:bg-primary-700 active:bg-primary-800',
-  secondary: 'border border-slate-300 bg-white text-slate-700 shadow-sm hover:border-slate-400 hover:bg-slate-50 active:bg-slate-100',
-  quiet: 'text-slate-600 hover:bg-slate-100 hover:text-slate-950 active:bg-slate-200',
-  danger: 'border border-red-200 bg-white text-red-700 shadow-sm hover:bg-red-50 active:bg-red-100',
-}
-
-const sizes: Record<ButtonSize, string> = {
-  sm: 'min-h-10 px-3 py-2 text-xs',
-  md: 'min-h-11 px-4 py-2.5 text-sm',
-  lg: 'min-h-12 px-5 py-3 text-sm',
-}
-
-export function Button({
-  children,
-  className = '',
-  variant = 'primary',
-  size = 'md',
-  fullWidth = false,
-  type = 'button',
-  ...props
-}: ButtonProps) {
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { children, className = '', variant = 'primary', size = 'md', fullWidth = false, type = 'button', ...props },
+  ref,
+) {
   return (
-    <button
-      type={type}
-      className={`inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${variants[variant]} ${sizes[size]} ${fullWidth ? 'w-full' : ''} ${className}`}
-      {...props}
-    >
+    <button ref={ref} type={type} data-variant={variant} className={buttonClasses({ variant, size, fullWidth, className })} {...props}>
       {children}
     </button>
+  )
+})
+
+interface LinkButtonProps extends LinkProps {
+  children: ReactNode
+  variant?: ButtonVariant
+  size?: ButtonSize
+  fullWidth?: boolean
+}
+
+/** A router link styled as a Button. Use for navigation; use Button for actions. */
+export function LinkButton({ children, className = '', variant = 'primary', size = 'md', fullWidth = false, ...props }: LinkButtonProps) {
+  return (
+    <Link data-variant={variant} className={buttonClasses({ variant, size, fullWidth, className })} {...props}>
+      {children}
+    </Link>
+  )
+}
+
+interface AnchorButtonProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
+  children: ReactNode
+  variant?: ButtonVariant
+  size?: ButtonSize
+  fullWidth?: boolean
+}
+
+/** An external link styled as a Button. */
+export function AnchorButton({ children, className = '', variant = 'secondary', size = 'md', fullWidth = false, ...props }: AnchorButtonProps) {
+  return (
+    <a data-variant={variant} className={buttonClasses({ variant, size, fullWidth, className })} {...props}>
+      {children}
+    </a>
   )
 }
 
@@ -47,18 +94,26 @@ interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   label: string
   children: ReactNode
   variant?: 'quiet' | 'secondary' | 'danger'
+  /** sm is 36px on desktop toolbars only; touch keeps 44px. */
+  size?: 'sm' | 'md'
 }
 
-export function IconButton({ label, children, className = '', variant = 'quiet', type = 'button', ...props }: IconButtonProps) {
+export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
+  { label, children, className = '', variant = 'quiet', size = 'md', type = 'button', ...props },
+  ref,
+) {
+  const sizeClass = size === 'sm' ? 'h-11 w-11 lg:h-9 lg:w-9' : 'h-11 w-11'
   return (
     <button
+      ref={ref}
       type={type}
       aria-label={label}
       title={label}
-      className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${variants[variant]} ${className}`}
+      data-variant={variant}
+      className={`${base} shrink-0 ${sizeClass} ${BUTTON_VARIANTS[variant]} ${className}`.replace(/\s+/g, ' ').trim()}
       {...props}
     >
       {children}
     </button>
   )
-}
+})

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, CheckCircle2, X } from 'lucide-react'
+import { IconButton } from '../components/ui/Button'
 
 type ToastType = 'success' | 'error'
 
@@ -53,21 +54,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           return (
             <div
               key={toast.id}
-              className={`pointer-events-auto flex items-start gap-3 rounded-xl border bg-white px-4 py-3 text-sm shadow-lg ${
-                isSuccess ? 'border-success-200 text-success-800' : 'border-red-200 text-red-800'
+              className={`app-toast pointer-events-auto flex items-start gap-3 rounded-xl border bg-surface-raised py-1.5 pl-4 pr-1.5 text-sm shadow-overlay ${
+                isSuccess ? 'border-success-200 text-success-800' : 'border-danger-200 text-danger-800'
               }`}
               role={isSuccess ? 'status' : 'alert'}
             >
-              <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${isSuccess ? 'text-success-600' : 'text-red-600'}`} />
-              <p className="min-w-0 flex-1 leading-5">{toast.message}</p>
-              <button
-                type="button"
-                onClick={() => dismiss(toast.id)}
-                className="rounded-md p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                aria-label="Dismiss notification"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <Icon className={`mt-3 h-4 w-4 shrink-0 ${isSuccess ? 'text-success-700' : 'text-danger-700'}`} aria-hidden="true" />
+              <p className="min-w-0 flex-1 py-2.5 leading-5">{toast.message}</p>
+              <IconButton label="Dismiss notification" size="sm" onClick={() => dismiss(toast.id)}>
+                <X className="h-4 w-4" aria-hidden="true" />
+              </IconButton>
             </div>
           )
         })}

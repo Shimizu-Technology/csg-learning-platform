@@ -61,6 +61,6 @@ export const STATUS_TONE_CLASSES: Record<StatusTone, string> = {
   success: 'border-success-200 bg-success-50 text-success-700',
   pending: 'border-pending-200 bg-pending-50 text-pending-700',
   warning: 'border-warning-200 bg-warning-50 text-warning-800',
-  neutral: 'border-slate-200 bg-white text-slate-700',
-  quiet: 'border-slate-200 bg-slate-50 text-slate-500',
+  neutral: 'border-line-strong bg-surface-raised text-ink-secondary',
+  quiet: 'border-line bg-surface-sunken text-ink-muted',
 }
