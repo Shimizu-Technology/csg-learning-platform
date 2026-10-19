@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Bell, Check, ChevronRight, FileText, Github, Mail, Save, ShieldCheck, Trash2, UserX } from 'lucide-react'
-import { UserButton } from '@clerk/clerk-react'
+import { Bell, Check, ChevronRight, FileText, Github, LogOut, Mail, Save, ShieldCheck, Trash2, UserCog, UserX } from 'lucide-react'
+import { useClerk } from '@clerk/clerk-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { useToast } from '../../contexts/ToastContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { ActivityTimeline } from '../../components/shared/ActivityTimeline'
+import { Avatar } from '../../components/ui/Avatar'
+import { Badge, type BadgeTone } from '../../components/ui/Badge'
+import { Button } from '../../components/ui/Button'
 import type { BlockedUser } from '../../types/api'
 
 interface ProfileData {
@@ -28,9 +31,12 @@ interface ProfileData {
   }>
 }
 
+const ENROLLMENT_TONES: Record<string, BadgeTone> = { active: 'success', completed: 'info' }
+
 export function Profile() {
   const toast = useToast()
   const confirmAction = useConfirm()
+  const { openUserProfile, signOut } = useClerk()
   const [data, setData] = useState<ProfileData | null>(null)
   const [loading, setLoading] = useState(true)
   const [githubUsername, setGithubUsername] = useState('')
@@ -130,81 +136,76 @@ export function Profile() {
       </header>
 
       {/* User info */}
-      <div className="rounded-2xl bg-white border border-slate-200 p-6 space-y-4">
+      <div className="app-surface space-y-4 p-6">
         <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 text-xl font-bold" aria-hidden="true">
-            {data.user.first_name?.[0]}{data.user.last_name?.[0]}
-          </div>
+          <Avatar name={data.user.full_name || `${data.user.first_name} ${data.user.last_name}`} src={data.user.avatar_url} size="lg" />
           <div className="min-w-0">
-            <h2 className="text-xl font-semibold text-slate-900 [overflow-wrap:anywhere]">{data.user.full_name}</h2>
-            <p className="text-sm text-slate-500 [overflow-wrap:anywhere]">{data.user.email}</p>
+            <h2 className="text-xl font-semibold text-ink [overflow-wrap:anywhere]">{data.user.full_name}</h2>
+            <p className="text-sm text-ink-secondary [overflow-wrap:anywhere]">{data.user.email}</p>
           </div>
         </div>
 
         {/* GitHub username */}
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">
-            <Github className="inline h-4 w-4 mr-1" />
-            GitHub Username
+          <label htmlFor="profile-github-username" className="mb-1 flex items-center gap-1 text-sm font-medium text-ink-secondary">
+            <Github className="h-4 w-4 shrink-0" aria-hidden="true" />
+            GitHub username
           </label>
           <div className="flex gap-2">
             <input
+              id="profile-github-username"
               type="text"
               value={githubUsername}
               onChange={(e) => setGithubUsername(e.target.value)}
               placeholder="Enter your GitHub username"
               className="app-control min-w-0 flex-1"
             />
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-primary-700 disabled:opacity-50"
-            >
-              {saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+            <Button onClick={handleSave} disabled={saving}>
+              {saved ? <Check className="h-4 w-4" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
               {saved ? 'Saved' : 'Save'}
-            </button>
+            </Button>
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <p className="text-sm font-medium text-slate-900">Account session</p>
-          <p className="mt-1 text-sm text-slate-500">Open the account menu here to sign out on mobile or switch accounts.</p>
-          <div className="mt-3">
-            <UserButton
-              afterSignOutUrl="/sign-in"
-              appearance={{
-                elements: {
-                  avatarBox: 'h-10 w-10',
-                }
-              }}
-            />
+        <div className="rounded-xl border border-line bg-surface-sunken px-4 py-3">
+          <p className="text-sm font-medium text-ink">Account session</p>
+          <p className="mt-1 text-sm text-ink-secondary">Manage your sign-in details, or sign out on this device.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => openUserProfile()}>
+              <UserCog className="h-4 w-4" aria-hidden="true" />
+              Manage account
+            </Button>
+            <Button variant="quiet" onClick={() => void signOut({ redirectUrl: '/sign-in' })}>
+              <LogOut className="h-4 w-4" aria-hidden="true" />
+              Sign out
+            </Button>
           </div>
         </div>
       </div>
 
       <section className="app-surface overflow-hidden">
-        <div className="border-b border-slate-200/80 px-5 py-4 sm:px-6">
+        <div className="border-b border-line px-5 py-4 sm:px-6">
           <div className="flex items-center gap-2">
-            <Bell className="h-4 w-4 text-primary-600" />
-            <h2 className="text-lg font-extrabold tracking-tight text-slate-950">Notifications</h2>
+            <Bell className="h-4 w-4 text-ink-muted" aria-hidden="true" />
+            <h2 className="text-lg font-bold tracking-tight text-ink">Notifications</h2>
           </div>
-          <p className="mt-1 text-sm leading-6 text-slate-500">Choose how class conversations reach you when you are away from the app.</p>
+          <p className="mt-1 text-sm leading-6 text-ink-secondary">Choose how class conversations reach you when you are away from the app.</p>
         </div>
         <div className="flex items-start justify-between gap-5 px-5 py-5 sm:px-6">
           <div className="flex min-w-0 gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-700"><Mail className="h-5 w-5" /></span>
-            <div>
-              <p className="text-sm font-extrabold text-slate-950">Direct-message emails</p>
-              <p className="mt-1 max-w-md text-xs leading-5 text-slate-500">Receive an email when someone sends you a direct message. Browser alerts are controlled separately from Messages or Updates.</p>
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><Mail className="h-5 w-5" aria-hidden="true" /></span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-ink">Direct-message emails</p>
+              <p className="mt-1 max-w-md text-xs leading-5 text-ink-secondary">Receive an email when someone sends you a direct message. Browser alerts are controlled separately from Messages or Updates.</p>
             </div>
           </div>
           {emailNotificationsEnabled === null ? (
             notificationPreferenceError ? (
-              <button type="button" onClick={loadNotificationPreference} className="min-h-11 shrink-0 rounded-xl px-3 text-xs font-bold text-primary-700 hover:bg-primary-50">
+              <Button variant="secondary" size="sm" onClick={loadNotificationPreference} className="shrink-0">
                 Retry
-              </button>
+              </Button>
             ) : (
-              <span role="status" className="min-h-11 shrink-0 px-2 py-3 text-xs font-semibold text-slate-500">Loading…</span>
+              <span role="status" className="min-h-11 shrink-0 px-2 py-3 text-xs font-semibold text-ink-muted">Loading…</span>
             )
           ) : (
             <button
@@ -215,64 +216,58 @@ export function Profile() {
               aria-busy={savingNotifications}
               onClick={toggleEmailNotifications}
               disabled={savingNotifications}
-              className={`relative mt-0.5 h-7 w-12 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:opacity-50 ${emailNotificationsEnabled ? 'bg-primary-600' : 'bg-slate-300'}`}
+              className={`relative mt-0.5 h-7 w-12 shrink-0 rounded-full transition-colors duration-200 ease-out before:absolute before:-inset-2 before:content-[''] disabled:opacity-50 ${emailNotificationsEnabled ? 'bg-ink' : 'bg-slate-200 ring-1 ring-inset ring-slate-500'}`}
             >
-              <span className={`absolute left-0 top-0.5 h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${emailNotificationsEnabled ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+              <span className={`absolute left-0 top-0.5 h-6 w-6 rounded-full bg-white shadow-sm transition-transform duration-200 ease-out ${emailNotificationsEnabled ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
             </button>
           )}
         </div>
       </section>
 
       <section className="app-surface overflow-hidden">
-        <div className="border-b border-slate-200/80 px-5 py-4 sm:px-6">
+        <div className="border-b border-line px-5 py-4 sm:px-6">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-primary-600" />
-            <h2 className="text-lg font-extrabold tracking-tight text-slate-950">Privacy & safety</h2>
+            <ShieldCheck className="h-4 w-4 text-ink-muted" aria-hidden="true" />
+            <h2 className="text-lg font-bold tracking-tight text-ink">Privacy & safety</h2>
           </div>
-          <p className="mt-1 text-sm leading-6 text-slate-500">Review how your data is handled and control your account.</p>
+          <p className="mt-1 text-sm leading-6 text-ink-secondary">Review how your data is handled and control your account.</p>
         </div>
-        <Link to="/privacy" className="flex min-h-16 items-center gap-3 border-b border-slate-200/80 px-5 py-4 transition hover:bg-slate-50 sm:px-6">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-700"><ShieldCheck className="h-5 w-5" /></span>
-          <span className="min-w-0 flex-1"><span className="block text-sm font-extrabold text-slate-950">Privacy policy</span><span className="mt-1 block text-xs leading-5 text-slate-500">How CSG Connect handles account and learning data.</span></span>
-          <ChevronRight className="h-5 w-5 text-slate-400" />
+        <Link to="/privacy" className="pressable flex min-h-16 items-center gap-3 border-b border-line px-5 py-4 hover:bg-surface-sunken sm:px-6">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><ShieldCheck className="h-5 w-5" aria-hidden="true" /></span>
+          <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-ink">Privacy policy</span><span className="mt-1 block text-xs leading-5 text-ink-secondary">How CSG Connect handles account and learning data.</span></span>
+          <ChevronRight className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
         </Link>
-        <Link to="/terms" className="flex min-h-16 items-center gap-3 border-b border-slate-200/80 px-5 py-4 transition hover:bg-slate-50 sm:px-6">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-700"><FileText className="h-5 w-5" /></span>
-          <span className="min-w-0 flex-1"><span className="block text-sm font-extrabold text-slate-950">Terms & Community Guidelines</span><span className="mt-1 block text-xs leading-5 text-slate-500">Rules that keep class conversations safe.</span></span>
-          <ChevronRight className="h-5 w-5 text-slate-400" />
+        <Link to="/terms" className="pressable flex min-h-16 items-center gap-3 border-b border-line px-5 py-4 hover:bg-surface-sunken sm:px-6">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><FileText className="h-5 w-5" aria-hidden="true" /></span>
+          <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-ink">Terms & Community Guidelines</span><span className="mt-1 block text-xs leading-5 text-ink-secondary">Rules that keep class conversations safe.</span></span>
+          <ChevronRight className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
         </Link>
-        {blockedUsers.length > 0 && <div className="border-b border-slate-200/80 px-5 py-4 sm:px-6">
-          <div className="mb-3 flex items-center gap-2"><UserX className="h-4 w-4 text-primary-600" /><h3 className="text-sm font-extrabold text-slate-950">Blocked users</h3></div>
-          <div className="space-y-2">{blockedUsers.map((blockedUser) => <div key={blockedUser.id} className="flex min-h-12 items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2"><span className="min-w-0 truncate text-sm font-bold text-slate-800">{blockedUser.full_name}</span><button type="button" onClick={() => void unblockUser(blockedUser)} className="min-h-11 shrink-0 rounded-xl px-3 text-xs font-extrabold text-primary-700 hover:bg-primary-50">Unblock</button></div>)}</div>
+        {blockedUsers.length > 0 && <div className="border-b border-line px-5 py-4 sm:px-6">
+          <div className="mb-3 flex items-center gap-2"><UserX className="h-4 w-4 text-ink-muted" aria-hidden="true" /><h3 className="text-sm font-bold text-ink">Blocked users</h3></div>
+          <div className="space-y-2">{blockedUsers.map((blockedUser) => <div key={blockedUser.id} className="flex min-h-12 items-center justify-between gap-3 rounded-xl bg-surface-sunken px-3 py-2"><span className="flex min-w-0 items-center gap-2"><Avatar name={blockedUser.full_name} size="sm" /><span className="min-w-0 truncate text-sm font-semibold text-ink">{blockedUser.full_name}</span></span><Button variant="secondary" size="sm" onClick={() => void unblockUser(blockedUser)}>Unblock</Button></div>)}</div>
         </div>}
-        <button type="button" disabled={requestingDeletion || deletionRequested} onClick={() => void requestAccountDeletion()} className="flex min-h-16 w-full items-center gap-3 px-5 py-4 text-left transition hover:bg-red-50 disabled:cursor-default disabled:opacity-65 sm:px-6">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-700"><Trash2 className="h-5 w-5" /></span>
-          <span className="min-w-0 flex-1"><span className="block text-sm font-extrabold text-red-800">{deletionRequested ? 'Deletion request received' : 'Request account deletion'}</span><span className="mt-1 block text-xs leading-5 text-slate-500">Ask the Code School team to delete your account and eligible data.</span></span>
-          {!deletionRequested && <ChevronRight className="h-5 w-5 text-slate-400" />}
+        <button type="button" disabled={requestingDeletion || deletionRequested} onClick={() => void requestAccountDeletion()} className="pressable flex min-h-16 w-full items-center gap-3 px-5 py-4 text-left hover:bg-danger-50 disabled:cursor-default disabled:opacity-65 sm:px-6">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-danger-50 text-danger-700"><Trash2 className="h-5 w-5" aria-hidden="true" /></span>
+          <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-danger-700">{deletionRequested ? 'Deletion request received' : 'Request account deletion'}</span><span className="mt-1 block text-xs leading-5 text-ink-secondary">Ask the Code School team to delete your account and eligible data.</span></span>
+          {!deletionRequested && <ChevronRight className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />}
         </button>
       </section>
 
       {/* Enrollments */}
       <ActivityTimeline />
-      <div className="rounded-2xl bg-white border border-slate-200 p-6">
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">Enrollments</h3>
+      <div className="app-surface p-6">
+        <h3 className="mb-4 text-lg font-semibold text-ink">Enrollments</h3>
         {data.enrollments.length === 0 ? (
-          <p className="text-sm text-slate-500">No enrollments yet.</p>
+          <p className="text-sm text-ink-secondary">No enrollments yet.</p>
         ) : (
           <div className="space-y-3">
             {data.enrollments.map((enrollment) => (
-              <div key={enrollment.id} className="flex items-center justify-between rounded-xl bg-slate-50 p-4">
-                <div>
-                  <p className="text-sm font-medium text-slate-900">{enrollment.cohort_name}</p>
-                  <p className="text-xs text-slate-500">{enrollment.curriculum_name}</p>
+              <div key={enrollment.id} className="flex items-center justify-between gap-3 rounded-xl bg-surface-sunken p-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-ink [overflow-wrap:anywhere]">{enrollment.cohort_name}</p>
+                  <p className="text-xs text-ink-secondary [overflow-wrap:anywhere]">{enrollment.curriculum_name}</p>
                 </div>
-                <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                  enrollment.status === 'active' ? 'bg-success-100 text-success-700' :
-                  enrollment.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                  'bg-slate-100 text-slate-600'
-                }`}>
-                  {enrollment.status}
-                </span>
+                <Badge tone={ENROLLMENT_TONES[enrollment.status] || 'neutral'}>{enrollment.status}</Badge>
               </div>
             ))}
           </div>

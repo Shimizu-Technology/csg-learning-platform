@@ -1,3 +1,10 @@
+import { useEffect, useState } from 'react'
+import { RefreshCw, WifiOff } from 'lucide-react'
+import { Button } from '../ui/Button'
+
+/** After this long, a skeleton also offers a message and a reload instead of spinning silently. */
+export const SLOW_LOADING_MS = 8000
+
 interface LoadingSpinnerProps {
   message?: string
   fullScreen?: boolean
@@ -5,11 +12,28 @@ interface LoadingSpinnerProps {
 
 export function LoadingSpinner({ message, fullScreen = true }: LoadingSpinnerProps) {
   const variant = skeletonVariantFor(message)
+  const [slow, setSlow] = useState(false)
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSlow(true), SLOW_LOADING_MS)
+    return () => window.clearTimeout(timer)
+  }, [])
   const content = (
     <div className="mx-auto w-full max-w-6xl space-y-6" role="status" aria-live="polite" aria-busy="true">
       <span className="sr-only">{message || 'Loading content'}</span>
+      {slow && (
+        <div data-testid="slow-loading" className="flex flex-col gap-3 rounded-2xl border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800 sm:flex-row sm:items-center sm:justify-between">
+          <p className="flex items-start gap-2">
+            <WifiOff className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>Still loading… check your connection, or reload to try again.</span>
+          </p>
+          <Button variant="secondary" size="sm" className="shrink-0" onClick={() => window.location.reload()}>
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+            Reload
+          </Button>
+        </div>
+      )}
       <div className="space-y-2">
-        <SkeletonLine className="h-3 w-24 bg-primary-100" />
+        <SkeletonLine className="h-3 w-24" />
         <SkeletonLine className="h-7 w-64" />
         <SkeletonLine className="h-4 w-full max-w-md bg-slate-100" />
       </div>
@@ -24,7 +48,7 @@ export function LoadingSpinner({ message, fullScreen = true }: LoadingSpinnerPro
   )
 
   if (fullScreen) {
-    return <div className="min-h-screen bg-slate-50 px-4 py-8 lg:px-8">{content}</div>
+    return <div className="min-h-screen bg-surface-page px-4 py-8 lg:px-8">{content}</div>
   }
 
   return <div className="px-4 py-8">{content}</div>
@@ -56,7 +80,7 @@ function DashboardSkeleton() {
     <>
       <div className="grid gap-4 sm:grid-cols-3">
         {[0, 1, 2].map((item) => (
-          <div key={item} className="rounded-2xl border border-slate-200 bg-white p-5">
+          <div key={item} className="rounded-2xl border border-line bg-surface-raised p-5">
             <SkeletonBox className="h-10 w-10 rounded-xl" />
             <SkeletonLine className="mt-4 h-6 w-20" />
             <SkeletonLine className="mt-2 h-3 w-28 bg-slate-100" />
@@ -64,14 +88,14 @@ function DashboardSkeleton() {
         ))}
       </div>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        <div className="rounded-2xl border border-line bg-surface-raised p-5">
           <SkeletonLine className="h-5 w-48" />
           <SkeletonBox className="mt-5 h-32" />
           <div className="mt-5 space-y-3">
             {[0, 1, 2].map((item) => <SkeletonLine key={item} className="h-4 w-full bg-slate-100" />)}
           </div>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        <div className="rounded-2xl border border-line bg-surface-raised p-5">
           <SkeletonBox className="mx-auto h-28 w-28 rounded-full" />
           <SkeletonLine className="mx-auto mt-5 h-4 w-32" />
           <SkeletonLine className="mx-auto mt-2 h-3 w-24 bg-slate-100" />
@@ -83,11 +107,11 @@ function DashboardSkeleton() {
 
 function ListSkeleton() {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white">
-      <div className="border-b border-slate-200 p-4">
+    <div className="rounded-2xl border border-line bg-surface-raised">
+      <div className="border-b border-line p-4">
         <SkeletonBox className="h-11 w-full rounded-xl" />
       </div>
-      <div className="divide-y divide-slate-100">
+      <div className="divide-y divide-line">
         {[0, 1, 2, 3, 4].map((item) => (
           <div key={item} className="flex items-center gap-4 p-4">
             <SkeletonBox className="h-10 w-10 shrink-0 rounded-xl" />
@@ -105,11 +129,11 @@ function ListSkeleton() {
 
 function TableSkeleton() {
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      <div className="grid gap-3 border-b border-slate-200 bg-slate-50 p-4 sm:grid-cols-4">
+    <div className="overflow-hidden rounded-2xl border border-line bg-surface-raised">
+      <div className="grid gap-3 border-b border-line bg-surface-sunken p-4 sm:grid-cols-4">
         {[0, 1, 2, 3].map((item) => <SkeletonLine key={item} className="h-3 w-24" />)}
       </div>
-      <div className="divide-y divide-slate-100">
+      <div className="divide-y divide-line">
         {[0, 1, 2, 3, 4, 5].map((item) => (
           <div key={item} className="grid gap-3 p-4 sm:grid-cols-4">
             <SkeletonLine className="h-4 w-40" />
@@ -126,7 +150,7 @@ function TableSkeleton() {
 function DetailSkeleton() {
   return (
     <>
-      <div className="rounded-2xl border border-slate-200 bg-white p-5">
+      <div className="rounded-2xl border border-line bg-surface-raised p-5">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-3">
             <SkeletonLine className="h-6 w-72 max-w-full" />
@@ -137,7 +161,7 @@ function DetailSkeleton() {
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         {[0, 1, 2, 3].map((item) => (
-          <div key={item} className="rounded-2xl border border-slate-200 bg-white p-5">
+          <div key={item} className="rounded-2xl border border-line bg-surface-raised p-5">
             <SkeletonLine className="h-5 w-48" />
             <SkeletonLine className="mt-3 h-3 w-full bg-slate-100" />
             <SkeletonLine className="mt-2 h-3 w-10/12 bg-slate-100" />
@@ -152,10 +176,10 @@ function DetailSkeleton() {
 function EditorSkeleton() {
   return (
     <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="rounded-2xl border border-line bg-surface-raised p-4">
         {[0, 1, 2, 3, 4].map((item) => <SkeletonLine key={item} className="mb-4 h-4 w-full bg-slate-100" />)}
       </div>
-      <div className="rounded-2xl border border-slate-200 bg-white p-5">
+      <div className="rounded-2xl border border-line bg-surface-raised p-5">
         <SkeletonLine className="h-6 w-64" />
         <SkeletonBox className="mt-5 h-80" />
       </div>
@@ -169,7 +193,7 @@ function MediaSkeleton() {
       <SkeletonBox className="aspect-video w-full" />
       <div className="space-y-3">
         {[0, 1, 2, 3].map((item) => (
-          <div key={item} className="rounded-2xl border border-slate-200 bg-white p-3">
+          <div key={item} className="rounded-2xl border border-line bg-surface-raised p-3">
             <SkeletonLine className="h-4 w-48" />
             <SkeletonLine className="mt-2 h-3 w-32 bg-slate-100" />
           </div>
@@ -182,7 +206,7 @@ function MediaSkeleton() {
 function ProfileSkeleton() {
   return (
     <div className="mx-auto max-w-2xl space-y-5">
-      <div className="rounded-2xl border border-slate-200 bg-white p-6">
+      <div className="rounded-2xl border border-line bg-surface-raised p-6">
         <div className="flex items-center gap-4">
           <SkeletonBox className="h-16 w-16 rounded-full" />
           <div className="space-y-2">

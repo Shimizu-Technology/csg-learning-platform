@@ -8,6 +8,8 @@ import { formatShortDateTime } from '../../lib/format'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { StatusBadge } from '../../components/shared/StatusBadge'
+import { EmptyState } from '../../components/shared/EmptyState'
+import { LinkButton } from '../../components/ui/Button'
 import { learnerLessonStatus, type ReviewStatus } from '../../lib/learningStatus'
 
 interface ModuleData {
@@ -94,7 +96,7 @@ export function ModuleView() {
   }, [id, selectedCohortId, user?.is_staff])
 
   if (loading) return <LoadingSpinner message="Loading module..." />
-  if (!mod) return <div className="text-center text-slate-500 py-12">{!user?.is_staff && !selectedCohortId ? 'Choose a cohort to view this module.' : 'Module not found or unavailable in this cohort.'}</div>
+  if (!mod) return <EmptyState icon={BookOpen} title={!user?.is_staff && !selectedCohortId ? 'Choose a cohort to view this module.' : 'Module not found or unavailable in this cohort.'} action={<LinkButton to="/materials" variant="secondary"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Back to Learn</LinkButton>} />
 
   const cohortQuery = selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''
 
@@ -120,14 +122,14 @@ export function ModuleView() {
     <div className="app-page max-w-5xl">
       {/* Header */}
       <div>
-        <Link to="/materials" className="mb-4 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900">
-          <ArrowLeft className="h-4 w-4" />
+        <Link to="/materials" className="mb-4 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-slate-200/70">
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Back to Learn
         </Link>
-        <div className="relative overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_16px_50px_rgba(15,23,42,0.05)] before:absolute before:inset-y-0 before:left-0 before:w-1.5 before:bg-primary-600">
+        <div className="app-surface p-6">
           <p className="app-eyebrow">Learning path</p>
-          <h1 className="app-title mt-2">{mod.name}</h1>
-          {mod.description && <p className="mt-2 text-slate-500">{mod.description}</p>}
+          <h1 className="app-title mt-2 [overflow-wrap:anywhere]">{mod.name}</h1>
+          {mod.description && <p className="mt-2 text-ink-secondary">{mod.description}</p>}
           <div className="mt-4">
             <ProgressBar value={progressValue} max={progressMax} label="Progress" />
           </div>
@@ -150,7 +152,7 @@ export function ModuleView() {
 
             return (
               <div key={weekNum}>
-                <h2 className="text-lg font-bold text-slate-900 mb-4">Week {weekNum}</h2>
+                <h2 className="mb-4 text-lg font-bold tabular-nums text-ink">Week {weekNum}</h2>
                 <div className="space-y-5">
                   {dayIndices.map((dayIdx) => {
                     const lessons = dayGroups[dayIdx]
@@ -159,7 +161,7 @@ export function ModuleView() {
 
                     return (
                       <div key={dayIdx}>
-                        <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                        <h3 className="mb-3 text-sm font-semibold text-ink-muted">
                           {DAY_NAMES[dayIdx] || `Day ${dayIdx}`}
                         </h3>
                         <div className="space-y-2">
@@ -181,25 +183,25 @@ export function ModuleView() {
                               <Link
                                 key={lesson.id}
                                 to={`/lessons/${lesson.id}${cohortQuery}`}
-                                className="group flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition duration-200 hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-md hover:shadow-slate-900/5 sm:items-center"
+                                className="pressable group flex items-start gap-3 rounded-2xl border border-line bg-surface-raised p-4 hover:border-line-strong hover:bg-surface-sunken sm:items-center"
                               >
-                                <div className={`shrink-0 ${isDone ? 'text-success-700' : 'text-slate-400'}`}>
+                                <div className={`shrink-0 ${isDone ? 'text-success-700' : 'text-ink-muted'}`}>
                                   {isDone ? <CheckCircle2 className="h-5 w-5" /> : lessonTypeIcons[lesson.lesson_type] || <FileText className="h-5 w-5" />}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className={`text-sm font-medium ${isDone ? 'text-slate-600' : 'text-slate-900'}`}>
+                                  <p className={`text-sm font-medium ${isDone ? 'text-ink-secondary' : 'text-ink'}`}>
                                     {lesson.title}
                                   </p>
                                   <div className="mt-0.5 flex flex-wrap items-center gap-2">
-                                    <span className="text-xs text-slate-400 capitalize">{lesson.lesson_type}</span>
-                                    <span className="text-xs text-slate-500">· {blockCount} {blockCount === 1 ? 'block' : 'blocks'}</span>
+                                    <span className="text-xs capitalize text-ink-muted">{lesson.lesson_type}</span>
+                                    <span className="text-xs tabular-nums text-ink-secondary">· {blockCount} {blockCount === 1 ? 'block' : 'blocks'}</span>
                                     {isPartial && status === 'in_progress' && (
-                                      <span className="text-xs font-medium text-slate-600">
+                                      <span className="text-xs font-medium tabular-nums text-ink-secondary">
                                         · {lessonProgress?.completedBlocks}/{lessonProgress?.totalBlocks} done
                                       </span>
                                     )}
                                     {submissionWindow?.submissions_close_at && (
-                                      <span className="text-xs font-medium text-slate-500">
+                                      <span className="text-xs font-medium tabular-nums text-ink-secondary">
                                         · {submissionWindow.submissions_closed ? 'submissions closed' : 'submissions close'} {formatShortDateTime(submissionWindow.submissions_close_at)}
                                       </span>
                                     )}

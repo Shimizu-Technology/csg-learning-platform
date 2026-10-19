@@ -8,6 +8,9 @@ import { useCohortContext } from '../../contexts/CohortContext'
 import { useToast } from '../../contexts/ToastContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
+import { EmptyState } from '../../components/shared/EmptyState'
+import { Badge } from '../../components/ui/Badge'
+import { Button } from '../../components/ui/Button'
 import type { Announcement, CohortSummary, PaginationMeta } from '../../types/api'
 
 type AnnouncementAudience = 'cohort' | 'global' | 'staff'
@@ -281,10 +284,14 @@ export function Announcements() {
 
   if (loading) return <LoadingSpinner message="Loading announcements..." />
 
+  const clearFilters = () => updateQuery(manageMode
+    ? { audience: null, cohort_id: null, status: 'published', sort: 'published_desc', page: '1' }
+    : { read: null, sort: 'published_desc', page: '1' })
+
   return (
     <div className="app-page">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
+        <div className="min-w-0">
           <p className="app-eyebrow">Communication</p>
           <h1 className="app-title mt-2">{manageMode ? 'Announcement studio' : 'Updates'}</h1>
           <p className="app-description mt-2">
@@ -295,44 +302,42 @@ export function Announcements() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {isStaff && (
-            <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1">
+            <div className="inline-flex rounded-xl border border-line bg-surface-raised p-1" role="group" aria-label="Announcements view">
               <button
+                type="button"
+                aria-pressed={!manageMode}
                 onClick={() => updateQuery({ scope: null, status: null, audience: null, cohort_id: null, page: '1' })}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${!manageMode ? 'bg-primary-50 text-primary-700' : 'text-slate-600 hover:text-slate-900'}`}
+                className={`min-h-9 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors duration-150 active:bg-slate-200/70 ${!manageMode ? 'bg-slate-100 text-ink' : 'text-ink-secondary hover:text-ink'}`}
               >
                 Inbox
               </button>
               <button
+                type="button"
+                aria-pressed={manageMode}
                 onClick={() => updateQuery({ scope: 'manage', status: statusFilter === 'all' ? 'published' : statusFilter, page: '1' })}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${manageMode ? 'bg-primary-50 text-primary-700' : 'text-slate-600 hover:text-slate-900'}`}
+                className={`min-h-9 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors duration-150 active:bg-slate-200/70 ${manageMode ? 'bg-slate-100 text-ink' : 'text-ink-secondary hover:text-ink'}`}
               >
                 Manage
               </button>
             </div>
           )}
           {unreadCount > 0 && (
-            <button
-              onClick={handleMarkAllRead}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              <Check className="h-4 w-4" />
+            <Button variant="secondary" onClick={handleMarkAllRead}>
+              <Check className="h-4 w-4" aria-hidden="true" />
               Mark all read
-            </button>
+            </Button>
           )}
           {!manageMode && pushSupported() && (
-            <button
-              onClick={handleTogglePush}
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
-            >
-              <Bell className="h-4 w-4" />
+            <Button variant="secondary" onClick={handleTogglePush}>
+              <Bell className="h-4 w-4" aria-hidden="true" />
               {pushEnabled ? 'Turn off browser alerts' : 'Turn on browser alerts'}
-            </button>
+            </Button>
           )}
         </div>
       </div>
 
       {pushMessage && (
-        <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+        <div role="status" className="rounded-xl border border-info-200 bg-info-50 px-4 py-3 text-sm text-info-800">
           {pushMessage}
         </div>
       )}
@@ -340,8 +345,8 @@ export function Announcements() {
       {manageMode && (
         <form onSubmit={handleCreate} className="app-surface space-y-4 p-5 sm:p-6">
           <div className="flex items-center gap-2">
-            <Megaphone className="h-5 w-5 text-primary-500" />
-            <h2 className="font-semibold text-slate-900">Post an announcement</h2>
+            <Megaphone className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
+            <h2 className="font-semibold text-ink">Post an announcement</h2>
           </div>
           <div className="grid gap-3 md:grid-cols-[1fr_180px_220px]">
             <input
@@ -349,12 +354,12 @@ export function Announcements() {
               onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
               placeholder="Title"
               required
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+              className="app-control"
             />
             <select
               value={form.audience}
               onChange={(event) => setForm((prev) => ({ ...prev, audience: event.target.value }))}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+              className="app-control"
             >
               <option value="cohort">Cohort</option>
               <option value="global">Everyone</option>
@@ -365,7 +370,7 @@ export function Announcements() {
               onChange={(event) => setForm((prev) => ({ ...prev, cohort_id: event.target.value }))}
               disabled={form.audience !== 'cohort'}
               required={form.audience === 'cohort'}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus disabled:bg-slate-50 disabled:text-slate-400"
+              className="app-control"
             >
               {cohorts.map((cohort) => (
                 <option key={cohort.id} value={cohort.id}>{cohort.name}</option>
@@ -378,51 +383,47 @@ export function Announcements() {
             placeholder="What should students know?"
             required
             rows={4}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+            className="app-control w-full"
           />
           {formError && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <div role="alert" className="rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700">
               {formError}
             </div>
           )}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap gap-4 text-sm text-slate-600">
-              <label className="flex items-center gap-2">
+            <div className="flex flex-wrap gap-4 text-sm text-ink-secondary">
+              <label className="flex min-h-11 items-center gap-2">
                 <input
                   type="checkbox"
                   checked={form.pinned}
                   onChange={(event) => setForm((prev) => ({ ...prev, pinned: event.target.checked }))}
-                  className="rounded border-slate-300 text-primary-600 focus:ring-focus"
+                  className="h-4 w-4 rounded border-line-strong accent-slate-900"
                 />
                 Pin this
               </label>
-              <label className="flex items-center gap-2">
+              <label className="flex min-h-11 items-center gap-2">
                 <input
                   type="checkbox"
                   checked={form.send_push}
                   onChange={(event) => setForm((prev) => ({ ...prev, send_push: event.target.checked }))}
-                  className="rounded border-slate-300 text-primary-600 focus:ring-focus"
+                  className="h-4 w-4 rounded border-line-strong accent-slate-900"
                 />
                 Send push
               </label>
             </div>
-            <button
-              type="submit"
-              disabled={saving}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
-            >
-              <Send className="h-4 w-4" />
+            <Button type="submit" disabled={saving}>
+              <Send className="h-4 w-4" aria-hidden="true" />
               {saving ? 'Posting...' : 'Post announcement'}
-            </button>
+            </Button>
           </div>
         </form>
       )}
 
-      <div className="rounded-lg border border-slate-200 bg-white p-4">
+      <div className="app-surface p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-1">
-            <h2 className="font-semibold text-slate-900">{manageMode ? 'Announcement history' : 'Your feed'}</h2>
-            <p className="text-sm text-slate-500">
+            <h2 className="font-semibold text-ink">{manageMode ? 'Announcement history' : 'Your feed'}</h2>
+            <p className="text-sm text-ink-secondary">
               {manageMode
                 ? 'Filter by audience, cohort, status, and sort order.'
                 : 'Unread updates stay highlighted here until you read them.'}
@@ -434,7 +435,7 @@ export function Announcements() {
                 <select
                   value={audienceFilter}
                   onChange={(event) => updateQuery({ audience: event.target.value, cohort_id: event.target.value === 'cohort' ? cohortFilter : null, page: '1' })}
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                  className="app-control"
                 >
                   <option value="all">All audiences</option>
                   <option value="cohort">Cohorts</option>
@@ -445,7 +446,7 @@ export function Announcements() {
                   value={cohortFilter}
                   onChange={(event) => updateCohortFilter(event.target.value)}
                   disabled={audienceFilter !== 'cohort'}
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus disabled:bg-slate-50 disabled:text-slate-400"
+                  className="app-control"
                 >
                   <option value="all">All cohorts</option>
                   {cohorts.map((cohort) => (
@@ -455,7 +456,7 @@ export function Announcements() {
                 <select
                   value={statusFilter}
                   onChange={(event) => updateQuery({ status: event.target.value, page: '1' })}
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                  className="app-control"
                 >
                   <option value="published">Published</option>
                   <option value="draft">Drafts</option>
@@ -467,7 +468,7 @@ export function Announcements() {
               <select
                 value={readFilter}
                 onChange={(event) => updateQuery({ read: event.target.value, page: '1' })}
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                className="app-control"
               >
                 <option value="all">All updates</option>
                 <option value="unread">Unread only</option>
@@ -477,7 +478,7 @@ export function Announcements() {
             <select
               value={sortFilter}
               onChange={(event) => updateQuery({ sort: event.target.value, page: '1' })}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+              className="app-control"
             >
               <option value="published_desc">Newest published</option>
               <option value="published_asc">Oldest published</option>
@@ -486,14 +487,9 @@ export function Announcements() {
               <option value="updated_desc">Recently updated</option>
               <option value="updated_asc">Least recently updated</option>
             </select>
-            <button
-              onClick={() => updateQuery(manageMode
-                ? { audience: null, cohort_id: null, status: 'published', sort: 'published_desc', page: '1' }
-                : { read: null, sort: 'published_desc', page: '1' })}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-            >
+            <Button variant="quiet" onClick={clearFilters}>
               Clear filters
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -501,8 +497,8 @@ export function Announcements() {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-3">
           {announcements.length === 0 ? (
-            <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
-              No announcements match these filters.
+            <div className="app-surface">
+              <EmptyState icon={Megaphone} title="No announcements match these filters." action={<Button variant="secondary" onClick={clearFilters}>Clear filters</Button>} />
             </div>
           ) : announcements.map((announcement) => {
             const detailPath = `/announcements/${announcement.id}${location.search}`
@@ -512,104 +508,87 @@ export function Announcements() {
             return (
               <article
                 key={announcement.id}
-                className={`rounded-lg border bg-white p-4 transition-colors ${isSelected ? 'border-primary-300 shadow-sm' : announcement.read_at ? 'border-slate-200' : 'border-primary-200'}`}
+                className={`rounded-2xl border bg-surface-raised p-4 transition-colors duration-150 ${isSelected ? 'border-slate-400 shadow-raised' : announcement.read_at ? 'border-line' : 'border-line-strong shadow-raised'}`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Link to={detailPath} className="font-semibold text-slate-900 hover:text-primary-700">
+                      <Link to={detailPath} className="min-w-0 font-semibold text-ink underline-offset-4 transition-colors duration-150 [overflow-wrap:anywhere] hover:underline">
                         {announcement.title}
                       </Link>
                       {announcement.pinned && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700">
-                          <Pin className="h-3 w-3" />
-                          Pinned
-                        </span>
+                        <Badge icon={<Pin className="h-3 w-3" aria-hidden="true" />}>Pinned</Badge>
                       )}
                       {!announcement.read_at && !manageMode && (
-                        <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs font-medium text-white">Unread</span>
+                        <Badge tone="info">Unread</Badge>
                       )}
                       {announcement.status && announcement.status !== 'published' && (
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium capitalize text-slate-600">
-                          {announcement.status}
-                        </span>
+                        <Badge tone={announcement.status === 'draft' ? 'pending' : 'neutral'} className="capitalize">{announcement.status}</Badge>
                       )}
                     </div>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 text-xs tabular-nums text-ink-secondary">
                       {announcement.author?.full_name || 'Unknown author'} · {audienceLabel(announcement)} · {formatDate(announcement.published_at)}
                     </p>
                   </div>
                   {manageMode && announcement.status !== 'archived' && (
-                    <button
-                      onClick={() => handleArchive(announcement)}
-                      disabled={isArchiving}
-                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
+                    <Button variant="secondary" size="sm" onClick={() => handleArchive(announcement)} disabled={isArchiving}>
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                       {isArchiving ? 'Archiving...' : 'Archive'}
-                    </button>
+                    </Button>
                   )}
                 </div>
-                <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">{announcement.body}</p>
+                <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]">{announcement.body}</p>
               </article>
             )
           })}
 
           {pagination.total_pages > 1 && (
-            <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-slate-500">
+            <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface-raised px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm tabular-nums text-ink-secondary">
                 Showing page {pagination.page} of {pagination.total_pages} · {pagination.total_count} total announcement{pagination.total_count === 1 ? '' : 's'}
               </p>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => updateQuery({ page: String(Math.max(1, pagination.page - 1)) })}
-                  disabled={!pagination.has_prev_page}
-                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                >
-                  <ChevronLeft className="h-4 w-4" />
+                <Button variant="secondary" size="sm" onClick={() => updateQuery({ page: String(Math.max(1, pagination.page - 1)) })} disabled={!pagination.has_prev_page}>
+                  <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                   Previous
-                </button>
-                <button
-                  onClick={() => updateQuery({ page: String(pagination.page + 1) })}
-                  disabled={!pagination.has_next_page}
-                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                >
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => updateQuery({ page: String(pagination.page + 1) })} disabled={!pagination.has_next_page}>
                   Next
-                  <ChevronRight className="h-4 w-4" />
-                </button>
+                  <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                </Button>
               </div>
             </div>
           )}
         </div>
 
-        <aside className="rounded-lg border border-slate-200 bg-white p-4 lg:sticky lg:top-6 lg:self-start">
-          <h2 className="font-semibold text-slate-900">{selected ? selected.title : manageMode ? 'Announcement details' : 'Inbox status'}</h2>
+        <aside className="app-surface p-4 lg:sticky lg:top-6 lg:self-start">
+          <h2 className="font-semibold text-ink [overflow-wrap:anywhere]">{selected ? selected.title : manageMode ? 'Announcement details' : 'Inbox status'}</h2>
           {selected ? (
-            <div className="mt-3 space-y-3 text-sm text-slate-600">
-              <div className="rounded-lg bg-slate-50 px-3 py-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">From</p>
-                <p className="mt-1 text-slate-900">{selected.author?.full_name || 'Unknown author'}</p>
+            <div className="mt-3 space-y-3 text-sm text-ink-secondary">
+              <div className="rounded-xl bg-surface-sunken px-3 py-2">
+                <p className="text-xs font-semibold text-ink-muted">From</p>
+                <p className="mt-1 tabular-nums text-ink [overflow-wrap:anywhere]">{selected.author?.full_name || 'Unknown author'}</p>
               </div>
-              <div className="rounded-lg bg-slate-50 px-3 py-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Audience</p>
-                <p className="mt-1 text-slate-900">{audienceLabel(selected)}</p>
+              <div className="rounded-xl bg-surface-sunken px-3 py-2">
+                <p className="text-xs font-semibold text-ink-muted">Audience</p>
+                <p className="mt-1 tabular-nums text-ink [overflow-wrap:anywhere]">{audienceLabel(selected)}</p>
               </div>
-              <div className="rounded-lg bg-slate-50 px-3 py-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Published</p>
-                <p className="mt-1 text-slate-900">{formatDate(selected.published_at)}</p>
+              <div className="rounded-xl bg-surface-sunken px-3 py-2">
+                <p className="text-xs font-semibold text-ink-muted">Published</p>
+                <p className="mt-1 tabular-nums text-ink [overflow-wrap:anywhere]">{formatDate(selected.published_at)}</p>
               </div>
               {selected.updated_at && selected.updated_at !== selected.created_at && (
-                <div className="rounded-lg bg-slate-50 px-3 py-2">
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Updated</p>
-                  <p className="mt-1 text-slate-900">{formatDate(selected.updated_at)}</p>
+                <div className="rounded-xl bg-surface-sunken px-3 py-2">
+                  <p className="text-xs font-semibold text-ink-muted">Updated</p>
+                  <p className="mt-1 tabular-nums text-ink [overflow-wrap:anywhere]">{formatDate(selected.updated_at)}</p>
                 </div>
               )}
             </div>
           ) : (
-            <div className="mt-3 space-y-3 text-sm text-slate-600">
-              <div className="rounded-lg bg-slate-50 px-3 py-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{manageMode ? 'Queue' : 'Unread'}</p>
-                <p className="mt-1 text-slate-900">
+            <div className="mt-3 space-y-3 text-sm text-ink-secondary">
+              <div className="rounded-xl bg-surface-sunken px-3 py-2">
+                <p className="text-xs font-semibold text-ink-muted">{manageMode ? 'Queue' : 'Unread'}</p>
+                <p className="mt-1 tabular-nums text-ink [overflow-wrap:anywhere]">
                   {manageMode
                     ? `${pagination.total_count} announcement${pagination.total_count === 1 ? '' : 's'} match the current filters.`
                     : unreadCount > 0
@@ -617,9 +596,9 @@ export function Announcements() {
                       : 'You are caught up.'}
                 </p>
               </div>
-              <div className="rounded-lg bg-primary-50 px-3 py-2 text-primary-800">
+              <div className="rounded-xl border border-info-200 bg-info-50 px-3 py-2 text-info-800">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4" />
+                  <Sparkles className="h-4 w-4 shrink-0" aria-hidden="true" />
                   <p className="font-medium">{manageMode ? 'Management tip' : 'Dashboard behavior'}</p>
                 </div>
                 <p className="mt-2 text-sm leading-6">

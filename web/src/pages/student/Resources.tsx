@@ -6,20 +6,21 @@ import { useCohortContext } from '../../contexts/CohortContext'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
-import { IconButton } from '../../components/ui/Button'
+import { Button, IconButton } from '../../components/ui/Button'
+import { Badge } from '../../components/ui/Badge'
 import type { ResourceEntry } from '../../types/api'
 import { downloadCourseResource } from '../../lib/downloadCourseResource'
 
 type ResourceItem = ResourceEntry
 
-const categoryConfig: Record<string, { label: string; icon: typeof Globe; color: string }> = {
-  meeting: { label: 'Meeting', icon: Video, color: 'bg-blue-50 text-blue-700 border-blue-200' },
-  github: { label: 'GitHub', icon: Github, color: 'bg-slate-50 text-slate-700 border-slate-200' },
-  communication: { label: 'Communication', icon: MessageSquare, color: 'bg-green-50 text-green-700 border-green-200' },
-  documentation: { label: 'Docs', icon: FileText, color: 'bg-amber-50 text-amber-700 border-amber-200' },
-  hotkeys: { label: 'Hotkeys', icon: Keyboard, color: 'bg-primary-50 text-primary-700 border-primary-200' },
-  shortcuts: { label: 'Hotkeys', icon: Keyboard, color: 'bg-primary-50 text-primary-700 border-primary-200' },
-  general: { label: 'General', icon: Globe, color: 'bg-slate-50 text-slate-600 border-slate-200' },
+const categoryConfig: Record<string, { label: string; icon: typeof Globe }> = {
+  meeting: { label: 'Meeting', icon: Video },
+  github: { label: 'GitHub', icon: Github },
+  communication: { label: 'Communication', icon: MessageSquare },
+  documentation: { label: 'Docs', icon: FileText },
+  hotkeys: { label: 'Hotkeys', icon: Keyboard },
+  shortcuts: { label: 'Hotkeys', icon: Keyboard },
+  general: { label: 'General', icon: Globe },
 }
 
 export function Resources() {
@@ -97,14 +98,10 @@ export function Resources() {
         title="Could not load resources"
         description={loadError}
         action={
-          <button
-            type="button"
-            onClick={loadResources}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-600"
-          >
-            <RefreshCw className="h-4 w-4" />
+          <Button onClick={loadResources}>
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
             Try again
-          </button>
+          </Button>
         }
       /></div>
     )
@@ -116,6 +113,7 @@ export function Resources() {
         icon={Link2}
         title="No resources yet"
         description="Class resources will appear here once your instructor adds them."
+        action={<Link to="/dashboard" className="app-link inline-flex min-h-11 items-center gap-1"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Back to Dashboard</Link>}
       /></div>
     )
   }
@@ -123,13 +121,13 @@ export function Resources() {
   return (
     <div className="app-page max-w-5xl">
       {showingSavedData && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="rounded-2xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-800">
           Showing saved resources while your connection catches up.
         </div>
       )}
       <header>
-        <Link to="/dashboard" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900">
-          <ArrowLeft className="h-4 w-4" />
+        <Link to="/dashboard" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-slate-200/70">
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Back to Dashboard
         </Link>
         <p className="app-eyebrow">Your class library</p>
@@ -139,7 +137,7 @@ export function Resources() {
 
       {resources.length > 4 && (
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" aria-hidden="true" />
           <input
             type="text"
             value={query}
@@ -152,10 +150,10 @@ export function Resources() {
       )}
 
       {grouped.hotkeys.length > 0 && (
-        <section className="rounded-2xl border border-primary-200 bg-primary-50/50 p-4">
+        <section className="rounded-2xl border border-line bg-surface-sunken p-4">
           <div className="mb-3 flex items-center gap-2">
-            <Keyboard className="h-4 w-4 text-primary-600" />
-            <h2 className="text-sm font-semibold text-slate-900">Hotkeys and shortcuts</h2>
+            <Keyboard className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
+            <h2 className="text-sm font-semibold text-ink">Hotkeys and shortcuts</h2>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {grouped.hotkeys.map((resource) => (
@@ -189,30 +187,31 @@ function HotkeyCard({
   onCopy: () => void
 }) {
   return (
-    <div className="rounded-2xl border border-primary-200 bg-white p-4">
+    <div className="app-surface p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <Keyboard className="h-4 w-4 text-primary-600" />
-            <h2 className="text-sm font-semibold text-slate-900">{resource.title}</h2>
+            <Keyboard className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
+            <h2 className="min-w-0 text-sm font-semibold text-ink [overflow-wrap:anywhere]">{resource.title}</h2>
           </div>
           {resource.description && (
-            <p className="mt-2 text-sm leading-6 text-slate-600">{resource.description}</p>
+            <p className="mt-2 text-sm leading-6 text-ink-secondary">{resource.description}</p>
           )}
-          <p className="mt-2 break-all text-xs text-slate-400">{resource.url}</p>
+          <p className="mt-2 break-all text-xs text-ink-muted">{resource.url}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <IconButton label="Copy shortcut link" onClick={onCopy} className="text-slate-400 hover:text-primary-600">
-            {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+          <IconButton label="Copy shortcut link" onClick={onCopy}>
+            {copied ? <Check className="h-4 w-4 text-success-700" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
           </IconButton>
           <a
             href={sanitizeUrl(resource.url)}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-primary-50 hover:text-primary-600"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-slate-200/70"
             aria-label="Open shortcut resource"
+            title="Open shortcut resource"
           >
-            <ExternalLink className="h-4 w-4" />
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
           </a>
         </div>
       </div>
@@ -231,10 +230,10 @@ function ResourceCard({ resource, compact = false }: { resource: ResourceItem; c
             } catch (cause) { setError(cause instanceof Error ? cause.message : 'Download failed.') }
             finally { setDownloading(false) }
           }
-          if (resource.download_id) return <div className="rounded-2xl border border-slate-200 bg-white p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-sm font-semibold text-slate-900">{resource.title}</h2><p className="mt-1 break-all text-sm text-slate-600">{resource.filename}</p></div>
-              <button type="button" disabled={downloading} onClick={() => void download()} className="min-h-11 rounded-xl bg-primary-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{downloading ? 'Preparing download…' : 'Download ZIP'}</button></div>
-            {error && <p role="alert" className="mt-2 text-sm text-red-700">{error}</p>}
+          if (resource.download_id) return <div className="app-surface p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><h2 className="text-sm font-semibold text-ink [overflow-wrap:anywhere]">{resource.title}</h2><p className="mt-1 break-all text-sm text-ink-secondary">{resource.filename}</p></div>
+              <Button variant="secondary" disabled={downloading} onClick={() => void download()}>{downloading ? 'Preparing download…' : 'Download ZIP'}</Button></div>
+            {error && <p role="alert" className="mt-2 text-sm text-danger-700">{error}</p>}
           </div>
           const cat = categoryConfig[resource.category] || categoryConfig.general
           const Icon = cat.icon
@@ -243,25 +242,23 @@ function ResourceCard({ resource, compact = false }: { resource: ResourceItem; c
               href={sanitizeUrl(resource.url)}
               target="_blank"
               rel="noopener noreferrer"
-      className={`block rounded-2xl border border-slate-200 bg-white ${compact ? 'p-4' : 'p-5'} transition-all hover:border-primary-200 hover:shadow-sm`}
+      className={`pressable block rounded-2xl border border-line bg-surface-raised shadow-raised ${compact ? 'p-4' : 'p-5'} hover:border-line-strong hover:bg-surface-sunken`}
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3 min-w-0">
-                  <Icon className="h-5 w-5 text-primary-500 shrink-0 mt-0.5" />
+                  <Icon className="mt-0.5 h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h2 className="text-sm font-semibold text-slate-900">{resource.title}</h2>
-                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${cat.color}`}>
-                        {cat.label}
-                      </span>
+                      <h2 className="min-w-0 text-sm font-semibold text-ink [overflow-wrap:anywhere]">{resource.title}</h2>
+                      <Badge>{cat.label}</Badge>
                     </div>
                     {resource.description && (
-                      <p className="mt-1 text-sm text-slate-600">{resource.description}</p>
+                      <p className="mt-1 text-sm text-ink-secondary">{resource.description}</p>
                     )}
-                    <p className="mt-1 text-xs text-slate-400 break-all">{resource.url}</p>
+                    <p className="mt-1 break-all text-xs text-ink-muted">{resource.url}</p>
                   </div>
                 </div>
-                <ExternalLink className="h-4 w-4 text-slate-400 shrink-0 mt-1" />
+                <ExternalLink className="mt-1 h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
               </div>
             </a>
           )

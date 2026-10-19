@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { ArrowLeft, GraduationCap, Mail, ShieldCheck } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { AnchorButton } from '../components/ui/Button'
 
 const updatedAt = 'August 17, 2026'
 const privacyEmail = 'shimizutechnology@gmail.com'
@@ -10,31 +11,31 @@ function LegalShell({ eyebrow, title, intro, children }: { eyebrow: string; titl
     <main className="min-h-screen bg-[#f7f4ef] px-4 py-8 text-slate-950 sm:px-6 lg:py-14">
       <div className="mx-auto max-w-4xl">
         <nav className="flex flex-wrap items-center justify-between gap-3" aria-label="Legal navigation">
-          <Link to="/" className="inline-flex min-h-11 items-center gap-2 rounded-xl px-2 text-sm font-extrabold text-slate-800 transition hover:bg-white/70">
-            <ArrowLeft className="h-4 w-4" />CSG Learning
+          <Link to="/" className="inline-flex min-h-11 items-center gap-2 rounded-xl px-2 text-sm font-bold text-ink transition-colors duration-150 hover:bg-white/70 active:bg-white">
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />CSG Learning
           </Link>
-          <div className="flex flex-wrap gap-1 text-xs font-bold text-slate-600">
-            <Link className="min-h-11 rounded-xl px-3 py-3 hover:bg-white/70 hover:text-primary-700" to="/privacy">Privacy</Link>
-            <Link className="min-h-11 rounded-xl px-3 py-3 hover:bg-white/70 hover:text-primary-700" to="/terms">Terms</Link>
-            <Link className="min-h-11 rounded-xl px-3 py-3 hover:bg-white/70 hover:text-primary-700" to="/account-deletion">Delete account</Link>
+          <div className="flex flex-wrap gap-1 text-xs font-semibold text-ink-secondary">
+            <Link className="min-h-11 rounded-xl px-3 py-3 transition-colors duration-150 hover:bg-white/70 hover:text-ink active:bg-white" to="/privacy">Privacy</Link>
+            <Link className="min-h-11 rounded-xl px-3 py-3 transition-colors duration-150 hover:bg-white/70 hover:text-ink active:bg-white" to="/terms">Terms</Link>
+            <Link className="min-h-11 rounded-xl px-3 py-3 transition-colors duration-150 hover:bg-white/70 hover:text-ink active:bg-white" to="/account-deletion">Delete account</Link>
           </div>
         </nav>
 
         <article className="mt-8 overflow-hidden rounded-[2rem] border border-[#d8d1c4] bg-white shadow-[0_24px_80px_rgba(71,55,42,0.09)]">
           <header className="border-b border-slate-200 bg-[#17191f] px-6 py-10 text-white sm:px-10 sm:py-12">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-600"><GraduationCap className="h-6 w-6" /></div>
-            <p className="mt-7 text-xs font-extrabold uppercase tracking-[0.2em] text-primary-300">{eyebrow}</p>
-            <h1 className="mt-3 text-4xl font-extrabold tracking-[-0.045em] sm:text-5xl">{title}</h1>
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-600"><GraduationCap className="h-6 w-6" aria-hidden="true" /></div>
+            <p className="mt-7 text-xs font-semibold uppercase tracking-[0.08em] text-slate-300">{eyebrow}</p>
+            <h1 className="mt-3 text-3xl font-bold tracking-[-0.03em] sm:text-4xl">{title}</h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300">{intro}</p>
-            <p className="mt-5 text-xs font-bold text-white/55">Effective and last updated {updatedAt}</p>
+            <p className="mt-5 text-xs font-semibold tabular-nums text-white/70">Effective and last updated {updatedAt}</p>
           </header>
-          <div className="prose prose-slate max-w-none px-6 py-9 prose-headings:font-extrabold prose-headings:tracking-tight prose-a:text-primary-700 sm:px-10 sm:py-12">
+          <div className="prose prose-slate max-w-none px-6 py-9 prose-headings:font-bold prose-headings:tracking-tight prose-a:text-ruby-700 sm:px-10 sm:py-12">
             {children}
           </div>
         </article>
 
-        <footer className="mt-6 flex items-center gap-3 rounded-2xl border border-[#d8d1c4] bg-white/75 p-4 text-sm text-slate-600">
-          <ShieldCheck className="h-5 w-5 shrink-0 text-primary-700" />
+        <footer className="mt-6 flex items-center gap-3 rounded-2xl border border-[#d8d1c4] bg-white/75 p-4 text-sm text-ink-secondary">
+          <ShieldCheck className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
           <span>Shimizu Technology operates CSG Connect for Code School of Guam.</span>
         </footer>
       </div>
@@ -117,7 +118,7 @@ export function AccountDeletionPage() {
 
       <h2>Request by email</h2>
       <p>Email us from the address connected to your CSG account. Include the full name and email address on the account. Do not send a password, sign-in code, government ID, or other unnecessary sensitive information.</p>
-      <p><a className="not-prose inline-flex min-h-12 items-center gap-2 rounded-xl bg-primary-700 px-5 py-3 text-sm font-extrabold text-white no-underline hover:bg-primary-800" href={`mailto:${privacyEmail}?subject=CSG%20Connect%20account%20deletion%20request`}><Mail className="h-4 w-4" />Email a deletion request</a></p>
+      <p><AnchorButton variant="primary" size="lg" className="not-prose no-underline" href={`mailto:${privacyEmail}?subject=CSG%20Connect%20account%20deletion%20request`}><Mail className="h-4 w-4" aria-hidden="true" />Email a deletion request</AnchorButton></p>
 
       <h2>What happens next</h2>
       <p>We will verify account ownership, confirm the scope, and process the request. Personal data associated with the account will be deleted unless a limited record must be retained for academic records, security, fraud prevention, dispute resolution, safeguarding, or another legal obligation. If retention is required, we will explain the category and reason.</p>
