@@ -38,6 +38,7 @@ import {
   ListOrdered,
   Lock,
   MessageCircle,
+  MonitorSmartphone,
   MoreHorizontal,
   Paperclip,
   PanelLeftClose,
@@ -85,6 +86,8 @@ import { useAuthContext } from '../../contexts/AuthContext'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { useToast } from '../../contexts/ToastContext'
 import { MessagesLoadingShell } from '../../components/shared/MessagesLoadingShell'
+import { Avatar } from '../../components/ui/Avatar'
+import { AnchorButton, Button, IconButton } from '../../components/ui/Button'
 import { Modal } from '../../components/shared/Modal'
 import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
 import { helpRequestPath, submissionPath } from '../../lib/routes'
@@ -183,6 +186,38 @@ export function restoreFailedSends(snapshot: ConversationViewSnapshot, failures:
 
 function targetMatches(left: Target | null, right: Target) {
   return left?.type === right.type && left.id === right.id
+}
+
+/**
+ * Message ids that arrived while a conversation was open (a realtime message
+ * or the learner's own send). Only these get the enter animation: the initial
+ * history, cached views, older/newer pagination, and conversation switches are
+ * never recorded, so they render in place without motion.
+ */
+export interface MessageArrivals {
+  conversationKey: string | null
+  ids: ReadonlySet<number>
+}
+
+export function createMessageArrivals(conversationKey: string | null = null): MessageArrivals {
+  return { conversationKey, ids: new Set() }
+}
+
+export function recordMessageArrival(arrivals: MessageArrivals, conversationKey: string, messageId: number): MessageArrivals {
+  const ids = new Set(arrivals.conversationKey === conversationKey ? arrivals.ids : [])
+  ids.add(messageId)
+  return { conversationKey, ids }
+}
+
+export function forgetMessageArrival(arrivals: MessageArrivals, messageId: number): MessageArrivals {
+  if (!arrivals.ids.has(messageId)) return arrivals
+  const ids = new Set(arrivals.ids)
+  ids.delete(messageId)
+  return { conversationKey: arrivals.conversationKey, ids }
+}
+
+export function messageShouldAnimateEntry(arrivals: MessageArrivals, conversationKey: string | null, messageId: number) {
+  return conversationKey !== null && arrivals.conversationKey === conversationKey && arrivals.ids.has(messageId)
 }
 
 function messageBelongsToTarget(message: ChannelMessage, target: Target) {
@@ -645,7 +680,7 @@ function renderTextWithMentions(text: string, patterns: MentionPattern[]) {
         className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
           match.kind === 'channel'
             ? 'bg-amber-100 text-amber-800'
-            : 'bg-sky-100 text-sky-800'
+            : 'bg-info-100 text-info-800'
         }`}
       >
         {match.text}
@@ -704,7 +739,7 @@ function renderLinkNode(text: ReactNode, href: string, key: string) {
       href={normalizedHref}
       target="_blank"
       rel="noopener noreferrer"
-      className="font-medium text-primary-700 underline decoration-primary-300 underline-offset-2 transition-colors hover:text-primary-800 hover:decoration-primary-500"
+      className="font-medium text-ruby-700 underline decoration-ruby-300 underline-offset-2 transition-colors hover:text-ruby-800 hover:decoration-ruby-600"
     >
       {text}
     </a>
@@ -758,7 +793,7 @@ export function ComposerToolbarButton({
         onMouseLeave={hideTooltip}
         onFocus={showTooltip}
         onBlur={hideTooltip}
-        className={`relative min-h-11 min-w-11 shrink-0 rounded-xl p-2 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:min-h-9 sm:min-w-9 ${
+        className={`pressable relative min-h-11 min-w-11 shrink-0 rounded-xl p-2 hover:bg-slate-100 hover:text-ink active:bg-slate-200/70 sm:min-h-9 sm:min-w-9 ${
           active ? 'bg-slate-100 text-slate-900' : ''
         } ${className}`}
         aria-label={shortcut ? `${label} (${shortcut})` : label}
@@ -769,7 +804,7 @@ export function ComposerToolbarButton({
       </button>
       {tooltipPosition && typeof document !== 'undefined' && createPortal(
         <div
-          className="pointer-events-none fixed z-[9999] -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg bg-slate-950 px-2.5 py-1.5 text-xs font-semibold text-white shadow-lg"
+          className="pointer-events-none fixed z-[9999] -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg bg-slate-950 px-2.5 py-1.5 text-xs font-semibold text-white shadow-overlay"
           style={{ left: tooltipPosition.left, top: tooltipPosition.top }}
           id={tooltipId}
           role="tooltip"
@@ -965,6 +1000,7 @@ export function Messages() {
   const isDesktopRef = useRef(isDesktop)
   const mobilePaneRef = useRef(mobilePane)
   const selectedTargetRef = useRef<Target | null>(selectedTarget)
+  const messageArrivalsRef = useRef<MessageArrivals>(createMessageArrivals())
   const composerSelectionRef = useRef<{ from: number; to: number } | null>(null)
   const activeDraftKeyRef = useRef<string | null>(null)
   const draftSaveTimerRef = useRef<number | null>(null)
@@ -1991,6 +2027,9 @@ export function Messages() {
             if (message.client_message_id && currentTarget) removeStoredFailure(currentTarget, message.client_message_id)
             return sortChronologicalMessages(prev.map((item) => item === matchingLocal ? mergeIncomingMessage(item, message) : item))
           }
+          if (event.event === 'created' && currentTarget) {
+            messageArrivalsRef.current = recordMessageArrival(messageArrivalsRef.current, targetKey(currentTarget), message.id)
+          }
           return sortChronologicalMessages([...prev, message])
         })
         setPinnedMessages((prev) => {
@@ -2521,6 +2560,7 @@ export function Messages() {
     }
 
     shouldStickToBottomRef.current = true
+    messageArrivalsRef.current = recordMessageArrival(messageArrivalsRef.current, targetKey(selectedTarget), tempId)
     setMessages((prev) => sortChronologicalMessages([...prev, optimisticMessage]))
     updateLatestForTarget(optimisticMessage)
     setBody('')
@@ -3138,6 +3178,10 @@ export function Messages() {
   const showPageIntro = !selectedTarget
   const showConversationHeaderPushMessage = Boolean(pushMessage) && Boolean(selectedTarget)
   const displayedMessages = conversationView === 'pins' && !activeThreadRoot ? selectedPinnedMessages : conversationMessages
+  const selectedConversationKey = selectedTarget ? targetKey(selectedTarget) : null
+  const forgetEnteredMessage = (messageId: number) => {
+    messageArrivalsRef.current = forgetMessageArrival(messageArrivalsRef.current, messageId)
+  }
   const composerCharacterCount = messageCharacterCount(normalizeMessageMarkdown(body))
   const composerOverLimit = composerCharacterCount > MESSAGE_BODY_LIMIT
   const renderComposer = (placement: 'main' | 'thread') => {
@@ -3160,7 +3204,7 @@ export function Messages() {
           </div>
         )}
         {error && (
-          <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div className="mb-2 rounded-lg border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700" role="alert">
             {error}
           </div>
         )}
@@ -3169,9 +3213,9 @@ export function Messages() {
             <span className="min-w-0 truncate">
               {inThreadPanel ? 'Replying in thread' : `Replying in thread to ${activeThreadRoot.author.full_name}: ${preview(activeThreadRoot.body)}`}
             </span>
-            <button type="button" onClick={() => setActiveThreadRootId(null)} className="shrink-0 rounded-lg p-1 hover:bg-white" aria-label="Close thread reply">
+            <IconButton label="Close thread reply" size="sm" onClick={() => setActiveThreadRootId(null)} className="-my-1.5 -mr-2">
               <X className="h-4 w-4" />
-            </button>
+            </IconButton>
           </div>
         )}
         {pendingAttachments.length > 0 && (
@@ -3180,20 +3224,21 @@ export function Messages() {
               <div key={`${attachment.filename}-${attachment.byte_size}`} className="inline-flex max-w-full items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
                 <File className="h-4 w-4 shrink-0" />
                 <span className="truncate">{attachment.filename}</span>
-                <span>{attachment.progress > 0 ? `${attachment.progress}%` : formatFileSize(attachment.byte_size)}</span>
-                <button
-                  type="button"
+                <span className="shrink-0 tabular-nums">{attachment.progress > 0 ? `${attachment.progress}%` : formatFileSize(attachment.byte_size)}</span>
+                <IconButton
+                  label={`Remove ${attachment.filename}`}
+                  size="sm"
                   onClick={() => setPendingAttachments((prev) => prev.filter((item) => item.file !== attachment.file))}
-                  className="rounded-lg p-1 hover:bg-white"
+                  className="-my-2 -mr-2"
                 >
-                  <X className="h-3 w-3" />
-                </button>
+                  <X className="h-3.5 w-3.5" />
+                </IconButton>
               </div>
             ))}
           </div>
         )}
         <div
-          className="relative min-w-0 overflow-visible rounded-xl border border-slate-200 bg-white shadow-[0_18px_42px_-30px_rgba(15,23,42,0.38)] transition-shadow focus-within:border-focus focus-within:shadow-[0_20px_54px_-34px_rgba(239,68,68,0.42)] sm:rounded-2xl"
+          className="relative min-w-0 overflow-visible rounded-xl border border-line-strong bg-surface-raised shadow-raised transition-[border-color,box-shadow] duration-200 focus-within:border-focus focus-within:ring-2 focus-within:ring-focus/25 sm:rounded-2xl"
           onDragOver={(event) => event.preventDefault()}
           onDrop={handleDrop}
         >
@@ -3261,46 +3306,47 @@ export function Messages() {
                       // Offer the opposite choice so the learner can switch back.
                       setPasteNotice({ mode: notice.mode === 'code' ? 'text' : 'code', text: notice.text, doc: editor.state.doc })
                     }}
-                    className="min-h-9 rounded-md px-2 font-semibold text-slate-900 underline underline-offset-2 hover:bg-slate-100"
+                    className="pressable min-h-11 rounded-md px-2 font-semibold text-ink underline underline-offset-2 hover:bg-slate-100 sm:min-h-9"
                   >
                     {pasteNotice.mode === 'code' ? 'Paste as text instead' : 'Paste as code instead'}
                   </button>
-                  <button type="button" onClick={() => setPasteNotice(null)} className="min-h-9 rounded-md px-2 text-slate-500 hover:bg-slate-100" aria-label="Dismiss paste options">OK</button>
+                  <Button variant="quiet" size="sm" onClick={() => setPasteNotice(null)} className="sm:min-h-9" aria-label="Dismiss paste options">OK</Button>
                 </span>
               </div>
             )}
           </div>
           <div className="flex min-h-14 items-center justify-between gap-3 border-t border-slate-100 px-2.5 py-1.5 sm:min-h-0 sm:px-3 sm:py-2.5">
-            <div id={composerHelpId} className={`min-w-0 text-xs ${composerOverLimit ? 'font-semibold text-red-600' : 'text-slate-400'}`} aria-live="polite">
+            <div id={composerHelpId} className={`min-w-0 text-xs tabular-nums ${composerOverLimit ? 'font-semibold text-danger-700' : 'text-ink-muted'}`} aria-live="polite">
               {composerOverLimit || composerCharacterCount >= 4_500
                 ? `${composerCharacterCount.toLocaleString()} / ${MESSAGE_BODY_LIMIT.toLocaleString()} characters`
                 : <span className="hidden sm:inline">Press ⌘/Ctrl + Enter to send</span>}
             </div>
-            <button
+            <Button
               type="submit"
+              size="sm"
               disabled={sending || composerOverLimit || (!body.trim() && pendingAttachments.length === 0)}
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary-500 text-sm font-medium text-white shadow-sm transition hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:w-auto sm:px-4"
+              className="h-11 w-11 shrink-0 sm:h-9 sm:min-h-9 sm:w-auto sm:px-4"
               aria-label={sending ? 'Sending message' : 'Send message'}
             >
               <Send className="h-4 w-4" />
               <span className="sr-only sm:not-sr-only">Send</span>
-            </button>
+            </Button>
           </div>
           {mentionSuggestions.length > 0 && (
-            <div className={`absolute bottom-full z-30 mb-2 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg ${inThreadPanel ? 'left-2 right-2' : 'left-3 w-72'}`}>
-              <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Mention someone</div>
+            <div className={`absolute bottom-full z-30 mb-2 overflow-hidden rounded-xl border border-line bg-surface-raised shadow-overlay ${inThreadPanel ? 'left-2 right-2' : 'left-3 w-72'}`}>
+              <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold text-ink-muted">Mention someone</div>
               {mentionSuggestions.map((mention, index) => (
                 <button
                   key={mention.id}
                   type="button"
                   onClick={() => selectMention(mention)}
-                  className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm ${index === activeMentionIndex ? 'bg-primary-50 text-primary-800' : 'hover:bg-slate-50'}`}
+                  className={`pressable flex min-h-11 w-full items-center gap-3 px-3 py-2 text-left text-sm ${index === activeMentionIndex ? 'nav-selected' : 'hover:bg-slate-50'}`}
                 >
-                  <span className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-semibold ${
-                    mention.kind === 'channel' ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-600'
-                  }`}>
-                    {mention.kind === 'channel' ? '#' : mention.label.replace(/^@/, '').slice(0, 1)}
-                  </span>
+                  {mention.kind === 'channel' ? (
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-xs font-semibold text-amber-800">#</span>
+                  ) : (
+                    <Avatar name={mention.label.replace(/^@/, '')} size="sm" />
+                  )}
                   <span className="min-w-0">
                     <span className="block truncate font-medium text-slate-800">{mention.label}</span>
                     <span className="block truncate text-xs text-slate-500">{mention.subtitle}</span>
@@ -3324,20 +3370,16 @@ export function Messages() {
             <h1 className="app-title mt-2">Messages</h1>
             <p className="app-description mt-2">
               Workspace messaging for cohorts, alumni, staff groups, direct messages, files, and quick decisions.
-              {realtimeStatus === 'connected' && <span className="ml-2 text-green-600">Live</span>}
-              {realtimeStatus === 'error' && <span className="ml-2 text-amber-600">Reconnecting with refresh fallback</span>}
+              {realtimeStatus === 'connected' && <span className="ml-2 font-medium text-success-700">Live</span>}
+              {realtimeStatus === 'error' && <span className="ml-2 font-medium text-warning-800">Reconnecting with refresh fallback</span>}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             {!selectedTarget && (
-              <button
-                type="button"
-                onClick={handleTogglePush}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
-              >
-                {pushEnabled ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
+              <Button variant="secondary" onClick={handleTogglePush}>
+                <MonitorSmartphone className="h-4 w-4" />
                 {pushEnabled ? 'Turn off browser alerts' : 'Turn on browser alerts'}
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -3349,7 +3391,7 @@ export function Messages() {
       </div>
       )}
 
-      <div className={`${isDesktop ? 'grid overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-white shadow-[0_20px_54px_-42px_rgba(15,23,42,0.55)]' : 'flex min-w-0 overflow-hidden border-y border-slate-200 bg-white'} min-h-0 flex-1 ${isDesktop ? (sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[328px_minmax(0,1fr)]') : ''}`}>
+      <div className={`${isDesktop ? 'grid overflow-hidden rounded-2xl border border-line bg-surface-raised shadow-raised' : 'flex min-w-0 overflow-hidden border-y border-slate-200 bg-white'} min-h-0 flex-1 ${isDesktop ? (sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[328px_minmax(0,1fr)]') : ''}`}>
         {showListPane && !sidebarCollapsed && (
         <aside className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-slate-50 ${isDesktop ? 'border-b border-slate-200 lg:border-b-0 lg:border-r' : ''}`}>
           <div className="shrink-0 border-b border-slate-200 bg-white p-2.5 sm:p-3">
@@ -3360,32 +3402,23 @@ export function Messages() {
               </div>
               <div className="flex items-center gap-1">
                 {isStaff && (
-                  <button
+                  <IconButton
+                    label="Create workspace"
                     onClick={() => {
                       setShowWorkspaceForm(true)
                       setWorkspaceError('')
                     }}
-                    className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                    aria-label="Create workspace"
                   >
                     <Plus className="h-4 w-4" />
-                  </button>
+                  </IconButton>
                 )}
-                <button
-                  onClick={loadLists}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                  aria-label="Refresh messages"
-                >
+                <IconButton label="Refresh messages" onClick={loadLists}>
                   <RefreshCw className="h-4 w-4" />
-                </button>
+                </IconButton>
                 {isDesktop && (
-                  <button
-                    onClick={() => setSidebarCollapsed(true)}
-                    className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                    aria-label="Collapse conversation list"
-                  >
+                  <IconButton label="Collapse conversation list" onClick={() => setSidebarCollapsed(true)}>
                     <PanelLeftClose className="h-4 w-4" />
-                  </button>
+                  </IconButton>
                 )}
               </div>
             </div>
@@ -3393,10 +3426,10 @@ export function Messages() {
               <button
                 type="button"
                 onClick={() => setShowWorkspaceSwitcher(true)}
-                className="group flex w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-focus sm:py-2.5"
+                className="pressable group flex min-h-11 w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-line bg-surface-raised px-3 py-2 text-left shadow-raised hover:border-line-strong hover:bg-slate-50 sm:py-2.5"
               >
                 <span className="flex min-w-0 items-center gap-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-xs font-semibold text-white">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-200 text-xs font-semibold text-slate-700">
                     {selectedWorkspace ? channelInitials(selectedWorkspace.name) : 'WS'}
                   </span>
                   <span className="min-w-0">
@@ -3408,11 +3441,11 @@ export function Messages() {
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
                   {totalWorkspaceUnreadCount > 0 && (
-                    <span className="inline-flex min-w-5 justify-center rounded-full bg-primary-500 px-1.5 py-0.5 text-[11px] font-semibold text-white">
+                    <span className="inline-flex min-w-5 justify-center rounded-full bg-ruby-600 px-1.5 py-0.5 text-xs font-semibold tabular-nums text-white">
                       {totalWorkspaceUnreadCount > 99 ? '99+' : totalWorkspaceUnreadCount}
                     </span>
                   )}
-                  <ChevronDown className="h-4 w-4 text-slate-400 transition group-hover:text-slate-600" />
+                  <ChevronDown className="h-4 w-4 text-slate-400 transition-colors group-hover:text-slate-600" />
                 </span>
               </button>
             )}
@@ -3424,20 +3457,21 @@ export function Messages() {
                     <p className="mt-1 text-xs text-slate-500">
                       {selectedWorkspace.workspace_type === 'community' ? 'Community workspace' : 'Cohort workspace'}
                       {' · '}
-                      {selectedWorkspace.member_count} {selectedWorkspace.member_count === 1 ? 'member' : 'members'}
+                      <span className="tabular-nums">{selectedWorkspace.member_count}</span> {selectedWorkspace.member_count === 1 ? 'member' : 'members'}
                     </p>
                   </div>
                   {workspaceDetail?.can_manage && (
-                    <button
-                      type="button"
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={() => {
                         setShowWorkspaceMembers(true)
                         setWorkspaceError('')
                       }}
-                      className="shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                      className="shrink-0"
                     >
                       {showWorkspaceMembers ? 'Hide members' : 'Manage'}
-                    </button>
+                    </Button>
                   )}
                 </div>
                 {selectedWorkspace.description && (
@@ -3446,16 +3480,12 @@ export function Messages() {
               </div>
             )}
             {unreadOtherWorkspaceCards.length > 0 && (
-              <div className="mt-3 rounded-lg border border-primary-100 bg-primary-50/70 px-3 py-2.5">
+              <div className="mt-3 rounded-lg border border-line bg-surface-sunken px-3 py-2.5">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-primary-700">Unread elsewhere</p>
-                  <button
-                    type="button"
-                    onClick={() => setShowWorkspaceSwitcher(true)}
-                    className="text-xs font-semibold text-primary-700 hover:text-primary-800"
-                  >
+                  <p className="text-xs font-semibold text-ink-secondary">Unread elsewhere</p>
+                  <Button variant="quiet" size="sm" onClick={() => setShowWorkspaceSwitcher(true)} className="-my-2 -mr-2">
                     View all
-                  </button>
+                  </Button>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {unreadOtherWorkspaceCards.slice(0, 3).map(({ workspace, unreadCount }) => (
@@ -3463,10 +3493,10 @@ export function Messages() {
                       key={workspace.id}
                       type="button"
                       onClick={() => selectWorkspace(workspace.id)}
-                      className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-primary-700 ring-1 ring-primary-100 hover:bg-primary-100"
+                      className="pressable inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-full bg-surface-raised px-3 py-1 text-xs font-semibold text-ink ring-1 ring-line hover:bg-slate-50 sm:min-h-9"
                     >
                       <span className="truncate">{workspace.name}</span>
-                      <span className="rounded-full bg-primary-500 px-1.5 py-0.5 text-[10px] leading-none text-white">
+                      <span className="shrink-0 rounded-full bg-ruby-600 px-1.5 py-0.5 text-xs leading-none tabular-nums text-white">
                         {unreadCount > 99 ? '99+' : unreadCount}
                       </span>
                     </button>
@@ -3484,7 +3514,7 @@ export function Messages() {
                 className="app-control w-full pl-9 text-base sm:text-sm"
               />
               {searchResults.length > 0 && (
-                <div className="absolute z-20 mt-2 max-h-80 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
+                <div className="absolute z-20 mt-2 max-h-80 w-full overflow-y-auto rounded-xl border border-line bg-surface-raised p-2 shadow-overlay">
                   {searchResults.map((result) => (
                     <button
                       key={result.id}
@@ -3496,10 +3526,10 @@ export function Messages() {
                         setSearchQuery('')
                         setSearchResults([])
                       }}
-                      className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50"
+                      className="pressable block min-h-11 w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50"
                     >
                       <span className="font-medium text-slate-800">{result.author.full_name}</span>
-                      <span className="ml-2 text-xs text-slate-500">{formatTime(result.created_at)}</span>
+                      <span className="ml-2 text-xs tabular-nums text-slate-500">{formatTime(result.created_at)}</span>
                       <p className="mt-1 truncate text-xs text-slate-500">{preview(result.body)}</p>
                     </button>
                   ))}
@@ -3510,13 +3540,13 @@ export function Messages() {
 
           <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-1.5 sm:p-2">
             <div className="mb-2 flex items-center justify-between px-2 pt-2">
-              <div className="flex min-w-0 items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <div className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-ink-muted">
                 <span>Recent</span>
-                <span className="text-slate-400">{recent.length}</span>
+                <span className="tabular-nums text-slate-400">{recent.length}</span>
               </div>
-              <button onClick={() => setShowDmForm(true)} className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-white" aria-label="Start direct message">
+              <IconButton label="Start direct message" onClick={() => setShowDmForm(true)}>
                 <UserPlus className="h-4 w-4" />
-              </button>
+              </IconButton>
             </div>
             {recent.length === 0 ? (
               <div className="px-3 py-4 text-sm text-slate-500">No conversations yet.</div>
@@ -3540,17 +3570,17 @@ export function Messages() {
               <button
                 type="button"
                 onClick={() => setChannelsCollapsed((current) => !current)}
-                className="flex min-h-11 min-w-0 items-center gap-1.5 rounded-lg pr-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 hover:text-slate-800"
+                className="pressable flex min-h-11 min-w-0 items-center gap-1.5 rounded-lg pr-2 text-left text-xs font-semibold text-ink-muted hover:text-ink"
                 aria-expanded={!channelsCollapsed}
               >
-                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${channelsCollapsed ? '-rotate-90' : ''}`} />
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${channelsCollapsed ? '-rotate-90' : ''}`} />
                 <span>Browse channels</span>
-                {channelsUnreadCount > 0 && <span className="rounded-full bg-primary-100 px-1.5 py-0.5 text-[10px] text-primary-700">{channelsUnreadCount}</span>}
+                {channelsUnreadCount > 0 && <span className="rounded-full bg-ruby-600 px-1.5 py-0.5 text-xs leading-none tabular-nums text-white">{channelsUnreadCount}</span>}
               </button>
               {isStaff && (
-                <button onClick={() => { setShowChannelForm(true); setChannelError('') }} className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-white" aria-label="Create channel">
+                <IconButton label="Create channel" onClick={() => { setShowChannelForm(true); setChannelError('') }}>
                   <Plus className="h-4 w-4" />
-                </button>
+                </IconButton>
               )}
             </div>
             {!channelsCollapsed && (
@@ -3560,11 +3590,12 @@ export function Messages() {
                     key={channel.id}
                     type="button"
                     onClick={() => selectTarget({ type: 'channel', id: channel.id })}
-                    className={`flex min-h-11 w-full items-center gap-2 rounded-xl px-2 text-left text-sm hover:bg-white ${selectedTarget?.type === 'channel' && selectedTarget.id === channel.id ? 'font-semibold text-primary-700' : 'text-slate-600'}`}
+                    aria-current={selectedTarget?.type === 'channel' && selectedTarget.id === channel.id ? 'true' : undefined}
+                    className={`pressable flex min-h-11 w-full items-center gap-2 rounded-xl px-2 text-left text-sm ${selectedTarget?.type === 'channel' && selectedTarget.id === channel.id ? 'nav-selected font-semibold' : 'text-slate-600 hover:bg-white'}`}
                   >
                     {channel.visibility === 'staff_only' ? <Lock className="h-4 w-4 shrink-0" /> : <Hash className="h-4 w-4 shrink-0" />}
                     <span className="min-w-0 flex-1 truncate">{channel.name}</span>
-                    {channel.unread_count > 0 && <span className="h-2 w-2 shrink-0 rounded-full bg-primary-500" aria-label="Unread" />}
+                    {channel.unread_count > 0 && <span className="h-2 w-2 shrink-0 rounded-full bg-ruby-600" aria-label="Unread" />}
                   </button>
                 ))}
               </div>
@@ -3574,13 +3605,9 @@ export function Messages() {
         )}
         {showCollapsedRail && (
           <aside className="hidden border-r border-slate-200 bg-slate-50 p-2 lg:block">
-            <button
-              onClick={() => setSidebarCollapsed(false)}
-              className="mb-3 flex h-11 w-full items-center justify-center rounded-lg text-slate-500 hover:bg-white hover:text-slate-800"
-              aria-label="Show conversation list"
-            >
+            <Button variant="quiet" fullWidth onClick={() => setSidebarCollapsed(false)} aria-label="Show conversation list" title="Show conversation list" className="mb-3">
               <PanelLeftOpen className="h-5 w-5" />
-            </button>
+            </Button>
             <div className="space-y-2">
               {recent.map(({ type, summary }) => {
                 const title = type === 'channel' ? summary.name : summary.title
@@ -3590,13 +3617,14 @@ export function Messages() {
                     onClick={() => selectTarget({ type, id: summary.id })}
                     title={title}
                     aria-label={title}
-                    className={`relative flex h-14 w-full flex-col items-center justify-center rounded-xl text-[10px] font-semibold ${selectedTarget?.type === type && selectedTarget.id === summary.id ? 'bg-primary-50 text-primary-700' : 'text-slate-500 hover:bg-white hover:text-slate-800'}`}
+                    aria-current={selectedTarget?.type === type && selectedTarget.id === summary.id ? 'true' : undefined}
+                    className={`pressable relative flex h-14 w-full flex-col items-center justify-center rounded-xl text-xs font-semibold ${selectedTarget?.type === type && selectedTarget.id === summary.id ? 'nav-selected' : 'text-slate-500 hover:bg-white hover:text-slate-800'}`}
                   >
                     {type === 'channel'
                       ? summary.visibility === 'staff_only' ? <Lock className="h-4 w-4" /> : <Hash className="h-4 w-4" />
                       : <MessageCircle className="h-4 w-4" />}
                     <span className="mt-0.5 max-w-12 truncate">{type === 'channel' ? channelInitials(title) : initials(title)}</span>
-                    {summary.unread_count > 0 && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-primary-500" />}
+                    {summary.unread_count > 0 && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-ruby-600" />}
                   </button>
                 )
               })}
@@ -3612,22 +3640,14 @@ export function Messages() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
                     {isDesktop && sidebarCollapsed && (
-                      <button
-                        onClick={() => setSidebarCollapsed(false)}
-                        className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                        aria-label="Show conversation list"
-                      >
+                      <IconButton label="Show conversation list" size="sm" onClick={() => setSidebarCollapsed(false)}>
                         <PanelLeftOpen className="h-4 w-4" />
-                      </button>
+                      </IconButton>
                     )}
                     {!isDesktop && (
-                      <button
-                        onClick={() => navigate('/messages', { replace: true })}
-                        className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                        aria-label="Back to conversations"
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </button>
+                      <IconButton label="Back to conversations" className="-ml-1.5" onClick={() => navigate('/messages', { replace: true })}>
+                        <ChevronLeft className="h-5 w-5" />
+                      </IconButton>
                     )}
                     {selectedTarget.type === 'channel'
                       ? selectedChannel?.visibility === 'staff_only'
@@ -3654,38 +3674,41 @@ export function Messages() {
                         onClick={toggleMute}
                         icon={selectedMuted ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
                         shortLabel={selectedMuted ? 'Unmute' : 'Mute'}
+                        title={selectedMuted ? 'Unmute this conversation' : 'Mute this conversation'}
                         fullLabel={selectedMuted ? 'Unmute conversation' : 'Mute conversation'}
                         ariaLabel={selectedMuted ? 'Unmute conversation' : 'Mute conversation'}
                       />
                     )}
                     <ConversationHeaderAction
                       onClick={handleTogglePush}
-                      icon={pushEnabled ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
+                      icon={<MonitorSmartphone className="h-4 w-4" />}
                       shortLabel={pushEnabled ? 'Notify off' : 'Notify on'}
+                      title={pushEnabled ? 'Browser alerts are on for this device. Turn them off.' : 'Get browser alerts on this device'}
                       fullLabel={pushEnabled ? 'Turn off browser alerts' : 'Turn on browser alerts'}
                       ariaLabel={pushEnabled ? 'Turn off browser alerts' : 'Turn on browser alerts'}
                     />
                     {selectedTarget.type === 'channel' && selectedChannel?.visibility === 'staff_only' && (
-                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">Staff only</span>
+                      <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">Staff only</span>
                     )}
                   </div>
                 </div>
                 {selectedTarget.type === 'channel' && selectedChannel?.description && <p className="mt-2 text-sm text-slate-500">{selectedChannel.description}</p>}
-                {sourceRecord && sourceRecordPath && <div className="mt-2.5"><Link to={sourceRecordPath} className="inline-flex min-h-9 max-w-full items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 text-xs font-bold text-blue-800 hover:bg-blue-100"><BookOpen className="h-3.5 w-3.5 shrink-0" /><span className="truncate">From {sourceRecord.type === 'submission' ? 'submission' : 'help request'}: {sourceRecord.label}</span></Link></div>}
+                {sourceRecord && sourceRecordPath && <div className="mt-2.5"><Link to={sourceRecordPath} className="pressable inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border border-info-200 bg-info-50 px-3 text-xs font-semibold text-info-800 hover:bg-info-100 sm:min-h-9"><BookOpen className="h-3.5 w-3.5 shrink-0" /><span className="truncate">From {sourceRecord.type === 'submission' ? 'submission' : 'help request'}: {sourceRecord.label}</span></Link></div>}
                 {showConversationHeaderPushMessage && (
                   <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
                     {pushMessage}
                   </div>
                 )}
                 {!activeThreadRoot && (
-                  <div className="mt-2.5 flex min-w-0 items-center gap-1.5 overflow-x-auto sm:mt-3 sm:gap-2">
+                  <div className="-mb-2.5 mt-1.5 flex min-w-0 items-center gap-1 overflow-x-auto sm:-mb-4 sm:mt-2">
                     <button
                       type="button"
                       onClick={() => setConversationView('messages')}
-                      className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                      aria-pressed={conversationView === 'messages'}
+                      className={`pressable inline-flex min-h-11 shrink-0 items-center gap-2 px-3 text-sm font-medium ${
                         conversationView === 'messages'
-                          ? 'bg-slate-900 text-white shadow-sm'
-                          : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                          ? 'tab-selected font-semibold'
+                          : 'text-ink-muted hover:text-ink'
                       }`}
                     >
                       <MessageCircle className="h-3.5 w-3.5" />
@@ -3694,15 +3717,16 @@ export function Messages() {
                     <button
                       type="button"
                       onClick={() => setConversationView('pins')}
-                      className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                      aria-pressed={conversationView === 'pins'}
+                      className={`pressable inline-flex min-h-11 shrink-0 items-center gap-2 px-3 text-sm font-medium ${
                         conversationView === 'pins'
-                          ? 'bg-amber-500 text-white shadow-sm'
-                          : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                          ? 'tab-selected font-semibold'
+                          : 'text-ink-muted hover:text-ink'
                       }`}
                     >
                       <Pin className="h-3.5 w-3.5" />
                       Pinned
-                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${conversationView === 'pins' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'}`}>
+                      <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-xs leading-none tabular-nums text-ink-secondary">
                         {selectedPinnedMessages.length}
                       </span>
                     </button>
@@ -3715,28 +3739,29 @@ export function Messages() {
                   <div
                     ref={messageScrollRef}
                     onScroll={handleConversationScroll}
-                    className={`min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2 py-2 transition duration-200 sm:px-5 sm:py-5 ${loadingTarget || isNavigationPending ? 'opacity-60' : 'opacity-100'}`}
+                    className={`min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2 py-2 transition-opacity duration-200 sm:px-5 sm:py-5 ${loadingTarget || isNavigationPending ? 'opacity-60' : 'opacity-100'}`}
                   >
                   {activeThreadRoot && !showThreadPanel && (
                     <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
                       <div className="flex items-center justify-between gap-3">
                         <div>
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Thread</p>
-                          <p className="mt-1 text-sm text-slate-600">
+                          <p className="text-xs font-semibold text-ink-muted">Thread</p>
+                          <p className="mt-1 text-sm tabular-nums text-slate-600">
                             {activeThreadMessages.length - 1} {activeThreadMessages.length - 1 === 1 ? 'reply' : 'replies'} under this message
                           </p>
                         </div>
-                        <button
-                          type="button"
+                        <Button
+                          variant="secondary"
+                          size="sm"
                           onClick={() => {
                             setActiveThreadRootId(null)
                             if (!isDesktop) setMobilePane('conversation')
                           }}
-                          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+                          className="shrink-0"
                         >
                           <ChevronLeft className="h-4 w-4" />
                           {selectedTarget.type === 'channel' ? 'Back to channel' : 'Back to conversation'}
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   )}
@@ -3747,15 +3772,14 @@ export function Messages() {
                   )}
                   {!activeThreadRoot && conversationView === 'messages' && messageWindowMeta?.has_older && (
                     <div className="flex justify-center pb-3">
-                      <button
-                        type="button"
+                      <Button
+                        variant="secondary"
                         onClick={() => void loadOlderMessages()}
                         disabled={loadingOlder}
-                        className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 shadow-sm transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-wait disabled:opacity-60"
                       >
                         <RefreshCw className={`h-4 w-4 ${loadingOlder ? 'animate-spin' : ''}`} />
                         {loadingOlder ? 'Loading earlier messages…' : 'Load earlier messages'}
-                      </button>
+                      </Button>
                     </div>
                   )}
                   {displayedMessages.length === 0 ? (
@@ -3777,15 +3801,15 @@ export function Messages() {
                       <div key={message.id}>
                         {!activeThreadRoot && conversationView === 'messages' && unreadBoundaryId === message.id && (
                           <div className="my-4 flex items-center gap-3 px-2" role="separator" aria-label="Unread messages">
-                            <div className="h-px flex-1 bg-primary-200" />
-                            <span className="text-[11px] font-semibold uppercase tracking-wide text-primary-700">New messages</span>
-                            <div className="h-px flex-1 bg-primary-200" />
+                            <div className="h-px flex-1 bg-ruby-200" />
+                            <span className="text-xs font-semibold text-ruby-700">New messages</span>
+                            <div className="h-px flex-1 bg-ruby-200" />
                           </div>
                         )}
                         {showDayDivider && (
                           <div className="relative my-5 flex items-center justify-center">
                             <div className="absolute inset-x-0 top-1/2 border-t border-slate-200" />
-                            <span className="relative rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            <span className="relative rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold tabular-nums text-ink-muted">
                               {formatDayDivider(message.created_at)}
                             </span>
                           </div>
@@ -3795,6 +3819,8 @@ export function Messages() {
                           readReceipts={conversationView === 'pins' && !activeThreadRoot ? undefined : activeThreadRoot ? threadReadReceipts.get(message.id) : rootReadReceipts.get(message.id)}
                           compact={compact}
                           highlighted={highlightedMessageId === message.id}
+                          entering={messageShouldAnimateEntry(messageArrivalsRef.current, selectedConversationKey, message.id)}
+                          onEntered={() => forgetEnteredMessage(message.id)}
                           editing={editing?.id === message.id}
                           editBody={editBody}
                           setEditBody={setEditBody}
@@ -3831,23 +3857,25 @@ export function Messages() {
                   })}
                   {!activeThreadRoot && conversationView === 'messages' && messageWindowMeta?.has_newer && (
                     <div className="flex justify-center py-3">
-                      <button type="button" onClick={() => void loadNewerMessages()} disabled={loadingNewer} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 shadow-sm transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-wait disabled:opacity-60">
+                      <Button variant="secondary" onClick={() => void loadNewerMessages()} disabled={loadingNewer}>
                         <RefreshCw className={`h-4 w-4 ${loadingNewer ? 'animate-spin' : ''}`} />
                         {loadingNewer ? 'Loading newer messages…' : 'Load newer messages'}
-                      </button>
+                      </Button>
                     </div>
                   )}
                   </div>
                   {showScrollToLatest && conversationView === 'messages' && (
-                    <button
-                      type="button"
-                      onClick={() => void scrollToLatestMessage()}
-                      className="absolute bottom-3 left-1/2 z-20 inline-flex min-h-10 -translate-x-1/2 items-center gap-2 rounded-full border border-primary-100 bg-white px-3.5 py-2 text-xs font-semibold text-primary-700 shadow-lg shadow-slate-900/10 transition hover:-translate-y-0.5 hover:border-primary-200 hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
-                      aria-label={hasUnreadBelow ? 'Jump to new messages' : 'Jump to latest message'}
-                    >
-                      <ChevronDown className="h-4 w-4" />
-                      {hasUnreadBelow ? 'New messages' : 'Jump to latest'}
-                    </button>
+                    <div className="absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-xl shadow-overlay">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => void scrollToLatestMessage()}
+                        aria-label={hasUnreadBelow ? 'Jump to new messages' : 'Jump to latest message'}
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                        {hasUnreadBelow ? 'New messages' : 'Jump to latest'}
+                      </Button>
+                    </div>
                   )}
                 </div>
                 {showThreadPanel && activeThreadRoot && (
@@ -3855,18 +3883,13 @@ export function Messages() {
                     <div className="flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-slate-900">Thread</p>
-                        <p className="mt-0.5 truncate text-xs text-slate-500">
+                        <p className="mt-0.5 truncate text-xs tabular-nums text-slate-500">
                           {activeThreadMessages.length - 1} {activeThreadMessages.length - 1 === 1 ? 'reply' : 'replies'} in {selectedLabel}
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setActiveThreadRootId(null)}
-                        className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                        aria-label="Close thread"
-                      >
+                      <IconButton label="Close thread" size="sm" onClick={() => setActiveThreadRootId(null)} className="-my-1 -mr-2">
                         <X className="h-4 w-4" />
-                      </button>
+                      </IconButton>
                     </div>
                     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4">
                       {activeThreadMessages.map((message, index) => {
@@ -3880,6 +3903,8 @@ export function Messages() {
                             readReceipts={threadReadReceipts.get(message.id)}
                             compact={compact}
                             highlighted={highlightedMessageId === message.id}
+                            entering={messageShouldAnimateEntry(messageArrivalsRef.current, selectedConversationKey, message.id)}
+                            onEntered={() => forgetEnteredMessage(message.id)}
                             editing={editing?.id === message.id}
                             editBody={editBody}
                             setEditBody={setEditBody}
@@ -3959,10 +3984,10 @@ export function Messages() {
                       aria-selected={active}
                       aria-label={`${display.label}, ${reaction.count}`}
                       onClick={() => setReactionDetails({ messageId: reactionDetailsMessage.id, emoji: reaction.emoji })}
-                      className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border px-3.5 text-sm font-semibold transition ${
+                      className={`pressable inline-flex min-h-11 shrink-0 items-center gap-2 px-3.5 text-sm font-semibold tabular-nums ${
                         active
-                          ? 'border-primary-200 bg-primary-50 text-primary-700'
-                          : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                          ? 'tab-selected'
+                          : 'text-ink-muted hover:text-ink'
                       }`}
                     >
                       <Icon className="h-4 w-4" />
@@ -3972,32 +3997,28 @@ export function Messages() {
                 })}
               </div>
               <div className="flex min-h-12 items-center gap-2 border-b border-slate-200">
-                <SelectedIcon className="h-4 w-4 text-primary-600" />
+                <SelectedIcon className="h-4 w-4 text-ink-secondary" />
                 <p className="flex-1 text-sm font-semibold text-slate-900">{selectedDisplay.label}</p>
-                <span className="text-xs font-semibold text-slate-500">{selectedReaction.count}</span>
+                <span className="text-xs font-semibold tabular-nums text-slate-500">{selectedReaction.count}</span>
               </div>
               <div className="divide-y divide-slate-100">
                 {selectedReaction.users.map((person) => (
                   <div key={person.id} className="flex min-h-14 items-center gap-3 py-2">
-                    {person.avatar_url
-                      ? <img src={person.avatar_url} alt="" className="h-9 w-9 rounded-full object-cover" />
-                      : <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 text-xs font-bold text-slate-600">{person.full_name.slice(0, 1)}</span>}
-                    <span className="text-sm font-medium text-slate-800">{person.full_name}</span>
+                    <Avatar name={person.full_name} src={person.avatar_url} />
+                    <span className="min-w-0 truncate text-sm font-medium text-slate-800">{person.full_name}</span>
                   </div>
                 ))}
               </div>
-              <button
-                type="button"
+              <Button
+                variant={selectedReaction.reacted ? 'secondary' : 'primary'}
+                size="lg"
+                fullWidth
                 onClick={() => void toggleReaction(reactionDetailsMessage, selectedReaction.emoji)}
-                className={`mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold transition ${
-                  selectedReaction.reacted
-                    ? 'border border-primary-200 bg-primary-50 text-primary-700 hover:bg-primary-100'
-                    : 'bg-primary-600 text-white hover:bg-primary-700'
-                }`}
+                className="mt-5"
               >
                 <SelectedIcon className="h-4 w-4" />
                 {selectedReaction.reacted ? `Remove your ${selectedDisplay.label.toLowerCase()}` : `React with ${selectedDisplay.label.toLowerCase()}`}
-              </button>
+              </Button>
             </div>
           )
         })()}
@@ -4029,16 +4050,17 @@ export function Messages() {
                   selectWorkspace(workspace.id)
                   setShowWorkspaceSwitcher(false)
                 }}
-                className={`group flex w-full items-center gap-4 rounded-2xl border px-4 py-4 text-left transition ${
+                aria-current={active ? 'true' : undefined}
+                className={`pressable group flex w-full cursor-pointer items-center gap-4 rounded-2xl border px-4 py-4 text-left ${
                   active
-                    ? 'border-primary-200 bg-primary-50/70 shadow-sm'
+                    ? 'nav-selected border-line-strong'
                     : unreadCount > 0
-                      ? 'border-primary-200 bg-white shadow-sm hover:bg-primary-50/40'
-                    : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                      ? 'border-line-strong bg-surface-raised hover:bg-slate-50'
+                    : 'border-line bg-surface-raised hover:border-line-strong hover:bg-slate-50'
                 }`}
               >
                 <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-sm font-semibold ${
-                  active ? 'bg-primary-600 text-white' : 'bg-slate-900 text-white'
+                  active ? 'bg-slate-300 text-ink' : 'bg-slate-200 text-slate-700'
                 }`}>
                   {channelInitials(workspace.name)}
                 </span>
@@ -4046,18 +4068,18 @@ export function Messages() {
                   <span className="flex items-center gap-2">
                     <span className="truncate text-sm font-semibold text-slate-900">{workspace.name}</span>
                     {unreadCount > 0 && (
-                      <span className="inline-flex shrink-0 rounded-full bg-primary-500 px-2 py-0.5 text-[11px] font-semibold text-white">
+                      <span className="inline-flex shrink-0 rounded-full bg-ruby-600 px-2 py-0.5 text-xs font-semibold tabular-nums text-white">
                         {unreadCount} unread
                       </span>
                     )}
                     {active && (
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-primary-700 ring-1 ring-primary-100">
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-ink ring-1 ring-line-strong">
                         <Check className="h-3 w-3" />
                         Current
                       </span>
                     )}
                   </span>
-                  <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                  <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs tabular-nums text-slate-500">
                     <span className="inline-flex items-center gap-1">
                       <Users className="h-3.5 w-3.5" />
                       {workspace.member_count} {workspace.member_count === 1 ? 'member' : 'members'}
@@ -4071,13 +4093,13 @@ export function Messages() {
                       {dmCount} DM {dmCount === 1 ? 'conversation' : 'conversations'}
                     </span>
                     {unreadChannelCount > 0 && (
-                      <span className="inline-flex items-center gap-1 font-semibold text-primary-700">
+                      <span className="inline-flex items-center gap-1 font-semibold text-ink">
                         <Hash className="h-3.5 w-3.5" />
                         {unreadChannelCount} unread
                       </span>
                     )}
                     {unreadDmCount > 0 && (
-                      <span className="inline-flex items-center gap-1 font-semibold text-primary-700">
+                      <span className="inline-flex items-center gap-1 font-semibold text-ink">
                         <MessageCircle className="h-3.5 w-3.5" />
                         {unreadDmCount} unread
                       </span>
@@ -4088,27 +4110,27 @@ export function Messages() {
                   )}
                 </span>
                 <span className="flex shrink-0 flex-col items-end gap-2">
-                  <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
+                  <span className={`rounded-full px-2 py-1 text-xs font-semibold ${
                     workspace.workspace_type === 'community'
                       ? 'bg-slate-100 text-slate-600'
-                      : 'bg-sky-50 text-sky-700'
+                      : 'bg-info-50 text-info-800'
                   }`}>
                     {workspace.workspace_type === 'community' ? 'Community' : 'Cohort'}
                   </span>
                   {unreadCount > 0 && (
-                    <button
-                      type="button"
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={(event) => {
                         event.stopPropagation()
                         markWorkspaceRead(workspace.id).catch(() => {
                           toast.error('Failed to mark workspace as read')
                         })
                       }}
-                      className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-primary-700 ring-1 ring-primary-100 hover:bg-primary-50"
                     >
-                      <CheckCheck className="h-3 w-3" />
+                      <CheckCheck className="h-3.5 w-3.5" />
                       Mark read
-                    </button>
+                    </Button>
                   )}
                 </span>
               </div>
@@ -4130,7 +4152,7 @@ export function Messages() {
         >
           <form onSubmit={handleCreateWorkspace} className="space-y-4">
             {workspaceError && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <div className="rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700" role="alert">
                 {workspaceError}
               </div>
             )}
@@ -4140,7 +4162,7 @@ export function Messages() {
                 value={workspaceForm.name}
                 onChange={(event) => setWorkspaceForm((prev) => ({ ...prev, name: event.target.value }))}
                 placeholder="Workspace name"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                className="app-control w-full"
               />
             </div>
             <div className="space-y-2">
@@ -4150,27 +4172,26 @@ export function Messages() {
                 onChange={(event) => setWorkspaceForm((prev) => ({ ...prev, description: event.target.value }))}
                 placeholder="What is this workspace for?"
                 rows={3}
-                className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                className="app-control w-full resize-none"
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
+              <Button
+                variant="secondary"
                 onClick={() => {
                   setShowWorkspaceForm(false)
                   setWorkspaceError('')
                 }}
-                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
                 type="submit"
                 disabled={creatingWorkspace || !workspaceForm.name.trim()}
-                className="rounded-xl bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
               >
                 {creatingWorkspace ? 'Creating…' : 'Create workspace'}
-              </button>
+              </Button>
             </div>
           </form>
         </Modal>
@@ -4191,7 +4212,7 @@ export function Messages() {
         >
           <div className="space-y-4">
             {workspaceError && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <div className="rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700" role="alert">
                 {workspaceError}
               </div>
             )}
@@ -4200,20 +4221,20 @@ export function Messages() {
                 <select
                   value={memberToAddId}
                   onChange={(event) => setMemberToAddId(event.target.value)}
-                  className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                  className="app-control min-w-0 flex-1"
                 >
                   <option value="">Add a member</option>
                   {memberCandidates.map((candidate) => (
                     <option key={candidate.id} value={candidate.id}>{candidate.full_name}</option>
                   ))}
                 </select>
-                <button
+                <Button
+                  variant="primary"
                   type="submit"
                   disabled={!memberToAddId}
-                  className="rounded-xl bg-primary-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
                 >
                   Add member
-                </button>
+                </Button>
               </form>
             )}
             <div className="space-y-2">
@@ -4229,13 +4250,14 @@ export function Messages() {
                     </p>
                   </div>
                   {workspaceDetail.can_manage && workspaceDetail.workspace_type === 'community' && member.membership_role !== 'manager' && (
-                    <button
-                      type="button"
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="shrink-0"
                       onClick={() => handleRemoveWorkspaceMember(member.id)}
-                      className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-white"
                     >
                       Remove
-                    </button>
+                    </Button>
                   )}
                 </div>
               ))}
@@ -4257,14 +4279,14 @@ export function Messages() {
         >
           <form onSubmit={handleCreateChannel} className="space-y-4">
             {channelError && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <div className="rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700" role="alert">
                 {channelError}
               </div>
             )}
             <select
               value={channelForm.workspace_id}
               onChange={(event) => setChannelForm((prev) => ({ ...prev, workspace_id: event.target.value }))}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+              className="app-control w-full"
             >
               {workspaces.map((workspace) => (
                 <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
@@ -4274,41 +4296,40 @@ export function Messages() {
               value={channelForm.name}
               onChange={(event) => setChannelForm((prev) => ({ ...prev, name: event.target.value }))}
               placeholder="Channel name"
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+              className="app-control w-full"
             />
             <textarea
               value={channelForm.description}
               onChange={(event) => setChannelForm((prev) => ({ ...prev, description: event.target.value }))}
               placeholder="What is this channel for?"
               rows={3}
-              className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+              className="app-control w-full resize-none"
             />
             <select
               value={channelForm.visibility}
               onChange={(event) => setChannelForm((prev) => ({ ...prev, visibility: event.target.value }))}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+              className="app-control w-full"
             >
               <option value="cohort">Students and staff</option>
               <option value="staff_only">Staff only</option>
             </select>
             <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
+              <Button
+                variant="secondary"
                 onClick={() => {
                   setShowChannelForm(false)
                   setChannelError('')
                 }}
-                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
                 type="submit"
                 disabled={creatingChannel || !channelForm.workspace_id || !channelForm.name.trim()}
-                className="rounded-xl bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
               >
                 {creatingChannel ? 'Creating…' : 'Create channel'}
-              </button>
+              </Button>
             </div>
           </form>
         </Modal>
@@ -4322,29 +4343,27 @@ export function Messages() {
         size="md"
         footer={
           <div className="flex justify-end gap-2">
-            <button
-              type="button"
+            <Button
+              variant="secondary"
               onClick={() => setMessagePendingDelete(null)}
-              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
             >
               Cancel
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="danger"
               onClick={() => {
                 if (!messagePendingDelete) return
                 void deleteMessage(messagePendingDelete)
                 setMessagePendingDelete(null)
               }}
-              className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
             >
               Delete message
-            </button>
+            </Button>
           </div>
         }
       >
         <div className="space-y-3">
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="rounded-xl border border-danger-200 bg-danger-50 px-4 py-3 text-sm text-danger-700">
             This action cannot be undone.
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
@@ -4368,7 +4387,7 @@ export function Messages() {
                 void togglePin(mobileActionsMessage)
                 setMobileActionsMessageId(null)
               }}
-              className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="pressable flex min-h-12 w-full items-center gap-3 rounded-xl border border-line px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
             >
               <Pin className="h-4 w-4" />
               {mobileActionsMessage.pinned_at ? 'Unpin message' : 'Pin message'}
@@ -4381,7 +4400,7 @@ export function Messages() {
                 void copyMessage(mobileActionsMessage)
                 setMobileActionsMessageId(null)
               }}
-              className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="pressable flex min-h-12 w-full items-center gap-3 rounded-xl border border-line px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
             >
               <Copy className="h-4 w-4" />
               Copy message
@@ -4396,7 +4415,7 @@ export function Messages() {
                 if (!isDesktop) setMobilePane('thread')
                 setMobileActionsMessageId(null)
               }}
-              className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="pressable flex min-h-12 w-full items-center gap-3 rounded-xl border border-line px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
             >
               <MessageCircle className="h-4 w-4" />
               {activeThreadRootId ? 'Reply in thread' : 'Reply'}
@@ -4411,7 +4430,7 @@ export function Messages() {
                   setEditBody(mobileActionsMessage.body)
                   setMobileActionsMessageId(null)
                 }}
-                className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="pressable flex min-h-12 w-full items-center gap-3 rounded-xl border border-line px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
               >
                 <Edit3 className="h-4 w-4" />
                 Edit message
@@ -4422,7 +4441,7 @@ export function Messages() {
                   setMessagePendingDelete(mobileActionsMessage)
                   setMobileActionsMessageId(null)
                 }}
-                className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-red-200 px-4 py-3 text-left text-sm font-medium text-red-600 hover:bg-red-50"
+                className="pressable flex min-h-12 w-full items-center gap-3 rounded-xl border border-danger-200 px-4 py-3 text-left text-sm font-medium text-danger-700 hover:bg-danger-50 active:bg-danger-100"
               >
                 <Trash2 className="h-4 w-4" />
                 Delete message
@@ -4437,7 +4456,7 @@ export function Messages() {
                   void reportMessage(mobileActionsMessage)
                   setMobileActionsMessageId(null)
                 }}
-                className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-red-200 px-4 py-3 text-left text-sm font-medium text-red-700 hover:bg-red-50"
+                className="pressable flex min-h-12 w-full items-center gap-3 rounded-xl border border-danger-200 px-4 py-3 text-left text-sm font-medium text-danger-700 hover:bg-danger-50 active:bg-danger-100"
               >
                 <Flag className="h-4 w-4" />
                 Report message
@@ -4448,7 +4467,7 @@ export function Messages() {
                   void reportUser(mobileActionsMessage)
                   setMobileActionsMessageId(null)
                 }}
-                className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-red-200 px-4 py-3 text-left text-sm font-medium text-red-700 hover:bg-red-50"
+                className="pressable flex min-h-12 w-full items-center gap-3 rounded-xl border border-danger-200 px-4 py-3 text-left text-sm font-medium text-danger-700 hover:bg-danger-50 active:bg-danger-100"
               >
                 <Flag className="h-4 w-4" />
                 Report {mobileActionsMessage.author.full_name}
@@ -4459,7 +4478,7 @@ export function Messages() {
                   void blockMessageAuthor(mobileActionsMessage)
                   setMobileActionsMessageId(null)
                 }}
-                className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-red-200 px-4 py-3 text-left text-sm font-medium text-red-700 hover:bg-red-50"
+                className="pressable flex min-h-12 w-full items-center gap-3 rounded-xl border border-danger-200 px-4 py-3 text-left text-sm font-medium text-danger-700 hover:bg-danger-50 active:bg-danger-100"
               >
                 <UserX className="h-4 w-4" />
                 Block {mobileActionsMessage.author.full_name}
@@ -4480,7 +4499,7 @@ export function Messages() {
           <select
             value={dmUserId}
             onChange={(event) => setDmUserId(event.target.value)}
-            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+            className="app-control w-full"
           >
             {availableUsers.map((availableUser) => (
               <option key={availableUser.id} value={availableUser.id}>
@@ -4489,20 +4508,19 @@ export function Messages() {
             ))}
           </select>
           <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
+            <Button
+              variant="secondary"
               onClick={() => setShowDmForm(false)}
-              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
               type="submit"
               disabled={!selectedWorkspaceId || !dmUserId}
-              className="rounded-xl bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
             >
               Start direct message
-            </button>
+            </Button>
           </div>
         </form>
       </Modal>
@@ -4523,7 +4541,7 @@ export function Messages() {
               id="message-link-text"
               value={linkText}
               onChange={(event) => setLinkText(event.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+              className="app-control mt-1 w-full"
               placeholder="Text to show"
               autoFocus
             />
@@ -4539,36 +4557,31 @@ export function Messages() {
                 setLinkHref(event.target.value)
                 setLinkError('')
               }}
-              className={`mt-1 w-full rounded-xl border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 ${
-                linkError
-                  ? 'border-red-200 focus:ring-red-500'
-                  : 'border-slate-200 focus:ring-focus'
-              }`}
+              className={`app-control mt-1 w-full ${linkError ? 'border-danger-600' : ''}`}
               placeholder="https://example.com"
               aria-invalid={Boolean(linkError)}
               aria-describedby={linkError ? 'message-link-error' : undefined}
             />
             {linkError && (
-              <p id="message-link-error" className="mt-1.5 text-xs font-medium text-red-600">
+              <p id="message-link-error" className="mt-1.5 text-xs font-medium text-danger-700">
                 {linkError}
               </p>
             )}
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
+            <Button
+              variant="secondary"
               onClick={closeLinkForm}
-              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
               type="submit"
               disabled={!linkHref.trim()}
-              className="rounded-xl bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
             >
               Save link
-            </button>
+            </Button>
           </div>
         </form>
       </Modal>
@@ -4600,7 +4613,7 @@ export function Messages() {
           <button
             type="button"
             onClick={closeLightbox}
-            className="absolute right-4 top-4 rounded-lg bg-white/10 p-2 text-white hover:bg-white/20"
+            className="pressable absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20 active:bg-white/30"
             aria-label="Close image preview"
           >
             <X className="h-5 w-5" />
@@ -4611,7 +4624,7 @@ export function Messages() {
                 type="button"
                 onClick={showPreviousLightboxImage}
                 disabled={lightboxIndex === 0}
-                className="absolute left-4 top-1/2 rounded-lg bg-white/10 p-3 text-white hover:bg-white/20 disabled:opacity-30"
+                className="pressable absolute left-4 top-1/2 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20 active:bg-white/30 disabled:opacity-30"
                 aria-label="Previous image"
               >
                 <ChevronLeft className="h-6 w-6" />
@@ -4620,40 +4633,36 @@ export function Messages() {
                 type="button"
                 onClick={showNextLightboxImage}
                 disabled={lightboxIndex === lightboxAttachments.length - 1}
-                className="absolute right-4 top-1/2 rounded-lg bg-white/10 p-3 text-white hover:bg-white/20 disabled:opacity-30"
+                className="pressable absolute right-4 top-1/2 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20 active:bg-white/30 disabled:opacity-30"
                 aria-label="Next image"
               >
                 <ChevronRight className="h-6 w-6" />
               </button>
             </>
           )}
-          <div className="max-h-full max-w-5xl overflow-hidden rounded-lg bg-white shadow-2xl">
+          <div className="max-h-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-overlay">
             <img src={lightboxAttachment.url} alt={lightboxAttachment.filename} className="max-h-[80vh] w-full object-contain" />
             <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 text-sm text-slate-700">
               <div className="min-w-0">
                 <div className="truncate font-medium">{lightboxAttachment.filename}</div>
-                <div className="text-slate-500">
+                <div className="tabular-nums text-slate-500">
                   {lightboxAttachments.length > 1 && `${lightboxIndex + 1} of ${lightboxAttachments.length} · `}
                   {formatFileSize(lightboxAttachment.byte_size)}
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <a
+                <AnchorButton
                   href={lightboxAttachment.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  size="sm"
                 >
                   Open
-                </a>
-                <button
-                  type="button"
-                  onClick={downloadLightboxAttachment}
-                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                >
+                </AnchorButton>
+                <Button variant="secondary" size="sm" onClick={downloadLightboxAttachment}>
                   <Download className="h-4 w-4" />
                   Download
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -4685,10 +4694,11 @@ function ConversationButton({
   return (
     <button
       onClick={onClick}
-      className={`mb-1 w-full min-w-0 overflow-hidden rounded-xl border px-2.5 py-2.5 text-left transition-all duration-200 hover:-translate-y-px sm:rounded-2xl sm:px-3 sm:py-3 ${
+      aria-current={active ? 'true' : undefined}
+      className={`pressable mb-1 w-full min-w-0 overflow-hidden rounded-xl border px-2.5 py-2.5 text-left sm:rounded-2xl sm:px-3 sm:py-3 ${
         active
-          ? 'border-primary-100 bg-primary-50/90 text-primary-800 shadow-sm'
-          : 'border-transparent hover:border-slate-200 hover:bg-white hover:shadow-sm'
+          ? 'nav-selected border-transparent'
+          : 'border-transparent hover:border-line hover:bg-white'
       }`}
     >
       <div className="flex min-w-0 items-center justify-between gap-2">
@@ -4697,9 +4707,9 @@ function ConversationButton({
           <span className="truncate text-sm font-semibold">{title}</span>
           {muted && <BellOff className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
         </span>
-        {latestAt && <time dateTime={latestAt} className="shrink-0 text-[11px] font-medium text-slate-400">{formatInboxTime(latestAt)}</time>}
+        {latestAt && <time dateTime={latestAt} className="shrink-0 text-xs font-medium tabular-nums text-ink-muted">{formatInboxTime(latestAt)}</time>}
         {unread > 0 && (
-          <span className="shrink-0 rounded-full bg-primary-500 px-2 py-0.5 text-xs font-semibold text-white">
+          <span className="shrink-0 rounded-full bg-ruby-600 px-2 py-0.5 text-xs font-semibold tabular-nums text-white">
             {unread}
           </span>
         )}
@@ -4750,7 +4760,7 @@ export function FormattedMessage({ body, mentionPatterns = [] }: { body: string;
           return (
             <div key={key} className="max-w-full overflow-hidden rounded-lg bg-slate-900">
               {block.language && (
-                <div className="border-b border-white/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                <div className="border-b border-white/10 px-3 py-1 text-xs font-semibold text-slate-300">
                   {block.language}
                 </div>
               )}
@@ -4881,6 +4891,8 @@ function MessageRow({
   readReceipts,
   compact,
   highlighted,
+  entering = false,
+  onEntered,
   editing,
   editBody,
   setEditBody,
@@ -4907,6 +4919,9 @@ function MessageRow({
   readReceipts?: ReadReceipts
   compact: boolean
   highlighted: boolean
+  /** True only for a message that arrived while this conversation was open. */
+  entering?: boolean
+  onEntered?: () => void
   editing: boolean
   editBody: string
   setEditBody: (value: string) => void
@@ -4934,31 +4949,32 @@ function MessageRow({
   return (
     <div
       id={`message-${message.id}`}
-      className={`message-row group relative flex w-full max-w-full min-w-0 gap-1.5 rounded-xl px-1.5 py-0.5 transition-all duration-200 hover:bg-slate-50/90 sm:gap-3 sm:px-3 ${
+      onAnimationEnd={entering && onEntered ? (event) => {
+        if (event.target === event.currentTarget && event.animationName === 'message-row-enter') onEntered()
+      } : undefined}
+      className={`message-row group relative flex w-full max-w-full min-w-0 gap-1.5 rounded-xl px-1.5 py-0.5 transition-[background-color,box-shadow,opacity] duration-200 hover:bg-slate-50/90 sm:gap-3 sm:px-3 ${
         compact ? 'mt-0' : 'mt-1.5'
-      } ${message.pinned_at ? 'bg-amber-50/70 ring-1 ring-amber-100' : ''} ${message.pending ? 'opacity-75' : ''} ${
-        highlighted ? 'message-row-highlight bg-primary-50 ring-2 ring-primary-200' : ''
+      } ${entering ? 'message-row-enter' : ''} ${message.pinned_at ? 'bg-amber-50/70 ring-1 ring-amber-100' : ''} ${message.pending ? 'opacity-75' : ''} ${
+        highlighted ? 'message-row-highlight bg-info-50 ring-2 ring-info-200' : ''
       }`}
     >
       <div className="flex w-7 shrink-0 justify-center sm:w-10">
         {compact ? (
-          <span className="pt-1 text-[10px] font-medium text-slate-300 transition-colors group-hover:text-slate-400 sm:text-[11px]">
+          <span className="hidden whitespace-nowrap pt-1 text-xs font-medium tabular-nums text-slate-400 transition-colors group-hover:text-ink-muted sm:block">
             {new Date(message.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
           </span>
         ) : (
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-200 text-sm font-semibold text-slate-600 sm:h-9 sm:w-9">
-            {message.author.avatar_url ? <img src={message.author.avatar_url} alt="" className="h-8 w-8 rounded-lg object-cover sm:h-9 sm:w-9" /> : message.author.full_name.slice(0, 1)}
-          </div>
+          <Avatar name={message.author.full_name} src={message.author.avatar_url} size="sm" className="sm:h-9 sm:w-9" />
         )}
       </div>
       <div className="min-w-0 flex-1 overflow-hidden">
         {!compact && (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-semibold text-slate-950">{message.author.full_name}</span>
-            <span className="text-xs text-slate-400">{formatTime(message.created_at)}</span>
-            {message.edited_at && <span className="text-xs text-slate-400">Edited</span>}
-            {message.pending && <span className="text-xs text-slate-400">Sending...</span>}
-            {message.failed && <span className="text-xs font-medium text-red-600">Not sent</span>}
+            <span className="text-xs tabular-nums text-ink-muted">{formatTime(message.created_at)}</span>
+            {message.edited_at && <span className="text-xs text-ink-muted">Edited</span>}
+            {message.pending && <span className="text-xs text-ink-muted">Sending...</span>}
+            {message.failed && <span className="text-xs font-medium text-danger-700">Not sent</span>}
             {message.pinned_at && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700"><Pin className="h-3 w-3" /> Pinned</span>}
           </div>
         )}
@@ -4975,20 +4991,20 @@ function MessageRow({
           <FormattedMessage body={message.body} mentionPatterns={mentionPatterns} />
         )}
         {message.failed && (
-          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700" role="status">
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700" role="status">
             <span className="min-w-0 flex-1">{message.failureError || 'This message was not sent.'}</span>
             {message.retrySend ? (
-              <button type="button" onClick={onRetry} className="min-h-11 rounded-xl bg-red-600 px-3 py-1.5 font-semibold text-white hover:bg-red-700">
+              <Button size="sm" onClick={onRetry}>
                 Retry
-              </button>
+              </Button>
             ) : (
-              <button type="button" onClick={onRestore} className="min-h-11 rounded-xl bg-red-600 px-3 py-1.5 font-semibold text-white hover:bg-red-700">
+              <Button size="sm" onClick={onRestore}>
                 {message.body ? 'Restore text' : 'Reattach files'}
-              </button>
+              </Button>
             )}
-            <button type="button" onClick={onDiscard} className="min-h-11 rounded-xl px-3 py-1.5 font-semibold text-red-700 hover:bg-red-100">
+            <Button variant="quiet" size="sm" onClick={onDiscard}>
               Discard
-            </button>
+            </Button>
           </div>
         )}
         {!message.blocked && message.attachments.length > 0 && (
@@ -4999,7 +5015,7 @@ function MessageRow({
                 key={attachment.id}
                 type="button"
                 onClick={() => onOpenImage(attachment, imageAttachments)}
-                className="min-w-0 rounded-lg border border-slate-200 bg-white p-2 text-left text-sm text-slate-700 hover:border-primary-200 hover:bg-primary-50"
+                className="pressable min-w-0 rounded-lg border border-line bg-white p-2 text-left text-sm text-slate-700 hover:border-line-strong hover:bg-slate-50"
               >
                 <img src={attachment.url} alt={attachment.filename} className="mb-2 max-h-56 w-full rounded-lg object-cover" />
                 <div className="truncate font-medium">{attachment.filename}</div>
@@ -5010,7 +5026,7 @@ function MessageRow({
                 key={attachment.id}
                 href={attachment.url}
                 download={attachment.filename}
-                className="min-w-0 rounded-lg border border-slate-200 bg-white p-2 text-sm text-slate-700 hover:border-primary-200 hover:bg-primary-50"
+                className="pressable min-w-0 rounded-lg border border-line bg-white p-2 text-sm text-slate-700 hover:border-line-strong hover:bg-slate-50"
               >
                 <File className="mb-2 h-5 w-5 text-slate-400" />
                 <div className="truncate font-medium">{attachment.filename}</div>
@@ -5022,11 +5038,11 @@ function MessageRow({
         )}
         {message.mine && readReceipts && readReceipts.count > 0 && (
           <div
-            className="mt-1 inline-flex max-w-full min-w-0 items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-500"
+            className="mt-1 inline-flex max-w-full min-w-0 items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-xs font-medium text-ink-muted"
             title={readReceiptTitle(readReceipts)}
             aria-label={`Seen by ${readReceiptTitle(readReceipts)}`}
           >
-            <CheckCheck className="h-3 w-3 shrink-0 text-green-600" />
+            <CheckCheck className="h-3 w-3 shrink-0 text-success-700" />
             <span className="truncate">Seen by {readReceiptLabel(readReceipts)}</span>
           </div>
         )}
@@ -5040,14 +5056,14 @@ function MessageRow({
                 <button
                   type="button"
                   onClick={() => onInspectReaction(reaction.emoji)}
-                  className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs ${reaction?.reacted ? 'border-primary-200 bg-primary-50 text-primary-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                  className={`pressable inline-flex min-h-11 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs tabular-nums sm:min-h-9 ${reaction?.reacted ? 'border-info-200 bg-info-50 font-semibold text-info-800' : 'border-line text-ink-secondary hover:bg-slate-50'}`}
                   aria-label={`${reactionDisplay.label}: ${reaction?.count || 0}. Show who reacted.`}
                 >
                   <ReactionIcon className="h-3.5 w-3.5" />
                   {reaction?.count || ''}
                 </button>
                 {reaction && reaction.users.length > 0 && (
-                  <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden -translate-x-1/2 rounded-lg bg-slate-900 px-3 py-2 text-xs text-white shadow-lg group-hover/reaction:block">
+                  <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden -translate-x-1/2 rounded-lg bg-slate-900 px-3 py-2 text-xs text-white shadow-overlay group-hover/reaction:block">
                     <div className="font-medium">{reactionDisplay.label}</div>
                     <div className="mt-1 whitespace-nowrap">{reaction.users.map((user) => user.full_name).join(', ')}</div>
                   </div>
@@ -5056,7 +5072,7 @@ function MessageRow({
             )
           })}
           {!inThreadView && replyCount > 0 && (
-            <button type="button" onClick={onReply} className="min-h-9 rounded-lg px-2.5 py-1 text-xs font-bold text-primary-700 hover:bg-primary-50">
+            <button type="button" onClick={onReply} className="pressable min-h-11 rounded-lg px-2.5 py-1 text-xs font-semibold tabular-nums sm:min-h-9 text-ink hover:bg-slate-100">
               {replyCount} {replyCount === 1 ? 'reply' : 'replies'}
             </button>
           )}
@@ -5064,52 +5080,47 @@ function MessageRow({
         )}
       </div>
       {!message.pending && !message.failed && <div className="ml-auto flex shrink-0 items-start gap-1 sm:hidden">
-        <button
-          type="button"
-          onClick={onOpenActions}
-          className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-white hover:text-slate-700 sm:hidden"
-          aria-label="Open message actions"
-        >
+        <IconButton label="Open message actions" onClick={onOpenActions} className="sm:hidden">
           <MoreHorizontal className="h-5 w-5" />
-        </button>
+        </IconButton>
       </div>}
-      {!message.pending && !message.failed && <div className="absolute right-2 top-1 z-10 hidden items-center gap-0.5 rounded-xl border border-slate-200 bg-white px-1.5 py-1 shadow-lg opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 sm:flex">
+      {!message.pending && !message.failed && <div className="absolute right-2 top-1 z-10 hidden items-center gap-0.5 rounded-xl border border-line bg-surface-raised px-1.5 py-1 shadow-overlay opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 sm:flex">
         {!message.blocked && REACTIONS.map(({ value, label, Icon }) => (
           <button
             key={value}
             type="button"
             onClick={() => onReact(value)}
-            className="inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+            className="pressable inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 active:bg-slate-200"
             aria-label={`React with ${label}`}
             title={label}
           >
             <Icon className="h-4 w-4" />
           </button>
         ))}
-        {!message.blocked && <button type="button" onClick={onReply} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={inThreadView ? 'Reply in thread' : 'Reply'}>
+        {!message.blocked && <button type="button" onClick={onReply} className="pressable rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 active:bg-slate-200" aria-label={inThreadView ? 'Reply in thread' : 'Reply'}>
           <MessageCircle className="h-4 w-4" />
         </button>}
         {!message.blocked && message.body && (
-          <button type="button" onClick={onCopy} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Copy message">
+          <button type="button" onClick={onCopy} className="pressable rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 active:bg-slate-200" aria-label="Copy message">
             <Copy className="h-4 w-4" />
           </button>
         )}
         {canPin && (
-          <button type="button" onClick={onPin} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Pin message">
+          <button type="button" onClick={onPin} className="pressable rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 active:bg-slate-200" aria-label="Pin message">
             <Pin className="h-4 w-4" />
           </button>
         )}
         {message.mine && (
           <>
-            <button type="button" onClick={onStartEdit} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Edit message">
+            <button type="button" onClick={onStartEdit} className="pressable rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 active:bg-slate-200" aria-label="Edit message">
               <Edit3 className="h-4 w-4" />
             </button>
-            <button type="button" onClick={onDelete} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-red-600" aria-label="Delete message">
+            <button type="button" onClick={onDelete} className="pressable rounded-lg p-1.5 text-slate-500 hover:bg-danger-50 hover:text-danger-700 active:bg-danger-100" aria-label="Delete message">
               <Trash2 className="h-4 w-4" />
             </button>
           </>
         )}
-        <button type="button" onClick={onOpenActions} className="rounded-lg p-1.5 text-slate-300 hover:bg-slate-100 hover:text-slate-600" aria-label="More message actions">
+        <button type="button" onClick={onOpenActions} className="pressable rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 active:bg-slate-200" aria-label="More message actions">
           <MoreHorizontal className="h-4 w-4" />
         </button>
       </div>}
@@ -5143,7 +5154,7 @@ export function MessageEditSurface({
   }, [value])
 
   return (
-    <div className="mt-2 overflow-hidden rounded-2xl border border-primary-200 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.08)] ring-4 ring-primary-50/80">
+    <div className="mt-2 overflow-hidden rounded-2xl border border-focus bg-surface-raised shadow-raised ring-2 ring-focus/25">
       <textarea
         ref={textareaRef}
         value={value}
@@ -5163,18 +5174,18 @@ export function MessageEditSurface({
         className="block min-h-28 max-h-[50dvh] w-full resize-y overflow-y-auto border-0 bg-slate-50/70 px-4 py-3 text-base leading-6 text-slate-800 outline-none placeholder:text-slate-400 focus:bg-white sm:text-sm"
       />
       <div className="flex flex-col gap-3 border-t border-slate-200/80 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className={`text-xs font-medium ${characterCount > MESSAGE_BODY_LIMIT ? 'text-red-600' : 'text-slate-400'}`}>
+        <p className={`text-xs font-medium tabular-nums ${characterCount > MESSAGE_BODY_LIMIT ? 'text-danger-700' : 'text-ink-muted'}`}>
           {characterCount > MESSAGE_BODY_LIMIT
             ? `${characterCount.toLocaleString()} / ${MESSAGE_BODY_LIMIT.toLocaleString()} characters`
             : 'The editor grows as you type. Press Ctrl/Command + Enter to save.'}
         </p>
         <div className="flex shrink-0 justify-end gap-2">
-          <button type="button" onClick={onCancel} className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900">
+          <Button variant="secondary" onClick={onCancel}>
             Cancel
-          </button>
-          <button type="button" onClick={onSave} disabled={!canSave} className="min-h-11 rounded-xl bg-primary-600 px-4 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400">
+          </Button>
+          <Button onClick={onSave} disabled={!canSave}>
             Save changes
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -5187,23 +5198,28 @@ function ConversationHeaderAction({
   shortLabel,
   fullLabel,
   ariaLabel,
+  title,
 }: {
   onClick: () => void
   icon: ReactNode
   shortLabel: string
   fullLabel: string
   ariaLabel: string
+  /** Tooltip; distinguishes look-alike icon buttons on narrow screens. */
+  title?: string
 }) {
   return (
-    <button
-      type="button"
+    <Button
+      variant="secondary"
+      size="sm"
       onClick={onClick}
-      className="inline-flex h-11 w-11 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 sm:h-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-2.5 sm:text-sm"
+      className="h-11 w-11 sm:h-auto sm:w-auto"
       aria-label={ariaLabel}
+      title={title ?? fullLabel}
     >
       {icon}
       <span className="sr-only">{shortLabel}</span>
       <span className="hidden sm:inline">{fullLabel}</span>
-    </button>
+    </Button>
   )
 }

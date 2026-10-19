@@ -6,7 +6,7 @@ const messageRows = Array.from({ length: 4 }, (_, index) => index)
 export function MessagesLoadingShell() {
   return (
     <div className="mx-auto flex h-full min-h-0 w-full max-w-[1500px] overflow-hidden">
-      <div className="grid min-h-0 w-full overflow-hidden border-y border-slate-200 bg-white shadow-sm lg:grid-cols-[328px_minmax(0,1fr)] lg:rounded-2xl lg:border">
+      <div className="grid min-h-0 w-full overflow-hidden border-y border-line bg-surface-raised shadow-raised lg:grid-cols-[328px_minmax(0,1fr)] lg:rounded-2xl lg:border">
         <aside className="hidden min-h-0 border-r border-slate-200 bg-slate-50/80 lg:flex lg:flex-col">
           <div className="border-b border-slate-200 bg-white px-4 py-4">
             <div className="flex items-center justify-between">
@@ -73,14 +73,14 @@ export function MessagesLoadingShell() {
           </div>
 
           <div className="shrink-0 border-t border-slate-200 bg-white px-3 pb-3 pt-3 sm:px-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="rounded-2xl border border-line bg-surface-raised p-3 shadow-raised">
               <div className="h-16 animate-pulse rounded-xl bg-slate-100" />
               <div className="mt-3 flex items-center justify-between">
                 <div className="flex gap-2">
                   <div className="h-8 w-8 animate-pulse rounded-lg bg-slate-100" />
                   <div className="h-8 w-8 animate-pulse rounded-lg bg-slate-100" />
                 </div>
-                <div className="h-8 w-20 animate-pulse rounded-lg bg-primary-100" />
+                <div className="h-8 w-20 animate-pulse rounded-lg bg-slate-200" />
               </div>
             </div>
           </div>
