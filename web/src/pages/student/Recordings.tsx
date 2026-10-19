@@ -355,19 +355,21 @@ export function Recordings() {
                 Playlist · {filtered.length}
               </h2>
             ) : (
-              <button
-                type="button"
-                aria-expanded={!playlistCollapsed}
-                onClick={() => setPlaylistCollapsed(!playlistCollapsed)}
-                className="flex min-h-11 w-full items-center justify-between border-b border-line px-4 py-3 transition-colors duration-150 active:bg-surface-sunken"
-              >
-                <span className="text-sm font-semibold tabular-nums text-ink">
-                  Playlist · {filtered.length}
-                </span>
-                <span className="text-ink-muted" aria-hidden="true">
-                  {playlistCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-                </span>
-              </button>
+              <h2>
+                <button
+                  type="button"
+                  aria-expanded={!playlistCollapsed}
+                  onClick={() => setPlaylistCollapsed(!playlistCollapsed)}
+                  className="flex min-h-11 w-full items-center justify-between border-b border-line px-4 py-3 transition-colors duration-150 active:bg-surface-sunken"
+                >
+                  <span className="text-sm font-semibold tabular-nums text-ink">
+                    Playlist · {filtered.length}
+                  </span>
+                  <span className="text-ink-muted" aria-hidden="true">
+                    {playlistCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                  </span>
+                </button>
+              </h2>
             )}
 
             <div className={`${playlistCollapsed ? 'hidden' : 'block'} lg:block`}>

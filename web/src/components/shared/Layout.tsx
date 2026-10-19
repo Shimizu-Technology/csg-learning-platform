@@ -330,7 +330,7 @@ export function Layout({ children }: LayoutProps) {
     ? 'h-full p-0 lg:p-4'
     : isStaff
       ? 'p-4 sm:p-6 lg:p-8'
-      : 'p-4 pb-24 sm:p-6 sm:pb-24 lg:p-8'
+      : 'py-4 pb-24 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] sm:py-6 sm:pb-24 sm:pl-[max(1.5rem,env(safe-area-inset-left))] sm:pr-[max(1.5rem,env(safe-area-inset-right))] lg:p-8'
 
   return (
     <div className={isMessagesRoute ? 'h-dvh overflow-hidden bg-surface-page' : 'min-h-dvh bg-surface-page'}>
