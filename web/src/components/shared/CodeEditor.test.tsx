@@ -67,6 +67,9 @@ describe('CodeEditor keyboard escape', () => {
     expect(fake.commands.map((command) => command.keybinding)).toEqual([9, 2, 1024 | 2])
 
     // Escape falls back to the next focusable control when no help toggle is visible.
+    // jsdom has no layout, so mark the following button as rendered.
+    const after = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'After editor')!
+    Object.defineProperty(after, 'offsetParent', { configurable: true, get: () => document.body })
     fake.commands[0].handler()
     expect(document.activeElement?.textContent).toBe('After editor')
     act(() => root.unmount())

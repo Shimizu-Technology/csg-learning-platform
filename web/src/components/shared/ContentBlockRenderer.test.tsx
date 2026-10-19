@@ -8,7 +8,7 @@ vi.mock('../../contexts/ToastContext', () => ({
   useToast: () => ({ success: vi.fn(), error: vi.fn() }),
 }))
 vi.mock('./MarkdownRenderer', () => ({ MarkdownRenderer: () => null }))
-vi.mock('./CodeEditor', () => ({ CodeEditor: ({ value, readOnly }: { value: string; readOnly?: boolean }) => <pre data-editor={readOnly ? 'readonly' : 'editable'}>{value}</pre>, detectLanguage: () => 'python' }))
+vi.mock('./CodeEditor', () => ({ CodeEditor: ({ value, readOnly, onChange }: { value: string; readOnly?: boolean; onChange?: (value: string) => void }) => <pre data-editor={readOnly ? 'readonly' : 'editable'} onClick={() => onChange?.(`${value}\n# edited`)}>{value}</pre>, detectLanguage: () => 'python' }))
 vi.mock('./FeedbackBody', () => ({ FeedbackBody: ({ feedback }: { feedback: string }) => <div data-feedback="">{feedback}</div> }))
 vi.mock('./CodeRunner', () => ({ CodeRunner: () => null }))
 vi.mock('./VideoPlayer', () => ({ VideoPlayer: () => null }))
@@ -129,6 +129,16 @@ describe('submission drafts', () => {
     expect(localStorage.getItem('csg-learn:submission-draft:v1:me:2:138')).toBeNull()
     expect(container.querySelector('[data-editor="editable"]')?.textContent).toBe('print("hi")')
     act(() => root.unmount())
+  })
+
+  it('saves an edit made right before leaving the lesson', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    await act(async () => { root.render(<ContentBlockRenderer block={checkpoint()} cohortId={2} />) })
+    await act(async () => { (container.querySelector('[data-editor="editable"]') as HTMLElement).click() })
+    act(() => root.unmount())
+    expect(JSON.parse(localStorage.getItem('csg-learn:submission-draft:v1:me:2:138') || '{}').text).toBe('\n# edited')
   })
 
   it('ignores a draft older than the latest saved submission', async () => {

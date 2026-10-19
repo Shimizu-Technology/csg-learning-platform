@@ -256,17 +256,31 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
     setRestoredDraftAt(null)
   }, [block.id])
 
+  // Debounced draft saving; anything still pending is flushed on unmount so
+  // leaving the lesson right after typing does not lose the last edits.
+  const pendingDraftRef = useRef<{ key: string; draft: Parameters<typeof writeSubmissionDraft>[1] } | null>(null)
+  useEffect(() => () => {
+    const pending = pendingDraftRef.current
+    if (pending) writeSubmissionDraft(pending.key, pending.draft)
+  }, [])
   useEffect(() => {
     if (isStaff || !hasEditedSubmissionDraft || !(usesTextSubmission || usesRepoArtifactSubmission)) return
-    const timer = window.setTimeout(() => {
-      writeSubmissionDraft(draftKey, usesTextSubmission
+    const pending = {
+      key: draftKey,
+      draft: usesTextSubmission
         ? { text: submissionText }
-        : { repoUrl, prUrl, liveUrl, branch: branchName, commitSha, notes: submissionNotes })
+        : { repoUrl, prUrl, liveUrl, branch: branchName, commitSha, notes: submissionNotes },
+    }
+    pendingDraftRef.current = pending
+    const timer = window.setTimeout(() => {
+      writeSubmissionDraft(pending.key, pending.draft)
+      if (pendingDraftRef.current === pending) pendingDraftRef.current = null
     }, 300)
     return () => window.clearTimeout(timer)
   }, [branchName, commitSha, draftKey, hasEditedSubmissionDraft, isStaff, liveUrl, prUrl, repoUrl, submissionNotes, submissionText, usesRepoArtifactSubmission, usesTextSubmission])
 
   const discardDraft = () => {
+    pendingDraftRef.current = null
     clearSubmissionDraft(draftKey)
     setRestoredDraftAt(null)
     setSubmissionError(null)
@@ -530,6 +544,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
         : { repoUrl, prUrl, liveUrl, branch: branchName, commitSha, notes: submissionNotes })
       toast.error(isSubmissionCheckpoint ? 'Your checkpoint was not sent yet.' : 'Your submission was not sent yet.')
     } else {
+      pendingDraftRef.current = null
       clearSubmissionDraft(draftKey)
       setRestoredDraftAt(null)
       setHasEditedSubmissionDraft(false)
