@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import Player, { type VimeoUrl } from '@vimeo/player'
 import { Play, FileText, Code, CheckCircle2, Circle, ChevronDown, ChevronUp, Send, RotateCcw, ExternalLink, Globe, GitBranch, Lock, RefreshCw, History } from 'lucide-react'
 import { MarkdownRenderer } from './MarkdownRenderer'
+import type { StarterLinkContext } from './HafaStarterLink'
 import { FeedbackBody } from './FeedbackBody'
 import { StatusBadge } from './StatusBadge'
 import { Button } from '../ui/Button'
@@ -11,6 +12,7 @@ import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
 import { VideoSegmentControls } from './VideoSegmentControls'
 import { api } from '../../lib/api'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
+import type { LessonReturn } from '../../lib/hafaStarterLinks'
 import { CODE_RUNNER_TIMEOUT_MS, codeRunnerLanguageFromEditor, normalizeCodeRunnerConfig } from '../../lib/codeRunner'
 import { formatShortDateTime } from '../../lib/format'
 import { useToast } from '../../contexts/ToastContext'
@@ -69,6 +71,10 @@ interface ContentBlockRendererProps {
   submissionsCloseAt?: string | null
   submissionWeekNumber?: number
   analyticsContext?: { moduleId: number; lessonId: number }
+  /** The lesson this block renders in; Hafa Code starter links return here. */
+  lessonReturn?: LessonReturn
+  /** Always open Hafa Code starters in a new tab (editor preview keeps unsaved edits). */
+  starterOpensNewTab?: boolean
   onProgressUpdate?: () => void
 }
 
@@ -83,7 +89,7 @@ function getVimeoEmbed(url: string): { id: string; hash?: string } | null {
   return { id: match[1], hash: match[2] }
 }
 
-export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub, requiresSubmission = true, repositoryName, submissionsLocked = false, submissionsCloseAt, submissionWeekNumber, analyticsContext, onProgressUpdate }: ContentBlockRendererProps) {
+export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub, requiresSubmission = true, repositoryName, submissionsLocked = false, submissionsCloseAt, submissionWeekNumber, analyticsContext, lessonReturn, starterOpensNewTab = false, onProgressUpdate }: ContentBlockRendererProps) {
   const toast = useToast()
   const { user } = useAuthContext()
   const draftKey = submissionDraftKey({ userId: user?.id, cohortId, blockId: block.id })
@@ -158,6 +164,14 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
   const usesRepoArtifactSubmission = isWorkBlock && (submissionType === 'repo_url_submission' || submissionType === 'repo_and_live_url_submission')
   const requiresLiveUrl = submissionType === 'repo_and_live_url_submission'
   const workLocked = submissionsLocked && (isWorkBlock || (block.block_type === 'checkpoint' && !knowledgeCheck))
+  const lessonReturnUrl = lessonReturn?.url
+  const lessonReturnLabel = lessonReturn?.label
+  // "Paste it here" only when this learner has an open text box to paste into.
+  const starterHint = usesTextSubmission && !isStaff && !workLocked ? 'submit' : 'practice'
+  const starterLinks = useMemo<StarterLinkContext | undefined>(
+    () => (lessonReturnUrl ? { lessonReturn: { url: lessonReturnUrl, label: lessonReturnLabel }, hint: starterHint, newTab: starterOpensNewTab } : undefined),
+    [lessonReturnUrl, lessonReturnLabel, starterHint, starterOpensNewTab],
+  )
   const latestStatus = submissionStatus(latestSubmission)
   const lockCopy = submissionWeekNumber ? `Week ${submissionWeekNumber} submissions are closed` : 'Submissions are closed'
   const videoSegments = useMemo(() => normalizeVideoSegments(block.metadata), [block.metadata])
@@ -819,7 +833,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
 
         {block.body && (
           <div className={block.block_type === 'video' ? 'mt-4' : ''}>
-            <MarkdownRenderer content={block.body} />
+            <MarkdownRenderer content={block.body} starterLinks={starterLinks} />
           </div>
         )}
 
