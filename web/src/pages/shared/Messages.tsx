@@ -931,6 +931,8 @@ export function Messages() {
   const [pushMessage, setPushMessage] = useState('')
   const [hasUnreadBelow, setHasUnreadBelow] = useState(false)
   const [unreadBoundaryId, setUnreadBoundaryId] = useState<number | null>(null)
+  // The conversation whose "New messages" divider we already brought into view once.
+  const unreadJumpTargetKeyRef = useRef<string | null>(null)
   const [showScrollToLatest, setShowScrollToLatest] = useState(false)
   const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'error'>('disconnected')
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([])
@@ -2175,6 +2177,7 @@ export function Messages() {
     const restoringTarget = pendingScrollRestoreTargetKeyRef.current === currentTargetKey
     const targetChanged = lastAutoScrollTargetKeyRef.current !== currentTargetKey
     lastAutoScrollTargetKeyRef.current = currentTargetKey
+    if (targetChanged) unreadJumpTargetKeyRef.current = null
 
     let secondFrame: number | null = null
     const firstFrame = window.requestAnimationFrame(() => {
@@ -2184,6 +2187,21 @@ export function Messages() {
           const savedScroll = readSavedConversationScroll(user?.id, selectedTarget)
           if (savedScroll && !savedScroll.atBottom) {
             element.scrollTop = Math.max(0, element.scrollHeight - element.clientHeight - savedScroll.distanceFromBottom)
+            shouldStickToBottomRef.current = false
+            setShowScrollToLatest(true)
+            return
+          }
+        }
+
+        // Opening a conversation with unread messages: if the "New messages"
+        // divider would sit above the screen at the bottom, start at the divider.
+        const divider = unreadJumpTargetKeyRef.current !== currentTargetKey && shouldStickToBottomRef.current ? element.querySelector<HTMLElement>('[data-unread-divider]') : null
+        if (divider) {
+          unreadJumpTargetKeyRef.current = currentTargetKey
+          const dividerTop = divider.getBoundingClientRect().top - element.getBoundingClientRect().top + element.scrollTop
+          if (dividerTop < element.scrollHeight - element.clientHeight - 8) {
+            programmaticScrollUntilRef.current = window.performance.now() + 80
+            element.scrollTop = Math.max(0, dividerTop - 12)
             shouldStickToBottomRef.current = false
             setShowScrollToLatest(true)
             return
@@ -3801,7 +3819,7 @@ export function Messages() {
                     return (
                       <div key={message.id}>
                         {!activeThreadRoot && conversationView === 'messages' && unreadBoundaryId === message.id && (
-                          <div className="my-4 flex items-center gap-3 px-2" role="separator" aria-label="Unread messages">
+                          <div data-unread-divider className="my-4 flex items-center gap-3 px-2" role="separator" aria-label="Unread messages">
                             <div className="h-px flex-1 bg-ruby-200" />
                             <span className="text-xs font-semibold text-ruby-700">New messages</span>
                             <div className="h-px flex-1 bg-ruby-200" />
