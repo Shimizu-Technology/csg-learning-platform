@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-import { applySurface, invitationDestination, PRODUCT_NAME, SURFACE_THEME_COLORS, surfaceForPath } from './brand'
+import { applySurface, hasInvitationTicket, invitationDestination, PRODUCT_NAME, SURFACE_THEME_COLORS, surfaceForPath } from './brand'
 
 const indexHtml = readFileSync(resolve(__dirname, '../../index.html'), 'utf8')
 
@@ -64,6 +64,12 @@ describe('invitation links', () => {
 
   it('defaults to sign-up when the status is missing', () => {
     expect(invitationDestination('?__clerk_ticket=abc')).toBe('/sign-up?__clerk_ticket=abc')
+  })
+
+  it('treats an empty ticket as no invitation, everywhere', () => {
+    expect(hasInvitationTicket('?__clerk_ticket=')).toBe(false)
+    expect(invitationDestination('?__clerk_ticket=')).toBeNull()
+    expect(hasInvitationTicket('?__clerk_ticket=abc')).toBe(true)
   })
 
   it('ignores ordinary visits', () => {

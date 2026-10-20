@@ -9,6 +9,15 @@ import { describe, expect, it } from 'vitest'
  */
 const RETIRED = /CSG Connect|CSG Learning Hub|CSG Learning Platform|CSG Learning\b/
 
+/** Catch URL-encoded variants too (for example a mailto subject). */
+function safeDecode(line: string) {
+  try {
+    return decodeURIComponent(line)
+  } catch {
+    return line.replace(/%20/g, ' ')
+  }
+}
+
 const webRoot = resolve(__dirname, '../..')
 
 function walk(dir: string): string[] {
@@ -33,7 +42,7 @@ describe('product naming', () => {
     const offending = files.flatMap((file) => readFileSync(file, 'utf8')
       .split('\n')
       .map((line, index) => ({ line, at: `${file.replace(`${webRoot}/`, '')}:${index + 1}` }))
-      .filter(({ line }) => RETIRED.test(line))
+      .filter(({ line }) => RETIRED.test(line) || RETIRED.test(safeDecode(line)))
       .map(({ line, at }) => `${at}: ${line.trim()}`))
     expect(offending).toEqual([])
   })

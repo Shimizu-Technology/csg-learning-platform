@@ -7,7 +7,7 @@ import { useState, type ReactNode } from 'react'
 import { PublicFooter, PublicHeader } from '../components/brand/PublicChrome'
 import { AuthWidgetStatus } from '../components/auth/AuthWidgetStatus'
 import { Button, LinkButton } from '../components/ui/Button'
-import { PRODUCT_NAME, SCHOOL_NAME } from '../lib/brand'
+import { hasInvitationTicket, PRODUCT_NAME, SCHOOL_NAME } from '../lib/brand'
 
 const SUPPORT_EMAIL = 'codeschoolofguam@gmail.com'
 
@@ -130,10 +130,6 @@ function AccessDeniedCard() {
       </div>
     </div>
   )
-}
-
-function hasInvitationTicket(search: string) {
-  return new URLSearchParams(search).has('__clerk_ticket')
 }
 
 const deniedCopy = {

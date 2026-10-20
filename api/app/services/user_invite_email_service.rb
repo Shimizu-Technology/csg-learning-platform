@@ -9,14 +9,13 @@ class UserInviteEmailService
       return false unless configured?
 
       button_link = invitation_url.presence || frontend_url
-      display_url = frontend_url
 
       response = Resend::Emails.send(
         {
           from: from_email,
           to: user.email,
           subject: subject,
-          html: invite_html(user: user, invited_by: invited_by, button_link: button_link, display_url: display_url)
+          html: invite_html(user: user, invited_by: invited_by, button_link: button_link)
         }
       )
 
@@ -73,7 +72,7 @@ class UserInviteEmailService
 
     # Email clients cannot load the app's web fonts; Georgia stands in for the
     # Newsreader headline used on the CSG site and the CSG Learn sign-in pages.
-    def invite_html(user:, invited_by:, button_link:, display_url:)
+    def invite_html(user:, invited_by:, button_link:)
       inviter = h(invited_by&.full_name.presence || invited_by&.email.presence || "An administrator")
       role = h(user.role.to_s.capitalize)
 
@@ -140,7 +139,7 @@ class UserInviteEmailService
                       <td style="padding: 16px 32px 0 32px;">
                         <p style="margin: 0 0 4px 0; font-size: 12px; color: #5f6b7f;">Or open this link in your browser:</p>
                         <p style="margin: 0; font-size: 12px; word-break: break-all;">
-                          <a href="#{h(button_link)}" style="color: #842225; text-decoration: underline;">#{h(display_url)}</a>
+                          <a href="#{h(button_link)}" style="color: #842225; text-decoration: underline;">#{h(button_link)}</a>
                         </p>
                       </td>
                     </tr>

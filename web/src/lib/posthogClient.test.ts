@@ -33,6 +33,7 @@ describe('lazy PostHog client', () => {
     expect(module.__testing.queued()).toBe(2)
 
     idle.forEach((cb) => cb())
+    module.setPostHogIdentity({ kind: 'anonymous' })
     await module.loadPostHog()
     expect(importer).toHaveBeenCalledTimes(1)
     expect(fake.init).toHaveBeenCalledWith('phc_test', expect.objectContaining({ autocapture: false, disable_session_recording: true }))
@@ -41,6 +42,69 @@ describe('lazy PostHog client', () => {
 
     module.withPostHog((ph) => ph.capture('third'))
     expect(fake.capture).toHaveBeenCalledTimes(3)
+    vi.unstubAllGlobals()
+  })
+
+  function fakePostHog(order: string[]) {
+    return {
+      init: vi.fn(() => order.push('init')),
+      identify: vi.fn((id: string) => order.push(`identify:${id}`)),
+      reset: vi.fn(() => order.push('reset')),
+      capture: vi.fn((event: string) => order.push(`capture:${event}`)),
+      opt_out_capturing: vi.fn(),
+    }
+  }
+
+  it('identifies the signed-in user before flushing a pageview queued earlier (no leak to a persisted identity)', async () => {
+    vi.stubEnv('VITE_PUBLIC_POSTHOG_KEY', 'phc_test')
+    vi.stubGlobal('requestIdleCallback', () => 1)
+    const module = await import('./posthogClient')
+    const order: string[] = []
+    module.__testing.reset(vi.fn(async () => ({ default: fakePostHog(order) as never })))
+
+    module.withPostHog((ph) => ph.capture('$pageview'))
+    const loading = module.loadPostHog()
+    await Promise.resolve()
+    module.setPostHogIdentity({ kind: 'user', id: '42', properties: { role: 'student' } })
+    await loading
+    expect(order).toEqual(['init', 'identify:42', 'capture:$pageview'])
+    vi.unstubAllGlobals()
+  })
+
+  it('resets a persisted identity for a signed-out visitor before flushing, and only once', async () => {
+    vi.stubEnv('VITE_PUBLIC_POSTHOG_KEY', 'phc_test')
+    vi.stubGlobal('requestIdleCallback', () => 1)
+    const module = await import('./posthogClient')
+    const order: string[] = []
+    module.__testing.reset(vi.fn(async () => ({ default: fakePostHog(order) as never })))
+
+    module.withPostHog((ph) => ph.capture('$pageview'))
+    module.setPostHogIdentity({ kind: 'anonymous' })
+    await module.loadPostHog()
+    module.setPostHogIdentity({ kind: 'anonymous' })
+    expect(order).toEqual(['init', 'reset', 'capture:$pageview'])
+
+    module.setPostHogIdentity({ kind: 'user', id: '7', properties: { role: 'student' } })
+    expect(order.at(-1)).toBe('identify:7')
+    vi.unstubAllGlobals()
+  })
+
+  it('flushes after a bounded wait if the app never reports an identity', async () => {
+    vi.useFakeTimers()
+    vi.stubEnv('VITE_PUBLIC_POSTHOG_KEY', 'phc_test')
+    vi.stubGlobal('requestIdleCallback', () => 1)
+    const module = await import('./posthogClient')
+    const order: string[] = []
+    module.__testing.reset(vi.fn(async () => ({ default: fakePostHog(order) as never })))
+
+    module.withPostHog((ph) => ph.capture('$pageview'))
+    const loading = module.loadPostHog()
+    await vi.advanceTimersByTimeAsync(module.IDENTITY_WAIT_MS - 1)
+    expect(order).toEqual(['init'])
+    await vi.advanceTimersByTimeAsync(1)
+    await loading
+    expect(order).toEqual(['init', 'capture:$pageview'])
+    vi.useRealTimers()
     vi.unstubAllGlobals()
   })
 

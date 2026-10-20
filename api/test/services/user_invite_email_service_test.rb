@@ -33,7 +33,8 @@ class UserInviteEmailServiceTest < ActiveSupport::TestCase
     assert_includes html, "You're invited to CSG Learn"
     assert_includes html, "Ana Admin added you as a <strong style=\"color: #0f172a;\">Student</strong> in CSG Learn"
     assert_includes html, "new-learner@example.com"
-    assert_includes html, "https://accounts.example.com/invite?ticket=abc"
+    # The fallback link shows the same invitation URL it opens, so copying it keeps the ticket.
+    assert_includes html, ">https://accounts.example.com/invite?ticket=abc</a>"
     assert_includes html, "#9c292b"
     assert_includes html, "Accept invitation"
     refute_match(/#2563eb|#7c3aed|CSG Connect|CSG Learning/, html)

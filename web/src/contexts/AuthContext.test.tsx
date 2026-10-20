@@ -28,7 +28,7 @@ vi.mock('../lib/api', () => ({
   setAuthTokenGetter: vi.fn(),
 }))
 
-vi.mock('../lib/posthogClient', () => ({ isPostHogEnabled: false, isPostHogLoaded: () => false, withPostHog: vi.fn(() => false) }))
+vi.mock('../lib/posthogClient', () => ({ isPostHogEnabled: false, setPostHogIdentity: vi.fn() }))
 
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 

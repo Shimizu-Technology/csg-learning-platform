@@ -22,6 +22,58 @@ let loading: Promise<PostHog | null> | null = null
 let scheduled = false
 const queue: PostHogTask[] = []
 
+/**
+ * Who analytics should attribute events to. PostHog persists the last
+ * identified user in the browser, so queued events must not flush until the
+ * current identity is applied: identify the signed-in user, or reset to an
+ * anonymous id for a signed-out visitor. If the app never reports an identity
+ * (for example Clerk fails to load), the queue flushes after a short wait.
+ */
+export type AnalyticsIdentity =
+  | { kind: 'anonymous' }
+  | { kind: 'user'; id: string; properties: Record<string, string | number> }
+
+export const IDENTITY_WAIT_MS = 10_000
+
+let identity: AnalyticsIdentity | null = null
+let appliedIdentityKey: string | null = null
+let identityWaiters: Array<() => void> = []
+
+function identityKey(next: AnalyticsIdentity) {
+  return next.kind === 'user' ? `user:${next.id}:${JSON.stringify(next.properties)}` : 'anonymous'
+}
+
+function applyIdentity(ph: PostHog, next: AnalyticsIdentity) {
+  const key = identityKey(next)
+  if (key === appliedIdentityKey) return
+  appliedIdentityKey = key
+  try {
+    if (next.kind === 'user') ph.identify(next.id, next.properties)
+    else ph.reset()
+  } catch {
+    // Analytics must never break the app.
+  }
+}
+
+/** Record the current identity. Never triggers a load by itself. */
+export function setPostHogIdentity(next: AnalyticsIdentity) {
+  if (!isPostHogEnabled) return
+  identity = next
+  identityWaiters.splice(0).forEach((resolve) => resolve())
+  if (client) applyIdentity(client, next)
+}
+
+function waitForIdentity(): Promise<void> {
+  if (identity) return Promise.resolve()
+  return new Promise((resolve) => {
+    const timer = globalThis.setTimeout(resolve, IDENTITY_WAIT_MS)
+    identityWaiters.push(() => {
+      globalThis.clearTimeout(timer)
+      resolve()
+    })
+  })
+}
+
 type Importer = () => Promise<{ default: PostHog }>
 let importPostHog: Importer = () => import('posthog-js')
 
@@ -41,7 +93,7 @@ export function loadPostHog(): Promise<PostHog | null> {
   if (client) return Promise.resolve(client)
   if (!loading) {
     loading = importPostHog()
-      .then(({ default: posthog }) => {
+      .then(async ({ default: posthog }) => {
         posthog.init(POSTHOG_KEY, {
           api_host: POSTHOG_HOST,
           capture_pageview: false,
@@ -52,6 +104,8 @@ export function loadPostHog(): Promise<PostHog | null> {
             if (import.meta.env.DEV) ph.opt_out_capturing()
           },
         })
+        await waitForIdentity()
+        if (identity) applyIdentity(posthog, identity)
         client = posthog
         flush(posthog)
         return posthog
@@ -106,6 +160,9 @@ export const __testing = {
     loading = null
     scheduled = false
     queue.length = 0
+    identity = null
+    appliedIdentityKey = null
+    identityWaiters = []
     importPostHog = importer || (() => import('posthog-js'))
   },
   queued: () => queue.length,

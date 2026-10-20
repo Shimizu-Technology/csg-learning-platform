@@ -115,7 +115,7 @@ export function AccountDeletionPage() {
 
       <h2>Request by email</h2>
       <p>Email us from the address connected to your CSG account. Include the full name and email address on the account. Do not send a password, sign-in code, government ID, or other unnecessary sensitive information.</p>
-      <p><AnchorButton variant="primary" size="lg" className="not-prose no-underline" href={`mailto:${privacyEmail}?subject=CSG%20Connect%20account%20deletion%20request`}><Mail className="h-4 w-4" aria-hidden="true" />Email a deletion request</AnchorButton></p>
+      <p><AnchorButton variant="primary" size="lg" className="not-prose no-underline" href={`mailto:${privacyEmail}?subject=${encodeURIComponent(`${PRODUCT_NAME} account deletion request`)}`}><Mail className="h-4 w-4" aria-hidden="true" />Email a deletion request</AnchorButton></p>
 
       <h2>What happens next</h2>
       <p>We will verify account ownership, confirm the scope, and process the request. Personal data associated with the account will be deleted unless a limited record must be retained for academic records, security, fraud prevention, dispute resolution, safeguarding, or another legal obligation. If retention is required, we will explain the category and reason.</p>

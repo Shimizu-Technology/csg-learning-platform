@@ -48,9 +48,13 @@ export function applySurface(pathname: string, doc: Document = document) {
  * `__clerk_ticket` and `__clerk_status`. Send them to the page whose Clerk
  * component can consume the ticket, keeping the query string intact.
  */
+export function hasInvitationTicket(search: string): boolean {
+  return Boolean(new URLSearchParams(search).get('__clerk_ticket'))
+}
+
 export function invitationDestination(search: string): string | null {
+  if (!hasInvitationTicket(search)) return null
   const params = new URLSearchParams(search)
-  if (!params.get('__clerk_ticket')) return null
   const status = params.get('__clerk_status')
   const path = status === 'sign_in' || status === 'complete' ? '/sign-in' : '/sign-up'
   return `${path}?${params.toString()}`
