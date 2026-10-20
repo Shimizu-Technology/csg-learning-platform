@@ -1,10 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
-import { Activity, Archive, Shield, ShieldCheck, UserPlus, Mail, Pencil, Trash2, RotateCcw, Check } from 'lucide-react'
+import { Activity, Archive, UserPlus, Mail, Pencil, Trash2, RotateCcw, Check } from 'lucide-react'
 import { api } from '../../lib/api'
 import { Modal } from '../../components/shared/Modal'
 import { ActivityTimeline } from '../../components/shared/ActivityTimeline'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
+import { Avatar } from '../../components/ui/Avatar'
+import { Badge } from '../../components/ui/Badge'
+import { Button } from '../../components/ui/Button'
+import { SegmentButton, SegmentedControl } from '../../components/ui/Choice'
+
+const ROLE_LABELS: Record<string, string> = {
+  admin: 'Admin',
+  instructor: 'Instructor',
+}
 
 interface TeamMember {
   id: number
@@ -203,141 +212,101 @@ export function TeamManagement() {
   return (
     <div className="app-page max-w-4xl">
       <header className="flex items-end justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <p className="app-eyebrow">Access & ownership</p>
           <h1 className="app-title mt-2">Team</h1>
           <p className="app-description mt-2">Manage instructors and administrators.</p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-700"
-        >
-          <UserPlus className="h-4 w-4" />
+        <Button onClick={() => setShowAddModal(true)} className="shrink-0">
+          <UserPlus className="h-4 w-4" aria-hidden="true" />
           <span className="hidden sm:inline">Add Team Member</span>
           <span className="sm:hidden">Add</span>
-        </button>
+        </Button>
       </header>
 
-      <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1">
-        <button
-          type="button"
-          onClick={() => setViewMode('active')}
-          className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-            viewMode === 'active' ? 'bg-primary-50 text-primary-700' : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
+      <SegmentedControl label="Team members view" className="self-start">
+        <SegmentButton dense selected={viewMode === 'active'} onClick={() => setViewMode('active')}>
           Active
-        </button>
-        <button
-          type="button"
-          onClick={() => setViewMode('archived')}
-          className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-            viewMode === 'archived' ? 'bg-primary-50 text-primary-700' : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
+        </SegmentButton>
+        <SegmentButton dense selected={viewMode === 'archived'} onClick={() => setViewMode('archived')}>
           Archived
-        </button>
-      </div>
+        </SegmentButton>
+      </SegmentedControl>
 
       <div className="space-y-3">
         {listLoading ? (
           <TeamListSkeleton />
         ) : members.length === 0 ? (
-          <div className="rounded-2xl bg-white border border-slate-200 p-8 text-center text-sm text-slate-500">
+          <div className="app-surface p-8 text-center text-sm text-ink-muted">
             {viewMode === 'archived' ? 'No archived team members.' : 'No team members yet. Add an instructor or admin to get started.'}
           </div>
         ) : (
           members.map((member) => (
-            <div key={member.id} className={`rounded-xl bg-white border p-4 transition-colors ${
-              isArchived(member) ? 'border-slate-200 opacity-80' : 'border-slate-200 hover:border-slate-300'
-            }`}>
+            <div key={member.id} className={`app-surface p-4 ${isArchived(member) ? 'opacity-80' : ''}`}>
               <div className="flex items-start gap-3">
-                {/* Avatar */}
-                <div className={`flex h-10 w-10 items-center justify-center rounded-full shrink-0 ${
-                  isArchived(member)
-                    ? 'bg-slate-100 text-slate-500'
-                    : member.role === 'admin' ? 'bg-primary-100 text-primary-700' : 'bg-blue-100 text-blue-700'
-                }`}>
-                  {member.role === 'admin' ? <ShieldCheck className="h-5 w-5" /> : <Shield className="h-5 w-5" />}
-                </div>
+                <Avatar name={member.full_name} src={member.avatar_url} size="md" />
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-semibold text-slate-900">{member.full_name}</p>
+                    <p className="min-w-0 max-w-full truncate text-sm font-semibold text-ink" title={member.full_name}>{member.full_name}</p>
                     {isSelf(member) && (
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">you</span>
+                      <Badge>You</Badge>
                     )}
                     {isArchived(member) && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
-                        <Archive className="h-3 w-3" />
-                        Archived
-                      </span>
+                      <Badge icon={<Archive className="h-3 w-3" aria-hidden="true" />}>Archived</Badge>
                     )}
                     {isPending(member) && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-                        <Mail className="h-3 w-3" />
-                        Invite sent
-                      </span>
+                      <Badge tone="pending" icon={<Mail className="h-3 w-3" aria-hidden="true" />}>Invite sent</Badge>
                     )}
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                      member.role === 'admin'
-                        ? 'bg-primary-50 text-primary-700'
-                        : 'bg-blue-50 text-blue-700'
-                    }`}>
-                      {member.role}
-                    </span>
+                    <Badge>{ROLE_LABELS[member.role] || member.role}</Badge>
                   </div>
-                  <p className="text-xs text-slate-500 mt-0.5 truncate">{member.email}</p>
+                  <p className="text-xs text-ink-muted mt-0.5 truncate" title={member.email}>{member.email}</p>
                   {member.github_username && (
-                    <p className="text-xs text-slate-400 truncate">@{member.github_username}</p>
+                    <p className="text-xs text-ink-muted truncate" title={`@${member.github_username}`}>@{member.github_username}</p>
                   )}
                 </div>
               </div>
 
               {/* Actions — always visible, stacked below on mobile */}
-              <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-100">
-                <button type="button" onClick={() => setActivityMember(member)} className="inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-xs font-bold text-primary-700 hover:bg-primary-50"><Activity className="h-4 w-4" />Activity</button>
+              <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-line">
+                <Button variant="quiet" size="sm" onClick={() => setActivityMember(member)}><Activity className="h-4 w-4" aria-hidden="true" />Activity</Button>
                 {isArchived(member) ? (
-                  <button
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     onClick={() => setRestoreConfirm(member)}
                     disabled={restoringId === member.id}
-                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 disabled:opacity-50 transition-colors"
                   >
-                    <RotateCcw className={`h-3.5 w-3.5 ${restoringId === member.id ? 'animate-spin' : ''}`} />
+                    <RotateCcw className={`h-3.5 w-3.5 ${restoringId === member.id ? 'animate-spin' : ''}`} aria-hidden="true" />
                     Restore
-                  </button>
+                  </Button>
                 ) : (
                   <>
-                    <button
-                      onClick={() => openEdit(member)}
-                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
+                    <Button variant="secondary" size="sm" onClick={() => openEdit(member)}>
+                      <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                       Edit
-                    </button>
+                    </Button>
 
                     {isPending(member) && (
-                      <button
+                      <Button
+                        variant="secondary"
+                        size="sm"
                         onClick={() => handleResendInvite(member)}
                         disabled={resendingId === member.id}
-                        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 disabled:opacity-50 transition-colors"
                       >
-                        <RotateCcw className={`h-3.5 w-3.5 ${resendingId === member.id ? 'animate-spin' : ''}`} />
+                        <RotateCcw className={`h-3.5 w-3.5 ${resendingId === member.id ? 'animate-spin' : ''}`} aria-hidden="true" />
                         Resend
-                      </button>
+                      </Button>
                     )}
 
                     <div className="flex-1" />
 
                     {!isSelf(member) && (
-                      <button
-                        onClick={() => setDeleteConfirm(member)}
-                        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
-                      >
-                        {isPending(member) ? <Trash2 className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
+                      <Button variant="danger" size="sm" className="shrink-0" onClick={() => setDeleteConfirm(member)}>
+                        {isPending(member) ? <Trash2 className="h-3.5 w-3.5" aria-hidden="true" /> : <Archive className="h-3.5 w-3.5" aria-hidden="true" />}
                         {isPending(member) ? 'Delete invite' : 'Archive'}
-                      </button>
+                      </Button>
                     )}
                   </>
                 )}
@@ -360,52 +329,48 @@ export function TeamManagement() {
       >
         <form onSubmit={handleAddMember} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Email Address *</label>
+            <label className="block text-sm font-medium text-ink-secondary mb-1">Email Address *</label>
             <input
               type="email"
               required
               value={addEmail}
               onChange={(e) => setAddEmail(e.target.value)}
               placeholder="instructor@example.com"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+              className="app-control w-full"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
+            <label className="block text-sm font-medium text-ink-secondary mb-1">Role</label>
             <select
               value={addRole}
               onChange={(e) => setAddRole(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+              className="app-control w-full"
             >
               <option value="instructor">Instructor</option>
               <option value="admin">Admin</option>
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">GitHub Username (optional)</label>
+            <label className="block text-sm font-medium text-ink-secondary mb-1">GitHub Username (optional)</label>
             <input
               type="text"
               value={addGithub}
               onChange={(e) => setAddGithub(e.target.value)}
               placeholder="e.g., octocat"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+              className="app-control w-full"
             />
           </div>
           <div className="flex items-center gap-2 pt-2">
-            <button
+            <Button
               type="submit"
               disabled={adding || !addEmail.trim()}
-              className="flex-1 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
+              className="flex-1"
             >
               {adding ? 'Adding...' : 'Add & Send Invite'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowAddModal(false)}
-              className="rounded-lg px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
-            >
+            </Button>
+            <Button variant="quiet" onClick={() => setShowAddModal(false)}>
               Cancel
-            </button>
+            </Button>
           </div>
         </form>
       </Modal>
@@ -422,62 +387,55 @@ export function TeamManagement() {
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">First Name</label>
+                <label className="block text-sm font-medium text-ink-secondary mb-1">First Name</label>
                 <input
                   type="text"
                   value={editDraft.first_name}
                   onChange={(e) => setEditDraft({ ...editDraft, first_name: e.target.value })}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                  className="app-control w-full"
                   placeholder="First name"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Last Name</label>
+                <label className="block text-sm font-medium text-ink-secondary mb-1">Last Name</label>
                 <input
                   type="text"
                   value={editDraft.last_name}
                   onChange={(e) => setEditDraft({ ...editDraft, last_name: e.target.value })}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                  className="app-control w-full"
                   placeholder="Last name"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">GitHub Username</label>
+              <label className="block text-sm font-medium text-ink-secondary mb-1">GitHub Username</label>
               <input
                 type="text"
                 value={editDraft.github_username}
                 onChange={(e) => setEditDraft({ ...editDraft, github_username: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                className="app-control w-full"
                 placeholder="e.g., octocat"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
+              <label className="block text-sm font-medium text-ink-secondary mb-1">Role</label>
               <select
                 value={editDraft.role}
                 onChange={(e) => setEditDraft({ ...editDraft, role: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                className="app-control w-full"
               >
                 <option value="instructor">Instructor</option>
                 <option value="admin">Admin</option>
               </select>
             </div>
             <div className="flex items-center gap-2 pt-2">
-              <button
-                onClick={saveEdit}
-                disabled={saving}
-                className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
-              >
-                <Check className="h-4 w-4" />
+              <Button onClick={saveEdit} disabled={saving} className="flex-1">
+                <Check className="h-4 w-4" aria-hidden="true" />
                 {saving ? 'Saving...' : 'Save Changes'}
-              </button>
-              <button
-                onClick={closeEdit}
-                className="rounded-lg px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
-              >
+              </Button>
+              <Button variant="quiet" onClick={closeEdit}>
                 Cancel
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -493,28 +451,21 @@ export function TeamManagement() {
         {deleteConfirm && (
           <div className="space-y-4">
             {deleteConfirm.invite_pending ? (
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-ink-secondary">
                 Delete the pending invite for <strong>{deleteConfirm.full_name}</strong> ({deleteConfirm.email})? This is only for unused invitations.
               </p>
             ) : (
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-ink-secondary">
                 Archive <strong>{deleteConfirm.full_name}</strong> ({deleteConfirm.email})? They will no longer appear in team or messaging pickers, and their sign-in will be disabled. Existing messages and records will remain intact.
               </p>
             )}
             <div className="flex items-center gap-2">
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
-              >
+              <Button variant="danger" onClick={handleDelete} disabled={deleting} className="flex-1">
                 {deleting ? (deleteConfirm.invite_pending ? 'Deleting...' : 'Archiving...') : (deleteConfirm.invite_pending ? 'Delete Invite' : 'Archive Member')}
-              </button>
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="rounded-lg px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
-              >
+              </Button>
+              <Button variant="quiet" onClick={() => setDeleteConfirm(null)}>
                 Cancel
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -529,28 +480,21 @@ export function TeamManagement() {
       >
         {restoreConfirm && (
           <div className="space-y-4">
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-ink-secondary">
               Restore <strong>{restoreConfirm.full_name}</strong> ({restoreConfirm.email})? They will appear in active team and messaging pickers again. Archived direct conversations stay archived for history.
             </p>
             {restoreConfirm.invite_pending && (
-              <p className="text-sm text-amber-700">
+              <p className="rounded-xl border border-warning-200 bg-warning-50 px-3 py-2 text-sm text-warning-800">
                 This account is still pending, so a fresh invite email will be sent.
               </p>
             )}
             <div className="flex items-center gap-2">
-              <button
-                onClick={handleRestore}
-                disabled={restoringId === restoreConfirm.id}
-                className="flex-1 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
-              >
+              <Button onClick={handleRestore} disabled={restoringId === restoreConfirm.id} className="flex-1">
                 {restoringId === restoreConfirm.id ? 'Restoring...' : 'Restore Member'}
-              </button>
-              <button
-                onClick={() => setRestoreConfirm(null)}
-                className="rounded-lg px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
-              >
+              </Button>
+              <Button variant="quiet" onClick={() => setRestoreConfirm(null)}>
                 Cancel
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -563,16 +507,16 @@ function TeamListSkeleton() {
   return (
     <>
       {[0, 1].map((item) => (
-        <div key={item} className="rounded-xl bg-white border border-slate-200 p-4">
+        <div key={item} className="app-surface p-4">
           <div className="flex items-start gap-3">
-            <div className="h-10 w-10 shrink-0 animate-pulse rounded-full bg-slate-100" />
+            <div className="h-9 w-9 shrink-0 animate-pulse rounded-full bg-slate-100" />
             <div className="min-w-0 flex-1 space-y-2">
               <div className="h-4 w-44 animate-pulse rounded-full bg-slate-200" />
               <div className="h-3 w-64 max-w-full animate-pulse rounded-full bg-slate-100" />
             </div>
           </div>
-          <div className="mt-3 border-t border-slate-100 pt-3">
-            <div className="h-8 w-24 animate-pulse rounded-lg bg-slate-100" />
+          <div className="mt-3 border-t border-line pt-3">
+            <div className="h-11 w-24 animate-pulse rounded-xl bg-slate-100 lg:h-9" />
           </div>
         </div>
       ))}
