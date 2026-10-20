@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CalendarDays, CheckCircle2, ChevronDown, Clock3, ExternalLink, Link2, Plus, RefreshCw, Trash2, Users, WifiOff } from 'lucide-react'
 import { api } from '../../lib/api'
-import { currentBookingForWeek, formatGuamMeetingTime, isPastLearnerCutoff, partitionMeetingWeeks, slotsForWeek } from '../../lib/privateMeetings'
+import { formatGuamMeetingTime, isPastLearnerCutoff, partitionMeetingWeeks, slotsForWeek } from '../../lib/privateMeetings'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
@@ -38,7 +38,7 @@ export function StaffPrivateMeetings() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
-  // Past/upcoming split is computed against the time of the last load.
+  // Past/upcoming split: refreshed on every load and once a minute.
   const [now, setNow] = useState(() => Date.now())
 
   const load = useCallback(async () => {
@@ -61,6 +61,11 @@ export function StaffPrivateMeetings() {
   }, [])
 
   useEffect(() => { void load() }, [load])
+  // Move meetings that end while the page is open into the read-only past list.
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   const selected = cohorts.find((cohort) => cohort.id === selectedId)
   const unconfigured = useMemo(() => allCohorts.filter((cohort) => !cohorts.some((configured) => configured.id === cohort.id)), [allCohorts, cohorts])
@@ -152,7 +157,7 @@ export function StaffPrivateMeetings() {
   const renderWeek = (week: number) => {
     if (!selected) return null
     const slots = slotsForWeek(selected.slots, selected.start_date, week, selected.weeks)
-    const bookings = selected.bookings.filter((booking) => currentBookingForWeek([booking], week))
+    const bookings = activeBookings.filter((booking) => booking.week_number === week)
     const learnerBookable = slots.filter((slot) => slot.available && !isPastLearnerCutoff(slot.starts_at, selected.reschedule_cutoff_hours)).length
     const pastCutoff = slots.filter((slot) => slot.available && !isPastLearnerCutoff(slot.starts_at, 0) && isPastLearnerCutoff(slot.starts_at, selected.reschedule_cutoff_hours)).length
     return (

@@ -59,6 +59,15 @@ describe('Modal close animation', () => {
     expect(document.querySelector('[data-state="closing"]')).toBeNull()
   })
 
+  it('keeps the scroll position the dialog had when it closed', () => {
+    act(() => root.render(<Harness />))
+    const body = document.querySelector<HTMLElement>('[data-app-modal] .overflow-y-auto')!
+    body.scrollTop = 120
+    act(() => document.querySelector<HTMLButtonElement>('[aria-label="Close Delete this time?"]')!.click())
+    const ghostBody = document.querySelector<HTMLElement>('[data-state="closing"] .overflow-y-auto')!
+    expect(ghostBody.scrollTop).toBe(120)
+  })
+
   it('removes the copy as soon as its own animation ends', () => {
     act(() => root.render(<Harness />))
     act(() => document.querySelector<HTMLButtonElement>('[aria-label="Close Delete this time?"]')!.click())

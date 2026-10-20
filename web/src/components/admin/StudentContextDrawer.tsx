@@ -29,6 +29,7 @@ export function StudentContextDrawer({ open, cohortId, studentId, onClose, sourc
   const navigate = useNavigate()
   const location = useLocation()
   const closeRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLElement>(null)
   const [data, setData] = useState<DrawerData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -70,6 +71,36 @@ export function StudentContextDrawer({ open, cohortId, studentId, onClose, sourc
     }
   }, [cohortId, onClose, open, studentId])
 
+  // Keep Tab inside the drawer while it is open, and return focus to whatever opened it.
+  useEffect(() => {
+    if (!open) return
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const selector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    const onKeyDown = (event: KeyboardEvent) => {
+      const panel = panelRef.current
+      if (event.key !== 'Tab' || !panel) return
+      const focusable = Array.from(panel.querySelectorAll<HTMLElement>(selector))
+      if (focusable.length === 0) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (!panel.contains(document.activeElement)) {
+        event.preventDefault()
+        ;(event.shiftKey ? last : first).focus()
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      if (previouslyFocused?.isConnected) previouslyFocused.focus()
+    }
+  }, [open])
+
   const latestReview = useMemo(() => data?.submissions.find((submission) => submission.grade === null), [data?.submissions])
   // Slide the drawer out from a static copy of its last frame (see Modal's playModalExit).
   const setRoot = useCallback((node: HTMLDivElement | null) => {
@@ -97,7 +128,7 @@ export function StudentContextDrawer({ open, cohortId, studentId, onClose, sourc
   return createPortal(
     <div ref={setRoot} data-state="open" className="app-drawer-overlay fixed inset-0 z-50" role="presentation">
       <button type="button" aria-label="Close student context" onClick={onClose} className="absolute inset-0 h-full w-full bg-slate-950/50" />
-      <aside role="dialog" aria-modal="true" aria-label="Student context" className="app-drawer-panel absolute inset-y-0 right-0 flex w-full max-w-md flex-col bg-surface-raised shadow-overlay">
+      <aside ref={panelRef} role="dialog" aria-modal="true" aria-label="Student context" className="app-drawer-panel absolute inset-y-0 right-0 flex w-full max-w-md flex-col bg-surface-raised shadow-overlay">
         <header className="flex min-h-20 items-center justify-between gap-4 border-b border-line px-5 py-4">
           <div className="min-w-0"><p className="app-eyebrow">Student context</p><h2 className="mt-1 truncate text-lg font-bold text-ink" title={data?.progress.user.full_name}>{data?.progress.user.full_name || 'Loading student…'}</h2></div>
           <IconButton ref={closeRef} label="Close student context" onClick={onClose}><X className="h-5 w-5" aria-hidden="true" /></IconButton>

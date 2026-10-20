@@ -39,6 +39,17 @@ export function playModalExit(overlay: HTMLElement) {
     node.removeAttribute('aria-modal')
   })
   document.body.appendChild(ghost)
+  // cloneNode doesn't copy scroll positions; restore them so a scrolled
+  // dialog leaves showing what the person was looking at.
+  const sources = [overlay, ...Array.from(overlay.querySelectorAll<HTMLElement>('*'))]
+  const copies = [ghost, ...Array.from(ghost.querySelectorAll<HTMLElement>('*'))]
+  sources.forEach((source, index) => {
+    if (!source.scrollTop && !source.scrollLeft) return
+    const copy = copies[index]
+    if (!copy) return
+    copy.scrollTop = source.scrollTop
+    copy.scrollLeft = source.scrollLeft
+  })
   let removed = false
   const remove = () => {
     if (removed) return

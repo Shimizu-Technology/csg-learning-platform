@@ -38,6 +38,13 @@ describe('markdown fences for the message edit box', () => {
     expect(isInsideMarkdownFence('```\nopen', 6)).toBe(true)
   })
 
+  it('does not treat triple backticks used inline as an opening fence', () => {
+    const text = 'Run ```npm install``` first\nthen paste here'
+    expect(isInsideMarkdownFence(text, text.length)).toBe(false)
+    const tilde = '~~~ `x`\ncode'
+    expect(isInsideMarkdownFence(tilde, tilde.length)).toBe(true)
+  })
+
   it('puts pasted code on its own lines inside a fence', () => {
     expect(fencedCodeInsertion('', 0, 0, 'def f():\n    return 1')).toBe('```\ndef f():\n    return 1\n```\n')
     expect(fencedCodeInsertion('Look: ', 6, 6, 'a\n  b')).toBe('\n```\na\n  b\n```\n')

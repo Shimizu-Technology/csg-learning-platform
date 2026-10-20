@@ -596,7 +596,7 @@ function ModuleSection({
                                     {lesson.content_blocks_count}b
                                   </span>
                                 )}
-                                <div className="flex shrink-0 items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity duration-150">
+                                <div className="flex shrink-0 items-center gap-0.5 transition-opacity duration-150 pointer-fine:sm:opacity-0 pointer-fine:sm:group-hover:opacity-100 pointer-fine:sm:group-focus-within:opacity-100">
                                   <IconButton
                                     size="sm"
                                     onClick={() => navigate(`/admin/lessons/${lesson.id}/edit?preview=true`)}

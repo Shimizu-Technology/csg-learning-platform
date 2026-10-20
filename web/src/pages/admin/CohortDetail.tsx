@@ -757,11 +757,12 @@ export function CohortDetail() {
     setConfigureModuleId(moduleId)
   }
 
-  const removeModuleFromCohort = async (moduleId: number) => {
-    if (!id) return
+  /** Resolves true only when the module was removed (confirmed and saved). */
+  const removeModuleFromCohort = async (moduleId: number): Promise<boolean> => {
+    if (!id) return false
     const name = cohort?.modules.find((mod) => mod.id === moduleId)?.name || 'this module'
     const approved = await confirm({ title: `Remove ${name} from this cohort?`, description: "Learners in this cohort lose access to its lessons. Their submissions and progress are kept, and you can assign it again later.", confirmLabel: 'Remove module', cancelLabel: 'Keep module', tone: 'danger' })
-    if (!approved) return
+    if (!approved) return false
     setSavingModuleId(moduleId)
     setMessage('')
 
@@ -773,7 +774,7 @@ export function CohortDetail() {
     if (res.error) {
       notifyError(res.error)
       setSavingModuleId(null)
-      return
+      return false
     }
 
     const nextCohort = res.data?.cohort as CohortData | undefined
@@ -781,6 +782,7 @@ export function CohortDetail() {
     const moduleName = cohort?.modules.find((mod) => mod.id === moduleId)?.name || 'module'
     notifySuccess(`Removed ${moduleName} from cohort assignments`)
     setSavingModuleId(null)
+    return true
   }
 
   if (loading) return <LoadingSpinner message="Loading cohort..." />
@@ -1149,8 +1151,10 @@ export function CohortDetail() {
                     <Button
                       variant="danger"
                       onClick={() => {
-                        removeModuleFromCohort(configureMod.id)
-                        setConfigureModuleId(null)
+                        // Close Configure only after a confirmed, successful removal; "Keep module" leaves it open.
+                        void removeModuleFromCohort(configureMod.id).then((removed) => {
+                          if (removed) setConfigureModuleId(null)
+                        })
                       }}
                       disabled={saving}
                     >

@@ -41,7 +41,12 @@ export function isInsideMarkdownFence(value: string, cursor: number): boolean {
   for (const line of lines) {
     const match = line.match(/^\s*(`{3,}|~{3,})(.*)$/)
     if (!match) continue
-    if (open === null) open = match[1]
+    // CommonMark: a backtick fence's info string can't contain backticks, so
+    // "Run ```npm install``` first" is inline text, not an opening fence.
+    if (open === null) {
+      if (match[1][0] === '`' && match[2].includes('`')) continue
+      open = match[1]
+    }
     else if (match[1][0] === open[0] && match[1].length >= open.length && match[2].trim() === '') open = null
   }
   return open !== null
