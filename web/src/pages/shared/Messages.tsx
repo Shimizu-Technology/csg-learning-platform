@@ -5200,6 +5200,13 @@ export function MessageEditSurface({
   const characterCount = messageCharacterCount(normalizedValue)
   const canSave = normalizedValue.length > 0 && characterCount <= MESSAGE_BODY_LIMIT
 
+  // Editing continues where the message ends, not before its first word.
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length)
+  }, [])
+
   useLayoutEffect(() => {
     const textarea = textareaRef.current
     if (!textarea) return

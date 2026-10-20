@@ -179,6 +179,12 @@ describe('MessageEditSurface paste', () => {
     cleanup()
   })
 
+  it('opens with the cursor at the end of the message', () => {
+    const { textarea, cleanup } = mount('Here is my fix')
+    expect(textarea.selectionStart).toBe('Here is my fix'.length)
+    cleanup()
+  })
+
   it('turns autocorrect and spellcheck off while the cursor is in a code block', () => {
     const { textarea, paste, cleanup } = mount('')
     expect(textarea.getAttribute('spellcheck')).toBe('true')
