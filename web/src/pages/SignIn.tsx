@@ -5,6 +5,7 @@ import { Navigate, useLocation } from 'react-router-dom'
 import { BookOpenText, Loader2, LogOut, MessageCircle, PlayCircle, RefreshCw, ShieldAlert } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { PublicFooter, PublicHeader } from '../components/brand/PublicChrome'
+import { AuthWidgetStatus } from '../components/auth/AuthWidgetStatus'
 import { Button, LinkButton } from '../components/ui/Button'
 import { PRODUCT_NAME, SCHOOL_NAME } from '../lib/brand'
 
@@ -160,6 +161,7 @@ export function SignInPage() {
         description={`Use the email address your ${SCHOOL_NAME} invitation was sent to.`}
         switchLink={<LinkButton to="/sign-up" variant="quiet" shape="brand" className="px-3 text-ink">I have an invitation</LinkButton>}
       >
+        <AuthWidgetStatus />
         <SignIn
           appearance={clerkAuthAppearance}
           routing="hash"
@@ -194,6 +196,7 @@ export function SignUpPage() {
           : `Use the email address your ${SCHOOL_NAME} invitation was sent to. If you already have an account, sign in instead.`}
         switchLink={<LinkButton to="/sign-in" variant="quiet" shape="brand" className="px-3 text-ink">Sign in</LinkButton>}
       >
+        <AuthWidgetStatus />
         <SignUp
           appearance={clerkAuthAppearance}
           routing="hash"
