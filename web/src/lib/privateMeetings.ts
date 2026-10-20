@@ -78,3 +78,17 @@ export function cancelConsequence(week: number, changesUsed: number, maxChanges:
     ? `Booking a new Week ${week} time after cancelling uses your only schedule change for this week.`
     : `Booking a new Week ${week} time after cancelling uses one of your ${remaining} remaining schedule changes.`
 }
+
+/**
+ * Splits course weeks into the ones still ahead (the current week and later,
+ * in order) and the ones that are over, most recent first. Pages show the
+ * current week first and fold past weeks away.
+ */
+export function partitionMeetingWeeks(startDate: string, weeks: number, now = Date.now()): { current: number[]; past: number[] } {
+  const all = Array.from({ length: Math.max(0, weeks) }, (_, index) => index + 1)
+  const isPast = (week: number) => {
+    const end = courseWeekEndsAt(startDate, week)
+    return !Number.isNaN(end) && end <= now
+  }
+  return { current: all.filter((week) => !isPast(week)), past: all.filter(isPast).reverse() }
+}

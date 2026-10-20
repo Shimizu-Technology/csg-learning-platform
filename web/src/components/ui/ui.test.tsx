@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import { Avatar, initialsFor } from './Avatar'
 import { Badge, BADGE_TONES, type BadgeTone } from './Badge'
+import { FilterChip, SegmentButton, SegmentedControl, TabButton, TextButton } from './Choice'
 import { AnchorButton, Button, BUTTON_SIZES, BUTTON_VARIANTS, IconButton, LinkButton, buttonClasses, type ButtonVariant } from './Button'
 
 describe('Button', () => {
@@ -94,5 +95,52 @@ describe('Avatar', () => {
     expect(html).toContain('data-avatar="photo"')
     expect(html).toContain('src="https://example.com/m.png"')
     expect(html).toContain('alt=""')
+  })
+})
+
+describe('selection controls (FilterChip, TabButton, SegmentButton, TextButton)', () => {
+  const noRedOrInverse = (html: string) => {
+    expect(html).not.toMatch(/\b(bg|text|border)-(red|primary)-\d/)
+    expect(html).not.toMatch(/\bbg-slate-9\d\d\b/)
+  }
+
+  it('marks the selected chip with aria-pressed, an ink outline and a ruby dot', () => {
+    const on = renderToStaticMarkup(<FilterChip selected count={12}>Ungraded</FilterChip>)
+    const off = renderToStaticMarkup(<FilterChip selected={false}>Redo</FilterChip>)
+    expect(on).toContain('aria-pressed="true"')
+    expect(on).toContain('bg-ruby-600')
+    expect(on).toContain('tabular-nums')
+    expect(off).toContain('aria-pressed="false"')
+    expect(off).not.toContain('bg-ruby-600')
+    noRedOrInverse(on)
+    noRedOrInverse(off)
+  })
+
+  it('gives tabs the ruby underline and tab semantics when asked', () => {
+    const tab = renderToStaticMarkup(<TabButton selected asTab>Overview</TabButton>)
+    expect(tab).toContain('role="tab"')
+    expect(tab).toContain('aria-selected="true"')
+    expect(tab).toContain('tab-selected')
+    expect(renderToStaticMarkup(<TabButton selected={false}>Students</TabButton>)).toContain('aria-pressed="false"')
+  })
+
+  it('keeps 44px touch targets; dense variants drop to 36px only on desktop', () => {
+    for (const html of [
+      renderToStaticMarkup(<FilterChip selected={false} dense>A</FilterChip>),
+      renderToStaticMarkup(<TabButton selected={false} dense>A</TabButton>),
+      renderToStaticMarkup(<SegmentButton selected={false} dense>A</SegmentButton>),
+      renderToStaticMarkup(<TextButton>Message your instructor</TextButton>),
+    ]) {
+      expect(html).toContain('min-h-11')
+      expect(html).toContain('type="button"')
+    }
+    expect(renderToStaticMarkup(<FilterChip selected={false} dense>A</FilterChip>)).toContain('lg:min-h-9')
+  })
+
+  it('labels a segmented group', () => {
+    const html = renderToStaticMarkup(<SegmentedControl label="View"><SegmentButton selected>Inbox</SegmentButton></SegmentedControl>)
+    expect(html).toContain('role="group"')
+    expect(html).toContain('aria-label="View"')
+    noRedOrInverse(html)
   })
 })
