@@ -6,7 +6,11 @@ import { cohortPath, cohortStudentPath, directMessagePath, safeInternalReturnPat
 import { orderSubmissionQueue, type SubmissionQueueFilter } from '../../lib/submissionQueue'
 import { formatShortDateTime } from '../../lib/format'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
-import { Button } from '../../components/ui/Button'
+import { Button, buttonClasses } from '../../components/ui/Button'
+import { Badge, type BadgeTone } from '../../components/ui/Badge'
+import { Avatar } from '../../components/ui/Avatar'
+import { SegmentButton, TextButton } from '../../components/ui/Choice'
+import { StatusBadge } from '../../components/shared/StatusBadge'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
@@ -23,6 +27,13 @@ interface ValidatedWorkspaceContext {
 }
 
 type SubmissionQueue = SubmissionQueueFilter
+
+const RUBRIC_RATINGS: Array<[RubricRating, string]> = [['exceeds', 'Exceeds'], ['meets', 'Meets'], ['developing', 'Developing'], ['redo', 'Revision']]
+
+/** Redo is a request for another attempt, not an error: a secondary button with warning tones. */
+const REDO_BUTTON_CLASSES = 'border-warning-300! text-warning-800! hover:bg-warning-50!'
+
+const QUEUE_LABELS: Record<SubmissionQueue, string> = { ungraded: 'Ungraded queue', redo: 'Redo queue', all: 'All submissions' }
 
 export function SubmissionDetail() {
   const { id } = useParams<{ id: string }>()
@@ -155,75 +166,75 @@ export function SubmissionDetail() {
 
   return (
     <div className="app-page-wide space-y-6">
-      <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-sm font-semibold text-slate-500">
+      <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-sm font-semibold text-ink-muted">
         <Link to={returnTo} className="app-link inline-flex min-h-11 items-center gap-1 px-1"><ArrowLeft className="h-4 w-4" />Back</Link>
-        {validatedContext && <><span className="text-slate-300">/</span><Link className="app-link px-1" to={cohortPath(validatedContext.cohortId)}>Workspace: {validatedContext.cohortName}</Link></>}
-        <span className="text-slate-300">/</span><Link className="app-link px-1" to={studentPath}>{submission.user_name}</Link>
-        <span className="text-slate-300">/</span><span className="px-1 text-slate-700">Submission #{submission.id}</span>
+        {validatedContext && <><span aria-hidden="true" className="text-ink-disabled">/</span><Link className="app-link inline-flex min-h-11 items-center px-1 lg:min-h-0" to={cohortPath(validatedContext.cohortId)}>Workspace: {validatedContext.cohortName}</Link></>}
+        <span aria-hidden="true" className="text-ink-disabled">/</span><Link className="app-link inline-flex min-h-11 items-center px-1 lg:min-h-0" to={studentPath}>{submission.user_name}</Link>
+        <span aria-hidden="true" className="text-ink-disabled">/</span><span className="px-1 tabular-nums text-ink-secondary">Submission #{submission.id}</span>
       </nav>
 
-      {queueContext && <div className="app-surface flex flex-wrap items-center justify-between gap-3 px-4 py-3"><p className="text-xs font-extrabold uppercase tracking-wide text-slate-500">{queueMode} queue · {queueContext.position} of {queueContext.total}</p><div className="flex gap-2"><QueueLink label="Previous" submissionId={queueContext.previousId} returnTo={returnTo} queue={queueMode!} icon="previous" /><QueueLink label="Next" submissionId={queueContext.nextId} returnTo={returnTo} queue={queueMode!} icon="next" /></div></div>}
+      {queueContext && <div className="app-surface flex flex-wrap items-center justify-between gap-3 px-4 py-3"><p className="text-sm font-semibold tabular-nums text-ink-secondary">{QUEUE_LABELS[queueMode!]} · {queueContext.position} of {queueContext.total}</p><div className="flex gap-2"><QueueLink label="Previous" submissionId={queueContext.previousId} returnTo={returnTo} queue={queueMode!} icon="previous" /><QueueLink label="Next" submissionId={queueContext.nextId} returnTo={returnTo} queue={queueMode!} icon="next" /></div></div>}
 
       <header className="app-surface p-5 sm:p-6">
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
           <div>
             <p className="app-eyebrow">Submission record</p>
             <h1 className="app-title mt-2">{submission.content_block_title}</h1>
-            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-500">
-              {validatedContext ? <button type="button" onClick={() => setShowStudentContext(true)} className="app-link inline-flex min-h-11 items-center gap-1 font-bold"><UserRound className="h-4 w-4" />{submission.user_name}</button> : <Link className="app-link inline-flex items-center gap-1 font-bold" to={studentPath}><UserRound className="h-4 w-4" />{submission.user_name}</Link>}
-              <span className="inline-flex items-center gap-1"><BookOpen className="h-4 w-4" />{submission.module_name} · {submission.lesson_title}</span>
-              <span>Attempt {submission.num_submissions}</span>
-              <span>{formatShortDateTime(submission.created_at)}</span>
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-ink-muted">
+              {validatedContext ? <TextButton onClick={() => setShowStudentContext(true)} className="gap-2"><Avatar name={submission.user_name} size="sm" />{submission.user_name}</TextButton> : <Link className="app-link inline-flex min-h-11 items-center gap-2" to={studentPath}><Avatar name={submission.user_name} size="sm" />{submission.user_name}</Link>}
+              <span className="inline-flex min-w-0 items-center gap-1"><BookOpen className="h-4 w-4 shrink-0" />{submission.module_name} · {submission.lesson_title}</span>
+              <span className="tabular-nums">Attempt {submission.num_submissions}</span>
+              <span className="tabular-nums">{formatShortDateTime(submission.created_at)}</span>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {submission.grade ? <GradeDisplay grade={submission.grade} size="md" /> : <span className="rounded-full bg-amber-50 px-3 py-1.5 text-sm font-bold text-amber-800">Ungraded</span>}
+            {submission.grade ? <GradeDisplay grade={submission.grade} size="md" /> : <StatusBadge status="awaiting_review" short />}
             {validatedContext && <Button variant="secondary" onClick={() => setShowStudentContext(true)}><UserRound className="h-4 w-4" />Student context</Button>}
             {validatedContext && <Button variant="secondary" onClick={() => void openMessage()} disabled={openingMessage}><MessageSquareText className="h-4 w-4" />{openingMessage ? 'Opening…' : `Message in ${validatedContext.cohortName}`}</Button>}
           </div>
         </div>
-        {validatedContext?.evidenceScope?.shared_across_enrollments && <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-950"><span className="font-extrabold">Curriculum evidence:</span> this submission follows the learner across enrollments using {validatedContext.evidenceScope.curriculum_name}. The selected workspace and message action are scoped to {validatedContext.cohortName}.</div>}
+        {validatedContext?.evidenceScope?.shared_across_enrollments && <div className="mt-5 rounded-xl border border-info-200 bg-info-50 px-4 py-3 text-sm leading-6 text-info-800"><span className="font-semibold">Curriculum evidence:</span> this submission follows the learner across enrollments using {validatedContext.evidenceScope.curriculum_name}. The selected workspace and message action are scoped to {validatedContext.cohortName}.</div>}
       </header>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
         <main className="space-y-6">
           <section className="app-surface p-5 sm:p-6">
-            <h2 className="text-lg font-extrabold text-slate-950">Student submission</h2>
-            {submission.text ? <div className="mt-4"><CodeEditor value={submission.text} language={language} readOnly minHeight={280} /></div> : <p className="mt-4 text-sm italic text-slate-500">No text or code was submitted.</p>}
-            {submission.notes && <div className="mt-4 rounded-xl bg-slate-50 p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Student notes</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{submission.notes}</p></div>}
+            <h2 className="text-lg font-bold text-ink">Student submission</h2>
+            {submission.text ? <div className="mt-4"><CodeEditor value={submission.text} language={language} readOnly minHeight={280} /></div> : <p className="mt-4 text-sm italic text-ink-muted">No text or code was submitted.</p>}
+            {submission.notes && <div className="mt-4 rounded-xl bg-surface-sunken p-4"><p className="text-xs font-semibold text-ink-muted">Student notes</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink-secondary">{submission.notes}</p></div>}
           </section>
 
-          {artifactLinks.length > 0 && <section className="app-surface p-5 sm:p-6"><h2 className="text-lg font-extrabold text-slate-950">Related artifacts</h2><div className="mt-4 grid gap-2 sm:grid-cols-2">{artifactLinks.map(([label, url]) => <a key={label} href={sanitizeUrl(url)} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center justify-between rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 hover:border-primary-300 hover:text-primary-700"><span className="inline-flex items-center gap-2"><GitBranch className="h-4 w-4" />{label}</span><ExternalLink className="h-4 w-4" /></a>)}</div></section>}
+          {artifactLinks.length > 0 && <section className="app-surface p-5 sm:p-6"><h2 className="text-lg font-bold text-ink">Related artifacts</h2><div className="mt-4 grid gap-2 sm:grid-cols-2">{artifactLinks.map(([label, url]) => <a key={label} href={sanitizeUrl(url)} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center justify-between rounded-xl border border-line px-3 py-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:border-line-strong hover:bg-surface-sunken hover:text-ink"><span className="inline-flex items-center gap-2"><GitBranch className="h-4 w-4" />{label}</span><ExternalLink className="h-4 w-4" /></a>)}</div></section>}
 
           {(submission.repo_url || submission.pr_url || submission.github_code_url) && <section className="app-surface p-5 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="app-eyebrow">Automated evidence</p>
-                <h2 className="mt-1 text-lg font-extrabold text-slate-950">GitHub checks</h2>
-                <p className="mt-1 text-sm leading-6 text-slate-500">Persisted check status for the exact commit attached to this submission. Check output and logs are never copied into the learning platform.</p>
+                <h2 className="mt-1 text-lg font-bold text-ink">GitHub checks</h2>
+                <p className="mt-1 text-sm leading-6 text-ink-muted">Persisted check status for the exact commit attached to this submission. Check output and logs are never copied into the learning platform.</p>
               </div>
               <Button variant="secondary" onClick={() => void refreshGithubChecks()} disabled={refreshingChecks || !submission.commit_sha}>
                 <RefreshCw className={`h-4 w-4 ${refreshingChecks ? 'animate-spin' : ''}`} />{refreshingChecks ? 'Refreshing…' : 'Refresh checks'}
               </Button>
             </div>
-            {!submission.commit_sha ? <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"><span className="font-extrabold">Commit needed.</span> Sync or save a commit SHA on this submission before refreshing its checks.</div> : <GithubChecksPanel checks={submission.github_checks} />}
+            {!submission.commit_sha ? <div className="mt-4 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-800"><span className="font-semibold">Commit needed.</span> Sync or save a commit SHA on this submission before refreshing its checks.</div> : <GithubChecksPanel checks={submission.github_checks} />}
           </section>}
 
-          {submission.solution && <details className="app-surface p-5 sm:p-6"><summary className="min-h-11 cursor-pointer font-extrabold text-slate-900">Reference solution</summary><div className="mt-4"><CodeEditor value={submission.solution} language={language} readOnly minHeight={220} /></div></details>}
+          {submission.solution && <details className="app-surface p-5 sm:p-6"><summary className="flex min-h-11 cursor-pointer items-center font-semibold text-ink">Reference solution</summary><div className="mt-4"><CodeEditor value={submission.solution} language={language} readOnly minHeight={220} /></div></details>}
         </main>
 
         <aside className="app-surface self-start p-5 sm:p-6 xl:sticky xl:top-20">
-          <h2 className="text-lg font-extrabold text-slate-950">Review and feedback</h2>
-          {submission.grade === 'R' && submission.feedback && <div className="mt-4 rounded-xl border border-warning-200 bg-warning-50 p-3 text-sm text-warning-800"><p className="font-bold">Current redo feedback</p><FeedbackBody feedback={submission.feedback} className="mt-1" /></div>}
+          <h2 className="text-lg font-bold text-ink">Review and feedback</h2>
+          {submission.grade === 'R' && submission.feedback && <div className="mt-4 rounded-xl border border-warning-200 bg-warning-50 p-3 text-sm text-warning-800"><p className="font-semibold">Current redo feedback</p><FeedbackBody feedback={submission.feedback} className="mt-1" /></div>}
 
-          {submission.rubric && <div className="mt-5 space-y-4"><div><p className="text-xs font-bold uppercase tracking-wide text-green-700">Rubric</p><p className="mt-1 font-extrabold text-slate-900">{submission.rubric.title}</p></div>{submission.rubric.criteria.map((criterion) => <div key={criterion.id} className="rounded-xl border border-slate-200 p-3"><p className="text-sm font-extrabold text-slate-900">{criterion.title}</p><p className="mt-1 text-xs leading-5 text-slate-500">{criterion.description}</p><div className="mt-3 grid grid-cols-2 gap-2">{([['exceeds', 'Exceeds'], ['meets', 'Meets'], ['developing', 'Developing'], ['redo', 'Revision']] as Array<[RubricRating, string]>).map(([rating, label]) => <button key={rating} type="button" onClick={() => setCriterionResults((current) => ({ ...current, [criterion.id]: { rating, feedback: current[criterion.id]?.feedback || '' } }))} className={`min-h-11 rounded-xl border px-2 text-xs font-bold ${criterionResults[criterion.id]?.rating === rating ? 'border-green-500 bg-green-50 text-green-800' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{label}</button>)}</div><textarea aria-label={`Feedback for ${criterion.title}`} value={criterionResults[criterion.id]?.feedback || ''} onChange={(event) => setCriterionResults((current) => ({ ...current, [criterion.id]: { rating: current[criterion.id]?.rating || null, feedback: event.target.value } }))} placeholder="Optional criterion feedback" className="mt-2 min-h-20 w-full rounded-xl border border-slate-300 p-3 text-sm outline-none focus:border-focus focus:ring-2 focus:ring-focus/25" /></div>)}</div>}
+          {submission.rubric && <div className="mt-5 space-y-4"><div><p className="text-xs font-semibold text-ink-muted">Rubric</p><p className="mt-1 font-semibold text-ink">{submission.rubric.title}</p></div>{submission.rubric.criteria.map((criterion) => <div key={criterion.id} className="rounded-xl border border-line p-3"><p className="text-sm font-semibold text-ink">{criterion.title}</p><p className="mt-1 text-xs leading-5 text-ink-muted">{criterion.description}</p><div role="group" aria-label={`Rating for ${criterion.title}`} className="mt-3 grid grid-cols-2 gap-1 rounded-xl border border-line bg-surface-sunken p-1">{RUBRIC_RATINGS.map(([rating, label]) => <SegmentButton key={rating} selected={criterionResults[criterion.id]?.rating === rating} onClick={() => setCriterionResults((current) => ({ ...current, [criterion.id]: { rating, feedback: current[criterion.id]?.feedback || '' } }))}>{label}</SegmentButton>)}</div><textarea aria-label={`Feedback for ${criterion.title}`} value={criterionResults[criterion.id]?.feedback || ''} onChange={(event) => setCriterionResults((current) => ({ ...current, [criterion.id]: { rating: current[criterion.id]?.rating || null, feedback: event.target.value } }))} placeholder="Optional criterion feedback" className="app-control mt-2 min-h-20 w-full" /></div>)}</div>}
 
-          <label htmlFor="submission-feedback" className="mt-5 block text-sm font-extrabold text-slate-900">Overall feedback</label>
-          <textarea id="submission-feedback" value={feedback} onChange={(event) => setFeedback(event.target.value)} rows={7} placeholder="Give the student a clear next step…" className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm leading-6 outline-none focus:border-focus focus:ring-2 focus:ring-focus/25" />
+          <label htmlFor="submission-feedback" className="mt-5 block text-sm font-semibold text-ink">Overall feedback</label>
+          <textarea id="submission-feedback" value={feedback} onChange={(event) => setFeedback(event.target.value)} rows={7} placeholder="Give the student a clear next step…" className="app-control mt-2 w-full leading-6" />
           <FeedbackFormattingHint value={feedback} />
           <div className="mt-4 grid grid-cols-2 gap-2">
-            {['A', 'B', 'C'].map((gradeValue) => <Button key={gradeValue} variant="secondary" onClick={() => void grade(gradeValue)} disabled={grading}><CheckCircle2 className="h-4 w-4" />Grade {gradeValue}</Button>)}
-            <Button variant="danger" onClick={() => void grade('R')} disabled={grading}><RotateCcw className="h-4 w-4" />Request redo</Button>
+            {['A', 'B', 'C'].map((gradeValue) => <Button key={gradeValue} variant={gradeValue === 'A' ? 'primary' : 'secondary'} onClick={() => void grade(gradeValue)} disabled={grading}><CheckCircle2 className="h-4 w-4" />Grade {gradeValue}</Button>)}
+            <Button variant="secondary" className={REDO_BUTTON_CLASSES} onClick={() => void grade('R')} disabled={grading}><RotateCcw className="h-4 w-4" />Request redo</Button>
           </div>
         </aside>
       </div>
@@ -233,28 +244,28 @@ export function SubmissionDetail() {
 }
 
 function GithubChecksPanel({ checks }: { checks: Submission['github_checks'] }) {
-  if (!checks) return <p className="mt-4 text-sm text-slate-500">Checks have not been fetched for this commit yet.</p>
+  if (!checks) return <p className="mt-4 text-sm text-ink-muted">Checks have not been fetched for this commit yet.</p>
   const counts = [
-    ['Passed', checks.summary.passed, 'text-green-800 bg-green-50 border-green-200'],
-    ['Failed', checks.summary.failed, 'text-red-800 bg-red-50 border-red-200'],
-    ['Pending', checks.summary.pending, 'text-amber-800 bg-amber-50 border-amber-200'],
-    ['Other', checks.summary.neutral, 'text-slate-700 bg-slate-50 border-slate-200'],
-  ] as const
+    ['Passed', checks.summary.passed, 'success'],
+    ['Failed', checks.summary.failed, 'danger'],
+    ['Pending', checks.summary.pending, 'pending'],
+    ['Other', checks.summary.neutral, 'neutral'],
+  ] as const satisfies ReadonlyArray<readonly [string, number, BadgeTone]>
   return <div className="mt-4 space-y-4">
     <div className="flex flex-wrap items-center gap-2">
-      {counts.map(([label, count, classes]) => <span key={label} className={`rounded-full border px-3 py-1 text-xs font-extrabold ${classes}`}>{count} {label.toLowerCase()}</span>)}
-      <span className="text-xs text-slate-500">Commit <span className="font-mono font-bold text-slate-700">{checks.head_sha?.slice(0, 8)}</span>{checks.fetched_at ? ` · refreshed ${formatShortDateTime(checks.fetched_at)}` : ''}</span>
+      {counts.map(([label, count, tone]) => <Badge key={label} tone={tone} className="tabular-nums">{count} {label.toLowerCase()}</Badge>)}
+      <span className="text-xs tabular-nums text-ink-muted">Commit <span className="font-mono font-semibold text-ink-secondary">{checks.head_sha?.slice(0, 8)}</span>{checks.fetched_at ? ` · refreshed ${formatShortDateTime(checks.fetched_at)}` : ''}</span>
     </div>
-    {checks.runs.length ? <div className="divide-y divide-slate-100 rounded-xl border border-slate-200">{checks.runs.map((run) => {
+    {checks.runs.length ? <div className="divide-y divide-line rounded-xl border border-line">{checks.runs.map((run) => {
       const detailsUrl = run.details_url ? sanitizeUrl(run.details_url) : null
-      const content = <><span className="min-w-0"><span className="block truncate text-sm font-extrabold text-slate-800">{run.name}</span><span className="block truncate text-xs text-slate-500">{run.workflow_name || run.app_slug || 'GitHub'} · {run.status.replaceAll('_', ' ')}</span></span><span className={`rounded-full px-2.5 py-1 text-xs font-extrabold ${run.conclusion === 'success' ? 'bg-green-50 text-green-800' : ['failure', 'timed_out', 'startup_failure', 'action_required'].includes(run.conclusion || '') ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-800'}`}>{run.conclusion?.replaceAll('_', ' ') || 'pending'}</span>{detailsUrl && <ExternalLink className="h-4 w-4 text-slate-400" />}</>
-      return detailsUrl ? <a key={run.id} href={detailsUrl} target="_blank" rel="noopener noreferrer" className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 px-3 py-2 hover:bg-slate-50">{content}</a> : <div key={run.id} className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2">{content}</div>
-    })}</div> : <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">GitHub returned no check runs for this commit.</p>}
+      const content = <><span className="min-w-0"><span className="block truncate text-sm font-semibold text-ink" title={run.name}>{run.name}</span><span className="block truncate text-xs text-ink-muted">{run.workflow_name || run.app_slug || 'GitHub'} · {run.status.replaceAll('_', ' ')}</span></span><Badge tone={run.conclusion === 'success' ? 'success' : ['failure', 'timed_out', 'startup_failure', 'action_required'].includes(run.conclusion || '') ? 'danger' : 'pending'}>{run.conclusion?.replaceAll('_', ' ') || 'pending'}</Badge>{detailsUrl && <ExternalLink className="h-4 w-4 text-ink-muted" />}</>
+      return detailsUrl ? <a key={run.id} href={detailsUrl} target="_blank" rel="noopener noreferrer" className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 px-3 py-2 transition-colors duration-150 hover:bg-surface-sunken">{content}</a> : <div key={run.id} className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2">{content}</div>
+    })}</div> : <p className="rounded-xl border border-line bg-surface-sunken px-4 py-3 text-sm text-ink-secondary">GitHub returned no check runs for this commit.</p>}
   </div>
 }
 
 function QueueLink({ label, submissionId, returnTo, queue, icon }: { label: string; submissionId: number | null; returnTo: string; queue: SubmissionQueue; icon: 'previous' | 'next' }) {
   const Icon = icon === 'previous' ? ChevronLeft : ChevronRight
-  if (!submissionId) return <span className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-300">{icon === 'previous' && <Icon className="h-4 w-4" />}{label}{icon === 'next' && <Icon className="h-4 w-4" />}</span>
-  return <Link to={submissionPath(submissionId, { returnTo, queue })} className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-slate-300 px-3 text-sm font-bold text-slate-700 hover:border-primary-300 hover:text-primary-700">{icon === 'previous' && <Icon className="h-4 w-4" />}{label}{icon === 'next' && <Icon className="h-4 w-4" />}</Link>
+  if (!submissionId) return <span aria-disabled="true" className={buttonClasses({ variant: 'secondary', size: 'sm', className: 'opacity-50' })}>{icon === 'previous' && <Icon className="h-4 w-4" />}{label}{icon === 'next' && <Icon className="h-4 w-4" />}</span>
+  return <Link to={submissionPath(submissionId, { returnTo, queue })} className={buttonClasses({ variant: 'secondary', size: 'sm' })}>{icon === 'previous' && <Icon className="h-4 w-4" />}{label}{icon === 'next' && <Icon className="h-4 w-4" />}</Link>
 }

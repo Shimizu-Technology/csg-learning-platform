@@ -14,8 +14,19 @@ import { useToast } from '../../contexts/ToastContext'
 import { appendFeedbackSnippet } from '../../lib/feedbackSnippets'
 import type { FeedbackSnippet, Rubric, RubricRating } from '../../types/api'
 import { FeedbackBody, FeedbackFormattingHint } from '../../components/shared/FeedbackBody'
+import { StatusBadge } from '../../components/shared/StatusBadge'
+import { Avatar } from '../../components/ui/Avatar'
+import { Badge } from '../../components/ui/Badge'
+import { Button } from '../../components/ui/Button'
+import { FilterChip, SegmentButton } from '../../components/ui/Choice'
+import { formatShortDateTime } from '../../lib/format'
 
 type QueueFilter = SubmissionQueueFilter
+
+const RUBRIC_RATINGS: [RubricRating, string][] = [['exceeds', 'Exceeds'], ['meets', 'Meets'], ['developing', 'Developing'], ['redo', 'Revision']]
+
+/** Redo is a request for another attempt, not an error: a secondary button with warning tones. */
+const REDO_BUTTON_CLASSES = 'border-warning-300! text-warning-800! hover:bg-warning-50!'
 
 interface SubmissionItem {
   id: number
@@ -192,7 +203,7 @@ export function Grading() {
   return (
     <div className="app-page-wide">
       <header>
-        <Link to="/admin" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900">
+        <Link to="/admin" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted transition-colors duration-150 hover:bg-surface-sunken hover:text-ink">
           <ArrowLeft className="h-4 w-4" />
           Staff home
         </Link>
@@ -203,23 +214,23 @@ export function Grading() {
 
       {/* Quick links to cohort grading */}
       {activeCohorts.length > 0 && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2 mb-3">
-            <Layers3 className="h-4 w-4 text-primary-500" />
-            Grade by Cohort
+        <div className="app-surface p-4">
+          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-ink">
+            <Layers3 className="h-4 w-4 text-ink-muted" />
+            Grade by cohort
           </h2>
           <div className="space-y-2">
             {activeCohorts.map((cohort) => (
-              <div key={cohort.id} className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm font-medium text-slate-700 min-w-[140px]">{cohort.name}</span>
+              <div key={cohort.id} className="flex flex-wrap items-center gap-2">
+                <span className="min-w-[140px] max-w-full truncate text-sm font-semibold text-ink-secondary" title={cohort.name}>{cohort.name}</span>
                 {cohort.modules?.map((mod) => (
                   <Link
                     key={mod.id}
                     to={`/admin/cohorts/${cohort.id}/modules/${mod.id}/grading`}
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:border-primary-200 transition-colors"
+                    className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-line bg-surface-raised px-3 py-1.5 text-xs font-semibold text-ink-secondary transition-colors duration-150 hover:border-line-strong hover:bg-surface-sunken hover:text-ink lg:min-h-9"
                   >
                     {mod.name}
-                    <ChevronRight className="h-3 w-3 text-slate-400" />
+                    <ChevronRight className="h-3 w-3 text-ink-muted" />
                   </Link>
                 ))}
               </div>
@@ -228,41 +239,23 @@ export function Grading() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <button
-          onClick={() => chooseFilter('ungraded')}
-          className={`rounded-xl border p-4 text-left transition-all ${queueFilter === 'ungraded' ? 'border-primary-300 bg-primary-50' : 'border-slate-200 bg-white hover:border-primary-200'}`}
-        >
-          <div className="flex items-center gap-2 text-slate-500 text-sm font-medium">
-            <Filter className="h-4 w-4" />
-            Ungraded Queue
-          </div>
-          <p className="mt-2 text-2xl font-bold text-slate-900">{counts.ungraded}</p>
-        </button>
-        <button
-          onClick={() => chooseFilter('redo')}
-          className={`rounded-xl border p-4 text-left transition-all ${queueFilter === 'redo' ? 'border-orange-300 bg-orange-50' : 'border-slate-200 bg-white hover:border-orange-200'}`}
-        >
-          <div className="flex items-center gap-2 text-slate-500 text-sm font-medium">
-            <RotateCcw className="h-4 w-4" />
-            Redo Requested
-          </div>
-          <p className="mt-2 text-2xl font-bold text-slate-900">{counts.redo}</p>
-        </button>
-        <button
-          onClick={() => chooseFilter('all')}
-          className={`rounded-xl border p-4 text-left transition-all ${queueFilter === 'all' ? 'border-slate-400 bg-slate-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
-        >
-          <div className="flex items-center gap-2 text-slate-500 text-sm font-medium">
-            <Clock className="h-4 w-4" />
-            All Submissions
-          </div>
-          <p className="mt-2 text-2xl font-bold text-slate-900">{counts.all}</p>
-        </button>
+      <div role="group" aria-label="Submission queue" className="flex flex-wrap gap-2">
+        <FilterChip selected={queueFilter === 'ungraded'} count={counts.ungraded} onClick={() => chooseFilter('ungraded')}>
+          <Filter className="h-4 w-4" aria-hidden="true" />
+          Ungraded queue
+        </FilterChip>
+        <FilterChip selected={queueFilter === 'redo'} count={counts.redo} onClick={() => chooseFilter('redo')}>
+          <RotateCcw className="h-4 w-4" aria-hidden="true" />
+          Redo requested
+        </FilterChip>
+        <FilterChip selected={queueFilter === 'all'} count={counts.all} onClick={() => chooseFilter('all')}>
+          <Clock className="h-4 w-4" aria-hidden="true" />
+          All submissions
+        </FilterChip>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="space-y-3">
+        <div className="min-w-0 space-y-2">
           {queue.length === 0 ? (
             <EmptyState
               icon={Check}
@@ -272,47 +265,35 @@ export function Grading() {
           ) : (
             queue.map((sub) => {
               const isLatest = latestSubmissionIds.has(sub.id)
+              const isSelected = selectedSubmission?.id === sub.id
+              const where = `${sub.lesson_title} · ${sub.content_block_title}`
               return (
                 <div key={sub.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-stretch gap-2">
                   <button
+                    type="button"
                     onClick={() => selectSubmission(sub)}
-                    className={`w-full text-left rounded-2xl border p-4 transition-all ${
-                    selectedSubmission?.id === sub.id
-                      ? 'border-primary-300 bg-primary-50'
-                      : sub.grade === 'R'
-                      ? 'border-orange-200 bg-orange-50 hover:border-orange-300'
-                      : 'border-slate-200 bg-white hover:border-primary-200'
-                  }`}
+                    aria-current={isSelected ? 'true' : undefined}
+                    className={`pressable flex min-h-11 w-full min-w-0 items-start gap-3 rounded-2xl border p-3 text-left sm:p-4 ${
+                      isSelected ? 'nav-selected border-line-strong' : 'border-line bg-surface-raised hover:bg-surface-sunken'
+                    }`}
                   >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-medium text-slate-900">{sub.user_name}</p>
-                        {isLatest ? (
-                          <span className="rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-700">Latest</span>
-                        ) : (
-                          <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">Previous</span>
-                        )}
-                        {sub.grade === 'R' && (
-                          <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-700">Redo</span>
-                        )}
+                    <Avatar name={sub.user_name} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-ink" title={sub.user_name}>{sub.user_name}</p>
+                      <p className="mt-0.5 truncate text-xs text-ink-secondary" title={where}>{where}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <SubmissionStatus grade={sub.grade} />
+                        <Badge tone={isLatest ? 'info' : 'neutral'}>{isLatest ? 'Latest' : 'Previous'}</Badge>
+                        <span className="text-xs tabular-nums text-ink-muted">Attempt {sub.num_submissions} · {formatShortDateTime(sub.created_at)}</span>
                       </div>
-                      <p className="mt-1 text-xs text-slate-500">{sub.lesson_title} · {sub.content_block_title}</p>
-                      <p className="mt-1 text-xs text-slate-400">Submission #{sub.num_submissions} · {new Date(sub.created_at).toLocaleDateString()}</p>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {sub.grade ? <GradeDisplay grade={sub.grade} size="sm" /> : (
-                        <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">Ungraded</span>
-                      )}
-                      <ChevronRight className="h-4 w-4 text-slate-300" />
-                    </div>
-                  </div>
+                    <ChevronRight className="mt-2 hidden h-4 w-4 shrink-0 text-ink-muted sm:block" aria-hidden="true" />
                   </button>
                   <Link
                     to={submissionPath(sub.id, { userId: sub.user_id, returnTo: `${location.pathname}${location.search}`, queue: queueFilter })}
                     aria-label={`Open ${sub.user_name}'s submission record`}
                     title="Open submission record"
-                    className="inline-flex min-h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-primary-300 hover:text-primary-700"
+                    className="inline-flex min-h-11 w-11 items-center justify-center rounded-xl border border-line bg-surface-raised text-ink-muted transition-colors duration-150 hover:border-line-strong hover:bg-surface-sunken hover:text-ink"
                   >
                     <ExternalLink className="h-4 w-4" />
                   </Link>
@@ -323,31 +304,32 @@ export function Grading() {
         </div>
 
         {selectedSubmission && (
-          <div className="rounded-2xl bg-white border border-slate-200 p-6 space-y-4 sticky top-20">
+          <div className="app-surface min-w-0 space-y-4 p-4 sm:p-6 lg:sticky lg:top-20 lg:self-start">
             {loadingDetail ? (
               <LoadingSpinner message="Loading submission..." />
             ) : (
               <>
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-lg font-semibold text-slate-900">{selectedSubmission.user_name}</h3>
-                    <p className="text-sm text-slate-500">{selectedSubmission.lesson_title}</p>
-                    <p className="text-xs text-slate-400">{selectedSubmission.content_block_title} · Submission #{selectedSubmission.num_submissions}</p>
+                  <div className="flex min-w-0 items-start gap-3">
+                    <Avatar name={selectedSubmission.user_name} size="md" />
+                    <div className="min-w-0">
+                      <h3 className="truncate text-lg font-bold text-ink" title={selectedSubmission.user_name}>{selectedSubmission.user_name}</h3>
+                      <p className="truncate text-sm text-ink-secondary" title={selectedSubmission.lesson_title}>{selectedSubmission.lesson_title}</p>
+                      <p className="text-xs tabular-nums text-ink-muted">{selectedSubmission.content_block_title} · Attempt {selectedSubmission.num_submissions}</p>
+                    </div>
                   </div>
-                  {selectedSubmission.grade ? <GradeDisplay grade={selectedSubmission.grade} size="md" /> : (
-                    <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full">Ungraded</span>
-                  )}
+                  {selectedSubmission.grade ? <GradeDisplay grade={selectedSubmission.grade} size="md" /> : <StatusBadge status="awaiting_review" short />}
                 </div>
 
                 {selectedSubmission.grade === 'R' && selectedSubmission.feedback && (
-                  <div className="rounded-xl border border-orange-200 bg-orange-50 p-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Current redo feedback</p>
+                  <div className="rounded-xl border border-warning-200 bg-warning-50 p-3 text-warning-800">
+                    <p className="text-xs font-semibold">Current redo feedback</p>
                     <FeedbackBody feedback={selectedSubmission.feedback} className="mt-1" />
                   </div>
                 )}
 
                 <div>
-                  <h4 className="text-sm font-medium text-slate-700 mb-2">Student Submission</h4>
+                  <h4 className="mb-2 text-sm font-semibold text-ink">Student submission</h4>
                   {selectedSubmission.text ? (
                     <div className="space-y-3">
                       <CodeEditor
@@ -365,14 +347,14 @@ export function Grading() {
                       )}
                     </div>
                   ) : (
-                    <p className="text-sm text-slate-400 italic">No code submitted</p>
+                    <p className="text-sm italic text-ink-muted">No code submitted</p>
                   )}
                 </div>
 
                 {selectedSubmission.solution && (
                   <details className="group">
-                    <summary className="cursor-pointer text-sm font-medium text-slate-700 hover:text-slate-900 select-none">
-                      Show Solution
+                    <summary className="flex min-h-11 cursor-pointer select-none items-center text-sm font-semibold text-ink-secondary hover:text-ink">
+                      Show solution
                     </summary>
                     <div className="mt-2">
                       <CodeEditor
@@ -386,42 +368,40 @@ export function Grading() {
                 )}
 
                 <div>
-                  {selectedSubmission.rubric && <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Criterion review</p><h3 className="mt-1 font-extrabold text-slate-950">{selectedSubmission.rubric.title}</h3><div className="mt-4 space-y-3">{selectedSubmission.rubric.criteria.map((criterion) => <div key={criterion.id} className="rounded-xl border border-emerald-100 bg-white p-3"><p className="text-sm font-bold text-slate-900">{criterion.title}</p><p className="mt-1 text-xs leading-5 text-slate-500">{criterion.description}</p><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{([['exceeds', 'Exceeds'], ['meets', 'Meets'], ['developing', 'Developing'], ['redo', 'Revision']] as [RubricRating, string][]).map(([rating, label]) => <button key={rating} type="button" onClick={() => setCriterionResults((current) => ({ ...current, [criterion.id]: { rating, feedback: current[criterion.id]?.feedback || '' } }))} className={`min-h-11 rounded-xl border px-2 text-xs font-bold ${criterionResults[criterion.id]?.rating === rating ? 'border-emerald-500 bg-emerald-100 text-emerald-900' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{label}</button>)}</div><textarea aria-label={`Feedback for ${criterion.title}`} value={criterionResults[criterion.id]?.feedback || ''} onChange={(event) => setCriterionResults((current) => ({ ...current, [criterion.id]: { rating: current[criterion.id]?.rating || null, feedback: event.target.value } }))} placeholder="Optional focused feedback for this criterion" className="mt-2 min-h-20 w-full rounded-xl border border-slate-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" /></div>)}</div></div>}
-                  {feedbackSnippets.length > 0 && <div className="mb-3 rounded-2xl border border-slate-200 bg-slate-50 p-3"><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500"><MessageSquareText className="h-4 w-4" />Reusable snippets</div><div className="mt-2 flex flex-wrap gap-2">{feedbackSnippets.map((snippet) => <button key={snippet.id} type="button" title={snippet.body} onClick={() => applyFeedbackSnippet(snippet)} className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-left text-xs font-bold text-slate-700 hover:border-primary-300 hover:text-primary-700">{snippet.title}</button>)}</div><p className="mt-2 text-xs leading-5 text-slate-500">A snippet is inserted into the draft below. Edit it for this student before grading.</p></div>}
-                  <label className="text-sm font-medium text-slate-700">Feedback</label>
+                  {selectedSubmission.rubric && <div className="mb-5 rounded-2xl border border-line bg-surface-sunken p-4"><p className="text-xs font-semibold text-ink-muted">Criterion review</p><h3 className="mt-1 text-base font-semibold text-ink">{selectedSubmission.rubric.title}</h3><div className="mt-4 space-y-3">{selectedSubmission.rubric.criteria.map((criterion) => <div key={criterion.id} className="rounded-xl border border-line bg-surface-raised p-3"><p className="text-sm font-semibold text-ink">{criterion.title}</p><p className="mt-1 text-xs leading-5 text-ink-muted">{criterion.description}</p><div role="group" aria-label={`Rating for ${criterion.title}`} className="mt-3 grid grid-cols-2 gap-1 rounded-xl border border-line bg-surface-sunken p-1 sm:grid-cols-4">{RUBRIC_RATINGS.map(([rating, label]) => <SegmentButton key={rating} selected={criterionResults[criterion.id]?.rating === rating} onClick={() => setCriterionResults((current) => ({ ...current, [criterion.id]: { rating, feedback: current[criterion.id]?.feedback || '' } }))}>{label}</SegmentButton>)}</div><textarea aria-label={`Feedback for ${criterion.title}`} value={criterionResults[criterion.id]?.feedback || ''} onChange={(event) => setCriterionResults((current) => ({ ...current, [criterion.id]: { rating: current[criterion.id]?.rating || null, feedback: event.target.value } }))} placeholder="Optional focused feedback for this criterion" className="app-control mt-2 min-h-20 w-full" /></div>)}</div></div>}
+                  {feedbackSnippets.length > 0 && <div className="mb-3 rounded-2xl border border-line bg-surface-sunken p-3"><div className="flex items-center gap-2 text-xs font-semibold text-ink-muted"><MessageSquareText className="h-4 w-4" />Reusable snippets</div><div className="mt-2 flex flex-wrap gap-2">{feedbackSnippets.map((snippet) => <Button key={snippet.id} variant="secondary" size="sm" title={snippet.body} onClick={() => applyFeedbackSnippet(snippet)} className="text-left">{snippet.title}</Button>)}</div><p className="mt-2 text-xs leading-5 text-ink-muted">A snippet is inserted into the draft below. Edit it for this student before grading.</p></div>}
+                  <label htmlFor="grading-feedback" className="text-sm font-semibold text-ink">Feedback</label>
                   <textarea
+                    id="grading-feedback"
                     value={feedback}
                     onChange={(e) => setFeedback(e.target.value)}
                     placeholder="Feedback for the student..."
-                    className="mt-1 w-full rounded-lg border border-slate-200 p-3 text-sm resize-y min-h-[100px] focus:outline-none focus:ring-2 focus:ring-focus"
+                    className="app-control mt-1 min-h-[100px] w-full resize-y"
                   />
                   <FeedbackFormattingHint value={feedback} />
-                  <button type="button" disabled={!feedback.trim() || savingSnippet} onClick={() => void saveFeedbackSnippet()} className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-40"><BookmarkPlus className="h-4 w-4" />{savingSnippet ? 'Saving…' : 'Save draft as reusable snippet'}</button>
+                  <Button variant="quiet" size="sm" disabled={!feedback.trim() || savingSnippet} onClick={() => void saveFeedbackSnippet()} className="mt-2"><BookmarkPlus className="h-4 w-4" />{savingSnippet ? 'Saving…' : 'Save draft as reusable snippet'}</Button>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {['A', 'B', 'C'].map((grade) => (
-                    <button
+                    <Button
                       key={grade}
+                      variant={grade === 'A' ? 'primary' : 'secondary'}
                       onClick={() => handleGrade(grade)}
                       disabled={grading}
-                      className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition-colors disabled:opacity-50 ${
-                        grade === 'A' ? 'bg-success-500 text-white hover:bg-success-600' :
-                        grade === 'B' ? 'bg-blue-500 text-white hover:bg-blue-600' :
-                        'bg-amber-500 text-white hover:bg-amber-600'
-                      }`}
                     >
                       {grade}
-                    </button>
+                    </Button>
                   ))}
-                  <button
+                  <Button
+                    variant="secondary"
                     onClick={() => handleGrade('R')}
                     disabled={grading}
-                    className="flex-1 rounded-lg py-2.5 text-sm font-semibold bg-primary-500 text-white hover:bg-primary-600 disabled:opacity-50 transition-colors"
+                    className={REDO_BUTTON_CLASSES}
                   >
-                    <RotateCcw className="h-4 w-4 inline mr-1" />
+                    <RotateCcw className="h-4 w-4" />
                     Redo
-                  </button>
+                  </Button>
                 </div>
               </>
             )}
@@ -430,4 +410,11 @@ export function Grading() {
       </div>
     </div>
   )
+}
+
+/** Queue status: awaiting review and redo use the shared learner-status badge; graded work shows its grade. */
+function SubmissionStatus({ grade }: { grade: string | null }) {
+  if (grade === null) return <StatusBadge status="awaiting_review" short />
+  if (grade === 'R') return <StatusBadge status="redo" short />
+  return <GradeDisplay grade={grade} size="sm" />
 }
