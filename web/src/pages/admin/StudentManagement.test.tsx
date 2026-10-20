@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from 'react'
+import { act, useEffect } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -22,9 +22,12 @@ vi.mock('../../lib/realtime', () => ({ subscribeToStaffPresence: () => Promise.r
 
 import { StudentManagement } from './StudentManagement'
 
-let currentSearch = ''
+const probe = { search: '' }
 function LocationProbe() {
-  currentSearch = useLocation().search
+  const { search } = useLocation()
+  useEffect(() => {
+    probe.search = search
+  }, [search])
   return null
 }
 
@@ -42,7 +45,7 @@ async function mount(url: string) {
 }
 
 describe('student list keeps its search and filter in the URL', () => {
-  beforeEach(() => { currentSearch = '' })
+  beforeEach(() => { probe.search = '' })
   afterEach(() => vi.clearAllMocks())
 
   it('restores search and filter from the URL and keeps unrelated params', async () => {
@@ -58,7 +61,7 @@ describe('student list keeps its search and filter in the URL', () => {
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
     act(() => { setter.call(input, ''); input.dispatchEvent(new Event('input', { bubbles: true })) })
     act(() => (neverChip as HTMLButtonElement).click())
-    expect(currentSearch).toBe('?cohort_id=2')
+    expect(probe.search).toBe('?cohort_id=2')
     cleanup()
   })
 

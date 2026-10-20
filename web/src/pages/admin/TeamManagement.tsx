@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Activity, Archive, UserPlus, Mail, Pencil, Trash2, RotateCcw, Check } from 'lucide-react'
 import { api } from '../../lib/api'
 import { Modal } from '../../components/shared/Modal'
@@ -41,6 +41,7 @@ interface EditDraft {
 export function TeamManagement() {
   const { user: currentUser } = useAuthContext()
   const toast = useToast()
+  const fieldIdBase = useId()
   const [members, setMembers] = useState<TeamMember[]>([])
   const [listLoading, setListLoading] = useState(true)
   const [viewMode, setViewMode] = useState<'active' | 'archived'>('active')
@@ -329,8 +330,9 @@ export function TeamManagement() {
       >
         <form onSubmit={handleAddMember} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-ink-secondary mb-1">Email Address *</label>
+            <label htmlFor={`${fieldIdBase}-add-email`} className="block text-sm font-medium text-ink-secondary mb-1">Email Address *</label>
             <input
+              id={`${fieldIdBase}-add-email`}
               type="email"
               required
               value={addEmail}
@@ -340,8 +342,9 @@ export function TeamManagement() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-ink-secondary mb-1">Role</label>
+            <label htmlFor={`${fieldIdBase}-add-role`} className="block text-sm font-medium text-ink-secondary mb-1">Role</label>
             <select
+              id={`${fieldIdBase}-add-role`}
               value={addRole}
               onChange={(e) => setAddRole(e.target.value)}
               className="app-control w-full"
@@ -351,8 +354,9 @@ export function TeamManagement() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-ink-secondary mb-1">GitHub Username (optional)</label>
+            <label htmlFor={`${fieldIdBase}-add-github`} className="block text-sm font-medium text-ink-secondary mb-1">GitHub Username (optional)</label>
             <input
+              id={`${fieldIdBase}-add-github`}
               type="text"
               value={addGithub}
               onChange={(e) => setAddGithub(e.target.value)}
@@ -387,8 +391,9 @@ export function TeamManagement() {
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-ink-secondary mb-1">First Name</label>
+                <label htmlFor={`${fieldIdBase}-edit-first-name`} className="block text-sm font-medium text-ink-secondary mb-1">First Name</label>
                 <input
+                  id={`${fieldIdBase}-edit-first-name`}
                   type="text"
                   value={editDraft.first_name}
                   onChange={(e) => setEditDraft({ ...editDraft, first_name: e.target.value })}
@@ -397,8 +402,9 @@ export function TeamManagement() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-ink-secondary mb-1">Last Name</label>
+                <label htmlFor={`${fieldIdBase}-edit-last-name`} className="block text-sm font-medium text-ink-secondary mb-1">Last Name</label>
                 <input
+                  id={`${fieldIdBase}-edit-last-name`}
                   type="text"
                   value={editDraft.last_name}
                   onChange={(e) => setEditDraft({ ...editDraft, last_name: e.target.value })}
@@ -408,8 +414,9 @@ export function TeamManagement() {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-ink-secondary mb-1">GitHub Username</label>
+              <label htmlFor={`${fieldIdBase}-edit-github`} className="block text-sm font-medium text-ink-secondary mb-1">GitHub Username</label>
               <input
+                id={`${fieldIdBase}-edit-github`}
                 type="text"
                 value={editDraft.github_username}
                 onChange={(e) => setEditDraft({ ...editDraft, github_username: e.target.value })}
@@ -418,8 +425,9 @@ export function TeamManagement() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-ink-secondary mb-1">Role</label>
+              <label htmlFor={`${fieldIdBase}-edit-role`} className="block text-sm font-medium text-ink-secondary mb-1">Role</label>
               <select
+                id={`${fieldIdBase}-edit-role`}
                 value={editDraft.role}
                 onChange={(e) => setEditDraft({ ...editDraft, role: e.target.value })}
                 className="app-control w-full"

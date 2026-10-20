@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -296,6 +296,7 @@ function LessonRow({
   videoProgressByBlockId: Map<number, LessonVideoProgress>
 }) {
   const [expanded, setExpanded] = useState(false)
+  const unlockDateInputId = `${useId()}-lesson-${lesson.id}-unlock-date`
 
   return (
     <div className="border border-line rounded-xl overflow-hidden">
@@ -375,8 +376,9 @@ function LessonRow({
               Unlock this lesson for this student
             </label>
             <div>
-              <label className="block text-xs font-semibold text-ink-secondary mb-1">Lesson unlock date override</label>
+              <label htmlFor={unlockDateInputId} className="block text-xs font-semibold text-ink-secondary mb-1">Lesson unlock date override</label>
               <input
+                id={unlockDateInputId}
                 type="date"
                 value={form.unlock_date_override}
                 onChange={(e) => onUpdate({ unlock_date_override: e.target.value })}
@@ -438,6 +440,7 @@ function LessonRow({
 
 export function StudentDetail() {
   const { id } = useParams<{ id: string }>()
+  const fieldIdBase = useId()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const legacyCohortId = Number(searchParams.get('cohort_id')) || undefined
@@ -1029,16 +1032,16 @@ export function StudentDetail() {
             className="mt-4 border-t border-line pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3"
           >
             <div>
-              <label className="block text-xs font-semibold text-ink-secondary mb-1">First name</label>
-              <input type="text" value={editForm.first_name} onChange={(e) => setEditForm((f) => ({ ...f, first_name: e.target.value }))} className="app-control w-full" />
+              <label htmlFor={`${fieldIdBase}-first-name`} className="block text-xs font-semibold text-ink-secondary mb-1">First name</label>
+              <input id={`${fieldIdBase}-first-name`} type="text" value={editForm.first_name} onChange={(e) => setEditForm((f) => ({ ...f, first_name: e.target.value }))} className="app-control w-full" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-ink-secondary mb-1">Last name</label>
-              <input type="text" value={editForm.last_name} onChange={(e) => setEditForm((f) => ({ ...f, last_name: e.target.value }))} className="app-control w-full" />
+              <label htmlFor={`${fieldIdBase}-last-name`} className="block text-xs font-semibold text-ink-secondary mb-1">Last name</label>
+              <input id={`${fieldIdBase}-last-name`} type="text" value={editForm.last_name} onChange={(e) => setEditForm((f) => ({ ...f, last_name: e.target.value }))} className="app-control w-full" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-ink-secondary mb-1">GitHub username</label>
-              <input type="text" value={editForm.github_username} onChange={(e) => setEditForm((f) => ({ ...f, github_username: e.target.value }))} placeholder="e.g., octocat" className="app-control w-full" />
+              <label htmlFor={`${fieldIdBase}-github-username`} className="block text-xs font-semibold text-ink-secondary mb-1">GitHub username</label>
+              <input id={`${fieldIdBase}-github-username`} type="text" value={editForm.github_username} onChange={(e) => setEditForm((f) => ({ ...f, github_username: e.target.value }))} placeholder="e.g., octocat" className="app-control w-full" />
             </div>
             <div className="flex items-end gap-2">
               <Button type="submit" disabled={savingUser}>
@@ -1243,8 +1246,9 @@ export function StudentDetail() {
                   </label>
 
                   <div>
-                    <label className="block text-xs font-semibold text-ink-secondary mb-1">Unlock date override</label>
+                    <label htmlFor={`${fieldIdBase}-assignment-${assignment.id}-unlock-date`} className="block text-xs font-semibold text-ink-secondary mb-1">Unlock date override</label>
                     <input
+                      id={`${fieldIdBase}-assignment-${assignment.id}-unlock-date`}
                       type="date"
                       value={form.unlock_date_override}
                       onChange={(e) => updateAssignmentForm(assignment.id, { unlock_date_override: e.target.value })}

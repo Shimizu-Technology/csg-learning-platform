@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useId, useRef } from 'react'
 import { Upload, Trash2, Film, Calendar, Clock, Plus, X, Pencil, Loader2, Eye, ExternalLink, Link2, Globe2, EyeOff } from 'lucide-react'
 import { api } from '../../lib/api'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
@@ -47,6 +47,7 @@ interface RecordingUploadManagerProps {
 }
 
 export function RecordingUploadManager({ cohortId, onRecordingsChange }: RecordingUploadManagerProps) {
+  const draftFieldIdBase = useId()
   const { startVideoUpload, uploads, cancelUpload } = useUpload()
   const toast = useToast()
   const confirmAction = useConfirm()
@@ -493,8 +494,9 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-ink-secondary mb-1">Title *</label>
+                    <label htmlFor={`${draftFieldIdBase}-title-${draft.id}`} className="block text-xs font-semibold text-ink-secondary mb-1">Title *</label>
                     <input
+                      id={`${draftFieldIdBase}-title-${draft.id}`}
                       type="text"
                       value={draft.title}
                       onChange={(event) => updateDraft(draft.id, { title: event.target.value, error: undefined })}
@@ -504,8 +506,9 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-ink-secondary mb-1">Date recorded</label>
+                      <label htmlFor={`${draftFieldIdBase}-date-${draft.id}`} className="block text-xs font-semibold text-ink-secondary mb-1">Date recorded</label>
                       <input
+                        id={`${draftFieldIdBase}-date-${draft.id}`}
                         type="date"
                         value={draft.recordedDate}
                         onChange={(event) => updateDraft(draft.id, { recordedDate: event.target.value })}
@@ -513,8 +516,9 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-ink-secondary mb-1">Description</label>
+                      <label htmlFor={`${draftFieldIdBase}-description-${draft.id}`} className="block text-xs font-semibold text-ink-secondary mb-1">Description</label>
                       <input
+                        id={`${draftFieldIdBase}-description-${draft.id}`}
                         type="text"
                         value={draft.description}
                         onChange={(event) => updateDraft(draft.id, { description: event.target.value })}

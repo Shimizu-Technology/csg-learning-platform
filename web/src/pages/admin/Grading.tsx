@@ -15,6 +15,7 @@ import { appendFeedbackSnippet } from '../../lib/feedbackSnippets'
 import type { FeedbackSnippet, Rubric, RubricRating } from '../../types/api'
 import { FeedbackBody, FeedbackFormattingHint } from '../../components/shared/FeedbackBody'
 import { StatusBadge } from '../../components/shared/StatusBadge'
+import { REDO_BUTTON_CLASSES, SubmissionStatus } from '../../components/shared/SubmissionStatus'
 import { Avatar } from '../../components/ui/Avatar'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
@@ -24,9 +25,6 @@ import { formatShortDateTime } from '../../lib/format'
 type QueueFilter = SubmissionQueueFilter
 
 const RUBRIC_RATINGS: [RubricRating, string][] = [['exceeds', 'Exceeds'], ['meets', 'Meets'], ['developing', 'Developing'], ['redo', 'Revision']]
-
-/** Redo is a request for another attempt, not an error: a secondary button with warning tones. */
-const REDO_BUTTON_CLASSES = 'border-warning-300! text-warning-800! hover:bg-warning-50!'
 
 interface SubmissionItem {
   id: number
@@ -410,11 +408,4 @@ export function Grading() {
       </div>
     </div>
   )
-}
-
-/** Queue status: awaiting review and redo use the shared learner-status badge; graded work shows its grade. */
-function SubmissionStatus({ grade }: { grade: string | null }) {
-  if (grade === null) return <StatusBadge status="awaiting_review" short />
-  if (grade === 'R') return <StatusBadge status="redo" short />
-  return <GradeDisplay grade={grade} size="sm" />
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from 'react'
+import { useEffect, useId, useMemo, useState, useRef } from 'react'
 import { Link, useLocation, useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, RefreshCw, Filter, RotateCcw, Clock, Check, ChevronRight, Github, User, Globe, GitBranch, Keyboard, ExternalLink } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -17,6 +17,7 @@ import { useToast } from '../../contexts/ToastContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { FeedbackBody, FeedbackFormattingHint } from '../../components/shared/FeedbackBody'
 import { StatusBadge } from '../../components/shared/StatusBadge'
+import { REDO_BUTTON_CLASSES, SubmissionStatus } from '../../components/shared/SubmissionStatus'
 import { Avatar } from '../../components/ui/Avatar'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
@@ -25,9 +26,6 @@ import { formatShortDate, formatShortDateTime } from '../../lib/format'
 
 type QueueFilter = 'ungraded' | 'redo' | 'all'
 type ViewMode = 'students' | 'queue' | 'grid'
-
-/** Redo is a request for another attempt, not an error: a secondary button with warning tones. */
-const REDO_BUTTON_CLASSES = 'border-warning-300! text-warning-800! hover:bg-warning-50!'
 
 /** Grid cell tones, matching the Badge / StatusBadge status colours. */
 const CELL_TONES = {
@@ -193,6 +191,7 @@ function renderSubmissionArtifacts(submission: SubmissionItem) {
 
 export function CohortModuleGrading() {
   const { cohortId, moduleId } = useParams<{ cohortId: string; moduleId: string }>()
+  const weekHeadingIdBase = useId()
   const location = useLocation()
   const navigate = useNavigate()
   const toast = useToast()
@@ -629,7 +628,7 @@ export function CohortModuleGrading() {
             return (
               <div key={week} className="app-surface overflow-hidden">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3.5">
-                  <h3 className="text-base font-semibold text-ink">Week {week}</h3>
+                  <h3 id={`${weekHeadingIdBase}-week-${week}`} className="text-base font-semibold text-ink">Week {week}</h3>
                   <div className="flex flex-wrap items-center gap-2">
                     {pending > 0 && <Badge tone="pending" className="tabular-nums">{pending} pending</Badge>}
                     {redos > 0 && <Badge tone="warning" className="tabular-nums">{redos} redo</Badge>}
@@ -638,7 +637,7 @@ export function CohortModuleGrading() {
                 </div>
                 {/* Scrolls inside its own box on desktop so the header row and student column stay pinned. */}
                 <div className="overflow-x-auto lg:max-h-[70vh] lg:overflow-y-auto">
-                  <table className="w-full border-separate border-spacing-0 text-sm">
+                  <table aria-labelledby={`${weekHeadingIdBase}-week-${week}`} className="w-full border-separate border-spacing-0 text-sm">
                     <thead>
                       <tr>
                         <th scope="col" className="sticky left-0 top-0 z-30 min-w-[110px] border-b border-line bg-surface-sunken px-4 py-2 text-left text-xs font-semibold text-ink-muted">Student</th>
@@ -1350,11 +1349,4 @@ export function CohortModuleGrading() {
       </div>}
     </div>
   )
-}
-
-/** Queue status: awaiting review and redo use the shared learner-status badge; graded work shows its grade. */
-function SubmissionStatus({ grade }: { grade: string | null }) {
-  if (grade === null) return <StatusBadge status="awaiting_review" short />
-  if (grade === 'R') return <StatusBadge status="redo" short />
-  return <GradeDisplay grade={grade} size="sm" />
 }

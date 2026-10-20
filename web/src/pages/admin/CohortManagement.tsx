@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Layers3, Plus, Users, Calendar, ChevronRight } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -7,7 +7,7 @@ import { useCohortContext } from '../../contexts/CohortContext'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { useToast } from '../../contexts/ToastContext'
-import { Badge, type BadgeTone } from '../../components/ui/Badge'
+import { CohortStatusBadge } from '../../components/shared/CohortStatusBadge'
 import { Button } from '../../components/ui/Button'
 import { FilterChip } from '../../components/ui/Choice'
 import { formatShortDate } from '../../lib/format'
@@ -28,22 +28,12 @@ const COHORT_TYPES = [
   { value: 'custom', label: 'Custom' },
 ]
 
-function StatusBadge({ status }: { status: string }) {
-  const tones: Record<string, BadgeTone> = {
-    active: 'success',
-    upcoming: 'info',
-    completed: 'neutral',
-    archived: 'neutral',
-  }
-  const label = status.replaceAll('_', ' ')
-  return <Badge tone={tones[status] || 'neutral'}>{label.charAt(0).toUpperCase() + label.slice(1)}</Badge>
-}
-
 export function CohortManagement() {
   const { user } = useAuthContext()
   const { refreshCohorts } = useCohortContext()
   const navigate = useNavigate()
   const toast = useToast()
+  const formId = useId()
   const [cohorts, setCohorts] = useState<CohortSummary[]>([])
   const [curricula, setCurricula] = useState<CurriculumSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -142,8 +132,9 @@ export function CohortManagement() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-ink-secondary mb-1">Cohort name *</label>
+              <label htmlFor={`${formId}-name`} className="block text-sm font-semibold text-ink-secondary mb-1">Cohort name *</label>
               <input
+                id={`${formId}-name`}
                 type="text"
                 required
                 value={form.name}
@@ -153,8 +144,9 @@ export function CohortManagement() {
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-ink-secondary mb-1">Type</label>
+              <label htmlFor={`${formId}-type`} className="block text-sm font-semibold text-ink-secondary mb-1">Type</label>
               <select
+                id={`${formId}-type`}
                 value={form.cohort_type}
                 onChange={(e) => setForm({ ...form, cohort_type: e.target.value })}
                 className="app-control w-full"
@@ -165,8 +157,9 @@ export function CohortManagement() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-ink-secondary mb-1">Curriculum *</label>
+              <label htmlFor={`${formId}-curriculum`} className="block text-sm font-semibold text-ink-secondary mb-1">Curriculum *</label>
               <select
+                id={`${formId}-curriculum`}
                 required
                 value={form.curriculum_id}
                 onChange={(e) => setForm({ ...form, curriculum_id: e.target.value ? Number(e.target.value) : '' })}
@@ -179,8 +172,9 @@ export function CohortManagement() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-ink-secondary mb-1">Start date *</label>
+              <label htmlFor={`${formId}-start`} className="block text-sm font-semibold text-ink-secondary mb-1">Start date *</label>
               <input
+                id={`${formId}-start`}
                 type="date"
                 required
                 value={form.start_date}
@@ -189,8 +183,9 @@ export function CohortManagement() {
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-ink-secondary mb-1">End date</label>
+              <label htmlFor={`${formId}-end`} className="block text-sm font-semibold text-ink-secondary mb-1">End date</label>
               <input
+                id={`${formId}-end`}
                 type="date"
                 value={form.end_date}
                 onChange={(e) => setForm({ ...form, end_date: e.target.value })}
@@ -257,7 +252,7 @@ export function CohortManagement() {
               <div className="flex-1 min-w-0">
                 <div className="flex min-w-0 items-center gap-3 mb-1">
                   <h3 className="min-w-0 truncate text-base font-semibold text-ink" title={cohort.name}>{cohort.name}</h3>
-                  <StatusBadge status={cohort.status} />
+                  <CohortStatusBadge status={cohort.status} />
                 </div>
                 <p className="truncate text-sm text-ink-muted" title={cohort.curriculum_name}>{cohort.curriculum_name}</p>
                 <p className="mt-1 text-xs font-semibold text-ink-secondary">Open for access and invitation status</p>

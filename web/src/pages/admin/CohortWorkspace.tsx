@@ -9,6 +9,7 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { Avatar } from '../../components/ui/Avatar'
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
+import { CohortStatusBadge } from '../../components/shared/CohortStatusBadge'
 import { Button, LinkButton } from '../../components/ui/Button'
 import { CohortHomePanel } from '../../components/admin/CohortHomePanel'
 import { CohortTeachingTeam } from '../../components/admin/CohortTeachingTeam'
@@ -27,8 +28,6 @@ const tabs: Array<{ id: CohortTab; label: string; icon: typeof Users }> = [
   { id: 'team', label: 'Teaching team', icon: Users },
 ]
 
-const COHORT_STATUS_TONES: Record<string, BadgeTone> = { active: 'success', upcoming: 'info' }
-function statusLabel(value: string) { const text = value.replaceAll('_', ' '); return text.charAt(0).toUpperCase() + text.slice(1) }
 
 export function CohortWorkspace() {
   const { id } = useParams<{ id: string }>()
@@ -85,7 +84,7 @@ export function CohortWorkspace() {
   return <div className="app-page-wide space-y-6">
     <header>
       <Link to="/admin/cohorts" className="app-link inline-flex min-h-11 items-center gap-1 text-sm"><ArrowLeft className="h-4 w-4" />Cohorts</Link>
-      <div className="mt-2 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-3"><h1 className="app-title min-w-0 [overflow-wrap:anywhere]">{cohort.name}</h1><Badge tone={COHORT_STATUS_TONES[cohort.status] || 'neutral'}>{statusLabel(cohort.status)}</Badge></div><p className="app-description mt-2 tabular-nums">{cohort.curriculum_name} · {cohort.students.length} enrolled student{cohort.students.length === 1 ? '' : 's'}</p></div><div className="flex shrink-0 flex-wrap gap-2"><LinkButton variant="secondary" to={`/admin/cohorts/${cohort.id}/student-view${activeStudents[0] ? `?student_id=${activeStudents[0].user_id}` : ''}`}><Eye className="h-4 w-4" />Preview student view</LinkButton>{user?.is_admin && <LinkButton to={`/admin/cohorts/${cohort.id}/settings`}><Settings2 className="h-4 w-4" />Manage cohort</LinkButton>}</div></div>
+      <div className="mt-2 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-3"><h1 className="app-title min-w-0 [overflow-wrap:anywhere]">{cohort.name}</h1><CohortStatusBadge status={cohort.status} /></div><p className="app-description mt-2 tabular-nums">{cohort.curriculum_name} · {cohort.students.length} enrolled student{cohort.students.length === 1 ? '' : 's'}</p></div><div className="flex shrink-0 flex-wrap gap-2"><LinkButton variant="secondary" to={`/admin/cohorts/${cohort.id}/student-view${activeStudents[0] ? `?student_id=${activeStudents[0].user_id}` : ''}`}><Eye className="h-4 w-4" />Preview student view</LinkButton>{user?.is_admin && <LinkButton to={`/admin/cohorts/${cohort.id}/settings`}><Settings2 className="h-4 w-4" />Manage cohort</LinkButton>}</div></div>
     </header>
 
     <nav aria-label="Cohort workspace sections" className="border-b border-line lg:overflow-x-auto"><div className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:flex lg:min-w-max">{tabs.filter((tab) => tab.id !== 'team' || user?.is_admin).map(({ id: tabId, label, icon: Icon }) => <Link key={tabId} to={tabId === 'overview' ? `/admin/cohorts/${cohort.id}` : `/admin/cohorts/${cohort.id}?tab=${tabId}`} aria-current={activeTab === tabId ? 'page' : undefined} className={`inline-flex min-h-11 items-center justify-center gap-2 px-2 text-center text-sm font-semibold transition-colors duration-150 sm:px-4 ${activeTab === tabId ? 'tab-selected' : 'text-ink-secondary hover:bg-surface-sunken hover:text-ink'}`}><Icon className="h-4 w-4 shrink-0" />{label}</Link>)}</div></nav>

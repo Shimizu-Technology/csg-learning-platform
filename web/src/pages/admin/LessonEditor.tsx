@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
+import { useEffect, useId, useState, useMemo, useRef, useCallback } from 'react'
 import { useParams, Link, useSearchParams } from 'react-router-dom'
 import { Archive, ArrowLeft, Save, Eye, Pencil, Plus, RotateCcw, Target, X, ClipboardCheck, ListChecks } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -69,6 +69,7 @@ const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Satu
 
 export function LessonEditor() {
   const { id } = useParams<{ id: string }>()
+  const fieldIdBase = useId()
   const toast = useToast()
   const { user } = useAuthContext()
   const canCreateCurriculumResources = Boolean(user?.is_admin)
@@ -601,7 +602,7 @@ export function LessonEditor() {
               </SegmentButton>
               <SegmentButton
                 selected={mode === 'preview'}
-                onClick={() => setMode(mode === 'preview' ? 'edit' : 'preview')}
+                onClick={() => setMode('preview')}
               >
                 <Eye className="h-3.5 w-3.5" />
                 Student Preview
@@ -682,8 +683,9 @@ export function LessonEditor() {
           {/* Details card */}
           <div className="app-surface p-4 sm:p-6 space-y-4">
             <div>
-              <label className="block text-sm font-semibold text-ink-secondary mb-1.5">Title</label>
+              <label htmlFor={`${fieldIdBase}-title`} className="block text-sm font-semibold text-ink-secondary mb-1.5">Title</label>
               <input
+                id={`${fieldIdBase}-title`}
                 type="text"
                 value={title}
                 onChange={e => setTitle(e.target.value)}
@@ -730,8 +732,9 @@ export function LessonEditor() {
               <div className="space-y-3">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="block text-sm font-semibold text-ink-secondary mb-1.5">Filename</label>
+                    <label htmlFor={`${fieldIdBase}-filename`} className="block text-sm font-semibold text-ink-secondary mb-1.5">Filename</label>
                     <input
+                      id={`${fieldIdBase}-filename`}
                       type="text"
                       value={filename}
                       onChange={e => setFilename(e.target.value)}
@@ -741,8 +744,9 @@ export function LessonEditor() {
                     <p className="text-xs text-ink-muted mt-1">Leave blank if no submission</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-ink-secondary mb-1.5">Submission type</label>
+                    <label htmlFor={`${fieldIdBase}-submission-type`} className="block text-sm font-semibold text-ink-secondary mb-1.5">Submission type</label>
                     <select
+                      id={`${fieldIdBase}-submission-type`}
                       value={submissionType}
                       onChange={e => handleSubmissionTypeChange(e.target.value)}
                       className="app-control w-full"
@@ -906,7 +910,7 @@ export function LessonEditor() {
               <label className="block text-xs font-semibold text-ink-secondary">Question<textarea value={checkPrompt} disabled={checkAttemptCount > 0} onChange={(event) => setCheckPrompt(event.target.value)} rows={3} placeholder="Which command prints the current working directory?" className="app-control mt-1 block w-full" /></label>
               <div>
                 <p className="text-xs font-semibold text-ink-secondary">Choices and correct answer</p>
-                <div className="mt-2 space-y-2">{checkOptions.map((option, index) => <div key={index} className="grid grid-cols-[44px_1fr_44px] gap-2"><label className="flex h-11 cursor-pointer items-center justify-center rounded-xl border border-line bg-surface-sunken" title="Correct answer"><input type="radio" name="correct-check-option" checked={checkCorrectOption === index} disabled={checkAttemptCount > 0} onChange={() => setCheckCorrectOption(index)} className="h-4 w-4 accent-primary-600" /></label><input aria-label={`Choice ${index + 1}`} value={option} disabled={checkAttemptCount > 0} onChange={(event) => setCheckOptions((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder={`Choice ${index + 1}`} className="app-control" /><IconButton label={`Remove choice ${index + 1}`} disabled={checkAttemptCount > 0 || checkOptions.length <= 2} onClick={() => { setCheckOptions((current) => current.filter((_, itemIndex) => itemIndex !== index)); setCheckCorrectOption((current) => current === index ? 0 : current > index ? current - 1 : current) }}><X className="h-4 w-4" /></IconButton></div>)}</div>
+                <div className="mt-2 space-y-2">{checkOptions.map((option, index) => <div key={index} className="grid grid-cols-[44px_1fr_44px] gap-2"><label className="flex h-11 cursor-pointer items-center justify-center rounded-xl border border-line bg-surface-sunken" title="Correct answer"><input type="radio" name="correct-check-option" aria-label={`Mark choice ${index + 1} as the correct answer`} checked={checkCorrectOption === index} disabled={checkAttemptCount > 0} onChange={() => setCheckCorrectOption(index)} className="h-4 w-4 accent-primary-600" /></label><input aria-label={`Choice ${index + 1}`} value={option} disabled={checkAttemptCount > 0} onChange={(event) => setCheckOptions((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder={`Choice ${index + 1}`} className="app-control" /><IconButton label={`Remove choice ${index + 1}`} disabled={checkAttemptCount > 0 || checkOptions.length <= 2} onClick={() => { setCheckOptions((current) => current.filter((_, itemIndex) => itemIndex !== index)); setCheckCorrectOption((current) => current === index ? 0 : current > index ? current - 1 : current) }}><X className="h-4 w-4" /></IconButton></div>)}</div>
                 <Button variant="quiet" disabled={checkAttemptCount > 0 || checkOptions.length >= 6} onClick={() => setCheckOptions((current) => [...current, ''])} className="mt-2"><Plus className="h-4 w-4" />Add choice</Button>
               </div>
               <label className="block text-xs font-semibold text-ink-secondary">Explanation shown after every attempt<textarea value={checkExplanation} disabled={checkAttemptCount > 0} onChange={(event) => setCheckExplanation(event.target.value)} rows={3} placeholder="pwd means print working directory, so it shows the folder you are currently in." className="app-control mt-1 block w-full" /></label>

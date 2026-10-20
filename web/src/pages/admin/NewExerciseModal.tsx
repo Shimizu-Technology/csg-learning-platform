@@ -151,8 +151,9 @@ export function NewExerciseModal({
       <form id={formId} onSubmit={handleSubmit} className="space-y-5">
           {/* Row 1: Title */}
           <div>
-            <label className="block text-sm font-medium text-ink-secondary mb-1">Title</label>
+            <label htmlFor={`${formId}-title`} className="block text-sm font-medium text-ink-secondary mb-1">Title</label>
             <input
+              id={`${formId}-title`}
               type="text"
               value={title}
               onChange={e => setTitle(e.target.value)}
@@ -165,8 +166,9 @@ export function NewExerciseModal({
           {/* Row 2: Week, Day, Filename, Submission */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
-              <label className="block text-sm font-medium text-ink-secondary mb-1">Week</label>
+              <label htmlFor={`${formId}-week`} className="block text-sm font-medium text-ink-secondary mb-1">Week</label>
               <select
+                id={`${formId}-week`}
                 value={week}
                 onChange={e => setWeek(Number(e.target.value))}
                 className="app-control"
@@ -175,8 +177,9 @@ export function NewExerciseModal({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-ink-secondary mb-1">Day</label>
+              <label htmlFor={`${formId}-day`} className="block text-sm font-medium text-ink-secondary mb-1">Day</label>
               <select
+                id={`${formId}-day`}
                 value={dayIndex}
                 onChange={e => setDayIndex(Number(e.target.value))}
                 className="app-control"
@@ -185,8 +188,9 @@ export function NewExerciseModal({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-ink-secondary mb-1">Filename</label>
+              <label htmlFor={`${formId}-filename`} className="block text-sm font-medium text-ink-secondary mb-1">Filename</label>
               <input
+                id={`${formId}-filename`}
                 type="text"
                 value={filename}
                 onChange={e => setFilename(e.target.value)}
@@ -195,8 +199,9 @@ export function NewExerciseModal({
               />
             </div>
             <div className="space-y-3">
-              <label className="block text-sm font-medium text-ink-secondary mb-1">Submission type</label>
+              <label htmlFor={`${formId}-submission-type`} className="block text-sm font-medium text-ink-secondary mb-1">Submission type</label>
               <select
+                id={`${formId}-submission-type`}
                 value={submissionType}
                 onChange={e => handleSubmissionTypeChange(e.target.value)}
                 className="app-control"
