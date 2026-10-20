@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useRef } from 'react'
 import { Link, useLocation, useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, RefreshCw, Filter, RotateCcw, Clock, Check, ChevronRight, Github, User, Globe, GitBranch, Keyboard, ExternalLink } from 'lucide-react'
 import { api } from '../../lib/api'
+import { submissionWhereLabel } from '../../lib/submissionQueue'
 import { cohortStudentPath, submissionPath } from '../../lib/routes'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { GradeDisplay } from '../../components/shared/GradeDisplay'
@@ -1169,7 +1170,7 @@ export function CohortModuleGrading() {
                 filteredSubmissions.map((sub) => {
                   const isLatest = latestSubmissionIds.has(sub.id)
                   const isSelected = selectedSubmission?.id === sub.id
-                  const where = `${sub.lesson_title} · ${sub.content_block_title}`
+                  const where = submissionWhereLabel(sub.lesson_title, sub.content_block_title)
                   return (
                     <button
                       key={sub.id}

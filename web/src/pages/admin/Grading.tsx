@@ -3,7 +3,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Filter, Check, RotateCcw, Clock, ChevronRight, Layers3, BookmarkPlus, MessageSquareText, ExternalLink } from 'lucide-react'
 import { api } from '../../lib/api'
 import { submissionPath } from '../../lib/routes'
-import { getLatestSubmissionIds, orderSubmissionQueue, type SubmissionQueueFilter } from '../../lib/submissionQueue'
+import { getLatestSubmissionIds, orderSubmissionQueue, type SubmissionQueueFilter, submissionWhereLabel } from '../../lib/submissionQueue'
 import { GradeDisplay } from '../../components/shared/GradeDisplay'
 import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
 import { CodeRunner } from '../../components/shared/CodeRunner'
@@ -266,7 +266,7 @@ export function Grading() {
             queue.map((sub) => {
               const isLatest = latestSubmissionIds.has(sub.id)
               const isSelected = selectedSubmission?.id === sub.id
-              const where = `${sub.lesson_title} · ${sub.content_block_title}`
+              const where = submissionWhereLabel(sub.lesson_title, sub.content_block_title)
               return (
                 <div key={sub.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-stretch gap-2">
                   <button
@@ -293,7 +293,7 @@ export function Grading() {
                     to={submissionPath(sub.id, { userId: sub.user_id, returnTo: `${location.pathname}${location.search}`, queue: queueFilter })}
                     aria-label={`Open ${sub.user_name}'s submission record`}
                     title="Open submission record"
-                    className="inline-flex min-h-11 w-11 items-center justify-center rounded-xl border border-line bg-surface-raised text-ink-muted transition-colors duration-150 hover:border-line-strong hover:bg-surface-sunken hover:text-ink"
+                    className="inline-flex h-11 w-11 items-center justify-center self-center rounded-xl text-ink-muted transition-colors duration-150 hover:bg-surface-sunken hover:text-ink"
                   >
                     <ExternalLink className="h-4 w-4" />
                   </Link>

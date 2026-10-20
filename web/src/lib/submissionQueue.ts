@@ -36,3 +36,12 @@ export function getLatestSubmissionIds<T extends QueueSubmission>(submissions: T
 function compareNewestFirst(a: QueueSubmission, b: QueueSubmission) {
   return new Date(b.created_at).getTime() - new Date(a.created_at).getTime() || b.id - a.id
 }
+
+/** "Lesson · Block" for a queue row, without repeating a block title that matches its lesson. */
+export function submissionWhereLabel(lessonTitle: string | null | undefined, blockTitle: string | null | undefined): string {
+  const lesson = lessonTitle?.trim() || ''
+  const block = blockTitle?.trim() || ''
+  if (!block || block.toLowerCase() === lesson.toLowerCase()) return lesson || block
+  if (!lesson) return block
+  return `${lesson} · ${block}`
+}
