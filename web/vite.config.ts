@@ -22,6 +22,12 @@ export default defineConfig({
         manualChunks(id) {
           if (!id.includes('node_modules')) return
 
+          // React and the router are needed by every page. Name their chunk so
+          // Rollup does not fold the JSX runtime into a lazily used vendor chunk
+          // (it used to land in vendor-markdown, forcing every page, including
+          // the signed-out landing, to preload the markdown libraries).
+          if (/[\\/]node_modules[\\/](react|react-dom|scheduler|react-router|react-router-dom|@remix-run)[\\/]/.test(id)) return 'vendor-react'
+
           if (id.includes('@clerk/')) return 'vendor-clerk'
           if (id.includes('posthog-js')) return 'vendor-analytics'
           if (id.includes('@monaco-editor/')) return 'vendor-editor'

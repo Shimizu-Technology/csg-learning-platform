@@ -55,6 +55,13 @@ const TEXT_PAIRS: Array<[string, string, number]> = [
   ['color-ink-muted', 'color-surface-sunken', 4.5],
   ['color-ink-muted', 'color-pending-50', 4.5],
   ['color-slate-500', 'color-surface-page', 4.5],
+  // Public and sign-in surfaces (CSG site cream)
+  ['color-ink', 'color-brand-cream', 4.5],
+  ['color-ink-secondary', 'color-brand-cream', 4.5],
+  ['color-ink-muted', 'color-brand-cream', 4.5],
+  ['color-ruby-700', 'color-brand-cream', 4.5],
+  ['color-ink-secondary', 'color-brand-cream-sunken', 4.5],
+  ['color-on-action', 'color-action-primary', 4.5],
   // Inverse surface
   [WHITE, 'color-surface-inverse', 4.5],
 ]

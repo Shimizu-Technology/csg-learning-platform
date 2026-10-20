@@ -28,8 +28,8 @@ vi.mock('../lib/api', () => ({
   setAuthTokenGetter: vi.fn(),
 }))
 
-vi.mock('../providers/PostHogProvider', () => ({ isPostHogEnabled: false }))
-vi.mock('posthog-js', () => ({ default: { identify: vi.fn(), reset: vi.fn() } }))
+const setPostHogIdentity = vi.hoisted(() => vi.fn())
+vi.mock('../lib/posthogClient', () => ({ isPostHogEnabled: true, setPostHogIdentity }))
 
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -61,6 +61,7 @@ afterEach(() => {
   authState.isSignedIn = true
   authState.clerkUserId = 'clerk-user'
   createSession.mockReset()
+  setPostHogIdentity.mockReset()
 })
 
 describe('AuthProvider session lifecycle', () => {
@@ -151,5 +152,50 @@ describe('AuthProvider session lifecycle', () => {
 
     expect(seenErrors.at(-1)).toBeNull()
     expect(seenErrors).not.toContain('Late network failure')
+  })
+})
+
+describe('AuthProvider analytics identity', () => {
+  async function renderProvider() {
+    container = document.createElement('div')
+    root = createRoot(container)
+    await act(async () => {
+      root?.render(<AuthProvider><SessionProbe onUser={() => undefined} /></AuthProvider>)
+      await Promise.resolve()
+    })
+  }
+
+  const userIdentities = () => setPostHogIdentity.mock.calls.map(([identity]) => identity).filter((identity) => identity.kind === 'user')
+
+  it('reports the signed-in application user with role and active cohort', async () => {
+    createSession.mockResolvedValue({
+      data: {
+        user: { id: 41, role: 'student' },
+        enrollments: [{ id: 17, cohort: { id: 9, name: 'Pilot', cohort_type: 'workshop', start_date: '2026-12-01', status: 'active' }, status: 'active', enrolled_at: '2026-12-01T00:00:00Z' }],
+      },
+      error: null,
+    })
+    await renderProvider()
+    expect(setPostHogIdentity).toHaveBeenCalledWith({ kind: 'user', id: '41', properties: { role: 'student', cohort_id: 9 } })
+  })
+
+  it('reports an anonymous identity when Clerk is signed out', async () => {
+    authState.isSignedIn = false
+    authState.clerkUserId = ''
+    await renderProvider()
+    expect(setPostHogIdentity).toHaveBeenCalledWith({ kind: 'anonymous' })
+    expect(createSession).not.toHaveBeenCalled()
+  })
+
+  it('does not report a user identity when the session request fails', async () => {
+    createSession.mockResolvedValue({ data: null, error: 'Network down', status: 0 })
+    await renderProvider()
+    expect(userIdentities()).toEqual([])
+  })
+
+  it('does not report a user identity when the account is not on the class list', async () => {
+    createSession.mockResolvedValue({ data: null, error: 'No access', status: 403, errorCode: 'account_not_authorized' })
+    await renderProvider()
+    expect(userIdentities()).toEqual([])
   })
 })

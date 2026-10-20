@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
     <!-- Primary Meta Tags -->
-    <title>CSG Learning Hub | Code School of Guam</title>
-    <meta name="title" content="CSG Learning Hub | Code School of Guam" />
-    <meta name="description" content="The learning platform for Code School of Guam — access prework exercises, class recordings, resources, and track your coding journey." />
+    <title>CSG Learn | Code School of Guam</title>
+    <meta name="title" content="CSG Learn | Code School of Guam" />
+    <meta name="description" content="CSG Learn is Code School of Guam's learning workspace: lessons, code feedback, class recordings, and messages with your instructor." />
     <meta name="keywords" content="coding bootcamp, learn to code, guam, programming, web development, code school" />
     <meta name="author" content="Code School of Guam" />
     <link rel="canonical" href="https://learn.codeschoolofguam.com/" />
@@ -15,15 +15,15 @@
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://learn.codeschoolofguam.com/" />
-    <meta property="og:title" content="CSG Learning Hub | Code School of Guam" />
-    <meta property="og:description" content="The learning platform for Code School of Guam — access prework exercises, class recordings, resources, and track your coding journey." />
+    <meta property="og:title" content="CSG Learn | Code School of Guam" />
+    <meta property="og:description" content="CSG Learn is Code School of Guam's learning workspace: lessons, code feedback, class recordings, and messages with your instructor." />
     <meta property="og:image" content="https://learn.codeschoolofguam.com/og-image.png" />
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image" />
     <meta property="twitter:url" content="https://learn.codeschoolofguam.com/" />
-    <meta property="twitter:title" content="CSG Learning Hub | Code School of Guam" />
-    <meta property="twitter:description" content="The learning platform for Code School of Guam — access prework exercises, class recordings, resources, and track your coding journey." />
+    <meta property="twitter:title" content="CSG Learn | Code School of Guam" />
+    <meta property="twitter:description" content="CSG Learn is Code School of Guam's learning workspace: lessons, code feedback, class recordings, and messages with your instructor." />
     <meta property="twitter:image" content="https://learn.codeschoolofguam.com/og-image.png" />
 
     <!-- Favicon -->
@@ -35,8 +35,35 @@
     <link rel="manifest" href="/manifest.json" />
 
     <!-- Theme Color -->
-    <!-- Matches the white app header so the phone status bar does not read as an error. -->
+    <!-- Cream on public and sign-in pages (matches codeschoolofguam.com), white to
+         match the app header elsewhere. The boot script below and lib/brand.ts
+         applySurface() keep it in step with the route. Newsreader is deliberately
+         not preloaded: on slow connections the preload competed with the app's
+         JavaScript and delayed the first headline (font-display: swap instead). -->
     <meta name="theme-color" content="#ffffff" />
+    <script>
+      (function () {
+        // Keep in sync with surfaceForPath() in src/lib/brand.ts (asserted in brand.test.ts).
+        var PUBLIC_SURFACE = /^\/((sign-in|sign-up|courses|privacy|terms|account-deletion)(\/.*)?)?$/;
+        var isPublic = PUBLIC_SURFACE.test(location.pathname);
+        document.documentElement.setAttribute('data-surface', isPublic ? 'public' : 'app');
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', isPublic ? '#faf7f0' : '#ffffff');
+      })();
+    </script>
+    <style>
+      /* Shown until the app mounts, so a slow connection never shows a blank page. */
+      html { background: #f8f7f4; }
+      html[data-surface="public"] { background: #faf7f0; }
+      #boot-shell { min-height: 100vh; min-height: 100svh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; padding: 2rem 1rem; text-align: center; color: #0f172a; font-family: "Manrope Variable", "Avenir Next", system-ui, sans-serif; }
+      #boot-shell img { width: 48px; height: 48px; border-radius: 6px; }
+      #boot-shell .boot-name { margin: 0; font-size: 1.125rem; font-weight: 700; letter-spacing: -0.01em; }
+      #boot-shell .boot-sub { margin: 0; font-size: 0.875rem; color: #475569; }
+      #boot-shell .boot-slow { max-width: 22rem; margin: 1rem 0 0; font-size: 0.875rem; line-height: 1.5; color: #475569; }
+      #boot-shell .boot-slow[hidden] { display: none; }
+      #boot-shell button { min-height: 44px; margin-top: 0.75rem; padding: 0 1.25rem; border: 0; border-radius: 6px; background: #9c292b; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+      #boot-shell button:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 2px; }
+    </style>
     <meta name="msapplication-TileColor" content="#9c292b" />
 
     <!-- iOS PWA -->
@@ -52,7 +79,7 @@
       "@type": "EducationalOrganization",
       "name": "Code School of Guam",
       "url": "https://learn.codeschoolofguam.com",
-      "description": "Code School of Guam's learning platform for coding bootcamp students.",
+      "description": "Code School of Guam's learning workspace for enrolled learners.",
       "areaServed": {
         "@type": "Place",
         "name": "Guam"
@@ -63,13 +90,30 @@
     {
       "@context": "https://schema.org",
       "@type": "WebSite",
-      "name": "CSG Learning Hub",
+      "name": "CSG Learn",
       "url": "https://learn.codeschoolofguam.com"
     }
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="boot-shell" role="status" aria-live="polite">
+        <img src="/CSG-Logo.png" alt="" width="48" height="48" />
+        <p class="boot-name">CSG Learn</p>
+        <p class="boot-sub">Code School of Guam</p>
+        <p id="boot-slow" class="boot-slow" hidden>
+          Still loading. Check your connection, then try again.<br />
+          <button type="button" onclick="window.location.reload()">Reload</button>
+        </p>
+      </div>
+    </div>
+    <script>
+      window.setTimeout(function () {
+        var slow = document.getElementById('boot-slow');
+        if (slow) slow.hidden = false;
+      }, 8000);
+    </script>
+    <noscript><p style="padding:1rem;text-align:center;font-family:system-ui,sans-serif">CSG Learn needs JavaScript. For help, email codeschoolofguam@gmail.com.</p></noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

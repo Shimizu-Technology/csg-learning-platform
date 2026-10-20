@@ -14,7 +14,6 @@ function lazyWithPreload<T extends ComponentType<unknown>>(loader: Loader<T>): L
 
 const dashboardLoader = () => import('../pages/student/Dashboard').then((module) => ({ default: module.DashboardRoute }))
 const privateMeetingsLoader = () => import('../pages/student/PrivateMeetings').then((module) => ({ default: module.PrivateMeetings }))
-const homeLoader = () => import('../pages/Home').then((module) => ({ default: module.HomePage }))
 const materialsLoader = () => import('../pages/student/Materials').then((module) => ({ default: module.MaterialsRoute }))
 const moduleViewLoader = () => import('../pages/student/ModuleView').then((module) => ({ default: module.ModuleView }))
 const lessonViewLoader = () => import('../pages/student/LessonView').then((module) => ({ default: module.LessonView }))
@@ -48,7 +47,6 @@ const signUpLoader = () => import('../pages/SignIn').then((module) => ({ default
 
 export const Dashboard = lazyWithPreload(dashboardLoader)
 export const PrivateMeetings = lazyWithPreload(privateMeetingsLoader)
-export const HomePage = lazyWithPreload(homeLoader)
 export const Materials = lazyWithPreload(materialsLoader)
 export const ModuleView = lazyWithPreload(moduleViewLoader)
 export const LessonView = lazyWithPreload(lessonViewLoader)
@@ -81,7 +79,6 @@ export const SignInPage = lazyWithPreload(signInLoader)
 export const SignUpPage = lazyWithPreload(signUpLoader)
 
 const routePreloaders: Record<string, Array<() => Promise<unknown>>> = {
-  '/': [homeLoader],
   '/dashboard': [dashboardLoader],
   '/meetings': [privateMeetingsLoader],
   '/materials': [materialsLoader, moduleViewLoader, lessonViewLoader],

@@ -4,9 +4,8 @@ import '@fontsource-variable/manrope'
 import { ClerkProvider } from '@clerk/clerk-react'
 import { AuthProvider } from './contexts/AuthContext'
 import { AppErrorBoundary } from './components/shared/AppErrorBoundary'
-import { PostHogProvider } from './providers/PostHogProvider'
 import App from './App'
-import { clerkAppearance } from './lib/clerkAppearance'
+import { clerkAppearance, clerkLocalization } from './lib/clerkAppearance'
 import './index.css'
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
@@ -30,13 +29,11 @@ function Root() {
   }
 
   return (
-    <PostHogProvider>
-      <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/" appearance={clerkAppearance}>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </ClerkProvider>
-    </PostHogProvider>
+    <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/" appearance={clerkAppearance} localization={clerkLocalization}>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </ClerkProvider>
   )
 }
 

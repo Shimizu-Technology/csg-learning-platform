@@ -21,3 +21,10 @@
 
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/fonts/*"
+
+  [headers.values]
+    # Not content-hashed; a week keeps repeat visits fast while allowing font updates.
+    Cache-Control = "public, max-age=604800"

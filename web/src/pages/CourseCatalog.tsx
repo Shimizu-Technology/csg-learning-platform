@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
-import { ArrowRight, BookOpenText, Clock3, GraduationCap, MessageCircle } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { ArrowRight, BookOpenText, Clock3, MessageCircle } from 'lucide-react'
+import { PublicFooter, PublicHeader } from '../components/brand/PublicChrome'
+import { Button, LinkButton } from '../components/ui/Button'
 import { api } from '../lib/api'
 import { useAuthContext } from '../contexts/AuthContext'
 import { hasCourseAccess } from '../lib/courseAccess'
@@ -46,17 +48,12 @@ export function CourseCatalog() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f4ef] text-slate-950">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex min-h-20 max-w-6xl items-center justify-between gap-4 px-5">
-          <Link to="/" className="inline-flex min-h-11 items-center gap-3 font-extrabold"><GraduationCap className="h-6 w-6 text-primary-600" />CSG Learning</Link>
-          <Link to={isSignedIn ? '/dashboard' : '/sign-in'} className="inline-flex min-h-11 items-center rounded-xl px-3 text-sm font-bold text-primary-700 hover:bg-primary-50">{isSignedIn ? 'My learning' : 'Sign in'}</Link>
-        </div>
-      </header>
-      <div className="mx-auto max-w-6xl px-5 py-16 lg:py-24">
-        <p className="app-eyebrow">Focused courses</p>
-        <h1 className="mt-3 max-w-3xl text-4xl font-extrabold tracking-tight sm:text-5xl">Learn one useful skill at a time.</h1>
-        <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">Study on your schedule, build a small project yourself, and ask a real instructor course questions. Optional lessons show how to extend and verify the work with AI. Built in Guam for learners wherever they are.</p>
+    <div className="flex min-h-svh flex-col bg-brand-cream text-ink">
+      <PublicHeader actions={<LinkButton to={isSignedIn ? '/dashboard' : '/sign-in'} variant="quiet" shape="brand" className="px-3 text-ink">{isSignedIn ? 'My learning' : 'Sign in'}</LinkButton>} />
+      <main className="safe-px mx-auto w-full max-w-[1200px] flex-1 py-12 lg:py-20">
+        <p className="brand-eyebrow">Focused courses</p>
+        <h1 className="mt-4 max-w-3xl font-display text-4xl font-medium leading-tight tracking-[-0.03em] sm:text-6xl">Learn one useful skill at a time.</h1>
+        <p className="mt-5 max-w-2xl text-lg leading-8 text-ink-secondary">Study on your schedule, build a small project yourself, and ask a real instructor course questions. Optional lessons show how to extend and verify the work with AI. Built in Guam for learners wherever they are.</p>
         {searchParams.get('checkout') === 'return' && <p role="status" className="mt-8 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-900">Thanks for checking out. Payment confirmation may take a moment; your course will appear in My learning after it is confirmed.</p>}
         {searchParams.get('checkout') === 'canceled' && <p role="status" className="mt-8 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">Checkout was canceled. You have not been enrolled.</p>}
         {error && offerings.length > 0 && <p role="alert" className="mt-8 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">{error}</p>}
@@ -64,10 +61,10 @@ export function CourseCatalog() {
           {loading && offerings.length === 0 && <p role="status" className="text-sm text-slate-600 md:col-span-2">Loading courses…</p>}
           {offerings.map((offering) => {
             const enrolled = enrollments.some((entry) => entry.cohort.id === offering.id && hasCourseAccess(entry))
-            return <article key={offering.id} className="flex flex-col rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
-              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-50 text-primary-700"><BookOpenText className="h-6 w-6" /></span>
-              <p className="mt-6 text-xs font-extrabold uppercase tracking-widest text-primary-700">Self-paced course</p>
-              <h2 className="mt-2 text-2xl font-extrabold">{offering.name}</h2>
+            return <article key={offering.id} className="flex flex-col rounded-md border border-brand-line bg-surface-raised p-6 sm:p-7">
+              <span className="flex h-11 w-11 items-center justify-center rounded-md bg-ruby-50 text-ruby-700"><BookOpenText className="h-5 w-5" aria-hidden="true" /></span>
+              <p className="brand-eyebrow mt-6">Self-paced course</p>
+              <h2 className="mt-2 font-display text-3xl font-medium leading-tight">{offering.name}</h2>
               <p className="mt-2 text-sm text-slate-600">{offering.curriculum_name}</p>
               {offering.checkout_available && offering.price_cents && <p className="mt-3 text-2xl font-extrabold">${(offering.price_cents / 100).toFixed(2)} <span className="text-sm font-semibold text-slate-500">USD one-time</span></p>}
               <div className="mt-7 space-y-3 text-sm text-slate-700">
@@ -76,20 +73,21 @@ export function CourseCatalog() {
               </div>
               <p className="mt-6 text-xs leading-5 text-slate-500">Private meetings and individual project review are offered through guided courses.</p>
               <div className="mt-auto pt-7">
-                {enrolled ? <Link to={`/materials?cohort_id=${offering.id}`} className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-slate-900 px-5 text-sm font-bold text-white">Open course <ArrowRight className="h-4 w-4" /></Link>
+                {enrolled ? <LinkButton to={`/materials?cohort_id=${offering.id}`} size="lg" shape="brand">Open course <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
                   : !offering.checkout_available ? <span className="inline-flex min-h-12 items-center text-sm font-bold text-slate-500">Enrollment is not open yet</span>
-                  : !isSignedIn || !user ? <Link to="/sign-up" className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-primary-600 px-5 text-sm font-bold text-white">Create an account to enroll <ArrowRight className="h-4 w-4" /></Link>
-                  : <button type="button" disabled={checkingOut !== null} onClick={() => void startCheckout(offering.id)} className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-primary-600 px-5 text-sm font-bold text-white disabled:opacity-50">{checkingOut === offering.id ? 'Opening checkout…' : 'Continue to secure checkout'} <ArrowRight className="h-4 w-4" /></button>}
+                  : !isSignedIn || !user ? <LinkButton to="/sign-up" size="lg" shape="brand">Create an account to enroll <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
+                  : <Button size="lg" shape="brand" disabled={checkingOut !== null} onClick={() => void startCheckout(offering.id)}>{checkingOut === offering.id ? 'Opening checkout…' : 'Continue to secure checkout'} <ArrowRight className="h-4 w-4" aria-hidden="true" /></Button>}
               </div>
             </article>
           })}
-          {!loading && offerings.length === 0 && <div className="rounded-2xl border border-slate-200 bg-white p-8 md:col-span-2">
-            <h2 className="text-xl font-extrabold">{error ? 'Course listings are unavailable' : 'Courses are being prepared'}</h2>
+          {!loading && offerings.length === 0 && <div className="rounded-md border border-brand-line bg-surface-raised p-8 md:col-span-2">
+            <h2 className="font-display text-2xl font-medium">{error ? 'Course listings are unavailable' : 'Courses are being prepared'}</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">{error || 'We are recording and testing the first focused course. Enrollment will appear here when it opens.'}</p>
-            {error && <button type="button" onClick={() => { setLoading(true); setReloadKey((key) => key + 1) }} className="mt-5 inline-flex min-h-11 items-center rounded-xl border border-slate-300 px-4 text-sm font-bold text-slate-900 hover:bg-slate-50">Try again</button>}
+            {error && <Button variant="secondary" shape="brand" className="mt-5" onClick={() => { setLoading(true); setReloadKey((key) => key + 1) }}>Try again</Button>}
           </div>}
         </div>
-      </div>
-    </main>
+      </main>
+      <PublicFooter />
+    </div>
   )
 }

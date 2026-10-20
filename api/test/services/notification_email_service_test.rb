@@ -21,6 +21,7 @@ class NotificationEmailServiceTest < ActiveSupport::TestCase
     assert NotificationEmailService.send_message_mention(user: recipient, message: message)
     assert_equal recipient.email, request.dig(:params, :to)
     assert_equal "message-mention/#{message.id}/#{recipient.id}", request.dig(:options, :idempotency_key)
+    assert_csg_learn_footer request.dig(:params, :html), "CSG Learn &middot; Code School of Guam"
   ensure
     Resend::Emails.define_singleton_method(:send, original_send) if defined?(original_send) && original_send
     ENV["RESEND_API_KEY"] = original_key
@@ -64,9 +65,33 @@ class NotificationEmailServiceTest < ActiveSupport::TestCase
     assert delivered
     assert_equal recipient.email, request.dig(:params, :to)
     assert_equal "message-notification/#{notification.id}", request.dig(:options, :idempotency_key)
+    assert_csg_learn_footer request.dig(:params, :html), "message notifications are enabled in CSG Learn."
   ensure
     Resend::Emails.define_singleton_method(:send, original_send) if original_send
     ENV["RESEND_API_KEY"] = original_key
     ENV["RESEND_FROM_EMAIL"] = original_from
+  end
+
+  # Daily-unlock and redo emails are rendered directly: their delivery paths are
+  # exercised elsewhere and need lesson/submission graphs that add nothing here.
+  test "daily unlock and redo emails use the CSG Learn footer and escape cohort names" do
+    user = Struct.new(:first_name, :email).new("Maria", "maria@example.com")
+    cohort = Struct.new(:name).new("Pilot <Dec>")
+    lesson = Struct.new(:title, :id).new("Lesson 1", 1)
+
+    unlock = NotificationEmailService.send(:daily_unlock_html, user: user, cohort: cohort, lesson_list: "<li>Lesson 1</li>", count: 1)
+    assert_csg_learn_footer unlock, "CSG Learn &middot; Code School of Guam &mdash; Pilot &lt;Dec&gt;"
+    refute_includes unlock, "Pilot <Dec>"
+
+    redo_email = NotificationEmailService.send(:redo_html, user: user, lesson: lesson, exercise_title: "Exercise 1", feedback: "Check the boundary")
+    assert_csg_learn_footer redo_email, "CSG Learn &middot; Code School of Guam"
+  end
+
+  private
+
+  def assert_csg_learn_footer(html, footer)
+    assert_includes html, footer
+    assert_includes html, "#9c292b"
+    refute_match(/#2563eb|#e84545|linear-gradient|CSG Connect|CSG Learning/, html)
   end
 end

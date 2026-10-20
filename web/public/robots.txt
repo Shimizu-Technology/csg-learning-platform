@@ -1,4 +1,4 @@
-# CSG Learning Hub
+# CSG Learn
 # https://learn.codeschoolofguam.com
 
 User-agent: *

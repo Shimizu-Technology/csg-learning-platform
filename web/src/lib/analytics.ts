@@ -1,6 +1,4 @@
-import posthog from 'posthog-js'
-
-import { isPostHogEnabled } from '../providers/PostHogProvider'
+import { isPostHogEnabled, withPostHog } from './posthogClient'
 
 type Role = 'student' | 'instructor' | 'admin'
 type Surface = 'message' | 'thread' | 'help_request' | 'grading_feedback'
@@ -100,8 +98,7 @@ export function safeProductEvent<Event extends ProductEventName>(event: Event, p
 export function captureProductEvent<Event extends ProductEventName>(event: Event, properties: ProductEventMap[Event]) {
   const safe = safeProductEvent(event, properties)
   if (!safe || !isPostHogEnabled) return false
-  posthog.capture(safe.event, safe.properties)
-  return true
+  return withPostHog((posthog) => posthog.capture(safe.event, safe.properties))
 }
 
 export function analyticsAgeBucket(timestamp: string | null | undefined, now = Date.now()): AgeBucket {

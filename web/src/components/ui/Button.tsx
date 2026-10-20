@@ -8,9 +8,16 @@ export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'danger'
  * and drops to 36px at the desktop breakpoint.
  */
 export type ButtonSize = 'sm' | 'md' | 'lg'
+/** `brand` uses the CSG site's 6px radius on public and sign-in surfaces. */
+export type ButtonShape = 'default' | 'brand'
+
+const SHAPES: Record<ButtonShape, string> = {
+  default: 'rounded-xl',
+  brand: 'rounded-md',
+}
 
 const base =
-  'inline-flex select-none items-center justify-center gap-2 rounded-xl font-semibold ' +
+  'inline-flex select-none items-center justify-center gap-2 font-semibold ' +
   'transition-[background-color,border-color,color,box-shadow,scale] duration-[120ms] ease-out ' +
   'active:scale-[0.97] motion-reduce:active:scale-100 ' +
   'disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50'
@@ -32,12 +39,13 @@ interface ButtonStyleOptions {
   variant?: ButtonVariant
   size?: ButtonSize
   fullWidth?: boolean
+  shape?: ButtonShape
   className?: string
 }
 
 /** Class list for anything that should look like a Button (links included). */
-export function buttonClasses({ variant = 'primary', size = 'md', fullWidth = false, className = '' }: ButtonStyleOptions = {}) {
-  return `${base} ${BUTTON_VARIANTS[variant]} ${BUTTON_SIZES[size]} ${fullWidth ? 'w-full' : ''} ${className}`.replace(/\s+/g, ' ').trim()
+export function buttonClasses({ variant = 'primary', size = 'md', fullWidth = false, shape = 'default', className = '' }: ButtonStyleOptions = {}) {
+  return `${base} ${SHAPES[shape]} ${BUTTON_VARIANTS[variant]} ${BUTTON_SIZES[size]} ${fullWidth ? 'w-full' : ''} ${className}`.replace(/\s+/g, ' ').trim()
 }
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -45,14 +53,15 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant
   size?: ButtonSize
   fullWidth?: boolean
+  shape?: ButtonShape
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { children, className = '', variant = 'primary', size = 'md', fullWidth = false, type = 'button', ...props },
+  { children, className = '', variant = 'primary', size = 'md', fullWidth = false, shape = 'default', type = 'button', ...props },
   ref,
 ) {
   return (
-    <button ref={ref} type={type} data-variant={variant} className={buttonClasses({ variant, size, fullWidth, className })} {...props}>
+    <button ref={ref} type={type} data-variant={variant} className={buttonClasses({ variant, size, fullWidth, shape, className })} {...props}>
       {children}
     </button>
   )
@@ -63,12 +72,13 @@ interface LinkButtonProps extends LinkProps {
   variant?: ButtonVariant
   size?: ButtonSize
   fullWidth?: boolean
+  shape?: ButtonShape
 }
 
 /** A router link styled as a Button. Use for navigation; use Button for actions. */
-export function LinkButton({ children, className = '', variant = 'primary', size = 'md', fullWidth = false, ...props }: LinkButtonProps) {
+export function LinkButton({ children, className = '', variant = 'primary', size = 'md', fullWidth = false, shape = 'default', ...props }: LinkButtonProps) {
   return (
-    <Link data-variant={variant} className={buttonClasses({ variant, size, fullWidth, className })} {...props}>
+    <Link data-variant={variant} className={buttonClasses({ variant, size, fullWidth, shape, className })} {...props}>
       {children}
     </Link>
   )
@@ -79,12 +89,13 @@ interface AnchorButtonProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
   variant?: ButtonVariant
   size?: ButtonSize
   fullWidth?: boolean
+  shape?: ButtonShape
 }
 
 /** An external link styled as a Button. */
-export function AnchorButton({ children, className = '', variant = 'secondary', size = 'md', fullWidth = false, ...props }: AnchorButtonProps) {
+export function AnchorButton({ children, className = '', variant = 'secondary', size = 'md', fullWidth = false, shape = 'default', ...props }: AnchorButtonProps) {
   return (
-    <a data-variant={variant} className={buttonClasses({ variant, size, fullWidth, className })} {...props}>
+    <a data-variant={variant} className={buttonClasses({ variant, size, fullWidth, shape, className })} {...props}>
       {children}
     </a>
   )
@@ -110,7 +121,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       aria-label={label}
       title={label}
       data-variant={variant}
-      className={`${base} shrink-0 ${sizeClass} ${BUTTON_VARIANTS[variant]} ${className}`.replace(/\s+/g, ' ').trim()}
+      className={`${base} rounded-xl shrink-0 ${sizeClass} ${BUTTON_VARIANTS[variant]} ${className}`.replace(/\s+/g, ' ').trim()}
       {...props}
     >
       {children}

@@ -14,6 +14,7 @@ import { StatusBadge, StatusIcon } from '../../components/shared/StatusBadge'
 import { Badge } from '../../components/ui/Badge'
 import { Button, LinkButton } from '../../components/ui/Button'
 import type { DashboardData } from '../../types/api'
+import { learnerModuleTypeLabel } from '../../lib/learnerLabels'
 
 type MaterialFilter = 'ready' | 'all' | 'redo' | 'submitted' | 'completed' | 'locked'
 
@@ -39,7 +40,8 @@ function lessonStatus(lesson: LessonItem) {
 }
 
 function formatTypeLabel(value: string) {
-  return value.replaceAll('_', ' ')
+  const words = value.replaceAll('_', ' ')
+  return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
 function readCollapsedModuleIds(cohortId: number | undefined): Set<number> {
@@ -156,7 +158,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
           const status = lessonStatus(lesson)
           const matchesQuery = !hasActiveSearch || [
             mod.name,
-            formatTypeLabel(mod.module_type),
+            learnerModuleTypeLabel(mod.module_type),
             lesson.title,
             formatTypeLabel(lesson.lesson_type),
           ].some((value) => value.toLowerCase().includes(q))
@@ -396,8 +398,8 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
                       <Badge>Locked</Badge>
                     )}
                   </div>
-                  <p className="mt-0.5 text-sm capitalize tabular-nums text-ink-secondary">
-                    {formatTypeLabel(mod.module_type)}
+                  <p className="mt-0.5 text-sm tabular-nums text-ink-secondary">
+                    {learnerModuleTypeLabel(mod.module_type)}
                     {!mod.available && mod.unlock_date ? ` · unlocks ${formatDate(mod.unlock_date)}` : ''}
                   </p>
                 </div>
@@ -432,7 +434,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-ink">{lesson.title}</p>
-                        <p className="mt-0.5 text-xs capitalize tabular-nums text-ink-secondary">
+                        <p className="mt-0.5 text-xs tabular-nums text-ink-secondary">
                           {formatTypeLabel(lesson.lesson_type)}
                           {status === 'locked' ? ` · unlocks ${formatDate(lesson.unlock_date)}` : ` · ${lesson.completed_blocks}/${lesson.total_blocks} blocks`}
                           {lesson.submission_window?.submissions_close_at && status !== 'locked'

@@ -290,7 +290,7 @@ module ClerkAuthenticatable
     when "identity_unverified"
       "Your verified email could not be confirmed. Try Google sign-in or contact Code School support."
     else
-      "This account does not have access to CSG Learning yet. Ask a Code School administrator to invite this email address."
+      "This account does not have access to CSG Learn yet. Ask a Code School of Guam administrator to invite this email address."
     end
   end
 

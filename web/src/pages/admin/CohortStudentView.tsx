@@ -5,7 +5,6 @@ import {
   Bell,
   BookOpenText,
   ExternalLink,
-  GraduationCap,
   LayoutDashboard,
   Link2,
   MessageCircle,
@@ -14,6 +13,7 @@ import {
   WifiOff,
 } from 'lucide-react'
 import { api } from '../../lib/api'
+import { LOGO_SRC, PRODUCT_NAME } from '../../lib/brand'
 import type { CohortStudent, CohortStudentView as CohortStudentViewData, StudentProgressResponse } from '../../types/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
@@ -174,8 +174,8 @@ function PreviewShell({
       <aside className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col lg:border-r lg:border-slate-200 lg:bg-white">
         <div className="flex h-14 items-center border-b border-slate-200 px-6">
           <div className="flex min-w-0 items-center gap-2 text-slate-900">
-            <GraduationCap className="h-6 w-6 shrink-0 text-primary-500" />
-            <span className="truncate font-semibold">CSG Learning Hub</span>
+            <img src={LOGO_SRC} alt="" width={28} height={28} className="h-7 w-7 shrink-0 rounded-md object-contain" />
+            <span className="truncate font-semibold">{PRODUCT_NAME}</span>
           </div>
         </div>
         <nav className="flex-1 space-y-1 p-4">
@@ -224,8 +224,8 @@ function PreviewShell({
 
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white lg:hidden">
         <div className="flex h-14 items-center gap-2 px-4">
-          <GraduationCap className="h-6 w-6 text-primary-500" />
-          <span className="font-semibold text-slate-900">CSG Learning Hub</span>
+          <img src={LOGO_SRC} alt="" width={28} height={28} className="h-7 w-7 shrink-0 rounded-md object-contain" />
+          <span className="font-semibold text-slate-900">{PRODUCT_NAME}</span>
         </div>
         <nav className="flex gap-2 overflow-x-auto px-4 pb-3">
           {availableSections.map((section) => {

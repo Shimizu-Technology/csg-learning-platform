@@ -1,53 +1,50 @@
 import { Link } from 'react-router-dom'
-import { ArrowLeft, GraduationCap, Mail, ShieldCheck } from 'lucide-react'
+import { Mail, ShieldCheck } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { AnchorButton } from '../components/ui/Button'
+import { PublicFooter, PublicHeader } from '../components/brand/PublicChrome'
+import { PRODUCT_NAME, SCHOOL_NAME } from '../lib/brand'
 
 const updatedAt = 'August 17, 2026'
 const privacyEmail = 'shimizutechnology@gmail.com'
 
 function LegalShell({ eyebrow, title, intro, children }: { eyebrow: string; title: string; intro: string; children: ReactNode }) {
   return (
-    <main className="min-h-screen bg-[#f7f4ef] px-4 py-8 text-slate-950 sm:px-6 lg:py-14">
-      <div className="mx-auto max-w-4xl">
-        <nav className="flex flex-wrap items-center justify-between gap-3" aria-label="Legal navigation">
-          <Link to="/" className="inline-flex min-h-11 items-center gap-2 rounded-xl px-2 text-sm font-bold text-ink transition-colors duration-150 hover:bg-white/70 active:bg-white">
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />CSG Learning
-          </Link>
-          <div className="flex flex-wrap gap-1 text-xs font-semibold text-ink-secondary">
-            <Link className="min-h-11 rounded-xl px-3 py-3 transition-colors duration-150 hover:bg-white/70 hover:text-ink active:bg-white" to="/privacy">Privacy</Link>
-            <Link className="min-h-11 rounded-xl px-3 py-3 transition-colors duration-150 hover:bg-white/70 hover:text-ink active:bg-white" to="/terms">Terms</Link>
-            <Link className="min-h-11 rounded-xl px-3 py-3 transition-colors duration-150 hover:bg-white/70 hover:text-ink active:bg-white" to="/account-deletion">Delete account</Link>
-          </div>
-        </nav>
-
-        <article className="mt-8 overflow-hidden rounded-[2rem] border border-[#d8d1c4] bg-white shadow-[0_24px_80px_rgba(71,55,42,0.09)]">
-          <header className="border-b border-slate-200 bg-[#17191f] px-6 py-10 text-white sm:px-10 sm:py-12">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-600"><GraduationCap className="h-6 w-6" aria-hidden="true" /></div>
-            <p className="mt-7 text-xs font-semibold uppercase tracking-[0.08em] text-slate-300">{eyebrow}</p>
-            <h1 className="mt-3 text-3xl font-bold tracking-[-0.03em] sm:text-4xl">{title}</h1>
-            <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300">{intro}</p>
-            <p className="mt-5 text-xs font-semibold tabular-nums text-white/70">Effective and last updated {updatedAt}</p>
-          </header>
-          <div className="prose prose-slate max-w-none px-6 py-9 prose-headings:font-bold prose-headings:tracking-tight prose-a:text-ruby-700 sm:px-10 sm:py-12">
-            {children}
-          </div>
+    <div className="flex min-h-svh flex-col bg-brand-cream text-ink">
+      <PublicHeader
+        actions={
+          <nav className="flex flex-wrap justify-end text-sm font-semibold text-ink-secondary" aria-label="Legal navigation">
+            <Link className="inline-flex min-h-11 items-center rounded-md px-2 hover:text-ink sm:px-3" to="/privacy">Privacy</Link>
+            <Link className="inline-flex min-h-11 items-center rounded-md px-2 hover:text-ink sm:px-3" to="/terms">Terms</Link>
+            <Link className="hidden min-h-11 items-center rounded-md px-3 hover:text-ink sm:flex" to="/account-deletion">Delete account</Link>
+          </nav>
+        }
+      />
+      <main className="safe-px mx-auto w-full max-w-4xl flex-1 py-10 lg:py-14">
+        <header className="border-b border-brand-line pb-8">
+          <p className="brand-eyebrow">{eyebrow}</p>
+          <h1 className="mt-4 font-display text-4xl font-medium leading-tight tracking-[-0.02em] sm:text-5xl">{title}</h1>
+          <p className="mt-5 max-w-2xl text-lg leading-8 text-ink-secondary">{intro}</p>
+          <p className="mt-4 text-sm font-semibold tabular-nums text-ink-secondary">Effective and last updated {updatedAt}</p>
+        </header>
+        <article className="prose prose-slate max-w-none py-9 prose-headings:font-bold prose-headings:tracking-tight prose-a:text-ruby-700">
+          {children}
         </article>
-
-        <footer className="mt-6 flex items-center gap-3 rounded-2xl border border-[#d8d1c4] bg-white/75 p-4 text-sm text-ink-secondary">
+        <p className="flex items-center gap-3 rounded-md border border-brand-line bg-surface-raised p-4 text-sm text-ink-secondary">
           <ShieldCheck className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
-          <span>Shimizu Technology operates CSG Connect for Code School of Guam.</span>
-        </footer>
-      </div>
-    </main>
+          <span>Shimizu Technology operates {PRODUCT_NAME} for {SCHOOL_NAME}.</span>
+        </p>
+      </main>
+      <PublicFooter />
+    </div>
   )
 }
 
 export function PrivacyPolicyPage() {
   return (
-    <LegalShell eyebrow="Privacy" title="Privacy Policy" intro="This policy explains what CSG Connect handles, why it is needed for the classroom, and the choices available to students, instructors, and administrators.">
-      <h2>Who operates CSG Connect</h2>
-      <p>Shimizu Technology operates CSG Connect and the CSG Learning Platform for Code School of Guam. Privacy questions may be sent to <a href={`mailto:${privacyEmail}`}>{privacyEmail}</a>.</p>
+    <LegalShell eyebrow="Privacy" title="Privacy Policy" intro="This policy explains what CSG Learn handles, why it is needed for the classroom, and the choices available to students, instructors, and administrators.">
+      <h2>Who operates CSG Learn</h2>
+      <p>Shimizu Technology operates CSG Learn, on the web and in the Code School of Guam mobile app, for Code School of Guam. Privacy questions may be sent to <a href={`mailto:${privacyEmail}`}>{privacyEmail}</a>.</p>
 
       <h2>Information we handle</h2>
       <ul>
@@ -72,7 +69,7 @@ export function PrivacyPolicyPage() {
       <p>You can control notification preferences, choose whether to share files or microphone audio, report content or users, block another user, and request account/data deletion. Device permissions can also be changed in Android or iOS settings.</p>
 
       <h2>Younger learners</h2>
-      <p>CSG Connect is an enrollment-managed educational service and is not directed to children under 13. If a learner is under the age of majority, Code School of Guam may coordinate appropriate enrollment and consent with the learner and their parent or guardian.</p>
+      <p>CSG Learn is an enrollment-managed educational service and is not directed to children under 13. If a learner is under the age of majority, Code School of Guam may coordinate appropriate enrollment and consent with the learner and their parent or guardian.</p>
 
       <h2>Changes</h2>
       <p>Material changes will be reflected by a new effective date. When changes affect community participation, users may be asked to accept the updated terms before sharing new content.</p>
@@ -82,9 +79,9 @@ export function PrivacyPolicyPage() {
 
 export function TermsPage() {
   return (
-    <LegalShell eyebrow="Community & service" title="Terms and Community Guidelines" intro="CSG Connect is a learning community. These terms keep classroom collaboration useful, respectful, and safe.">
+    <LegalShell eyebrow="Community & service" title="Terms and Community Guidelines" intro="CSG Learn is a learning community. These terms keep classroom collaboration useful, respectful, and safe.">
       <h2>Authorized educational use</h2>
-      <p>CSG Connect is provided to invited Code School of Guam students, instructors, and administrators. Keep account access private, provide accurate information, and use the service for legitimate learning, teaching, support, and community activities.</p>
+      <p>CSG Learn is provided to invited Code School of Guam students, instructors, and administrators. Keep account access private, provide accurate information, and use the service for legitimate learning, teaching, support, and community activities.</p>
 
       <h2>Community expectations</h2>
       <p>Do not post or send harassment, bullying, threats, hate, sexual or exploitative content, spam, scams, malware, illegal material, another person’s private information, or content that infringes intellectual-property rights. Do not impersonate others, bypass access controls, disrupt the service, or use classroom information outside its intended context.</p>
@@ -112,13 +109,13 @@ export function TermsPage() {
 
 export function AccountDeletionPage() {
   return (
-    <LegalShell eyebrow="Account control" title="Request account and data deletion" intro="You can ask us to delete your CSG Connect account and associated personal data without needing the app installed.">
+    <LegalShell eyebrow="Account control" title="Request account and data deletion" intro="You can ask us to delete your CSG Learn account and associated personal data without needing the app installed.">
       <h2>Request from the app</h2>
       <p>Open <strong>You → Privacy & account → Request account deletion</strong>. The app records a pending request for authorized staff to review.</p>
 
       <h2>Request by email</h2>
       <p>Email us from the address connected to your CSG account. Include the full name and email address on the account. Do not send a password, sign-in code, government ID, or other unnecessary sensitive information.</p>
-      <p><AnchorButton variant="primary" size="lg" className="not-prose no-underline" href={`mailto:${privacyEmail}?subject=CSG%20Connect%20account%20deletion%20request`}><Mail className="h-4 w-4" aria-hidden="true" />Email a deletion request</AnchorButton></p>
+      <p><AnchorButton variant="primary" size="lg" className="not-prose no-underline" href={`mailto:${privacyEmail}?subject=${encodeURIComponent(`${PRODUCT_NAME} account deletion request`)}`}><Mail className="h-4 w-4" aria-hidden="true" />Email a deletion request</AnchorButton></p>
 
       <h2>What happens next</h2>
       <p>We will verify account ownership, confirm the scope, and process the request. Personal data associated with the account will be deleted unless a limited record must be retained for academic records, security, fraud prevention, dispute resolution, safeguarding, or another legal obligation. If retention is required, we will explain the category and reason.</p>

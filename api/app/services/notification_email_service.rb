@@ -2,6 +2,7 @@ require "cgi"
 
 class NotificationEmailService
   BRAND_NAME = "Code School of Guam"
+  PRODUCT_NAME = "CSG Learn"
   class DeliveryError < StandardError; end
   class ConfigurationError < DeliveryError; end
 
@@ -181,9 +182,9 @@ class NotificationEmailService
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f1f5f9;">
               <tr><td align="center" style="padding: 40px 16px;">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 500px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
-                  <tr><td style="height: 4px; background: linear-gradient(90deg, #16a34a, #2563eb); font-size: 0;">&nbsp;</td></tr>
+                  <tr><td style="height: 4px; background-color: #9c292b; font-size: 0;">&nbsp;</td></tr>
                   <tr><td style="padding: 32px 32px 0; text-align: center;">
-                    <p style="margin: 0 0 8px; color: #16a34a; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;">New Content</p>
+                    <p style="margin: 0 0 8px; color: #842225; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;">New Content</p>
                     <h1 style="margin: 0; color: #0f172a; font-size: 22px; font-weight: 700;">
                       #{count} new lesson#{count > 1 ? "s" : ""} unlocked!
                     </h1>
@@ -204,7 +205,7 @@ class NotificationEmailService
                   </td></tr>
                   <tr><td style="padding: 24px 32px 0;" align="center">
                     <table role="presentation" cellspacing="0" cellpadding="0">
-                      <tr><td style="border-radius: 8px; background-color: #2563eb;">
+                      <tr><td style="border-radius: 6px; background-color: #9c292b;">
                         <a href="#{h(frontend_url)}" target="_blank" style="display: inline-block; padding: 13px 36px; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 700;">
                           Go to Dashboard
                         </a>
@@ -216,7 +217,7 @@ class NotificationEmailService
                       <tr><td style="height: 1px; background-color: #e2e8f0; font-size: 0;">&nbsp;</td></tr>
                     </table>
                     <p style="margin: 16px 0 0; font-size: 11px; color: #94a3b8; text-align: center;">
-                      #{h(BRAND_NAME)} &mdash; #{h(cohort.name)}
+                      #{h(PRODUCT_NAME)} &middot; #{h(BRAND_NAME)} &mdash; #{h(cohort.name)}
                     </p>
                   </td></tr>
                 </table>
@@ -237,9 +238,9 @@ class NotificationEmailService
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f1f5f9;">
               <tr><td align="center" style="padding: 40px 16px;">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 500px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
-                  <tr><td style="height: 4px; background: linear-gradient(90deg, #f59e0b, #ef4444); font-size: 0;">&nbsp;</td></tr>
+                  <tr><td style="height: 4px; background-color: #9c292b; font-size: 0;">&nbsp;</td></tr>
                   <tr><td style="padding: 32px 32px 0; text-align: center;">
-                    <p style="margin: 0 0 8px; color: #f59e0b; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;">Redo Requested</p>
+                    <p style="margin: 0 0 8px; color: #92400e; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;">Redo Requested</p>
                     <h1 style="margin: 0; color: #0f172a; font-size: 22px; font-weight: 700;">
                       #{h(exercise_title)}
                     </h1>
@@ -252,7 +253,7 @@ class NotificationEmailService
                   #{feedback.present? ? redo_feedback_section(feedback) : ""}
                   <tr><td style="padding: 24px 32px 0;" align="center">
                     <table role="presentation" cellspacing="0" cellpadding="0">
-                      <tr><td style="border-radius: 8px; background-color: #2563eb;">
+                      <tr><td style="border-radius: 6px; background-color: #9c292b;">
                         <a href="#{h(frontend_url)}" target="_blank" style="display: inline-block; padding: 13px 36px; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 700;">
                           View Exercise
                         </a>
@@ -263,7 +264,7 @@ class NotificationEmailService
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                       <tr><td style="height: 1px; background-color: #e2e8f0; font-size: 0;">&nbsp;</td></tr>
                     </table>
-                    <p style="margin: 16px 0 0; font-size: 11px; color: #94a3b8; text-align: center;">#{h(BRAND_NAME)}</p>
+                    <p style="margin: 16px 0 0; font-size: 12px; color: #5f6b7f; text-align: center;">#{h(PRODUCT_NAME)} &middot; #{h(BRAND_NAME)}</p>
                   </td></tr>
                 </table>
               </td></tr>
@@ -301,9 +302,9 @@ class NotificationEmailService
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f1f5f9;">
               <tr><td align="center" style="padding: 40px 16px;">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 500px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
-                  <tr><td style="height: 4px; background: linear-gradient(90deg, #2563eb, #ef4444); font-size: 0;">&nbsp;</td></tr>
+                  <tr><td style="height: 4px; background-color: #9c292b; font-size: 0;">&nbsp;</td></tr>
                   <tr><td style="padding: 32px 32px 0; text-align: center;">
-                    <p style="margin: 0 0 8px; color: #2563eb; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;">New Mention</p>
+                    <p style="margin: 0 0 8px; color: #842225; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;">New Mention</p>
                     <h1 style="margin: 0; color: #0f172a; font-size: 22px; font-weight: 700;">#{sender} mentioned you</h1>
                   </td></tr>
                   <tr><td style="padding: 20px 32px 0; text-align: center;">
@@ -314,14 +315,14 @@ class NotificationEmailService
                   <tr><td style="padding: 16px 32px 0;">
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
                       <tr><td style="padding: 16px;">
-                        <p style="margin: 0 0 4px; color: #2563eb; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;">Message Preview</p>
+                        <p style="margin: 0 0 4px; color: #842225; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;">Message Preview</p>
                         <p style="margin: 0; font-size: 14px; line-height: 1.7; color: #334155;">#{preview}</p>
                       </td></tr>
                     </table>
                   </td></tr>
                   <tr><td style="padding: 24px 32px 0;" align="center">
                     <table role="presentation" cellspacing="0" cellpadding="0">
-                      <tr><td style="border-radius: 8px; background-color: #2563eb;">
+                      <tr><td style="border-radius: 6px; background-color: #9c292b;">
                         <a href="#{path}" target="_blank" style="display: inline-block; padding: 13px 36px; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 700;">
                           Open Conversation
                         </a>
@@ -332,7 +333,7 @@ class NotificationEmailService
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                       <tr><td style="height: 1px; background-color: #e2e8f0; font-size: 0;">&nbsp;</td></tr>
                     </table>
-                    <p style="margin: 16px 0 0; font-size: 11px; color: #94a3b8; text-align: center;">#{h(BRAND_NAME)}</p>
+                    <p style="margin: 16px 0 0; font-size: 12px; color: #5f6b7f; text-align: center;">#{h(PRODUCT_NAME)} &middot; #{h(BRAND_NAME)}</p>
                   </td></tr>
                 </table>
               </td></tr>
@@ -364,9 +365,9 @@ class NotificationEmailService
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f1f5f9;">
               <tr><td align="center" style="padding: 40px 16px;">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 500px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
-                  <tr><td style="height: 4px; background: linear-gradient(90deg, #e84545, #0f172a); font-size: 0;">&nbsp;</td></tr>
+                  <tr><td style="height: 4px; background-color: #9c292b; font-size: 0;">&nbsp;</td></tr>
                   <tr><td style="padding: 32px 32px 0; text-align: center;">
-                    <p style="margin: 0 0 8px; color: #e84545; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;">New Message</p>
+                    <p style="margin: 0 0 8px; color: #842225; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;">New Message</p>
                     <h1 style="margin: 0; color: #0f172a; font-size: 22px; font-weight: 700;">#{title}</h1>
                   </td></tr>
                   <tr><td style="padding: 20px 32px 0; text-align: center;">
@@ -377,14 +378,14 @@ class NotificationEmailService
                   <tr><td style="padding: 16px 32px 0;">
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
                       <tr><td style="padding: 16px;">
-                        <p style="margin: 0 0 4px; color: #e84545; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;">Message Preview</p>
+                        <p style="margin: 0 0 4px; color: #842225; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;">Message Preview</p>
                         <p style="margin: 0; font-size: 14px; line-height: 1.7; color: #334155;">#{preview}</p>
                       </td></tr>
                     </table>
                   </td></tr>
                   <tr><td style="padding: 24px 32px 0;" align="center">
                     <table role="presentation" cellspacing="0" cellpadding="0">
-                      <tr><td style="border-radius: 8px; background-color: #e84545;">
+                      <tr><td style="border-radius: 6px; background-color: #9c292b;">
                         <a href="#{path}" target="_blank" style="display: inline-block; padding: 13px 36px; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 700;">
                           Open Conversation
                         </a>
@@ -396,7 +397,7 @@ class NotificationEmailService
                       <tr><td style="height: 1px; background-color: #e2e8f0; font-size: 0;">&nbsp;</td></tr>
                     </table>
                     <p style="margin: 16px 0 0; font-size: 11px; color: #94a3b8; text-align: center;">
-                      You are receiving this because message notifications are enabled in #{h(BRAND_NAME)}.
+                      You are receiving this because message notifications are enabled in #{h(PRODUCT_NAME)}.
                     </p>
                   </td></tr>
                 </table>

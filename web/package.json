@@ -18,8 +18,9 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:a11y": "playwright test --grep @accessibility",
-    "check": "npm run lint && npm run typecheck && npm run test && npm run test:netlify && npm run build",
-    "preview": "vite preview"
+    "check": "npm run lint && npm run typecheck && npm run test && npm run test:netlify && npm run build && npm run test:bundle",
+    "preview": "vite preview",
+    "test:bundle": "node scripts/landing-bundle.test.mjs"
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.61.2",
