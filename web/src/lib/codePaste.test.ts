@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isMultiLinePaste, looksLikeCode, normalizePastedCode } from './codePaste'
+import { fencedCodeInsertion, isInsideMarkdownFence, isMultiLinePaste, looksLikeCode, normalizePastedCode } from './codePaste'
 
 const python = 'amount = 125\nbudget = 100\n\nif amount < budget:\n    print("Under budget")\nelse:\n    print("Over budget")'
 
@@ -26,5 +26,32 @@ describe('code paste detection', () => {
     expect(normalizePastedCode('if x:\r\n\u00a0\u00a0\u00a0\u00a0y()\r\n\r\n')).toBe('if x:\n    y()')
     expect(isMultiLinePaste('one\n\ntwo')).toBe(true)
     expect(isMultiLinePaste('one\n')).toBe(false)
+  })
+})
+
+describe('markdown fences for the message edit box', () => {
+  it('knows when the cursor is inside a fence', () => {
+    const text = 'hi\n```python\nx = 1\n```\nafter'
+    expect(isInsideMarkdownFence(text, text.indexOf('x = 1'))).toBe(true)
+    expect(isInsideMarkdownFence(text, text.indexOf('after'))).toBe(false)
+    expect(isInsideMarkdownFence(text, 1)).toBe(false)
+    expect(isInsideMarkdownFence('```\nopen', 6)).toBe(true)
+  })
+
+  it('does not treat triple backticks used inline as an opening fence', () => {
+    const text = 'Run ```npm install``` first\nthen paste here'
+    expect(isInsideMarkdownFence(text, text.length)).toBe(false)
+    const tilde = '~~~ `x`\ncode'
+    expect(isInsideMarkdownFence(tilde, tilde.length)).toBe(true)
+  })
+
+  it('puts pasted code on its own lines inside a fence', () => {
+    expect(fencedCodeInsertion('', 0, 0, 'def f():\n    return 1')).toBe('```\ndef f():\n    return 1\n```\n')
+    expect(fencedCodeInsertion('Look: ', 6, 6, 'a\n  b')).toBe('\n```\na\n  b\n```\n')
+    expect(fencedCodeInsertion('x\n\nmore', 2, 2, 'a\n  b')).toBe('```\na\n  b\n```')
+  })
+
+  it('uses a longer fence when the code itself contains backticks', () => {
+    expect(fencedCodeInsertion('', 0, 0, 'print("```")\n  x')).toBe('````\nprint("```")\n  x\n````\n')
   })
 })

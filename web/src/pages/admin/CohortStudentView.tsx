@@ -20,14 +20,13 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import { Dashboard } from '../student/Dashboard'
 import { Materials } from '../student/Materials'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
+import { formatShortDate } from '../../lib/format'
+import { Avatar } from '../../components/ui/Avatar'
+import { Badge } from '../../components/ui/Badge'
+import { LinkButton } from '../../components/ui/Button'
 
 function formatDate(dateStr?: string | null) {
-  if (!dateStr) return 'Not scheduled'
-
-  const date = new Date(dateStr)
-  if (Number.isNaN(date.getTime())) return 'Not scheduled'
-
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return formatShortDate(dateStr, 'Not scheduled')
 }
 
 type PreviewSection = 'dashboard' | 'materials' | 'recordings' | 'resources' | 'messages' | 'announcements' | 'profile'
@@ -146,9 +145,6 @@ function PreviewShell({
   const basePath = `/admin/cohorts/${data.cohort.id}/student-view`
   const navigate = useNavigate()
   const previewName = selectedStudent?.full_name || selectedStudent?.email || 'Student Preview'
-  const previewInitials = selectedStudent
-    ? previewName.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()
-    : 'SP'
   const studentQuery = selectedStudent ? `?student_id=${selectedStudent.user_id}` : ''
   const sectionPath = (section: PreviewSection) => `${section === 'dashboard' ? basePath : `${basePath}/${section}`}${studentQuery}`
   const availableSections = previewSectionsForCohort(data.cohort.cohort_type)
@@ -171,9 +167,9 @@ function PreviewShell({
 
   return (
     <div onClickCapture={keepPreviewNavigationContained} className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#ffffff_46%)]">
-      <aside className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col lg:border-r lg:border-slate-200 lg:bg-white">
-        <div className="flex h-14 items-center border-b border-slate-200 px-6">
-          <div className="flex min-w-0 items-center gap-2 text-slate-900">
+      <aside className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col lg:border-r lg:border-line lg:bg-surface-raised">
+        <div className="flex h-14 items-center border-b border-line px-6">
+          <div className="flex min-w-0 items-center gap-2 text-ink">
             <img src={LOGO_SRC} alt="" width={28} height={28} className="h-7 w-7 shrink-0 rounded-md object-contain" />
             <span className="truncate font-semibold">{PRODUCT_NAME}</span>
           </div>
@@ -187,45 +183,46 @@ function PreviewShell({
               <Link
                 key={section}
                 to={sectionPath(section)}
-                className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors ${
+                aria-current={active ? 'page' : undefined}
+                className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors duration-150 ${
                   active
-                    ? 'bg-primary-50 text-primary-700'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    ? 'nav-selected'
+                    : 'text-ink-secondary hover:bg-surface-sunken hover:text-ink'
                 }`}
               >
-                <Icon className="h-5 w-5" />
+                <Icon className="h-5 w-5" aria-hidden="true" />
                 {item.label}
               </Link>
             )
           })}
         </nav>
-        <div className="border-t border-slate-200 p-4">
+        <div className="border-t border-line p-4">
           <Link
             to={`/admin/cohorts/${data.cohort.id}`}
-            className="flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+            className="flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink"
           >
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowLeft className="h-5 w-5" aria-hidden="true" />
             Back to cohort
           </Link>
         </div>
-        <div className="border-t border-slate-200 p-4">
-          <div className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">{previewInitials}</div>
+        <div className="border-t border-line p-4">
+          <div className="flex items-center gap-3 rounded-xl bg-surface-sunken px-3 py-3">
+            <Avatar name={selectedStudent ? previewName : 'Student Preview'} size="md" />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-slate-900">{previewName}</p>
-              <p className="truncate text-xs text-slate-500">Student</p>
+              <p className="truncate text-sm font-medium text-ink" title={previewName}>{previewName}</p>
+              <p className="truncate text-xs text-ink-muted">Student</p>
             </div>
           </div>
         </div>
         <div className="px-4 pb-3 text-center">
-          <span className="text-xs text-slate-400">Built by <span className="font-medium">Shimizu Technology</span></span>
+          <span className="text-xs text-ink-muted">Built by <span className="font-medium">Shimizu Technology</span></span>
         </div>
       </aside>
 
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white lg:hidden">
+      <header className="sticky top-0 z-40 border-b border-line bg-surface-raised lg:hidden">
         <div className="flex h-14 items-center gap-2 px-4">
           <img src={LOGO_SRC} alt="" width={28} height={28} className="h-7 w-7 shrink-0 rounded-md object-contain" />
-          <span className="font-semibold text-slate-900">{PRODUCT_NAME}</span>
+          <span className="font-semibold text-ink">{PRODUCT_NAME}</span>
         </div>
         <nav className="flex gap-2 overflow-x-auto px-4 pb-3">
           {availableSections.map((section) => {
@@ -236,11 +233,12 @@ function PreviewShell({
               <Link
                 key={section}
                 to={sectionPath(section)}
-                className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold ${
-                  active ? 'bg-primary-50 text-primary-700' : 'text-slate-600'
+                aria-current={active ? 'page' : undefined}
+                className={`inline-flex min-h-11 shrink-0 items-center gap-2 px-3 py-2 text-sm font-semibold transition-colors duration-150 ${
+                  active ? 'tab-selected' : 'text-ink-secondary hover:text-ink'
                 }`}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-4 w-4" aria-hidden="true" />
                 {item.label}
               </Link>
             )
@@ -262,18 +260,17 @@ function PreviewBanner({ data, students, selectedStudent }: { data: CohortStuden
   const navigate = useNavigate()
   const location = useLocation()
   return (
-    <div className="overflow-hidden rounded-2xl border border-primary-200 bg-white shadow-sm shadow-slate-200/40">
-      <div className="h-1 bg-primary-500" />
+    <div className="overflow-hidden rounded-2xl border border-info-200 bg-info-50">
       <div className="px-4 py-4 sm:px-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary-700">{selectedStudent ? 'Read-only enrollment preview' : 'Read-only cohort template preview'}</p>
-          <h1 className="mt-1 text-xl font-bold text-slate-900">{data.cohort.name}</h1>
-          <p className="text-sm text-slate-600">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-info-800">{selectedStudent ? 'Read-only enrollment preview' : 'Read-only cohort template preview'}</p>
+          <h1 className="mt-1 text-xl font-bold text-ink [overflow-wrap:anywhere]">{data.cohort.name}</h1>
+          <p className="text-sm text-ink-secondary [overflow-wrap:anywhere]">
             {selectedStudent ? `${selectedStudent.full_name || selectedStudent.email} · actual learning progress and access, with private messages hidden` : `Shared student template for ${data.cohort.curriculum_name} · not a specific student's account`} · generated {formatDate(data.generated_at)}
           </p>
         </div>
-        <div className="flex flex-col gap-2 sm:min-w-64"><select aria-label="Preview student enrollment" value={selectedStudent?.user_id || ''} onChange={(event) => { const value = Number(event.target.value); navigate(value ? `${location.pathname}?student_id=${value}` : location.pathname) }} className="min-h-11 rounded-xl border border-primary-200 bg-white px-3 text-sm font-bold text-slate-800"><option value="">Cohort template</option>{students.map((student) => <option key={student.enrollment_id} value={student.user_id}>{student.full_name || student.email}</option>)}</select><Link to={`/admin/cohorts/${data.cohort.id}`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"><ArrowLeft className="h-4 w-4" />Back to cohort</Link></div>
+        <div className="flex flex-col gap-2 sm:min-w-64"><select aria-label="Preview student enrollment" value={selectedStudent?.user_id || ''} onChange={(event) => { const value = Number(event.target.value); navigate(value ? `${location.pathname}?student_id=${value}` : location.pathname) }} className="app-control w-full font-semibold"><option value="">Cohort template</option>{students.map((student) => <option key={student.enrollment_id} value={student.user_id}>{student.full_name || student.email}</option>)}</select><LinkButton to={`/admin/cohorts/${data.cohort.id}`} variant="secondary"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Back to cohort</LinkButton></div>
       </div>
       </div>
     </div>
@@ -347,7 +344,7 @@ function ResourcesPreview({ data }: { data: CohortStudentViewData }) {
       <div>
         <p className="app-eyebrow">Support your learning</p>
         <h1 className="app-title">Class resources</h1>
-        <p className="mt-1 text-sm text-slate-500">Important links for this class.</p>
+        <p className="mt-1 text-sm text-ink-muted">Important links for this class.</p>
       </div>
       {data.resources.length === 0 ? (
         <EmptyState icon={Link2} title="No resources yet" description="Class resources will appear here once an instructor adds them." />
@@ -359,15 +356,15 @@ function ResourcesPreview({ data }: { data: CohortStudentViewData }) {
               href={sanitizeUrl(resource.url)}
               target="_blank"
               rel="noopener noreferrer"
-              className="block rounded-2xl border border-slate-200 bg-white p-5 transition-all hover:border-primary-200 hover:shadow-sm"
+              className="app-surface pressable block p-5 hover:border-line-strong hover:bg-surface-sunken"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <h2 className="text-sm font-semibold text-slate-900">{resource.title}</h2>
-                  {resource.description && <p className="mt-1 text-sm text-slate-600">{resource.description}</p>}
-                  <p className="mt-1 break-all text-xs text-slate-400">{resource.url}</p>
+                  <h2 className="text-base font-semibold text-ink">{resource.title}</h2>
+                  {resource.description && <p className="mt-1 text-sm text-ink-secondary">{resource.description}</p>}
+                  <p className="mt-1 break-all text-xs text-ink-muted">{resource.url}</p>
                 </div>
-                <ExternalLink className="mt-1 h-4 w-4 shrink-0 text-slate-400" />
+                <ExternalLink className="mt-1 h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
               </div>
             </a>
           ))}
@@ -381,35 +378,35 @@ function AnnouncementsPreview({ data }: { data: CohortStudentViewData }) {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
-        <p className="text-sm font-medium text-primary-600">Communication</p>
+        <p className="app-eyebrow">Communication</p>
         <h1 className="app-title">Updates</h1>
-        <p className="mt-1 text-sm text-slate-500">Class updates, pinned notices, and important CSG messages.</p>
+        <p className="mt-1 text-sm text-ink-muted">Class updates, pinned notices, and important CSG messages.</p>
       </div>
       {data.announcements.length === 0 ? (
-        <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
+        <div className="app-surface p-8 text-center text-sm text-ink-muted">
           No announcements match these filters.
         </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-3">
             {data.announcements.map((announcement) => (
-              <article key={announcement.id} className="rounded-lg border border-primary-200 bg-white p-4">
+              <article key={announcement.id} className="app-surface p-4">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="font-semibold text-slate-900">{announcement.title}</h2>
+                  <h2 className="text-base font-semibold text-ink">{announcement.title}</h2>
                   {announcement.pinned && (
-                    <span className="rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700">Pinned</span>
+                    <Badge>Pinned</Badge>
                   )}
                 </div>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs tabular-nums text-ink-muted">
                   {announcement.author?.full_name || announcement.cohort_name || 'CSG'} · {formatDate(announcement.published_at)}
                 </p>
-                <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">{announcement.body}</p>
+                <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-ink-secondary">{announcement.body}</p>
               </article>
             ))}
           </div>
-          <aside className="rounded-lg border border-slate-200 bg-white p-4 lg:sticky lg:top-6 lg:self-start">
-            <h2 className="font-semibold text-slate-900">Inbox status</h2>
-            <div className="mt-3 rounded-lg bg-primary-50 px-3 py-2 text-primary-800">
+          <aside className="app-surface p-4 lg:sticky lg:top-6 lg:self-start">
+            <h2 className="text-base font-semibold text-ink">Inbox status</h2>
+            <div className="mt-3 rounded-xl bg-surface-sunken px-3 py-2 text-ink-secondary">
               <p className="font-medium">Dashboard behavior</p>
               <p className="mt-2 text-sm leading-6">Pinned notices stay on the dashboard. Regular notices disappear from the dashboard once they are read.</p>
             </div>
@@ -426,26 +423,26 @@ function RecordingsPreview({ data }: { data: CohortStudentViewData }) {
       <div>
         <p className="app-eyebrow">Review and revisit</p>
         <h1 className="app-title">Class recordings</h1>
-        <p className="mt-1 text-sm text-slate-500">{data.recordings.items.length} recording{data.recordings.items.length === 1 ? '' : 's'} available</p>
+        <p className="mt-1 text-sm tabular-nums text-ink-muted">{data.recordings.items.length} recording{data.recordings.items.length === 1 ? '' : 's'} available</p>
       </div>
       {data.recordings.items.length === 0 ? (
         <EmptyState icon={PlayCircle} title="No recordings yet" description="Class recordings will appear here once an instructor adds them." />
       ) : (
-        <div className="rounded-2xl border border-slate-200 bg-white p-3">
+        <div className="app-surface p-3">
           <div className="space-y-1">
             {data.recordings.items.map((recording, index) => (
               <div key={recording.id} className="rounded-xl px-3 py-2.5">
                 <div className="flex items-start gap-2.5">
-                  <span className="mt-0.5 w-5 shrink-0 text-right text-[11px] font-medium text-slate-400">{index + 1}</span>
+                  <span className="mt-0.5 w-5 shrink-0 text-right text-xs font-medium tabular-nums text-ink-muted">{index + 1}</span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium leading-snug text-slate-900">{recording.title}</p>
-                    <p className="mt-0.5 text-[11px] capitalize text-slate-400">
+                    <p className="truncate text-sm font-medium leading-snug text-ink" title={recording.title}>{recording.title}</p>
+                    <p className="mt-0.5 text-xs capitalize tabular-nums text-ink-muted">
                       {recording.source} · {formatDate(recording.recorded_date || recording.date)}
                     </p>
                   </div>
                   {recording.url && (
-                    <a href={sanitizeUrl(recording.url)} target="_blank" rel="noopener noreferrer" aria-label={`Open ${recording.title} in a new tab`} className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-50 hover:text-primary-600">
-                      <ExternalLink className="h-4 w-4" />
+                    <a href={sanitizeUrl(recording.url)} target="_blank" rel="noopener noreferrer" aria-label={`Open ${recording.title} in a new tab`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink">
+                      <ExternalLink className="h-4 w-4" aria-hidden="true" />
                     </a>
                   )}
                 </div>
@@ -461,13 +458,13 @@ function RecordingsPreview({ data }: { data: CohortStudentViewData }) {
 function MessagesPreview({ data }: { data: CohortStudentViewData }) {
   return (
     <div className="mx-auto max-w-5xl">
-      <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
-        <MessageCircle className="mx-auto h-10 w-10 text-slate-300" />
-        <h1 className="mt-3 text-xl font-semibold text-slate-900">Messages preview</h1>
-        <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
+      <div className="app-surface p-8 text-center">
+        <MessageCircle className="mx-auto h-10 w-10 text-ink-muted" aria-hidden="true" />
+        <h1 className="mt-3 text-xl font-semibold text-ink">Messages preview</h1>
+        <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-ink-secondary">
           Messages are tied to a real user, memberships, read receipts, and direct conversations. This read-only cohort preview keeps the student sidebar in place, but does not impersonate a student or expose a specific student's private messages.
         </p>
-        <p className="mt-4 text-sm font-medium text-slate-700">{data.cohort.name}</p>
+        <p className="mt-4 text-sm font-medium text-ink-secondary">{data.cohort.name}</p>
       </div>
     </div>
   )
@@ -476,12 +473,12 @@ function MessagesPreview({ data }: { data: CohortStudentViewData }) {
 function ProfilePreview({ data }: { data: CohortStudentViewData }) {
   return (
     <div className="mx-auto max-w-2xl">
-      <div className="rounded-2xl border border-slate-200 bg-white p-6">
+      <div className="app-surface p-6">
         <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white">SP</div>
-          <div>
-            <h1 className="text-xl font-semibold text-slate-900">Student Preview</h1>
-            <p className="text-sm text-slate-500">{data.cohort.name}</p>
+          <Avatar name="Student Preview" size="lg" />
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold text-ink">Student Preview</h1>
+            <p className="text-sm text-ink-muted">{data.cohort.name}</p>
           </div>
         </div>
       </div>

@@ -331,7 +331,7 @@ module Api
           num_submissions: submission.num_submissions,
           created_at: submission.created_at,
           updated_at: submission.updated_at.iso8601(6),
-          content_block_title: submission.content_block.title,
+          content_block_title: submission.content_block.display_title(fallback: "Exercise"),
           content_block_type: submission.content_block.block_type,
           lesson_id: submission.content_block.lesson_id,
           lesson_title: submission.content_block.lesson.title,

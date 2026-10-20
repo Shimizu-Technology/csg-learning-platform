@@ -55,6 +55,26 @@ class SubmissionNotificationDeliveryServiceTest < ActiveJob::TestCase
     assert_equal "#{@instructor.full_name} graded Production checklist: A", notification.title
   end
 
+  test "an untitled imported block falls back to its lesson title, then to your exercise" do
+    @submission.content_block.update!(title: "")
+    @submission.update!(grade: "R", feedback: "Check line 3", grader: @instructor, graded_at: Time.current)
+    NotificationDeliveryService.submission_graded(@submission, push: false)
+    notification = @student.notifications.find_by!(notifiable: @submission)
+    assert_equal "#{@instructor.full_name} requested a redo on Deploy safely", notification.title
+
+    NotificationDeliveryService.submission_created(@submission, push: false)
+    assert_equal "#{@student.full_name} submitted Deploy safely", @instructor.notifications.find_by!(notifiable: @submission).title
+
+    @submission.content_block.lesson.update_column(:title, "")
+    @submission.content_block.reload
+    travel 1.second do
+      @submission.update!(feedback: "Try again", graded_at: Time.current)
+      NotificationDeliveryService.submission_graded(@submission.reload, push: false)
+    end
+    assert_equal "#{@instructor.full_name} requested a redo on your exercise", notification.reload.title
+    assert_no_match(/redo on\s*\z/, notification.title)
+  end
+
   test "a create race refreshes the winning notification before push" do
     @submission.update!(grade: "B", feedback: "Ship it", grader: @instructor, graded_at: Time.current)
     existing = @student.notifications.create!(

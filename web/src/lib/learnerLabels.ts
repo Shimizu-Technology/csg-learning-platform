@@ -19,3 +19,26 @@ export function learnerModuleTypeLabel(moduleType: string | null | undefined): s
   const words = moduleType.replaceAll('_', ' ').trim()
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : 'Module'
 }
+
+/** "code_challenge" -> "Code challenge" */
+export function blockTypeLabel(blockType: string | null | undefined): string {
+  const words = (blockType || '').replaceAll('_', ' ').trim()
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : 'Block'
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * The header for a lesson block: "Exercise · E3 — two-item receipt". When the
+ * title already starts with the type ("Checkpoint 1 — budget decision"), the
+ * type prefix is dropped so the word doesn't repeat and wrap on phones.
+ */
+export function blockHeaderParts(blockType: string | null | undefined, title: string | null | undefined): { typeLabel: string | null; title: string | null } {
+  const typeLabel = blockTypeLabel(blockType)
+  const cleanTitle = title?.trim() || null
+  if (!cleanTitle) return { typeLabel, title: null }
+  const repeats = new RegExp(`^${escapeRegExp(typeLabel)}(?![\\p{L}\\p{N}_])`, 'iu').test(cleanTitle)
+  return { typeLabel: repeats ? null : typeLabel, title: cleanTitle }
+}

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CalendarDays, Clock3, ExternalLink, MessageCircle, RefreshCw, Video, WifiOff } from 'lucide-react'
+import { CalendarDays, ChevronDown, Clock3, ExternalLink, MessageCircle, RefreshCw, Video, WifiOff } from 'lucide-react'
 import { api } from '../../lib/api'
-import { cancelConsequence, currentBookingForWeek, formatGuamMeetingTime, isWeekBookingClosed, slotsForWeek } from '../../lib/privateMeetings'
+import { cancelConsequence, currentBookingForWeek, formatGuamMeetingTime, isWeekBookingClosed, partitionMeetingWeeks, slotsForWeek } from '../../lib/privateMeetings'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { useToast } from '../../contexts/ToastContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { AnchorButton, Button } from '../../components/ui/Button'
+import { TextButton } from '../../components/ui/Choice'
 import { Badge } from '../../components/ui/Badge'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { EmptyState } from '../../components/shared/EmptyState'
@@ -128,8 +129,9 @@ export function PrivateMeetings() {
             </div>
             <Badge className="tabular-nums">{cohort.weeks} weekly meetings</Badge>
           </div>
-          <div className="grid gap-4 lg:grid-cols-3">
-            {Array.from({ length: cohort.weeks }, (_, index) => index + 1).map((week) => {
+          {(() => {
+            const { current, past } = partitionMeetingWeeks(cohort.start_date, cohort.weeks)
+            const renderWeek = (week: number) => {
               const booking = currentBookingForWeek(cohort.bookings, week)
               const cutoff = cohort.reschedule_cutoff_hours * 60 * 60 * 1000
               const available = slotsForWeek(cohort.slots, cohort.start_date, week, cohort.weeks).filter((slot) => slot.available && Date.parse(slot.starts_at) > Date.now() + cutoff)
@@ -138,11 +140,12 @@ export function PrivateMeetings() {
               const canReschedule = beforeCutoff && booking.reschedule_count < cohort.max_student_changes
               const canBook = cohort.bookable_week_numbers.includes(week)
               const weekClosed = isWeekBookingClosed(cohort.start_date, week, cohort.reschedule_cutoff_hours)
+              const meetingOver = booking ? Date.parse(booking.ends_at) <= Date.now() : false
               return (
                 <article key={week} data-booked={booking ? 'true' : undefined} className={`min-w-0 rounded-2xl border p-5 ${booking ? 'border-line bg-surface-raised shadow-raised' : 'border-line bg-surface-raised'}`}>
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="min-w-0 text-base font-bold text-ink">Week {week}</h3>
-                    <Badge tone={booking ? 'success' : 'neutral'}>{booking ? 'Booked' : weekClosed ? 'Booking closed' : 'To schedule'}</Badge>
+                    <Badge tone={booking && !meetingOver ? 'success' : 'neutral'}>{booking ? (meetingOver ? 'Completed' : 'Booked') : weekClosed ? 'Booking closed' : 'To schedule'}</Badge>
                   </div>
 
                   {booking && (
@@ -154,7 +157,7 @@ export function PrivateMeetings() {
                           <p className="mt-1 text-sm text-ink-secondary">60 minutes with {booking.instructor_name}</p>
                         </div>
                       </div>
-                      {booking.zoom_url ? (
+                      {meetingOver ? null : booking.zoom_url ? (
                         <AnchorButton variant="primary" href={sanitizeUrl(booking.zoom_url)} target="_blank" rel="noopener noreferrer"><Video className="h-4 w-4" aria-hidden="true" />Join on Zoom<ExternalLink className="h-3.5 w-3.5" aria-hidden="true" /></AnchorButton>
                       ) : <p className="rounded-xl bg-warning-50 px-3 py-2 text-sm text-warning-800">Your Zoom link is being prepared. It will appear here before the meeting.</p>}
                       <div className="flex flex-wrap gap-2 pt-1">
@@ -167,7 +170,7 @@ export function PrivateMeetings() {
                   {(!booking || changing) && (
                     <div className="mt-5">
                       <p className="mb-3 text-sm font-semibold text-ink-secondary tabular-nums">{changing ? 'Choose a new time' : weekClosed ? 'Scheduling help' : canBook ? (available.length > 0 ? `${available.length} ${available.length === 1 ? 'time' : 'times'} available` : 'Available times') : 'Scheduling help'}</p>
-                      {weekClosed && !changing ? <p className="text-sm leading-relaxed text-ink-secondary">Booking for Week {week} has closed. <button type="button" onClick={() => void messageInstructor(cohort)} disabled={openingMessages} className="inline-flex min-h-11 items-center font-semibold text-ink underline underline-offset-2 transition-colors hover:text-ruby-700 disabled:opacity-60 lg:min-h-0">Message your instructor</button> if you still need a meeting.</p> : !booking && !canBook ? <p className="text-sm leading-relaxed text-ink-secondary">You have used your schedule change for Week {week}. <button type="button" onClick={() => void messageInstructor(cohort)} disabled={openingMessages} className="inline-flex min-h-11 items-center font-semibold text-ink underline underline-offset-2 transition-colors hover:text-ruby-700 disabled:opacity-60 lg:min-h-0">Message your instructor</button> to arrange another time.</p> : available.length === 0 ? <p className="text-sm leading-relaxed text-ink-secondary">No times are open for Week {week} yet. <button type="button" onClick={() => void messageInstructor(cohort)} disabled={openingMessages} className="inline-flex min-h-11 items-center font-semibold text-ink underline underline-offset-2 transition-colors hover:text-ruby-700 disabled:opacity-60 lg:min-h-0">Message your instructor</button> if you need help.</p> : (
+                      {weekClosed && !changing ? <p className="text-sm leading-relaxed text-ink-secondary">Booking for Week {week} has closed. <TextButton onClick={() => void messageInstructor(cohort)} disabled={openingMessages}>Message your instructor</TextButton> if you still need a meeting.</p> : !booking && !canBook ? <p className="text-sm leading-relaxed text-ink-secondary">You have used your schedule change for Week {week}. <TextButton onClick={() => void messageInstructor(cohort)} disabled={openingMessages}>Message your instructor</TextButton> to arrange another time.</p> : available.length === 0 ? <p className="text-sm leading-relaxed text-ink-secondary">No times are open for Week {week} yet. <TextButton onClick={() => void messageInstructor(cohort)} disabled={openingMessages}>Message your instructor</TextButton> if you need help.</p> : (
                         <div data-testid="meeting-slot-list" className="space-y-2 lg:max-h-80 lg:overflow-y-auto lg:pr-1">
                           {available.map((slot) => (
                             <button key={slot.id} type="button" disabled={busyId !== null} onClick={() => void selectSlot(slot, changing ? booking?.id : undefined)} className="pressable flex min-h-12 w-full items-center justify-between gap-2 rounded-xl border border-line bg-surface-sunken px-3 py-2 text-left text-sm font-medium text-ink hover:border-slate-400 hover:bg-surface-raised disabled:opacity-50">
@@ -180,12 +183,28 @@ export function PrivateMeetings() {
                   )}
                 </article>
               )
-            })}
-          </div>
+            }
+            return (
+              <>
+                {current.length > 0
+                  ? <div className="grid gap-4 lg:grid-cols-3">{current.map(renderWeek)}</div>
+                  : <p className="text-sm text-ink-secondary">All meeting weeks for this course are over.</p>}
+                {past.length > 0 && (
+                  <details className="group rounded-2xl border border-line bg-surface-raised" data-testid="past-meeting-weeks">
+                    <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-5 py-3 text-sm font-semibold text-ink-secondary hover:text-ink [&::-webkit-details-marker]:hidden">
+                      <span>Past weeks <span className="tabular-nums text-ink-muted">({past.length})</span></span>
+                      <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-[180ms] group-open:rotate-180" aria-hidden="true" />
+                    </summary>
+                    <div className="grid gap-4 border-t border-line p-4 lg:grid-cols-3">{past.map(renderWeek)}</div>
+                  </details>
+                )}
+              </>
+            )
+          })()}
           <p className="text-sm leading-relaxed text-ink-secondary">Changes close {cohort.reschedule_cutoff_hours} hours before a meeting. You can reschedule or cancel and rebook up to {cohort.max_student_changes} {cohort.max_student_changes === 1 ? 'time' : 'times'}. You can still cancel after using a change, but ask your instructor to arrange another time.</p>
         </section>
       ))}
-      <p className="text-sm leading-relaxed text-ink-secondary">Need a different time? <button type="button" onClick={() => void messageInstructor()} disabled={openingMessages} className="inline-flex min-h-11 items-center font-semibold text-ink underline underline-offset-2 transition-colors hover:text-ruby-700 disabled:opacity-60 lg:min-h-0">Message your instructor</button>.</p>
+      <p className="text-sm leading-relaxed text-ink-secondary">Need a different time? <TextButton onClick={() => void messageInstructor()} disabled={openingMessages}>Message your instructor</TextButton>.</p>
     </div>
   )
 }

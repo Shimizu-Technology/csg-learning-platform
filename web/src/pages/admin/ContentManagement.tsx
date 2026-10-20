@@ -24,6 +24,9 @@ import { ALL_DAY_NAMES, SCHEDULE_DAY_INDICES } from '../../lib/scheduleConstants
 import { useUpload } from '../../contexts/UploadContext'
 import { useToast } from '../../contexts/ToastContext'
 import { useAuthContext } from '../../contexts/AuthContext'
+import { Button, IconButton } from '../../components/ui/Button'
+import { TabButton, TextButton } from '../../components/ui/Choice'
+import { Badge } from '../../components/ui/Badge'
 
 interface Lesson {
   id: number
@@ -209,7 +212,7 @@ export function ContentManagement() {
     <div className="app-page-wide">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <Link to="/admin" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900">
+          <Link to="/admin" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted transition-colors duration-150 hover:bg-surface-sunken hover:text-ink">
             <ArrowLeft className="h-4 w-4" />
             Staff home
           </Link>
@@ -217,40 +220,40 @@ export function ContentManagement() {
           <h1 className="app-title mt-2">Content</h1>
           <p className="app-description mt-2">Shape reusable modules and lessons before assigning them to a cohort.</p>
         </div>
-        {canManageModules && <div className="flex flex-wrap gap-2"><button type="button" onClick={() => setShowPackageImport(true)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-700 hover:bg-slate-50"><Upload className="h-4 w-4" /> Import course package</button><button type="button" onClick={() => { setCurriculumCreateError(''); setShowNewCurriculum(true) }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-extrabold text-white transition-colors hover:bg-primary-700">
+        {canManageModules && <div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => setShowPackageImport(true)}><Upload className="h-4 w-4" /> Import course package</Button><Button onClick={() => { setCurriculumCreateError(''); setShowNewCurriculum(true) }}>
           <Plus className="h-4 w-4" /> New curriculum
-        </button></div>}
+        </Button></div>}
       </header>
 
       {curricula.map((curriculum) => (
-        <div key={curriculum.id} className="rounded-2xl bg-white border border-slate-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-200 bg-slate-50">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">{curriculum.name}</h2>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                  curriculum.status === 'active' ? 'bg-success-100 text-success-700' : 'bg-slate-100 text-slate-600'
-                }`}>
-                  {curriculum.status}
-                </span>
+        <div key={curriculum.id} className="app-surface overflow-hidden">
+          <div className="px-4 py-4 border-b border-line bg-surface-sunken sm:px-6">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="truncate text-lg font-bold text-ink" title={curriculum.name}>{curriculum.name}</h2>
+                <Badge tone={curriculum.status === 'active' ? 'success' : 'neutral'} className="mt-1">
+                  {curriculum.status.charAt(0).toUpperCase() + curriculum.status.slice(1)}
+                </Badge>
               </div>
               {canManageModules && (
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="shrink-0"
                   onClick={() => {
                     setModuleCreateError('')
                     setNewModuleModal({ curriculumId: curriculum.id, moduleCount: curriculum.modules?.length || 0 })
                   }}
-                  className="flex min-h-11 items-center gap-1 rounded-xl px-3 text-sm font-medium text-primary-600 transition-colors hover:bg-primary-100"
                 >
                   <Plus className="h-4 w-4" />
-                  New Module
-                </button>
+                  New module
+                </Button>
               )}
             </div>
           </div>
 
           <CourseResourcesPanel curriculumId={curriculum.id} draft={curriculum.status === 'draft'} />
-          <div className="divide-y divide-slate-200">
+          <div className="divide-y divide-line">
             {curriculum.modules?.map((mod) => (
               <ModuleSection
                 key={mod.id}
@@ -441,33 +444,34 @@ function ModuleSection({
   return (
     <div>
       {/* Module header */}
-      <div className="w-full flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 hover:bg-slate-50 transition-colors">
+      <div className="w-full flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 hover:bg-surface-sunken transition-colors duration-150">
         <button
           type="button"
           onClick={onToggle}
-          className="flex flex-1 items-center gap-2 sm:gap-3 text-left min-w-0"
+          aria-expanded={expanded}
+          className="pressable flex min-h-11 flex-1 items-center gap-2 sm:gap-3 rounded-xl text-left min-w-0"
         >
           {expanded ? (
-            <ChevronDown className="h-4 w-4 text-slate-400 shrink-0" />
+            <ChevronDown className="h-4 w-4 text-ink-muted shrink-0" />
           ) : (
-            <ChevronRight className="h-4 w-4 text-slate-400 shrink-0" />
+            <ChevronRight className="h-4 w-4 text-ink-muted shrink-0" />
           )}
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-slate-900">{mod.name}</p>
-            <p className="text-xs text-slate-500 capitalize">
+            <p className="truncate text-sm font-semibold text-ink" title={mod.name}>{mod.name}</p>
+            <p className="text-xs text-ink-muted capitalize tabular-nums">
               {mod.module_type.replace('_', ' ')} · {exerciseCount} exercise{exerciseCount !== 1 ? 's' : ''} · {weekNumbers.length} week{weekNumbers.length !== 1 ? 's' : ''} · {scheduleLabel}
               {archivedLessons.length > 0 ? ` · ${archivedLessons.length} archived` : ''}
             </p>
           </div>
         </button>
-        <div className="flex items-center gap-1 pl-6 sm:pl-0 shrink-0">
+        <div className="flex flex-wrap items-center gap-1 pl-6 sm:pl-0 shrink-0">
           {canManageModules && (
             <select
               value={mod.schedule_days}
               disabled={scheduleSaving}
               onClick={(event) => event.stopPropagation()}
               onChange={(event) => onChangeSchedule(event.target.value)}
-              className="min-h-11 rounded-xl border border-slate-200 bg-white px-2 text-xs font-medium text-slate-600 focus:outline-none focus:ring-2 focus:ring-focus disabled:opacity-60"
+              className="app-control px-2"
               aria-label={`Schedule pattern for ${mod.name}`}
             >
               {SCHEDULE_PATTERN_OPTIONS.map((option) => (
@@ -475,17 +479,18 @@ function ModuleSection({
               ))}
             </select>
           )}
-          <button
-            type="button"
+          <Button
+            variant="quiet"
+            size="sm"
             onClick={onAddWeek}
-            className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-500 hover:text-primary-600 hover:bg-primary-50 transition-colors"
             title="Add a new week"
           >
             <CalendarPlus className="h-3.5 w-3.5" />
             Week
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => {
               const si = scheduleIndices
               const lastDay = activeLessons.length > 0 ? Math.max(...activeLessons.map(l => l.release_day)) : -1
@@ -498,11 +503,10 @@ function ModuleSection({
               if (lastDay < 0) { nextWeek = 1; nextDay = si[0] }
               onAddExercise(nextWeek, nextDay)
             }}
-            className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-primary-600 hover:bg-primary-50 transition-colors"
           >
             <Plus className="h-3.5 w-3.5" />
             Exercise
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -511,69 +515,59 @@ function ModuleSection({
         <div className="px-4 sm:px-6 pb-5">
           {weekNumbers.length === 0 ? (
             <div className="text-center py-6">
-              <p className="text-sm text-slate-400 mb-3">No exercises yet</p>
-              <button
-                onClick={onAddWeek}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 px-4 py-2 text-sm font-medium text-slate-500 hover:border-primary-300 hover:text-primary-600 transition-colors"
-              >
+              <p className="text-sm text-ink-muted mb-3">No exercises yet</p>
+              <Button variant="secondary" onClick={onAddWeek}>
                 <CalendarPlus className="h-4 w-4" />
                 Add Week 1
-              </button>
+              </Button>
             </div>
           ) : (
             <>
               {/* Week tabs - scrollable on mobile */}
-              <div className="flex items-center gap-1 border-b border-slate-200 mb-4 overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+              <div role="tablist" aria-label={`${mod.name} weeks`} className="flex items-center gap-1 border-b border-line mb-4 overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
                 {weekNumbers.map((w) => (
-                  <button
+                  <TabButton
                     key={w}
+                    asTab
+                    dense
+                    selected={activeWeek === w}
                     onClick={() => onSetWeek(w)}
-                    className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
-                      activeWeek === w
-                        ? 'border-primary-500 text-primary-600'
-                        : 'border-transparent text-slate-400 hover:text-slate-600'
-                    }`}
+                    className="tabular-nums"
                   >
                     Week {w}
-                  </button>
+                  </TabButton>
                 ))}
               </div>
 
               {/* Days in the active week */}
               <div className="space-y-4">
                 {daysInActiveWeek.map(({ dayIdx, exercises }) => (
-                  <div key={dayIdx} className="rounded-xl border border-slate-200 overflow-hidden">
+                  <div key={dayIdx} className="rounded-xl border border-line overflow-hidden">
                     {/* Day header */}
-                    <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-100">
-                      <h4 className="text-sm font-semibold text-slate-700">
+                    <div className="flex items-center justify-between gap-2 px-4 py-1.5 bg-surface-sunken border-b border-line">
+                      <h4 className="text-sm font-semibold text-ink">
                         Day {dayIdx + 1} · {ALL_DAY_NAMES[dayIdx]}
                       </h4>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-slate-400">
+                        <span className="text-xs text-ink-muted tabular-nums">
                           {exercises.length} exercise{exercises.length !== 1 ? 's' : ''}
                         </span>
-                        <button
-                          onClick={() => onAddExercise(activeWeek, dayIdx)}
-                          className="flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium text-primary-500 hover:bg-primary-50 transition-colors"
-                        >
-                          <Plus className="h-3 w-3" />
+                        <Button variant="quiet" size="sm" onClick={() => onAddExercise(activeWeek, dayIdx)}>
+                          <Plus className="h-3.5 w-3.5" />
                           Add
-                        </button>
+                        </Button>
                       </div>
                     </div>
 
                     {/* Exercises in this day */}
                     {exercises.length === 0 ? (
-                      <div className="px-4 py-3">
-                        <button
-                          onClick={() => onAddExercise(activeWeek, dayIdx)}
-                          className="text-xs text-slate-300 hover:text-primary-500 transition-colors italic"
-                        >
+                      <div className="px-4 py-1">
+                        <TextButton tone="quiet" className="text-xs" onClick={() => onAddExercise(activeWeek, dayIdx)}>
                           + Add first exercise for this day
-                        </button>
+                        </TextButton>
                       </div>
                     ) : (
-                      <div className="divide-y divide-slate-100">
+                      <div className="divide-y divide-line">
                         {exercises
                           .sort((a, b) => a.position - b.position)
                           .map((lesson) => {
@@ -582,12 +576,12 @@ function ModuleSection({
                             return (
                               <div
                                 key={lesson.id}
-                                className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 transition-colors group"
+                                className="flex min-h-11 items-center gap-3 px-4 py-1 hover:bg-surface-sunken transition-colors duration-150 group"
                               >
-                                <Code className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                                <p className="text-sm text-slate-700 flex-1 min-w-0 truncate">{lesson.title}</p>
+                                <Code className="h-3.5 w-3.5 text-ink-muted shrink-0" />
+                                <p className="text-sm text-ink flex-1 min-w-0 truncate" title={lesson.title}>{lesson.title}</p>
                                 {lesson.submission_type && lesson.submission_type !== 'manual_complete' && (
-                                  <span className="text-[10px] font-medium text-primary-500 bg-primary-50 rounded px-1.5 py-0.5 shrink-0">
+                                  <Badge tone="neutral">
                                     {lesson.submission_type === 'prework_github_sync'
                                       ? 'github'
                                       : lesson.submission_type === 'repo_and_live_url_submission'
@@ -595,30 +589,28 @@ function ModuleSection({
                                         : lesson.submission_type === 'repo_url_submission'
                                           ? 'repo'
                                           : 'submit'}
-                                  </span>
+                                  </Badge>
                                 )}
                                 {hasFilename && (
-                                  <span className="text-[10px] text-slate-300 shrink-0">
+                                  <span className="text-xs text-ink-muted tabular-nums shrink-0">
                                     {lesson.content_blocks_count}b
                                   </span>
                                 )}
-                                <div className="flex items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                  <button
+                                <div className="flex shrink-0 items-center gap-0.5 transition-opacity duration-150 pointer-fine:sm:opacity-0 pointer-fine:sm:group-hover:opacity-100 pointer-fine:sm:group-focus-within:opacity-100">
+                                  <IconButton
+                                    size="sm"
                                     onClick={() => navigate(`/admin/lessons/${lesson.id}/edit?preview=true`)}
-                                    title="Preview as student"
-                                    aria-label={`Preview ${lesson.title} as a student`}
-                                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                                    label={`Preview ${lesson.title} as a student`}
                                   >
                                     <Eye className="h-3.5 w-3.5" />
-                                  </button>
-                                  <button
+                                  </IconButton>
+                                  <IconButton
+                                    size="sm"
                                     onClick={() => navigate(`/admin/lessons/${lesson.id}/edit`)}
-                                    title="Edit exercise"
-                                    aria-label={`Edit ${lesson.title}`}
-                                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-primary-50 hover:text-primary-700"
+                                    label={`Edit ${lesson.title}`}
                                   >
                                     <Pencil className="h-3.5 w-3.5" />
-                                  </button>
+                                  </IconButton>
                                 </div>
                               </div>
                             )
@@ -632,30 +624,30 @@ function ModuleSection({
           )}
 
           {archivedLessons.length > 0 && (
-                <details className="mt-5 overflow-hidden rounded-2xl border border-amber-200 bg-amber-50/60">
-                  <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-extrabold text-amber-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-inset">
-                    <Archive className="h-4 w-4" />
+                <details className="app-surface-muted mt-5 overflow-hidden">
+                  <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-semibold text-ink transition-colors duration-150 hover:bg-slate-100">
+                    <Archive className="h-4 w-4 text-ink-muted" />
                     Archived exercises
-                    <span className="rounded-full bg-amber-200 px-2 py-0.5 text-xs text-amber-900">{archivedLessons.length}</span>
+                    <Badge tone="neutral" className="tabular-nums">{archivedLessons.length}</Badge>
                   </summary>
-                  <div className="divide-y divide-amber-200 border-t border-amber-200 bg-white">
+                  <div className="divide-y divide-line border-t border-line bg-surface-raised">
                     {archivedLessons.map((lesson) => {
                       const week = Math.floor(lesson.release_day / 7) + 1
                       const day = lesson.release_day % 7
                       return (
                         <div key={lesson.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-bold text-slate-900">{lesson.title}</p>
-                            <p className="mt-0.5 text-xs text-slate-500">Week {week} · {ALL_DAY_NAMES[day]}</p>
+                            <p className="truncate text-sm font-semibold text-ink" title={lesson.title}>{lesson.title}</p>
+                            <p className="mt-0.5 text-xs text-ink-muted tabular-nums">Week {week} · {ALL_DAY_NAMES[day]}</p>
                           </div>
                           <div className="flex shrink-0 items-center gap-2">
-                            <button type="button" onClick={() => navigate(`/admin/lessons/${lesson.id}/edit`)} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-100">
+                            <Button variant="quiet" size="sm" onClick={() => navigate(`/admin/lessons/${lesson.id}/edit`)}>
                               <Pencil className="h-4 w-4" />Review
-                            </button>
-                            <button type="button" onClick={() => onRestoreLesson(lesson)} disabled={restoringLessonId === lesson.id} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-amber-900 px-3 text-sm font-bold text-white transition-colors hover:bg-amber-950 disabled:opacity-50">
+                            </Button>
+                            <Button variant="secondary" size="sm" onClick={() => onRestoreLesson(lesson)} disabled={restoringLessonId === lesson.id}>
                               <RotateCcw className="h-4 w-4" />
                               {restoringLessonId === lesson.id ? 'Restoring...' : 'Restore'}
-                            </button>
+                            </Button>
                           </div>
                         </div>
                       )

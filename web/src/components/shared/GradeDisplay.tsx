@@ -28,7 +28,7 @@ export function GradeDisplay({ grade, size = 'md' }: GradeDisplayProps) {
 
   return (
     <span
-      className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg border font-semibold ${gradeColors[grade] || 'bg-slate-100 text-slate-700 border-slate-200'} ${sizeClasses[size]}`}
+      className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg border font-semibold ${gradeColors[grade] || 'bg-surface-sunken text-ink-secondary border-line'} ${sizeClasses[size]}`}
     >
       {grade}
       {size !== 'sm' && <span className="font-medium">· {gradeLabels[grade]}</span>}

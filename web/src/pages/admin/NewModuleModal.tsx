@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Modal } from '../../components/shared/Modal'
 import { Button } from '../../components/ui/Button'
 
@@ -28,6 +28,7 @@ const SCHEDULE_PATTERNS = [
 ]
 
 export function NewModuleModal({ defaultPosition, saving, error, onClose, onCreate }: Props) {
+  const formId = useId()
   const [name, setName] = useState('')
   const [moduleType, setModuleType] = useState('live_class')
   const [scheduleDays, setScheduleDays] = useState('weekdays')
@@ -52,11 +53,12 @@ export function NewModuleModal({ defaultPosition, saving, error, onClose, onCrea
 
   return (
     <Modal open title="New module" subtitle="Set the module type and the days when learning content appears." size="md" onClose={onClose}>
-        {(validationError || error) && <p className="text-sm text-red-600 mb-3">{validationError || error}</p>}
+        {(validationError || error) && <p role="alert" className="mb-3 rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700">{validationError || error}</p>}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+            <label htmlFor={`${formId}-name`} className="block text-sm font-medium text-ink-secondary mb-1">Name</label>
             <input
+              id={`${formId}-name`}
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
@@ -66,8 +68,9 @@ export function NewModuleModal({ defaultPosition, saving, error, onClose, onCrea
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Type</label>
+            <label htmlFor={`${formId}-type`} className="block text-sm font-medium text-ink-secondary mb-1">Type</label>
             <select
+              id={`${formId}-type`}
               value={moduleType}
               onChange={e => setModuleType(e.target.value)}
               className="app-control"
@@ -76,15 +79,16 @@ export function NewModuleModal({ defaultPosition, saving, error, onClose, onCrea
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Schedule Pattern</label>
+            <label htmlFor={`${formId}-schedule`} className="block text-sm font-medium text-ink-secondary mb-1">Schedule pattern</label>
             <select
+              id={`${formId}-schedule`}
               value={scheduleDays}
               onChange={e => setScheduleDays(e.target.value)}
               className="app-control"
             >
               {SCHEDULE_PATTERNS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
-            <p className="mt-1 text-xs text-slate-400">Which days of the week will have content</p>
+            <p className="mt-1 text-xs text-ink-muted">Which days of the week will have content</p>
           </div>
           <div className="flex gap-3 pt-2">
             <Button

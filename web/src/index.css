@@ -320,6 +320,72 @@ a {
   }
 }
 
+/* Closing: a static copy of the last open frame (Modal.tsx playModalExit)
+   leaves a little faster than it arrived. It is inert and ignores pointers. */
+@keyframes overlay-exit {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes sheet-exit {
+  to {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes dialog-exit {
+  to {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+
+.app-modal-overlay[data-state="closing"] {
+  pointer-events: none;
+  animation: overlay-exit var(--duration-local) var(--ease-out) forwards;
+}
+
+.app-modal-overlay[data-state="closing"] .app-modal {
+  animation: sheet-exit var(--duration-local) var(--ease-drawer) forwards;
+}
+
+@media (min-width: 640px) {
+  .app-modal-overlay[data-state="closing"] .app-modal {
+    animation: dialog-exit 150ms var(--ease-out) forwards;
+  }
+}
+
+/* Side drawers (staff student context): slide in from the right edge. */
+@keyframes drawer-enter {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes drawer-exit {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.app-drawer-overlay {
+  animation: overlay-enter var(--duration-panel) var(--ease-out);
+}
+
+.app-drawer-panel {
+  animation: drawer-enter var(--duration-panel) var(--ease-drawer);
+}
+
+.app-drawer-overlay[data-state="closing"] {
+  pointer-events: none;
+  animation: overlay-exit var(--duration-local) var(--ease-out) forwards;
+}
+
+.app-drawer-overlay[data-state="closing"] .app-drawer-panel {
+  animation: drawer-exit var(--duration-local) var(--ease-drawer) forwards;
+}
+
 /* Small popover menus grow from their trigger. */
 @keyframes popover-enter {
   from {
@@ -375,6 +441,33 @@ a {
   .app-modal-overlay.app-modal-overlay {
     animation-name: overlay-enter !important;
     animation-duration: var(--duration-local) !important;
+    animation-timing-function: linear !important;
+  }
+
+  /* Closing under reduced motion: fade the whole copy out, no slide. */
+  .app-modal-overlay.app-modal-overlay[data-state="closing"] {
+    animation-name: overlay-exit !important;
+    animation-duration: 120ms !important;
+    animation-timing-function: linear !important;
+  }
+
+  .app-modal-overlay[data-state="closing"] .app-modal.app-modal {
+    animation: none !important;
+  }
+
+  .app-drawer-overlay.app-drawer-overlay {
+    animation-name: overlay-enter !important;
+    animation-duration: var(--duration-local) !important;
+    animation-timing-function: linear !important;
+  }
+
+  .app-drawer-panel.app-drawer-panel {
+    animation: none !important;
+  }
+
+  .app-drawer-overlay.app-drawer-overlay[data-state="closing"] {
+    animation-name: overlay-exit !important;
+    animation-duration: 120ms !important;
     animation-timing-function: linear !important;
   }
 

@@ -89,8 +89,8 @@ module Api
         recording_ids = rows.filter_map { |event| event.record_id if event.record_type == "Recording" }
         Recording.where(id: recording_ids).pluck(:id, :title).each { |id, title| labels[[ "Recording", id ]] = title }
         submission_ids = rows.filter_map { |event| event.record_id if event.record_type == "Submission" }
-        Submission.includes(:content_block).where(id: submission_ids).each do |submission|
-          labels[[ "Submission", submission.id ]] = submission.content_block.title
+        Submission.includes(content_block: :lesson).where(id: submission_ids).each do |submission|
+          labels[[ "Submission", submission.id ]] = submission.content_block.display_title(fallback: "Exercise")
         end
         labels
       end

@@ -338,7 +338,7 @@ export function Layout({ children }: LayoutProps) {
         Skip to main content
       </a>
       {/* Mobile header */}
-      <header aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-line bg-surface-raised pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))] lg:hidden">
+      <header aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className="sticky top-0 z-40 flex h-14 items-center gap-2 overflow-x-clip border-b border-line bg-surface-raised pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))] lg:hidden">
         <IconButton
           ref={menuButtonRef}
           label="Open navigation"

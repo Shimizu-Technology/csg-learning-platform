@@ -4,6 +4,8 @@ import { api } from '../../lib/api'
 import { uploadToS3 } from '../../lib/uploadToS3'
 import type { ResourceEntry } from '../../types/api'
 import { downloadCourseResource } from '../../lib/downloadCourseResource'
+import { Button } from '../../components/ui/Button'
+import { Badge } from '../../components/ui/Badge'
 
 export function CourseResourcesPanel({ curriculumId, draft }: { curriculumId: number; draft: boolean }) {
   const [resources, setResources] = useState<ResourceEntry[]>([])
@@ -70,17 +72,17 @@ export function CourseResourcesPanel({ curriculumId, draft }: { curriculumId: nu
     finally { setFileActionId(null) }
   }
 
-  return <section className="border-t border-slate-200 px-6 py-4" aria-label="Course learner files" data-curriculum-id={curriculumId}>
-    <h3 className="font-semibold text-slate-900">Learner ZIP files</h3>
-    <p className="mt-1 text-sm text-slate-600">Upload the matching course bundle. This adds files without opening admissions or changing enrollment.</p>
-    {resources.length > 0 && <ul className="mt-3 space-y-3 text-sm text-slate-700">{resources.map(r => <li key={r.id} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0 break-words">{r.title} — {r.filename}{r.ready === false && <p className="mt-1 text-slate-500">Upload not confirmed</p>}</div><button type="button" disabled={busy || fileActionId !== null || !r.download_id} onClick={() => void fileAction(r)} className="min-h-11 shrink-0 rounded-xl border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{fileActionId === r.download_id ? 'Working…' : r.ready === false ? 'Abandon pending upload' : 'Download ZIP'}</button></li>)}</ul>}
+  return <section className="border-t border-line px-4 py-4 sm:px-6" aria-label="Course learner files" data-curriculum-id={curriculumId}>
+    <h3 className="text-base font-semibold text-ink">Learner ZIP files</h3>
+    <p className="mt-1 text-sm text-ink-secondary">Upload the matching course bundle. This adds files without opening admissions or changing enrollment.</p>
+    {resources.length > 0 && <ul className="mt-3 divide-y divide-line rounded-xl border border-line text-sm text-ink-secondary">{resources.map(r => <li key={r.id} className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0 break-words"><span className="font-semibold text-ink">{r.title}</span> — {r.filename}{r.ready === false && <p className="mt-1"><Badge tone="warning">Upload not confirmed</Badge></p>}</div><Button variant={r.ready === false ? 'danger' : 'secondary'} size="sm" className="shrink-0" disabled={busy || fileActionId !== null || !r.download_id} onClick={() => void fileAction(r)}>{fileActionId === r.download_id ? 'Working…' : r.ready === false ? 'Abandon pending upload' : 'Download ZIP'}</Button></li>)}</ul>}
     {draft && authorized && <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
-      <label className="flex-1 text-sm font-medium text-slate-700">File title<input value={title} onChange={e => setTitle(e.target.value)} disabled={busy} maxLength={160} className="app-control mt-1 w-full" /></label>
-      <label className="flex-1 text-sm font-medium text-slate-700">Course ZIP<input type="file" accept=".zip,application/zip" disabled={busy} onChange={e => setFile(e.target.files?.[0] || null)} className="mt-1 block min-h-11 w-full text-sm" /></label>
-      <button type="button" disabled={busy || fileActionId !== null || !file || !title.trim()} onClick={() => void upload()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"><Upload className="h-4 w-4" />{busy ? `Uploading ${progress}%` : 'Upload ZIP'}</button>
+      <label className="flex-1 text-sm font-medium text-ink-secondary">File title<input value={title} onChange={e => setTitle(e.target.value)} disabled={busy} maxLength={160} className="app-control mt-1 w-full" /></label>
+      <label className="flex-1 text-sm font-medium text-ink-secondary">Course ZIP<input type="file" accept=".zip,application/zip" disabled={busy} onChange={e => setFile(e.target.files?.[0] || null)} className="mt-1 block min-h-11 w-full text-sm" /></label>
+      <Button variant="secondary" className="shrink-0 tabular-nums" disabled={busy || fileActionId !== null || !file || !title.trim()} onClick={() => void upload()}><Upload className="h-4 w-4" />{busy ? `Uploading ${progress}%` : 'Upload ZIP'}</Button>
     </div>}
-    {!draft && <p className="mt-2 text-sm text-slate-500">New files can be added while the curriculum is a draft.</p>}
-    {error && <p role="alert" className="mt-2 text-sm text-red-700">{error}</p>}
-    {message && <p role="status" className="mt-2 text-sm text-green-700">{message}</p>}
+    {!draft && <p className="mt-2 text-sm text-ink-muted">New files can be added while the curriculum is a draft.</p>}
+    {error && <p role="alert" className="mt-2 rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</p>}
+    {message && <p role="status" className="mt-2 rounded-xl border border-success-200 bg-success-50 px-3 py-2 text-sm text-success-700">{message}</p>}
   </section>
 }

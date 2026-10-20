@@ -125,7 +125,7 @@ class GithubIssueService
     private
 
     def handle_redo_grade(submission, user, repo, lesson, content_block, feedback, token)
-      title = "Redo: #{content_block.title || lesson.title}"
+      title = "Redo: #{content_block.display_title}"
       existing_url = submission.github_issue_url.presence || find_prior_issue_url(submission)
 
       if existing_url.present?

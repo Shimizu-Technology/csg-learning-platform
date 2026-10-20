@@ -6,7 +6,7 @@ import { useAuthContext } from '../../contexts/AuthContext'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
-import { formatShortDateTime } from '../../lib/format'
+import { formatShortDate, formatShortDateTime } from '../../lib/format'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { WeeklyPlanCard } from '../../components/student/WeeklyPlan'
 import { markdownExcerpt } from '../../lib/plainText'
@@ -15,8 +15,7 @@ import { Badge } from '../../components/ui/Badge'
 import type { DashboardData, WeeklyPlan } from '../../types/api'
 
 function formatDate(dateStr: string | null | undefined): string {
-  if (!dateStr) return 'TBD'
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return formatShortDate(dateStr, 'TBD', { withYear: false })
 }
 
 interface DashboardProps {

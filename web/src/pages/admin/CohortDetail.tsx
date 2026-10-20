@@ -7,13 +7,18 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Modal } from '../../components/shared/Modal'
 import { RecordingUploadManager } from '../../components/admin/RecordingUploadManager'
 import { useToast } from '../../contexts/ToastContext'
+import { useConfirm } from '../../contexts/ConfirmContext'
 import { useCohortContext } from '../../contexts/CohortContext'
-import { formatShortDateTime } from '../../lib/format'
-import { toDateTimeInputValueInTimeZone, toLocalDateTimeInputValue } from '../../lib/dateTime'
+import { formatDateTimeRange, formatShortDate, formatShortDateTime } from '../../lib/format'
+import { toDateTimeInputValueInTimeZone } from '../../lib/dateTime'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { presenceStatus, usePresenceNow } from '../../lib/presence'
 import { subscribeToStaffPresence } from '../../lib/realtime'
 import { PresenceBadge, PresenceDot } from '../../components/shared/PresenceBadge'
+import { Avatar } from '../../components/ui/Avatar'
+import { Badge, type BadgeTone } from '../../components/ui/Badge'
+import { Button, LinkButton } from '../../components/ui/Button'
+import { SegmentButton, SegmentedControl } from '../../components/ui/Choice'
 import type { OfficeHour, OfficeHourOccurrence } from '../../types/api'
 
 interface ClassResource {
@@ -117,29 +122,31 @@ function todayDateInputValue(): string {
   return formatDateInputValue(new Date())
 }
 
+// Submission close times are entered and shown in Guam time (UTC+10 all
+// year), whatever time zone the staff member's device is set to.
 function dateTimeInputToIso(value?: string | null): string | null {
   if (!value) return null
 
-  const date = new Date(value)
+  const date = new Date(/[zZ]|[+-]\d{2}:\d{2}$/.test(value) ? value : `${value}+10:00`)
   return Number.isNaN(date.getTime()) ? null : date.toISOString()
 }
 
 function nowDateTimeInputValue(): string {
-  return toLocalDateTimeInputValue(new Date().toISOString())
+  return toDateTimeInputValueInTimeZone(new Date().toISOString(), 'Pacific/Guam')
 }
 
 function submissionWindowStatusForForm(window: SubmissionWindowForm): SubmissionWindowForm['status'] {
   if (!window.submissions_close_at) return 'open'
 
-  const closeAt = new Date(window.submissions_close_at)
-  if (Number.isNaN(closeAt.getTime())) return 'scheduled'
+  const closeAtIso = dateTimeInputToIso(window.submissions_close_at)
+  if (!closeAtIso) return 'scheduled'
 
-  return closeAt <= new Date() ? 'closed' : 'scheduled'
+  return new Date(closeAtIso) <= new Date() ? 'closed' : 'scheduled'
 }
 
 function formatDateLabel(dateStr?: string | null): string {
   if (!dateStr) return ''
-  return dateFromDateOnly(toDateInputValue(dateStr)).toLocaleDateString()
+  return formatShortDate(toDateInputValue(dateStr), '')
 }
 
 function formatRelativeDateTime(dateStr?: string | null): string {
@@ -159,22 +166,19 @@ function formatRelativeDateTime(dateStr?: string | null): string {
   if (diffDays === 1) return 'Yesterday'
   if (diffDays < 7) return `${diffDays}d ago`
 
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return formatShortDate(date)
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    active: 'bg-green-100 text-green-700',
-    upcoming: 'bg-blue-100 text-blue-700',
-    completed: 'bg-slate-100 text-slate-700',
-    archived: 'bg-slate-200 text-slate-600',
+  const tones: Record<string, BadgeTone> = {
+    active: 'success',
+    upcoming: 'info',
+    completed: 'neutral',
+    archived: 'neutral',
   }
+  const label = status.replaceAll('_', ' ')
 
-  return (
-    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${styles[status] || 'bg-slate-100 text-slate-700'}`}>
-      {status}
-    </span>
-  )
+  return <Badge tone={tones[status] || 'neutral'}>{label.charAt(0).toUpperCase() + label.slice(1)}</Badge>
 }
 
 const COHORT_STATUS_OPTIONS = [
@@ -233,6 +237,7 @@ function emptyOfficeHourForm(): OfficeHourFormState {
 export function CohortDetail() {
   const { id } = useParams<{ id: string }>()
   const toast = useToast()
+  const confirm = useConfirm()
   const { refreshCohorts } = useCohortContext()
   const presenceNow = usePresenceNow()
   const [cohort, setCohort] = useState<CohortData | null>(null)
@@ -304,7 +309,7 @@ export function CohortDetail() {
     nextCohort.modules.forEach((mod: CohortData['modules'][0]) => {
       nextWindows[mod.id] = (mod.submission_windows || []).map((window) => ({
         week_number: window.week_number,
-        submissions_close_at: toLocalDateTimeInputValue(window.submissions_close_at),
+        submissions_close_at: toDateTimeInputValueInTimeZone(window.submissions_close_at, 'Pacific/Guam'),
         submissions_closed: window.submissions_closed,
         status: window.status,
         starts_on: window.starts_on,
@@ -683,6 +688,8 @@ export function CohortDetail() {
 
   const deleteOfficeHour = async (officeHourId: number) => {
     if (!id) return
+    const approved = await confirm({ title: 'Remove this session?', description: 'Students will no longer see it on their schedule.', confirmLabel: 'Remove session', cancelLabel: 'Keep session', tone: 'danger' })
+    if (!approved) return
 
     setDeletingOfficeHourId(officeHourId)
     const res = await api.deleteOfficeHour(Number(id), officeHourId)
@@ -750,8 +757,12 @@ export function CohortDetail() {
     setConfigureModuleId(moduleId)
   }
 
-  const removeModuleFromCohort = async (moduleId: number) => {
-    if (!id) return
+  /** Resolves true only when the module was removed (confirmed and saved). */
+  const removeModuleFromCohort = async (moduleId: number): Promise<boolean> => {
+    if (!id) return false
+    const name = cohort?.modules.find((mod) => mod.id === moduleId)?.name || 'this module'
+    const approved = await confirm({ title: `Remove ${name} from this cohort?`, description: "Learners in this cohort lose access to its lessons. Their submissions and progress are kept, and you can assign it again later.", confirmLabel: 'Remove module', cancelLabel: 'Keep module', tone: 'danger' })
+    if (!approved) return false
     setSavingModuleId(moduleId)
     setMessage('')
 
@@ -763,7 +774,7 @@ export function CohortDetail() {
     if (res.error) {
       notifyError(res.error)
       setSavingModuleId(null)
-      return
+      return false
     }
 
     const nextCohort = res.data?.cohort as CohortData | undefined
@@ -771,6 +782,7 @@ export function CohortDetail() {
     const moduleName = cohort?.modules.find((mod) => mod.id === moduleId)?.name || 'module'
     notifySuccess(`Removed ${moduleName} from cohort assignments`)
     setSavingModuleId(null)
+    return true
   }
 
   if (loading) return <LoadingSpinner message="Loading cohort..." />
@@ -791,54 +803,55 @@ export function CohortDetail() {
   return (
     <div className="app-page max-w-6xl">
       <div>
-        <Link to="/admin/cohorts" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900">
+        <Link to="/admin/cohorts" className="app-link mb-2 inline-flex min-h-11 items-center gap-1 text-sm">
           <ArrowLeft className="h-4 w-4" />
           Cohorts
         </Link>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
+          <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="app-title">{cohort.name}</h1>
+              <h1 className="app-title min-w-0 [overflow-wrap:anywhere]">{cohort.name}</h1>
               <StatusBadge status={cohort.status} />
             </div>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm tabular-nums text-ink-muted">
               {cohort.curriculum_name} · {cohort.active_count} active student{cohort.active_count !== 1 ? 's' : ''}
             </p>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:min-w-[320px]">
+          <div className="app-surface p-4 lg:min-w-[320px]">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-slate-900">Cohort lifecycle</p>
-                <p className="mt-1 text-xs text-slate-500">Archive or complete cohorts so old classes stay organized instead of looking active forever.</p>
+                <p className="text-base font-semibold text-ink">Cohort lifecycle</p>
+                <p className="mt-1 text-xs text-ink-muted">Archive or complete cohorts so old classes stay organized instead of looking active forever.</p>
               </div>
               <StatusBadge status={cohort.status} />
             </div>
             <div className="mt-3 space-y-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
+                <label className="block text-xs font-semibold text-ink-secondary mb-1">Status</label>
                 <select
                   value={editStatus}
                   onChange={(e) => setEditStatus(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                  className="app-control w-full"
                 >
                   {COHORT_STATUS_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
                   ))}
                 </select>
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="mt-1 text-xs text-ink-muted">
                   {COHORT_STATUS_OPTIONS.find((option) => option.value === editStatus)?.description}
                 </p>
               </div>
               {editStatus !== cohort.status && (
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={handleSaveStatus}
                   disabled={savingStatus}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50 transition-colors"
                 >
-                  <Save className="h-3.5 w-3.5" />
-                  {savingStatus ? 'Saving...' : 'Update Status'}
-                </button>
+                  <Save className="h-4 w-4" />
+                  {savingStatus ? 'Saving...' : 'Update status'}
+                </Button>
               )}
             </div>
           </div>
@@ -846,77 +859,78 @@ export function CohortDetail() {
 
         <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-end">
           <div>
-            <label className="mb-1 flex items-center gap-1 text-xs font-medium text-slate-600">
+            <label className="mb-1 flex items-center gap-1 text-xs font-semibold text-ink-secondary">
               <CalendarDays className="h-3.5 w-3.5" />
-              Cohort Start Date
+              Cohort start date
             </label>
             <input
               type="date"
               value={editStartDate}
               onChange={(e) => setEditStartDate(e.target.value)}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+              className="app-control"
             />
           </div>
           {editStartDate !== toDateInputValue(cohort.start_date) && (
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={handleSaveStartDate}
               disabled={savingStartDate}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary-500 px-3 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 transition-colors"
             >
-              <Save className="h-3.5 w-3.5" />
-              {savingStartDate ? 'Saving...' : 'Update Date'}
-            </button>
+              <Save className="h-4 w-4" />
+              {savingStartDate ? 'Saving...' : 'Update date'}
+            </Button>
           )}
-          <p className="pb-2 text-xs text-slate-400">Fallback start date for modules without their own start date.</p>
+          <p className="pb-2 text-xs text-ink-muted">Fallback start date for modules without their own start date.</p>
         </div>
         {cohort.course_delivery !== 'self_paced' && (
-          <section className="mt-4 border-t border-slate-200 pt-4" aria-labelledby="course-access-heading">
-            <h2 id="course-access-heading" className="text-sm font-semibold text-slate-900">Course access for new enrollments</h2>
-            <p className="mt-1 text-xs text-slate-600">Dates include the entire selected day in Guam. Saving defaults does not change existing enrollments. Leave dates blank for ongoing access; the full program currently has indefinite lesson access.</p>
+          <section className="mt-4 border-t border-line pt-4" aria-labelledby="course-access-heading">
+            <h2 id="course-access-heading" className="text-base font-semibold text-ink">Course access for new enrollments</h2>
+            <p className="mt-1 text-xs text-ink-secondary">Dates include the entire selected day in Guam. Saving defaults does not change existing enrollments. Leave dates blank for ongoing access; the full program currently has indefinite lesson access.</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <label className="text-xs font-medium text-slate-600">
+              <label className="text-xs font-semibold text-ink-secondary">
                 Delivery
-                <select value={editCourseDelivery} onChange={(e) => setEditCourseDelivery(e.target.value as 'program' | 'guided')} disabled={savingAccessTerms} className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm">
+                <select value={editCourseDelivery} onChange={(e) => setEditCourseDelivery(e.target.value as 'program' | 'guided')} disabled={savingAccessTerms} className="app-control mt-1 w-full">
                   <option value="program">Full program</option>
                   <option value="guided">Guided focused course</option>
                 </select>
               </label>
               {editCourseDelivery === 'guided' && (
                 <>
-                  <label className="text-xs font-medium text-slate-600">
+                  <label className="text-xs font-semibold text-ink-secondary">
                     Lessons available through
-                    <input type="date" value={editAccessEnd} onChange={(e) => setEditAccessEnd(e.target.value)} disabled={savingAccessTerms} className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm" />
+                    <input type="date" value={editAccessEnd} onChange={(e) => setEditAccessEnd(e.target.value)} disabled={savingAccessTerms} className="app-control mt-1 w-full" />
                   </label>
-                  <label className="text-xs font-medium text-slate-600">
+                  <label className="text-xs font-semibold text-ink-secondary">
                     Instructor support through
-                    <input type="date" value={editSupportEnd} onChange={(e) => setEditSupportEnd(e.target.value)} disabled={savingAccessTerms} className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm" />
+                    <input type="date" value={editSupportEnd} onChange={(e) => setEditSupportEnd(e.target.value)} disabled={savingAccessTerms} className="app-control mt-1 w-full" />
                   </label>
                 </>
               )}
             </div>
-            <button type="button" onClick={() => void handleSaveAccessTerms()} disabled={savingAccessTerms} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary-600 px-4 text-sm font-bold text-white disabled:opacity-50">
+            <Button variant="secondary" onClick={() => void handleSaveAccessTerms()} disabled={savingAccessTerms} className="mt-3">
               <Save className="h-4 w-4" />
               {savingAccessTerms ? 'Saving...' : 'Save access defaults'}
-            </button>
+            </Button>
           </section>
         )}
-        <div className="mt-4 border-t border-slate-200 pt-4">
-          <label htmlFor="cohort-github-organization" className="flex items-center gap-1.5 text-sm font-semibold text-slate-900"><Github className="h-4 w-4" /> GitHub organization</label>
-          <p className="mt-1 text-xs text-slate-600">Used to check student membership and invitations. Add the organization name from its GitHub URL; resource links are managed separately.</p>
+        <div className="mt-4 border-t border-line pt-4">
+          <label htmlFor="cohort-github-organization" className="flex items-center gap-1.5 text-base font-semibold text-ink"><Github className="h-4 w-4" /> GitHub organization</label>
+          <p className="mt-1 text-xs text-ink-secondary">Used to check student membership and invitations. Add the organization name from its GitHub URL; resource links are managed separately.</p>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-            <input id="cohort-github-organization" type="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={editGithubOrganization} onChange={(e) => setEditGithubOrganization(e.target.value)} disabled={savingGithubOrganization} placeholder="e.g. Code-School-of-Guam-Alumni" className="min-h-11 w-full max-w-md rounded-xl border border-slate-300 px-3 text-sm text-slate-900 focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25 disabled:opacity-60" />
-            {editGithubOrganization.trim() !== (cohort.github_organization_name || '') && <button type="button" onClick={() => void handleSaveGithubOrganization()} disabled={savingGithubOrganization} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 text-sm font-bold text-white hover:bg-primary-700 disabled:opacity-50"><Save className="h-4 w-4" />{savingGithubOrganization ? 'Saving...' : 'Save organization'}</button>}
+            <input id="cohort-github-organization" type="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={editGithubOrganization} onChange={(e) => setEditGithubOrganization(e.target.value)} disabled={savingGithubOrganization} placeholder="e.g. Code-School-of-Guam-Alumni" className="app-control w-full max-w-md" />
+            {editGithubOrganization.trim() !== (cohort.github_organization_name || '') && <Button variant="secondary" onClick={() => void handleSaveGithubOrganization()} disabled={savingGithubOrganization}><Save className="h-4 w-4" />{savingGithubOrganization ? 'Saving...' : 'Save organization'}</Button>}
           </div>
         </div>
       </div>
 
       {message && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        <div role="status" className="rounded-xl border border-line bg-surface-sunken px-4 py-3 text-sm text-ink-secondary">
           {message}
         </div>
       )}
 
-      <nav aria-label="Cohort workspace sections" className="sticky top-16 z-30 -mx-4 flex gap-1 overflow-x-auto border-y border-slate-200/80 bg-[#f7f8fa]/95 px-4 py-2 backdrop-blur-xl sm:mx-0 sm:rounded-xl sm:border sm:px-2 lg:top-2">
+      <nav aria-label="Cohort workspace sections" className="sticky top-16 z-30 -mx-4 flex gap-1 overflow-x-auto border-y border-line bg-surface-page/95 px-4 py-1 backdrop-blur-xl sm:mx-0 sm:rounded-xl sm:border sm:px-2 lg:top-2">
         {[
           ['#curriculum', 'Curriculum & access'],
           ['#recordings', 'Recordings'],
@@ -924,85 +938,88 @@ export function CohortDetail() {
           ['#students', 'Students'],
           ['#communication', 'Communication'],
         ].map(([href, label]) => (
-          <a key={href} href={href} className="min-h-10 shrink-0 rounded-lg px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-slate-950 hover:shadow-sm">{label}</a>
+          <a key={href} href={href} className="inline-flex min-h-11 shrink-0 items-center rounded-lg px-3 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink">{label}</a>
         ))}
       </nav>
 
-      <div className="rounded-2xl border border-primary-100 bg-primary-50/70 p-4">
+      <div className="app-surface-muted p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-semibold text-slate-900">Cohort student view</p>
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="text-base font-semibold text-ink">Cohort student view</p>
+            <p className="mt-1 text-sm text-ink-secondary">
               Review the modules, lessons, announcements, recordings, and resources currently visible to this cohort.
             </p>
           </div>
-          <Link
+          <LinkButton
+            variant="secondary"
+            className="shrink-0"
             to={`/admin/cohorts/${cohort.id}/student-view`}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-medium text-primary-700 shadow-sm ring-1 ring-primary-100 hover:bg-primary-50"
           >
             <Eye className="h-4 w-4" />
             Open student view
-          </Link>
+          </LinkButton>
         </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 space-y-4">
-          <div className="space-y-3 rounded-2xl bg-white border border-slate-200 p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 id="communication" className="scroll-mt-32 text-lg font-semibold text-slate-900">Announcements</h2>
-                <p className="text-sm text-slate-500 mt-1">Manage this cohort's announcements in the shared announcement center so sender, read state, and history stay consistent.</p>
+          <div className="app-surface space-y-3 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <h2 id="communication" className="scroll-mt-32 text-lg font-bold text-ink">Announcements</h2>
+                <p className="text-sm text-ink-muted mt-1">Manage this cohort's announcements in the shared announcement center so sender, read state, and history stay consistent.</p>
               </div>
-              <Link
+              <LinkButton
+                variant="secondary"
+                size="sm"
                 to={`/announcements?scope=manage&audience=cohort&cohort_id=${cohort.id}`}
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
               >
                 Open announcement center
-              </Link>
+              </LinkButton>
             </div>
-            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
+            <div className="rounded-xl border border-dashed border-line bg-surface-sunken px-4 py-4 text-sm text-ink-secondary">
               Cohort-specific announcements now live in the unified announcements feed.
               Students only get the notices meant for them, and staff can archive, filter, paginate, and see who posted each update.
             </div>
           </div>
 
           <div className="flex items-center justify-between">
-            <h2 id="curriculum" className="scroll-mt-32 text-lg font-semibold text-slate-900">Curriculum & access</h2>
-            <button
+            <h2 id="curriculum" className="scroll-mt-32 text-lg font-bold text-ink">Curriculum & access</h2>
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => setShowAddModule(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-600 transition-colors"
             >
-              <Plus className="h-3.5 w-3.5" />
-              Add Module
-            </button>
+              <Plus className="h-4 w-4" />
+              Add module
+            </Button>
           </div>
 
           <Modal
             open={showAddModule}
             onClose={() => setShowAddModule(false)}
-            title="Add Module"
+            title="Add module"
             subtitle={`Add a new module to ${cohort.curriculum_name}`}
             size="md"
           >
             <form onSubmit={handleAddModule} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Module Name</label>
+                <label className="block text-sm font-semibold text-ink-secondary mb-1">Module name</label>
                 <input
                   type="text"
                   required
                   value={newModuleName}
                   onChange={(e) => setNewModuleName(e.target.value)}
                   placeholder="e.g., Live Class, Capstone Project"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                  className="app-control w-full"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Module Type</label>
+                <label className="block text-sm font-semibold text-ink-secondary mb-1">Module type</label>
                 <select
                   value={newModuleType}
                   onChange={(e) => setNewModuleType(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                  className="app-control w-full"
                 >
                   <option value="prework">Prework</option>
                   <option value="live_class">Live Class</option>
@@ -1013,11 +1030,11 @@ export function CohortDetail() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Schedule Pattern</label>
+                <label className="block text-sm font-semibold text-ink-secondary mb-1">Schedule pattern</label>
                 <select
                   value={newModuleScheduleDays}
                   onChange={(e) => setNewModuleScheduleDays(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                  className="app-control w-full"
                 >
                   <option value="weekdays">MTWTF / Mon - Fri</option>
                   <option value="weekdays_sat">Mon - Sat</option>
@@ -1027,40 +1044,38 @@ export function CohortDetail() {
                 </select>
               </div>
               <div className="flex items-center gap-2">
-                <button
+                <Button
                   type="submit"
                   disabled={addingModule || !newModuleName.trim()}
-                  className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
                 >
-                  {addingModule ? 'Creating...' : 'Create Module'}
-                </button>
-                <button
-                  type="button"
+                  {addingModule ? 'Creating...' : 'Create module'}
+                </Button>
+                <Button
+                  variant="quiet"
                   onClick={() => setShowAddModule(false)}
-                  className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
                 >
                   Cancel
-                </button>
+                </Button>
               </div>
             </form>
           </Modal>
 
-          <div className="rounded-2xl bg-white border border-slate-200 divide-y divide-slate-100">
+          <div className="app-surface divide-y divide-line">
             {cohort.modules.map((mod) => {
               const form = forms[mod.id] || { unlocked: false, module_start_date: '', requires_github: false, repository_name: '' }
               const saving = savingModuleId === mod.id
               return (
-                <div key={mod.id} className="p-4 flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3 min-w-0">
+                <div key={mod.id} className="p-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+                  <div className="flex flex-1 items-center gap-3 min-w-0">
                     {(() => {
                       const isAccessible = form.unlocked || (form.module_start_date && dateFromDateOnly(form.module_start_date) <= new Date())
                       const isScheduled = !form.unlocked && form.module_start_date && dateFromDateOnly(form.module_start_date) > new Date()
                       return (
-                        <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${
-                          !mod.assigned ? 'bg-slate-100 text-slate-400'
-                            : isAccessible ? 'bg-green-50 text-green-600'
-                            : isScheduled ? 'bg-blue-50 text-blue-600'
-                            : 'bg-amber-50 text-amber-600'
+                        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                          !mod.assigned ? 'bg-surface-sunken text-ink-muted'
+                            : isAccessible ? 'bg-success-50 text-success-700'
+                            : isScheduled ? 'bg-info-50 text-info-700'
+                            : 'bg-warning-50 text-warning-700'
                         }`}>
                           {!mod.assigned ? <Lock className="h-4 w-4" />
                             : isAccessible ? <Unlock className="h-4 w-4" />
@@ -1070,42 +1085,45 @@ export function CohortDetail() {
                       )
                     })()}
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-900 truncate">{mod.name}</p>
-                      <p className="text-xs text-slate-500 capitalize">
+                      <p className="text-sm font-semibold text-ink truncate" title={mod.name}>{mod.name}</p>
+                      <p className="text-xs tabular-nums text-ink-muted first-letter:uppercase">
                         {mod.module_type.replace('_', ' ')} · {mod.lessons_count} lesson{mod.lessons_count !== 1 ? 's' : ''} · {mod.assigned_count} assigned
-                        {form.module_start_date && ` · Starts ${form.module_start_date}`}
+                        {form.module_start_date && ` · Starts ${formatShortDate(form.module_start_date)}`}
                         {form.requires_github && ' · GitHub'}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {cohort.cohort_type === 'alumni' ? (
-                      <span className="inline-flex min-h-8 items-center rounded-lg bg-green-50 px-3 py-1.5 text-xs font-bold text-green-700">
+                      <Badge tone="success">
                         Always available
-                      </span>
+                      </Badge>
                     ) : !mod.assigned ? (
-                      <button
+                      <Button
+                        variant="secondary"
+                        size="sm"
                         onClick={() => assignModuleToCohort(mod.id)}
                         disabled={saving}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-primary-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-600 disabled:opacity-50 transition-colors"
                       >
-                        <Plus className="h-3.5 w-3.5" />
+                        <Plus className="h-4 w-4" />
                         {saving ? 'Adding...' : 'Assign'}
-                      </button>
+                      </Button>
                     ) : (
                       <>
-                        <Link
+                        <LinkButton
+                          variant="secondary"
+                          size="sm"
                           to={`/admin/cohorts/${id}/modules/${mod.id}/grading`}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
                         >
                           Grading
-                        </Link>
-                        <button
+                        </LinkButton>
+                        <Button
+                          variant="secondary"
+                          size="sm"
                           onClick={() => setConfigureModuleId(mod.id)}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
                         >
                           Configure
-                        </button>
+                        </Button>
                       </>
                     )}
                   </div>
@@ -1129,130 +1147,132 @@ export function CohortDetail() {
                 subtitle={`${configureMod.module_type.replace('_', ' ')} · ${configureMod.lessons_count} lessons`}
                 size="lg"
                 footer={
-                  <div className="flex items-center justify-between">
-                    <button
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Button
+                      variant="danger"
                       onClick={() => {
-                        removeModuleFromCohort(configureMod.id)
-                        setConfigureModuleId(null)
+                        // Close Configure only after a confirmed, successful removal; "Keep module" leaves it open.
+                        void removeModuleFromCohort(configureMod.id).then((removed) => {
+                          if (removed) setConfigureModuleId(null)
+                        })
                       }}
                       disabled={saving}
-                      className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-100 disabled:opacity-50 transition-colors"
                     >
                       <Trash2 className="h-4 w-4" />
-                      Remove from Cohort
-                    </button>
-                    <button
+                      Remove from cohort
+                    </Button>
+                    <Button
                       onClick={() => void saveModuleConfiguration(configureMod.id)}
                       disabled={saving}
-                      className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 transition-colors"
                     >
                       <Save className="h-4 w-4" />
-                      {saving ? 'Saving...' : 'Save Changes'}
-                    </button>
+                      {saving ? 'Saving...' : 'Save changes'}
+                    </Button>
                   </div>
                 }
               >
                 <div className="space-y-5">
                   <div className="grid grid-cols-3 gap-3 text-sm">
-                    <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
-                      <p className="text-xs text-slate-500">Assigned</p>
-                      <p className="font-semibold text-slate-900">{configureMod.assigned_count}</p>
+                    <div className="rounded-xl bg-surface-sunken border border-line px-3 py-2">
+                      <p className="text-xs text-ink-muted">Assigned</p>
+                      <p className="font-semibold tabular-nums text-ink">{configureMod.assigned_count}</p>
                     </div>
-                    <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
-                      <p className="text-xs text-slate-500">Accessible</p>
-                      <p className="font-semibold text-slate-900">{configureMod.accessible_count}</p>
+                    <div className="rounded-xl bg-surface-sunken border border-line px-3 py-2">
+                      <p className="text-xs text-ink-muted">Accessible</p>
+                      <p className="font-semibold tabular-nums text-ink">{configureMod.accessible_count}</p>
                     </div>
-                    <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
-                      <p className="text-xs text-slate-500">Force Unlocked</p>
-                      <p className="font-semibold text-slate-900">{configureMod.unlocked_count}</p>
+                    <div className="rounded-xl bg-surface-sunken border border-line px-3 py-2">
+                      <p className="text-xs text-ink-muted">Force unlocked</p>
+                      <p className="font-semibold tabular-nums text-ink">{configureMod.unlocked_count}</p>
                     </div>
                   </div>
 
                   <div>
-                    <label className="flex items-center gap-1 text-xs font-medium text-slate-600 mb-1">
+                    <label className="flex items-center gap-1 text-xs font-semibold text-ink-secondary mb-1">
                       <CalendarDays className="h-3.5 w-3.5" />
-                      Module Start Date
+                      Module start date
                     </label>
                     <input
                       type="date"
                       value={form.module_start_date}
                       onChange={(e) => updateForm(configureMod.id, { module_start_date: e.target.value })}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                      className="app-control w-full"
                     />
-                    <p className="mt-1 text-xs text-slate-400">
+                    <p className="mt-1 text-xs text-ink-muted">
                       This is the first actual release day of Week 1 for this cohort. Later lessons follow the module schedule from there.
                       {configureMod.uses_default_start_date ? ' Right now this module is still using the cohort-based fallback.' : ''}
                     </p>
                   </div>
 
-                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <label className="flex min-h-11 items-center gap-2 text-sm text-ink-secondary">
                     <input
                       type="checkbox"
                       checked={form.unlocked}
                       onChange={(e) => updateForm(configureMod.id, { unlocked: e.target.checked })}
-                      className="rounded border-slate-300 text-primary-600 focus:ring-focus"
+                      className="rounded border-line-strong text-primary-600 focus:ring-focus"
                     />
                     Make module accessible (lessons still follow their release-day schedule)
                   </label>
 
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
-                    <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <div className="rounded-xl border border-line bg-surface-sunken p-3 space-y-2">
+                    <label className="flex min-h-11 items-center gap-2 text-sm text-ink-secondary">
                       <input
                         type="checkbox"
                         checked={form.requires_github}
                         onChange={(e) => updateForm(configureMod.id, { requires_github: e.target.checked })}
-                        className="rounded border-slate-300 text-primary-600 focus:ring-focus"
+                        className="rounded border-line-strong text-primary-600 focus:ring-focus"
                       />
                       <Github className="h-3.5 w-3.5" />
                       Require GitHub submissions for this module
                     </label>
                     {form.requires_github && (
                       <div>
-                        <label className="block text-xs font-medium text-slate-600 mb-1">Repository Name</label>
+                        <label className="block text-xs font-semibold text-ink-secondary mb-1">Repository name</label>
                         <input
                           type="text"
                           value={form.repository_name}
                           onChange={(e) => updateForm(configureMod.id, { repository_name: e.target.value })}
                           placeholder="e.g., prework-exercises"
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                          className="app-control w-full"
                         />
-                        <p className="mt-1 text-xs text-slate-400">The repo name under each student's GitHub account to sync from.</p>
+                        <p className="mt-1 text-xs text-ink-muted">The repo name under each student's GitHub account to sync from.</p>
                       </div>
                     )}
                   </div>
 
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="rounded-2xl border border-line bg-surface-raised p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
-                        <h3 className="text-sm font-semibold text-slate-900">Submission windows</h3>
-                        <p className="mt-1 text-xs leading-5 text-slate-500">
+                        <h3 className="text-base font-semibold text-ink">Submission windows</h3>
+                        <p className="mt-1 text-xs leading-5 text-ink-muted">
                           Set a close time for each week. Students can still view lessons and videos after a week closes, but submissions and redo resubmissions are blocked.
                         </p>
                       </div>
-                      <button
-                        type="button"
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="shrink-0"
                         onClick={() => void saveOnlySubmissionWindows(configureMod.id)}
                         disabled={saving}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                       >
-                        <Save className="h-3.5 w-3.5" />
+                        <Save className="h-4 w-4" />
                         Save windows
-                      </button>
+                      </Button>
                     </div>
 
                     {windowForms.length === 0 ? (
-                      <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-center text-sm text-slate-500">
+                      <div className="mt-4 rounded-xl border border-dashed border-line bg-surface-sunken px-4 py-5 text-center text-sm text-ink-muted">
                         Add lessons to this module before configuring weekly submission windows.
                       </div>
                     ) : (
                       <div className="mt-4 space-y-3">
                         {windowForms.map((window) => {
                           const displayStatus = submissionWindowStatusForForm(window)
-                          const statusStyles = displayStatus === 'closed'
-                            ? 'border-red-200 bg-red-50 text-red-700'
+                          const statusTone: BadgeTone = displayStatus === 'closed'
+                            ? 'warning'
                             : displayStatus === 'scheduled'
-                              ? 'border-amber-200 bg-amber-50 text-amber-700'
-                              : 'border-green-200 bg-green-50 text-green-700'
+                              ? 'info'
+                              : 'success'
                           const statusLabel = displayStatus === 'closed'
                             ? 'Closed'
                             : displayStatus === 'scheduled'
@@ -1260,44 +1280,45 @@ export function CohortDetail() {
                               : 'Open'
 
                           return (
-                            <div key={window.week_number} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <div key={window.week_number} className="rounded-xl border border-line bg-surface-sunken p-3">
                               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                                 <div className="min-w-0">
                                   <div className="flex flex-wrap items-center gap-2">
-                                    <p className="text-sm font-semibold text-slate-900">Week {window.week_number}</p>
-                                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusStyles}`}>
+                                    <p className="text-sm font-semibold tabular-nums text-ink">Week {window.week_number}</p>
+                                    <Badge tone={statusTone}>
                                       {statusLabel}
-                                    </span>
+                                    </Badge>
                                   </div>
-                                  <p className="mt-1 text-xs text-slate-500">
+                                  <p className="mt-1 text-xs tabular-nums text-ink-muted">
                                     {window.starts_on ? `${formatDateLabel(window.starts_on)} – ${formatDateLabel(window.ends_on)}` : 'Dates depend on module start'}
                                     {typeof window.lessons_count === 'number' ? ` · ${window.lessons_count} lesson${window.lessons_count !== 1 ? 's' : ''}` : ''}
                                   </p>
-                                  <p className="mt-1 text-xs text-slate-400">
+                                  <p className="mt-1 text-xs tabular-nums text-ink-muted">
                                     {window.submissions_close_at ? `Closes ${formatShortDateTime(dateTimeInputToIso(window.submissions_close_at), 'Not scheduled')}` : 'No close time set'}
                                   </p>
                                 </div>
-                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                <div className="flex flex-wrap items-center gap-2">
                                   <input
                                     type="datetime-local"
                                     value={window.submissions_close_at}
                                     onChange={(event) => updateSubmissionWindow(configureMod.id, window.week_number, event.target.value)}
-                                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                                    aria-label={`Week ${window.week_number} submissions close (Guam time, ChST)`}
+                                    className="app-control w-full sm:w-auto"
                                   />
-                                  <button
-                                    type="button"
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
                                     onClick={() => updateSubmissionWindow(configureMod.id, window.week_number, nowDateTimeInputValue())}
-                                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50"
                                   >
                                     Lock now
-                                  </button>
-                                  <button
-                                    type="button"
+                                  </Button>
+                                  <Button
+                                    variant="quiet"
+                                    size="sm"
                                     onClick={() => updateSubmissionWindow(configureMod.id, window.week_number, '')}
-                                    className="rounded-lg px-3 py-2 text-xs font-medium text-slate-500 hover:bg-white hover:text-slate-700"
                                   >
                                     Clear
-                                  </button>
+                                  </Button>
                                 </div>
                               </div>
                             </div>
@@ -1311,61 +1332,62 @@ export function CohortDetail() {
             )
           })()}
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5">
-            <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="app-surface p-5">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 id="recordings" className="scroll-mt-32 text-lg font-semibold text-slate-900">Class recordings</h2>
-                <p className="mt-1 text-sm text-slate-500">
+                <h2 id="recordings" className="scroll-mt-32 text-lg font-bold text-ink">Class recordings</h2>
+                <p className="mt-1 text-sm text-ink-muted">
                   Manage self-hosted uploads and external video links in one place.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={() => setShowRecordingsModal(true)}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
-                  <PlayCircle className="h-4 w-4 text-primary-500" />
+                  <PlayCircle className="h-4 w-4" />
                   Manage recordings
-                </button>
-                <Link
+                </Button>
+                <LinkButton
+                  variant="secondary"
+                  size="sm"
                   to={`/admin/cohorts/${id}/watch-progress`}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
-                  <Eye className="h-4 w-4 text-primary-500" />
+                  <Eye className="h-4 w-4" />
                   Watch progress
-                </Link>
+                </LinkButton>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+            <div className="app-surface-muted p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">One recording library</p>
-                  <p className="mt-1 text-sm text-slate-500">
+                  <p className="text-base font-semibold text-ink">One recording library</p>
+                  <p className="mt-1 text-sm text-ink-muted">
                     Upload videos or add hosted links, review them privately, and publish only when they are ready for students.
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                <div className="flex shrink-0 items-center gap-3">
+                  <Badge className="tabular-nums">
                     {cohort.recording_library_count ?? cohort.uploaded_recordings_count ?? 0} recording{(cohort.recording_library_count ?? cohort.uploaded_recordings_count ?? 0) !== 1 ? 's' : ''}
-                  </span>
-                  <button
+                  </Badge>
+                  <Button
                     onClick={() => setShowRecordingsModal(true)}
-                    className="inline-flex items-center gap-2 rounded-xl bg-primary-500 px-3 py-2 text-sm font-medium text-white hover:bg-primary-600"
                   >
                     <PlayCircle className="h-4 w-4" />
                     Open library
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>
-            <div className="mt-4 pt-4 border-t border-slate-100">
+            <div className="mt-4 pt-4 border-t border-line">
               <Link
                 to={`/admin/cohorts/${id}/watch-progress`}
-                className="inline-flex items-center gap-2 text-sm text-primary-600 hover:text-primary-700 font-medium transition-colors"
+                className="app-link inline-flex min-h-11 items-center gap-2 text-sm"
               >
                 <Eye className="h-4 w-4" />
-                View Student Watch Progress
+                View student watch progress
               </Link>
             </div>
           </div>
@@ -1374,43 +1396,45 @@ export function CohortDetail() {
           <div className="grid grid-cols-1 gap-4">
             <button
               onClick={() => setShowResourcesModal(true)}
-              className="rounded-2xl bg-white border border-slate-200 p-5 text-left hover:border-primary-200 hover:shadow-sm transition-all group"
+              type="button"
+              className="pressable min-h-11 rounded-2xl border border-line bg-surface-raised p-5 text-left shadow-raised hover:border-line-strong hover:bg-surface-sunken"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-50 text-primary-600">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary">
                     <Link2 className="h-5 w-5" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-slate-900">Class Resources</h3>
-                    <p className="text-xs text-slate-500">
+                    <h3 className="text-base font-semibold text-ink">Class resources</h3>
+                    <p className="text-xs tabular-nums text-ink-muted">
                       {classResources.length === 0 ? 'No resources yet' : `${classResources.length} resource${classResources.length !== 1 ? 's' : ''}`}
                     </p>
                   </div>
                 </div>
-                <ExternalLink className="h-4 w-4 text-slate-300 group-hover:text-primary-500 transition-colors" />
+                <ExternalLink className="h-4 w-4 text-ink-muted" />
               </div>
             </button>
           </div>
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-2xl bg-white border border-slate-200 p-4">
+          <div className="app-surface p-4">
             <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 id="schedule" className="scroll-mt-32 text-lg font-semibold text-slate-900">Live schedule</h2>
-                <p className="mt-1 text-sm text-slate-500">Live classes and office hours appear in each student’s This Week plan.</p>
+              <div className="min-w-0">
+                <h2 id="schedule" className="scroll-mt-32 text-lg font-bold text-ink">Live schedule</h2>
+                <p className="mt-1 text-sm text-ink-muted">Live classes and office hours appear in each student’s This Week plan.</p>
               </div>
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
+                className="shrink-0"
                 onClick={() => setShowOfficeHoursModal(true)}
-                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
               >
                 Manage
-              </button>
+              </Button>
             </div>
             {officeHours.length === 0 ? (
-              <div className="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
+              <div className="mt-3 rounded-xl border border-dashed border-line bg-surface-sunken px-3 py-4 text-sm text-ink-muted">
                 No live sessions yet. Add recurring or one-time classes or office hours for this cohort.
               </div>
             ) : (
@@ -1421,11 +1445,11 @@ export function CohortDetail() {
                     href={sanitizeUrl(occurrence.meeting_url)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 hover:border-primary-200"
+                    className="pressable block min-h-11 rounded-xl border border-line bg-surface-sunken px-3 py-2 hover:border-line-strong"
                   >
-                    <p className="text-sm font-medium text-slate-900">{occurrence.title}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">{formatShortDateTime(occurrence.starts_at, 'Not scheduled', occurrence.timezone)}</p>
-                    <p className="mt-0.5 text-[11px] font-medium uppercase tracking-wide text-primary-600">{occurrence.event_kind === 'live_class' ? 'Live class' : 'Office hours'} · {occurrence.recurrence === 'weekly' ? 'Weekly' : 'One-time'}</p>
+                    <p className="truncate text-sm font-semibold text-ink" title={occurrence.title}>{occurrence.title}</p>
+                    <p className="mt-0.5 text-xs tabular-nums text-ink-muted">{formatDateTimeRange(occurrence.starts_at, occurrence.ends_at, 'Not scheduled', occurrence.timezone)}</p>
+                    <p className="mt-0.5 text-xs font-semibold text-ink-secondary">{occurrence.event_kind === 'live_class' ? 'Live class' : 'Office hours'} · {occurrence.recurrence === 'weekly' ? 'Weekly' : 'One-time'}</p>
                   </a>
                 ))}
               </div>
@@ -1433,16 +1457,16 @@ export function CohortDetail() {
           </div>
 
           {upcomingUnlocks.length > 0 && (
-            <div className="rounded-2xl bg-white border border-slate-200 p-4">
-              <h2 className="text-lg font-semibold text-slate-900">Upcoming Module Starts</h2>
+            <div className="app-surface p-4">
+              <h2 className="text-lg font-bold text-ink">Upcoming module starts</h2>
               <div className="mt-3 space-y-2">
                 {upcomingUnlocks.map((mod) => (
-                  <div key={`${mod.id}-${mod.module_start_date}`} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                  <div key={`${mod.id}-${mod.module_start_date}`} className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface-sunken px-3 py-2">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-900 truncate">{mod.name}</p>
-                      <p className="text-xs text-slate-500 capitalize">{mod.module_type.replace('_', ' ')} · {mod.assigned_count} assigned</p>
+                      <p className="text-sm font-semibold text-ink truncate" title={mod.name}>{mod.name}</p>
+                      <p className="text-xs tabular-nums text-ink-muted first-letter:uppercase">{mod.module_type.replace('_', ' ')} · {mod.assigned_count} assigned</p>
                     </div>
-                    <span className="text-xs font-medium text-slate-600 shrink-0">
+                    <span className="text-xs font-semibold tabular-nums text-ink-secondary shrink-0">
                       {formatDateLabel(mod.module_start_date)}
                     </span>
                   </div>
@@ -1451,83 +1475,82 @@ export function CohortDetail() {
             </div>
           )}
 
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 id="students" className="scroll-mt-32 text-lg font-semibold text-slate-900">Enrolled students</h2>
-              <p className="text-sm text-slate-500 mt-1">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h2 id="students" className="scroll-mt-32 text-lg font-bold text-ink">Enrolled students</h2>
+              <p className="text-sm tabular-nums text-ink-muted mt-1">
                 {cohort.students.length} student{cohort.students.length !== 1 ? 's' : ''} enrolled
                 {cohort.students.length > 0 && (
                   <> · {signedInStudentsCount} signed in · {onlineStudentsCount} online now</>
                 )}
               </p>
             </div>
-            <button
+            <Button
+              variant={showAddStudent ? 'secondary' : 'primary'}
+              size="sm"
               onClick={() => setShowAddStudent(!showAddStudent)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-2 text-xs font-medium text-white hover:bg-primary-700 transition-colors"
             >
-              <UserPlus className="h-3.5 w-3.5" />
-              Add Student
-            </button>
+              <UserPlus className="h-4 w-4" />
+              Add student
+            </Button>
           </div>
 
           {showAddStudent && (
-            <form onSubmit={handleAddStudent} className="rounded-xl border border-primary-200 bg-primary-50 p-4 space-y-3">
-              <p className="text-xs text-slate-600">
+            <form onSubmit={handleAddStudent} className="app-surface-muted p-4 space-y-3">
+              <p className="text-xs text-ink-secondary">
                 Enter the student's email. Their name will be filled automatically when they sign in via Clerk.
               </p>
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Email Address *</label>
+                <label className="block text-xs font-semibold text-ink-secondary mb-1">Email address *</label>
                 <input
                   type="email"
                   required
                   value={addStudentEmail}
                   onChange={(e) => setAddStudentEmail(e.target.value)}
                   placeholder="student@example.com"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                  className="app-control w-full"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">GitHub Username (optional)</label>
+                <label className="block text-xs font-semibold text-ink-secondary mb-1">GitHub username (optional)</label>
                 <input
                   type="text"
                   value={addStudentGithub}
                   onChange={(e) => setAddStudentGithub(e.target.value)}
                   placeholder="e.g., octocat"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                  className="app-control w-full"
                 />
               </div>
-              <label className="flex items-center gap-2 text-sm text-slate-700">
+              <label className="flex min-h-11 items-center gap-2 text-sm text-ink-secondary">
                 <input
                   type="checkbox"
                   checked={sendInvite}
                   onChange={(e) => setSendInvite(e.target.checked)}
-                  className="rounded border-slate-300 text-primary-600 focus:ring-focus"
+                  className="rounded border-line-strong text-primary-600 focus:ring-focus"
                 />
                 Send invite email
               </label>
               <div className="flex items-center gap-2">
-                <button
+                <Button
                   type="submit"
                   disabled={addingStudent}
-                  className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
                 >
-                  {addingStudent ? 'Adding...' : 'Add Student'}
-                </button>
-                <button
-                  type="button"
+                  {addingStudent ? 'Adding...' : 'Add student'}
+                </Button>
+                <Button
+                  variant="quiet"
                   onClick={() => setShowAddStudent(false)}
-                  className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
                 >
                   Cancel
-                </button>
+                </Button>
               </div>
             </form>
           )}
 
-          <div className="rounded-2xl bg-white border border-slate-200 divide-y divide-slate-100">
+          <div className="app-surface divide-y divide-line">
             {cohort.students.length === 0 ? (
-              <div className="p-6 text-center text-sm text-slate-500">
-                No students enrolled yet. Use the Add Student button above.
+              <div className="p-6 text-center text-sm text-ink-muted">
+                No students enrolled yet. Use the Add student button above.
               </div>
             ) : studentsWithPresence.map(({ student, presence }) => (
               <div
@@ -1536,17 +1559,19 @@ export function CohortDetail() {
               >
                 <Link
                   to={cohortStudentPath(cohort.id, student.user_id)}
-                  className="min-w-0 flex-1 hover:opacity-80 transition-opacity"
+                  className="group flex min-h-11 min-w-0 flex-1 items-start gap-3 rounded-xl"
                 >
-                  <p className="text-sm font-medium text-slate-900 truncate">
+                  <Avatar name={student.full_name || student.email} size="sm" />
+                  <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-ink truncate group-hover:text-ruby-700 group-hover:underline" title={student.full_name || student.email}>
                     {student.full_name || student.email}
                   </p>
                   {student.full_name && (
-                    <p className="text-xs text-slate-500 truncate">{student.email}</p>
+                    <p className="text-xs text-ink-muted truncate" title={student.email}>{student.email}</p>
                   )}
-                  <div className="mt-2 grid gap-1 text-xs text-slate-500">
+                  <div className="mt-2 grid gap-1 text-xs tabular-nums text-ink-muted">
                     <span className="inline-flex items-center gap-1">
-                      <Clock className="h-3.5 w-3.5 text-slate-400" />
+                      <Clock className="h-3.5 w-3.5 text-ink-muted" />
                       Last login: {formatRelativeDateTime(student.last_sign_in_at)}
                     </span>
                     <span className="inline-flex items-center gap-1">
@@ -1554,29 +1579,31 @@ export function CohortDetail() {
                       Last active: {formatRelativeDateTime(student.last_seen_at)}
                     </span>
                   </div>
+                  </div>
                 </Link>
                 <div className="flex flex-wrap items-center gap-2 shrink-0">
                   {student.invite_pending ? (
                     <>
-                      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium ${student.invite_delivery_status === 'failed' ? 'border-red-200 bg-red-50 text-red-700' : student.invite_delivery_status === 'not_sent' ? 'border-slate-200 bg-slate-50 text-slate-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`} title={student.invite_last_error || undefined}>
-                        <Mail className="h-3 w-3" />
-                        {student.invite_delivery_status === 'failed' ? 'Invite failed' : student.invite_delivery_status === 'queued' ? 'Invite queued' : student.invite_delivery_status === 'not_sent' ? 'Invite not sent' : 'Invite sent'}
+                      <span title={student.invite_last_error || undefined}>
+                        <Badge tone={student.invite_delivery_status === 'failed' ? 'danger' : student.invite_delivery_status === 'not_sent' ? 'neutral' : 'pending'} icon={<Mail className="h-3 w-3" />}>
+                          {student.invite_delivery_status === 'failed' ? 'Invite failed' : student.invite_delivery_status === 'queued' ? 'Invite queued' : student.invite_delivery_status === 'not_sent' ? 'Invite not sent' : 'Invite sent'}
+                        </Badge>
                       </span>
-                      <button
+                      <Button
+                        variant="secondary"
+                        size="sm"
                         onClick={() => handleResendInvite(student.user_id, student.email)}
                         disabled={resendingInviteFor === student.user_id}
-                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
                       >
-                        <Mail className="h-3 w-3" />
+                        <Mail className="h-4 w-4" />
                         {resendingInviteFor === student.user_id ? 'Sending...' : student.invite_delivery_status === 'not_sent' ? 'Send invite' : 'Retry invite'}
-                      </button>
+                      </Button>
                     </>
                   ) : (
                     <>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-green-50 border border-green-200 px-2 py-1 text-xs font-medium text-green-700">
-                        <CheckCircle className="h-3 w-3" />
+                      <Badge tone="success" icon={<CheckCircle className="h-3 w-3" />}>
                         Signed in
-                      </span>
+                      </Badge>
                       <PresenceBadge status={presence} />
                     </>
                   )}
@@ -1597,28 +1624,26 @@ export function CohortDetail() {
         size="md"
         footer={
           <div className="flex justify-end gap-2">
-            <button
-              type="button"
+            <Button
+              variant="secondary"
               onClick={() => setStatusPendingConfirmation(null)}
-              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
             >
               Cancel
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant={statusPendingConfirmation === 'archived' ? 'danger' : 'primary'}
               onClick={() => {
                 if (!statusPendingConfirmation) return
                 void updateCohortStatus(statusPendingConfirmation)
                 setStatusPendingConfirmation(null)
               }}
-              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
             >
               Confirm
-            </button>
+            </Button>
           </div>
         }
       >
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        <div className="rounded-xl border border-line bg-surface-sunken px-4 py-3 text-sm text-ink-secondary">
           {statusPendingConfirmation === 'archived'
             ? 'Students and staff will still be able to reference this cohort when needed, but it will move into the inactive/archive flow.'
             : 'This is a good fit for finished cohorts that should remain visible without blending in with currently running classes.'}
@@ -1631,174 +1656,172 @@ export function CohortDetail() {
         onClose={() => setShowOfficeHoursModal(false)}
         title="Live schedule"
         subtitle="Create one-time or weekly live classes and office hours for the shared student plan. Entered times are interpreted in the selected timezone."
-        icon={<Clock className="h-6 w-6 text-primary-500" />}
+        icon={<Clock className="h-6 w-6 text-ink-secondary" />}
         size="xl"
       >
         <div className="grid gap-5 lg:grid-cols-[1fr_1.1fr]">
-          <form onSubmit={saveOfficeHour} className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <form onSubmit={saveOfficeHour} className="app-surface-muted space-y-3 p-4">
             <div>
-              <h3 className="text-sm font-semibold text-slate-900">{editingOfficeHourId ? 'Edit session' : 'Add session'}</h3>
-              <p className="mt-1 text-xs text-slate-500">Weekly recurrence repeats from the first start time.</p>
+              <h3 className="text-base font-semibold text-ink">{editingOfficeHourId ? 'Edit session' : 'Add session'}</h3>
+              <p className="mt-1 text-xs text-ink-muted">Weekly recurrence repeats from the first start time.</p>
             </div>
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-slate-600">Session type</span>
+              <span className="mb-1 block text-xs font-semibold text-ink-secondary">Session type</span>
               <select
                 value={officeHourForm.event_kind}
                 onChange={(event) => setOfficeHourForm((current) => ({ ...current, event_kind: event.target.value as 'office_hours' | 'live_class' }))}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                className="app-control w-full"
               >
                 <option value="live_class">Live class</option>
                 <option value="office_hours">Office hours</option>
               </select>
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-slate-600">Title</span>
+              <span className="mb-1 block text-xs font-semibold text-ink-secondary">Title</span>
               <input
                 type="text"
                 required
                 value={officeHourForm.title}
                 onChange={(event) => setOfficeHourForm((current) => ({ ...current, title: event.target.value }))}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                className="app-control w-full"
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-slate-600">Meeting URL</span>
+              <span className="mb-1 block text-xs font-semibold text-ink-secondary">Meeting URL</span>
               <input
                 type="url"
                 required
                 value={officeHourForm.meeting_url}
                 onChange={(event) => setOfficeHourForm((current) => ({ ...current, meeting_url: event.target.value }))}
                 placeholder="https://zoom.us/j/..."
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                className="app-control w-full"
               />
             </label>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-slate-600">Starts</span>
+                <span className="mb-1 block text-xs font-semibold text-ink-secondary">Starts</span>
                 <input
                   type="datetime-local"
                   required
                   value={officeHourForm.starts_at}
                   onChange={(event) => setOfficeHourForm((current) => ({ ...current, starts_at: event.target.value }))}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                  className="app-control w-full"
                 />
               </label>
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-slate-600">Ends</span>
+                <span className="mb-1 block text-xs font-semibold text-ink-secondary">Ends</span>
                 <input
                   type="datetime-local"
                   required
                   value={officeHourForm.ends_at}
                   onChange={(event) => setOfficeHourForm((current) => ({ ...current, ends_at: event.target.value }))}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                  className="app-control w-full"
                 />
               </label>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-slate-600">Repeats</span>
+                <span className="mb-1 block text-xs font-semibold text-ink-secondary">Repeats</span>
                 <select
                   value={officeHourForm.recurrence}
                   onChange={(event) => setOfficeHourForm((current) => ({ ...current, recurrence: event.target.value as 'once' | 'weekly' }))}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                  className="app-control w-full"
                 >
                   <option value="once">One-time</option>
                   <option value="weekly">Weekly</option>
                 </select>
               </label>
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-slate-600">Timezone</span>
+                <span className="mb-1 block text-xs font-semibold text-ink-secondary">Timezone</span>
                 <input
                   type="text"
                   value={officeHourForm.timezone}
                   onChange={(event) => setOfficeHourForm((current) => ({ ...current, timezone: event.target.value }))}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                  className="app-control w-full"
                 />
               </label>
             </div>
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-slate-600">Description</span>
+              <span className="mb-1 block text-xs font-semibold text-ink-secondary">Description</span>
               <textarea
                 value={officeHourForm.description}
                 onChange={(event) => setOfficeHourForm((current) => ({ ...current, description: event.target.value }))}
                 rows={3}
                 placeholder="Optional details students should know before joining."
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                className="app-control w-full"
               />
             </label>
             <div className="flex flex-wrap gap-2 pt-1">
-              <button
+              <Button
                 type="submit"
                 disabled={savingOfficeHour}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
               >
                 <Save className="h-4 w-4" />
                 {savingOfficeHour ? 'Saving...' : editingOfficeHourId ? 'Save session' : 'Add session'}
-              </button>
+              </Button>
               {editingOfficeHourId && (
-                <button
-                  type="button"
+                <Button
+                  variant="quiet"
                   onClick={resetOfficeHourForm}
-                  className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-white"
                 >
                   Cancel edit
-                </button>
+                </Button>
               )}
             </div>
           </form>
 
           <div className="space-y-3">
             <div>
-              <h3 className="text-sm font-semibold text-slate-900">Current schedule</h3>
-              <p className="mt-1 text-xs text-slate-500">The next three occurrences are shown to students on the dashboard.</p>
+              <h3 className="text-base font-semibold text-ink">Current schedule</h3>
+              <p className="mt-1 text-xs text-ink-muted">The next three occurrences are shown to students on the dashboard.</p>
             </div>
             {officeHours.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+              <div className="rounded-2xl border border-dashed border-line bg-surface-sunken px-4 py-10 text-center text-sm text-ink-muted">
                 No live classes or office hours have been added yet.
               </div>
             ) : (
               <div className="space-y-3">
                 {officeHours.map((officeHour) => (
-                  <div key={officeHour.id} className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
+                  <div key={officeHour.id} className="rounded-2xl border border-line bg-surface-raised p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h4 className="text-sm font-semibold text-slate-900">{officeHour.title}</h4>
-                          <span className="rounded-full border border-primary-200 bg-primary-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-700">
+                          <h4 className="min-w-0 truncate text-sm font-semibold text-ink" title={officeHour.title}>{officeHour.title}</h4>
+                          <Badge>
                             {officeHour.event_kind === 'live_class' ? 'Live class' : 'Office hours'} · {officeHour.recurrence === 'weekly' ? 'Weekly' : 'One-time'}
-                          </span>
+                          </Badge>
                         </div>
-                        <p className="mt-1 text-xs text-slate-500">{formatShortDateTime(officeHour.starts_at, 'Not scheduled', officeHour.timezone)} – {formatShortDateTime(officeHour.ends_at, 'Not scheduled', officeHour.timezone)}</p>
-                        {officeHour.description && <p className="mt-2 text-sm text-slate-600">{officeHour.description}</p>}
-                        <a href={sanitizeUrl(officeHour.meeting_url)} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary-600 hover:text-primary-700">
+                        <p className="mt-1 text-xs tabular-nums text-ink-muted">{formatDateTimeRange(officeHour.starts_at, officeHour.ends_at, 'Not scheduled', officeHour.timezone)}</p>
+                        {officeHour.description && <p className="mt-2 text-sm text-ink-secondary">{officeHour.description}</p>}
+                        <a href={sanitizeUrl(officeHour.meeting_url)} target="_blank" rel="noopener noreferrer" className="app-link mt-1 inline-flex min-h-11 items-center gap-1 text-sm">
                           Open meeting link
                           <ExternalLink className="h-3 w-3" />
                         </a>
                       </div>
                       <div className="flex shrink-0 gap-1">
-                        <button
-                          type="button"
+                        <Button
+                          variant="secondary"
+                          size="sm"
                           onClick={() => editOfficeHour(officeHour)}
-                          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
                         >
                           Edit
-                        </button>
-                        <button
-                          type="button"
+                        </Button>
+                        <Button
+                          variant="danger"
+                          size="sm"
                           onClick={() => deleteOfficeHour(officeHour.id)}
                           disabled={deletingOfficeHourId === officeHour.id}
-                          className="rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
                         >
                           {deletingOfficeHourId === officeHour.id ? 'Removing...' : 'Remove'}
-                        </button>
+                        </Button>
                       </div>
                     </div>
                     {officeHour.occurrences.length > 0 && (
-                      <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Upcoming</p>
+                      <div className="mt-3 rounded-xl border border-line bg-surface-sunken px-3 py-2">
+                        <p className="text-xs font-semibold text-ink-muted">Upcoming</p>
                         <div className="mt-1 space-y-1">
                           {officeHour.occurrences.map((occurrence) => (
-                            <p key={`${officeHour.id}-${occurrence.starts_at}`} className="text-xs text-slate-600">{formatShortDateTime(occurrence.starts_at, 'Not scheduled')}</p>
+                            <p key={`${officeHour.id}-${occurrence.starts_at}`} className="text-xs tabular-nums text-ink-secondary">{formatShortDateTime(occurrence.starts_at, 'Not scheduled', occurrence.timezone || officeHour.timezone)}</p>
                           ))}
                         </div>
                       </div>
@@ -1815,9 +1838,9 @@ export function CohortDetail() {
       <Modal
         open={showRecordingsModal}
         onClose={() => setShowRecordingsModal(false)}
-        title="Class Recordings"
+        title="Class recordings"
         subtitle="Manage self-hosted uploads and external video links from one place."
-        icon={<PlayCircle className="h-6 w-6 text-primary-500" />}
+        icon={<PlayCircle className="h-6 w-6 text-ink-secondary" />}
         size="xl"
       >
         <RecordingUploadManager cohortId={Number(id)} onRecordingsChange={() => { void reloadCohort() }} />
@@ -1827,49 +1850,45 @@ export function CohortDetail() {
       <Modal
         open={showResourcesModal}
         onClose={() => setShowResourcesModal(false)}
-        title="Class Resources"
+        title="Class resources"
         subtitle="Open resources when you need them, or switch to edit mode to maintain the list."
-        icon={<Link2 className="h-6 w-6 text-primary-500" />}
+        icon={<Link2 className="h-6 w-6 text-ink-secondary" />}
         size="xl"
         footer={
-          <div className="flex items-center justify-between">
-            <button
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Button
+              variant="secondary"
               onClick={() => setClassResources((prev) => [...prev, { title: '', url: '', category: 'general' }])}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
             >
-              <Plus className="h-3.5 w-3.5" />
+              <Plus className="h-4 w-4" />
               Add resource
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={saveClassResources}
               disabled={savingResources}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 transition-colors"
             >
               <Save className="h-4 w-4" />
-              {savingResources ? 'Saving...' : 'Save Resources'}
-            </button>
+              {savingResources ? 'Saving...' : 'Save resources'}
+            </Button>
           </div>
         }
       >
         <div className="space-y-4">
-          <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+          <SegmentedControl label="Resources mode">
             {(['view', 'edit'] as const).map((mode) => (
-              <button
+              <SegmentButton
                 key={mode}
-                type="button"
+                selected={resourcesMode === mode}
                 onClick={() => setResourcesMode(mode)}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium capitalize transition-colors ${
-                  resourcesMode === mode ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}
               >
-                {mode}
-              </button>
+                {mode === 'view' ? 'View' : 'Edit'}
+              </SegmentButton>
             ))}
-          </div>
+          </SegmentedControl>
 
           {resourcesMode === 'view' ? (
             classResources.length === 0 ? (
-              <p className="text-sm text-slate-400 py-8 text-center">No resources added yet. Switch to edit mode to add the first one.</p>
+              <p className="text-sm text-ink-muted py-8 text-center">No resources added yet. Switch to edit mode to add the first one.</p>
             ) : (
               <div className="grid gap-3 md:grid-cols-2">
                 {classResources.map((resource, idx) => {
@@ -1880,23 +1899,23 @@ export function CohortDetail() {
                       href={sanitizeUrl(resource.url)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={`rounded-2xl border bg-white p-4 transition-all hover:border-primary-200 hover:shadow-sm ${
-                        isHotkey ? 'border-primary-200 bg-primary-50/40' : 'border-slate-200'
+                      className={`pressable rounded-2xl border p-4 hover:border-line-strong ${
+                        isHotkey ? 'border-line bg-surface-sunken' : 'border-line bg-surface-raised'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            {isHotkey && <Keyboard className="h-4 w-4 text-primary-600" />}
-                            <h3 className="text-sm font-semibold text-slate-900">{resource.title || 'Untitled resource'}</h3>
-                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                            {isHotkey && <Keyboard className="h-4 w-4 text-ink-secondary" />}
+                            <h3 className="min-w-0 text-sm font-semibold text-ink [overflow-wrap:anywhere]">{resource.title || 'Untitled resource'}</h3>
+                            <Badge>
                               {RESOURCE_CATEGORY_LABELS[resource.category || 'general'] || 'General'}
-                            </span>
+                            </Badge>
                           </div>
-                          {resource.description && <p className="mt-1 text-sm text-slate-600">{resource.description}</p>}
-                          <p className="mt-1 break-all text-xs text-slate-400">{resource.url}</p>
+                          {resource.description && <p className="mt-1 text-sm text-ink-secondary">{resource.description}</p>}
+                          <p className="mt-1 break-all text-xs text-ink-muted">{resource.url}</p>
                         </div>
-                        <ExternalLink className="mt-1 h-4 w-4 shrink-0 text-slate-400" />
+                        <ExternalLink className="mt-1 h-4 w-4 shrink-0 text-ink-muted" />
                       </div>
                     </a>
                   )
@@ -1906,18 +1925,19 @@ export function CohortDetail() {
           ) : (
           <div className="space-y-3">
             {classResources.length === 0 ? (
-            <p className="text-sm text-slate-400 py-8 text-center">No resources added yet. Click "Add resource" below to get started.</p>
+            <p className="text-sm text-ink-muted py-8 text-center">No resources added yet. Click "Add resource" below to get started.</p>
           ) : classResources.map((res, idx) => (
-            <div key={idx} className="rounded-xl border border-slate-200 p-4 space-y-3">
+            <div key={idx} className="rounded-xl border border-line p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-slate-500">Resource {idx + 1}</span>
-                <button
+                <span className="text-xs font-semibold tabular-nums text-ink-muted">Resource {idx + 1}</span>
+                <Button
+                  variant="danger"
+                  size="sm"
                   onClick={() => setClassResources((prev) => prev.filter((_, i) => i !== idx))}
-                  className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700"
                 >
-                  <Trash2 className="h-3 w-3" />
+                  <Trash2 className="h-4 w-4" />
                   Remove
-                </button>
+                </Button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="md:col-span-2">
@@ -1926,13 +1946,13 @@ export function CohortDetail() {
                     value={res.title}
                     onChange={(e) => setClassResources((prev) => prev.map((item, i) => i === idx ? { ...item, title: e.target.value } : item))}
                     placeholder="e.g., Class Zoom Link"
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                    className="app-control w-full"
                   />
                 </div>
                 <select
                   value={res.category || 'general'}
                   onChange={(e) => setClassResources((prev) => prev.map((item, i) => i === idx ? { ...item, category: e.target.value } : item))}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                  className="app-control w-full"
                 >
                   {RESOURCE_CATEGORY_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
@@ -1944,14 +1964,14 @@ export function CohortDetail() {
                 value={res.url}
                 onChange={(e) => setClassResources((prev) => prev.map((item, i) => i === idx ? { ...item, url: e.target.value } : item))}
                 placeholder="https://..."
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                className="app-control w-full"
               />
               <input
                 type="text"
                 value={res.description || ''}
                 onChange={(e) => setClassResources((prev) => prev.map((item, i) => i === idx ? { ...item, description: e.target.value } : item))}
                 placeholder="Optional description"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                className="app-control w-full"
               />
             </div>
           ))}

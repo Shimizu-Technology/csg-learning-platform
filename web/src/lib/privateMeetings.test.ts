@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { courseWeekForSlot, currentBookingForWeek, slotsForWeek } from './privateMeetings'
+import { courseWeekForSlot, currentBookingForWeek, partitionMeetingWeeks, slotsForWeek } from './privateMeetings'
 import type { PrivateMeetingBooking, PrivateMeetingSlot } from '../types/api'
 
 function slot(id: number, startsAt: string): PrivateMeetingSlot {
@@ -48,5 +48,23 @@ describe('private meeting copy and cutoffs', () => {
     expect(cancelConsequence(2, 0, 1)).toBe('Booking a new Week 2 time after cancelling uses your only schedule change for this week.')
     expect(cancelConsequence(2, 1, 1)).toContain("you won't be able to book another Week 2 time yourself")
     expect(cancelConsequence(2, 0, 3)).toContain('one of your 3 remaining')
+  })
+})
+
+describe('meeting week order', () => {
+  const start = '2026-10-10' // week 1 is Oct 10–16; it ends at Guam midnight as Oct 17 begins
+  it('puts the current week first and folds finished weeks away, most recent first', () => {
+    const now = Date.parse('2026-10-20T03:00:00+10:00')
+    expect(partitionMeetingWeeks(start, 3, now)).toEqual({ current: [2, 3], past: [1] })
+  })
+
+  it('keeps a week current until it ends at Guam midnight', () => {
+    expect(partitionMeetingWeeks(start, 3, Date.parse('2026-10-16T23:59:00+10:00'))).toEqual({ current: [1, 2, 3], past: [] })
+    expect(partitionMeetingWeeks(start, 3, Date.parse('2026-10-17T00:00:00+10:00'))).toEqual({ current: [2, 3], past: [1] })
+  })
+
+  it('handles a finished course and an unknown start date', () => {
+    expect(partitionMeetingWeeks(start, 3, Date.parse('2026-12-01T00:00:00Z'))).toEqual({ current: [], past: [3, 2, 1] })
+    expect(partitionMeetingWeeks('', 2, Date.now())).toEqual({ current: [1, 2], past: [] })
   })
 })

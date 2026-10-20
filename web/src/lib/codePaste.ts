@@ -32,3 +32,36 @@ export function looksLikeCode(raw: string): boolean {
 export function isMultiLinePaste(raw: string): boolean {
   return normalizePastedCode(raw).split('\n').filter((line) => line.trim()).length >= 2
 }
+
+/** True when `cursor` sits inside an open ``` (or ~~~) fence of a markdown string. */
+export function isInsideMarkdownFence(value: string, cursor: number): boolean {
+  // Only complete lines above the cursor's line can open or close a fence.
+  const lines = value.slice(0, Math.max(0, cursor)).split('\n').slice(0, -1)
+  let open: string | null = null
+  for (const line of lines) {
+    const match = line.match(/^\s*(`{3,}|~{3,})(.*)$/)
+    if (!match) continue
+    // CommonMark: a backtick fence's info string can't contain backticks, so
+    // "Run ```npm install``` first" is inline text, not an opening fence.
+    if (open === null) {
+      if (match[1][0] === '`' && match[2].includes('`')) continue
+      open = match[1]
+    }
+    else if (match[1][0] === open[0] && match[1].length >= open.length && match[2].trim() === '') open = null
+  }
+  return open !== null
+}
+
+/**
+ * The text to insert so pasted code becomes its own fenced block: on its own
+ * lines, with a fence longer than any backtick run inside the code.
+ */
+export function fencedCodeInsertion(value: string, selectionStart: number, selectionEnd: number, code: string): string {
+  const longestRun = Math.max(2, ...Array.from(code.matchAll(/`+/g), (match) => match[0].length))
+  const fence = '`'.repeat(longestRun + 1)
+  const before = value.slice(0, selectionStart)
+  const after = value.slice(selectionEnd)
+  const lead = before.length === 0 || before.endsWith('\n') ? '' : '\n'
+  const trail = after.startsWith('\n') ? '' : '\n'
+  return `${lead}${fence}\n${code}\n${fence}${trail}`
+}

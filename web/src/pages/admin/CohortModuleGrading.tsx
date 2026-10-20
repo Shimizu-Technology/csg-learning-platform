@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState, useRef } from 'react'
+import { useEffect, useId, useMemo, useState, useRef } from 'react'
 import { Link, useLocation, useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, RefreshCw, Filter, RotateCcw, Clock, Check, ChevronRight, Github, User, Globe, GitBranch, Keyboard, ExternalLink } from 'lucide-react'
 import { api } from '../../lib/api'
+import { submissionWhereLabel } from '../../lib/submissionQueue'
 import { cohortStudentPath, submissionPath } from '../../lib/routes'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { GradeDisplay } from '../../components/shared/GradeDisplay'
@@ -15,9 +16,25 @@ import { CODE_RUNNER_TIMEOUT_MS, codeRunnerLanguageFromEditor, normalizeCodeRunn
 import { useToast } from '../../contexts/ToastContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { FeedbackBody, FeedbackFormattingHint } from '../../components/shared/FeedbackBody'
+import { StatusBadge } from '../../components/shared/StatusBadge'
+import { REDO_BUTTON_CLASSES, SubmissionStatus } from '../../components/shared/SubmissionStatus'
+import { Avatar } from '../../components/ui/Avatar'
+import { Badge } from '../../components/ui/Badge'
+import { Button } from '../../components/ui/Button'
+import { FilterChip, SegmentButton, SegmentedControl, TabButton } from '../../components/ui/Choice'
+import { formatShortDate, formatShortDateTime } from '../../lib/format'
 
 type QueueFilter = 'ungraded' | 'redo' | 'all'
 type ViewMode = 'students' | 'queue' | 'grid'
+
+/** Grid cell tones, matching the Badge / StatusBadge status colours. */
+const CELL_TONES = {
+  pending: 'bg-pending-100 text-pending-700 hover:bg-pending-200',
+  success: 'bg-success-100 text-success-700 hover:bg-success-200',
+  warning: 'bg-warning-100 text-warning-800 ring-1 ring-inset ring-warning-300 hover:bg-warning-200',
+  progress: 'bg-surface-raised text-ink-secondary ring-1 ring-inset ring-line-strong',
+  empty: 'bg-surface-sunken text-ink-muted',
+} as const
 
 interface StudentSummary {
   user_id: number
@@ -152,7 +169,7 @@ function renderSubmissionArtifacts(submission: SubmissionItem) {
                 href={sanitizeUrl(link.url)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:border-primary-200 hover:text-primary-700"
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-line bg-surface-raised px-3 py-1.5 text-xs font-semibold text-ink-secondary transition-colors duration-150 hover:border-line-strong hover:bg-surface-sunken hover:text-ink lg:min-h-9"
               >
                 <Icon className="h-3.5 w-3.5" />
                 {link.label}
@@ -162,10 +179,10 @@ function renderSubmissionArtifacts(submission: SubmissionItem) {
         </div>
       )}
       {(submission.branch || submission.commit_sha || submission.notes) && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 space-y-1">
-          {submission.branch && <p><span className="font-medium text-slate-700">Branch:</span> {submission.branch}</p>}
-          {submission.commit_sha && <p><span className="font-medium text-slate-700">Commit:</span> <span className="font-mono">{submission.commit_sha}</span></p>}
-          {submission.notes && <p className="whitespace-pre-wrap"><span className="font-medium text-slate-700">Notes:</span> {submission.notes}</p>}
+        <div className="space-y-1 rounded-xl border border-line bg-surface-sunken p-3 text-xs text-ink-secondary">
+          {submission.branch && <p className="break-words"><span className="font-semibold text-ink">Branch:</span> {submission.branch}</p>}
+          {submission.commit_sha && <p className="break-all"><span className="font-semibold text-ink">Commit:</span> <span className="font-mono">{submission.commit_sha}</span></p>}
+          {submission.notes && <p className="whitespace-pre-wrap"><span className="font-semibold text-ink">Notes:</span> {submission.notes}</p>}
         </div>
       )}
     </div>
@@ -174,6 +191,7 @@ function renderSubmissionArtifacts(submission: SubmissionItem) {
 
 export function CohortModuleGrading() {
   const { cohortId, moduleId } = useParams<{ cohortId: string; moduleId: string }>()
+  const weekHeadingIdBase = useId()
   const location = useLocation()
   const navigate = useNavigate()
   const toast = useToast()
@@ -476,122 +494,118 @@ export function CohortModuleGrading() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
-          <button
-            onClick={() => navigate(-1)}
-            className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-          >
+          <Button variant="quiet" size="sm" onClick={() => navigate(-1)} className="mb-2">
             <ArrowLeft className="h-4 w-4" />
             Back
-          </button>
+          </Button>
           <p className="app-eyebrow">Focused grading</p>
           <h1 className="app-title mt-2">
             {data.module_name} — Grading
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="mt-1 text-sm tabular-nums text-ink-muted">
             {data.cohort_name} · {data.students.length} student{data.students.length !== 1 ? 's' : ''}
           </p>
         </div>
 
         {data.supports_github_sync && (
-          <button
+          <Button
+            variant="secondary"
             onClick={handleSyncAll}
             disabled={syncing || githubSyncClosed}
             title={githubSyncClosed ? 'All GitHub-sync submission windows are closed' : undefined}
-            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50 transition-colors shrink-0"
+            className="shrink-0"
           >
             <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-            {githubSyncClosed ? 'GitHub Sync Closed' : syncing ? 'Syncing...' : 'Sync All from GitHub'}
-          </button>
+            {githubSyncClosed ? 'GitHub sync closed' : syncing ? 'Syncing...' : 'Sync all from GitHub'}
+          </Button>
         )}
       </div>
 
       {message && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        <div role="status" className={`rounded-xl border px-4 py-3 text-sm ${message.startsWith('Sync failed') ? 'border-danger-200 bg-danger-50 text-danger-700' : 'border-line bg-surface-sunken text-ink-secondary'}`}>
           {message}
         </div>
       )}
 
-      {/* Stats cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <button
+      {/* Queue filters */}
+      <div role="group" aria-label="Submission queue" className="flex flex-wrap gap-2">
+        <FilterChip
+          selected={viewMode === 'queue' && queueFilter === 'ungraded'}
+          count={counts.ungraded}
           onClick={() => {
             setViewMode('queue'); setQueueFilter('ungraded'); setSelectedStudentId(null)
             const firstUngraded = data.submissions.find((s) => s.grade === null && latestSubmissionIds.has(s.id))
             if (firstUngraded) selectSubmission(firstUngraded); else setSelectedSubmission(null)
           }}
-          className={`rounded-xl border p-4 text-left transition-all ${viewMode === 'queue' && queueFilter === 'ungraded' ? 'border-primary-300 bg-primary-50' : 'border-slate-200 bg-white hover:border-primary-200'}`}
         >
-          <div className="flex items-center gap-2 text-slate-500 text-sm font-medium">
-            <Filter className="h-4 w-4" />
-            Ungraded Queue
-          </div>
-          <p className="mt-2 text-2xl font-bold text-slate-900">{counts.ungraded}</p>
-        </button>
-        <button
+          <Filter className="h-4 w-4" aria-hidden="true" />
+          Ungraded queue
+        </FilterChip>
+        <FilterChip
+          selected={viewMode === 'queue' && queueFilter === 'redo'}
+          count={counts.redo}
           onClick={() => { setViewMode('queue'); setQueueFilter('redo'); setSelectedStudentId(null); setSelectedSubmission(null) }}
-          className={`rounded-xl border p-4 text-left transition-all ${viewMode === 'queue' && queueFilter === 'redo' ? 'border-orange-300 bg-orange-50' : 'border-slate-200 bg-white hover:border-orange-200'}`}
         >
-          <div className="flex items-center gap-2 text-slate-500 text-sm font-medium">
-            <RotateCcw className="h-4 w-4" />
-            Redo Requested
-          </div>
-          <p className="mt-2 text-2xl font-bold text-slate-900">{counts.redo}</p>
-        </button>
-        <button
+          <RotateCcw className="h-4 w-4" aria-hidden="true" />
+          Redo requested
+        </FilterChip>
+        <FilterChip
+          selected={viewMode === 'queue' && queueFilter === 'all'}
+          count={counts.all}
           onClick={() => { setViewMode('queue'); setQueueFilter('all'); setSelectedStudentId(null); setSelectedSubmission(null) }}
-          className={`rounded-xl border p-4 text-left transition-all ${viewMode === 'queue' && queueFilter === 'all' ? 'border-slate-400 bg-slate-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
         >
-          <div className="flex items-center gap-2 text-slate-500 text-sm font-medium">
-            <Clock className="h-4 w-4" />
-            All Submissions
-          </div>
-          <p className="mt-2 text-2xl font-bold text-slate-900">{counts.all}</p>
-        </button>
+          <Clock className="h-4 w-4" aria-hidden="true" />
+          All submissions
+        </FilterChip>
       </div>
 
       {/* View toggle */}
-      <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1 w-fit">
-        <button
+      <SegmentedControl label="Grading view" className="w-fit">
+        <SegmentButton
+          selected={viewMode === 'grid'}
           onClick={() => { setViewMode('grid'); setSelectedStudentId(null); setSelectedSubmission(null) }}
-          className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${viewMode === 'grid' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
         >
           Grid
-        </button>
-        <button
+        </SegmentButton>
+        <SegmentButton
+          selected={viewMode === 'students'}
           onClick={() => { setViewMode('students'); setSelectedStudentId(null); setSelectedSubmission(null) }}
-          className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${viewMode === 'students' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
         >
-          By Student
-        </button>
-        <button
+          By student
+        </SegmentButton>
+        <SegmentButton
+          selected={viewMode === 'queue'}
           onClick={() => { setViewMode('queue'); setSelectedStudentId(null); setSelectedSubmission(null) }}
-          className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${viewMode === 'queue' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
         >
           Queue
-        </button>
-      </div>
+        </SegmentButton>
+      </SegmentedControl>
 
       {/* Grid View */}
       {viewMode === 'grid' && (
         <>
           {/* Legend */}
-          <div className="rounded-2xl bg-white border border-slate-200 px-5 py-4">
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-600">
+          <div className="app-surface px-5 py-4">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-ink-secondary">
               <span className="flex items-center gap-1.5">
-                <span className="inline-flex items-center justify-center w-6 h-6 rounded bg-blue-100 text-blue-700 font-bold text-[10px]">+</span>
-                Awaiting Review
+                <span aria-hidden="true" className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold ${CELL_TONES.pending}`}>+</span>
+                Awaiting review
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="inline-flex items-center justify-center w-6 h-6 rounded bg-success-100 text-success-700 font-bold text-[10px]">A</span>
-                Completed / Passing
+                <span aria-hidden="true" className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold ${CELL_TONES.success}`}>A</span>
+                Completed / passing
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="inline-flex items-center justify-center w-6 h-6 rounded bg-orange-100 text-orange-600 font-bold text-[10px]">R</span>
+                <span aria-hidden="true" className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold ${CELL_TONES.warning}`}>R</span>
                 Redo
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="inline-flex items-center justify-center w-6 h-6 rounded bg-slate-100 text-slate-300 font-bold text-[10px]">&mdash;</span>
-                Not Submitted
+                <span aria-hidden="true" className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold ${CELL_TONES.progress}`}>&bull;</span>
+                In progress
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span aria-hidden="true" className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold ${CELL_TONES.empty}`}>&mdash;</span>
+                Not submitted
               </span>
             </div>
           </div>
@@ -612,53 +626,39 @@ export function CohortModuleGrading() {
             }).length, 0)
 
             return (
-              <div key={week} className="rounded-2xl bg-white border border-slate-200 overflow-hidden">
-                <div className="px-5 py-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
-                  <h3 className="text-sm font-semibold text-slate-900">Week {week}</h3>
-                  <div className="flex items-center gap-3 text-xs">
-                    {pending > 0 && (
-                      <span className="inline-flex items-center gap-1 text-blue-600">
-                        <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold">{pending}</span>
-                        pending
-                      </span>
-                    )}
-                    {redos > 0 && (
-                      <span className="inline-flex items-center gap-1 text-orange-600">
-                        <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-bold">{redos}</span>
-                        redo
-                      </span>
-                    )}
-                    {completed > 0 && (
-                      <span className="inline-flex items-center gap-1 text-success-600">
-                        <span className="rounded-full bg-success-100 px-1.5 py-0.5 text-[10px] font-bold">{completed}</span>
-                        completed
-                      </span>
-                    )}
+              <div key={week} className="app-surface overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3.5">
+                  <h3 id={`${weekHeadingIdBase}-week-${week}`} className="text-base font-semibold text-ink">Week {week}</h3>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {pending > 0 && <Badge tone="pending" className="tabular-nums">{pending} pending</Badge>}
+                    {redos > 0 && <Badge tone="warning" className="tabular-nums">{redos} redo</Badge>}
+                    {completed > 0 && <Badge tone="success" className="tabular-nums">{completed} completed</Badge>}
                   </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm border-collapse">
+                {/* Scrolls inside its own box on desktop so the header row and student column stay pinned. */}
+                <div className="overflow-x-auto lg:max-h-[70vh] lg:overflow-y-auto">
+                  <table aria-labelledby={`${weekHeadingIdBase}-week-${week}`} className="w-full border-separate border-spacing-0 text-sm">
                     <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50">
-                        <th className="text-left px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider sticky left-0 bg-slate-50 z-10 min-w-[110px]">Student</th>
+                      <tr>
+                        <th scope="col" className="sticky left-0 top-0 z-30 min-w-[110px] border-b border-line bg-surface-sunken px-4 py-2 text-left text-xs font-semibold text-ink-muted">Student</th>
                         {exercises.map((ex, index) => (
-                          <th key={ex.id} className="px-0.5 py-2 text-center min-w-[42px]" title={ex.title || ex.lesson_title}>
-                            <span className="text-[10px] font-medium text-slate-500">{exerciseDisplayLabel(ex, index)}</span>
+                          <th key={ex.id} scope="col" className="sticky top-0 z-20 min-w-12 border-b border-line bg-surface-sunken px-0.5 py-2 text-center" title={ex.title || ex.lesson_title}>
+                            <span className="text-xs font-semibold text-ink-muted">{exerciseDisplayLabel(ex, index)}</span>
                           </th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody>
                       {data.students.map((student) => (
-                        <tr key={student.user_id} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-4 py-2 text-xs font-medium text-slate-700 sticky left-0 z-10 bg-white whitespace-nowrap">
+                        <tr key={student.user_id} className="group">
+                          <th scope="row" title={student.full_name || student.email} className="sticky left-0 z-10 whitespace-nowrap border-b border-line bg-surface-raised px-4 py-1 text-left text-xs font-semibold text-ink-secondary transition-colors duration-150 group-hover:bg-surface-sunken">
                             {(() => {
                               const name = student.full_name || student.email
                               const parts = name.split(' ')
                               if (parts.length >= 2) return `${parts[0]} ${parts[parts.length - 1][0]}.`
                               return parts[0]
                             })()}
-                          </td>
+                          </th>
                           {exercises.map((ex) => {
                             const key = `${student.user_id}:${ex.id}`
                             const sub = submissionLookup.get(key)
@@ -671,45 +671,47 @@ export function CohortModuleGrading() {
                             if (sub) {
                               clickable = true
                               if (sub.grade === null) {
-                                cellClass = 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                cellClass = CELL_TONES.pending
                                 label = '+'
                                 title = 'Awaiting review — Click to grade'
                               } else if (sub.grade === 'R') {
-                                cellClass = 'bg-orange-100 text-orange-700 hover:bg-orange-200 ring-1 ring-inset ring-orange-300'
+                                cellClass = CELL_TONES.warning
                                 label = 'R'
                                 title = 'Redo — Click to review'
                               } else {
-                                cellClass = 'bg-success-100 text-success-700 hover:bg-success-200'
+                                cellClass = CELL_TONES.success
                                 label = sub.grade
                                 title = `Grade: ${sub.grade} — Click to review`
                               }
                             } else if (!ex.requires_submission) {
                               if (progress?.status === 'completed') {
-                                cellClass = 'bg-success-100 text-success-700'
+                                cellClass = CELL_TONES.success
                                 label = '✓'
                                 title = 'Completed by student — no submission required'
                               } else if (progress?.status === 'in_progress') {
-                                cellClass = 'bg-amber-100 text-amber-700'
+                                cellClass = CELL_TONES.progress
                                 label = '•'
                                 title = 'In progress — no submission required'
                               } else {
-                                cellClass = 'bg-slate-50 text-slate-300'
+                                cellClass = CELL_TONES.empty
                                 label = '\u2014'
                                 title = 'Not done yet — no submission required'
                               }
                             } else {
-                              cellClass = 'bg-slate-50 text-slate-300'
+                              cellClass = CELL_TONES.empty
                               label = '\u2014'
                               title = 'Not submitted'
                             }
 
                             return (
-                              <td key={ex.id} className="px-0.5 py-1 text-center">
+                              <td key={ex.id} className="border-b border-line px-0.5 py-1 text-center transition-colors duration-150 group-hover:bg-surface-sunken">
                                 <button
+                                  type="button"
                                   onClick={() => clickable && openGridCell(student.user_id, ex.id)}
                                   disabled={!clickable}
                                   title={title}
-                                  className={`inline-flex items-center justify-center w-7 h-7 rounded text-[10px] font-bold transition-colors ${cellClass} ${clickable ? 'cursor-pointer' : 'cursor-default'}`}
+                                  aria-label={`${student.full_name || student.email}, ${ex.title || ex.lesson_title}: ${title}`}
+                                  className={`inline-flex h-11 w-11 items-center justify-center rounded-lg text-xs font-bold tabular-nums transition-colors duration-150 lg:h-9 lg:w-9 ${cellClass} ${clickable ? 'cursor-pointer' : 'cursor-default'}`}
                                 >
                                   {label}
                                 </button>
@@ -739,49 +741,47 @@ export function CohortModuleGrading() {
                   <textarea
                     value={gridFeedback}
                     onChange={(e) => setGridFeedback(e.target.value)}
+                    aria-label="Feedback for the student"
                     placeholder="Leave feedback for the student... (visible on their end)"
                     rows={3}
-                    className="flex-1 rounded-lg border border-slate-200 p-2.5 text-sm resize-y min-h-[72px] focus:outline-none focus:ring-2 focus:ring-focus"
+                    className="app-control min-h-[72px] min-w-0 flex-1 resize-y"
                   />
                   {gridModalSubmission.grade && (
-                    <div className="flex flex-col items-center gap-1 shrink-0 pt-1">
-                      <span className="text-[10px] text-slate-400 uppercase tracking-wider">Current</span>
+                    <div className="flex max-w-24 shrink-0 flex-col items-center gap-1 pt-1">
+                      <span className="text-xs font-semibold text-ink-muted">Current</span>
                       <GradeDisplay grade={gridModalSubmission.grade} size="sm" />
                       {gridModalSubmission.graded_by && (
-                        <span className="text-[10px] text-slate-400">{gridModalSubmission.graded_by}</span>
+                        <span className="max-w-full truncate text-xs text-ink-muted" title={gridModalSubmission.graded_by}>{gridModalSubmission.graded_by}</span>
                       )}
                     </div>
                   )}
                 </div>
                 <FeedbackFormattingHint value={gridFeedback} />
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {['A', 'B', 'C'].map((g) => (
-                    <button
+                    <Button
                       key={g}
+                      variant={g === 'A' ? 'primary' : 'secondary'}
                       onClick={() => handleGridGrade(g)}
                       disabled={grading}
-                      className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
-                        g === 'A' ? 'bg-success-500 text-white hover:bg-success-600' :
-                        g === 'B' ? 'bg-blue-500 text-white hover:bg-blue-600' :
-                        'bg-amber-500 text-white hover:bg-amber-600'
-                      }`}
                     >
                       {g}
-                    </button>
+                    </Button>
                   ))}
-                  <button
-                      onClick={async () => {
-                        if (!gridFeedback.trim()) {
-                          if (!await confirmAction({ title: 'Grade as Redo without feedback?', description: 'The student will know they need to try again, but they will not know what to fix.', confirmLabel: 'Grade as Redo' })) return
+                  <Button
+                    variant="secondary"
+                    className={REDO_BUTTON_CLASSES}
+                    onClick={async () => {
+                      if (!gridFeedback.trim()) {
+                        if (!await confirmAction({ title: 'Grade as Redo without feedback?', description: 'The student will know they need to try again, but they will not know what to fix.', confirmLabel: 'Grade as Redo' })) return
                       }
                       handleGridGrade('R')
                     }}
                     disabled={grading}
-                    className="flex-1 rounded-lg py-2 text-sm font-semibold bg-primary-500 text-white hover:bg-primary-600 disabled:opacity-50 transition-colors"
                   >
-                    <RotateCcw className="h-4 w-4 inline mr-1" />
+                    <RotateCcw className="h-4 w-4" />
                     Redo
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : undefined}
@@ -791,7 +791,7 @@ export function CohortModuleGrading() {
             ) : (
               <div className="flex flex-col h-full">
                 {/* Tabs */}
-                <div className="flex items-center border-b border-slate-200 -mx-6 px-6 shrink-0">
+                <div role="tablist" aria-label="Submission details" className="-mx-6 flex shrink-0 items-center overflow-x-auto border-b border-line px-6">
                   {([
                     { key: 'exercise' as const, label: 'Exercise' },
                     { key: 'answer' as const, label: `${gridModalSubmission.user_name.split(' ')[0]}'s Answer` },
@@ -799,17 +799,14 @@ export function CohortModuleGrading() {
                     { key: 'feedback' as const, label: 'Feedback' },
                     ...(gridModalSubmission.github_issue_url ? [{ key: 'github_issue' as const, label: 'GitHub Issue' }] : []),
                   ]).map((tab) => (
-                    <button
+                    <TabButton
                       key={tab.key}
+                      asTab
+                      selected={gridModalTab === tab.key}
                       onClick={() => setGridModalTab(tab.key)}
-                      className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px whitespace-nowrap ${
-                        gridModalTab === tab.key
-                          ? 'border-primary-500 text-primary-700'
-                          : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-                      }`}
                     >
                       {tab.label}
-                    </button>
+                    </TabButton>
                   ))}
                 </div>
 
@@ -820,7 +817,7 @@ export function CohortModuleGrading() {
                       {gridModalSubmission.exercise_body ? (
                         <MarkdownRenderer content={gridModalSubmission.exercise_body} />
                       ) : (
-                        <p className="text-sm text-slate-400 italic">No exercise instructions available</p>
+                        <p className="text-sm italic text-ink-muted">No exercise instructions available</p>
                       )}
                     </div>
                   )}
@@ -856,7 +853,7 @@ export function CohortModuleGrading() {
                           })()}
                         </div>
                       ) : (
-                        <p className="text-sm text-slate-400 italic">No inline code submitted. Use the links above to review the artifact.</p>
+                        <p className="text-sm italic text-ink-muted">No inline code submitted. Use the links above to review the artifact.</p>
                       )}
                     </div>
                   )}
@@ -874,7 +871,7 @@ export function CohortModuleGrading() {
                           />
                         </div>
                       ) : (
-                        <p className="text-sm text-slate-400 italic">No solution available</p>
+                        <p className="text-sm italic text-ink-muted">No solution available</p>
                       )}
                     </div>
                   )}
@@ -882,40 +879,40 @@ export function CohortModuleGrading() {
                   {gridModalTab === 'feedback' && (
                     <div className="space-y-4">
                       {gridModalSubmission.grade ? (
-                        <div className={`rounded-xl border p-4 ${gridModalSubmission.grade === 'R' ? 'border-orange-200 bg-orange-50' : 'border-success-200 bg-success-50'}`}>
-                          <div className="flex items-center gap-2 mb-2">
+                        <div className={`rounded-xl border p-4 ${gridModalSubmission.grade === 'R' ? 'border-warning-200 bg-warning-50' : 'border-success-200 bg-success-50'}`}>
+                          <div className="mb-2 flex flex-wrap items-center gap-2">
                             <GradeDisplay grade={gridModalSubmission.grade} size="sm" />
-                            <span className="text-sm font-medium text-slate-700">
+                            <span className="text-sm font-semibold text-ink-secondary">
                               Graded by {gridModalSubmission.graded_by || 'Unknown'}
                             </span>
                             {gridModalSubmission.graded_at && (
-                              <span className="text-xs text-slate-400">
-                                {new Date(gridModalSubmission.graded_at).toLocaleString()}
+                              <span className="text-xs tabular-nums text-ink-muted">
+                                {formatShortDateTime(gridModalSubmission.graded_at)}
                               </span>
                             )}
                           </div>
                           {gridModalSubmission.feedback ? (
                             <FeedbackBody feedback={gridModalSubmission.feedback} />
                           ) : (
-                            <p className="text-sm text-slate-400 italic">No written feedback yet — add feedback below when grading</p>
+                            <p className="text-sm italic text-ink-muted">No written feedback yet — add feedback below when grading</p>
                           )}
                         </div>
                       ) : (
-                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center">
-                          <p className="text-sm text-slate-500">Not yet graded</p>
-                          <p className="text-xs text-slate-400 mt-1">Use the grade buttons below to grade this submission</p>
+                        <div className="rounded-xl border border-line bg-surface-sunken p-4 text-center">
+                          <p className="text-sm text-ink-secondary">Not yet graded</p>
+                          <p className="mt-1 text-xs text-ink-muted">Use the grade buttons below to grade this submission</p>
                         </div>
                       )}
 
                       {(gridModalSubmission.github_code_url || gridModalSubmission.github_issue_url) && (
-                        <div className="rounded-xl border border-slate-200 p-4 space-y-2">
-                          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">GitHub Links</p>
+                        <div className="space-y-1 rounded-xl border border-line p-4">
+                          <p className="text-xs font-semibold text-ink-muted">GitHub links</p>
                           {gridModalSubmission.github_code_url && (
                             <a
                               href={sanitizeUrl(gridModalSubmission.github_code_url)}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center gap-1.5 text-sm text-primary-600 hover:text-primary-700"
+                              className="app-link flex min-h-11 w-fit items-center gap-1.5 text-sm lg:min-h-9"
                             >
                               <Github className="h-4 w-4 shrink-0" />
                               View student code on GitHub
@@ -926,7 +923,7 @@ export function CohortModuleGrading() {
                               href={sanitizeUrl(gridModalSubmission.github_issue_url)}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center gap-1.5 text-sm text-primary-600 hover:text-primary-700"
+                              className="app-link flex min-h-11 w-fit items-center gap-1.5 text-sm lg:min-h-9"
                             >
                               <Github className="h-4 w-4 shrink-0" />
                               View issue thread (instructor comments)
@@ -939,24 +936,25 @@ export function CohortModuleGrading() {
 
                   {gridModalTab === 'github_issue' && gridModalSubmission.github_issue_url && (
                     <div className="space-y-4">
-                      <div className="flex items-center gap-3">
-                        <button
+                      <div className="flex flex-wrap items-center gap-3">
+                        <Button
+                          variant="secondary"
+                          size="sm"
                           onClick={loadGithubIssue}
                           disabled={loadingGithubIssue}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700 transition-colors disabled:opacity-50"
                         >
                           {loadingGithubIssue ? (
                             <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                           ) : (
                             <Github className="h-3.5 w-3.5" />
                           )}
-                          {githubIssueData ? 'Refresh Issue' : 'Load GitHub Issue'}
-                        </button>
+                          {githubIssueData ? 'Refresh issue' : 'Load GitHub issue'}
+                        </Button>
                         <a
                           href={sanitizeUrl(gridModalSubmission.github_issue_url)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-sm text-primary-600 hover:text-primary-700"
+                          className="app-link inline-flex min-h-11 items-center text-sm lg:min-h-9"
                         >
                           See issue on GitHub
                         </a>
@@ -964,35 +962,31 @@ export function CohortModuleGrading() {
 
                       {githubIssueData && (
                         <div className="space-y-4">
-                          <div className="rounded-xl border border-slate-200 overflow-hidden">
-                            <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
-                              <div className="flex items-center gap-2">
-                                <h4 className="text-sm font-semibold text-slate-800">{githubIssueData.title}</h4>
-                                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                                  githubIssueData.state === 'open' ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700'
-                                }`}>
-                                  {githubIssueData.state}
-                                </span>
+                          <div className="overflow-hidden rounded-xl border border-line">
+                            <div className="border-b border-line bg-surface-sunken px-4 py-3">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <h4 className="min-w-0 truncate text-sm font-semibold text-ink" title={githubIssueData.title}>{githubIssueData.title}</h4>
+                                <Badge tone={githubIssueData.state === 'open' ? 'success' : 'neutral'}>{githubIssueData.state === 'open' ? 'Open' : githubIssueData.state === 'closed' ? 'Closed' : githubIssueData.state}</Badge>
                               </div>
                             </div>
                             <div className="p-4">
-                              <pre className="whitespace-pre-wrap text-sm text-slate-700 font-mono bg-slate-50 rounded-lg border border-slate-200 p-3 max-h-64 overflow-y-auto">{githubIssueData.body}</pre>
+                              <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg border border-line bg-surface-sunken p-3 font-mono text-sm text-ink-secondary">{githubIssueData.body}</pre>
                             </div>
                           </div>
 
                           {githubIssueData.comments.length > 0 && (
                             <div className="space-y-3">
-                              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                              <p className="text-xs font-semibold tabular-nums text-ink-muted">
                                 Comments ({githubIssueData.comments.length})
                               </p>
                               {githubIssueData.comments.map((comment) => (
-                                <div key={comment.id} className="rounded-xl border border-slate-200 overflow-hidden">
-                                  <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
-                                    <span className="text-sm font-medium text-slate-700">{comment.user}</span>
-                                    <span className="text-xs text-slate-400">{new Date(comment.created_at).toLocaleString()}</span>
+                                <div key={comment.id} className="overflow-hidden rounded-xl border border-line">
+                                  <div className="flex items-center justify-between gap-3 border-b border-line bg-surface-sunken px-4 py-2">
+                                    <span className="min-w-0 truncate text-sm font-semibold text-ink-secondary" title={comment.user}>{comment.user}</span>
+                                    <span className="shrink-0 text-xs tabular-nums text-ink-muted">{formatShortDateTime(comment.created_at)}</span>
                                   </div>
                                   <div className="p-4">
-                                    <div className="text-sm text-slate-700 whitespace-pre-wrap">{comment.body}</div>
+                                    <div className="whitespace-pre-wrap text-sm text-ink-secondary">{comment.body}</div>
                                   </div>
                                 </div>
                               ))}
@@ -1002,16 +996,16 @@ export function CohortModuleGrading() {
                       )}
 
                       {githubIssueError && (
-                        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-center">
-                          <p className="text-sm font-medium text-red-700">Failed to load GitHub issue</p>
-                          <p className="text-xs text-red-500 mt-1">{githubIssueError}</p>
+                        <div role="alert" className="rounded-xl border border-danger-200 bg-danger-50 p-4 text-center">
+                          <p className="text-sm font-semibold text-danger-700">Failed to load GitHub issue</p>
+                          <p className="mt-1 text-xs text-danger-700">{githubIssueError}</p>
                         </div>
                       )}
 
                       {!githubIssueData && !loadingGithubIssue && !githubIssueError && (
-                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
-                          <Github className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                          <p className="text-sm text-slate-500">Click "Load GitHub Issue" to fetch the issue details and comments</p>
+                        <div className="rounded-xl border border-line bg-surface-sunken p-6 text-center">
+                          <Github className="mx-auto mb-2 h-8 w-8 text-ink-muted" />
+                          <p className="text-sm text-ink-muted">Click "Load GitHub issue" to fetch the issue details and comments</p>
                         </div>
                       )}
                     </div>
@@ -1025,7 +1019,7 @@ export function CohortModuleGrading() {
 
       {viewMode !== 'grid' && <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Left panel: student list or submission queue */}
-        <div className="lg:col-span-2 space-y-3">
+        <div className="min-w-0 space-y-2 lg:col-span-2">
           {viewMode === 'students' && !selectedStudentId ? (
             /* Student list */
             data.students.length === 0 ? (
@@ -1034,40 +1028,36 @@ export function CohortModuleGrading() {
               data.students.map((student) => (
                 <button
                   key={student.user_id}
+                  type="button"
                   onClick={() => { setSelectedStudentId(student.user_id); setSelectedSubmission(null) }}
-                  className="w-full text-left rounded-2xl border border-slate-200 bg-white p-4 hover:border-primary-200 hover:shadow-sm transition-all"
+                  className="pressable min-h-11 w-full rounded-2xl border border-line bg-surface-raised p-3 text-left hover:bg-surface-sunken sm:p-4"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-900">{student.full_name || student.email}</p>
+                  <div className="flex items-start gap-3">
+                    <Avatar name={student.full_name || student.email} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-ink" title={student.full_name || student.email}>{student.full_name || student.email}</p>
                       {student.github_username && (
-                        <div className="flex items-center gap-1 mt-0.5 text-xs text-slate-400">
-                          <Github className="h-3 w-3" />
-                          {student.github_username}
+                        <div className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-ink-muted">
+                          <Github className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{student.github_username}</span>
+                        </div>
+                      )}
+                      {(student.ungraded > 0 || student.redo > 0) && (
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                          {student.ungraded > 0 && <Badge tone="pending" className="tabular-nums">{student.ungraded} ungraded</Badge>}
+                          {student.redo > 0 && <Badge tone="warning" className="tabular-nums">{student.redo} redo</Badge>}
                         </div>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {student.ungraded > 0 && (
-                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
-                          {student.ungraded} ungraded
-                        </span>
-                      )}
-                      {student.redo > 0 && (
-                        <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700">
-                          {student.redo} redo
-                        </span>
-                      )}
-                      <ChevronRight className="h-4 w-4 text-slate-300" />
-                    </div>
+                    <ChevronRight className="mt-2 h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
                   </div>
-                  <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
+                  <div className="mt-3 flex items-center gap-4 text-xs tabular-nums text-ink-muted">
                     <span>{student.submitted}/{student.total_exercises} submitted</span>
                     <span>{student.graded} graded</span>
                   </div>
-                  <div className="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
                     <div
-                      className="h-full rounded-full bg-linear-to-r from-success-400 to-success-500 transition-all"
+                      className="h-full rounded-full bg-success-500"
                       style={{ width: `${student.total_exercises > 0 ? (student.graded / student.total_exercises) * 100 : 0}%` }}
                     />
                   </div>
@@ -1078,27 +1068,26 @@ export function CohortModuleGrading() {
             /* Submission list (queue or per-student) */
             <>
               {selectedStudentId && (
-                <button
-                  onClick={() => { setSelectedStudentId(null); setSelectedSubmission(null) }}
-                  className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
-                >
+                <Button variant="quiet" size="sm" onClick={() => { setSelectedStudentId(null); setSelectedSubmission(null) }}>
                   <ArrowLeft className="h-4 w-4" />
                   Back to student list
-                </button>
+                </Button>
               )}
 
               {selectedStudentId && data.supports_github_sync && (() => {
                 if (!selectedStudent?.github_username) return null
                 return (
-                  <button
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     onClick={() => handleSyncStudent(selectedStudentId)}
                     disabled={githubSyncClosed || syncingStudentId === selectedStudentId}
                     title={githubSyncClosed ? 'All GitHub-sync submission windows are closed' : undefined}
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                    className="max-w-full"
                   >
-                    <RefreshCw className={`h-3.5 w-3.5 ${syncingStudentId === selectedStudentId ? 'animate-spin' : ''}`} />
-                    {githubSyncClosed ? 'GitHub Sync Closed' : syncingStudentId === selectedStudentId ? 'Syncing...' : `Sync ${selectedStudent.full_name || selectedStudent.email}`}
-                  </button>
+                    <RefreshCw className={`h-3.5 w-3.5 shrink-0 ${syncingStudentId === selectedStudentId ? 'animate-spin' : ''}`} />
+                    <span className="truncate">{githubSyncClosed ? 'GitHub sync closed' : syncingStudentId === selectedStudentId ? 'Syncing...' : `Sync ${selectedStudent.full_name || selectedStudent.email}`}</span>
+                  </Button>
                 )
               })()}
 
@@ -1113,28 +1102,27 @@ export function CohortModuleGrading() {
                   selectedStudentExercises.map(({ exercise, submission, progress }) => {
                     const clickable = Boolean(submission)
                     const requiresSubmission = exercise.requires_submission
-                    const statusTone = submission
-                      ? selectedSubmission?.id === submission.id
-                        ? 'border-primary-300 bg-primary-50'
-                        : submission.grade === 'R'
-                          ? 'border-orange-200 bg-orange-50 hover:border-orange-300'
-                          : 'border-slate-200 bg-white hover:border-primary-200'
-                      : progress?.status === 'completed'
-                        ? 'border-success-200 bg-success-50'
-                        : 'border-slate-200 bg-white'
+                    const isSelected = Boolean(submission) && selectedSubmission?.id === submission?.id
+                    const statusTone = isSelected
+                      ? 'nav-selected border-line-strong'
+                      : clickable
+                        ? 'border-line bg-surface-raised hover:bg-surface-sunken'
+                        : 'border-line bg-surface-raised'
 
                     return (
                       <button
                         key={exercise.id}
+                        type="button"
                         onClick={() => submission && selectSubmission(submission)}
                         disabled={!clickable}
-                        className={`w-full text-left rounded-2xl border p-4 transition-all ${statusTone} ${clickable ? '' : 'cursor-default'}`}
+                        aria-current={isSelected ? 'true' : undefined}
+                        className={`pressable min-h-11 w-full rounded-2xl border p-3 text-left sm:p-4 ${statusTone} ${clickable ? '' : 'cursor-default'}`}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="text-sm font-medium text-slate-900">{exercise.title || exercise.lesson_title}</p>
-                            <p className="mt-1 text-xs text-slate-500">{exercise.lesson_title}</p>
-                            <p className="mt-0.5 text-xs text-slate-400">
+                            <p className="truncate text-sm font-semibold text-ink" title={exercise.title || exercise.lesson_title}>{exercise.title || exercise.lesson_title}</p>
+                            <p className="mt-1 truncate text-xs text-ink-secondary" title={exercise.lesson_title}>{exercise.lesson_title}</p>
+                            <p className="mt-0.5 break-words text-xs text-ink-muted">
                               {exercise.filename?.trim()
                                 ? `File: ${exercise.filename}`
                                 : requiresSubmission
@@ -1142,31 +1130,29 @@ export function CohortModuleGrading() {
                                   : 'Practice block — no submission required'}
                             </p>
                             {submission && (
-                              <p className="mt-0.5 text-xs text-slate-400">
-                                Submission #{submission.num_submissions} · {new Date(submission.created_at).toLocaleDateString()}
+                              <p className="mt-0.5 text-xs tabular-nums text-ink-muted">
+                                Attempt {submission.num_submissions} · {formatShortDateTime(submission.created_at)}
                               </p>
                             )}
                             {!submission && progress?.completed_at && (
-                              <p className="mt-0.5 text-xs text-slate-400">
-                                Completed {new Date(progress.completed_at).toLocaleDateString()}
+                              <p className="mt-0.5 text-xs tabular-nums text-ink-muted">
+                                Completed {formatShortDate(progress.completed_at)}
                               </p>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
+                          <div className="flex shrink-0 items-center gap-2">
                             {submission ? (
-                              submission.grade ? <GradeDisplay grade={submission.grade} size="sm" /> : (
-                                <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">Ungraded</span>
-                              )
+                              <SubmissionStatus grade={submission.grade} />
                             ) : requiresSubmission ? (
-                              <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">Not submitted</span>
+                              <Badge tone="neutral">Not submitted</Badge>
                             ) : progress?.status === 'completed' ? (
-                              <span className="text-xs font-medium text-success-700 bg-success-100 px-2 py-0.5 rounded-full">Completed</span>
+                              <Badge tone="success">Completed</Badge>
                             ) : progress?.status === 'in_progress' ? (
-                              <span className="text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">In progress</span>
+                              <StatusBadge status="in_progress" short />
                             ) : (
-                              <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">Not done</span>
+                              <Badge tone="neutral">Not done</Badge>
                             )}
-                            {clickable && <ChevronRight className="h-4 w-4 text-slate-300" />}
+                            {clickable && <ChevronRight className="hidden h-4 w-4 text-ink-muted sm:block" aria-hidden="true" />}
                           </div>
                         </div>
                       </button>
@@ -1182,45 +1168,31 @@ export function CohortModuleGrading() {
               ) : (
                 filteredSubmissions.map((sub) => {
                   const isLatest = latestSubmissionIds.has(sub.id)
+                  const isSelected = selectedSubmission?.id === sub.id
+                  const where = submissionWhereLabel(sub.lesson_title, sub.content_block_title)
                   return (
                     <button
                       key={sub.id}
+                      type="button"
                       onClick={() => selectSubmission(sub)}
-                      className={`w-full text-left rounded-2xl border p-4 transition-all ${
-                        selectedSubmission?.id === sub.id
-                          ? 'border-primary-300 bg-primary-50'
-                          : sub.grade === 'R'
-                          ? 'border-orange-200 bg-orange-50 hover:border-orange-300'
-                          : 'border-slate-200 bg-white hover:border-primary-200'
+                      aria-current={isSelected ? 'true' : undefined}
+                      className={`pressable flex min-h-11 w-full min-w-0 items-start gap-3 rounded-2xl border p-3 text-left sm:p-4 ${
+                        isSelected ? 'nav-selected border-line-strong' : 'border-line bg-surface-raised hover:bg-surface-sunken'
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {!selectedStudentId && (
-                              <p className="text-sm font-medium text-slate-900">{sub.user_name}</p>
-                            )}
-                            {isLatest ? (
-                              <span className="rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-700">Latest</span>
-                            ) : (
-                              <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">Previous</span>
-                            )}
-                            {sub.grade === 'R' && (
-                              <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-700">Redo</span>
-                            )}
-                          </div>
-                          <p className="mt-1 text-xs text-slate-500">{sub.lesson_title} · {sub.content_block_title}</p>
-                          <p className="mt-0.5 text-xs text-slate-400">
-                            Submission #{sub.num_submissions} · {new Date(sub.created_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {sub.grade ? <GradeDisplay grade={sub.grade} size="sm" /> : (
-                            <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">Ungraded</span>
-                          )}
-                          <ChevronRight className="h-4 w-4 text-slate-300" />
+                      {!selectedStudentId && <Avatar name={sub.user_name} size="sm" />}
+                      <div className="min-w-0 flex-1">
+                        {!selectedStudentId && (
+                          <p className="truncate text-sm font-semibold text-ink" title={sub.user_name}>{sub.user_name}</p>
+                        )}
+                        <p className={`truncate ${selectedStudentId ? 'text-sm font-semibold text-ink' : 'mt-0.5 text-xs text-ink-secondary'}`} title={where}>{where}</p>
+                        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <SubmissionStatus grade={sub.grade} />
+                          <Badge tone={isLatest ? 'info' : 'neutral'}>{isLatest ? 'Latest' : 'Previous'}</Badge>
+                          <span className="text-xs tabular-nums text-ink-muted">Attempt {sub.num_submissions} · {formatShortDateTime(sub.created_at)}</span>
                         </div>
                       </div>
+                      <ChevronRight className="mt-2 hidden h-4 w-4 shrink-0 text-ink-muted sm:block" aria-hidden="true" />
                     </button>
                   )
                 })
@@ -1230,38 +1202,39 @@ export function CohortModuleGrading() {
         </div>
 
         {/* Right panel: grading detail */}
-        <div className="lg:col-span-3">
+        <div className="min-w-0 lg:col-span-3">
           {selectedSubmission ? (
-            <div className="rounded-2xl bg-white border border-slate-200 p-6 space-y-4 sticky top-4">
+            <div className="app-surface space-y-4 p-4 sm:p-6 lg:sticky lg:top-4">
               {loadingDetail ? (
                 <LoadingSpinner message="Loading submission..." />
               ) : (
                 <>
                   <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <Link to={cohortStudentPath(Number(cohortId), selectedSubmission.user_id, 'work')} className="app-link text-lg font-semibold">{selectedSubmission.user_name}</Link>
-                      <p className="text-sm text-slate-500">{selectedSubmission.lesson_title}</p>
-                      <p className="text-xs text-slate-400">
-                        {selectedSubmission.content_block_title} · Submission #{selectedSubmission.num_submissions}
-                      </p>
-                      <Link to={submissionPath(selectedSubmission.id, { cohortId: Number(cohortId), userId: selectedSubmission.user_id, returnTo: location.pathname })} className="app-link mt-2 inline-flex min-h-11 items-center gap-1 text-xs font-bold"><ExternalLink className="h-3.5 w-3.5" />Open submission record</Link>
+                    <div className="flex min-w-0 items-start gap-3">
+                      <Avatar name={selectedSubmission.user_name} size="md" />
+                      <div className="min-w-0">
+                        <Link to={cohortStudentPath(Number(cohortId), selectedSubmission.user_id, 'work')} className="app-link block truncate text-lg" title={selectedSubmission.user_name}>{selectedSubmission.user_name}</Link>
+                        <p className="truncate text-sm text-ink-secondary" title={selectedSubmission.lesson_title}>{selectedSubmission.lesson_title}</p>
+                        <p className="text-xs tabular-nums text-ink-muted">
+                          {selectedSubmission.content_block_title} · Attempt {selectedSubmission.num_submissions}
+                        </p>
+                        <Link to={submissionPath(selectedSubmission.id, { cohortId: Number(cohortId), userId: selectedSubmission.user_id, returnTo: `${location.pathname}${location.search}` })} className="app-link mt-1 inline-flex min-h-11 items-center gap-1 text-xs"><ExternalLink className="h-3.5 w-3.5" />Open submission record</Link>
+                      </div>
                     </div>
-                    {selectedSubmission.grade ? <GradeDisplay grade={selectedSubmission.grade} size="md" /> : (
-                      <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full">Ungraded</span>
-                    )}
+                    {selectedSubmission.grade ? <GradeDisplay grade={selectedSubmission.grade} size="md" /> : <StatusBadge status="awaiting_review" short />}
                   </div>
 
                   {renderSubmissionArtifacts(selectedSubmission)}
 
                   {selectedSubmission.grade === 'R' && selectedSubmission.feedback && (
-                    <div className="rounded-xl border border-orange-200 bg-orange-50 p-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Current redo feedback</p>
+                    <div className="rounded-xl border border-warning-200 bg-warning-50 p-3 text-warning-800">
+                      <p className="text-xs font-semibold">Current redo feedback</p>
                       <FeedbackBody feedback={selectedSubmission.feedback} className="mt-1" />
                     </div>
                   )}
 
                   <div>
-                    <h4 className="text-sm font-medium text-slate-700 mb-2">Student Submission</h4>
+                    <h4 className="mb-2 text-sm font-semibold text-ink">Student submission</h4>
                     {selectedSubmission.text ? (
                       <div className="space-y-3">
                         {(() => {
@@ -1287,14 +1260,14 @@ export function CohortModuleGrading() {
                         })()}
                       </div>
                     ) : (
-                      <p className="text-sm text-slate-400 italic">No inline code submitted. Review the links and notes above.</p>
+                      <p className="text-sm italic text-ink-muted">No inline code submitted. Review the links and notes above.</p>
                     )}
                   </div>
 
                   {selectedSubmission.solution && (
                     <details className="group">
-                      <summary className="cursor-pointer text-sm font-medium text-slate-700 hover:text-slate-900 select-none">
-                        Show Solution
+                      <summary className="flex min-h-11 cursor-pointer select-none items-center text-sm font-semibold text-ink-secondary hover:text-ink">
+                        Show solution
                       </summary>
                       <div className="mt-2">
                         <CodeEditor
@@ -1308,32 +1281,31 @@ export function CohortModuleGrading() {
                   )}
 
                   <div>
-                    <label className="text-sm font-medium text-slate-700">Feedback</label>
+                    <label htmlFor="module-grading-feedback" className="text-sm font-semibold text-ink">Feedback</label>
                     <textarea
+                      id="module-grading-feedback"
                       value={feedback}
                       onChange={(e) => setFeedback(e.target.value)}
                       placeholder="Feedback for the student..."
-                      className="mt-1 w-full rounded-lg border border-slate-200 p-3 text-sm resize-y min-h-[100px] focus:outline-none focus:ring-2 focus:ring-focus"
+                      className="app-control mt-1 min-h-[100px] w-full resize-y"
                     />
                     <FeedbackFormattingHint value={feedback} />
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {['A', 'B', 'C'].map((grade) => (
-                      <button
+                      <Button
                         key={grade}
+                        variant={grade === 'A' ? 'primary' : 'secondary'}
                         onClick={() => handleGrade(grade)}
                         disabled={grading}
-                        className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition-colors disabled:opacity-50 ${
-                          grade === 'A' ? 'bg-success-500 text-white hover:bg-success-600' :
-                          grade === 'B' ? 'bg-blue-500 text-white hover:bg-blue-600' :
-                          'bg-amber-500 text-white hover:bg-amber-600'
-                        }`}
                       >
                         {grade}
-                      </button>
+                      </Button>
                     ))}
-                    <button
+                    <Button
+                      variant="secondary"
+                      className={REDO_BUTTON_CLASSES}
                       onClick={async () => {
                         if (!feedback.trim()) {
                           if (!await confirmAction({ title: 'Grade as Redo without feedback?', description: 'The student will know they need to try again, but they will not know what to fix.', confirmLabel: 'Grade as Redo' })) return
@@ -1341,35 +1313,34 @@ export function CohortModuleGrading() {
                         handleGrade('R')
                       }}
                       disabled={grading}
-                      className="flex-1 rounded-lg py-2.5 text-sm font-semibold bg-primary-500 text-white hover:bg-primary-600 disabled:opacity-50 transition-colors"
                     >
-                      <RotateCcw className="h-4 w-4 inline mr-1" />
+                      <RotateCcw className="h-4 w-4" />
                       Redo
-                    </button>
+                    </Button>
                   </div>
 
-                  <div className="flex items-center gap-2 text-xs text-slate-400 pt-1">
+                  <div className="hidden flex-wrap items-center gap-2 pt-1 text-xs text-ink-muted lg:flex">
                     <Keyboard className="h-3.5 w-3.5" />
-                    Press <kbd className="px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200 font-mono text-[10px]">A</kbd>
-                    <kbd className="px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200 font-mono text-[10px]">B</kbd>
-                    <kbd className="px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200 font-mono text-[10px]">C</kbd>
-                    <kbd className="px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200 font-mono text-[10px]">R</kbd>
+                    Press <kbd className="rounded border border-line bg-surface-sunken px-1.5 py-0.5 font-mono text-xs">A</kbd>
+                    <kbd className="rounded border border-line bg-surface-sunken px-1.5 py-0.5 font-mono text-xs">B</kbd>
+                    <kbd className="rounded border border-line bg-surface-sunken px-1.5 py-0.5 font-mono text-xs">C</kbd>
+                    <kbd className="rounded border border-line bg-surface-sunken px-1.5 py-0.5 font-mono text-xs">R</kbd>
                     to grade &middot; auto-advances to next
                   </div>
                 </>
               )}
             </div>
           ) : (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center min-h-[400px]">
+            <div className="hidden min-h-[400px] items-center justify-center rounded-2xl border border-dashed border-line bg-surface-sunken p-6 lg:flex">
               <div className="text-center">
-                <Check className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-                <p className="text-sm text-slate-500">
+                <Check className="mx-auto mb-3 h-10 w-10 text-ink-muted" />
+                <p className="text-sm text-ink-secondary">
                   {viewMode === 'students' && selectedStudentId ? 'Select a submission to review' : 'Select a submission to start grading'}
                 </p>
-                <p className="text-xs text-slate-400 mt-1">
+                <p className="mt-1 text-xs text-ink-muted">
                   {viewMode === 'students' && selectedStudentId
                     ? 'Exercises without submissions still show their completion state on the left.'
-                    : 'Or click Ungraded Queue above to start grading all'}
+                    : 'Or choose Ungraded queue above to start grading all'}
                 </p>
               </div>
             </div>

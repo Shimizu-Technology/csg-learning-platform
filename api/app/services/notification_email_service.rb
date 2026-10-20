@@ -46,10 +46,10 @@ class NotificationEmailService
         {
           from: from_email,
           to: user.email,
-          subject: "Redo requested: #{content_block.title || lesson.title} - #{BRAND_NAME}",
+          subject: "Redo requested: #{content_block.display_title} - #{BRAND_NAME}",
           html: redo_html(
             user: user, lesson: lesson,
-            exercise_title: content_block.title || lesson.title,
+            exercise_title: content_block.display_title,
             feedback: feedback
           )
         }

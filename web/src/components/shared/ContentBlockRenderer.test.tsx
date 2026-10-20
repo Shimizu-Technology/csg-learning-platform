@@ -83,6 +83,13 @@ describe('checkpoint submissions', () => {
     expect(html).not.toContain('Mark done')
   })
 
+  it('does not repeat "Checkpoint" when the title already starts with it', () => {
+    const html = renderToStaticMarkup(<ContentBlockRenderer block={checkpoint({ title: 'Checkpoint 1 — budget decision' })} cohortId={2} />)
+    expect(html).toContain('Checkpoint 1 — budget decision')
+    expect(html).not.toMatch(/Checkpoint<\/span>.{0,80}· /)
+    expect(renderExercise('text_submission', false)).toMatch(/Exercise<\/span><span[^>]*> · <\/span><span[^>]*>Practice/)
+  })
+
   it('keeps a labeled toggle for checkpoints that do not take submissions', () => {
     const html = renderToStaticMarkup(<ContentBlockRenderer block={checkpoint({ submission_type: 'manual_complete' })} cohortId={2} />)
     expect(html).toContain('Mark done')

@@ -11,6 +11,8 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
+import { FilterChip, SegmentButton, SegmentedControl } from '../../components/ui/Choice'
+import { formatShortDateTime } from '../../lib/format'
 import type { Announcement, CohortSummary, PaginationMeta } from '../../types/api'
 
 type AnnouncementAudience = 'cohort' | 'global' | 'staff'
@@ -19,14 +21,28 @@ type AnnouncementSort = 'published_desc' | 'published_asc' | 'created_desc' | 'c
 type AnnouncementReadFilter = 'all' | 'read' | 'unread'
 
 function formatDate(date?: string | null) {
-  if (!date) return 'Draft'
-  return new Date(date).toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
+  return formatShortDateTime(date, 'Draft')
 }
+
+const STATUS_LABELS: Record<string, string> = {
+  draft: 'Draft',
+  published: 'Published',
+  archived: 'Archived',
+}
+
+const STATUS_FILTERS: { value: AnnouncementStatus | 'all'; label: string }[] = [
+  { value: 'published', label: 'Published' },
+  { value: 'draft', label: 'Drafts' },
+  { value: 'archived', label: 'Archived' },
+  { value: 'all', label: 'All statuses' },
+]
+
+const AUDIENCE_FILTERS: { value: AnnouncementAudience | 'all'; label: string }[] = [
+  { value: 'all', label: 'All audiences' },
+  { value: 'cohort', label: 'Cohorts' },
+  { value: 'global', label: 'Everyone' },
+  { value: 'staff', label: 'Staff only' },
+]
 
 function audienceLabel(announcement: Announcement) {
   if (announcement.cohort_name) return announcement.cohort_name
@@ -82,7 +98,8 @@ export function Announcements() {
     : 'all'
   const statusFilter: AnnouncementStatus | 'all' = searchParams.get('status') === 'draft' || searchParams.get('status') === 'published' || searchParams.get('status') === 'archived'
     ? searchParams.get('status') as AnnouncementStatus
-    : manageMode ? 'published' : 'all'
+    // Manage mode opens on published; "any" in the URL keeps "All statuses" selected.
+    : manageMode && searchParams.get('status') !== 'any' ? 'published' : 'all'
   const cohortFilter = searchParams.get('cohort_id') || (selectedCohortId ? String(selectedCohortId) : 'all')
   const sortFilter: AnnouncementSort = (() => {
     const value = searchParams.get('sort')
@@ -302,24 +319,22 @@ export function Announcements() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {isStaff && (
-            <div className="inline-flex rounded-xl border border-line bg-surface-raised p-1" role="group" aria-label="Announcements view">
-              <button
-                type="button"
-                aria-pressed={!manageMode}
+            <SegmentedControl label="Announcements view">
+              <SegmentButton
+                dense
+                selected={!manageMode}
                 onClick={() => updateQuery({ scope: null, status: null, audience: null, cohort_id: null, page: '1' })}
-                className={`min-h-9 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors duration-150 active:bg-slate-200/70 ${!manageMode ? 'bg-slate-100 text-ink' : 'text-ink-secondary hover:text-ink'}`}
               >
                 Inbox
-              </button>
-              <button
-                type="button"
-                aria-pressed={manageMode}
+              </SegmentButton>
+              <SegmentButton
+                dense
+                selected={manageMode}
                 onClick={() => updateQuery({ scope: 'manage', status: statusFilter === 'all' ? 'published' : statusFilter, page: '1' })}
-                className={`min-h-9 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors duration-150 active:bg-slate-200/70 ${manageMode ? 'bg-slate-100 text-ink' : 'text-ink-secondary hover:text-ink'}`}
               >
                 Manage
-              </button>
-            </div>
+              </SegmentButton>
+            </SegmentedControl>
           )}
           {unreadCount > 0 && (
             <Button variant="secondary" onClick={handleMarkAllRead}>
@@ -346,7 +361,7 @@ export function Announcements() {
         <form onSubmit={handleCreate} className="app-surface space-y-4 p-5 sm:p-6">
           <div className="flex items-center gap-2">
             <Megaphone className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
-            <h2 className="font-semibold text-ink">Post an announcement</h2>
+            <h2 className="text-lg font-bold text-ink">Post an announcement</h2>
           </div>
           <div className="grid gap-3 md:grid-cols-[1fr_180px_220px]">
             <input
@@ -432,36 +447,41 @@ export function Announcements() {
           <div className="flex flex-wrap gap-2">
             {manageMode ? (
               <>
-                <select
-                  value={audienceFilter}
-                  onChange={(event) => updateQuery({ audience: event.target.value, cohort_id: event.target.value === 'cohort' ? cohortFilter : null, page: '1' })}
-                  className="app-control"
-                >
-                  <option value="all">All audiences</option>
-                  <option value="cohort">Cohorts</option>
-                  <option value="global">Everyone</option>
-                  <option value="staff">Staff only</option>
-                </select>
+                <div role="group" aria-label="Status" className="flex w-full flex-wrap gap-2">
+                  {STATUS_FILTERS.map((option) => (
+                    <FilterChip
+                      key={option.value}
+                      dense
+                      selected={statusFilter === option.value}
+                      onClick={() => updateQuery({ status: option.value === 'all' ? 'any' : option.value, page: '1' })}
+                    >
+                      {option.label}
+                    </FilterChip>
+                  ))}
+                </div>
+                <div role="group" aria-label="Audience" className="flex w-full flex-wrap gap-2">
+                  {AUDIENCE_FILTERS.map((option) => (
+                    <FilterChip
+                      key={option.value}
+                      dense
+                      selected={audienceFilter === option.value}
+                      onClick={() => updateQuery({ audience: option.value, cohort_id: option.value === 'cohort' ? cohortFilter : null, page: '1' })}
+                    >
+                      {option.label}
+                    </FilterChip>
+                  ))}
+                </div>
                 <select
                   value={cohortFilter}
                   onChange={(event) => updateCohortFilter(event.target.value)}
                   disabled={audienceFilter !== 'cohort'}
+                  aria-label="Cohort"
                   className="app-control"
                 >
                   <option value="all">All cohorts</option>
                   {cohorts.map((cohort) => (
                     <option key={cohort.id} value={cohort.id}>{cohort.name}</option>
                   ))}
-                </select>
-                <select
-                  value={statusFilter}
-                  onChange={(event) => updateQuery({ status: event.target.value, page: '1' })}
-                  className="app-control"
-                >
-                  <option value="published">Published</option>
-                  <option value="draft">Drafts</option>
-                  <option value="archived">Archived</option>
-                  <option value="all">All statuses</option>
                 </select>
               </>
             ) : (
@@ -522,8 +542,10 @@ export function Announcements() {
                       {!announcement.read_at && !manageMode && (
                         <Badge tone="info">Unread</Badge>
                       )}
-                      {announcement.status && announcement.status !== 'published' && (
-                        <Badge tone={announcement.status === 'draft' ? 'pending' : 'neutral'} className="capitalize">{announcement.status}</Badge>
+                      {manageMode && announcement.status ? (
+                        <Badge tone={announcement.status === 'published' ? 'success' : 'neutral'}>{STATUS_LABELS[announcement.status] || announcement.status}</Badge>
+                      ) : announcement.status && announcement.status !== 'published' && (
+                        <Badge tone="neutral">{STATUS_LABELS[announcement.status] || announcement.status}</Badge>
                       )}
                     </div>
                     <p className="mt-1 text-xs tabular-nums text-ink-secondary">
@@ -531,7 +553,7 @@ export function Announcements() {
                     </p>
                   </div>
                   {manageMode && announcement.status !== 'archived' && (
-                    <Button variant="secondary" size="sm" onClick={() => handleArchive(announcement)} disabled={isArchiving}>
+                    <Button variant="danger" size="sm" className="shrink-0" onClick={() => handleArchive(announcement)} disabled={isArchiving}>
                       <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                       {isArchiving ? 'Archiving...' : 'Archive'}
                     </Button>
