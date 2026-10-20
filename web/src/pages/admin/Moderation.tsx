@@ -6,6 +6,8 @@ import { useToast } from '../../contexts/ToastContext'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Button } from '../../components/ui/Button'
+import { Avatar } from '../../components/ui/Avatar'
+import { Badge } from '../../components/ui/Badge'
 import { PageHeader } from '../../components/ui/PageHeader'
 import type { ContentReport, DataDeletionRequest } from '../../types/api'
 
@@ -58,7 +60,7 @@ export function Moderation() {
   }
 
   if (loading) return <LoadingSpinner message="Loading safety queue…" />
-  if (error && !reports.length && !deletionRequests.length) return <EmptyState icon={ShieldAlert} title="Could not load the safety queue" description={error} action={<Button onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" />Try again</Button>} />
+  if (error && !reports.length && !deletionRequests.length) return <EmptyState icon={ShieldAlert} title="Could not load the safety queue" description={error} action={<Button onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" aria-hidden="true" />Try again</Button>} />
 
   const openReports = reports.filter((report) => report.status === 'pending' || report.status === 'reviewing')
   const openDeletions = deletionRequests.filter((request) => request.status === 'pending' || request.status === 'processing')
@@ -68,23 +70,23 @@ export function Moderation() {
       <PageHeader eyebrow="Trust & safety" title="Safety queue" description="Review community reports and manage verified account-deletion work without erasing source evidence automatically." />
 
       <section className="app-surface overflow-hidden">
-        <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
-          <div><div className="flex items-center gap-2"><Flag className="h-4 w-4 text-primary-600" /><h2 className="text-lg font-extrabold text-slate-950">Community reports</h2></div><p className="mt-1 text-sm text-slate-500">{openReports.length} awaiting action</p></div>
-          <Button variant="secondary" onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" />Refresh</Button>
+        <div className="flex items-center justify-between gap-4 border-b border-line px-5 py-4 sm:px-6">
+          <div className="min-w-0"><div className="flex items-center gap-2"><Flag className="h-4 w-4 text-ink-muted" aria-hidden="true" /><h2 className="text-lg font-bold text-ink">Community reports</h2></div><p className="mt-1 text-sm tabular-nums text-ink-muted">{openReports.length} awaiting action</p></div>
+          <Button variant="secondary" onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" aria-hidden="true" />Refresh</Button>
         </div>
-        {openReports.length ? <div className="divide-y divide-slate-200">{openReports.map((report) => (
+        {openReports.length ? <div className="divide-y divide-line">{openReports.map((report) => (
           <article key={report.id} className="p-5 sm:p-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2"><StatusPill status={report.status} /><span className="text-xs font-bold uppercase tracking-wide text-slate-500">{report.reason.replaceAll('_', ' ')}</span><span className="text-xs text-slate-400">{formatShortDateTime(report.created_at)}</span></div>
-                <h3 className="mt-3 text-base font-extrabold text-slate-950">{report.reported_user.full_name} reported by {report.reporter.full_name}</h3>
-                {report.message && <blockquote className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">{report.message.body || 'Message contains an attachment or no text.'}</blockquote>}
-                {report.details && <p className="mt-3 text-sm leading-6 text-slate-600">{report.details}</p>}
+                <div className="flex flex-wrap items-center gap-2"><StatusPill status={report.status} /><Badge className="capitalize">{report.reason.replaceAll('_', ' ')}</Badge><span className="text-xs tabular-nums text-ink-muted">{formatShortDateTime(report.created_at)}</span></div>
+                <div className="mt-3 flex min-w-0 items-center gap-3"><Avatar name={report.reported_user.full_name} size="sm" /><h3 className="min-w-0 text-base font-semibold text-ink [overflow-wrap:anywhere]">{report.reported_user.full_name} reported by {report.reporter.full_name}</h3></div>
+                {report.message && <blockquote className="mt-3 whitespace-pre-wrap rounded-xl border border-line bg-surface-sunken px-4 py-3 text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]">{report.message.body || 'Message contains an attachment or no text.'}</blockquote>}
+                {report.details && <p className="mt-3 text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]">{report.details}</p>}
               </div>
               <div className="flex shrink-0 flex-wrap gap-2">
-                {report.status === 'pending' && <Button variant="secondary" disabled={savingKey === `report-${report.id}`} onClick={() => void updateReport(report, 'reviewing')}><Clock3 className="h-4 w-4" />Reviewing</Button>}
-                <Button disabled={savingKey === `report-${report.id}`} onClick={() => void updateReport(report, 'actioned')}><CheckCircle2 className="h-4 w-4" />Actioned</Button>
-                <Button variant="secondary" disabled={savingKey === `report-${report.id}`} onClick={() => void updateReport(report, 'dismissed')}><XCircle className="h-4 w-4" />Dismiss</Button>
+                {report.status === 'pending' && <Button variant="secondary" disabled={savingKey === `report-${report.id}`} onClick={() => void updateReport(report, 'reviewing')}><Clock3 className="h-4 w-4" aria-hidden="true" />Reviewing</Button>}
+                <Button disabled={savingKey === `report-${report.id}`} onClick={() => void updateReport(report, 'actioned')}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Actioned</Button>
+                <Button variant="secondary" disabled={savingKey === `report-${report.id}`} onClick={() => void updateReport(report, 'dismissed')}><XCircle className="h-4 w-4" aria-hidden="true" />Dismiss</Button>
               </div>
             </div>
           </article>
@@ -92,17 +94,17 @@ export function Moderation() {
       </section>
 
       <section className="app-surface overflow-hidden">
-        <div className="border-b border-slate-200 px-5 py-4 sm:px-6"><div className="flex items-center gap-2"><Trash2 className="h-4 w-4 text-primary-600" /><h2 className="text-lg font-extrabold text-slate-950">Account-deletion requests</h2></div><p className="mt-1 text-sm text-slate-500">{openDeletions.length} awaiting action. Mark complete only after the underlying deletion or anonymization work is finished.</p></div>
-        {openDeletions.length ? <div className="divide-y divide-slate-200">{openDeletions.map((request) => (
+        <div className="border-b border-line px-5 py-4 sm:px-6"><div className="flex items-center gap-2"><Trash2 className="h-4 w-4 text-ink-muted" aria-hidden="true" /><h2 className="text-lg font-bold text-ink">Account-deletion requests</h2></div><p className="mt-1 text-sm tabular-nums text-ink-muted">{openDeletions.length} awaiting action. Mark complete only after the underlying deletion or anonymization work is finished.</p></div>
+        {openDeletions.length ? <div className="divide-y divide-line">{openDeletions.map((request) => (
           <article key={request.id} className="grid gap-4 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,1fr)]">
-            <div><div className="flex flex-wrap items-center gap-2"><StatusPill status={request.status} /><span className="text-xs text-slate-400">{formatShortDateTime(request.created_at)}</span></div><h3 className="mt-2 text-base font-extrabold text-slate-950">{request.user.full_name}</h3><p className="text-sm text-slate-500">{request.user.email}</p><p className="mt-3 max-w-xl text-xs leading-5 text-slate-500">Verify ownership and inventory the account, identity provider, learning records, files, messages, notifications, analytics, and vendor data before resolving.</p></div>
+            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><StatusPill status={request.status} /><span className="text-xs tabular-nums text-ink-muted">{formatShortDateTime(request.created_at)}</span></div><div className="mt-2 flex min-w-0 items-center gap-3"><Avatar name={request.user.full_name} size="md" /><div className="min-w-0"><h3 className="truncate text-base font-semibold text-ink" title={request.user.full_name}>{request.user.full_name}</h3><p className="truncate text-sm text-ink-muted" title={request.user.email}>{request.user.email}</p></div></div><p className="mt-3 max-w-xl text-xs leading-5 text-ink-muted">Verify ownership and inventory the account, identity provider, learning records, files, messages, notifications, analytics, and vendor data before resolving.</p></div>
             <div>
-              <label className="block text-xs font-extrabold uppercase tracking-wide text-slate-600" htmlFor={`deletion-note-${request.id}`}>Resolution note</label>
-              <textarea id={`deletion-note-${request.id}`} value={deletionNotes[request.id] || ''} onChange={(event) => setDeletionNotes((current) => ({ ...current, [request.id]: event.target.value }))} maxLength={2000} rows={3} placeholder="Required to complete or decline: document what was deleted/anonymized or the specific retention/decline reason." className="mt-2 min-h-24 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm leading-6 text-slate-800 outline-none transition focus:border-focus focus:ring-2 focus:ring-focus/25" />
+              <label className="block text-sm font-semibold text-ink" htmlFor={`deletion-note-${request.id}`}>Resolution note</label>
+              <textarea id={`deletion-note-${request.id}`} value={deletionNotes[request.id] || ''} onChange={(event) => setDeletionNotes((current) => ({ ...current, [request.id]: event.target.value }))} maxLength={2000} rows={3} placeholder="Required to complete or decline: document what was deleted/anonymized or the specific retention/decline reason." className="app-control mt-2 min-h-24 w-full leading-6" />
               <div className="mt-3 flex flex-wrap gap-2">
-                {request.status === 'pending' && <Button variant="secondary" disabled={savingKey === `deletion-${request.id}`} onClick={() => void updateDeletion(request, 'processing')}><Clock3 className="h-4 w-4" />Begin processing</Button>}
-                {request.status === 'processing' && <Button disabled={savingKey === `deletion-${request.id}`} onClick={() => void updateDeletion(request, 'completed')}><CheckCircle2 className="h-4 w-4" />Record completed</Button>}
-                <Button variant="secondary" disabled={savingKey === `deletion-${request.id}`} onClick={() => void updateDeletion(request, 'declined')}><XCircle className="h-4 w-4" />Decline with reason</Button>
+                {request.status === 'pending' && <Button variant="secondary" disabled={savingKey === `deletion-${request.id}`} onClick={() => void updateDeletion(request, 'processing')}><Clock3 className="h-4 w-4" aria-hidden="true" />Begin processing</Button>}
+                {request.status === 'processing' && <Button disabled={savingKey === `deletion-${request.id}`} onClick={() => void updateDeletion(request, 'completed')}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Record completed</Button>}
+                <Button variant="secondary" disabled={savingKey === `deletion-${request.id}`} onClick={() => void updateDeletion(request, 'declined')}><XCircle className="h-4 w-4" aria-hidden="true" />Decline with reason</Button>
               </div>
             </div>
           </article>
@@ -114,5 +116,5 @@ export function Moderation() {
 
 function StatusPill({ status }: { status: string }) {
   const open = status === 'pending' || status === 'processing' || status === 'reviewing'
-  return <span className={`rounded-full px-2.5 py-1 text-xs font-extrabold capitalize ${open ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>{status}</span>
+  return <Badge tone={open ? 'pending' : 'success'} className="capitalize">{status}</Badge>
 }

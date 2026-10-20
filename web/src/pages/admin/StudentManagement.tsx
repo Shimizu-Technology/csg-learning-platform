@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Users, Search, ArrowLeft, AlertTriangle, Activity, Circle, ChevronRight, ChevronDown } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Users, Search, ArrowLeft, AlertTriangle, Activity, Circle, Clock3, ChevronRight, ChevronDown } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../../lib/api'
 import { cohortStudentPath } from '../../lib/routes'
 import { ProgressBar } from '../../components/shared/ProgressBar'
@@ -9,6 +9,11 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import { presenceStatus, usePresenceNow, type PresenceStatus } from '../../lib/presence'
 import { subscribeToStaffPresence } from '../../lib/realtime'
 import { PresenceBadge } from '../../components/shared/PresenceBadge'
+import { Avatar } from '../../components/ui/Avatar'
+import { Badge, type BadgeTone } from '../../components/ui/Badge'
+import { LinkButton } from '../../components/ui/Button'
+import { FilterChip } from '../../components/ui/Choice'
+import { formatShortDate } from '../../lib/format'
 
 interface Student {
   user_id: number
@@ -41,6 +46,7 @@ interface CohortGroup {
 
 type ActivityStatus = 'active' | 'quiet' | 'at-risk' | 'new'
 type StudentFilter = 'all' | ActivityStatus | 'online' | 'never-signed-in'
+const STUDENT_FILTERS: StudentFilter[] = ['all', 'active', 'quiet', 'at-risk', 'new', 'online', 'never-signed-in']
 type StudentWithStatus = Student & {
   activityStatus: ActivityStatus
   presence: PresenceStatus
@@ -55,18 +61,17 @@ function getActivityStatus(student: Student): ActivityStatus {
 }
 
 function ActivityBadge({ status }: { status: ActivityStatus }) {
-  const config = {
-    active: { label: 'Active', icon: Activity, className: 'bg-success-100 text-success-700' },
-    quiet: { label: 'Quiet (2-7d)', icon: AlertTriangle, className: 'bg-amber-100 text-amber-700' },
-    'at-risk': { label: 'At Risk', icon: AlertTriangle, className: 'bg-red-100 text-red-700' },
-    new: { label: 'Not Started', icon: Circle, className: 'bg-slate-100 text-slate-600' },
+  const config: Record<ActivityStatus, { label: string; icon: typeof Activity; tone: BadgeTone }> = {
+    active: { label: 'Active', icon: Activity, tone: 'success' },
+    quiet: { label: 'Quiet (2-7d)', icon: Clock3, tone: 'neutral' },
+    'at-risk': { label: 'At risk', icon: AlertTriangle, tone: 'warning' },
+    new: { label: 'Not started', icon: Circle, tone: 'neutral' },
   }
-  const { label, icon: Icon, className } = config[status]
+  const { label, icon: Icon, tone } = config[status]
   return (
-    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${className}`}>
-      <Icon className="h-3 w-3" />
+    <Badge tone={tone} icon={<Icon className="h-3.5 w-3.5" aria-hidden="true" />}>
       {label}
-    </span>
+    </Badge>
   )
 }
 
@@ -81,15 +86,28 @@ function formatLastActivity(dateStr: string | null): string {
   if (diffHours < 24) return `${diffHours}h ago`
   if (diffDays === 1) return 'Yesterday'
   if (diffDays < 7) return `${diffDays}d ago`
-  return date.toLocaleDateString()
+  return formatShortDate(date)
 }
 
 export function StudentManagement() {
   const presenceNow = usePresenceNow()
   const [cohortGroups, setCohortGroups] = useState<CohortGroup[]>([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<StudentFilter>('all')
+  // Search and filter live in the URL so Back from a student returns to the same filtered list.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const search = searchParams.get('q') || ''
+  const filterParam = searchParams.get('filter')
+  const filter: StudentFilter = STUDENT_FILTERS.includes(filterParam as StudentFilter) ? filterParam as StudentFilter : 'all'
+  const updateParam = (key: 'q' | 'filter', value: string) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      if (value && !(key === 'filter' && value === 'all')) next.set(key, value)
+      else next.delete(key)
+      return next
+    }, { replace: true })
+  }
+  const setSearch = (value: string) => updateParam('q', value)
+  const setFilter = (value: StudentFilter) => updateParam('filter', value)
   const [collapsedCohorts, setCollapsedCohorts] = useState<Set<number>>(new Set())
 
   useEffect(() => {
@@ -178,73 +196,54 @@ export function StudentManagement() {
   return (
     <div className="app-page-wide">
       <header>
-        <Link to="/admin" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900">
-          <ArrowLeft className="h-4 w-4" />
+        <LinkButton to="/admin" variant="quiet" size="sm" className="-ml-3 mb-2">
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Staff home
-        </Link>
+        </LinkButton>
         <p className="app-eyebrow">People & intervention</p>
         <h1 className="app-title mt-2">Students</h1>
-        <p className="app-description mt-2">
+        <p className="app-description mt-2 tabular-nums">
           {allStudents.length} student{allStudents.length !== 1 ? 's' : ''} across {cohortGroups.length} cohort{cohortGroups.length !== 1 ? 's' : ''}
         </p>
       </header>
 
       {atRiskCount > 0 && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-center gap-3">
-          <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0" />
-          <p className="text-sm text-red-700">
-            <span className="font-semibold">{atRiskCount} student{atRiskCount > 1 ? 's' : ''} at risk</span>
+        <div className="flex items-center gap-3 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-warning-700" aria-hidden="true" />
+          <p className="text-sm text-warning-800">
+            <span className="font-semibold tabular-nums">{atRiskCount} student{atRiskCount > 1 ? 's' : ''} at risk</span>
             {' '}— no activity in 7+ days.
           </p>
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <button
-          onClick={() => setFilter(filter === 'online' ? 'all' : 'online')}
-          className={`rounded-xl border p-3 text-left transition-all ${filter === 'online' ? 'border-green-400 bg-green-50' : 'border-slate-200 bg-white hover:border-green-300'}`}
-        >
-          <p className="text-xl font-bold text-green-700">{onlineCount}</p>
-          <p className="text-xs text-slate-500">Online now</p>
-        </button>
-        <button
-          onClick={() => setFilter(filter === 'active' ? 'all' : 'active')}
-          className={`rounded-xl border p-3 text-left transition-all ${filter === 'active' ? 'border-success-400 bg-success-50' : 'border-slate-200 bg-white hover:border-success-300'}`}
-        >
-          <p className="text-xl font-bold text-success-700">{activeCount}</p>
-          <p className="text-xs text-slate-500">Active (&lt;2 days)</p>
-        </button>
-        <button
-          onClick={() => setFilter(filter === 'quiet' ? 'all' : 'quiet')}
-          className={`rounded-xl border p-3 text-left transition-all ${filter === 'quiet' ? 'border-amber-400 bg-amber-50' : 'border-slate-200 bg-white hover:border-amber-300'}`}
-        >
-          <p className="text-xl font-bold text-amber-700">{quietCount}</p>
-          <p className="text-xs text-slate-500">Quiet (2-7 days)</p>
-        </button>
-        <button
-          onClick={() => setFilter(filter === 'at-risk' ? 'all' : 'at-risk')}
-          className={`rounded-xl border p-3 text-left transition-all ${filter === 'at-risk' ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-white hover:border-red-300'}`}
-        >
-          <p className="text-xl font-bold text-red-700">{atRiskCount}</p>
-          <p className="text-xs text-slate-500">At risk (7+ days)</p>
-        </button>
-        <button
-          onClick={() => setFilter(filter === 'never-signed-in' ? 'all' : 'never-signed-in')}
-          className={`rounded-xl border p-3 text-left transition-all ${filter === 'never-signed-in' ? 'border-slate-400 bg-slate-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
-        >
-          <p className="text-xl font-bold text-slate-700">{neverSignedInCount}</p>
-          <p className="text-xs text-slate-500">Never signed in</p>
-        </button>
+      <div role="group" aria-label="Filter students" className="flex flex-wrap gap-2">
+        <FilterChip selected={filter === 'online'} count={onlineCount} onClick={() => setFilter(filter === 'online' ? 'all' : 'online')}>
+          Online now
+        </FilterChip>
+        <FilterChip selected={filter === 'active'} count={activeCount} onClick={() => setFilter(filter === 'active' ? 'all' : 'active')}>
+          Active (&lt;2 days)
+        </FilterChip>
+        <FilterChip selected={filter === 'quiet'} count={quietCount} onClick={() => setFilter(filter === 'quiet' ? 'all' : 'quiet')}>
+          Quiet (2-7 days)
+        </FilterChip>
+        <FilterChip selected={filter === 'at-risk'} count={atRiskCount} onClick={() => setFilter(filter === 'at-risk' ? 'all' : 'at-risk')}>
+          At risk (7+ days)
+        </FilterChip>
+        <FilterChip selected={filter === 'never-signed-in'} count={neverSignedInCount} onClick={() => setFilter(filter === 'never-signed-in' ? 'all' : 'never-signed-in')}>
+          Never signed in
+        </FilterChip>
       </div>
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" aria-hidden="true" />
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search students across all cohorts..."
-          className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-focus focus:border-focus"
+          aria-label="Search students"
+          className="app-control w-full pl-10 pr-4"
         />
       </div>
 
@@ -267,62 +266,66 @@ export function StudentManagement() {
             if (groupStudents.length === 0 && (search || filter !== 'all')) return null
 
             return (
-              <div key={group.cohort.id} className="rounded-2xl bg-white border border-slate-200 overflow-hidden">
-                <button
-                  onClick={() => toggleCohort(group.cohort.id)}
-                  className="w-full flex items-center justify-between px-6 py-4 border-b border-slate-200 hover:bg-slate-50 transition-colors"
-                >
-                  <div className="text-left">
-                    <h2 className="text-base font-semibold text-slate-900">{group.cohort.name}</h2>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      {group.cohort.enrolled_count} enrolled · {group.cohort.active_count} active enrollments
-                      {group.ungraded_count > 0 && (
-                        <span className="text-amber-600 font-medium"> · {group.ungraded_count} ungraded</span>
-                      )}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Link
-                      to={`/admin/cohorts/${group.cohort.id}?tab=students`}
-                      onClick={e => e.stopPropagation()}
-                      className="text-xs text-primary-600 hover:underline"
-                    >
-                      Access & invitations
-                    </Link>
-                    <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
-                  </div>
-                </button>
+              <div key={group.cohort.id} className="app-surface overflow-hidden">
+                <div className="flex items-center gap-3 border-b border-line pr-4 sm:pr-6">
+                  <button
+                    type="button"
+                    onClick={() => toggleCohort(group.cohort.id)}
+                    aria-expanded={!isCollapsed}
+                    className="pressable flex min-h-11 min-w-0 flex-1 items-center gap-3 px-4 py-4 text-left hover:bg-surface-sunken sm:px-6"
+                  >
+                    <ChevronDown className={`h-4 w-4 shrink-0 text-ink-muted transition-transform duration-150 ${isCollapsed ? '-rotate-90' : ''}`} aria-hidden="true" />
+                    <span className="min-w-0">
+                      <span className="block truncate text-base font-semibold text-ink" title={group.cohort.name}>{group.cohort.name}</span>
+                      <span className="mt-0.5 block text-xs tabular-nums text-ink-muted">
+                        {group.cohort.enrolled_count} enrolled · {group.cohort.active_count} active enrollments
+                        {group.ungraded_count > 0 && (
+                          <span className="font-semibold text-warning-800"> · {group.ungraded_count} ungraded</span>
+                        )}
+                      </span>
+                    </span>
+                  </button>
+                  <Link
+                    to={`/admin/cohorts/${group.cohort.id}?tab=students`}
+                    className="app-link inline-flex min-h-11 shrink-0 items-center text-xs"
+                  >
+                    Access & invitations
+                  </Link>
+                </div>
 
                 {!isCollapsed && (
                   <div className="overflow-x-auto">
                     {groupStudents.length === 0 ? (
-                      <p className="px-6 py-8 text-center text-sm text-slate-400">No students match your filters</p>
+                      <p className="px-6 py-8 text-center text-sm text-ink-muted">No students match your filters</p>
                     ) : (
                       <table className="w-full">
                         <thead>
-                          <tr className="border-b border-slate-100 bg-slate-50/50">
-                            <th className="px-6 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase">Student</th>
-                            <th className="px-6 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase">Progress</th>
-                            <th className="px-6 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">This Week</th>
-                            <th className="px-6 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">Course Activity</th>
-                            <th className="px-6 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">Status</th>
+                          <tr className="border-b border-line bg-surface-sunken">
+                            <th className="px-6 py-2.5 text-left text-xs font-semibold text-ink-muted">Student</th>
+                            <th className="px-6 py-2.5 text-left text-xs font-semibold text-ink-muted">Progress</th>
+                            <th className="hidden px-6 py-2.5 text-left text-xs font-semibold text-ink-muted sm:table-cell">This week</th>
+                            <th className="hidden px-6 py-2.5 text-left text-xs font-semibold text-ink-muted sm:table-cell">Course activity</th>
+                            <th className="hidden px-6 py-2.5 text-left text-xs font-semibold text-ink-muted sm:table-cell">Status</th>
                             <th className="px-3 py-2.5 w-8" />
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody className="divide-y divide-line">
                           {groupStudents.map(student => (
                             <tr
                               key={student.user_id}
-                              className={`transition-colors hover:bg-slate-50 ${student.activityStatus === 'at-risk' ? 'bg-red-50/30' : ''}`}
+                              className={`transition-colors duration-150 hover:bg-surface-sunken ${student.activityStatus === 'at-risk' ? 'bg-warning-50/60' : ''}`}
                             >
-                              <td className="px-6 py-3">
-                                <div className="flex items-center gap-2">
-                                  <Link to={cohortStudentPath(group.cohort.id, student.user_id)} className="rounded-md text-sm font-bold text-slate-950 underline-offset-4 hover:text-primary-700 hover:underline">{student.full_name}</Link>
+                              <td className="max-w-[15rem] px-4 py-3 sm:max-w-xs sm:px-6">
+                                <div className="flex min-w-0 items-start gap-3">
+                                  <Avatar name={student.full_name} size="sm" className="mt-1.5" />
+                                  <div className="min-w-0 flex-1">
+                                    <Link to={cohortStudentPath(group.cohort.id, student.user_id)} title={student.full_name} className="block truncate rounded-md py-1 text-sm font-semibold text-ink underline-offset-4 hover:underline">{student.full_name}</Link>
+                                    <p className="truncate text-xs text-ink-muted" title={student.email}>{student.email}</p>
+                                  </div>
                                 </div>
-                                <p className="text-xs text-slate-500">{student.email}</p>
                                 <div className="mt-1 flex flex-wrap items-center gap-2">
                                   <PresenceBadge status={student.presence} />
-                                  <span className="text-xs text-slate-500">Last active: {formatLastActivity(student.last_seen_at)}</span>
+                                  <span className="text-xs tabular-nums text-ink-muted">Last active: {formatLastActivity(student.last_seen_at)}</span>
                                 </div>
                                 {student.github_username && (
                                   <a
@@ -330,7 +333,8 @@ export function StudentManagement() {
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     onClick={e => e.stopPropagation()}
-                                    className="text-xs text-primary-600 hover:underline"
+                                    title={`@${student.github_username}`}
+                                    className="app-link mt-1 block truncate text-xs"
                                   >
                                     @{student.github_username}
                                   </a>
@@ -338,29 +342,29 @@ export function StudentManagement() {
                               </td>
                               <td className="px-6 py-3 w-44">
                                 <ProgressBar value={student.progress_percentage} size="sm" />
-                                <p className="text-xs text-slate-400 mt-1">
+                                <p className="mt-1 text-xs tabular-nums text-ink-muted">
                                   {student.completed_blocks}/{student.total_blocks}
                                 </p>
                               </td>
                               <td className="px-6 py-3 hidden sm:table-cell">
-                                <div className="text-sm">
-                                  <span className={`font-semibold ${student.blocks_this_week > 0 ? 'text-success-600' : 'text-slate-400'}`}>
+                                <div className="text-sm tabular-nums">
+                                  <span className={`font-semibold ${student.blocks_this_week > 0 ? 'text-success-700' : 'text-ink-muted'}`}>
                                     {student.blocks_this_week}
                                   </span>
-                                  <span className="text-slate-400 text-xs"> blocks</span>
+                                  <span className="text-xs text-ink-muted"> blocks</span>
                                 </div>
                                 {student.submissions_this_week > 0 && (
-                                  <p className="text-xs text-blue-500">{student.submissions_this_week} submission{student.submissions_this_week > 1 ? 's' : ''}</p>
+                                  <p className="text-xs tabular-nums text-info-700">{student.submissions_this_week} submission{student.submissions_this_week > 1 ? 's' : ''}</p>
                                 )}
                               </td>
                               <td className="px-6 py-3 hidden sm:table-cell">
-                                <span className="text-sm text-slate-500">{formatLastActivity(student.last_activity_at)}</span>
+                                <span className="whitespace-nowrap text-sm tabular-nums text-ink-muted">{formatLastActivity(student.last_activity_at)}</span>
                               </td>
                               <td className="px-6 py-3 hidden sm:table-cell">
                                 <ActivityBadge status={student.activityStatus} />
                               </td>
                               <td className="px-3 py-3 w-8">
-                                <ChevronRight className="h-4 w-4 text-slate-300" />
+                                <ChevronRight className="h-4 w-4 text-ink-muted" aria-hidden="true" />
                               </td>
                             </tr>
                           ))}

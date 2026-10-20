@@ -33,7 +33,7 @@ export function playModalExit(overlay: HTMLElement) {
   ghost.setAttribute('inert', '')
   ghost.removeAttribute('id')
   ghost.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'))
-  ghost.querySelectorAll('[data-app-modal]').forEach((node) => {
+  ghost.querySelectorAll('[data-app-modal], [role="dialog"]').forEach((node) => {
     node.removeAttribute('data-app-modal')
     node.removeAttribute('role')
     node.removeAttribute('aria-modal')

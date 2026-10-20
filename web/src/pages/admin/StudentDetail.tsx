@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
-  User,
   Github,
   Clock,
   CheckCircle,
@@ -34,6 +33,11 @@ import { subscribeToStaffPresence } from '../../lib/realtime'
 import { PresenceBadge, PresenceDot } from '../../components/shared/PresenceBadge'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { useAuthContext } from '../../contexts/AuthContext'
+import { formatShortDate, formatShortDateTime } from '../../lib/format'
+import { Avatar } from '../../components/ui/Avatar'
+import { Badge, type BadgeTone } from '../../components/ui/Badge'
+import { Button, LinkButton } from '../../components/ui/Button'
+import { TextButton } from '../../components/ui/Choice'
 
 const BLOCK_ICONS: Record<string, React.ElementType> = {
   reading: FileText,
@@ -44,20 +48,14 @@ const BLOCK_ICONS: Record<string, React.ElementType> = {
   assignment: BookOpen,
 }
 
-const BLOCK_COLORS: Record<string, string> = {
-  reading: 'text-blue-500',
-  video: 'text-purple-500',
-  exercise: 'text-amber-500',
-  code_challenge: 'text-orange-500',
-  quiz: 'text-green-500',
-  assignment: 'text-indigo-500',
-}
+// Block types are told apart by icon; colour stays neutral (status colours are reserved for state).
+const BLOCK_COLOR = 'text-ink-muted'
 
-const GRADE_STYLES: Record<string, string> = {
-  A: 'bg-green-100 text-green-700 border-green-200',
-  B: 'bg-blue-100 text-blue-700 border-blue-200',
-  C: 'bg-amber-100 text-amber-700 border-amber-200',
-  R: 'bg-red-100 text-red-700 border-red-200',
+const GRADE_TONES: Record<string, BadgeTone> = {
+  A: 'success',
+  B: 'success',
+  C: 'success',
+  R: 'warning',
 }
 
 interface ModuleAssignment {
@@ -159,9 +157,7 @@ interface EnrollmentRouteChoice {
 }
 
 function formatDate(dateStr: string | null): string {
-  if (!dateStr) return '—'
-  const d = new Date(dateStr)
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return formatShortDate(dateStr, '—')
 }
 
 function formatRelative(dateStr: string | null): string {
@@ -222,7 +218,7 @@ function formatLastActive(iso: string | null | undefined): string {
   if (hours < 24) return `${hours}h ago`
   const days = Math.floor(hours / 24)
   if (days < 30) return `${days}d ago`
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return formatShortDate(date)
 }
 
 interface WatchProgressDetailsProps {
@@ -250,30 +246,23 @@ function WatchProgressDetails({
   const watched = formatWatchedDuration(totalWatchedSeconds)
   const total = formatWatchedDuration(durationSeconds)
 
-  const statusLabel = completed ? 'Watched' : pct > 0 ? 'In Progress' : 'Not Started'
-  const statusTone = completed
-    ? 'bg-green-50 text-green-700 border-green-200'
-    : pct > 0
-      ? 'bg-amber-50 text-amber-700 border-amber-200'
-      : 'bg-slate-50 text-slate-500 border-slate-200'
-  const barTone = completed ? 'bg-green-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-300'
+  const statusLabel = completed ? 'Watched' : pct > 0 ? 'In progress' : 'Not started'
+  const statusTone: BadgeTone = completed ? 'success' : 'neutral'
+  const barTone = completed ? 'bg-success-600' : pct > 0 ? 'bg-ink-secondary' : 'bg-line-strong'
 
   return (
     <div
       className={
         layout === 'block'
-          ? 'flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500'
-          : 'flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500 mt-1'
+          ? 'flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-muted'
+          : 'flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-muted mt-1'
       }
     >
-      <span
-        className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium tabular-nums ${statusTone}`}
-      >
-        <Eye className="h-3 w-3" />
+      <Badge tone={statusTone} icon={<Eye className="h-3 w-3" aria-hidden="true" />} className="tabular-nums">
         {statusLabel} · {pct}%
-      </span>
+      </Badge>
       <div className="flex items-center gap-1.5 min-w-[80px] flex-1 max-w-[160px]">
-        <div className="h-1 flex-1 rounded-full bg-slate-100 overflow-hidden">
+        <div className="h-1 flex-1 rounded-full bg-surface-sunken overflow-hidden">
           <div
             className={`h-full rounded-full ${barTone}`}
             style={{ width: `${Math.max(0, Math.min(100, pct))}%` }}
@@ -281,11 +270,11 @@ function WatchProgressDetails({
         </div>
       </div>
       <span className="tabular-nums" title={`Watched ${watched} of ${total}`}>
-        <span className="text-slate-700 font-medium">{watched}</span>
-        <span className="text-slate-300"> / {total}</span>
+        <span className="text-ink-secondary font-medium">{watched}</span>
+        <span className="text-ink-muted"> / {total}</span>
       </span>
-      <span className="tabular-nums" title={lastActiveAt ? new Date(lastActiveAt).toLocaleString() : 'Never watched'}>
-        Last active: <span className="text-slate-700">{formatLastActive(lastActiveAt)}</span>
+      <span className="tabular-nums" title={lastActiveAt ? formatShortDateTime(lastActiveAt) : 'Never watched'}>
+        Last active: <span className="text-ink-secondary">{formatLastActive(lastActiveAt)}</span>
       </span>
     </div>
   )
@@ -309,36 +298,33 @@ function LessonRow({
   const [expanded, setExpanded] = useState(false)
 
   return (
-    <div className="border border-slate-200 rounded-xl overflow-hidden">
-      <div className="flex items-center gap-3 p-4 hover:bg-slate-50 transition-colors">
+    <div className="border border-line rounded-xl overflow-hidden">
+      <div className="flex items-center gap-3 p-4 transition-colors duration-150 hover:bg-surface-sunken">
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
-          className="flex flex-1 items-center gap-3 text-left min-w-0"
+          aria-expanded={expanded}
+          className="pressable flex min-h-11 flex-1 items-center gap-3 rounded-lg text-left min-w-0"
         >
           {lesson.completed ? (
-            <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+            <CheckCircle className="h-4 w-4 text-success-600 shrink-0" aria-hidden="true" />
           ) : lesson.available ? (
-            <Circle className="h-4 w-4 text-slate-300 shrink-0" />
+            <Circle className="h-4 w-4 text-ink-muted shrink-0" aria-hidden="true" />
           ) : (
-            <Clock className="h-4 w-4 text-slate-200 shrink-0" />
+            <Clock className="h-4 w-4 text-ink-muted shrink-0" aria-hidden="true" />
           )}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-slate-900 truncate">{lesson.title}</span>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="text-sm font-medium text-ink truncate" title={lesson.title}>{lesson.title}</span>
               {lesson.required && (
-                <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 bg-primary-100 text-primary-700 rounded">
-                  Required
-                </span>
+                <Badge>Required</Badge>
               )}
               {!lesson.available && (
-                <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded">
-                  Locked
-                </span>
+                <Badge icon={<Lock className="h-3 w-3" aria-hidden="true" />}>Locked</Badge>
               )}
             </div>
             <div className="mt-1 flex items-center gap-3">
-              <span className="text-xs text-slate-500">
+              <span className="text-xs tabular-nums text-ink-muted">
                 {lesson.completed_blocks}/{lesson.total_blocks} blocks
               </span>
               {lesson.total_blocks > 0 && (
@@ -353,59 +339,55 @@ function LessonRow({
             </div>
           </div>
           {expanded ? (
-            <ChevronDown className="h-4 w-4 text-slate-400 shrink-0" />
+            <ChevronDown className="h-4 w-4 text-ink-muted shrink-0" aria-hidden="true" />
           ) : (
-            <ChevronRight className="h-4 w-4 text-slate-400 shrink-0" />
+            <ChevronRight className="h-4 w-4 text-ink-muted shrink-0" aria-hidden="true" />
           )}
         </button>
         <Link
           to={`/lessons/${lesson.id}`}
-          className="text-xs text-primary-600 hover:underline shrink-0 ml-3"
+          className="app-link inline-flex min-h-11 shrink-0 items-center px-2 text-xs"
         >
           View
         </Link>
       </div>
 
       {expanded && (
-        <div className="border-t border-slate-200 bg-slate-50">
-          <div className="px-5 py-3 border-b border-slate-200 bg-white/70 space-y-3">
-            <div className="flex items-center justify-between gap-3">
+        <div className="border-t border-line bg-surface-sunken">
+          <div className="px-5 py-3 border-b border-line bg-surface-raised space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Lesson Override</p>
-                <p className="text-xs text-slate-400">Use this only for student-specific exceptions.</p>
+                <p className="text-xs font-semibold text-ink-muted">Lesson override</p>
+                <p className="text-xs text-ink-muted">Use this only for student-specific exceptions.</p>
               </div>
-              <button
-                onClick={onSave}
-                disabled={saving}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-3 py-2 text-xs font-medium text-white hover:bg-primary-600 disabled:opacity-50 transition-colors"
-              >
-                <Save className="h-3.5 w-3.5" />
-                {saving ? 'Saving...' : 'Save Lesson Override'}
-              </button>
+              <Button size="sm" onClick={onSave} disabled={saving}>
+                <Save className="h-3.5 w-3.5" aria-hidden="true" />
+                {saving ? 'Saving...' : 'Save lesson override'}
+              </Button>
             </div>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
+            <label className="flex min-h-11 items-center gap-2 text-sm text-ink-secondary">
               <input
                 type="checkbox"
                 checked={form.unlocked}
                 onChange={(e) => onUpdate({ unlocked: e.target.checked })}
-                className="rounded border-slate-300 text-primary-600 focus:ring-focus"
+                className="h-4 w-4 rounded border-line-strong"
               />
               Unlock this lesson for this student
             </label>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Lesson unlock date override</label>
+              <label className="block text-xs font-semibold text-ink-secondary mb-1">Lesson unlock date override</label>
               <input
                 type="date"
                 value={form.unlock_date_override}
                 onChange={(e) => onUpdate({ unlock_date_override: e.target.value })}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                className="app-control w-full tabular-nums"
               />
-              <p className="mt-1 text-xs text-slate-400">Leave blank to use module/default schedule. A lesson-specific override wins over module timing.</p>
+              <p className="mt-1 text-xs text-ink-muted">Leave blank to use module/default schedule. A lesson-specific override wins over module timing.</p>
             </div>
           </div>
           {lesson.blocks.map((block) => {
             const Icon = BLOCK_ICONS[block.block_type] || FileText
-            const colorClass = BLOCK_COLORS[block.block_type] || 'text-slate-400'
+            const colorClass = BLOCK_COLOR
             const watchProgress =
               (block.block_type === 'video' || block.block_type === 'recording')
                 ? videoProgressByBlockId.get(block.id)
@@ -413,27 +395,25 @@ function LessonRow({
             return (
               <div
                 key={block.id}
-                className="px-5 py-2.5 border-b border-slate-100 last:border-0"
+                className="px-5 py-2.5 border-b border-line last:border-0"
               >
-                <div className="flex items-center gap-3">
-                  <Icon className={`h-3.5 w-3.5 shrink-0 ${colorClass}`} />
-                  <span className="flex-1 text-xs text-slate-700 truncate">{block.title}</span>
-                  <span className="text-xs text-slate-400 capitalize w-20 text-right shrink-0">
+                <div className="flex min-w-0 items-center gap-3">
+                  <Icon className={`h-3.5 w-3.5 shrink-0 ${colorClass}`} aria-hidden="true" />
+                  <span className="min-w-0 flex-1 text-xs text-ink-secondary truncate" title={block.title}>{block.title}</span>
+                  <span className="hidden text-xs text-ink-muted capitalize w-20 text-right shrink-0 sm:inline">
                     {block.block_type.replace('_', ' ')}
                   </span>
                   {block.submission && (
-                    <span
-                      className={`text-xs font-semibold px-1.5 py-0.5 rounded border ${GRADE_STYLES[block.submission.grade || ''] || 'bg-slate-100 text-slate-500 border-slate-200'}`}
-                    >
+                    <Badge tone={block.submission.grade ? GRADE_TONES[block.submission.grade] || 'neutral' : 'pending'}>
                       {block.submission.grade || 'Submitted'}
-                    </span>
+                    </Badge>
                   )}
                   {block.status === 'completed' ? (
-                    <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                    <CheckCircle className="h-3.5 w-3.5 text-success-600 shrink-0" aria-label="Completed" />
                   ) : block.status === 'in_progress' ? (
-                    <div className="h-3.5 w-3.5 rounded-full border-2 border-primary-400 shrink-0" />
+                    <div className="h-3.5 w-3.5 rounded-full border-2 border-ink-muted shrink-0" aria-label="In progress" />
                   ) : (
-                    <Circle className="h-3.5 w-3.5 text-slate-200 shrink-0" />
+                    <Circle className="h-3.5 w-3.5 text-line-strong shrink-0" aria-hidden="true" />
                   )}
                 </div>
                 {watchProgress && (
@@ -814,22 +794,22 @@ export function StudentDetail() {
   if (loading) return <LoadingSpinner message="Loading student progress..." />
   if (enrollmentRouteChoice) return (
     <div className="app-page max-w-3xl space-y-6">
-      <Link to="/admin/students" className="app-link inline-flex min-h-11 items-center gap-1 px-1 text-sm font-bold"><ArrowLeft className="h-4 w-4" />Students</Link>
+      <Link to="/admin/students" className="app-link inline-flex min-h-11 items-center gap-1 px-1 text-sm"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Students</Link>
       <section className="app-surface overflow-hidden">
-        <div className="border-b border-slate-100 p-6">
+        <div className="border-b border-line p-6">
           <p className="app-eyebrow">Choose an enrollment</p>
-          <h1 className="app-title mt-2">{enrollmentRouteChoice.user.full_name}</h1>
-          <p className="mt-2 text-sm text-slate-500">{enrollmentRouteChoice.user.email}</p>
-          <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-600">This student belongs to more than one cohort. Choose the enrollment you want so progress, support, messages, and access controls stay in the right context.</p>
+          <h1 className="app-title mt-2 [overflow-wrap:anywhere]">{enrollmentRouteChoice.user.full_name}</h1>
+          <p className="mt-2 truncate text-sm text-ink-muted" title={enrollmentRouteChoice.user.email}>{enrollmentRouteChoice.user.email}</p>
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-ink-secondary">This student belongs to more than one cohort. Choose the enrollment you want so progress, support, messages, and access controls stay in the right context.</p>
         </div>
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-line">
           {enrollmentRouteChoice.enrollments.map((choice) => (
-            <Link key={choice.id} to={cohortStudentPath(choice.cohort_id, Number(id))} className="group flex min-h-20 items-center justify-between gap-4 px-6 py-4 transition hover:bg-slate-50">
-              <div>
-                <p className="font-extrabold text-slate-950">{choice.cohort_name}</p>
-                <p className="mt-1 text-xs text-slate-500">{choice.enrolled_at ? `Enrolled ${new Date(choice.enrolled_at).toLocaleDateString()}` : 'Enrollment date unavailable'}</p>
+            <Link key={choice.id} to={cohortStudentPath(choice.cohort_id, Number(id))} className="group pressable flex min-h-20 items-center justify-between gap-4 px-6 py-4 hover:bg-surface-sunken">
+              <div className="min-w-0">
+                <p className="font-semibold text-ink [overflow-wrap:anywhere]">{choice.cohort_name}</p>
+                <p className="mt-1 text-xs tabular-nums text-ink-muted">{choice.enrolled_at ? `Enrolled ${formatShortDate(choice.enrolled_at)}` : 'Enrollment date unavailable'}</p>
               </div>
-              <span className="inline-flex items-center gap-2 text-sm font-bold capitalize text-slate-500 group-hover:text-primary-700"><span className={`rounded-full px-2.5 py-1 text-xs ${choice.status === 'active' ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-600'}`}>{choice.status}</span><ChevronRight className="h-4 w-4" /></span>
+              <span className="inline-flex shrink-0 items-center gap-2 text-ink-muted group-hover:text-ink"><Badge tone={choice.status === 'active' ? 'success' : 'neutral'} className="capitalize">{choice.status}</Badge><ChevronRight className="h-4 w-4" aria-hidden="true" /></span>
             </Link>
           ))}
         </div>
@@ -837,8 +817,8 @@ export function StudentDetail() {
     </div>
   )
   if (error) return (
-    <div className="text-center py-12 text-red-500">
-      <AlertCircle className="h-8 w-8 mx-auto mb-3 opacity-50" />
+    <div role="alert" className="mx-auto mt-6 max-w-xl rounded-2xl border border-danger-200 bg-danger-50 px-4 py-8 text-center text-sm text-danger-700">
+      <AlertCircle className="h-8 w-8 mx-auto mb-3" aria-hidden="true" />
       <p>{error}</p>
     </div>
   )
@@ -932,35 +912,21 @@ export function StudentDetail() {
 
   return (
     <div className="app-page max-w-6xl">
-      <button
-        onClick={() => navigate(-1)}
-        className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-      >
-        <ArrowLeft className="h-4 w-4" />
+      <Button variant="quiet" size="sm" className="-ml-3 self-start" onClick={() => navigate(-1)}>
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
         Back
-      </button>
+      </Button>
 
-      <section className="relative overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_16px_50px_rgba(15,23,42,0.05)] before:absolute before:inset-y-0 before:left-0 before:w-1.5 before:bg-primary-600">
+      <section className="app-surface p-6">
         <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-          <div className="shrink-0">
-            {user.avatar_url ? (
-              <img
-                src={user.avatar_url}
-                alt={user.full_name}
-                className="h-14 w-14 rounded-full object-cover"
-              />
-            ) : (
-              <div className="h-14 w-14 rounded-full bg-primary-100 flex items-center justify-center">
-                <User className="h-7 w-7 text-primary-600" />
-              </div>
-            )}
-          </div>
+          <Avatar name={user.full_name} src={user.avatar_url} size="lg" />
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-slate-900">{user.full_name}</h1>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <h1 className="min-w-0 max-w-full truncate text-xl font-bold text-ink" title={user.full_name}>{user.full_name}</h1>
               <PresenceBadge status={status} className="px-2 py-0.5" />
               {!editingUser && (
-                <button
+                <TextButton
+                  className="text-sm"
                   onClick={() => {
                     const nameParts = (user.full_name || '').split(' ')
                     setEditForm({
@@ -971,65 +937,68 @@ export function StudentDetail() {
                     })
                     setEditingUser(true)
                   }}
-                  className="text-xs font-medium text-primary-600 hover:text-primary-700"
                 >
                   Edit
-                </button>
+                </TextButton>
               )}
             </div>
-            <p className="text-sm text-slate-500">{user.email}</p>
-            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-500">
+            <p className="truncate text-sm text-ink-muted" title={user.email}>{user.email}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-ink-muted">
               {user.github_username ? (
                 <a
                   href={`https://github.com/${user.github_username}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-primary-600 hover:underline"
+                  className="app-link inline-flex min-w-0 items-center gap-1.5 [overflow-wrap:anywhere]"
                 >
-                  <Github className="h-3.5 w-3.5" />
+                  <Github className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   @{user.github_username}
                 </a>
               ) : (
-                <span className="inline-flex items-center gap-1.5 text-slate-400">
-                  <Github className="h-3.5 w-3.5" />
+                <span className="inline-flex items-center gap-1.5 text-ink-muted">
+                  <Github className="h-3.5 w-3.5" aria-hidden="true" />
                   No GitHub username
                 </span>
               )}
-              <span className="inline-flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5" />
+              <span className="inline-flex items-center gap-1.5 tabular-nums">
+                <Clock className="h-3.5 w-3.5" aria-hidden="true" />
                 Last login: {formatRelative(user.last_sign_in_at)}
               </span>
-              <span className="inline-flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1.5 tabular-nums">
                 <PresenceDot status={status} className="h-3.5 w-3.5" />
                 Last active: {formatRelative(user.last_seen_at)}
               </span>
             </div>
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs tabular-nums text-ink-muted [overflow-wrap:anywhere]">
               {cohort.name} · Started {formatDate(cohort.start_date)} · Enrollment {enrollment.status}
             </p>
           </div>
-          <div className="shrink-0 text-center">
+          <div className="flex shrink-0 flex-col items-center text-center">
             <ProgressRing percentage={overall_progress.percentage} size={80} label="Overall" />
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs tabular-nums text-ink-muted">
               {overall_progress.completed}/{overall_progress.total} blocks
             </p>
-            <Link
+            <LinkButton
               to={`/admin/cohorts/${cohort.id}/student-view`}
-              className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-xs font-medium text-primary-700 hover:bg-primary-100"
+              variant="secondary"
+              size="sm"
+              className="mt-3"
             >
-              <Eye className="h-3.5 w-3.5" />
+              <Eye className="h-3.5 w-3.5" aria-hidden="true" />
               Preview cohort template
-            </Link>
+            </LinkButton>
             {currentUser?.is_admin && (
-              <button
-                type="button"
+              <Button
+                variant="danger"
+                size="sm"
+                fullWidth
+                className="mt-2"
                 onClick={restartEnrollment}
                 disabled={restartingEnrollment}
-                className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <RotateCcw className={`h-3.5 w-3.5 ${restartingEnrollment ? 'animate-spin' : ''}`} />
+                <RotateCcw className={`h-3.5 w-3.5 ${restartingEnrollment ? 'animate-spin' : ''}`} aria-hidden="true" />
                 {restartingEnrollment ? 'Restarting…' : 'Restart class progress'}
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -1057,58 +1026,60 @@ export function StudentDetail() {
               }
               setSavingUser(false)
             }}
-            className="mt-4 border-t border-slate-200 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3"
+            className="mt-4 border-t border-line pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3"
           >
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">First Name</label>
-              <input type="text" value={editForm.first_name} onChange={(e) => setEditForm((f) => ({ ...f, first_name: e.target.value }))} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus" />
+              <label className="block text-xs font-semibold text-ink-secondary mb-1">First name</label>
+              <input type="text" value={editForm.first_name} onChange={(e) => setEditForm((f) => ({ ...f, first_name: e.target.value }))} className="app-control w-full" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Last Name</label>
-              <input type="text" value={editForm.last_name} onChange={(e) => setEditForm((f) => ({ ...f, last_name: e.target.value }))} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus" />
+              <label className="block text-xs font-semibold text-ink-secondary mb-1">Last name</label>
+              <input type="text" value={editForm.last_name} onChange={(e) => setEditForm((f) => ({ ...f, last_name: e.target.value }))} className="app-control w-full" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">GitHub Username</label>
-              <input type="text" value={editForm.github_username} onChange={(e) => setEditForm((f) => ({ ...f, github_username: e.target.value }))} placeholder="e.g., octocat" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus" />
+              <label className="block text-xs font-semibold text-ink-secondary mb-1">GitHub username</label>
+              <input type="text" value={editForm.github_username} onChange={(e) => setEditForm((f) => ({ ...f, github_username: e.target.value }))} placeholder="e.g., octocat" className="app-control w-full" />
             </div>
             <div className="flex items-end gap-2">
-              <button type="submit" disabled={savingUser} className="rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 transition-colors">
-                {savingUser ? 'Saving...' : 'Save Changes'}
-              </button>
-              <button type="button" onClick={() => setEditingUser(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">
+              <Button type="submit" disabled={savingUser}>
+                {savingUser ? 'Saving...' : 'Save changes'}
+              </Button>
+              <Button variant="quiet" onClick={() => setEditingUser(false)}>
                 Cancel
-              </button>
+              </Button>
             </div>
           </form>
         )}
       </section>
 
       {assignmentMessage && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        <div role="status" className="rounded-xl border border-line bg-surface-sunken px-4 py-3 text-sm text-ink-secondary">
           {assignmentMessage}
         </div>
       )}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 space-y-4">
-          <h2 className="text-lg font-semibold text-slate-900">Course Progress</h2>
+          <h2 className="text-lg font-bold text-ink">Course progress</h2>
           {modules.map((mod) => {
             const isExpanded = expandedModules.has(mod.id)
             return (
-              <div key={mod.id} className="rounded-2xl bg-white border border-slate-200 overflow-hidden">
+              <div key={mod.id} className="app-surface overflow-hidden">
                 <button
+                  type="button"
                   onClick={() => toggleModule(mod.id)}
-                  className="w-full flex items-center gap-3 p-5 hover:bg-slate-50 transition-colors text-left"
+                  aria-expanded={isExpanded}
+                  className="pressable w-full flex min-h-11 items-center gap-3 p-5 hover:bg-surface-sunken text-left"
                 >
                   {isExpanded ? (
-                    <ChevronDown className="h-4 w-4 text-slate-400 shrink-0" />
+                    <ChevronDown className="h-4 w-4 text-ink-muted shrink-0" aria-hidden="true" />
                   ) : (
-                    <ChevronRight className="h-4 w-4 text-slate-400 shrink-0" />
+                    <ChevronRight className="h-4 w-4 text-ink-muted shrink-0" aria-hidden="true" />
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-slate-900 truncate">{mod.name}</span>
-                      <span className="text-sm text-slate-500 shrink-0">
+                      <span className="font-semibold text-ink truncate" title={mod.name}>{mod.name}</span>
+                      <span className="text-sm tabular-nums text-ink-muted shrink-0">
                         {mod.completed_blocks}/{mod.total_blocks}
                       </span>
                     </div>
@@ -1119,9 +1090,9 @@ export function StudentDetail() {
                 </button>
 
                 {isExpanded && (
-                  <div className="border-t border-slate-100 p-4 space-y-3">
+                  <div className="border-t border-line p-4 space-y-3">
                     {mod.lessons.length === 0 ? (
-                      <p className="text-sm text-slate-400 text-center py-4">No lessons yet</p>
+                      <p className="text-sm text-ink-muted text-center py-4">No lessons yet</p>
                     ) : (
                       mod.lessons.map((lesson) => (
                         <LessonRow
@@ -1149,22 +1120,22 @@ export function StudentDetail() {
             const inProgressCount = recordingProgress.filter((r) => !r.completed && r.total_watched_seconds > 0).length
             const totalWatched = recordingProgress.reduce((sum, r) => sum + r.total_watched_seconds, 0)
             return (
-              <div className="rounded-2xl bg-white border border-slate-200 overflow-hidden">
-                <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-slate-100">
+              <div className="app-surface overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-line">
                   <div className="flex items-center gap-2">
-                    <Film className="h-4 w-4 text-primary-500" />
-                    <h3 className="text-sm font-semibold text-slate-900">Class Recordings</h3>
-                    <span className="text-xs text-slate-400 tabular-nums">
+                    <Film className="h-4 w-4 text-ink-muted" aria-hidden="true" />
+                    <h3 className="text-base font-semibold text-ink">Class recordings</h3>
+                    <span className="text-xs text-ink-muted tabular-nums">
                       ({completedCount}/{recordingProgress.length} watched)
                     </span>
                   </div>
-                  <div className="flex items-center gap-3 text-[11px] text-slate-500 tabular-nums">
-                    <span><span className="text-green-600 font-medium">{completedCount}</span> done</span>
-                    <span><span className="text-amber-600 font-medium">{inProgressCount}</span> in progress</span>
-                    <span><span className="text-slate-700 font-medium">{formatWatchedDuration(totalWatched)}</span> total watched</span>
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-ink-muted tabular-nums">
+                    <span><span className="text-success-700 font-medium">{completedCount}</span> done</span>
+                    <span><span className="text-ink-secondary font-medium">{inProgressCount}</span> in progress</span>
+                    <span><span className="text-ink-secondary font-medium">{formatWatchedDuration(totalWatched)}</span> total watched</span>
                   </div>
                 </div>
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-line">
                   {recordingProgress.map((rec) => {
                     const pct = Math.round(rec.progress_percentage)
                     return (
@@ -1172,15 +1143,15 @@ export function StudentDetail() {
                         key={rec.recording_id}
                         className="px-5 py-2.5"
                       >
-                        <div className="flex items-center gap-3">
-                          <PlayCircle className="h-3.5 w-3.5 text-purple-500 shrink-0" />
-                          <span className="flex-1 text-xs text-slate-700 truncate">{rec.recording_title}</span>
+                        <div className="flex min-w-0 items-center gap-3">
+                          <PlayCircle className="h-3.5 w-3.5 text-ink-muted shrink-0" aria-hidden="true" />
+                          <span className="min-w-0 flex-1 text-xs text-ink-secondary truncate" title={rec.recording_title}>{rec.recording_title}</span>
                           {rec.completed ? (
-                            <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                            <CheckCircle className="h-3.5 w-3.5 text-success-600 shrink-0" aria-label="Watched" />
                           ) : pct > 0 ? (
-                            <div className="h-3.5 w-3.5 rounded-full border-2 border-amber-400 shrink-0" />
+                            <div className="h-3.5 w-3.5 rounded-full border-2 border-ink-muted shrink-0" aria-label="In progress" />
                           ) : (
-                            <Circle className="h-3.5 w-3.5 text-slate-200 shrink-0" />
+                            <Circle className="h-3.5 w-3.5 text-line-strong shrink-0" aria-hidden="true" />
                           )}
                         </div>
                         <div className="pl-7 pr-1">
@@ -1203,38 +1174,39 @@ export function StudentDetail() {
 
         <div className="space-y-4">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Module Access</h2>
-            <p className="text-sm text-slate-500 mt-1">
+            <h2 className="text-lg font-bold text-ink">Module access</h2>
+            <p className="text-sm text-ink-muted mt-1">
               Control per-student unlocks and override dates.
             </p>
           </div>
           {assignableModules.length > 0 && (
-            <div className="rounded-2xl bg-white border border-slate-200 p-4 space-y-3">
+            <div className="app-surface p-4 space-y-3">
               <div>
-                <p className="text-sm font-semibold text-slate-900">Assign Additional Modules</p>
-                <p className="text-xs text-slate-500 mt-1">Give this student access to modules that exist in the curriculum but are not yet assigned.</p>
+                <h3 className="text-base font-semibold text-ink">Assign additional modules</h3>
+                <p className="text-xs text-ink-muted mt-1">Give this student access to modules that exist in the curriculum but are not yet assigned.</p>
               </div>
               <div className="space-y-2">
                 {assignableModules.map((mod) => (
-                  <div key={mod.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">{mod.name}</p>
-                      <p className="text-xs text-slate-500 capitalize">{mod.module_type.replace('_', ' ')} · {mod.lessons.length} lessons</p>
+                  <div key={mod.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface-sunken px-3 py-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-ink [overflow-wrap:anywhere]">{mod.name}</p>
+                      <p className="text-xs tabular-nums text-ink-muted capitalize">{mod.module_type.replace('_', ' ')} · {mod.lessons.length} lessons</p>
                     </div>
-                    <button
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={() => createModuleAssignment(mod.id)}
                       disabled={creatingModuleId === mod.id}
-                      className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-3 py-2 text-xs font-medium text-white hover:bg-primary-600 disabled:opacity-50 transition-colors"
                     >
-                      <Plus className="h-3.5 w-3.5" />
-                      {creatingModuleId === mod.id ? 'Assigning...' : 'Assign Module'}
-                    </button>
+                      <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                      {creatingModuleId === mod.id ? 'Assigning...' : 'Assign module'}
+                    </Button>
                   </div>
                 ))}
               </div>
             </div>
           )}
-          <div className="rounded-2xl bg-white border border-slate-200 divide-y divide-slate-100">
+          <div className="app-surface divide-y divide-line">
             {enrollment.module_assignments.map((assignment) => {
               const form = assignmentForms[assignment.id] || {
                 unlocked: assignment.unlocked,
@@ -1244,9 +1216,9 @@ export function StudentDetail() {
               return (
                 <div key={assignment.id} className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">{assignment.module_name}</p>
-                      <p className="text-xs text-slate-500 capitalize">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-ink [overflow-wrap:anywhere]">{assignment.module_name}</p>
+                      <p className="text-xs tabular-nums text-ink-muted capitalize">
                         {assignment.module_type.replace('_', ' ')}
                         {assignment.available
                           ? ' · available now'
@@ -1255,52 +1227,52 @@ export function StudentDetail() {
                             : ' · locked'}
                       </p>
                     </div>
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${form.unlocked ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
-                      {form.unlocked ? <Unlock className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
+                    <Badge tone={form.unlocked ? 'success' : 'neutral'} icon={form.unlocked ? <Unlock className="h-3 w-3" aria-hidden="true" /> : <Lock className="h-3 w-3" aria-hidden="true" />}>
                       {form.unlocked ? 'Unlocked' : 'Locked'}
-                    </span>
+                    </Badge>
                   </div>
 
-                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <label className="flex min-h-11 items-center gap-2 text-sm text-ink-secondary">
                     <input
                       type="checkbox"
                       checked={form.unlocked}
                       onChange={(e) => updateAssignmentForm(assignment.id, { unlocked: e.target.checked })}
-                      className="rounded border-slate-300 text-primary-600 focus:ring-focus"
+                      className="h-4 w-4 rounded border-line-strong"
                     />
                     Allow access to this module
                   </label>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Unlock date override</label>
+                    <label className="block text-xs font-semibold text-ink-secondary mb-1">Unlock date override</label>
                     <input
                       type="date"
                       value={form.unlock_date_override}
                       onChange={(e) => updateAssignmentForm(assignment.id, { unlock_date_override: e.target.value })}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                      className="app-control w-full tabular-nums"
                     />
-                    <p className="mt-1 text-xs text-slate-400">
+                    <p className="mt-1 text-xs text-ink-muted">
                       Leave blank to use the module and lesson schedule.
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <button
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="danger"
+                      size="sm"
                       onClick={() => deleteModuleAssignment(assignment)}
                       disabled={deletingAssignmentId === assignment.id}
-                      className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-100 disabled:opacity-50 transition-colors"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
                       {deletingAssignmentId === assignment.id ? 'Removing...' : 'Remove'}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      size="sm"
                       onClick={() => saveAssignment(assignment)}
                       disabled={saving}
-                      className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50 transition-colors"
                     >
-                      <Save className="h-4 w-4" />
-                      {saving ? 'Saving...' : 'Save Access'}
-                    </button>
+                      <Save className="h-4 w-4" aria-hidden="true" />
+                      {saving ? 'Saving...' : 'Save access'}
+                    </Button>
                   </div>
                 </div>
               )
@@ -1308,21 +1280,21 @@ export function StudentDetail() {
           </div>
 
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Recent Activity</h2>
+            <h2 className="text-lg font-bold text-ink">Recent activity</h2>
           </div>
-          <div className="rounded-2xl bg-white border border-slate-200 divide-y divide-slate-100">
+          <div className="app-surface divide-y divide-line">
             {recent_activity.length === 0 ? (
-              <p className="text-sm text-slate-400 text-center py-6">No activity yet</p>
+              <p className="text-sm text-ink-muted text-center py-6">No activity yet</p>
             ) : (
               recent_activity.map((activity) => {
                 const Icon = BLOCK_ICONS[activity.block_type] || FileText
-                const colorClass = BLOCK_COLORS[activity.block_type] || 'text-slate-400'
+                const colorClass = BLOCK_COLOR
                 return (
                   <div key={activity.content_block_id} className="flex items-start gap-3 p-4">
-                    <Icon className={`h-4 w-4 shrink-0 mt-0.5 ${colorClass}`} />
+                    <Icon className={`h-4 w-4 shrink-0 mt-0.5 ${colorClass}`} aria-hidden="true" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-slate-800 truncate">{activity.block_title}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">
+                      <p className="text-sm text-ink truncate" title={activity.block_title}>{activity.block_title}</p>
+                      <p className="text-xs tabular-nums text-ink-muted mt-0.5">
                         {formatRelative(activity.completed_at)}
                       </p>
                     </div>

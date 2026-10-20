@@ -356,6 +356,36 @@ a {
   }
 }
 
+/* Side drawers (staff student context): slide in from the right edge. */
+@keyframes drawer-enter {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes drawer-exit {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.app-drawer-overlay {
+  animation: overlay-enter var(--duration-panel) var(--ease-out);
+}
+
+.app-drawer-panel {
+  animation: drawer-enter var(--duration-panel) var(--ease-drawer);
+}
+
+.app-drawer-overlay[data-state="closing"] {
+  pointer-events: none;
+  animation: overlay-exit var(--duration-local) var(--ease-out) forwards;
+}
+
+.app-drawer-overlay[data-state="closing"] .app-drawer-panel {
+  animation: drawer-exit var(--duration-local) var(--ease-drawer) forwards;
+}
+
 /* Small popover menus grow from their trigger. */
 @keyframes popover-enter {
   from {
@@ -423,6 +453,22 @@ a {
 
   .app-modal-overlay[data-state="closing"] .app-modal.app-modal {
     animation: none !important;
+  }
+
+  .app-drawer-overlay.app-drawer-overlay {
+    animation-name: overlay-enter !important;
+    animation-duration: var(--duration-local) !important;
+    animation-timing-function: linear !important;
+  }
+
+  .app-drawer-panel.app-drawer-panel {
+    animation: none !important;
+  }
+
+  .app-drawer-overlay.app-drawer-overlay[data-state="closing"] {
+    animation-name: overlay-exit !important;
+    animation-duration: 120ms !important;
+    animation-timing-function: linear !important;
   }
 
   .milestone-ring-animate.milestone-ring-animate {
