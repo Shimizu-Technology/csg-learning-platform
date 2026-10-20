@@ -20,17 +20,31 @@ const ToastContext = createContext<ToastContextValue | null>(null)
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
   const timeoutIds = useRef(new Map<number, number>())
+  // Mirrors `toasts` synchronously so two calls in one tick still de-duplicate.
+  const toastsRef = useRef<Toast[]>([])
 
   const dismiss = useCallback((id: number) => {
     const timeoutId = timeoutIds.current.get(id)
     if (timeoutId) window.clearTimeout(timeoutId)
     timeoutIds.current.delete(id)
+    toastsRef.current = toastsRef.current.filter((toast) => toast.id !== id)
     setToasts((current) => current.filter((toast) => toast.id !== id))
   }, [])
 
   const show = useCallback((type: ToastType, message: string) => {
+    // The same message twice (a double tap, a retry, two listeners) shows once
+    // and stays up for the full time again instead of stacking a duplicate.
+    const existing = toastsRef.current.find((toast) => toast.type === type && toast.message === message)
+    if (existing) {
+      const previous = timeoutIds.current.get(existing.id)
+      if (previous) window.clearTimeout(previous)
+      timeoutIds.current.set(existing.id, window.setTimeout(() => dismiss(existing.id), 4500))
+      return
+    }
     const id = Date.now() + Math.random()
-    setToasts((current) => [...current, { id, type, message }])
+    const toast = { id, type, message }
+    toastsRef.current = [...toastsRef.current, toast]
+    setToasts((current) => [...current, toast])
     timeoutIds.current.set(id, window.setTimeout(() => dismiss(id), 4500))
   }, [dismiss])
 
