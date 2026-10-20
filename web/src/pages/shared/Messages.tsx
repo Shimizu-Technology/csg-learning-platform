@@ -67,7 +67,7 @@ import { isVisiblePage, shouldPollMessages } from '../../lib/backgroundActivity'
 import { browserPushEnabled, disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
 import { formatFileSize, uploadToS3 } from '../../lib/uploadToS3'
 import { editorJsonToMarkdown, normalizeMessageMarkdown, parseMessageBlocks, type MessageListBlock } from '../../lib/messageFormat'
-import { isMultiLinePaste, looksLikeCode, normalizePastedCode } from '../../lib/codePaste'
+import { fencedCodeInsertion, isInsideMarkdownFence, isMultiLinePaste, looksLikeCode, normalizePastedCode } from '../../lib/codePaste'
 import {
   MESSAGE_BODY_LIMIT,
   composerBodyMatchesDestination,
@@ -88,6 +88,7 @@ import { useToast } from '../../contexts/ToastContext'
 import { MessagesLoadingShell } from '../../components/shared/MessagesLoadingShell'
 import { Avatar } from '../../components/ui/Avatar'
 import { AnchorButton, Button, IconButton } from '../../components/ui/Button'
+import { TextButton } from '../../components/ui/Choice'
 import { Modal } from '../../components/shared/Modal'
 import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
 import { helpRequestPath, submissionPath } from '../../lib/routes'
@@ -5128,6 +5129,39 @@ function MessageRow({
   )
 }
 
+interface EditPasteNotice {
+  mode: 'code' | 'text'
+  /** The pasted text, normalized. */
+  text: string
+  /** Where the paste landed and exactly what was inserted there. */
+  start: number
+  inserted: string
+  /** The full value right after the paste; the notice hides once the text changes. */
+  after: string
+}
+
+/**
+ * Replaces a textarea range through the browser's editing command so the
+ * change is one native undo step; falls back to setting the value directly.
+ * Returns the resulting value.
+ */
+function replaceTextareaRange(textarea: HTMLTextAreaElement, start: number, end: number, text: string, onChange: (value: string) => void) {
+  textarea.focus()
+  textarea.setSelectionRange(start, end)
+  const expected = textarea.value.slice(0, start) + text + textarea.value.slice(end)
+  let applied: boolean
+  try {
+    applied = typeof document.execCommand === 'function' && document.execCommand('insertText', false, text) && textarea.value === expected
+  } catch {
+    applied = false
+  }
+  if (!applied) {
+    onChange(expected)
+    requestAnimationFrame(() => textarea.setSelectionRange(start + text.length, start + text.length))
+  }
+  return expected
+}
+
 export function MessageEditSurface({
   value,
   onChange,
@@ -5140,6 +5174,10 @@ export function MessageEditSurface({
   onCancel: () => void
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // Same paste behaviour as the composer: code keeps its indentation in a
+  // fenced block, with a one-tap switch between code and text.
+  const [pasteNotice, setPasteNotice] = useState<EditPasteNotice | null>(null)
+  const [cursorInCode, setCursorInCode] = useState(false)
   const normalizedValue = normalizeMessageMarkdown(value)
   const characterCount = messageCharacterCount(normalizedValue)
   const canSave = normalizedValue.length > 0 && characterCount <= MESSAGE_BODY_LIMIT
@@ -5158,7 +5196,33 @@ export function MessageEditSurface({
       <textarea
         ref={textareaRef}
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => {
+          onChange(event.target.value)
+          setCursorInCode(isInsideMarkdownFence(event.target.value, event.target.selectionStart))
+        }}
+        onSelect={(event) => setCursorInCode(isInsideMarkdownFence(event.currentTarget.value, event.currentTarget.selectionStart))}
+        onPaste={(event) => {
+          const textarea = event.currentTarget
+          if (Array.from(event.clipboardData?.files || []).length > 0) return
+          const raw = event.clipboardData?.getData('text/plain') || ''
+          if (!raw) return
+          const start = textarea.selectionStart
+          const end = textarea.selectionEnd
+          // Inside an existing fence the browser's verbatim paste is already right.
+          if (isInsideMarkdownFence(textarea.value, start)) return
+          const text = normalizePastedCode(raw)
+          if (looksLikeCode(text)) {
+            event.preventDefault()
+            const inserted = fencedCodeInsertion(textarea.value, start, end, text)
+            const next = replaceTextareaRange(textarea, start, end, inserted, onChange)
+            setPasteNotice({ mode: 'code', text, start, inserted, after: next })
+          } else if (isMultiLinePaste(text)) {
+            // Let the browser paste as usual (keeps native undo); remember where it went.
+            const inserted = raw.replace(/\r\n?/g, '\n')
+            const after = textarea.value.slice(0, start) + inserted + textarea.value.slice(end)
+            setPasteNotice({ mode: 'text', text, start, inserted, after })
+          }
+        }}
         onKeyDown={(event) => {
           if (event.key === 'Escape') {
             event.preventDefault()
@@ -5171,8 +5235,34 @@ export function MessageEditSurface({
         rows={4}
         autoFocus
         aria-label="Edit message"
+        spellCheck={!cursorInCode}
+        autoCorrect={cursorInCode ? 'off' : 'on'}
+        autoCapitalize={cursorInCode ? 'off' : 'sentences'}
         className="block min-h-28 max-h-[50dvh] w-full resize-y overflow-y-auto border-0 bg-slate-50/70 px-4 py-3 text-base leading-6 text-slate-800 outline-none placeholder:text-slate-400 focus:bg-white sm:text-sm"
       />
+      {pasteNotice && pasteNotice.after === value && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line bg-white px-3 py-1.5 text-xs text-ink-secondary" role="status">
+          <span>{pasteNotice.mode === 'code' ? 'Pasted as code so the indentation stays.' : 'Pasted as text.'}</span>
+          <span className="flex items-center gap-1">
+            <TextButton
+              className="px-2 text-xs sm:min-h-9"
+              onClick={() => {
+                const textarea = textareaRef.current
+                const notice = pasteNotice
+                setPasteNotice(null)
+                if (!textarea || textarea.value.slice(notice.start, notice.start + notice.inserted.length) !== notice.inserted) return
+                const end = notice.start + notice.inserted.length
+                const replacement = notice.mode === 'code' ? notice.text : fencedCodeInsertion(textarea.value, notice.start, end, notice.text)
+                const after = replaceTextareaRange(textarea, notice.start, end, replacement, onChange)
+                setPasteNotice({ mode: notice.mode === 'code' ? 'text' : 'code', text: notice.text, start: notice.start, inserted: replacement, after })
+              }}
+            >
+              {pasteNotice.mode === 'code' ? 'Paste as text instead' : 'Paste as code instead'}
+            </TextButton>
+            <Button variant="quiet" size="sm" onClick={() => setPasteNotice(null)} className="sm:min-h-9" aria-label="Dismiss paste options">OK</Button>
+          </span>
+        </div>
+      )}
       <div className="flex flex-col gap-3 border-t border-slate-200/80 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
         <p className={`text-xs font-medium tabular-nums ${characterCount > MESSAGE_BODY_LIMIT ? 'text-danger-700' : 'text-ink-muted'}`}>
           {characterCount > MESSAGE_BODY_LIMIT

@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { act, useState } from 'react'
+import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { cachedWindowIsContiguous, conversationPath, createMessageArrivals, forgetMessageArrival, FormattedMessage, MessageEditSurface, mergeMessageWindow, messageShouldAnimateEntry, recordMessageArrival, restoreFailedSends, typingIndicatorLabel } from './Messages'
@@ -118,6 +120,76 @@ describe('MessageEditSurface', () => {
     )
 
     expect(html).toContain('disabled=""')
+  })
+})
+
+describe('MessageEditSurface paste', () => {
+  function mount(initial: string) {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const values: string[] = []
+    function Harness() {
+      const [value, setValue] = useState(initial)
+      return <MessageEditSurface value={value} onChange={(next) => { values.push(next); setValue(next) }} onSave={() => undefined} onCancel={() => undefined} />
+    }
+    act(() => root.render(<Harness />))
+    const textarea = container.querySelector('textarea')!
+    const paste = (text: string, at = textarea.value.length) => {
+      textarea.setSelectionRange(at, at)
+      const event = new Event('paste', { bubbles: true, cancelable: true })
+      Object.defineProperty(event, 'clipboardData', { value: { files: [], getData: (type: string) => (type === 'text/plain' ? text : '') } })
+      act(() => { textarea.dispatchEvent(event) })
+      return event
+    }
+    const cleanup = () => { act(() => root.unmount()); container.remove() }
+    return { container, textarea, paste, values, cleanup }
+  }
+
+  const PYTHON = 'def total(items):\n    result = 0\n    for item in items:\n        result += item\n    return result'
+
+  it('pastes code as a fenced block that keeps its indentation, like the composer', () => {
+    const { container, textarea, paste, cleanup } = mount('Here is my fix:')
+    const event = paste(PYTHON)
+    expect(event.defaultPrevented).toBe(true)
+    expect(textarea.value).toBe(`Here is my fix:\n\`\`\`\n${PYTHON}\n\`\`\`\n`)
+    expect(container.textContent).toContain('Pasted as code so the indentation stays.')
+    cleanup()
+  })
+
+  it('switches a code paste back to text and offers code again', () => {
+    const { container, textarea, paste, cleanup } = mount('')
+    paste(PYTHON)
+    const toText = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Paste as text instead')!
+    act(() => toText.click())
+    expect(textarea.value).toBe(PYTHON)
+    expect(container.textContent).toContain('Pasted as text.')
+    const toCode = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Paste as code instead')!
+    act(() => toCode.click())
+    expect(textarea.value).toBe(`\`\`\`\n${PYTHON}\n\`\`\`\n`)
+    cleanup()
+  })
+
+  it('leaves prose and pastes inside an existing fence to the browser', () => {
+    const { textarea, paste, cleanup } = mount('```\nx = 1\n')
+    expect(paste('    y = 2\n    z = 3', textarea.value.length).defaultPrevented).toBe(false)
+    const prose = mount('Hi')
+    expect(prose.paste('Thanks for the help today.').defaultPrevented).toBe(false)
+    prose.cleanup()
+    cleanup()
+  })
+
+  it('turns autocorrect and spellcheck off while the cursor is in a code block', () => {
+    const { textarea, paste, cleanup } = mount('')
+    expect(textarea.getAttribute('spellcheck')).toBe('true')
+    paste(PYTHON)
+    textarea.focus()
+    textarea.setSelectionRange(5, 5)
+    act(() => { textarea.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'ArrowDown' })) })
+    expect(textarea.getAttribute('spellcheck')).toBe('false')
+    expect(textarea.getAttribute('autocorrect')).toBe('off')
+    expect(textarea.getAttribute('autocapitalize')).toBe('off')
+    cleanup()
   })
 })
 
