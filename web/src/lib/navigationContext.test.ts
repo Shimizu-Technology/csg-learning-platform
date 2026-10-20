@@ -48,3 +48,37 @@ describe('queue shortcuts', () => {
     expect(queueShortcutDirection(key('j', { defaultPrevented: true }))).toBeNull()
   })
 })
+
+describe('useListScrollMemory', () => {
+  it('saves the list position while it is the current page, and ignores scrolls after the URL moves on', async () => {
+    const { act, createElement } = await import('react')
+    const { createRoot } = await import('react-dom/client')
+    const { BrowserRouter } = await import('react-router-dom')
+    const { useListScrollMemory } = await import('./navigationContext')
+    const raf = window.requestAnimationFrame
+    window.requestAnimationFrame = (callback: FrameRequestCallback) => { callback(0); return 1 }
+    window.history.replaceState(null, '', '/admin/students?filter=quiet')
+    sessionStorage.clear()
+    const setScroll = (y: number) => { Object.defineProperty(window, 'scrollY', { configurable: true, value: y }); window.dispatchEvent(new Event('scroll')) }
+    function List() {
+      useListScrollMemory(true)
+      return null
+    }
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    act(() => root.render(createElement(BrowserRouter, null, createElement(List))))
+
+    setScroll(700)
+    expect(sessionStorage.getItem('csg:list-scroll:/admin/students')).toBe('700')
+
+    // A suspended navigation keeps the list mounted while the next page's spinner clamps the scroll.
+    window.history.pushState(null, '', '/admin/cohorts/2/students/5/overview')
+    setScroll(64)
+    expect(sessionStorage.getItem('csg:list-scroll:/admin/students')).toBe('700')
+
+    act(() => root.unmount())
+    container.remove()
+    window.requestAnimationFrame = raf
+  })
+})

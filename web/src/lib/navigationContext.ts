@@ -95,7 +95,8 @@ export function shouldRestoreList(navigationType: string, state: unknown) {
 export function useListScrollMemory(ready: boolean) {
   const location = useLocation()
   const navigationType = useNavigationType()
-  const key = SCROLL_PREFIX + location.pathname
+  const pathname = location.pathname
+  const key = SCROLL_PREFIX + pathname
   const restoreRef = useRef(shouldRestoreList(navigationType, location.state))
   const restoredRef = useRef(false)
 
@@ -107,6 +108,9 @@ export function useListScrollMemory(ready: boolean) {
       frame = requestAnimationFrame(() => {
         // Do not overwrite the saved position before it has been restored.
         if (restoreRef.current && !restoredRef.current) return
+        // A suspended route transition keeps this list mounted (hidden) after the URL has
+        // already moved on; scroll events then belong to the next page.
+        if (window.location.pathname !== pathname) return
         try {
           storage()?.setItem(key, String(Math.round(window.scrollY)))
         } catch {
@@ -119,7 +123,7 @@ export function useListScrollMemory(ready: boolean) {
       cancelAnimationFrame(frame)
       window.removeEventListener('scroll', save)
     }
-  }, [key])
+  }, [key, pathname])
 
   useEffect(() => {
     if (!ready || restoredRef.current) return
