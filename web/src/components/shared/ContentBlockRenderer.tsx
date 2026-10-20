@@ -14,11 +14,12 @@ import { api } from '../../lib/api'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import type { LessonReturn } from '../../lib/hafaStarterLinks'
 import { CODE_RUNNER_TIMEOUT_MS, codeRunnerLanguageFromEditor, normalizeCodeRunnerConfig } from '../../lib/codeRunner'
-import { formatShortDateTime } from '../../lib/format'
+import { formatShortDate, formatShortDateTime } from '../../lib/format'
 import { useToast } from '../../contexts/ToastContext'
 import { analyticsAgeBucket, captureProductEvent } from '../../lib/analytics'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { submissionStatus } from '../../lib/learningStatus'
+import { blockHeaderParts } from '../../lib/learnerLabels'
 import { clearSubmissionDraft, readSubmissionDraft, submissionDraftKey, writeSubmissionDraft } from '../../lib/submissionDrafts'
 import { friendlySaveError } from '../../lib/friendlyError'
 import { isVideoSegmentSeekPosition, normalizeVideoSegments, playbackStart, type VideoSegment } from '../../lib/videoSegments'
@@ -708,12 +709,17 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
     </div>
   ) : null
 
+  const header = blockHeaderParts(block.block_type, block.title)
+
   return (
     <div className="app-surface overflow-hidden">
       <div className="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface-sunken/60 px-4 py-2">
         <div className="text-ink-muted">{blockIcons[block.block_type]}</div>
-        <span className="text-sm font-semibold capitalize text-ink">{block.block_type.replace('_', ' ')}</span>
-        {block.title && <span className="min-w-0 text-sm text-ink-muted [overflow-wrap:anywhere]">· {block.title}</span>}
+        <span className="min-w-0 text-sm [overflow-wrap:anywhere]">
+          {header.typeLabel && <span className="font-semibold text-ink">{header.typeLabel}</span>}
+          {header.typeLabel && header.title && <span className="text-ink-muted"> · </span>}
+          {header.title && <span className={header.typeLabel ? 'text-ink-muted' : 'font-semibold text-ink'}>{header.title}</span>}
+        </span>
         {latestStatus && <StatusBadge status={latestStatus} />}
         {workLocked && (
           <StatusBadge status="closed" />
@@ -952,7 +958,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                     >
                       <p className="mb-3 text-xs text-ink-muted">
                         <span className="font-semibold text-ink-secondary tabular-nums">Submission #{sub.num_submissions}</span>
-                        {' · '}<span className="tabular-nums">{new Date(sub.created_at).toLocaleDateString()}</span>
+                        {' · '}<span className="tabular-nums">{formatShortDate(sub.created_at)}</span>
                         {' · '}{isLatest ? 'Latest' : 'Earlier'}
                         {isGraded && <>{' · '}{isRedo ? 'Redo requested' : `Grade ${sub.grade}`}</>}
                       </p>
@@ -983,7 +989,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                             </p>
                             {sub.graded_at && (
                               <p className="text-xs tabular-nums text-ink-muted">
-                                {new Date(sub.graded_at).toLocaleDateString()}
+                                {formatShortDate(sub.graded_at)}
                               </p>
                             )}
                           </div>

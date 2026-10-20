@@ -14,6 +14,7 @@ import { Badge } from '../../components/ui/Badge'
 import { AnchorButton, Button } from '../../components/ui/Button'
 import { useMediaQuery } from '../../lib/useMediaQuery'
 import type { RecordingEntry, RecordingItem as ApiRecordingItem, S3Recording as ApiS3Recording } from '../../types/api'
+import { formatShortDate } from '../../lib/format'
 
 interface LegacyRecording {
   id: number | string
@@ -51,7 +52,7 @@ type RecordingTab = 'all' | 'uploaded' | 'youtube' | 'external'
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return null
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return formatShortDate(dateStr)
 }
 
 function extractYouTubeId(url: string): string | null {

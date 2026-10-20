@@ -7,7 +7,7 @@ import { useCohortContext } from '../../contexts/CohortContext'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { ProgressBar } from '../../components/shared/ProgressBar'
-import { formatShortDateTime } from '../../lib/format'
+import { formatShortDate, formatShortDateTime } from '../../lib/format'
 import { markdownExcerpt } from '../../lib/plainText'
 import { LEARNER_STATUS, STATUS_TONE_CLASSES, learnerLessonStatus } from '../../lib/learningStatus'
 import { StatusBadge, StatusIcon } from '../../components/shared/StatusBadge'
@@ -28,8 +28,7 @@ interface MaterialsProps {
 }
 
 function formatDate(dateStr: string | null | undefined): string {
-  if (!dateStr) return 'TBD'
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return formatShortDate(dateStr, 'TBD', { withYear: false })
 }
 
 function lessonStatus(lesson: LessonItem) {
@@ -247,13 +246,13 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
       <header className="app-surface p-5 sm:p-6">
         {courseAccess?.course_delivery !== 'self_paced' && (courseAccess?.access_expires_at || courseAccess?.support_expires_at) && (
           <p className="mb-4 rounded-xl border border-info-200 bg-info-50 px-4 py-3 text-xs font-semibold text-info-800">
-            {courseAccess.access_expires_at && `Lesson access through ${new Date(new Date(courseAccess.access_expires_at).getTime() - 1).toLocaleDateString('en-US', { timeZone: 'Pacific/Guam' })} (Guam time). `}
+            {courseAccess.access_expires_at && `Lesson access through ${formatShortDate(new Date(new Date(courseAccess.access_expires_at).getTime() - 1))} (Guam time). `}
             {courseAccess.support_expires_at && (new Date(courseAccess.support_expires_at) > new Date()
-              ? `Instructor support through ${new Date(new Date(courseAccess.support_expires_at).getTime() - 1).toLocaleDateString('en-US', { timeZone: 'Pacific/Guam' })} (Guam time).`
+              ? `Instructor support through ${formatShortDate(new Date(new Date(courseAccess.support_expires_at).getTime() - 1))} (Guam time).`
               : 'Instructor support has ended; you can still review lessons during your access period.')}
           </p>
         )}
-        {selectedEnrollment?.cohort.course_delivery === 'self_paced' && <p className="mb-4 rounded-xl border border-info-200 bg-info-50 px-4 py-3 text-xs font-semibold text-info-800">Self-paced lesson access through {selectedEnrollment.access_expires_at ? new Date(selectedEnrollment.access_expires_at).toLocaleDateString() : 'your access period'}. {selectedEnrollment.support_expires_at ? (new Date(selectedEnrollment.support_expires_at) > new Date() ? `Instructor messaging through ${new Date(selectedEnrollment.support_expires_at).toLocaleDateString()}.` : 'Instructor messaging has ended.') : 'Instructor messaging starts when you first open the course.'}</p>}
+        {selectedEnrollment?.cohort.course_delivery === 'self_paced' && <p className="mb-4 rounded-xl border border-info-200 bg-info-50 px-4 py-3 text-xs font-semibold text-info-800">Self-paced lesson access through {selectedEnrollment.access_expires_at ? formatShortDate(selectedEnrollment.access_expires_at) : 'your access period'}. {selectedEnrollment.support_expires_at ? (new Date(selectedEnrollment.support_expires_at) > new Date() ? `Instructor messaging through ${formatShortDate(selectedEnrollment.support_expires_at)}.` : 'Instructor messaging has ended.') : 'Instructor messaging starts when you first open the course.'}</p>}
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <p className="app-eyebrow">{data.cohort?.name || 'Your cohort'}</p>

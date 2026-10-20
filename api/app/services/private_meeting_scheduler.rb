@@ -145,7 +145,7 @@ class PrivateMeetingScheduler
         notifiable: event,
         notification_type: :system,
         title: "Private meeting #{action.tr('_', ' ')}",
-        body: booking.starts_at.in_time_zone("Pacific/Guam").strftime("%b %-d at %-I:%M %p Guam time"),
+        body: booking.starts_at.in_time_zone("Pacific/Guam").strftime("%b %-d at %-I:%M %p ChST"),
         path: recipient.id == booking.student_id ? "/meetings" : "/admin/meetings"
       )
     end
