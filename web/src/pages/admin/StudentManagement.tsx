@@ -95,7 +95,8 @@ export function StudentManagement() {
   const [loading, setLoading] = useState(true)
   // Search and filter live in the URL so Back from a student returns to the same filtered list.
   const [searchParams, setSearchParams] = useSearchParams()
-  const search = searchParams.get('q') || ''
+  // The box keeps its own state so fast typing never waits on a URL update; the URL mirrors it.
+  const [search, setSearchValue] = useState(() => searchParams.get('q') || '')
   const filterParam = searchParams.get('filter')
   const filter: StudentFilter = STUDENT_FILTERS.includes(filterParam as StudentFilter) ? filterParam as StudentFilter : 'all'
   const updateParam = (key: 'q' | 'filter', value: string) => {
@@ -106,7 +107,10 @@ export function StudentManagement() {
       return next
     }, { replace: true })
   }
-  const setSearch = (value: string) => updateParam('q', value)
+  const setSearch = (value: string) => {
+    setSearchValue(value)
+    updateParam('q', value)
+  }
   const setFilter = (value: StudentFilter) => updateParam('filter', value)
   const [collapsedCohorts, setCollapsedCohorts] = useState<Set<number>>(new Set())
 
