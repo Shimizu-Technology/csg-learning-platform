@@ -23,6 +23,8 @@ import {
 import { LearningObjectivesPanel } from '../../components/shared/LearningObjectivesPanel'
 import type { LearningObjective, LessonObjective, Rubric } from '../../types/api'
 import { normalizeVideoSegments, type VideoSegment } from '../../lib/videoSegments'
+import { Button, IconButton } from '../../components/ui/Button'
+import { SegmentButton, SegmentedControl } from '../../components/ui/Choice'
 
 interface ContentBlock {
   id: number
@@ -558,11 +560,11 @@ export function LessonEditor() {
   if (error) {
     return (
       <div className="space-y-4">
-        <Link to="/admin/content" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700">
+        <Link to="/admin/content" className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted transition-colors duration-150 hover:bg-surface-sunken hover:text-ink">
           <ArrowLeft className="h-4 w-4" />
           Content Management
         </Link>
-        <p className="text-red-600">{error}</p>
+        <p role="alert" className="rounded-xl border border-danger-200 bg-danger-50 px-4 py-3 text-sm text-danger-700">{error}</p>
       </div>
     )
   }
@@ -575,7 +577,7 @@ export function LessonEditor() {
     <div className="app-page max-w-5xl">
       {/* Header */}
       <div>
-        <Link to="/admin/content" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900">
+        <Link to="/admin/content" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted transition-colors duration-150 hover:bg-surface-sunken hover:text-ink">
           <ArrowLeft className="h-4 w-4" />
           Content Management
         </Link>
@@ -583,83 +585,72 @@ export function LessonEditor() {
           <div>
             <p className="app-eyebrow">Curriculum studio</p>
             <h1 className="app-title mt-2">Edit exercise</h1>
-            <p className="text-sm text-slate-500 mt-1">
+            <p className="text-sm text-ink-muted mt-1 tabular-nums">
               Week {week}, {DAY_NAMES[dayIdx] || `Day ${dayIdx + 1}`} · Day {lesson.release_day + 1} in the release calendar
             </p>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
             {/* Edit / Preview toggle */}
-            <div className="flex rounded-lg border border-slate-200 overflow-hidden">
-              <button
-                type="button"
+            <SegmentedControl label="Editor mode">
+              <SegmentButton
+                selected={mode === 'edit'}
                 onClick={() => setMode('edit')}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium transition-colors ${
-                  mode === 'edit'
-                    ? 'bg-slate-100 text-slate-800'
-                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-                }`}
               >
                 <Pencil className="h-3.5 w-3.5" />
                 Edit
-              </button>
-              <button
-                type="button"
+              </SegmentButton>
+              <SegmentButton
+                selected={mode === 'preview'}
                 onClick={() => setMode(mode === 'preview' ? 'edit' : 'preview')}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium transition-colors ${
-                  mode === 'preview'
-                    ? 'bg-slate-100 text-slate-800'
-                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-                }`}
               >
                 <Eye className="h-3.5 w-3.5" />
                 Student Preview
-              </button>
-            </div>
-            <button
+              </SegmentButton>
+            </SegmentedControl>
+            <Button
               onClick={handleSave}
               disabled={saving}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
             >
               <Save className="h-4 w-4" />
               {saving ? 'Saving...' : 'Save Changes'}
-            </button>
+            </Button>
           </div>
         </div>
       </div>
 
       {lesson.archived_at && (
-        <div className="flex flex-col gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 rounded-2xl border border-warning-200 bg-warning-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
-            <Archive className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+            <Archive className="mt-0.5 h-5 w-5 shrink-0 text-warning-700" />
             <div>
-              <p className="font-extrabold text-amber-950">Archived exercise</p>
-              <p className="mt-1 text-sm leading-6 text-amber-800">Students cannot see or continue into this exercise. Its content, progress, and submissions remain preserved.</p>
+              <p className="font-semibold text-warning-900">Archived exercise</p>
+              <p className="mt-1 text-sm leading-6 text-warning-800">Students cannot see or continue into this exercise. Its content, progress, and submissions remain preserved.</p>
             </div>
           </div>
-          <button type="button" onClick={handleRestore} disabled={archiveSaving} className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-amber-900 px-4 text-sm font-bold text-white transition-colors hover:bg-amber-950 disabled:opacity-50">
+          <Button variant="secondary" onClick={handleRestore} disabled={archiveSaving} className="shrink-0">
             <RotateCcw className="h-4 w-4" />
             {archiveSaving ? 'Restoring...' : 'Restore exercise'}
-          </button>
+          </Button>
         </div>
       )}
 
       {saveError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{saveError}</div>
+        <div role="alert" className="rounded-xl border border-danger-200 bg-danger-50 px-4 py-3 text-sm text-danger-700">{saveError}</div>
       )}
       {saveSuccess && (
-        <div className="rounded-lg border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700">Saved successfully!</div>
+        <div role="status" className="rounded-xl border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700">Saved successfully!</div>
       )}
 
       {mode === 'preview' ? (
         /* ---- Student Preview ---- */
         <div className="max-w-3xl mx-auto space-y-6">
-          <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+          <div className="rounded-xl border border-info-200 bg-info-50 px-4 py-3 text-sm text-info-800">
             This is how students will see this exercise. Content shown is based on your current edits (save first to persist changes).
           </div>
 
-          <div className="rounded-2xl bg-white border border-slate-200 p-6">
-            <h1 className="text-xl font-bold text-slate-900">{title || 'Untitled Exercise'}</h1>
-            <div className="mt-1 flex items-center gap-2 text-sm text-slate-500">
+          <div className="app-surface p-4 sm:p-6">
+            <h1 className="text-xl font-bold text-ink">{title || 'Untitled Exercise'}</h1>
+            <div className="mt-1 flex items-center gap-2 text-sm text-ink-muted tabular-nums">
               <span className="capitalize">Exercise</span>
               <span>· {previewBlocks.length} blocks</span>
             </div>
@@ -680,7 +671,7 @@ export function LessonEditor() {
           </div>
 
           {previewBlocks.length === 0 && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-400">
+            <div className="app-surface p-8 text-center text-ink-muted">
               No content to preview. Add a video URL or instructions to see the student view.
             </div>
           )}
@@ -689,29 +680,29 @@ export function LessonEditor() {
         /* ---- Edit Mode ---- */
         <>
           {/* Details card */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4">
+          <div className="app-surface p-4 sm:p-6 space-y-4">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Title</label>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1.5">Title</label>
               <input
                 type="text"
                 value={title}
                 onChange={e => setTitle(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-focus focus:border-transparent"
+                className="app-control w-full"
               />
             </div>
 
-            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-line bg-surface-sunken px-4 py-3">
               <input
                 type="checkbox"
                 checked={required}
                 onChange={e => setRequired(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-focus"
+                className="mt-0.5 h-4 w-4 rounded border-line-strong text-primary-600"
               />
               <span>
-                <span className="block text-sm font-semibold text-slate-800">
+                <span className="block text-sm font-semibold text-ink">
                   {required ? 'Required lesson' : 'Optional stretch'}
                 </span>
-                <span className="mt-0.5 block text-xs leading-5 text-slate-500">
+                <span className="mt-0.5 block text-xs leading-5 text-ink-muted">
                   {required
                     ? 'Counts toward the student’s required weekly work.'
                     : 'Remains visible without counting toward required completion.'}
@@ -739,22 +730,22 @@ export function LessonEditor() {
               <div className="space-y-3">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">Filename</label>
+                    <label className="block text-sm font-semibold text-ink-secondary mb-1.5">Filename</label>
                     <input
                       type="text"
                       value={filename}
                       onChange={e => setFilename(e.target.value)}
                       placeholder="e.g. 111.rb"
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-focus focus:border-transparent font-mono"
+                      className="app-control w-full font-mono"
                     />
-                    <p className="text-[11px] text-slate-400 mt-1">Leave blank if no submission</p>
+                    <p className="text-xs text-ink-muted mt-1">Leave blank if no submission</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">Submission Type</label>
+                    <label className="block text-sm font-semibold text-ink-secondary mb-1.5">Submission type</label>
                     <select
                       value={submissionType}
                       onChange={e => handleSubmissionTypeChange(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-focus"
+                      className="app-control w-full"
                     >
                       <option value="manual_complete">Practice only</option>
                       <option value="text_submission">Text/code submission</option>
@@ -765,7 +756,7 @@ export function LessonEditor() {
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                <div className="rounded-xl border border-line bg-surface-sunken px-4 py-3 text-xs text-ink-secondary">
                   {submissionType === 'manual_complete' && 'Students mark this complete themselves. This is ideal for daily practice.'}
                   {submissionType === 'text_submission' && 'Students submit code/text directly in the platform for grading.'}
                   {submissionType === 'prework_github_sync' && 'Use this only for the filename-based prework GitHub sync flow.'}
@@ -793,14 +784,14 @@ export function LessonEditor() {
           </div>
 
 
-          <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_14px_40px_rgba(15,23,42,0.04)]">
+          <section className="app-surface p-4 sm:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex items-start gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary-50 text-primary-600"><Target className="h-5 w-5" /></span>
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><Target className="h-5 w-5" /></span>
                 <div>
-                  <p className="app-eyebrow">Learning design</p>
-                  <h2 className="mt-1 text-lg font-extrabold tracking-tight text-slate-950">Objectives and success criteria</h2>
-                  <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">Tell students what they are building toward before they begin. Reuse objectives across lessons and attach each one to the whole lesson or a specific block.</p>
+                  <p className="text-xs font-semibold text-ink-muted">Learning design</p>
+                  <h2 className="mt-1 text-lg font-bold text-ink">Objectives and success criteria</h2>
+                  <p className="mt-1 max-w-2xl text-sm leading-6 text-ink-muted">Tell students what they are building toward before they begin. Reuse objectives across lessons and attach each one to the whole lesson or a specific block.</p>
                 </div>
               </div>
               {availableObjectives.length > 0 && (
@@ -811,7 +802,7 @@ export function LessonEditor() {
                     if (!event.target.value) return
                     setObjectiveAlignments((current) => [...current, { learning_objective_id: Number(event.target.value), content_block_id: null }])
                   }}
-                  className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-focus"
+                  className="app-control"
                 >
                   <option value="">Add existing objective…</option>
                   {availableObjectives.map((objective) => <option key={objective.id} value={objective.id}>{objective.code} · {objective.title}</option>)}
@@ -824,106 +815,106 @@ export function LessonEditor() {
                 const objective = objectiveCatalog.find((item) => item.id === alignment.learning_objective_id)
                 if (!objective) return null
                 return (
-                  <div key={objective.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                  <div key={objective.id} className="app-surface-muted p-4">
                     <div className="flex items-start gap-3">
-                      <span className="rounded-lg bg-white px-2 py-1 font-mono text-[11px] font-bold text-slate-600 shadow-sm">{objective.code}</span>
+                      <span className="shrink-0 rounded-lg border border-line bg-surface-raised px-2 py-1 font-mono text-xs font-semibold text-ink-secondary">{objective.code}</span>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-extrabold text-slate-950">{objective.title}</p>
-                        <p className="mt-1 text-sm leading-6 text-slate-600">{objective.success_criteria}</p>
-                        <label className="mt-3 block text-xs font-bold uppercase tracking-wide text-slate-500">
+                        <p className="text-sm font-semibold text-ink">{objective.title}</p>
+                        <p className="mt-1 text-sm leading-6 text-ink-secondary">{objective.success_criteria}</p>
+                        <label className="mt-3 block text-xs font-semibold text-ink-secondary">
                           Applies to
                           <select
                             value={alignment.content_block_id || ''}
                             onChange={(event) => setObjectiveAlignments((current) => current.map((item) => item.learning_objective_id === objective.id ? { ...item, content_block_id: event.target.value ? Number(event.target.value) : null } : item))}
-                            className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold normal-case tracking-normal text-slate-700 focus:outline-none focus:ring-2 focus:ring-focus sm:max-w-md"
+                            className="app-control mt-1 block w-full sm:max-w-md"
                           >
                             <option value="">Entire lesson</option>
                             {lesson.content_blocks.map((block) => <option key={block.id} value={block.id}>{block.title || `${block.block_type} block`}</option>)}
                           </select>
                         </label>
                       </div>
-                      <button type="button" aria-label={`Remove ${objective.title}`} onClick={() => setObjectiveAlignments((current) => current.filter((item) => item.learning_objective_id !== objective.id))} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-white hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"><X className="h-4 w-4" /></button>
+                      <IconButton label={`Remove ${objective.title}`} size="sm" onClick={() => setObjectiveAlignments((current) => current.filter((item) => item.learning_objective_id !== objective.id))}><X className="h-4 w-4" /></IconButton>
                     </div>
                   </div>
                 )
               })}
-              {!objectiveAlignments.length && <div className="rounded-2xl border border-dashed border-slate-300 px-5 py-7 text-center text-sm text-slate-500">{canCreateCurriculumResources ? 'No objectives yet. Create the first one below or reuse one from this curriculum.' : 'No objectives are attached yet. An admin can create reusable objectives for this curriculum.'}</div>}
+              {!objectiveAlignments.length && <div className="rounded-2xl border border-dashed border-line-strong px-5 py-7 text-center text-sm text-ink-muted">{canCreateCurriculumResources ? 'No objectives yet. Create the first one below or reuse one from this curriculum.' : 'No objectives are attached yet. An admin can create reusable objectives for this curriculum.'}</div>}
             </div>
 
-            {canCreateCurriculumResources && <div className="mt-5 rounded-2xl border border-primary-100 bg-primary-50/40 p-4">
+            {canCreateCurriculumResources && <div className="mt-5 app-surface-muted p-4">
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Objective code<input value={objectiveDraft.code} onChange={(event) => setObjectiveDraft((current) => ({ ...current, code: event.target.value }))} placeholder="TERM.1" className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 font-mono text-sm normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-focus" /></label>
-                <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Student-facing title<input value={objectiveDraft.title} onChange={(event) => setObjectiveDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Navigate folders from the terminal" className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-focus" /></label>
-                <label className="text-xs font-bold uppercase tracking-wide text-slate-600 sm:col-span-2">Context (optional)<textarea value={objectiveDraft.description} onChange={(event) => setObjectiveDraft((current) => ({ ...current, description: event.target.value }))} placeholder="What concept or skill this objective covers." rows={2} className="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-focus" /></label>
-                <label className="text-xs font-bold uppercase tracking-wide text-slate-600 sm:col-span-2">Success criteria<textarea value={objectiveDraft.success_criteria} onChange={(event) => setObjectiveDraft((current) => ({ ...current, success_criteria: event.target.value }))} placeholder="I can move into a requested folder, go back one level, and confirm where I am." rows={3} className="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-focus" /></label>
+                <label className="text-xs font-semibold text-ink-secondary">Objective code<input value={objectiveDraft.code} onChange={(event) => setObjectiveDraft((current) => ({ ...current, code: event.target.value }))} placeholder="TERM.1" className="app-control mt-1 block w-full font-mono" /></label>
+                <label className="text-xs font-semibold text-ink-secondary">Student-facing title<input value={objectiveDraft.title} onChange={(event) => setObjectiveDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Navigate folders from the terminal" className="app-control mt-1 block w-full" /></label>
+                <label className="text-xs font-semibold text-ink-secondary sm:col-span-2">Context (optional)<textarea value={objectiveDraft.description} onChange={(event) => setObjectiveDraft((current) => ({ ...current, description: event.target.value }))} placeholder="What concept or skill this objective covers." rows={2} className="app-control mt-1 block w-full" /></label>
+                <label className="text-xs font-semibold text-ink-secondary sm:col-span-2">Success criteria<textarea value={objectiveDraft.success_criteria} onChange={(event) => setObjectiveDraft((current) => ({ ...current, success_criteria: event.target.value }))} placeholder="I can move into a requested folder, go back one level, and confirm where I am." rows={3} className="app-control mt-1 block w-full" /></label>
               </div>
-              <button type="button" disabled={creatingObjective} onClick={() => void handleCreateObjective()} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-bold text-white transition hover:bg-slate-800 disabled:opacity-50"><Plus className="h-4 w-4" />{creatingObjective ? 'Creating…' : 'Create and add objective'}</button>
+              <Button variant="secondary" disabled={creatingObjective} onClick={() => void handleCreateObjective()} className="mt-3"><Plus className="h-4 w-4" />{creatingObjective ? 'Creating…' : 'Create and add objective'}</Button>
             </div>}
           </section>
 
-          <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_14px_40px_rgba(15,23,42,0.04)]">
+          <section className="app-surface p-4 sm:p-6">
             <div className="flex items-start gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700"><ClipboardCheck className="h-5 w-5" /></span>
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><ClipboardCheck className="h-5 w-5" /></span>
               <div>
-                <p className="app-eyebrow">Evidence and feedback</p>
-                <h2 className="mt-1 text-lg font-extrabold tracking-tight text-slate-950">Student-visible rubric</h2>
-                <p className="mt-1 text-sm leading-6 text-slate-500">Show the criteria before submission, then return a rating and focused feedback for every criterion.</p>
+                <p className="text-xs font-semibold text-ink-muted">Evidence and feedback</p>
+                <h2 className="mt-1 text-lg font-bold text-ink">Student-visible rubric</h2>
+                <p className="mt-1 text-sm leading-6 text-ink-muted">Show the criteria before submission, then return a rating and focused feedback for every criterion.</p>
               </div>
             </div>
-            <label className="mt-5 block text-xs font-bold uppercase tracking-wide text-slate-600">Attached rubric
-              <select value={selectedRubricId || ''} onChange={(event) => setSelectedRubricId(event.target.value ? Number(event.target.value) : null)} className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold normal-case tracking-normal text-slate-700 focus:outline-none focus:ring-2 focus:ring-focus">
+            <label className="mt-5 block text-xs font-semibold text-ink-secondary">Attached rubric
+              <select value={selectedRubricId || ''} onChange={(event) => setSelectedRubricId(event.target.value ? Number(event.target.value) : null)} className="app-control mt-1 block w-full">
                 <option value="">No rubric</option>
                 {rubricCatalog.filter((rubric) => rubric.active !== false).map((rubric) => <option key={rubric.id} value={rubric.id}>{rubric.title} · {rubric.criteria.length} criteria</option>)}
               </select>
             </label>
             {selectedRubricId && rubricCatalog.find((rubric) => rubric.id === selectedRubricId) && (
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {rubricCatalog.find((rubric) => rubric.id === selectedRubricId)!.criteria.map((criterion) => <div key={criterion.id} className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3"><p className="text-sm font-bold text-slate-900">{criterion.title}</p><p className="mt-1 text-xs leading-5 text-slate-600">{criterion.description}</p></div>)}
+                {rubricCatalog.find((rubric) => rubric.id === selectedRubricId)!.criteria.map((criterion) => <div key={criterion.id} className="rounded-xl border border-line bg-surface-sunken p-3"><p className="text-sm font-semibold text-ink">{criterion.title}</p><p className="mt-1 text-xs leading-5 text-ink-secondary">{criterion.description}</p></div>)}
               </div>
             )}
-            {canCreateCurriculumResources && <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-              <p className="text-sm font-bold text-slate-900">Create a reusable rubric</p>
+            {canCreateCurriculumResources && <div className="mt-5 app-surface-muted p-4">
+              <p className="text-base font-semibold text-ink">Create a reusable rubric</p>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Rubric title<input value={rubricDraft.title} onChange={(event) => setRubricDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Project quality" className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-focus" /></label>
-                <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Purpose (optional)<input value={rubricDraft.description} onChange={(event) => setRubricDraft((current) => ({ ...current, description: event.target.value }))} placeholder="What this rubric evaluates" className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-focus" /></label>
+                <label className="text-xs font-semibold text-ink-secondary">Rubric title<input value={rubricDraft.title} onChange={(event) => setRubricDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Project quality" className="app-control mt-1 block w-full" /></label>
+                <label className="text-xs font-semibold text-ink-secondary">Purpose (optional)<input value={rubricDraft.description} onChange={(event) => setRubricDraft((current) => ({ ...current, description: event.target.value }))} placeholder="What this rubric evaluates" className="app-control mt-1 block w-full" /></label>
               </div>
               <div className="mt-3 space-y-3">
-                {rubricDraft.criteria.map((criterion, index) => <div key={index} className="grid gap-2 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-[0.7fr_1.3fr_auto]"><input aria-label={`Criterion ${index + 1} title`} value={criterion.title} onChange={(event) => setRubricDraft((current) => ({ ...current, criteria: current.criteria.map((item, itemIndex) => itemIndex === index ? { ...item, title: event.target.value } : item) }))} placeholder="Criterion title" className="min-h-11 rounded-xl border border-slate-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-focus" /><input aria-label={`Criterion ${index + 1} description`} value={criterion.description} onChange={(event) => setRubricDraft((current) => ({ ...current, criteria: current.criteria.map((item, itemIndex) => itemIndex === index ? { ...item, description: event.target.value } : item) }))} placeholder="What meeting this criterion looks like" className="min-h-11 rounded-xl border border-slate-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-focus" /><button type="button" aria-label={`Remove criterion ${index + 1}`} disabled={rubricDraft.criteria.length === 1} onClick={() => setRubricDraft((current) => ({ ...current, criteria: current.criteria.filter((_, itemIndex) => itemIndex !== index) }))} className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-red-600 disabled:opacity-30"><X className="h-4 w-4" /></button></div>)}
+                {rubricDraft.criteria.map((criterion, index) => <div key={index} className="grid gap-2 rounded-xl border border-line bg-surface-raised p-3 sm:grid-cols-[0.7fr_1.3fr_auto]"><input aria-label={`Criterion ${index + 1} title`} value={criterion.title} onChange={(event) => setRubricDraft((current) => ({ ...current, criteria: current.criteria.map((item, itemIndex) => itemIndex === index ? { ...item, title: event.target.value } : item) }))} placeholder="Criterion title" className="app-control" /><input aria-label={`Criterion ${index + 1} description`} value={criterion.description} onChange={(event) => setRubricDraft((current) => ({ ...current, criteria: current.criteria.map((item, itemIndex) => itemIndex === index ? { ...item, description: event.target.value } : item) }))} placeholder="What meeting this criterion looks like" className="app-control" /><IconButton label={`Remove criterion ${index + 1}`} size="sm" disabled={rubricDraft.criteria.length === 1} onClick={() => setRubricDraft((current) => ({ ...current, criteria: current.criteria.filter((_, itemIndex) => itemIndex !== index) }))}><X className="h-4 w-4" /></IconButton></div>)}
               </div>
-              <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => setRubricDraft((current) => ({ ...current, criteria: [...current.criteria, { title: '', description: '' }] }))} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700"><Plus className="h-4 w-4" />Add criterion</button><button type="button" disabled={creatingRubric} onClick={() => void handleCreateRubric()} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-bold text-white disabled:opacity-50"><ClipboardCheck className="h-4 w-4" />{creatingRubric ? 'Creating…' : 'Create and select rubric'}</button></div>
+              <div className="mt-3 flex flex-wrap gap-2"><Button variant="quiet" onClick={() => setRubricDraft((current) => ({ ...current, criteria: [...current.criteria, { title: '', description: '' }] }))}><Plus className="h-4 w-4" />Add criterion</Button><Button variant="secondary" disabled={creatingRubric} onClick={() => void handleCreateRubric()}><ClipboardCheck className="h-4 w-4" />{creatingRubric ? 'Creating…' : 'Create and select rubric'}</Button></div>
             </div>}
           </section>
 
-          <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_14px_40px_rgba(15,23,42,0.04)]">
+          <section className="app-surface p-4 sm:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex items-start gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-700"><ListChecks className="h-5 w-5" /></span>
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><ListChecks className="h-5 w-5" /></span>
                 <div>
-                  <p className="app-eyebrow">Retrieval practice</p>
-                  <h2 className="mt-1 text-lg font-extrabold tracking-tight text-slate-950">Quick recall check</h2>
-                  <p className="mt-1 text-sm leading-6 text-slate-500">Use one low-stakes question to help students retrieve a foundational idea. They receive an explanation immediately and can retry.</p>
+                  <p className="text-xs font-semibold text-ink-muted">Retrieval practice</p>
+                  <h2 className="mt-1 text-lg font-bold text-ink">Quick recall check</h2>
+                  <p className="mt-1 text-sm leading-6 text-ink-muted">Use one low-stakes question to help students retrieve a foundational idea. They receive an explanation immediately and can retry.</p>
                 </div>
               </div>
-              <label className="inline-flex min-h-11 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-700"><input type="checkbox" checked={checkEnabled} disabled={checkAttemptCount > 0} onChange={(event) => setCheckEnabled(event.target.checked)} className="h-4 w-4 accent-primary-600" />Include check</label>
+              <label className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-3 rounded-xl border border-line bg-surface-sunken px-4 text-sm font-semibold text-ink-secondary"><input type="checkbox" checked={checkEnabled} disabled={checkAttemptCount > 0} onChange={(event) => setCheckEnabled(event.target.checked)} className="h-4 w-4 accent-primary-600" />Include check</label>
             </div>
-            {checkAttemptCount > 0 && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">{checkAttemptCount} student {checkAttemptCount === 1 ? 'attempt is' : 'attempts are'} recorded. The question is locked to preserve that evidence; create a new check if the standard changes.</div>}
+            {checkAttemptCount > 0 && <div className="mt-4 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm leading-6 text-warning-800"><span className="tabular-nums">{checkAttemptCount}</span> student {checkAttemptCount === 1 ? 'attempt is' : 'attempts are'} recorded. The question is locked to preserve that evidence; create a new check if the standard changes.</div>}
             {checkEnabled && <div className="mt-5 space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Check title<input value={checkTitle} disabled={checkAttemptCount > 0} onChange={(event) => setCheckTitle(event.target.value)} placeholder="Quick check" className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-normal normal-case tracking-normal disabled:bg-slate-100" /></label>
-                <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Aligned objective<select value={checkObjectiveId || ''} disabled={checkAttemptCount > 0} onChange={(event) => setCheckObjectiveId(event.target.value ? Number(event.target.value) : null)} className="mt-1 block min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold normal-case tracking-normal disabled:bg-slate-100"><option value="">No specific objective</option>{objectiveCatalog.filter((objective) => objective.active).map((objective) => <option key={objective.id} value={objective.id}>{objective.code} · {objective.title}</option>)}</select></label>
+                <label className="text-xs font-semibold text-ink-secondary">Check title<input value={checkTitle} disabled={checkAttemptCount > 0} onChange={(event) => setCheckTitle(event.target.value)} placeholder="Quick check" className="app-control mt-1 block w-full" /></label>
+                <label className="text-xs font-semibold text-ink-secondary">Aligned objective<select value={checkObjectiveId || ''} disabled={checkAttemptCount > 0} onChange={(event) => setCheckObjectiveId(event.target.value ? Number(event.target.value) : null)} className="app-control mt-1 block w-full"><option value="">No specific objective</option>{objectiveCatalog.filter((objective) => objective.active).map((objective) => <option key={objective.id} value={objective.id}>{objective.code} · {objective.title}</option>)}</select></label>
               </div>
-              <label className="block text-xs font-bold uppercase tracking-wide text-slate-600">Question<textarea value={checkPrompt} disabled={checkAttemptCount > 0} onChange={(event) => setCheckPrompt(event.target.value)} rows={3} placeholder="Which command prints the current working directory?" className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal normal-case tracking-normal disabled:bg-slate-100" /></label>
+              <label className="block text-xs font-semibold text-ink-secondary">Question<textarea value={checkPrompt} disabled={checkAttemptCount > 0} onChange={(event) => setCheckPrompt(event.target.value)} rows={3} placeholder="Which command prints the current working directory?" className="app-control mt-1 block w-full" /></label>
               <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Choices and correct answer</p>
-                <div className="mt-2 space-y-2">{checkOptions.map((option, index) => <div key={index} className="grid grid-cols-[44px_1fr_44px] gap-2"><label className="flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-slate-50" title="Correct answer"><input type="radio" name="correct-check-option" checked={checkCorrectOption === index} disabled={checkAttemptCount > 0} onChange={() => setCheckCorrectOption(index)} className="h-4 w-4 accent-primary-600" /></label><input aria-label={`Choice ${index + 1}`} value={option} disabled={checkAttemptCount > 0} onChange={(event) => setCheckOptions((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder={`Choice ${index + 1}`} className="min-h-11 rounded-xl border border-slate-200 px-3 text-sm disabled:bg-slate-100" /><button type="button" aria-label={`Remove choice ${index + 1}`} disabled={checkAttemptCount > 0 || checkOptions.length <= 2} onClick={() => { setCheckOptions((current) => current.filter((_, itemIndex) => itemIndex !== index)); setCheckCorrectOption((current) => current === index ? 0 : current > index ? current - 1 : current) }} className="flex h-11 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-red-600 disabled:opacity-30"><X className="h-4 w-4" /></button></div>)}</div>
-                <button type="button" disabled={checkAttemptCount > 0 || checkOptions.length >= 6} onClick={() => setCheckOptions((current) => [...current, ''])} className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700 disabled:opacity-40"><Plus className="h-4 w-4" />Add choice</button>
+                <p className="text-xs font-semibold text-ink-secondary">Choices and correct answer</p>
+                <div className="mt-2 space-y-2">{checkOptions.map((option, index) => <div key={index} className="grid grid-cols-[44px_1fr_44px] gap-2"><label className="flex h-11 cursor-pointer items-center justify-center rounded-xl border border-line bg-surface-sunken" title="Correct answer"><input type="radio" name="correct-check-option" checked={checkCorrectOption === index} disabled={checkAttemptCount > 0} onChange={() => setCheckCorrectOption(index)} className="h-4 w-4 accent-primary-600" /></label><input aria-label={`Choice ${index + 1}`} value={option} disabled={checkAttemptCount > 0} onChange={(event) => setCheckOptions((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder={`Choice ${index + 1}`} className="app-control" /><IconButton label={`Remove choice ${index + 1}`} disabled={checkAttemptCount > 0 || checkOptions.length <= 2} onClick={() => { setCheckOptions((current) => current.filter((_, itemIndex) => itemIndex !== index)); setCheckCorrectOption((current) => current === index ? 0 : current > index ? current - 1 : current) }}><X className="h-4 w-4" /></IconButton></div>)}</div>
+                <Button variant="quiet" disabled={checkAttemptCount > 0 || checkOptions.length >= 6} onClick={() => setCheckOptions((current) => [...current, ''])} className="mt-2"><Plus className="h-4 w-4" />Add choice</Button>
               </div>
-              <label className="block text-xs font-bold uppercase tracking-wide text-slate-600">Explanation shown after every attempt<textarea value={checkExplanation} disabled={checkAttemptCount > 0} onChange={(event) => setCheckExplanation(event.target.value)} rows={3} placeholder="pwd means print working directory, so it shows the folder you are currently in." className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal normal-case tracking-normal disabled:bg-slate-100" /></label>
+              <label className="block text-xs font-semibold text-ink-secondary">Explanation shown after every attempt<textarea value={checkExplanation} disabled={checkAttemptCount > 0} onChange={(event) => setCheckExplanation(event.target.value)} rows={3} placeholder="pwd means print working directory, so it shows the folder you are currently in." className="app-control mt-1 block w-full" /></label>
             </div>}
           </section>
 
           {/* Instructions — WYSIWYG editor */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-6">
+          <div className="app-surface p-4 sm:p-6">
             <RichTextEditor
               value={instructions}
               onChange={setInstructions}
@@ -934,11 +925,11 @@ export function LessonEditor() {
           </div>
 
           {/* Solution — Code editor */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-6">
+          <div className="app-surface p-4 sm:p-6">
             <div className="flex items-end justify-between mb-1.5">
               <div>
-                <span className="text-sm font-semibold text-slate-700">Solution</span>
-                <span className="text-sm font-normal text-slate-400 ml-1">(staff only)</span>
+                <span className="text-sm font-semibold text-ink-secondary">Solution</span>
+                <span className="text-sm font-normal text-ink-muted ml-1">(staff only)</span>
               </div>
             </div>
             <CodeEditor
@@ -950,44 +941,43 @@ export function LessonEditor() {
           </div>
 
           {/* Bottom actions */}
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               {!lesson.archived_at && (confirmArchive ? (
-                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-2">
-                  <span className="px-1 text-sm font-semibold text-amber-900">Archive this exercise?</span>
-                  <button
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-danger-200 bg-danger-50 p-2">
+                  <span className="px-1 text-sm font-semibold text-danger-700">Archive this exercise?</span>
+                  <Button
+                    variant="danger"
                     onClick={handleArchive}
                     disabled={archiveSaving}
-                    className="min-h-11 rounded-xl bg-amber-800 px-4 text-sm font-bold text-white transition-colors hover:bg-amber-900 disabled:opacity-50"
                   >
                     {archiveSaving ? 'Archiving...' : 'Archive safely'}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="secondary"
                     onClick={() => setConfirmArchive(false)}
                     disabled={archiveSaving}
-                    className="min-h-11 rounded-xl border border-amber-200 bg-white px-4 text-sm font-bold text-amber-900 transition-colors hover:bg-amber-100"
                   >
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               ) : (
-                <button
+                <Button
+                  variant="danger"
                   onClick={() => setConfirmArchive(true)}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 text-sm font-bold text-amber-800 transition-colors hover:bg-amber-100"
                 >
                   <Archive className="h-4 w-4" />
                   Archive exercise
-                </button>
+                </Button>
               ))}
             </div>
-            <button
+            <Button
               onClick={handleSave}
               disabled={saving}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
             >
               <Save className="h-4 w-4" />
               {saving ? 'Saving...' : 'Save Changes'}
-            </button>
+            </Button>
           </div>
         </>
       )}

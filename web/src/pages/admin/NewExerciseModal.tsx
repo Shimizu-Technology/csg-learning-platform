@@ -146,12 +146,12 @@ export function NewExerciseModal({
         </div>
       )}
     >
-      {(validationError || error) && <p className="text-sm text-red-600 mb-3">{validationError || error}</p>}
+      {(validationError || error) && <p role="alert" className="mb-3 rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700">{validationError || error}</p>}
 
       <form id={formId} onSubmit={handleSubmit} className="space-y-5">
           {/* Row 1: Title */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
+            <label className="block text-sm font-medium text-ink-secondary mb-1">Title</label>
             <input
               type="text"
               value={title}
@@ -165,7 +165,7 @@ export function NewExerciseModal({
           {/* Row 2: Week, Day, Filename, Submission */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Week</label>
+              <label className="block text-sm font-medium text-ink-secondary mb-1">Week</label>
               <select
                 value={week}
                 onChange={e => setWeek(Number(e.target.value))}
@@ -175,7 +175,7 @@ export function NewExerciseModal({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Day</label>
+              <label className="block text-sm font-medium text-ink-secondary mb-1">Day</label>
               <select
                 value={dayIndex}
                 onChange={e => setDayIndex(Number(e.target.value))}
@@ -185,7 +185,7 @@ export function NewExerciseModal({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Filename</label>
+              <label className="block text-sm font-medium text-ink-secondary mb-1">Filename</label>
               <input
                 type="text"
                 value={filename}
@@ -195,7 +195,7 @@ export function NewExerciseModal({
               />
             </div>
             <div className="space-y-3">
-              <label className="block text-sm font-medium text-slate-700 mb-1">Submission Type</label>
+              <label className="block text-sm font-medium text-ink-secondary mb-1">Submission type</label>
               <select
                 value={submissionType}
                 onChange={e => handleSubmissionTypeChange(e.target.value)}
@@ -217,7 +217,7 @@ export function NewExerciseModal({
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+          <div className="rounded-xl border border-line bg-surface-sunken px-4 py-3 text-xs text-ink-secondary">
             {submissionType === 'manual_complete' && 'Students mark this as complete themselves. No instructor review queue item is created.'}
             {submissionType === 'text_submission' && 'Students paste code/text directly into the app for grading.'}
             {submissionType === 'prework_github_sync' && 'Use this only for prework-style filename sync from GitHub.'}
@@ -225,18 +225,18 @@ export function NewExerciseModal({
             {submissionType === 'repo_and_live_url_submission' && 'Students submit a repository URL and a deployed live URL. Notes stay optional.'}
           </div>
 
-          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+          <label className="flex cursor-pointer items-start gap-3 min-h-11 rounded-xl border border-line bg-surface-raised px-4 py-3">
             <input
               type="checkbox"
               checked={required}
               onChange={e => setRequired(e.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-focus"
+              className="mt-0.5 h-4 w-4 rounded border-line-strong text-primary-600"
             />
             <span>
-              <span className="block text-sm font-semibold text-slate-800">
+              <span className="block text-sm font-semibold text-ink">
                 {required ? 'Required lesson' : 'Optional stretch'}
               </span>
-              <span className="mt-0.5 block text-xs leading-5 text-slate-500">
+              <span className="mt-0.5 block text-xs leading-5 text-ink-muted">
                 {required
                   ? 'Counts toward the student’s required weekly work.'
                   : 'Remains available to the student without counting toward required completion.'}
@@ -268,8 +268,8 @@ export function NewExerciseModal({
           {/* Solution — Code editor */}
           <div>
             <div className="mb-1.5">
-              <span className="text-sm font-semibold text-slate-700">Solution</span>
-              <span className="text-sm font-normal text-slate-400 ml-1">(optional)</span>
+              <span className="text-sm font-semibold text-ink-secondary">Solution</span>
+              <span className="text-sm font-normal text-ink-muted ml-1">(optional)</span>
             </div>
             <CodeEditor
               value={solution}

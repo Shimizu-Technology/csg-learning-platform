@@ -29,7 +29,7 @@ describe('video upload UI states', () => {
 
     expect(markup).toContain('Use H.264 video for reliable playback.')
     expect(markup).toContain('role="status"')
-    expect(markup).toContain('text-amber-700')
+    expect(markup).toContain('text-warning-800')
   })
 
   it('renders the queued state for an exercise video', () => {

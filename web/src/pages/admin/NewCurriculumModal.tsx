@@ -40,14 +40,14 @@ export function NewCurriculumModal({ saving, error, onClose, onCreate }: Props) 
 
   return (
     <Modal open title="New curriculum" subtitle="Create a reusable collection of modules before assigning it to a cohort." size="md" onClose={onClose}>
-      {(validationError || error) && <p className="mb-3 text-sm text-red-600">{validationError || error}</p>}
+      {(validationError || error) && <p role="alert" className="mb-3 rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700">{validationError || error}</p>}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="curriculum-name" className="mb-1 block text-sm font-medium text-slate-700">Name</label>
+          <label htmlFor="curriculum-name" className="mb-1 block text-sm font-medium text-ink-secondary">Name</label>
           <input id="curriculum-name" type="text" value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. CSG Alumni Learning Library" className="app-control" autoFocus />
         </div>
         <div>
-          <label htmlFor="curriculum-description" className="mb-1 block text-sm font-medium text-slate-700">Description</label>
+          <label htmlFor="curriculum-description" className="mb-1 block text-sm font-medium text-ink-secondary">Description</label>
           <textarea id="curriculum-description" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Who this curriculum is for and how it should be used" rows={4} className="app-control" />
         </div>
         <div className="flex gap-3 pt-2">

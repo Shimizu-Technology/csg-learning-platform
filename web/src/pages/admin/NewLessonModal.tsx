@@ -67,10 +67,10 @@ export function NewLessonModal({
 
   return (
     <Modal open title="New lesson" subtitle={`Adding to ${moduleName}`} size="md" onClose={onClose}>
-        {(validationError || error) && <p className="text-sm text-red-600 mb-3">{validationError || error}</p>}
+        {(validationError || error) && <p role="alert" className="mb-3 rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700">{validationError || error}</p>}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
+            <label className="block text-sm font-medium text-ink-secondary mb-1">Title</label>
             <input
               type="text"
               value={title}
@@ -81,7 +81,7 @@ export function NewLessonModal({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Type</label>
+            <label className="block text-sm font-medium text-ink-secondary mb-1">Type</label>
             <select
               value={lessonType}
               onChange={e => setLessonType(e.target.value)}
@@ -92,7 +92,7 @@ export function NewLessonModal({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Week</label>
+              <label className="block text-sm font-medium text-ink-secondary mb-1">Week</label>
               <select
                 value={week}
                 onChange={e => setWeek(Number(e.target.value))}
@@ -102,7 +102,7 @@ export function NewLessonModal({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Day</label>
+              <label className="block text-sm font-medium text-ink-secondary mb-1">Day</label>
               <select
                 value={dayIndex}
                 onChange={e => setDayIndex(Number(e.target.value))}
@@ -112,7 +112,7 @@ export function NewLessonModal({
               </select>
             </div>
           </div>
-          <p className="text-xs text-slate-400 -mt-2">
+          <p className="text-xs text-ink-muted -mt-2">
             This places the lesson on Week {week}, {ALL_DAY_NAMES[dayIndex]} (Day {releaseDay + 1} in the release calendar)
           </p>
           <input type="hidden" value={position} />

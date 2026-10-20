@@ -8,6 +8,9 @@ import { useConfirm } from '../../contexts/ConfirmContext'
 import { VideoPlayer } from '../shared/VideoPlayer'
 import { isSupportedVideoFile, videoCompatibilityWarning, VIDEO_FILE_ACCEPT } from '../../lib/videoUploadValidation'
 import { VideoUploadWarning } from './VideoUploadWarning'
+import { Button, IconButton } from '../ui/Button'
+import { Badge } from '../ui/Badge'
+import { formatShortDate, formatShortDateTime } from '../../lib/format'
 
 interface S3Recording {
   id: number
@@ -346,14 +349,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
   }
 
   const formatUploadedAt = (value?: string | null) => {
-    if (!value) return 'time unknown'
-    return new Date(value).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    })
+    return formatShortDateTime(value, 'time unknown')
   }
 
   const activeUploads = uploads.filter((upload) => (
@@ -384,7 +380,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <div className="animate-spin h-6 w-6 border-2 border-primary-500 border-t-transparent rounded-full" />
+        <div className="animate-spin h-6 w-6 border-2 border-ink-muted border-t-transparent rounded-full" />
       </div>
     )
   }
@@ -402,76 +398,78 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
-          <Film className="h-5 w-5 text-primary-500" />
-          <h3 className="text-sm font-semibold text-slate-900">Recording library</h3>
-          <span className="text-xs text-slate-400">({publishedRecordings.length} published{draftCount > 0 ? ` · ${draftCount} draft${draftCount === 1 ? '' : 's'}` : ''})</span>
+          <Film className="h-5 w-5 text-ink-muted" />
+          <h3 className="text-base font-semibold text-ink">Recording library</h3>
+          <span className="text-xs text-ink-muted tabular-nums">({publishedRecordings.length} published{draftCount > 0 ? ` · ${draftCount} draft${draftCount === 1 ? '' : 's'}` : ''})</span>
         </div>
-        <div className="flex gap-2"><button
+        <div className="flex gap-2"><Button
+          variant="secondary"
+          size="sm"
           onClick={() => setShowLinkForm((current) => !current)}
-          className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
         >
-          <Link2 className="h-3.5 w-3.5 text-primary-500" />
+          <Link2 className="h-3.5 w-3.5" />
           Add link
-        </button><button
+        </Button><Button
+          size="sm"
           onClick={() => {
             setShowUploadForm(true)
             fileInputRef.current?.click()
           }}
-          className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-primary-500 px-3 text-xs font-semibold text-white hover:bg-primary-600 transition-colors"
         >
           <Plus className="h-3.5 w-3.5" />
           {showUploadForm ? 'Add files' : 'Upload'}
-        </button></div>
+        </Button></div>
       </div>
 
       {showLinkForm && (
-        <div className="space-y-3 rounded-2xl border border-primary-200 bg-primary-50/50 p-4">
-          <div className="flex items-start justify-between gap-3"><div><h4 className="text-sm font-semibold text-slate-900">Add a hosted recording</h4><p className="mt-1 text-xs text-slate-500">YouTube, Vimeo, Loom, direct video, or another secure link.</p></div><button type="button" onClick={() => setShowLinkForm(false)} className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-white" aria-label="Close link form"><X className="h-4 w-4" /></button></div>
-          <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-medium text-slate-700">Title *<input value={linkTitle} onChange={(event) => setLinkTitle(event.target.value)} placeholder="Week 1 class replay" className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-focus" /></label><label className="text-xs font-medium text-slate-700">Date recorded<input type="date" value={linkDate} onChange={(event) => setLinkDate(event.target.value)} className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-focus" /></label></div>
-          <label className="block text-xs font-medium text-slate-700">Secure video link *<input type="url" value={linkUrl} onChange={(event) => setLinkUrl(event.target.value)} placeholder="https://youtube.com/watch?v=..." className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-focus" /></label>
-          <label className="block text-xs font-medium text-slate-700">Description<input value={linkDescription} onChange={(event) => setLinkDescription(event.target.value)} placeholder="Topics covered in this class" className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-focus" /></label>
-          <label className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5"><input type="checkbox" checked={linkPublishImmediately} onChange={(event) => setLinkPublishImmediately(event.target.checked)} className="h-5 w-5 rounded border-slate-300 text-primary-600 focus:ring-focus" /><span><span className="block text-sm font-semibold text-slate-900">Publish immediately</span><span className="block text-xs text-slate-500">Leave off to review the link privately first.</span></span></label>
-          <div className="flex justify-end"><button type="button" onClick={() => void saveLink()} disabled={savingLink || !linkTitle.trim() || !linkUrl.trim()} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary-500 px-4 text-sm font-semibold text-white hover:bg-primary-600 disabled:opacity-50">{savingLink && <Loader2 className="h-4 w-4 animate-spin" />}{savingLink ? 'Saving…' : linkPublishImmediately ? 'Add and publish' : 'Save as draft'}</button></div>
+        <div className="app-surface-muted space-y-3 p-4">
+          <div className="flex items-start justify-between gap-3"><div><h4 className="text-sm font-semibold text-ink">Add a hosted recording</h4><p className="mt-1 text-xs text-ink-muted">YouTube, Vimeo, Loom, direct video, or another secure link.</p></div><IconButton label="Close link form" size="sm" onClick={() => setShowLinkForm(false)}><X className="h-4 w-4" /></IconButton></div>
+          <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-semibold text-ink-secondary">Title *<input value={linkTitle} onChange={(event) => setLinkTitle(event.target.value)} placeholder="Week 1 class replay" className="app-control mt-1 w-full" /></label><label className="text-xs font-semibold text-ink-secondary">Date recorded<input type="date" value={linkDate} onChange={(event) => setLinkDate(event.target.value)} className="app-control mt-1 w-full" /></label></div>
+          <label className="block text-xs font-semibold text-ink-secondary">Secure video link *<input type="url" value={linkUrl} onChange={(event) => setLinkUrl(event.target.value)} placeholder="https://youtube.com/watch?v=..." className="app-control mt-1 w-full" /></label>
+          <label className="block text-xs font-semibold text-ink-secondary">Description<input value={linkDescription} onChange={(event) => setLinkDescription(event.target.value)} placeholder="Topics covered in this class" className="app-control mt-1 w-full" /></label>
+          <label className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-line bg-surface-raised px-3 py-2.5"><input type="checkbox" checked={linkPublishImmediately} onChange={(event) => setLinkPublishImmediately(event.target.checked)} className="h-5 w-5 rounded border-line-strong text-primary-600" /><span><span className="block text-sm font-semibold text-ink">Publish immediately</span><span className="block text-xs text-ink-muted">Leave off to review the link privately first.</span></span></label>
+          <div className="flex justify-end"><Button onClick={() => void saveLink()} disabled={savingLink || !linkTitle.trim() || !linkUrl.trim()}>{savingLink && <Loader2 className="h-4 w-4 animate-spin" />}{savingLink ? 'Saving…' : linkPublishImmediately ? 'Add and publish' : 'Save as draft'}</Button></div>
         </div>
       )}
 
       {showUploadForm && (
-        <div className="rounded-xl border border-primary-200 bg-primary-50/50 p-4 space-y-3">
-          <div className="flex items-center justify-between">
+        <div className="app-surface-muted p-4 space-y-3">
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <h4 className="text-sm font-medium text-slate-900">Queue Recording Uploads</h4>
-              <p className="text-xs text-slate-500 mt-1">
+              <h4 className="text-sm font-semibold text-ink">Queue recording uploads</h4>
+              <p className="text-xs text-ink-muted mt-1">
                 Start one or many uploads, then keep using the app while they finish. Keep this browser tab open until uploads complete.
               </p>
             </div>
-            <button onClick={() => clearDrafts()} className="text-slate-400 hover:text-slate-600">
+            <IconButton label="Close upload form" size="sm" onClick={() => clearDrafts()}>
               <X className="h-4 w-4" />
-            </button>
+            </IconButton>
           </div>
 
-          <div
+          <button
+            type="button"
             onDrop={handleDrop}
             onDragOver={(event) => event.preventDefault()}
-            className="border-2 border-dashed border-slate-300 rounded-xl p-5 sm:p-6 text-center hover:border-primary-400 transition-colors cursor-pointer"
+            className="pressable block min-h-11 w-full border-2 border-dashed border-line-strong rounded-xl bg-surface-raised p-5 sm:p-6 text-center hover:border-slate-400 hover:bg-surface-sunken cursor-pointer"
             onClick={() => fileInputRef.current?.click()}
           >
-            <Upload className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-            <p className="text-sm text-slate-600">
-              <span className="text-primary-600 font-medium">Choose videos</span> or drag and drop
-            </p>
-            <p className="text-xs text-slate-400 mt-1">MP4, MOV, WebM — up to 5 GB each</p>
-          </div>
+            <Upload className="h-8 w-8 text-ink-muted mx-auto mb-2" />
+            <span className="block text-sm text-ink-secondary">
+              <span className="font-semibold text-ink underline underline-offset-2">Choose videos</span> or drag and drop
+            </span>
+            <span className="block text-xs text-ink-muted mt-1">MP4, MOV, WebM — up to 5 GB each</span>
+          </button>
 
-          <label className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+          <label className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-line bg-surface-raised px-3 py-2.5">
             <input
               type="checkbox"
               checked={publishImmediately}
               onChange={(event) => setPublishImmediately(event.target.checked)}
-              className="h-5 w-5 rounded border-slate-300 text-primary-600 focus:ring-focus"
+              className="h-5 w-5 rounded border-line-strong text-primary-600"
             />
             <span className="min-w-0">
-              <span className="block text-sm font-semibold text-slate-900">Publish immediately</span>
-              <span className="block text-xs text-slate-500">
+              <span className="block text-sm font-semibold text-ink">Publish immediately</span>
+              <span className="block text-xs text-ink-muted">
                 {publishImmediately
                   ? 'Students will get access as soon as each upload finishes.'
                   : 'Recommended: uploads stay private drafts until you review and publish them.'}
@@ -482,61 +480,58 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
           {uploadDrafts.length > 0 && (
             <div className="space-y-3">
               {uploadDrafts.map((draft) => (
-                <div key={draft.id} className="rounded-xl border border-slate-200 bg-white p-3 space-y-3">
+                <div key={draft.id} className="rounded-xl border border-line bg-surface-raised p-3 space-y-3">
                   <div className="flex items-center gap-3">
-                    <Film className="h-5 w-5 text-primary-500 shrink-0" />
+                    <Film className="h-5 w-5 text-ink-muted shrink-0" />
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-slate-900 truncate">{draft.file.name}</p>
-                      <p className="text-xs text-slate-500">{formatSize(draft.file.size)}</p>
+                      <p className="text-sm font-semibold text-ink truncate" title={draft.file.name}>{draft.file.name}</p>
+                      <p className="text-xs text-ink-muted tabular-nums">{formatSize(draft.file.size)}</p>
                     </div>
-                    <button onClick={() => removeDraft(draft.id)} className="text-slate-400 hover:text-red-500">
+                    <IconButton label={`Remove ${draft.file.name}`} size="sm" onClick={() => removeDraft(draft.id)}>
                       <X className="h-4 w-4" />
-                    </button>
+                    </IconButton>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Title *</label>
+                    <label className="block text-xs font-semibold text-ink-secondary mb-1">Title *</label>
                     <input
                       type="text"
                       value={draft.title}
                       onChange={(event) => updateDraft(draft.id, { title: event.target.value, error: undefined })}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                      className="app-control w-full"
                     />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Date recorded</label>
+                      <label className="block text-xs font-semibold text-ink-secondary mb-1">Date recorded</label>
                       <input
                         type="date"
                         value={draft.recordedDate}
                         onChange={(event) => updateDraft(draft.id, { recordedDate: event.target.value })}
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                        className="app-control w-full"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Description</label>
+                      <label className="block text-xs font-semibold text-ink-secondary mb-1">Description</label>
                       <input
                         type="text"
                         value={draft.description}
                         onChange={(event) => updateDraft(draft.id, { description: event.target.value })}
                         placeholder="Optional description"
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                        className="app-control w-full"
                       />
                     </div>
                   </div>
 
-                  {draft.error && <p className="text-xs text-red-600">{draft.error}</p>}
+                  {draft.error && <p role="alert" className="rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">{draft.error}</p>}
                   <VideoUploadWarning message={draft.warning} />
 
                   <div className="flex justify-end">
-                    <button
-                      onClick={() => launchDraftUpload(draft)}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-primary-500 px-4 py-1.5 text-xs font-medium text-white hover:bg-primary-600 transition-colors"
-                    >
+                    <Button variant="secondary" size="sm" onClick={() => launchDraftUpload(draft)}>
                       <Upload className="h-3.5 w-3.5" />
                       {publishImmediately ? 'Upload and publish' : 'Upload as draft'}
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -544,63 +539,53 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
           )}
 
           <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-            <button
-              onClick={() => clearDrafts()}
-              className="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
-            >
+            <Button variant="quiet" size="sm" onClick={() => clearDrafts()}>
               Close
-            </button>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
-              >
+            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="secondary" size="sm" onClick={() => fileInputRef.current?.click()}>
                 Add more files
-              </button>
-              <button
-                onClick={startAllUploads}
-                disabled={uploadDrafts.length === 0}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-primary-500 px-4 py-1.5 text-xs font-medium text-white hover:bg-primary-600 transition-colors disabled:opacity-50"
-              >
+              </Button>
+              <Button size="sm" onClick={startAllUploads} disabled={uploadDrafts.length === 0}>
                 <Upload className="h-3.5 w-3.5" />
                 {publishImmediately ? 'Upload and publish all' : 'Upload all as drafts'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       )}
 
       {statusMessage && (
-        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+        <p role="status" className="rounded-xl border border-success-200 bg-success-50 px-3 py-2 text-xs text-success-700">
           {statusMessage}
         </p>
       )}
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p role="alert" className="rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">{error}</p>}
 
       {activeUploads.length > 0 && (
-        <div className="space-y-2 rounded-xl border border-primary-200 bg-primary-50/50 p-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary-700">Uploads in progress</p>
+        <div role="status" className="space-y-2 rounded-xl border border-info-200 bg-info-50 p-3">
+          <p className="text-xs font-semibold text-info-800">Uploads in progress</p>
           {activeUploads.map((upload) => (
-            <div key={upload.id} className="rounded-xl border border-primary-100 bg-white p-3">
+            <div key={upload.id} className="rounded-xl border border-info-200 bg-surface-raised p-3">
               <div className="flex items-start gap-3">
-                <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary-500" />
+                <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-info-700" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-slate-900">
+                  <p className="truncate text-sm font-semibold text-ink" title={upload.cohortRecording?.title || upload.fileName}>
                     {upload.cohortRecording?.title || upload.fileName}
                   </p>
-                  <p className="mt-0.5 truncate text-xs text-slate-500">
+                  <p className="mt-0.5 truncate text-xs text-ink-muted tabular-nums">
                     {formatSize(upload.fileSize)} · {upload.fileName}
                   </p>
-                  <p className="mt-1 text-[11px] font-medium text-slate-500">
+                  <p className="mt-1 text-xs font-medium text-ink-muted">
                     {upload.cohortRecording?.publishImmediately ? 'Publishes when complete' : 'Saves as draft'}
                   </p>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-info-100">
                     <div
-                      className="h-full rounded-full bg-primary-500 transition-all duration-300"
+                      className="h-full rounded-full bg-info-700 transition-[width] duration-300"
                       style={{ width: `${upload.status === 'uploading' ? upload.progress : upload.status === 'queued' ? 0 : upload.status === 'presigning' ? 5 : 100}%` }}
                     />
                   </div>
-                  <p className="mt-1 text-[11px] text-slate-500">
+                  <p className="mt-1 text-xs text-info-800 tabular-nums">
                     {upload.status === 'queued'
                       ? `Queued — up to ${MAX_CONCURRENT_VIDEO_UPLOADS} videos upload at a time.`
                       : upload.status === 'presigning'
@@ -610,13 +595,9 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
                         : `${upload.progress}% uploaded`}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => cancelUpload(upload.id)}
-                  className="text-xs font-medium text-slate-500 hover:text-red-600"
-                >
+                <Button variant="danger" size="sm" className="shrink-0" onClick={() => cancelUpload(upload.id)}>
                   Cancel
-                </button>
+                </Button>
               </div>
             </div>
           ))}
@@ -624,47 +605,41 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
       )}
 
       {libraryItems.length > 0 && (
-        <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
+        <div className="app-surface-muted p-3">
           <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm font-semibold text-slate-900">Student recording library</p>
-              <p className="text-xs text-slate-500">This is exactly what students can access. Drafts remain in the staff list below.</p>
+              <p className="text-sm font-semibold text-ink">Student recording library</p>
+              <p className="text-xs text-ink-muted">This is exactly what students can access. Drafts remain in the staff list below.</p>
             </div>
-            <span className="text-xs font-medium text-slate-500">
+            <span className="text-xs font-medium text-ink-muted tabular-nums">
               {libraryItems.length} recording{libraryItems.length !== 1 ? 's' : ''}
             </span>
           </div>
           <div className="grid gap-2 md:grid-cols-2">
             {libraryItems.map((item) => (
-              <div key={item.key} className="rounded-xl border border-slate-200 bg-white p-3">
+              <div key={item.key} className="rounded-xl border border-line bg-surface-raised p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${sourceBadgeClass(item.source)}`}>
-                        {item.source === 'Uploaded' ? <Upload className="h-3 w-3" /> : item.source === 'YouTube' ? <Film className="h-3 w-3" /> : <Link2 className="h-3 w-3" />}
+                      <Badge tone="neutral" icon={item.source === 'Uploaded' ? <Upload className="h-3 w-3" /> : item.source === 'YouTube' ? <Film className="h-3 w-3" /> : <Link2 className="h-3 w-3" />}>
                         {item.source}
-                      </span>
-                      {item.date && <span className="text-[11px] text-slate-400">{formatDateLabel(item.date)}</span>}
+                      </Badge>
+                      {item.date && <span className="text-xs text-ink-muted tabular-nums">{formatDateLabel(item.date)}</span>}
                     </div>
-                    <p className="mt-2 truncate text-sm font-semibold text-slate-900">{item.title}</p>
-                    {item.description && <p className="mt-1 text-xs text-slate-500">{item.description}</p>}
-                    {item.meta && <p className="mt-1 truncate text-[11px] text-slate-400">{item.meta}</p>}
+                    <p className="mt-2 truncate text-sm font-semibold text-ink" title={item.title}>{item.title}</p>
+                    {item.description && <p className="mt-1 text-xs text-ink-muted">{item.description}</p>}
+                    {item.meta && <p className="mt-1 truncate text-xs text-ink-muted tabular-nums">{item.meta}</p>}
                   </div>
                   {item.recording ? (
-                    <button
-                      type="button"
-                      onClick={() => setPreviewRecording(item.recording)}
-                      className="rounded-lg p-1.5 text-slate-400 hover:bg-primary-50 hover:text-primary-600"
-                      title="Preview recording"
-                    >
+                    <IconButton label="Preview recording" size="sm" onClick={() => setPreviewRecording(item.recording)}>
                       <Eye className="h-4 w-4" />
-                    </button>
+                    </IconButton>
                   ) : item.url ? (
                     <a
                       href={sanitizeUrl(item.url)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-primary-50 hover:text-primary-600"
+                      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink"
                       aria-label={`Open ${item.title} in a new tab`}
                     >
                       <ExternalLink className="h-4 w-4" />
@@ -678,20 +653,15 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
       )}
 
       {previewRecording && (
-        <div className="rounded-2xl border border-primary-200 bg-primary-50/40 p-3">
+        <div className="app-surface-muted p-3">
           <div className="mb-3 flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-slate-900">Previewing {previewRecording.title}</p>
-              <p className="text-xs text-slate-500">This admin preview does not update any student watch progress.</p>
+              <p className="truncate text-sm font-semibold text-ink" title={previewRecording.title}>Previewing {previewRecording.title}</p>
+              <p className="text-xs text-ink-muted">This admin preview does not update any student watch progress.</p>
             </div>
-            <button
-              type="button"
-              onClick={() => setPreviewRecording(null)}
-              className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-slate-700"
-              aria-label="Close preview"
-            >
+            <IconButton label="Close preview" size="sm" onClick={() => setPreviewRecording(null)}>
               <X className="h-4 w-4" />
-            </button>
+            </IconButton>
           </div>
           <VideoPlayer
             key={previewRecording.id}
@@ -703,7 +673,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
       )}
 
       {recordings.length === 0 ? (
-        <div className="text-center py-6 text-xs text-slate-400">
+        <div className="text-center py-6 text-sm text-ink-muted">
           No recordings yet. Upload a video or add a hosted link.
         </div>
       ) : (
@@ -711,7 +681,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
           {recordings.map((rec) => (
             <div
               key={rec.id}
-              className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4 hover:border-slate-300 transition-colors"
+              className="rounded-xl border border-line bg-surface-raised p-3 sm:p-4 hover:border-line-strong transition-colors duration-150"
             >
               {editingId === rec.id ? (
                 <div className="space-y-3">
@@ -719,57 +689,48 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
                     type="text"
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                    className="app-control w-full"
                   />
-                  {rec.source !== 'uploaded' && <input type="url" value={editUrl} onChange={(event) => setEditUrl(event.target.value)} placeholder="https://youtube.com/watch?v=..." className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus" />}
+                  {rec.source !== 'uploaded' && <input type="url" value={editUrl} onChange={(event) => setEditUrl(event.target.value)} placeholder="https://youtube.com/watch?v=..." className="app-control w-full" />}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <input
                       type="date"
                       value={editDate}
                       onChange={(e) => setEditDate(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                      className="app-control w-full"
                     />
                     <input
                       type="text"
                       value={editDescription}
                       onChange={(e) => setEditDescription(e.target.value)}
                       placeholder="Description"
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
+                      className="app-control w-full"
                     />
                   </div>
                   <div className="flex justify-end gap-2">
-                    <button
-                      onClick={() => setEditingId(null)}
-                      disabled={savingEdit}
-                      className="rounded-lg px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
+                    <Button variant="quiet" size="sm" onClick={() => setEditingId(null)} disabled={savingEdit}>
                       Cancel
-                    </button>
-                    <button
-                      onClick={saveEdit}
-                      disabled={savingEdit || !editTitle.trim()}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-primary-500 px-3 py-1.5 text-xs text-white hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
+                    </Button>
+                    <Button size="sm" onClick={saveEdit} disabled={savingEdit || !editTitle.trim()}>
                       {savingEdit && <Loader2 className="h-3 w-3 animate-spin" />}
                       {savingEdit ? 'Saving...' : 'Save'}
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ) : (
-                <div className="flex items-start gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-medium text-slate-900">{rec.title}</p>
-                      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${rec.status === 'published' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
-                        {rec.status === 'published' ? <Globe2 className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                        {rec.status}
-                      </span>
+                      <p className="min-w-0 break-words text-sm font-semibold text-ink">{rec.title}</p>
+                      <Badge tone={rec.status === 'published' ? 'success' : 'neutral'} icon={rec.status === 'published' ? <Globe2 className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}>
+                        {rec.status === 'published' ? 'Published' : 'Draft'}
+                      </Badge>
                     </div>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-slate-500">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-ink-muted tabular-nums">
                       {rec.recorded_date && (
                         <span className="inline-flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
-                          {new Date(rec.recorded_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {formatDateLabel(rec.recorded_date)}
                         </span>
                       )}
                       {rec.duration_display && (
@@ -779,19 +740,19 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
                         </span>
                       )}
                       {rec.file_size_display && <span>{rec.file_size_display}</span>}
-                      <span className="text-slate-400">{sourceLabel(rec.source)} · added {formatUploadedAt(rec.created_at)}</span>
-                      <span className="text-slate-400">by {rec.uploaded_by || 'Unknown'}</span>
+                      <span>{sourceLabel(rec.source)} · added {formatUploadedAt(rec.created_at)}</span>
+                      <span>by {rec.uploaded_by || 'Unknown'}</span>
                     </div>
                     {rec.description && (
-                      <p className="text-xs text-slate-500 mt-1">{rec.description}</p>
+                      <p className="text-xs text-ink-muted mt-1">{rec.description}</p>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
+                  <div className="flex flex-wrap items-center gap-1 shrink-0">
+                    <Button
+                      variant={rec.status === 'published' ? 'danger' : 'secondary'}
+                      size="sm"
                       onClick={() => void changeStatus(rec)}
                       disabled={updatingStatusId === rec.id}
-                      className={`inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${rec.status === 'published' ? 'text-amber-700 hover:bg-amber-50' : 'text-emerald-700 hover:bg-emerald-50'}`}
                     >
                       {updatingStatusId === rec.id
                         ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -799,29 +760,29 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
                           ? <EyeOff className="h-3.5 w-3.5" />
                           : <Globe2 className="h-3.5 w-3.5" />}
                       {rec.status === 'published' ? 'Return to draft' : 'Publish'}
-                    </button>
-                    {rec.source === 'uploaded' ? <button
-                      type="button"
+                    </Button>
+                    {rec.source === 'uploaded' ? <IconButton
+                      label="Preview"
+                      size="sm"
                       onClick={() => setPreviewRecording(rec)}
-                      className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-primary-50 hover:text-primary-600 transition-colors"
-                      title="Preview"
                     >
                       <Eye className="h-4 w-4" />
-                    </button> : rec.url ? <a href={sanitizeUrl(rec.url)} target="_blank" rel="noopener noreferrer" className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-primary-50 hover:text-primary-600" aria-label={`Open ${rec.title}`}><ExternalLink className="h-4 w-4" /></a> : null}
-                    <button
+                    </IconButton> : rec.url ? <a href={sanitizeUrl(rec.url)} target="_blank" rel="noopener noreferrer" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink lg:h-9 lg:w-9" aria-label={`Open ${rec.title}`}><ExternalLink className="h-4 w-4" /></a> : null}
+                    <IconButton
+                      label="Edit"
+                      size="sm"
                       onClick={() => startEdit(rec)}
-                      className="rounded-lg p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
-                      title="Edit"
                     >
                       <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
+                    </IconButton>
+                    <IconButton
+                      label="Delete"
+                      variant="danger"
+                      size="sm"
                       onClick={() => handleDelete(rec.id)}
-                      className="rounded-lg p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                      title="Delete"
                     >
                       <Trash2 className="h-4 w-4" />
-                    </button>
+                    </IconButton>
                   </div>
                 </div>
               )}
@@ -842,12 +803,6 @@ function sourceLabel(source: S3Recording['source']): 'Uploaded' | 'YouTube' | 'V
   return 'External'
 }
 
-function sourceBadgeClass(source: ReturnType<typeof sourceLabel>) {
-  if (source === 'Uploaded') return 'border-primary-200 bg-primary-50 text-primary-700'
-  if (source === 'YouTube') return 'border-red-200 bg-red-50 text-red-700'
-  return 'border-slate-200 bg-slate-50 text-slate-600'
-}
-
 function formatDateLabel(dateStr: string) {
-  return new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return formatShortDate(dateStr, '', { withYear: false })
 }
