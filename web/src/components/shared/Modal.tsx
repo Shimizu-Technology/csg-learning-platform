@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react'
+import { useCallback, useEffect, useId, useRef } from 'react'
 import { X } from 'lucide-react'
 import { IconButton } from '../ui/Button'
 
@@ -14,6 +14,44 @@ interface ModalProps {
   fixedHeight?: boolean
 }
 
+/** Longest exit animation plus a margin; the ghost is removed by then even if animationend never fires. */
+const EXIT_FALLBACK_MS = 320
+
+/**
+ * Plays the close animation on a static copy of the dialog's last open frame.
+ * Callers usually clear the state a dialog renders from as they close it
+ * (ConfirmContext drops its title, forms reset), so animating the live tree
+ * could flash a blank or different dialog. The copy can't re-render: it is
+ * inert, hidden from assistive technology, ignores pointers, carries no ids,
+ * and removes itself when the animation ends.
+ */
+export function playModalExit(overlay: HTMLElement) {
+  if (typeof document === 'undefined' || !overlay.firstChild) return
+  const ghost = overlay.cloneNode(true) as HTMLElement
+  ghost.setAttribute('data-state', 'closing')
+  ghost.setAttribute('aria-hidden', 'true')
+  ghost.setAttribute('inert', '')
+  ghost.removeAttribute('id')
+  ghost.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'))
+  ghost.querySelectorAll('[data-app-modal]').forEach((node) => {
+    node.removeAttribute('data-app-modal')
+    node.removeAttribute('role')
+    node.removeAttribute('aria-modal')
+  })
+  document.body.appendChild(ghost)
+  let removed = false
+  const remove = () => {
+    if (removed) return
+    removed = true
+    window.clearTimeout(timer)
+    ghost.remove()
+  }
+  const timer = window.setTimeout(remove, EXIT_FALLBACK_MS)
+  ghost.addEventListener('animationend', (event) => {
+    if (event.target === ghost) remove()
+  })
+}
+
 const sizeMap = {
   md: 'max-w-lg',
   lg: 'max-w-2xl',
@@ -21,7 +59,16 @@ const sizeMap = {
 }
 
 export function Modal({ open, onClose, title, subtitle, icon, children, footer, size = 'lg', fixedHeight = false }: ModalProps) {
-  const overlayRef = useRef<HTMLDivElement>(null)
+  const overlayRef = useRef<HTMLDivElement | null>(null)
+  // When the dialog leaves the DOM (closed or unmounted), animate a copy of its last frame out.
+  const setOverlay = useCallback((node: HTMLDivElement | null) => {
+    overlayRef.current = node
+    if (!node) return
+    return () => {
+      overlayRef.current = null
+      playModalExit(node)
+    }
+  }, [])
   const dialogRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
   const titleId = useId()
@@ -98,7 +145,8 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
 
   return (
     <div
-      ref={overlayRef}
+      ref={setOverlay}
+      data-state="open"
       className="app-modal-overlay fixed inset-0 z-50 flex items-end justify-center overflow-y-auto overscroll-contain bg-slate-950/50 p-0 sm:items-start sm:p-4 sm:pt-[8vh]"
       onClick={(e) => {
         if (e.target === overlayRef.current) onClose()

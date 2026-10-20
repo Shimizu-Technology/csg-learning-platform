@@ -126,6 +126,15 @@ describe('motion rules', () => {
     expect(overlayKeyframes).not.toMatch(/transform/)
   })
 
+  it('closes dialogs a little faster than they open, and only fades under reduced motion', () => {
+    expect(css).toMatch(/\.app-modal-overlay\[data-state="closing"\]\s*\{[^}]*pointer-events:\s*none[^}]*overlay-exit var\(--duration-local\)/)
+    expect(css).toMatch(/\.app-modal-overlay\[data-state="closing"\] \.app-modal\s*\{\s*animation:\s*sheet-exit var\(--duration-local\)/)
+    expect(reducedBlocks).toMatch(/\[data-state="closing"\]\s*\{[^}]*animation-name:\s*overlay-exit !important/)
+    const exitKeyframes = css.match(/@keyframes overlay-exit\s*\{([\s\S]*?)\n\}/)?.[1] || ''
+    expect(exitKeyframes).toMatch(/opacity/)
+    expect(exitKeyframes).not.toMatch(/transform/)
+  })
+
   it('never uses transition: all in the stylesheet', () => {
     expect(css).not.toMatch(/transition:\s*all/)
   })
