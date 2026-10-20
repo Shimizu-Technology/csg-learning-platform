@@ -17,6 +17,9 @@ import { subscribeToStaffPresence } from '../../lib/realtime'
 import { PresenceBadge, PresenceDot } from '../../components/shared/PresenceBadge'
 import { Avatar } from '../../components/ui/Avatar'
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
+import { InviteStatusBadge } from '../../components/shared/InviteStatusBadge'
+import { inviteStatusPresentation } from '../../lib/inviteStatus'
+import type { InviteState } from '../../types/api'
 import { Button, LinkButton } from '../../components/ui/Button'
 import { SegmentButton, SegmentedControl } from '../../components/ui/Choice'
 import type { OfficeHour, OfficeHourOccurrence } from '../../types/api'
@@ -68,7 +71,9 @@ type CohortData = Record<string, any> & {
     last_seen_at?: string | null
     invite_pending?: boolean
     invite_delivery_status?: 'not_sent' | 'queued' | 'sent' | 'failed' | 'accepted'
+    invite_state?: InviteState
     invite_sent_at?: string | null
+    invite_expires_at?: string | null
     invite_last_error?: string | null
   }>
   modules: Array<{
@@ -1584,10 +1589,8 @@ export function CohortDetail() {
                 <div className="flex flex-wrap items-center gap-2 shrink-0">
                   {student.invite_pending ? (
                     <>
-                      <span title={student.invite_last_error || undefined}>
-                        <Badge tone={student.invite_delivery_status === 'failed' ? 'danger' : student.invite_delivery_status === 'not_sent' ? 'neutral' : 'pending'} icon={<Mail className="h-3 w-3" />}>
-                          {student.invite_delivery_status === 'failed' ? 'Invite failed' : student.invite_delivery_status === 'queued' ? 'Invite queued' : student.invite_delivery_status === 'not_sent' ? 'Invite not sent' : 'Invite sent'}
-                        </Badge>
+                      <span title={inviteStatusPresentation({ ...student, invite_pending: true }).detail || undefined}>
+                        <InviteStatusBadge presentation={inviteStatusPresentation({ ...student, invite_pending: true })} />
                       </span>
                       <Button
                         variant="secondary"
@@ -1596,7 +1599,7 @@ export function CohortDetail() {
                         disabled={resendingInviteFor === student.user_id}
                       >
                         <Mail className="h-4 w-4" />
-                        {resendingInviteFor === student.user_id ? 'Sending...' : student.invite_delivery_status === 'not_sent' ? 'Send invite' : 'Retry invite'}
+                        {resendingInviteFor === student.user_id ? 'Sending...' : inviteStatusPresentation({ ...student, invite_pending: true }).actionLabel || 'Retry invite'}
                       </Button>
                     </>
                   ) : (

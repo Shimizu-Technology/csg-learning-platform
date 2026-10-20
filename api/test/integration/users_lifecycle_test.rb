@@ -381,6 +381,48 @@ class UsersLifecycleTest < ActionDispatch::IntegrationTest
     assert_includes user_ids, archived_staff.id
   end
 
+  test "user index reports each team invitation state for the Team page" do
+    sent = User.create!(clerk_id: "pending_#{SecureRandom.uuid}", email: "team-sent@example.com", role: :instructor, invite_delivery_status: "sent", invite_sent_at: 2.days.ago)
+    expired = User.create!(clerk_id: "pending_#{SecureRandom.uuid}", email: "team-expired@example.com", role: :admin, invite_delivery_status: "sent", invite_sent_at: 31.days.ago)
+    failed = User.create!(clerk_id: "pending_#{SecureRandom.uuid}", email: "team-failed@example.com", role: :instructor, invite_delivery_status: "failed", invite_last_error: "Invite email delivery failed")
+    accepted = User.create!(clerk_id: "clerk_team_accepted", email: "team-accepted@example.com", role: :instructor, invite_delivery_status: "accepted")
+
+    as_user(@admin) do
+      get "/api/v1/users", params: { role: "instructor" }, headers: auth_headers
+    end
+    assert_response :success
+    users = JSON.parse(response.body).fetch("users").index_by { |user| user.fetch("id") }
+    assert_equal "sent", users.fetch(sent.id).fetch("invite_state")
+    assert_equal (sent.invite_sent_at + 30.days).as_json, users.fetch(sent.id).fetch("invite_expires_at")
+    assert_equal "failed", users.fetch(failed.id).fetch("invite_state")
+    assert_equal "Invite email delivery failed", users.fetch(failed.id).fetch("invite_last_error")
+    assert_equal "accepted", users.fetch(accepted.id).fetch("invite_state")
+
+    as_user(@admin) do
+      get "/api/v1/users", params: { role: "admin" }, headers: auth_headers
+    end
+    admins = JSON.parse(response.body).fetch("users").index_by { |user| user.fetch("id") }
+    assert_equal "expired", admins.fetch(expired.id).fetch("invite_state")
+  end
+
+  test "resending an expired invite queues a fresh one" do
+    expired = User.create!(clerk_id: "pending_#{SecureRandom.uuid}", email: "team-resend-expired@example.com", role: :instructor, invite_delivery_status: "sent", invite_sent_at: 45.days.ago)
+    original = ClerkInvitationService.instance_method(:configured?)
+    ClerkInvitationService.define_method(:configured?) { false }
+
+    as_user(@admin) do
+      post "/api/v1/users/#{expired.id}/resend_invite", headers: auth_headers
+    end
+
+    assert_response :success
+    invitation = JSON.parse(response.body).fetch("invitation")
+    assert_equal "queued", invitation.fetch("status")
+    assert_equal "queued", invitation.fetch("state")
+    assert_enqueued_jobs 1, only: SendUserInviteEmailJob
+  ensure
+    ClerkInvitationService.define_method(:configured?, original)
+  end
+
   test "archived users cannot authenticate" do
     archived_user = User.create!(
       clerk_id: "clerk_archived_auth",
