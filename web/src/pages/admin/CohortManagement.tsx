@@ -7,6 +7,10 @@ import { useCohortContext } from '../../contexts/CohortContext'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { useToast } from '../../contexts/ToastContext'
+import { Badge, type BadgeTone } from '../../components/ui/Badge'
+import { Button } from '../../components/ui/Button'
+import { FilterChip } from '../../components/ui/Choice'
+import { formatShortDate } from '../../lib/format'
 import type { CohortSummary, CurriculumSummary } from '../../types/api'
 
 interface CreateCohortForm {
@@ -25,17 +29,14 @@ const COHORT_TYPES = [
 ]
 
 function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    active: 'bg-success-100 text-success-700',
-    upcoming: 'bg-blue-100 text-blue-700',
-    completed: 'bg-slate-100 text-slate-600',
-    archived: 'bg-slate-100 text-slate-500',
+  const tones: Record<string, BadgeTone> = {
+    active: 'success',
+    upcoming: 'info',
+    completed: 'neutral',
+    archived: 'neutral',
   }
-  return (
-    <span className={`inline-flex text-xs font-medium px-2 py-1 rounded-full ${styles[status] || 'bg-slate-100 text-slate-600'}`}>
-      {status}
-    </span>
-  )
+  const label = status.replaceAll('_', ' ')
+  return <Badge tone={tones[status] || 'neutral'}>{label.charAt(0).toUpperCase() + label.slice(1)}</Badge>
 }
 
 export function CohortManagement() {
@@ -119,47 +120,44 @@ export function CohortManagement() {
 
   return (
     <div className="app-page-wide">
-      <header className="flex items-end justify-between gap-4">
-        <div>
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0">
           <p className="app-eyebrow">Program operations</p>
           <h1 className="app-title mt-2">Cohorts</h1>
           <p className="app-description mt-2">{user?.is_admin ? 'Create, organize, and reopen the workspace for every class.' : 'Open the cohorts you teach and see what needs attention.'}</p>
         </div>
-        {user?.is_admin && <button
-          onClick={() => setShowCreate(true)}
-          className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-700"
-        >
+        {user?.is_admin && <Button variant={showCreate ? 'secondary' : 'primary'} onClick={() => setShowCreate(true)}>
           <Plus className="h-4 w-4" />
-          New Cohort
-        </button>}
+          New cohort
+        </Button>}
       </header>
 
       {showCreate && user?.is_admin && (
-        <form onSubmit={handleCreate} className="rounded-2xl bg-white border border-slate-200 p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-slate-900">Create New Cohort</h2>
+        <form onSubmit={handleCreate} className="app-surface p-6 space-y-4">
+          <h2 className="text-lg font-bold text-ink">Create new cohort</h2>
 
           {error && (
-            <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>
+            <div role="alert" className="rounded-xl border border-danger-200 bg-danger-50 px-4 py-3 text-sm text-danger-700">{error}</div>
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Cohort Name *</label>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">Cohort name *</label>
               <input
                 type="text"
                 required
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 placeholder="e.g., Cohort 4"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus focus:border-focus"
+                className="app-control w-full"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Type</label>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">Type</label>
               <select
                 value={form.cohort_type}
                 onChange={(e) => setForm({ ...form, cohort_type: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus focus:border-focus"
+                className="app-control w-full"
               >
                 {COHORT_TYPES.map((t) => (
                   <option key={t.value} value={t.value}>{t.label}</option>
@@ -167,12 +165,12 @@ export function CohortManagement() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Curriculum *</label>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">Curriculum *</label>
               <select
                 required
                 value={form.curriculum_id}
                 onChange={(e) => setForm({ ...form, curriculum_id: e.target.value ? Number(e.target.value) : '' })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus focus:border-focus"
+                className="app-control w-full"
               >
                 <option value="">Select a curriculum...</option>
                 {curricula.map((c) => (
@@ -181,41 +179,36 @@ export function CohortManagement() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Start Date *</label>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">Start date *</label>
               <input
                 type="date"
                 required
                 value={form.start_date}
                 onChange={(e) => setForm({ ...form, start_date: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus focus:border-focus"
+                className="app-control w-full"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">End Date</label>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1">End date</label>
               <input
                 type="date"
                 value={form.end_date}
                 onChange={(e) => setForm({ ...form, end_date: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus focus:border-focus"
+                className="app-control w-full"
               />
             </div>
           </div>
 
-          <div className="flex items-center gap-3 pt-2">
-            <button
-              type="submit"
-              disabled={creating}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
-            >
-              {creating ? 'Creating...' : 'Create Cohort'}
-            </button>
-            <button
-              type="button"
+          <div className="flex flex-wrap items-center gap-3 pt-2">
+            <Button type="submit" disabled={creating}>
+              {creating ? 'Creating...' : 'Create cohort'}
+            </Button>
+            <Button
+              variant="quiet"
               onClick={() => { setShowCreate(false); setError(null) }}
-              className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </form>
       )}
@@ -228,32 +221,25 @@ export function CohortManagement() {
         />
       ) : (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter cohorts by status">
             {([
               { key: 'current', label: 'Current', count: cohortCounts.current },
               { key: 'inactive', label: 'Inactive', count: cohortCounts.inactive },
               { key: 'all', label: 'All', count: cohortCounts.all },
             ] as const).map((filter) => (
-              <button
+              <FilterChip
                 key={filter.key}
-                type="button"
+                selected={statusFilter === filter.key}
+                count={filter.count}
                 onClick={() => setStatusFilter(filter.key)}
-                className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                  statusFilter === filter.key
-                    ? 'bg-slate-900 text-white'
-                    : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                }`}
               >
-                <span>{filter.label}</span>
-                <span className={`rounded-full px-1.5 py-0.5 text-xs ${statusFilter === filter.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
-                  {filter.count}
-                </span>
-              </button>
+                {filter.label}
+              </FilterChip>
             ))}
           </div>
 
           {visibleCohorts.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-5 py-8 text-center text-sm text-slate-500">
+            <div className="rounded-2xl border border-dashed border-line bg-surface-raised px-5 py-8 text-center text-sm text-ink-muted">
               {statusFilter === 'current'
                 ? 'No active or upcoming cohorts right now. Completed and archived cohorts are still available under Inactive.'
                 : statusFilter === 'inactive'
@@ -266,28 +252,28 @@ export function CohortManagement() {
             <Link
               key={cohort.id}
               to={`/admin/cohorts/${cohort.id}`}
-              className="flex items-center justify-between rounded-2xl bg-white border border-slate-200 p-5 hover:border-primary-200 hover:shadow-sm transition-all"
+              className="pressable flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-line bg-surface-raised p-5 shadow-raised hover:border-line-strong hover:bg-surface-sunken"
             >
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-3 mb-1">
-                  <h3 className="text-base font-semibold text-slate-900">{cohort.name}</h3>
+                <div className="flex min-w-0 items-center gap-3 mb-1">
+                  <h3 className="min-w-0 truncate text-base font-semibold text-ink" title={cohort.name}>{cohort.name}</h3>
                   <StatusBadge status={cohort.status} />
                 </div>
-                <p className="text-sm text-slate-500">{cohort.curriculum_name}</p>
-                <p className="mt-1 text-xs font-bold text-primary-700">Open for access and invitation status</p>
-                <div className="flex items-center gap-4 mt-2 text-xs text-slate-400">
-                  <span className="inline-flex items-center gap-1">
+                <p className="truncate text-sm text-ink-muted" title={cohort.curriculum_name}>{cohort.curriculum_name}</p>
+                <p className="mt-1 text-xs font-semibold text-ink-secondary">Open for access and invitation status</p>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-ink-muted">
+                  <span className="inline-flex items-center gap-1 tabular-nums">
                     <Calendar className="h-3.5 w-3.5" />
-                    {new Date(cohort.start_date).toLocaleDateString()}
-                    {cohort.end_date && ` – ${new Date(cohort.end_date).toLocaleDateString()}`}
+                    {formatShortDate(cohort.start_date)}
+                    {cohort.end_date && ` – ${formatShortDate(cohort.end_date)}`}
                   </span>
-                  <span className="inline-flex items-center gap-1">
+                  <span className="inline-flex items-center gap-1 tabular-nums">
                     <Users className="h-3.5 w-3.5" />
                     {cohort.enrolled_count} enrolled
                   </span>
                 </div>
               </div>
-              <ChevronRight className="h-5 w-5 text-slate-300 shrink-0" />
+              <ChevronRight className="h-5 w-5 text-ink-muted shrink-0" />
             </Link>
               ))}
             </div>

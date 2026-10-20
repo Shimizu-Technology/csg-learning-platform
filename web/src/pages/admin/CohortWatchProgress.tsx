@@ -6,6 +6,9 @@ import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { PageHeader } from '../../components/ui/PageHeader'
+import { Avatar } from '../../components/ui/Avatar'
+import { TabButton } from '../../components/ui/Choice'
+import { cohortStudentPath } from '../../lib/routes'
 
 interface RecordingInfo {
   id: number
@@ -42,10 +45,10 @@ interface VideoStudent {
 type TabKey = 'recordings' | 'videos'
 
 const getProgressColor = (pct: number, completed: boolean) => {
-  if (completed) return 'bg-green-500 text-white'
-  if (pct >= 50) return 'bg-amber-100 text-amber-700'
-  if (pct > 0) return 'bg-slate-100 text-slate-600'
-  return 'bg-slate-50 text-slate-400'
+  if (completed) return 'border-success-200 bg-success-50 text-success-700'
+  if (pct >= 50) return 'border-info-200 bg-info-50 text-info-800'
+  if (pct > 0) return 'border-line bg-surface-sunken text-ink-secondary'
+  return 'border-transparent text-ink-muted'
 }
 
 function ProgressMatrix<T extends { id: number; title: string }>({
@@ -56,6 +59,7 @@ function ProgressMatrix<T extends { id: number; title: string }>({
   emptyTitle,
   emptyDescription,
   columnSubtitle,
+  cohortId,
 }: {
   columns: T[]
   rows: { user_id: number; full_name: string; cells: ({ id: number } & CellProgress)[] }[]
@@ -64,36 +68,37 @@ function ProgressMatrix<T extends { id: number; title: string }>({
   emptyTitle: string
   emptyDescription: string
   columnSubtitle?: (col: T) => string | null
+  cohortId: number
 }) {
   if (columns.length === 0) {
     return <EmptyState icon={emptyIcon} title={emptyTitle} description={emptyDescription} />
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+    <div className="app-surface overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50/50">
-              <th className="text-left px-4 py-3 font-medium text-slate-700 sticky left-0 bg-slate-50/50 z-10 min-w-[180px]">
+            <tr className="border-b border-line bg-surface-sunken">
+              <th className="text-left px-4 py-3 text-xs font-semibold text-ink-secondary sticky left-0 bg-surface-sunken z-10 min-w-[180px]">
                 Student
               </th>
               {columns.map((col) => {
                 const subtitle = columnSubtitle?.(col)
                 return (
-                  <th key={col.id} className="text-center px-2 py-3 font-medium text-slate-700 min-w-[96px]">
+                  <th key={col.id} className="text-center px-2 py-3 font-semibold text-ink-secondary min-w-[96px]">
                     <div className="text-xs leading-tight truncate max-w-[120px] mx-auto" title={col.title}>
                       {col.title}
                     </div>
                     {subtitle && (
-                      <div className="text-[10px] font-normal text-slate-400 truncate max-w-[120px] mx-auto" title={subtitle}>
+                      <div className="text-xs font-normal text-ink-muted truncate max-w-[120px] mx-auto" title={subtitle}>
                         {subtitle}
                       </div>
                     )}
                   </th>
                 )
               })}
-              <th className="text-center px-4 py-3 font-medium text-slate-700 min-w-[110px]">Overall</th>
+              <th className="text-center px-4 py-3 text-xs font-semibold text-ink-secondary min-w-[110px]">Overall</th>
             </tr>
           </thead>
           <tbody>
@@ -105,9 +110,12 @@ function ProgressMatrix<T extends { id: number; title: string }>({
               const overallPct = columns.length > 0 ? Math.round((completedCount / columns.length) * 100) : 0
 
               return (
-                <tr key={row.user_id} className="border-b border-slate-100 hover:bg-slate-50/50">
-                  <td className="px-4 py-2.5 font-medium text-slate-900 sticky left-0 bg-white z-10">
-                    {row.full_name}
+                <tr key={row.user_id} className="border-b border-line transition-colors duration-150 hover:bg-surface-sunken">
+                  <td className="px-4 py-1 sticky left-0 bg-surface-raised z-10 max-w-[240px]">
+                    <Link to={cohortStudentPath(cohortId, row.user_id)} className="flex min-h-11 min-w-0 items-center gap-2 font-semibold text-ink hover:text-ruby-700 hover:underline" title={row.full_name}>
+                      <Avatar name={row.full_name} size="sm" />
+                      <span className="truncate">{row.full_name}</span>
+                    </Link>
                   </td>
                   {columns.map((col) => {
                     const cell = getCell(row, col.id)
@@ -116,7 +124,7 @@ function ProgressMatrix<T extends { id: number; title: string }>({
                     return (
                       <td key={col.id} className="text-center px-2 py-2.5">
                         <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${getProgressColor(pct, completed)}`}
+                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold tabular-nums ${getProgressColor(pct, completed)}`}
                           title={`${Math.round(pct)}% — ${Math.round((cell?.total_watched_seconds || 0) / 60)}m watched`}
                         >
                           {completed ? (
@@ -135,10 +143,10 @@ function ProgressMatrix<T extends { id: number; title: string }>({
                   })}
                   <td className="text-center px-4 py-2.5">
                     <div className="flex items-center gap-2 justify-center">
-                      <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-green-500 rounded-full" style={{ width: `${overallPct}%` }} />
+                      <div className="w-16 h-1.5 bg-surface-sunken rounded-full overflow-hidden">
+                        <div className="h-full bg-success-600 rounded-full" style={{ width: `${overallPct}%` }} />
                       </div>
-                      <span className="text-xs text-slate-600 tabular-nums">
+                      <span className="text-xs text-ink-secondary tabular-nums">
                         {completedCount}/{columns.length}
                       </span>
                     </div>
@@ -236,12 +244,12 @@ export function CohortWatchProgress() {
       <div className="app-page-wide">
         <Link
           to={`/admin/cohorts/${id}`}
-          className="app-link"
+          className="app-link inline-flex min-h-11 items-center gap-1 text-sm"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to cohort
         </Link>
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        <div role="alert" className="rounded-2xl border border-danger-200 bg-danger-50 p-4 text-sm text-danger-700">
           {loadError}
         </div>
       </div>
@@ -257,10 +265,10 @@ export function CohortWatchProgress() {
       <div className="space-y-4">
         <Link
           to={`/admin/cohorts/${id}`}
-          className="app-link"
+          className="app-link inline-flex min-h-11 max-w-full items-center gap-1 text-sm"
         >
-          <ArrowLeft className="h-4 w-4" />
-          Back to {cohortName || 'Cohort'}
+          <ArrowLeft className="h-4 w-4 shrink-0" />
+          <span className="truncate" title={cohortName || undefined}>Back to {cohortName || 'Cohort'}</span>
         </Link>
         <PageHeader
           eyebrow="Cohort engagement"
@@ -274,37 +282,15 @@ export function CohortWatchProgress() {
         />
       </div>
 
-      <div className="flex w-fit max-w-full overflow-x-auto rounded-xl border border-slate-200 bg-white p-1" role="tablist" aria-label="Watch progress type">
-        <button
-          type="button"
-          onClick={() => handleTabChange('recordings')}
-          role="tab"
-          aria-selected={tab === 'recordings'}
-          className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
-            tab === 'recordings'
-              ? 'bg-slate-900 text-white shadow-sm'
-              : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-          }`}
-        >
+      <div className="flex max-w-full overflow-x-auto border-b border-line" role="tablist" aria-label="Watch progress type">
+        <TabButton asTab selected={tab === 'recordings'} count={recordings.length} onClick={() => handleTabChange('recordings')}>
           <Film className="h-4 w-4" />
-          Class Recordings
-          <span className="ml-1 text-xs text-slate-400 tabular-nums">{recordings.length}</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => handleTabChange('videos')}
-          role="tab"
-          aria-selected={tab === 'videos'}
-          className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
-            tab === 'videos'
-              ? 'bg-slate-900 text-white shadow-sm'
-              : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-          }`}
-        >
+          Class recordings
+        </TabButton>
+        <TabButton asTab selected={tab === 'videos'} count={videos.length} onClick={() => handleTabChange('videos')}>
           <PlaySquare className="h-4 w-4" />
-          Lesson Videos
-          <span className="ml-1 text-xs text-slate-400 tabular-nums">{videos.length}</span>
-        </button>
+          Lesson videos
+        </TabButton>
       </div>
 
       {tab === 'recordings' ? (
@@ -312,6 +298,7 @@ export function CohortWatchProgress() {
           columns={recordings}
           rows={activeRows}
           getCell={(row, colId) => row.cells.find((c) => c.id === colId)}
+          cohortId={Number(id)}
           emptyIcon={Film}
           emptyTitle="No recordings uploaded"
           emptyDescription="Upload recordings to this cohort first to track student watch progress."
@@ -325,6 +312,7 @@ export function CohortWatchProgress() {
             const v = col as VideoInfo
             return v.module_title ? `${v.module_title}` : null
           }}
+          cohortId={Number(id)}
           emptyIcon={PlaySquare}
           emptyTitle="No lesson videos with uploads"
           emptyDescription="Upload S3 videos to lesson or exercise content blocks to track student watch progress here."
