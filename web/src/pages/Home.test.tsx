@@ -20,7 +20,7 @@ describe('HomePage (signed-out landing)', () => {
     const html = render()
     expect(html).toContain('href="/sign-in"')
     expect(html.match(/href="\/sign-up"[^>]*>[^<]*I have an invitation/g)?.length).toBeGreaterThanOrEqual(1)
-    expect(html).toContain('Create your account with the email address the invitation was sent to')
+    expect(html).toContain('Open your invitation email and choose “Accept invitation” to create your account')
   })
 
   it('links back to the CSG site and the course catalog', () => {

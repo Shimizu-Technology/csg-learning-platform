@@ -1,4 +1,6 @@
 import { SignIn, SignUp, useClerk, useUser } from '@clerk/clerk-react'
+import { signUpModeFrom } from '../lib/clerkSignUpMode'
+import { InvitationHelp } from '../components/auth/InvitationHelp'
 import { clerkAuthAppearance } from '../lib/clerkAppearance'
 import { useAuthContext } from '../contexts/AuthContext'
 import { Navigate, useLocation } from 'react-router-dom'
@@ -172,7 +174,10 @@ export function SignInPage() {
 export function SignUpPage() {
   const { accessDenied } = useAuthContext()
   const location = useLocation()
+  const clerk = useClerk()
   const fromInvitation = hasInvitationTicket(location.search)
+  // Production Clerk is invitation-only: without a ticket, guide the learner to their email link.
+  const needsInvitationLink = !fromInvitation && clerk.loaded && signUpModeFrom(clerk) === 'restricted'
 
   if (accessDenied) {
     return (
@@ -189,16 +194,20 @@ export function SignUpPage() {
         title={fromInvitation ? 'Accept your invitation.' : 'Create your account.'}
         description={fromInvitation
           ? 'Your invited email is already filled in. Finish creating your account and your course will be waiting.'
-          : `Use the email address your ${SCHOOL_NAME} invitation was sent to. If you already have an account, sign in instead.`}
+          : `Your account starts from the invitation ${SCHOOL_NAME} emailed you. If you already have an account, sign in instead.`}
         switchLink={<LinkButton to="/sign-in" variant="quiet" shape="brand" className="px-3 text-ink">Sign in</LinkButton>}
       >
         <AuthWidgetStatus />
-        <SignUp
-          appearance={clerkAuthAppearance}
-          routing="hash"
-          signInUrl="/sign-in"
-          fallbackRedirectUrl="/dashboard"
-        />
+        {needsInvitationLink ? (
+          <InvitationHelp />
+        ) : (
+          <SignUp
+            appearance={clerkAuthAppearance}
+            routing="hash"
+            signInUrl="/sign-in"
+            fallbackRedirectUrl="/dashboard"
+          />
+        )}
       </AuthShell>
     </RedirectIfSignedIn>
   )

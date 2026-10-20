@@ -7,12 +7,12 @@ import { PRODUCT_NAME, SCHOOL_COURSES_URL, SCHOOL_NAME } from '../lib/brand'
 
 const gettingStarted = [
   {
-    title: 'Open your invitation',
-    body: `Use the link in the email from ${SCHOOL_NAME}, or choose “I have an invitation” here.`,
+    title: 'Open your invitation email',
+    body: `Choose “Accept invitation” in the email from ${SCHOOL_NAME}. It opens ${PRODUCT_NAME} with your invitation attached.`,
   },
   {
     title: 'Create your account',
-    body: 'Sign up with the same email address the invitation was sent to. Google sign-in works if it uses that address.',
+    body: 'Your invited email is already filled in. Choose a password, or continue with Google if it uses that same address.',
   },
   {
     title: 'Start your first lesson',
@@ -149,7 +149,7 @@ export function HomePage() {
                     </LinkButton>
                   </div>
                   <p className="mt-4 max-w-lg text-sm leading-6 text-ink-secondary">
-                    New here with an invitation? Create your account with the email address the invitation was sent to.
+                    New here? Open your invitation email and choose “Accept invitation” to create your account.
                   </p>
                 </>
               )}
