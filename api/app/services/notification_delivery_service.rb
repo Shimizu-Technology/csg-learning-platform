@@ -92,7 +92,7 @@ class NotificationDeliveryService
         staff,
         submission,
         actor: submission.user,
-        title: "#{submission.user.full_name} submitted #{submission.content_block.title}",
+        title: "#{submission.user.full_name} submitted #{submission.content_block.display_title(fallback: "an exercise")}",
         body: "#{submission.content_block.lesson.title} · Attempt #{submission.num_submissions}",
         path: path,
         event_at: event_at
@@ -106,9 +106,9 @@ class NotificationDeliveryService
   def submission_graded(submission, push: true, event_at: submission.graded_at || Time.current)
     reviewer = submission.grader&.full_name || "CSG staff"
     title = if submission.grade == "R"
-      "#{reviewer} requested a redo on #{submission.content_block.title}"
+      "#{reviewer} requested a redo on #{submission.content_block.display_title}"
     else
-      "#{reviewer} graded #{submission.content_block.title}: #{submission.grade}"
+      "#{reviewer} graded #{submission.content_block.display_title}: #{submission.grade}"
     end
     body = submission.feedback.presence || submission.content_block.lesson.title
     notification, claimed = submission_notification_for(

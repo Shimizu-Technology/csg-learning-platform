@@ -36,6 +36,12 @@ class ContentBlock < ApplicationRecord
     repo_and_live_url_submission
   ].freeze
 
+  # What people see for this block: its own title, else its lesson's title.
+  # Imported blocks often have no title of their own; never return a blank.
+  def display_title(fallback: "your exercise")
+    title.presence || lesson&.title.presence || fallback
+  end
+
   def exercise_like?
     exercise? || code_challenge?
   end

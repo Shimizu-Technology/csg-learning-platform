@@ -141,7 +141,7 @@ module Api
             submission_id: s.id,
             lesson_id: lesson.id,
             lesson_title: lesson.title,
-            content_block_title: s.content_block.title,
+            content_block_title: s.content_block.display_title(fallback: "Exercise"),
             feedback: s.feedback,
             submission_window: submission_window,
             submissions_closed: submission_window[:submissions_closed]
@@ -158,7 +158,7 @@ module Api
               submission_id: submission.id,
               lesson_id: submission.content_block.lesson.id,
               lesson_title: submission.content_block.lesson.title,
-              content_block_title: submission.content_block.title,
+              content_block_title: submission.content_block.display_title(fallback: "Exercise"),
               grade: submission.grade,
               feedback: submission.feedback,
               graded_at: submission.graded_at
