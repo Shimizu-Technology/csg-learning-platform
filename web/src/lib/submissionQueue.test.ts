@@ -21,3 +21,19 @@ describe('submissionWhereLabel', () => {
     expect(submissionWhereLabel(null, 'Exercise')).toBe('Exercise')
   })
 })
+
+describe('feedbackDraftDiffers', () => {
+  const submission = { feedback: 'Saved note', rubric: { criteria: [{ id: 1, rating: 'meets', feedback: '' }] } }
+  it('is false when the draft matches what is saved', async () => {
+    const { feedbackDraftDiffers } = await import('./submissionQueue')
+    expect(feedbackDraftDiffers(submission, 'Saved note', { 1: { rating: 'meets', feedback: '' } })).toBe(false)
+    expect(feedbackDraftDiffers(null, 'anything', {})).toBe(false)
+    expect(feedbackDraftDiffers({ feedback: null }, '', {})).toBe(false)
+  })
+  it('is true when feedback, a rating or criterion feedback changed', async () => {
+    const { feedbackDraftDiffers } = await import('./submissionQueue')
+    expect(feedbackDraftDiffers(submission, 'Saved note, plus more', { 1: { rating: 'meets', feedback: '' } })).toBe(true)
+    expect(feedbackDraftDiffers(submission, 'Saved note', { 1: { rating: 'exceeds', feedback: '' } })).toBe(true)
+    expect(feedbackDraftDiffers(submission, 'Saved note', { 1: { rating: 'meets', feedback: 'Watch indentation' } })).toBe(true)
+  })
+})

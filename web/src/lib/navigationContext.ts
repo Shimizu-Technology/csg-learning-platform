@@ -128,7 +128,16 @@ export function useListScrollMemory(ready: boolean) {
   useEffect(() => {
     if (!ready || restoredRef.current) return
     restoredRef.current = true
-    if (!restoreRef.current) return
+    if (!restoreRef.current) {
+      // A fresh visit replaces a position left by an earlier visit, so a later Back
+      // without any scrolling cannot jump to that stale position.
+      try {
+        storage()?.setItem(key, String(Math.round(window.scrollY)))
+      } catch {
+        // Ignore storage failures.
+      }
+      return
+    }
     const saved = Number(storage()?.getItem(key))
     if (!Number.isFinite(saved) || saved <= 0) return
     requestAnimationFrame(() => window.scrollTo({ top: saved, behavior: 'instant' as ScrollBehavior }))

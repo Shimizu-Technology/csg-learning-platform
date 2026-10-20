@@ -81,10 +81,11 @@ export function TeamManagement() {
     }
   }
 
-  const loadTeam = async (mode: 'active' | 'archived' = viewMode) => {
+  /** `silent` refreshes rows in place (after a resend) instead of showing the skeleton. */
+  const loadTeam = async (mode: 'active' | 'archived' = viewMode, { silent = false }: { silent?: boolean } = {}) => {
     const requestId = loadRequestId.current + 1
     loadRequestId.current = requestId
-    setListLoading(true)
+    if (!silent) setListLoading(true)
     try {
       const params: Record<string, string> = mode === 'archived' ? { include_archived: 'true' } : {}
       const [res, res2] = await Promise.all([
@@ -197,7 +198,7 @@ export function TeamManagement() {
     }
     setResendingId(null)
     // The row's badge reflects the new delivery state (queued, or failed with its reason).
-    await loadTeam()
+    await loadTeam(viewMode, { silent: true })
   }
 
   const handleRestore = async () => {
@@ -253,9 +254,9 @@ export function TeamManagement() {
           </div>
         ) : (
           members.map((member) => {
-            const invite = inviteStatusPresentation(member)
             // Invited members show their invite state; accepted shows only for people who joined from an invite.
             const showInvite = !isArchived(member) && (isPending(member) || member.invite_delivery_status === 'accepted')
+            const invite = showInvite ? inviteStatusPresentation(member) : null
             return (
             <div key={member.id} className={`app-surface p-4 ${isArchived(member) ? 'opacity-80' : ''}`}>
               <div className="flex items-start gap-3">
@@ -271,11 +272,11 @@ export function TeamManagement() {
                     {isArchived(member) && (
                       <Badge icon={<Archive className="h-3 w-3" aria-hidden="true" />}>Archived</Badge>
                     )}
-                    {showInvite && <InviteStatusBadge presentation={invite} />}
+                    {invite && <InviteStatusBadge presentation={invite} />}
                     <Badge>{ROLE_LABELS[member.role] || member.role}</Badge>
                   </div>
                   <p className="text-xs text-ink-muted mt-0.5 truncate" title={member.email}>{member.email}</p>
-                  {showInvite && invite.detail && (
+                  {invite?.detail && (
                     <p className={`mt-1 text-xs [overflow-wrap:anywhere] ${invite.state === 'failed' ? 'text-danger-700' : 'text-ink-secondary'}`}>
                       {invite.detail}
                     </p>
@@ -314,7 +315,7 @@ export function TeamManagement() {
                         disabled={resendingId === member.id}
                       >
                         <RotateCcw className={`h-3.5 w-3.5 ${resendingId === member.id ? 'animate-spin' : ''}`} aria-hidden="true" />
-                        {resendingId === member.id ? 'Sending…' : invite.actionLabel || 'Resend'}
+                        {resendingId === member.id ? 'Sending…' : invite?.actionLabel || 'Resend'}
                       </Button>
                     )}
 

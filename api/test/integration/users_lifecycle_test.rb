@@ -420,7 +420,7 @@ class UsersLifecycleTest < ActionDispatch::IntegrationTest
     assert_equal "queued", invitation.fetch("state")
     assert_enqueued_jobs 1, only: SendUserInviteEmailJob
   ensure
-    ClerkInvitationService.define_method(:configured?, original)
+    ClerkInvitationService.define_method(:configured?, original) if original
   end
 
   test "archived users cannot authenticate" do

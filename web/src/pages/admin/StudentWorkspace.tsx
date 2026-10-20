@@ -85,7 +85,8 @@ export function StudentWorkspace() {
   const location = useLocation()
   // Opened from the students list (or another list): Back returns to that exact filtered list.
   const returnContext = useReturnContext(STUDENTS_RETURN, `student-workspace:${cohortId}:${studentId}`)
-  const returnState = forwardReturnState(location.state)
+  // Forward the resolved context (router state or the remembered one) when moving between students and tabs.
+  const returnState = forwardReturnState(location.state) || (returnContext === STUDENTS_RETURN ? undefined : returnContext)
   const [data, setData] = useState<WorkspaceData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

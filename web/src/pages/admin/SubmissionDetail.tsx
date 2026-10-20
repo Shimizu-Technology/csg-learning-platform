@@ -4,7 +4,8 @@ import { queueShortcutDirection, RESTORE_LIST_STATE } from '../../lib/navigation
 import { ArrowLeft, BookOpen, CheckCircle2, ChevronLeft, ChevronRight, ExternalLink, FileCheck2, GitBranch, MessageSquareText, RefreshCw, RotateCcw, UserRound } from 'lucide-react'
 import { api } from '../../lib/api'
 import { cohortPath, cohortStudentPath, directMessagePath, safeInternalReturnPath, submissionPath } from '../../lib/routes'
-import { orderSubmissionQueue, type SubmissionQueueFilter } from '../../lib/submissionQueue'
+import { DISCARD_DRAFT_CONFIRMATION, feedbackDraftDiffers, orderSubmissionQueue, type SubmissionQueueFilter } from '../../lib/submissionQueue'
+import { useConfirm } from '../../contexts/ConfirmContext'
 import { formatShortDateTime } from '../../lib/format'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { Button, buttonClasses } from '../../components/ui/Button'
@@ -46,6 +47,7 @@ export function SubmissionDetail() {
   const queueCohortId = queueMode ? Number(searchParams.get('queue_cohort_id')) || undefined : undefined
   const navigate = useNavigate()
   const toast = useToast()
+  const confirm = useConfirm()
   const [submission, setSubmission] = useState<Submission | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -100,6 +102,14 @@ export function SubmissionDetail() {
 
   useEffect(() => { void load() }, [load])
 
+  const draftDiffers = feedbackDraftDiffers(submission, feedback, criterionResults)
+  /** Moves through the queue; an unsaved feedback or rubric draft is only discarded after confirming. */
+  const goToQueueItem = useCallback(async (targetId: number) => {
+    if (!queueMode) return
+    if (draftDiffers && !(await confirm(DISCARD_DRAFT_CONFIRMATION))) return
+    navigate(submissionPath(targetId, { returnTo: safeInternalReturnPath(searchParams.get('return_to'), '/admin/grading'), queue: queueMode, queueCohortId }))
+  }, [confirm, draftDiffers, navigate, queueCohortId, queueMode, searchParams])
+
   // J / K move through the queue (shown next to Previous/Next); typing in feedback is never hijacked.
   useEffect(() => {
     if (!queueMode || !queueContext || showStudentContext) return
@@ -108,11 +118,11 @@ export function SubmissionDetail() {
       const targetId = direction === 'next' ? queueContext.nextId : direction === 'previous' ? queueContext.previousId : null
       if (!targetId) return
       event.preventDefault()
-      navigate(submissionPath(targetId, { returnTo: safeInternalReturnPath(searchParams.get('return_to'), '/admin/grading'), queue: queueMode, queueCohortId }))
+      void goToQueueItem(targetId)
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [navigate, queueCohortId, queueContext, queueMode, searchParams, showStudentContext])
+  }, [goToQueueItem, queueContext, queueMode, showStudentContext])
 
   const language = useMemo(() => submission ? detectLanguage(submission.filename, submission.language_hint) : 'ruby', [submission])
 
@@ -189,7 +199,7 @@ export function SubmissionDetail() {
         <span aria-hidden="true" className="text-ink-disabled">/</span><span className="px-1 tabular-nums text-ink-secondary">Submission #{submission.id}</span>
       </nav>
 
-      {queueContext && <nav aria-label="Queue" className="app-surface flex flex-wrap items-center justify-between gap-3 px-4 py-3"><p className="text-sm font-semibold tabular-nums text-ink-secondary" aria-live="polite">{QUEUE_LABELS[queueMode!]} · {queueContext.position} of {queueContext.total}</p><div className="flex items-center gap-2"><span className="hidden text-xs text-ink-muted lg:inline">Keys <kbd className="rounded border border-line bg-surface-sunken px-1.5 font-mono text-xs text-ink-secondary">K</kbd> <kbd className="rounded border border-line bg-surface-sunken px-1.5 font-mono text-xs text-ink-secondary">J</kbd></span><QueueLink label="Previous" submissionId={queueContext.previousId} returnTo={returnTo} queue={queueMode!} queueCohortId={queueCohortId} icon="previous" /><QueueLink label="Next" submissionId={queueContext.nextId} returnTo={returnTo} queue={queueMode!} queueCohortId={queueCohortId} icon="next" /></div></nav>}
+      {queueContext && <nav aria-label="Queue" className="app-surface flex flex-wrap items-center justify-between gap-3 px-4 py-3"><p className="text-sm font-semibold tabular-nums text-ink-secondary" aria-live="polite">{QUEUE_LABELS[queueMode!]} · {queueContext.position} of {queueContext.total}</p><div className="flex items-center gap-2"><span className="hidden text-xs text-ink-muted lg:inline">Keys <kbd className="rounded border border-line bg-surface-sunken px-1.5 font-mono text-xs text-ink-secondary">K</kbd> <kbd className="rounded border border-line bg-surface-sunken px-1.5 font-mono text-xs text-ink-secondary">J</kbd></span><QueueLink label="Previous" submissionId={queueContext.previousId} returnTo={returnTo} queue={queueMode!} queueCohortId={queueCohortId} icon="previous" guard={draftDiffers ? goToQueueItem : undefined} /><QueueLink label="Next" submissionId={queueContext.nextId} returnTo={returnTo} queue={queueMode!} queueCohortId={queueCohortId} icon="next" guard={draftDiffers ? goToQueueItem : undefined} /></div></nav>}
 
       <header className="app-surface p-5 sm:p-6">
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
@@ -280,9 +290,9 @@ function GithubChecksPanel({ checks }: { checks: Submission['github_checks'] }) 
   </div>
 }
 
-function QueueLink({ label, submissionId, returnTo, queue, queueCohortId, icon }: { label: string; submissionId: number | null; returnTo: string; queue: SubmissionQueue; queueCohortId?: number; icon: 'previous' | 'next' }) {
+function QueueLink({ label, submissionId, returnTo, queue, queueCohortId, icon, guard }: { label: string; submissionId: number | null; returnTo: string; queue: SubmissionQueue; queueCohortId?: number; icon: 'previous' | 'next'; guard?: (submissionId: number) => Promise<void> }) {
   const Icon = icon === 'previous' ? ChevronLeft : ChevronRight
   const shortcut = icon === 'previous' ? 'K' : 'J'
   if (!submissionId) return <span aria-disabled="true" className={buttonClasses({ variant: 'secondary', size: 'sm' })}>{icon === 'previous' && <Icon className="h-4 w-4" aria-hidden="true" />}{label}{icon === 'next' && <Icon className="h-4 w-4" aria-hidden="true" />}</span>
-  return <Link to={submissionPath(submissionId, { returnTo, queue, queueCohortId })} aria-keyshortcuts={shortcut} title={`${label} (${shortcut})`} className={buttonClasses({ variant: 'secondary', size: 'sm' })}>{icon === 'previous' && <Icon className="h-4 w-4" aria-hidden="true" />}{label}{icon === 'next' && <Icon className="h-4 w-4" aria-hidden="true" />}</Link>
+  return <Link to={submissionPath(submissionId, { returnTo, queue, queueCohortId })} onClick={guard ? (event) => { event.preventDefault(); void guard(submissionId) } : undefined} aria-keyshortcuts={shortcut} title={`${label} (${shortcut})`} className={buttonClasses({ variant: 'secondary', size: 'sm' })}>{icon === 'previous' && <Icon className="h-4 w-4" aria-hidden="true" />}{label}{icon === 'next' && <Icon className="h-4 w-4" aria-hidden="true" />}</Link>
 }

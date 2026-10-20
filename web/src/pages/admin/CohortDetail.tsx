@@ -1557,7 +1557,9 @@ export function CohortDetail() {
               <div className="p-6 text-center text-sm text-ink-muted">
                 No students enrolled yet. Use the Add student button above.
               </div>
-            ) : studentsWithPresence.map(({ student, presence }) => (
+            ) : studentsWithPresence.map(({ student, presence }) => {
+              const invite = student.invite_pending ? inviteStatusPresentation(student) : null
+              return (
               <div
                 key={student.enrollment_id}
                 className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
@@ -1589,8 +1591,8 @@ export function CohortDetail() {
                 <div className="flex flex-wrap items-center gap-2 shrink-0">
                   {student.invite_pending ? (
                     <>
-                      <span title={inviteStatusPresentation({ ...student, invite_pending: true }).detail || undefined}>
-                        <InviteStatusBadge presentation={inviteStatusPresentation({ ...student, invite_pending: true })} />
+                      <span title={invite?.detail || undefined}>
+                        {invite && <InviteStatusBadge presentation={invite} />}
                       </span>
                       <Button
                         variant="secondary"
@@ -1599,7 +1601,7 @@ export function CohortDetail() {
                         disabled={resendingInviteFor === student.user_id}
                       >
                         <Mail className="h-4 w-4" />
-                        {resendingInviteFor === student.user_id ? 'Sending...' : inviteStatusPresentation({ ...student, invite_pending: true }).actionLabel || 'Retry invite'}
+                        {resendingInviteFor === student.user_id ? 'Sending...' : invite?.actionLabel || 'Retry invite'}
                       </Button>
                     </>
                   ) : (
@@ -1612,7 +1614,8 @@ export function CohortDetail() {
                   )}
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       </div>

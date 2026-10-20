@@ -6,7 +6,7 @@ import { formatShortDate } from './format'
 export const INVITE_LINK_LIFETIME_DAYS = 30
 
 export interface InviteFields {
-  invite_pending: boolean
+  invite_pending?: boolean
   invite_delivery_status?: 'not_sent' | 'queued' | 'sent' | 'failed' | 'accepted' | null
   invite_state?: InviteState | null
   invite_sent_at?: string | null

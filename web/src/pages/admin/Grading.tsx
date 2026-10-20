@@ -3,7 +3,8 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Filter, Check, RotateCcw, Clock, ChevronLeft, ChevronRight, Layers3, BookmarkPlus, MessageSquareText, ExternalLink } from 'lucide-react'
 import { api } from '../../lib/api'
 import { submissionPath } from '../../lib/routes'
-import { getLatestSubmissionIds, orderSubmissionQueue, type SubmissionQueueFilter, submissionWhereLabel } from '../../lib/submissionQueue'
+import { DISCARD_DRAFT_CONFIRMATION, feedbackDraftDiffers, getLatestSubmissionIds, orderSubmissionQueue, type SubmissionQueueFilter, submissionWhereLabel } from '../../lib/submissionQueue'
+import { useConfirm } from '../../contexts/ConfirmContext'
 import { GradeDisplay } from '../../components/shared/GradeDisplay'
 import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
 import { CodeRunner } from '../../components/shared/CodeRunner'
@@ -60,6 +61,7 @@ interface CohortSummary {
 
 export function Grading() {
   const toast = useToast()
+  const confirm = useConfirm()
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const cohortId = Number(searchParams.get('cohort_id')) || undefined
@@ -145,8 +147,13 @@ export function Grading() {
     setLoadingDetail(false)
   }
 
-  /** A row tap or Previous/Next: select it and, on phones, bring the review panel into view. */
-  const pickSubmission = (submission: SubmissionItem) => {
+  /**
+   * A row tap, Previous/Next or J/K: select it and, on phones, bring the review panel
+   * into view. An unsaved feedback or rubric draft is only discarded after confirming.
+   */
+  const pickSubmission = async (submission: SubmissionItem) => {
+    if (selectedSubmission?.id === submission.id) return
+    if (feedbackDraftDiffers(selectedSubmission, feedback, criterionResults) && !(await confirm(DISCARD_DRAFT_CONFIRMATION))) return
     scrollPanelOnSelectRef.current = true
     void selectSubmission(submission)
   }
@@ -167,13 +174,13 @@ export function Grading() {
       const target = direction === 'next' ? nextInQueue : direction === 'previous' ? previousInQueue : null
       if (!target) return
       event.preventDefault()
-      pickSubmission(target)
+      void pickSubmission(target)
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-    // pickSubmission follows the current queue neighbours.
+    // pickSubmission follows the current queue neighbours and draft.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nextInQueue, previousInQueue, selectedSubmission])
+  }, [criterionResults, feedback, nextInQueue, previousInQueue, selectedSubmission])
 
   useEffect(() => {
     const selectedId = Number(searchParams.get('submission'))
@@ -313,7 +320,7 @@ export function Grading() {
               return (
                 <div key={sub.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-stretch gap-2">
                   <RowButton
-                    onClick={() => pickSubmission(sub)}
+                    onClick={() => void pickSubmission(sub)}
                     selected={isSelected}
                     aria-current={isSelected ? 'true' : undefined}
                     className={`flex w-full items-start gap-3 rounded-2xl border p-3 sm:p-4 ${
@@ -354,11 +361,11 @@ export function Grading() {
               <>
                 {selectedIndex >= 0 && (
                   <nav aria-label="Queue" className="-mx-1 flex items-center justify-between gap-2 border-b border-line pb-3">
-                    <Button variant="quiet" size="sm" disabled={!previousInQueue} onClick={() => previousInQueue && pickSubmission(previousInQueue)} aria-keyshortcuts="K" title="Previous (K)" className="px-2">
+                    <Button variant="quiet" size="sm" disabled={!previousInQueue} onClick={() => previousInQueue && void pickSubmission(previousInQueue)} aria-keyshortcuts="K" title="Previous (K)" className="px-2">
                       <ChevronLeft className="h-4 w-4" aria-hidden="true" />Previous
                     </Button>
                     <p className="text-center text-xs font-semibold tabular-nums text-ink-muted" aria-live="polite">{selectedIndex + 1} of {queue.length}<span className="hidden lg:inline"> · keys K / J</span></p>
-                    <Button variant="quiet" size="sm" disabled={!nextInQueue} onClick={() => nextInQueue && pickSubmission(nextInQueue)} aria-keyshortcuts="J" title="Next (J)" className="px-2">
+                    <Button variant="quiet" size="sm" disabled={!nextInQueue} onClick={() => nextInQueue && void pickSubmission(nextInQueue)} aria-keyshortcuts="J" title="Next (J)" className="px-2">
                       Next<ChevronRight className="h-4 w-4" aria-hidden="true" />
                     </Button>
                   </nav>

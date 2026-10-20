@@ -31,6 +31,13 @@ class UserInviteStateTest < ActiveSupport::TestCase
     assert_equal "expired", user.invite_state(now: sent_at + 30.days)
   end
 
+  test "a sent invitation without a timestamp stays sent" do
+    user = pending_user(invite_delivery_status: "sent", invite_sent_at: nil)
+
+    assert_nil user.invite_expires_at
+    assert_equal "sent", user.invite_state
+  end
+
   test "a failed or unsent invitation never reads as expired" do
     user = pending_user(invite_delivery_status: "failed", invite_sent_at: 60.days.ago)
 
