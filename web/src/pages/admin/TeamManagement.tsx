@@ -54,6 +54,8 @@ export function TeamManagement() {
   const [listLoading, setListLoading] = useState(true)
   const [viewMode, setViewMode] = useState<'active' | 'archived'>('active')
   const loadRequestId = useRef(0)
+  const viewModeRef = useRef(viewMode)
+  viewModeRef.current = viewMode
 
   const [showAddModal, setShowAddModal] = useState(false)
   const [addEmail, setAddEmail] = useState('')
@@ -93,6 +95,11 @@ export function TeamManagement() {
         api.getUsers({ ...params, role: 'instructor' }),
       ])
       if (loadRequestId.current !== requestId) return
+      // Keep the rows on screen when a refresh fails rather than showing an empty or partial team.
+      if (res.error || res2.error) {
+        showNotification('error', `Failed to load team members: ${res.error || res2.error}`)
+        return
+      }
 
       const admins = res.data?.users || []
       const instructors = res2.data?.users || []
@@ -197,8 +204,10 @@ export function TeamManagement() {
       showNotification('success', `Invite queued for ${member.email}`)
     }
     setResendingId(null)
-    // The row's badge reflects the new delivery state (queued, or failed with its reason).
-    await loadTeam(viewMode, { silent: true })
+    // The row's badge reflects the new delivery state (queued, or failed with its reason),
+    // unless staff have switched views meanwhile; that view has its own load.
+    const mode = member.archived_at ? 'archived' : 'active'
+    if (viewModeRef.current === mode) await loadTeam(mode, { silent: true })
   }
 
   const handleRestore = async () => {

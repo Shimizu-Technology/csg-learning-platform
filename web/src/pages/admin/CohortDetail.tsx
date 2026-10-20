@@ -1591,9 +1591,7 @@ export function CohortDetail() {
                 <div className="flex flex-wrap items-center gap-2 shrink-0">
                   {student.invite_pending ? (
                     <>
-                      <span title={invite?.detail || undefined}>
-                        {invite && <InviteStatusBadge presentation={invite} />}
-                      </span>
+                      {invite && <InviteStatusBadge presentation={invite} />}
                       <Button
                         variant="secondary"
                         size="sm"
@@ -1603,6 +1601,9 @@ export function CohortDetail() {
                         <Mail className="h-4 w-4" />
                         {resendingInviteFor === student.user_id ? 'Sending...' : invite?.actionLabel || 'Retry invite'}
                       </Button>
+                      {invite?.detail && (
+                        <p className={`basis-full text-xs [overflow-wrap:anywhere] sm:text-right ${invite.state === 'failed' ? 'text-danger-700' : 'text-ink-secondary'}`}>{invite.detail}</p>
+                      )}
                     </>
                   ) : (
                     <>
