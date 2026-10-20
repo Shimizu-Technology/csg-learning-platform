@@ -11,6 +11,9 @@ describe('connected record routes', () => {
       .toBe('/admin/submissions/44?cohort_id=7&student_id=12&return_to=%2Fadmin%2Fgrading')
     expect(submissionPath(44, { returnTo: '/admin/grading?filter=redo', queue: 'redo' }))
       .toBe('/admin/submissions/44?return_to=%2Fadmin%2Fgrading%3Ffilter%3Dredo&queue=redo')
+    // The queue keeps its cohort scope so Previous/Next walk the list the inbox showed.
+    expect(submissionPath(44, { queue: 'ungraded', queueCohortId: 7 })).toBe('/admin/submissions/44?queue=ungraded&queue_cohort_id=7')
+    expect(submissionPath(44, { queueCohortId: 7 })).toBe('/admin/submissions/44')
     expect(helpRequestPath(9, '/admin/support?view=active')).toBe('/admin/help-requests/9?return_to=%2Fadmin%2Fsupport%3Fview%3Dactive')
     expect(interventionPath(61, '/admin/support?view=active')).toBe('/admin/interventions/61?return_to=%2Fadmin%2Fsupport%3Fview%3Dactive')
     expect(directMessagePath(6, { type: 'help_request', id: 9, label: 'Nested routes' }))

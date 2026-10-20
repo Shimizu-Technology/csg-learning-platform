@@ -680,7 +680,9 @@ module Api
               last_seen_at: e.user.last_seen_at,
               invite_pending: e.user.clerk_id&.start_with?("pending_") || false,
               invite_delivery_status: e.user.invite_delivery_status,
+              invite_state: e.user.invite_state,
               invite_sent_at: e.user.invite_sent_at,
+              invite_expires_at: e.user.invite_expires_at,
               invite_last_error: e.user.invite_last_error,
               module_assignments: e.module_assignments.map { |assignment|
                 {

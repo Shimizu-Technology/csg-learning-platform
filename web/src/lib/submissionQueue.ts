@@ -45,3 +45,25 @@ export function submissionWhereLabel(lessonTitle: string | null | undefined, blo
   if (!lesson) return block
   return `${lesson} · ${block}`
 }
+
+/** True when the feedback or rubric draft differs from what the submission has saved. */
+export function feedbackDraftDiffers(
+  submission: { feedback: string | null; rubric?: { criteria: Array<{ id: number; rating?: string | null; feedback?: string | null }> } | null } | null,
+  feedback: string,
+  criterionResults: Record<number, { rating: string | null; feedback: string }>,
+) {
+  if (!submission) return false
+  if (feedback !== (submission.feedback || '')) return true
+  return (submission.rubric?.criteria || []).some((criterion) => (
+    (criterionResults[criterion.id]?.rating || null) !== (criterion.rating || null) ||
+    (criterionResults[criterion.id]?.feedback || '') !== (criterion.feedback || '')
+  ))
+}
+
+export const DISCARD_DRAFT_CONFIRMATION = {
+  title: 'Discard your feedback draft?',
+  description: 'Your unsaved feedback and rubric ratings for this submission will be lost.',
+  confirmLabel: 'Discard and move on',
+  cancelLabel: 'Keep editing',
+  tone: 'danger' as const,
+}

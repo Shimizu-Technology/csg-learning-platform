@@ -213,7 +213,9 @@ module Api
           archived_at: user.archived_at,
           invite_pending: user.invite_pending?,
           invite_delivery_status: user.invite_delivery_status,
+          invite_state: user.invite_state,
           invite_sent_at: user.invite_sent_at,
+          invite_expires_at: user.invite_expires_at,
           invite_last_error: user.invite_last_error,
           created_at: user.created_at
         }
@@ -222,7 +224,9 @@ module Api
       def invitation_json(user)
         {
           status: user.invite_delivery_status,
+          state: user.invite_state,
           sent_at: user.invite_sent_at,
+          expires_at: user.invite_expires_at,
           error: user.invite_last_error
         }
       end

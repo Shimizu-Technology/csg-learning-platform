@@ -1,5 +1,8 @@
 class User < ApplicationRecord
   INVITE_DELIVERY_STATUSES = %w[not_sent queued sent failed accepted].freeze
+  # Invitation links are Clerk invitations created with this lifetime
+  # (ClerkInvitationService passes it as expires_in_days).
+  INVITE_LINK_LIFETIME = 30.days
 
   enum :role, { student: 0, instructor: 1, admin: 2 }
 
@@ -69,6 +72,23 @@ class User < ApplicationRecord
 
   def invite_pending?
     clerk_id&.start_with?("pending_") || false
+  end
+
+  # When the emailed invitation link stops working; nil unless one was sent and is still pending.
+  def invite_expires_at
+    return nil unless invite_pending? && invite_delivery_status == "sent" && invite_sent_at
+
+    invite_sent_at + INVITE_LINK_LIFETIME
+  end
+
+  # One staff-facing invitation state derived from stored delivery data, with no
+  # external calls: accepted, expired, sent, failed, queued or not_sent.
+  def invite_state(now: Time.current)
+    return "accepted" unless invite_pending?
+    return "expired" if invite_expires_at && invite_expires_at <= now
+    return "not_sent" if invite_delivery_status == "accepted"
+
+    invite_delivery_status
   end
 
   def archive!

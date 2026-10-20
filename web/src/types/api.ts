@@ -29,13 +29,18 @@ export interface UserWithMeta extends User {
   clerk_id: string;
 }
 
+export type InviteState = 'not_sent' | 'queued' | 'sent' | 'failed' | 'expired' | 'accepted';
+
 export interface UserListItem extends User {
   last_sign_in_at: string | null;
   last_seen_at: string | null;
   archived_at: string | null;
   invite_pending: boolean;
   invite_delivery_status: 'not_sent' | 'queued' | 'sent' | 'failed' | 'accepted';
+  /** Derived by the API: delivery status plus accepted/expired. Older API builds omit it. */
+  invite_state?: InviteState;
   invite_sent_at: string | null;
+  invite_expires_at?: string | null;
   invite_last_error: string | null;
   created_at: string;
   enrollments?: UserEnrollment[];

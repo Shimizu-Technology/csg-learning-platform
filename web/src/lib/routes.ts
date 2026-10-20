@@ -10,13 +10,15 @@ export function cohortStudentPath(cohortId: number, userId: number, tab: Student
 
 export function submissionPath(
   submissionId: number,
-  context: { cohortId?: number; userId?: number; returnTo?: string; queue?: 'ungraded' | 'redo' | 'all' } = {},
+  context: { cohortId?: number; userId?: number; returnTo?: string; queue?: 'ungraded' | 'redo' | 'all'; queueCohortId?: number } = {},
 ) {
   const params = new URLSearchParams()
   if (context.cohortId) params.set('cohort_id', String(context.cohortId))
   if (context.userId) params.set('student_id', String(context.userId))
   if (context.returnTo) params.set('return_to', context.returnTo)
   if (context.queue) params.set('queue', context.queue)
+  // The queue's own cohort filter, so Previous/Next walk the same list the inbox showed.
+  if (context.queue && context.queueCohortId) params.set('queue_cohort_id', String(context.queueCohortId))
   const query = params.toString()
   return `/admin/submissions/${submissionId}${query ? `?${query}` : ''}`
 }

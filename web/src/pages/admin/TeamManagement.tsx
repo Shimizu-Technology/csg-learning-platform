@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { Activity, Archive, UserPlus, Mail, Pencil, Trash2, RotateCcw, Check } from 'lucide-react'
+import { Activity, Archive, UserPlus, Pencil, Trash2, RotateCcw, Check } from 'lucide-react'
 import { api } from '../../lib/api'
 import { Modal } from '../../components/shared/Modal'
 import { ActivityTimeline } from '../../components/shared/ActivityTimeline'
@@ -9,6 +9,9 @@ import { Avatar } from '../../components/ui/Avatar'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { SegmentButton, SegmentedControl } from '../../components/ui/Choice'
+import { InviteStatusBadge } from '../../components/shared/InviteStatusBadge'
+import { inviteStatusPresentation } from '../../lib/inviteStatus'
+import type { InviteState } from '../../types/api'
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin',
@@ -27,6 +30,11 @@ interface TeamMember {
   last_sign_in_at: string | null
   archived_at: string | null
   invite_pending: boolean
+  invite_delivery_status?: 'not_sent' | 'queued' | 'sent' | 'failed' | 'accepted'
+  invite_state?: InviteState
+  invite_sent_at?: string | null
+  invite_expires_at?: string | null
+  invite_last_error?: string | null
   created_at: string
 }
 
@@ -46,6 +54,8 @@ export function TeamManagement() {
   const [listLoading, setListLoading] = useState(true)
   const [viewMode, setViewMode] = useState<'active' | 'archived'>('active')
   const loadRequestId = useRef(0)
+  const viewModeRef = useRef(viewMode)
+  viewModeRef.current = viewMode
 
   const [showAddModal, setShowAddModal] = useState(false)
   const [addEmail, setAddEmail] = useState('')
@@ -73,10 +83,11 @@ export function TeamManagement() {
     }
   }
 
-  const loadTeam = async (mode: 'active' | 'archived' = viewMode) => {
+  /** `silent` refreshes rows in place (after a resend) instead of showing the skeleton. */
+  const loadTeam = async (mode: 'active' | 'archived' = viewMode, { silent = false }: { silent?: boolean } = {}) => {
     const requestId = loadRequestId.current + 1
     loadRequestId.current = requestId
-    setListLoading(true)
+    if (!silent) setListLoading(true)
     try {
       const params: Record<string, string> = mode === 'archived' ? { include_archived: 'true' } : {}
       const [res, res2] = await Promise.all([
@@ -84,6 +95,11 @@ export function TeamManagement() {
         api.getUsers({ ...params, role: 'instructor' }),
       ])
       if (loadRequestId.current !== requestId) return
+      // Keep the rows on screen when a refresh fails rather than showing an empty or partial team.
+      if (res.error || res2.error) {
+        showNotification('error', `Failed to load team members: ${res.error || res2.error}`)
+        return
+      }
 
       const admins = res.data?.users || []
       const instructors = res2.data?.users || []
@@ -188,6 +204,10 @@ export function TeamManagement() {
       showNotification('success', `Invite queued for ${member.email}`)
     }
     setResendingId(null)
+    // The row's badge reflects the new delivery state (queued, or failed with its reason),
+    // unless staff have switched views meanwhile; that view has its own load.
+    const mode = member.archived_at ? 'archived' : 'active'
+    if (viewModeRef.current === mode) await loadTeam(mode, { silent: true })
   }
 
   const handleRestore = async () => {
@@ -242,7 +262,11 @@ export function TeamManagement() {
             {viewMode === 'archived' ? 'No archived team members.' : 'No team members yet. Add an instructor or admin to get started.'}
           </div>
         ) : (
-          members.map((member) => (
+          members.map((member) => {
+            // Invited members show their invite state; accepted shows only for people who joined from an invite.
+            const showInvite = !isArchived(member) && (isPending(member) || member.invite_delivery_status === 'accepted')
+            const invite = showInvite ? inviteStatusPresentation(member) : null
+            return (
             <div key={member.id} className={`app-surface p-4 ${isArchived(member) ? 'opacity-80' : ''}`}>
               <div className="flex items-start gap-3">
                 <Avatar name={member.full_name} src={member.avatar_url} size="md" />
@@ -257,12 +281,15 @@ export function TeamManagement() {
                     {isArchived(member) && (
                       <Badge icon={<Archive className="h-3 w-3" aria-hidden="true" />}>Archived</Badge>
                     )}
-                    {isPending(member) && (
-                      <Badge tone="pending" icon={<Mail className="h-3 w-3" aria-hidden="true" />}>Invite sent</Badge>
-                    )}
+                    {invite && <InviteStatusBadge presentation={invite} />}
                     <Badge>{ROLE_LABELS[member.role] || member.role}</Badge>
                   </div>
                   <p className="text-xs text-ink-muted mt-0.5 truncate" title={member.email}>{member.email}</p>
+                  {invite?.detail && (
+                    <p className={`mt-1 text-xs [overflow-wrap:anywhere] ${invite.state === 'failed' ? 'text-danger-700' : 'text-ink-secondary'}`}>
+                      {invite.detail}
+                    </p>
+                  )}
                   {member.github_username && (
                     <p className="text-xs text-ink-muted truncate" title={`@${member.github_username}`}>@{member.github_username}</p>
                   )}
@@ -297,7 +324,7 @@ export function TeamManagement() {
                         disabled={resendingId === member.id}
                       >
                         <RotateCcw className={`h-3.5 w-3.5 ${resendingId === member.id ? 'animate-spin' : ''}`} aria-hidden="true" />
-                        Resend
+                        {resendingId === member.id ? 'Sending…' : invite?.actionLabel || 'Resend'}
                       </Button>
                     )}
 
@@ -313,7 +340,8 @@ export function TeamManagement() {
                 )}
               </div>
             </div>
-          ))
+            )
+          })
         )}
       </div>
 

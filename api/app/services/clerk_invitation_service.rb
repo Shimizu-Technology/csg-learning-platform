@@ -15,7 +15,8 @@ class ClerkInvitationService
     body = {
       email_address: email,
       notify: false,
-      ignore_existing: ignore_existing
+      ignore_existing: ignore_existing,
+      expires_in_days: User::INVITE_LINK_LIFETIME.in_days.to_i
     }
     body[:redirect_url] = redirect_url if redirect_url.present?
     body[:public_metadata] = public_metadata if public_metadata.present?

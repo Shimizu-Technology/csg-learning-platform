@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Users, Search, ArrowLeft, AlertTriangle, Activity, Circle, Clock3, ChevronRight, ChevronDown } from 'lucide-react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { api } from '../../lib/api'
 import { cohortStudentPath } from '../../lib/routes'
 import { ProgressBar } from '../../components/shared/ProgressBar'
@@ -13,7 +13,9 @@ import { Avatar } from '../../components/ui/Avatar'
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
 import { LinkButton } from '../../components/ui/Button'
 import { FilterChip } from '../../components/ui/Choice'
+import { RowButton } from '../../components/ui/RowButton'
 import { formatShortDate } from '../../lib/format'
+import { listLinkState, useListScrollMemory } from '../../lib/navigationContext'
 
 interface Student {
   user_id: number
@@ -47,6 +49,7 @@ interface CohortGroup {
 type ActivityStatus = 'active' | 'quiet' | 'at-risk' | 'new'
 type StudentFilter = 'all' | ActivityStatus | 'online' | 'never-signed-in'
 const STUDENT_FILTERS: StudentFilter[] = ['all', 'active', 'quiet', 'at-risk', 'new', 'online', 'never-signed-in']
+const STUDENT_FILTER_LABELS: Record<StudentFilter, string> = { all: 'All', active: 'Active', quiet: 'Quiet', 'at-risk': 'At risk', new: 'New', online: 'Online now', 'never-signed-in': 'Never signed in' }
 type StudentWithStatus = Student & {
   activityStatus: ActivityStatus
   presence: PresenceStatus
@@ -113,6 +116,11 @@ export function StudentManagement() {
   }
   const setFilter = (value: StudentFilter) => updateParam('filter', value)
   const [collapsedCohorts, setCollapsedCohorts] = useState<Set<number>>(new Set())
+  const location = useLocation()
+  // Back from a student returns to this exact list (search + filter) at the same scroll position.
+  useListScrollMemory(!loading)
+  const filterLabel = filter === 'all' ? '' : ` · ${STUDENT_FILTER_LABELS[filter]}`
+  const studentLinkState = listLinkState(location, `Students${filterLabel}${search.trim() ? ` · “${search.trim().slice(0, 24)}”` : ''}`)
 
   useEffect(() => {
     api.getDashboard().then((res) => {
@@ -272,11 +280,10 @@ export function StudentManagement() {
             return (
               <div key={group.cohort.id} className="app-surface overflow-hidden">
                 <div className="flex items-center gap-3 border-b border-line pr-4 sm:pr-6">
-                  <button
-                    type="button"
+                  <RowButton
                     onClick={() => toggleCohort(group.cohort.id)}
                     aria-expanded={!isCollapsed}
-                    className="pressable flex min-h-11 min-w-0 flex-1 items-center gap-3 px-4 py-4 text-left hover:bg-surface-sunken sm:px-6"
+                    className="flex flex-1 items-center gap-3 px-4 py-4 sm:px-6"
                   >
                     <ChevronDown className={`h-4 w-4 shrink-0 text-ink-muted transition-transform duration-150 ${isCollapsed ? '-rotate-90' : ''}`} aria-hidden="true" />
                     <span className="min-w-0">
@@ -288,7 +295,7 @@ export function StudentManagement() {
                         )}
                       </span>
                     </span>
-                  </button>
+                  </RowButton>
                   <Link
                     to={`/admin/cohorts/${group.cohort.id}?tab=students`}
                     className="app-link inline-flex min-h-11 shrink-0 items-center text-xs"
@@ -323,7 +330,7 @@ export function StudentManagement() {
                                 <div className="flex min-w-0 items-start gap-3">
                                   <Avatar name={student.full_name} size="sm" className="mt-1.5" />
                                   <div className="min-w-0 flex-1">
-                                    <Link to={cohortStudentPath(group.cohort.id, student.user_id)} title={student.full_name} className="block truncate rounded-md py-1 text-sm font-semibold text-ink underline-offset-4 hover:underline">{student.full_name}</Link>
+                                    <Link to={cohortStudentPath(group.cohort.id, student.user_id)} state={studentLinkState} title={student.full_name} className="block truncate rounded-md py-1 text-sm font-semibold text-ink underline-offset-4 hover:underline">{student.full_name}</Link>
                                     <p className="truncate text-xs text-ink-muted" title={student.email}>{student.email}</p>
                                   </div>
                                 </div>

@@ -293,3 +293,16 @@ describe('message enter animation', () => {
     expect(forgetMessageArrival(settled, 99)).toBe(settled)
   })
 })
+
+describe('Message highlight roles', () => {
+  it('shows @everyone and person mentions as info, never amber', () => {
+    const patterns = [
+      { label: '@everyone', normalized: '@everyone', kind: 'channel' as const },
+      { label: '@Maria Santos', normalized: '@maria santos', kind: 'user' as const },
+    ]
+    const html = renderToStaticMarkup(<FormattedMessage body="@everyone and @Maria Santos, checkpoint 2 closes Sunday." mentionPatterns={patterns as never} />)
+    expect(html).toContain('bg-info-50 text-info-800')
+    expect(html).toContain('bg-info-100 text-info-800')
+    expect(html).not.toMatch(/amber-\d/)
+  })
+})

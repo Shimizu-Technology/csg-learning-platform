@@ -191,6 +191,28 @@ body {
   outline-color: var(--focus-ring-on-inverse);
 }
 
+/* Messages above the iOS keyboard. While `data-keyboard="open"` is set (see
+   lib/visualViewport.ts), the shell is pinned to the visible area and the
+   conversation fills it: the app header, bottom navigation and secondary
+   conversation chrome (`hide-with-keyboard`) step aside while typing. */
+@media (max-width: 1023.98px) {
+  html[data-keyboard='open'] .keyboard-shell {
+    position: fixed;
+    inset-inline: 0;
+    top: var(--visual-viewport-top, 0px);
+    height: var(--visual-viewport-height, 100dvh);
+  }
+
+  html[data-keyboard='open'] .keyboard-shell-main {
+    height: var(--visual-viewport-height, 100dvh);
+    --composer-safe-bottom: 0px;
+  }
+
+  html[data-keyboard='open'] .hide-with-keyboard {
+    display: none;
+  }
+}
+
 /* Taps fire immediately (no double-tap zoom delay) and control labels are not
    selected by a long press. Content text stays selectable. */
 button,

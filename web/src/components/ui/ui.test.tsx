@@ -144,3 +144,28 @@ describe('selection controls (FilterChip, TabButton, SegmentButton, TextButton)'
     noRedOrInverse(html)
   })
 })
+
+describe('RowButton and CountBadge', () => {
+  it('is a 44px left-aligned row with press feedback and neutral selection', async () => {
+    const { RowButton } = await import('./RowButton')
+    const idle = renderToStaticMarkup(<RowButton>Class Chat</RowButton>)
+    expect(idle).toContain('type="button"')
+    expect(idle).toContain('min-h-11')
+    expect(idle).toContain('pressable')
+    expect(idle).toContain('text-left')
+    expect(idle).toContain('hover:bg-surface-sunken')
+    const selected = renderToStaticMarkup(<RowButton selected>Class Chat</RowButton>)
+    expect(selected).toContain('nav-selected')
+    expect(selected).toContain('data-selected="true"')
+    expect(selected).not.toMatch(/\b(bg|text)-(red|primary|amber)-\d/)
+  })
+
+  it('shows counts in ruby, caps at 99+, names them for screen readers and hides zero', async () => {
+    const { CountBadge } = await import('./RowButton')
+    expect(renderToStaticMarkup(<CountBadge count={0} />)).toBe('')
+    const html = renderToStaticMarkup(<CountBadge count={140} label="unread" />)
+    expect(html).toContain('99+')
+    expect(html).toContain('bg-ruby-600')
+    expect(html).toContain('<span class="sr-only"> unread</span>')
+  })
+})

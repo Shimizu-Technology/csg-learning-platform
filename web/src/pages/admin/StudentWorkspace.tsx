@@ -28,6 +28,7 @@ import {
 import { api } from '../../lib/api'
 import { cohortPath, cohortStudentPath, helpRequestPath, interventionPath, submissionPath, type StudentWorkspaceTab } from '../../lib/routes'
 import { formatShortDateTime } from '../../lib/format'
+import { forwardReturnState, RESTORE_LIST_STATE, useReturnContext, type ReturnContext } from '../../lib/navigationContext'
 import { Button, LinkButton } from '../../components/ui/Button'
 import { Avatar } from '../../components/ui/Avatar'
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
@@ -72,6 +73,8 @@ interface WorkspaceData {
   recoveryPlans: RecoveryPlan[]
 }
 
+const STUDENTS_RETURN: ReturnContext = { returnTo: '/admin/students', returnLabel: 'Students' }
+
 export function StudentWorkspace() {
   const params = useParams<{ cohortId: string; id: string; tab?: string }>()
   const cohortId = Number(params.cohortId)
@@ -80,6 +83,10 @@ export function StudentWorkspace() {
   const navigate = useNavigate()
   const toast = useToast()
   const location = useLocation()
+  // Opened from the students list (or another list): Back returns to that exact filtered list.
+  const returnContext = useReturnContext(STUDENTS_RETURN, `student-workspace:${cohortId}:${studentId}`)
+  // Forward the resolved context (router state or the remembered one) when moving between students and tabs.
+  const returnState = forwardReturnState(location.state) || (returnContext === STUDENTS_RETURN ? undefined : returnContext)
   const [data, setData] = useState<WorkspaceData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -170,7 +177,7 @@ export function StudentWorkspace() {
   return (
     <div className="app-page-wide space-y-6">
       <nav aria-label="Breadcrumb" className="flex min-w-0 flex-wrap items-center gap-1 text-sm font-semibold text-ink-muted">
-        <Link to="/admin/students" className="app-link inline-flex min-h-11 items-center gap-1 px-1"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Students</Link>
+        <Link to={returnContext.returnTo} state={RESTORE_LIST_STATE} className="app-link inline-flex min-h-11 items-center gap-1 px-1"><ArrowLeft className="h-4 w-4" aria-hidden="true" />{returnContext.returnLabel}</Link>
         <ChevronRight className="h-4 w-4 text-ink-muted" aria-hidden="true" />
         <Link to={cohortPath(cohortId)} className="app-link inline-flex min-h-11 max-w-full items-center px-1"><span className="truncate" title={cohort.name}>{cohort.name}</span></Link>
         <ChevronRight className="h-4 w-4 text-ink-muted" aria-hidden="true" />
@@ -198,16 +205,16 @@ export function StudentWorkspace() {
         </div>
 
         <div className="grid items-center gap-2 border-t border-line bg-surface-sunken px-4 py-2 sm:grid-cols-[minmax(0,1fr)_minmax(180px,260px)_minmax(0,1fr)] sm:px-6">
-          <StudentStepper direction="previous" student={previousStudent} cohortId={cohortId} tab={activeTab} />
-          <label className="grid gap-1 text-center text-xs font-semibold tabular-nums text-ink-muted"><span>{studentIndex >= 0 ? `Student ${studentIndex + 1} of ${cohort.students.length}` : 'Historical enrollment'}</span><select aria-label={`Switch student in ${cohort.name}`} value={studentId} onChange={(event) => navigate(cohortStudentPath(cohortId, Number(event.target.value), activeTab))} className="app-control w-full font-semibold">{cohort.students.map((student) => <option key={student.enrollment_id} value={student.user_id}>{student.full_name || student.email}</option>)}</select></label>
-          <StudentStepper direction="next" student={nextStudent} cohortId={cohortId} tab={activeTab} />
+          <StudentStepper direction="previous" student={previousStudent} cohortId={cohortId} tab={activeTab} state={returnState} />
+          <label className="grid gap-1 text-center text-xs font-semibold tabular-nums text-ink-muted"><span>{studentIndex >= 0 ? `Student ${studentIndex + 1} of ${cohort.students.length}` : 'Historical enrollment'}</span><select aria-label={`Switch student in ${cohort.name}`} value={studentId} onChange={(event) => navigate(cohortStudentPath(cohortId, Number(event.target.value), activeTab), { state: returnState })} className="app-control w-full font-semibold">{cohort.students.map((student) => <option key={student.enrollment_id} value={student.user_id}>{student.full_name || student.email}</option>)}</select></label>
+          <StudentStepper direction="next" student={nextStudent} cohortId={cohortId} tab={activeTab} state={returnState} />
         </div>
       </section>
 
       <nav aria-label="Student workspace sections" className="overflow-x-auto border-b border-line">
         <div className="flex min-w-max gap-1">
           {tabs.map(({ id, label, icon: Icon }) => (
-            <NavLink key={id} to={cohortStudentPath(cohortId, studentId, id)} className={({ isActive }) => `inline-flex min-h-11 items-center gap-2 px-3 text-sm font-semibold transition-colors duration-150 ${isActive || activeTab === id && !params.tab ? 'tab-selected' : 'text-ink-secondary hover:bg-surface-sunken hover:text-ink'}`}>
+            <NavLink key={id} to={cohortStudentPath(cohortId, studentId, id)} state={returnState} className={({ isActive }) => `inline-flex min-h-11 items-center gap-2 px-3 text-sm font-semibold transition-colors duration-150 ${isActive || activeTab === id && !params.tab ? 'tab-selected' : 'text-ink-secondary hover:bg-surface-sunken hover:text-ink'}`}>
               <Icon className="h-4 w-4" aria-hidden="true" />{label}
               {id === 'work' && ungraded.length > 0 && <CountBadge count={ungraded.length} />}
               {id === 'support' && openHelp.length > 0 && <CountBadge count={openHelp.length} tone="warning" />}
@@ -346,10 +353,10 @@ function CountBadge({ count, tone = 'neutral' }: { count: number; tone?: 'neutra
   return <span className={`rounded-full border px-1.5 text-xs font-semibold tabular-nums ${tone === 'warning' ? 'border-warning-200 bg-warning-50 text-warning-800' : 'border-line bg-surface-sunken text-ink-secondary'}`}>{count}</span>
 }
 
-function StudentStepper({ direction, student, cohortId, tab }: { direction: 'previous' | 'next'; student: CohortDetail['students'][number] | null; cohortId: number; tab: StudentWorkspaceTab }) {
+function StudentStepper({ direction, student, cohortId, tab, state }: { direction: 'previous' | 'next'; student: CohortDetail['students'][number] | null; cohortId: number; tab: StudentWorkspaceTab; state?: ReturnContext }) {
   const Icon = direction === 'previous' ? ChevronLeft : ChevronRight
   if (!student) return <span className="hidden h-11 w-28 sm:block" />
-  return <Link to={cohortStudentPath(cohortId, student.user_id, tab)} title={student.full_name || student.email} className={`inline-flex min-h-11 max-w-48 items-center gap-1 rounded-xl px-2 text-xs font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-raised hover:text-ink ${direction === 'next' ? 'sm:justify-self-end' : ''}`}>{direction === 'previous' && <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />}<span className="truncate">{student.full_name || student.email}</span>{direction === 'next' && <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />}</Link>
+  return <Link to={cohortStudentPath(cohortId, student.user_id, tab)} state={state} title={student.full_name || student.email} className={`inline-flex min-h-11 max-w-48 items-center gap-1 rounded-xl px-2 text-xs font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-raised hover:text-ink ${direction === 'next' ? 'sm:justify-self-end' : ''}`}>{direction === 'previous' && <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />}<span className="truncate">{student.full_name || student.email}</span>{direction === 'next' && <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />}</Link>
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {

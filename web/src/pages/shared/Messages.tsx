@@ -88,7 +88,9 @@ import { useToast } from '../../contexts/ToastContext'
 import { MessagesLoadingShell } from '../../components/shared/MessagesLoadingShell'
 import { Avatar } from '../../components/ui/Avatar'
 import { AnchorButton, Button, IconButton } from '../../components/ui/Button'
-import { TextButton } from '../../components/ui/Choice'
+import { TabButton, TextButton } from '../../components/ui/Choice'
+import { CountBadge, RowButton } from '../../components/ui/RowButton'
+import { Badge } from '../../components/ui/Badge'
 import { Modal } from '../../components/shared/Modal'
 import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
 import { helpRequestPath, submissionPath } from '../../lib/routes'
@@ -680,7 +682,7 @@ function renderTextWithMentions(text: string, patterns: MentionPattern[]) {
         key={`mention-${index}-${match.from}`}
         className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
           match.kind === 'channel'
-            ? 'bg-amber-100 text-amber-800'
+            ? 'border border-info-200 bg-info-50 text-info-800'
             : 'bg-info-100 text-info-800'
         }`}
       >
@@ -754,6 +756,7 @@ export function ComposerToolbarButton({
   children,
   className = '',
   toggle = false,
+  wide = false,
   onClick,
   onPointerDown,
 }: {
@@ -763,6 +766,8 @@ export function ComposerToolbarButton({
   children: ReactNode
   className?: string
   toggle?: boolean
+  /** A text button (for example "@ mention") instead of a square icon button. */
+  wide?: boolean
   onClick?: () => void
   onPointerDown?: (event: PointerEvent<HTMLButtonElement>) => void
 }) {
@@ -782,27 +787,34 @@ export function ComposerToolbarButton({
   }
 
   const hideTooltip = () => setTooltipPosition(null)
+  const accessibleLabel = shortcut ? `${label} (${shortcut})` : label
+  // The custom tooltip replaces the native title, so it is cleared here.
+  const shared = {
+    ref: buttonRef,
+    onClick,
+    onPointerDown,
+    onMouseEnter: showTooltip,
+    onMouseLeave: hideTooltip,
+    onFocus: showTooltip,
+    onBlur: hideTooltip,
+    title: undefined,
+    'aria-describedby': tooltipPosition ? tooltipId : undefined,
+    'aria-pressed': toggle ? active : undefined,
+    'data-active': active ? 'true' : undefined,
+  }
+  const stateClass = active ? 'bg-slate-100! text-ink!' : ''
 
   return (
     <>
-      <button
-        ref={buttonRef}
-        type="button"
-        onClick={onClick}
-        onPointerDown={onPointerDown}
-        onMouseEnter={showTooltip}
-        onMouseLeave={hideTooltip}
-        onFocus={showTooltip}
-        onBlur={hideTooltip}
-        className={`pressable relative min-h-11 min-w-11 shrink-0 rounded-xl p-2 hover:bg-slate-100 hover:text-ink active:bg-slate-200/70 sm:min-h-9 sm:min-w-9 ${
-          active ? 'bg-slate-100 text-slate-900' : ''
-        } ${className}`}
-        aria-label={shortcut ? `${label} (${shortcut})` : label}
-        aria-describedby={tooltipPosition ? tooltipId : undefined}
-        aria-pressed={toggle ? active : undefined}
-      >
-        {children}
-      </button>
+      {wide ? (
+        <Button {...shared} variant="quiet" size="sm" aria-label={accessibleLabel} className={`shrink-0 px-2.5 ${stateClass} ${className}`}>
+          {children}
+        </Button>
+      ) : (
+        <IconButton {...shared} label={accessibleLabel} size="sm" className={`${stateClass} ${className}`}>
+          {children}
+        </IconButton>
+      )}
       {tooltipPosition && typeof document !== 'undefined' && createPortal(
         <div
           className="pointer-events-none fixed z-[9999] -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg bg-slate-950 px-2.5 py-1.5 text-xs font-semibold text-white shadow-overlay"
@@ -3295,21 +3307,23 @@ export function Messages() {
             <ComposerToolbarButton label="Code block" shortcut="⌘⌥⇧C" toggle active={Boolean(editor?.isActive('codeBlock'))} onPointerDown={(event) => event.preventDefault()} onClick={() => runToolbarCommand(insertCodeBlock)}>
               <Braces className="h-4 w-4" />
             </ComposerToolbarButton>
-            <ComposerToolbarButton label="Mention" shortcut="@" className="px-2.5 text-xs font-medium" onPointerDown={(event) => event.preventDefault()} onClick={() => runToolbarCommand(() => insertIntoComposer('@'))}>
+            <ComposerToolbarButton label="Mention" shortcut="@" wide onPointerDown={(event) => event.preventDefault()} onClick={() => runToolbarCommand(() => insertIntoComposer('@'))}>
               @ mention
             </ComposerToolbarButton>
             <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => handleFiles(event.target.files)} />
           </div>
-          <div className="p-1.5 sm:p-2" onKeyDownCapture={handleComposerKeyDown}>
+          {/* Phones: Send sits beside the editor so the composer stays short above the keyboard. */}
+          <div className="flex items-end gap-1.5 p-1.5 sm:block sm:p-2" onKeyDownCapture={handleComposerKeyDown}>
+            <div className="min-w-0 flex-1">
             <div className="min-h-0 min-w-0 rounded-lg bg-slate-50/70 sm:rounded-xl">
               <EditorContent editor={editor} />
             </div>
             {pasteNotice && editor && editor.state.doc.eq(pasteNotice.doc) && (
-              <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-600" role="status">
+              <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-surface-raised px-2.5 py-1.5 text-xs text-ink-secondary" role="status">
                 <span>{pasteNotice.mode === 'code' ? 'Pasted as code so the indentation stays.' : 'Pasted as text.'}</span>
                 <span className="flex items-center gap-1">
-                  <button
-                    type="button"
+                  <TextButton
+                    className="px-2 text-xs sm:min-h-9"
                     onClick={() => {
                       const notice = pasteNotice
                       setPasteNotice(null)
@@ -3325,16 +3339,25 @@ export function Messages() {
                       // Offer the opposite choice so the learner can switch back.
                       setPasteNotice({ mode: notice.mode === 'code' ? 'text' : 'code', text: notice.text, doc: editor.state.doc })
                     }}
-                    className="pressable min-h-11 rounded-md px-2 font-semibold text-ink underline underline-offset-2 hover:bg-slate-100 sm:min-h-9"
                   >
                     {pasteNotice.mode === 'code' ? 'Paste as text instead' : 'Paste as code instead'}
-                  </button>
+                  </TextButton>
                   <Button variant="quiet" size="sm" onClick={() => setPasteNotice(null)} className="sm:min-h-9" aria-label="Dismiss paste options">OK</Button>
                 </span>
               </div>
             )}
+            </div>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={sending || composerOverLimit || (!body.trim() && pendingAttachments.length === 0)}
+              className="h-11 w-11 shrink-0 px-0 sm:hidden"
+              aria-label={sending ? 'Sending message' : 'Send message'}
+            >
+              <Send className="h-4 w-4" aria-hidden="true" />
+            </Button>
           </div>
-          <div className="flex min-h-14 items-center justify-between gap-3 border-t border-slate-100 px-2.5 py-1.5 sm:min-h-0 sm:px-3 sm:py-2.5">
+          <div className={`${composerOverLimit || composerCharacterCount >= 4_500 ? 'flex' : 'hidden sm:flex'} items-center justify-between gap-3 border-t border-line px-2.5 py-1.5 sm:px-3 sm:py-2.5`}>
             <div id={composerHelpId} className={`min-w-0 text-xs tabular-nums ${composerOverLimit ? 'font-semibold text-danger-700' : 'text-ink-muted'}`} aria-live="polite">
               {composerOverLimit || composerCharacterCount >= 4_500
                 ? `${composerCharacterCount.toLocaleString()} / ${MESSAGE_BODY_LIMIT.toLocaleString()} characters`
@@ -3344,33 +3367,33 @@ export function Messages() {
               type="submit"
               size="sm"
               disabled={sending || composerOverLimit || (!body.trim() && pendingAttachments.length === 0)}
-              className="h-11 w-11 shrink-0 sm:h-9 sm:min-h-9 sm:w-auto sm:px-4"
+              className="hidden shrink-0 sm:inline-flex sm:h-9 sm:min-h-9 sm:px-4"
               aria-label={sending ? 'Sending message' : 'Send message'}
             >
-              <Send className="h-4 w-4" />
-              <span className="sr-only sm:not-sr-only">Send</span>
+              <Send className="h-4 w-4" aria-hidden="true" />
+              Send
             </Button>
           </div>
           {mentionSuggestions.length > 0 && (
             <div className={`absolute bottom-full z-30 mb-2 overflow-hidden rounded-xl border border-line bg-surface-raised shadow-overlay ${inThreadPanel ? 'left-2 right-2' : 'left-3 w-72'}`}>
               <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold text-ink-muted">Mention someone</div>
               {mentionSuggestions.map((mention, index) => (
-                <button
+                <RowButton
                   key={mention.id}
-                  type="button"
+                  selected={index === activeMentionIndex}
                   onClick={() => selectMention(mention)}
-                  className={`pressable flex min-h-11 w-full items-center gap-3 px-3 py-2 text-left text-sm ${index === activeMentionIndex ? 'nav-selected' : 'hover:bg-slate-50'}`}
+                  className="flex w-full items-center gap-3 px-3 py-2 text-sm"
                 >
                   {mention.kind === 'channel' ? (
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-xs font-semibold text-amber-800">#</span>
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-info-200 bg-info-50 text-info-800"><Users className="h-4 w-4" aria-hidden="true" /></span>
                   ) : (
                     <Avatar name={mention.label.replace(/^@/, '')} size="sm" />
                   )}
                   <span className="min-w-0">
-                    <span className="block truncate font-medium text-slate-800">{mention.label}</span>
-                    <span className="block truncate text-xs text-slate-500">{mention.subtitle}</span>
+                    <span className="block truncate font-semibold text-ink">{mention.label}</span>
+                    <span className="block truncate text-xs text-ink-muted">{mention.subtitle}</span>
                   </span>
-                </button>
+                </RowButton>
               ))}
             </div>
           )}
@@ -3442,10 +3465,10 @@ export function Messages() {
               </div>
             </div>
             {workspaces.length > 1 && (
-              <button
-                type="button"
+              <RowButton
                 onClick={() => setShowWorkspaceSwitcher(true)}
-                className="pressable group flex min-h-11 w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-line bg-surface-raised px-3 py-2 text-left shadow-raised hover:border-line-strong hover:bg-slate-50 sm:py-2.5"
+                aria-haspopup="dialog"
+                className="group flex w-full items-center justify-between gap-3 rounded-xl border border-line bg-surface-raised px-3 py-2 shadow-raised hover:border-line-strong sm:py-2.5"
               >
                 <span className="flex min-w-0 items-center gap-3">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-200 text-xs font-semibold text-slate-700">
@@ -3459,14 +3482,10 @@ export function Messages() {
                   </span>
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
-                  {totalWorkspaceUnreadCount > 0 && (
-                    <span className="inline-flex min-w-5 justify-center rounded-full bg-ruby-600 px-1.5 py-0.5 text-xs font-semibold tabular-nums text-white">
-                      {totalWorkspaceUnreadCount > 99 ? '99+' : totalWorkspaceUnreadCount}
-                    </span>
-                  )}
-                  <ChevronDown className="h-4 w-4 text-slate-400 transition-colors group-hover:text-slate-600" />
+                  <CountBadge count={totalWorkspaceUnreadCount} label="unread" />
+                  <ChevronDown className="h-4 w-4 text-ink-muted transition-colors group-hover:text-ink" aria-hidden="true" />
                 </span>
-              </button>
+              </RowButton>
             )}
             {selectedWorkspace && (
               <div className="mt-2.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 sm:mt-3 sm:py-3">
@@ -3508,23 +3527,22 @@ export function Messages() {
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {unreadOtherWorkspaceCards.slice(0, 3).map(({ workspace, unreadCount }) => (
-                    <button
+                    <Button
                       key={workspace.id}
-                      type="button"
+                      variant="secondary"
+                      size="sm"
                       onClick={() => selectWorkspace(workspace.id)}
-                      className="pressable inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-full bg-surface-raised px-3 py-1 text-xs font-semibold text-ink ring-1 ring-line hover:bg-slate-50 sm:min-h-9"
+                      className="max-w-full gap-1.5 rounded-full! px-3 text-xs"
                     >
                       <span className="truncate">{workspace.name}</span>
-                      <span className="shrink-0 rounded-full bg-ruby-600 px-1.5 py-0.5 text-xs leading-none tabular-nums text-white">
-                        {unreadCount > 99 ? '99+' : unreadCount}
-                      </span>
-                    </button>
+                      <CountBadge count={unreadCount} label="unread" />
+                    </Button>
                   ))}
                 </div>
               </div>
             )}
             <div className="relative mt-3">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-ink-muted" aria-hidden="true" />
               <input
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
@@ -3535,7 +3553,7 @@ export function Messages() {
               {searchResults.length > 0 && (
                 <div className="absolute z-20 mt-2 max-h-80 w-full overflow-y-auto rounded-xl border border-line bg-surface-raised p-2 shadow-overlay">
                   {searchResults.map((result) => (
-                    <button
+                    <RowButton
                       key={result.id}
                       onClick={() => {
                         selectTarget(
@@ -3545,12 +3563,12 @@ export function Messages() {
                         setSearchQuery('')
                         setSearchResults([])
                       }}
-                      className="pressable block min-h-11 w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50"
+                      className="block w-full rounded-lg px-3 py-2 text-sm"
                     >
-                      <span className="font-medium text-slate-800">{result.author.full_name}</span>
-                      <span className="ml-2 text-xs tabular-nums text-slate-500">{formatTime(result.created_at)}</span>
-                      <p className="mt-1 truncate text-xs text-slate-500">{preview(result.body)}</p>
-                    </button>
+                      <span className="font-semibold text-ink">{result.author.full_name}</span>
+                      <span className="ml-2 text-xs tabular-nums text-ink-muted">{formatTime(result.created_at)}</span>
+                      <span className="mt-1 block truncate text-xs text-ink-secondary">{preview(result.body)}</span>
+                    </RowButton>
                   ))}
                 </div>
               )}
@@ -3561,7 +3579,7 @@ export function Messages() {
             <div className="mb-2 flex items-center justify-between px-2 pt-2">
               <div className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-ink-muted">
                 <span>Recent</span>
-                <span className="tabular-nums text-slate-400">{recent.length}</span>
+                <span className="tabular-nums">{recent.length}</span>
               </div>
               <IconButton label="Start direct message" onClick={() => setShowDmForm(true)}>
                 <UserPlus className="h-4 w-4" />
@@ -3586,16 +3604,17 @@ export function Messages() {
             ))}
 
             <div className="mb-2 mt-5 flex items-center justify-between px-2">
-              <button
-                type="button"
+              <Button
+                variant="quiet"
+                size="sm"
                 onClick={() => setChannelsCollapsed((current) => !current)}
-                className="pressable flex min-h-11 min-w-0 items-center gap-1.5 rounded-lg pr-2 text-left text-xs font-semibold text-ink-muted hover:text-ink"
+                className="-ml-2 min-w-0 gap-1.5 px-2 text-xs text-ink-muted"
                 aria-expanded={!channelsCollapsed}
               >
-                <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${channelsCollapsed ? '-rotate-90' : ''}`} />
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 motion-reduce:transition-none ${channelsCollapsed ? '-rotate-90' : ''}`} aria-hidden="true" />
                 <span>Browse channels</span>
-                {channelsUnreadCount > 0 && <span className="rounded-full bg-ruby-600 px-1.5 py-0.5 text-xs leading-none tabular-nums text-white">{channelsUnreadCount}</span>}
-              </button>
+                <CountBadge count={channelsUnreadCount} label="unread" />
+              </Button>
               {isStaff && (
                 <IconButton label="Create channel" onClick={() => { setShowChannelForm(true); setChannelError('') }}>
                   <Plus className="h-4 w-4" />
@@ -3605,17 +3624,18 @@ export function Messages() {
             {!channelsCollapsed && (
               <div className="px-2 pb-3">
                 {visibleChannels.length === 0 ? <p className="px-1 py-2 text-xs text-slate-500">No channels yet.</p> : visibleChannels.map((channel) => (
-                  <button
+                  <RowButton
                     key={channel.id}
-                    type="button"
                     onClick={() => selectTarget({ type: 'channel', id: channel.id })}
+                    selected={selectedTarget?.type === 'channel' && selectedTarget.id === channel.id}
                     aria-current={selectedTarget?.type === 'channel' && selectedTarget.id === channel.id ? 'true' : undefined}
-                    className={`pressable flex min-h-11 w-full items-center gap-2 rounded-xl px-2 text-left text-sm ${selectedTarget?.type === 'channel' && selectedTarget.id === channel.id ? 'nav-selected font-semibold' : 'text-slate-600 hover:bg-white'}`}
+                    className={`flex w-full items-center gap-2 rounded-xl px-2 text-sm ${selectedTarget?.type === 'channel' && selectedTarget.id === channel.id ? 'font-semibold' : channel.unread_count > 0 ? 'font-semibold text-ink' : 'text-ink-secondary'}`}
                   >
-                    {channel.visibility === 'staff_only' ? <Lock className="h-4 w-4 shrink-0" /> : <Hash className="h-4 w-4 shrink-0" />}
+                    {channel.visibility === 'staff_only' ? <Lock className="h-4 w-4 shrink-0" aria-hidden="true" /> : <Hash className="h-4 w-4 shrink-0" aria-hidden="true" />}
                     <span className="min-w-0 flex-1 truncate">{channel.name}</span>
-                    {channel.unread_count > 0 && <span className="h-2 w-2 shrink-0 rounded-full bg-ruby-600" aria-label="Unread" />}
-                  </button>
+                    {channel.unread_count > 0 && <span className="h-2 w-2 shrink-0 rounded-full bg-ruby-600" aria-hidden="true" />}
+                    {channel.unread_count > 0 && <span className="sr-only">, unread</span>}
+                  </RowButton>
                 ))}
               </div>
             )}
@@ -3631,20 +3651,21 @@ export function Messages() {
               {recent.map(({ type, summary }) => {
                 const title = type === 'channel' ? summary.name : summary.title
                 return (
-                  <button
+                  <RowButton
                     key={`${type}:${summary.id}`}
                     onClick={() => selectTarget({ type, id: summary.id })}
                     title={title}
-                    aria-label={title}
+                    aria-label={summary.unread_count > 0 ? `${title}, unread` : title}
+                    selected={selectedTarget?.type === type && selectedTarget.id === summary.id}
                     aria-current={selectedTarget?.type === type && selectedTarget.id === summary.id ? 'true' : undefined}
-                    className={`pressable relative flex h-14 w-full flex-col items-center justify-center rounded-xl text-xs font-semibold ${selectedTarget?.type === type && selectedTarget.id === summary.id ? 'nav-selected' : 'text-slate-500 hover:bg-white hover:text-slate-800'}`}
+                    className={`relative flex h-14 w-full flex-col items-center justify-center rounded-xl text-xs font-semibold ${selectedTarget?.type === type && selectedTarget.id === summary.id ? '' : 'text-ink-muted hover:text-ink'}`}
                   >
                     {type === 'channel'
                       ? summary.visibility === 'staff_only' ? <Lock className="h-4 w-4" /> : <Hash className="h-4 w-4" />
                       : <MessageCircle className="h-4 w-4" />}
                     <span className="mt-0.5 max-w-12 truncate">{type === 'channel' ? channelInitials(title) : initials(title)}</span>
-                    {summary.unread_count > 0 && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-ruby-600" />}
-                  </button>
+                    {summary.unread_count > 0 && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-ruby-600" aria-hidden="true" />}
+                  </RowButton>
                 )
               })}
             </div>
@@ -3655,7 +3676,7 @@ export function Messages() {
         <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white">
           {selectedTarget && selected ? (
             <>
-              <header className={`shrink-0 border-b border-slate-200/80 px-3 py-2.5 backdrop-blur-sm ${isDesktop ? 'bg-white/80' : 'bg-white'} sm:px-4 sm:py-4`}>
+              <header className="shrink-0 border-b border-line bg-surface-raised px-3 py-2.5 sm:px-4 sm:py-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
                     {isDesktop && sidebarCollapsed && (
@@ -3675,7 +3696,7 @@ export function Messages() {
                       : <MessageCircle className="h-5 w-5 shrink-0 text-slate-500" />}
                     <div className="min-w-0">
                       <h2 className="truncate font-semibold text-slate-900">{selectedLabel}</h2>
-                      <p className="text-xs text-slate-500">{selected.workspace_name}{isNavigationPending && ' · updating'}</p>
+                      <p className="hide-with-keyboard text-xs text-ink-muted">{selected.workspace_name}{isNavigationPending && ' · updating'}</p>
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5 sm:justify-end sm:gap-2">
@@ -3707,48 +3728,27 @@ export function Messages() {
                       ariaLabel={pushEnabled ? 'Turn off browser alerts' : 'Turn on browser alerts'}
                     />
                     {selectedTarget.type === 'channel' && selectedChannel?.visibility === 'staff_only' && (
-                      <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">Staff only</span>
+                      <Badge icon={<Lock className="h-3 w-3" aria-hidden="true" />}>Staff only</Badge>
                     )}
                   </div>
                 </div>
-                {selectedTarget.type === 'channel' && selectedChannel?.description && <p className="mt-2 text-sm text-slate-500">{selectedChannel.description}</p>}
-                {sourceRecord && sourceRecordPath && <div className="mt-2.5"><Link to={sourceRecordPath} className="pressable inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border border-info-200 bg-info-50 px-3 text-xs font-semibold text-info-800 hover:bg-info-100 sm:min-h-9"><BookOpen className="h-3.5 w-3.5 shrink-0" /><span className="truncate">From {sourceRecord.type === 'submission' ? 'submission' : 'help request'}: {sourceRecord.label}</span></Link></div>}
+                {selectedTarget.type === 'channel' && selectedChannel?.description && <p className="hide-with-keyboard mt-2 text-sm text-ink-muted">{selectedChannel.description}</p>}
+                {sourceRecord && sourceRecordPath && <div className="hide-with-keyboard mt-2.5"><Link to={sourceRecordPath} className="pressable inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border border-info-200 bg-info-50 px-3 text-xs font-semibold text-info-800 hover:bg-info-100 sm:min-h-9"><BookOpen className="h-3.5 w-3.5 shrink-0" /><span className="truncate">From {sourceRecord.type === 'submission' ? 'submission' : 'help request'}: {sourceRecord.label}</span></Link></div>}
                 {showConversationHeaderPushMessage && (
                   <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
                     {pushMessage}
                   </div>
                 )}
                 {!activeThreadRoot && (
-                  <div className="-mb-2.5 mt-1.5 flex min-w-0 items-center gap-1 overflow-x-auto sm:-mb-4 sm:mt-2">
-                    <button
-                      type="button"
-                      onClick={() => setConversationView('messages')}
-                      aria-pressed={conversationView === 'messages'}
-                      className={`pressable inline-flex min-h-11 shrink-0 items-center gap-2 px-3 text-sm font-medium ${
-                        conversationView === 'messages'
-                          ? 'tab-selected font-semibold'
-                          : 'text-ink-muted hover:text-ink'
-                      }`}
-                    >
-                      <MessageCircle className="h-3.5 w-3.5" />
+                  <div className="hide-with-keyboard -mb-2.5 mt-1.5 flex min-w-0 items-center gap-1 overflow-x-auto sm:-mb-4 sm:mt-2">
+                    <TabButton selected={conversationView === 'messages'} onClick={() => setConversationView('messages')}>
+                      <MessageCircle className="h-4 w-4" aria-hidden="true" />
                       Conversation
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConversationView('pins')}
-                      aria-pressed={conversationView === 'pins'}
-                      className={`pressable inline-flex min-h-11 shrink-0 items-center gap-2 px-3 text-sm font-medium ${
-                        conversationView === 'pins'
-                          ? 'tab-selected font-semibold'
-                          : 'text-ink-muted hover:text-ink'
-                      }`}
-                    >
-                      <Pin className="h-3.5 w-3.5" />
+                    </TabButton>
+                    <TabButton selected={conversationView === 'pins'} count={selectedPinnedMessages.length} onClick={() => setConversationView('pins')}>
+                      <Pin className="h-4 w-4" aria-hidden="true" />
                       Pinned
-                      <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-xs leading-none tabular-nums text-ink-secondary">
-                        {selectedPinnedMessages.length}
-                      </span>
-                    </button>
+                    </TabButton>
                   </div>
                 )}
               </header>
@@ -3785,7 +3785,7 @@ export function Messages() {
                     </div>
                   )}
                   {!activeThreadRoot && conversationView === 'pins' && (
-                    <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-800">
+                    <div className="mb-4 flex items-center gap-2 rounded-2xl border border-line bg-surface-sunken px-4 py-3 text-sm text-ink-secondary"><Pin className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
                       Pinned messages stay easy to find here for this workspace conversation.
                     </div>
                   )}
@@ -3960,7 +3960,7 @@ export function Messages() {
                 )}
                 {(loadingTarget || isNavigationPending) && (
                   <div className="pointer-events-none absolute inset-0 flex items-start justify-center bg-white/20 px-4 py-6">
-                    <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/95 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm backdrop-blur">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface-raised px-3 py-1.5 text-xs font-medium text-ink-secondary shadow-raised">
                       <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                       Switching conversation…
                     </div>
@@ -3996,22 +3996,17 @@ export function Messages() {
                   const Icon = display.Icon
                   const active = reaction.emoji === selectedReaction.emoji
                   return (
-                    <button
+                    <TabButton
                       key={reaction.emoji}
-                      type="button"
-                      role="tab"
-                      aria-selected={active}
+                      asTab
+                      selected={active}
                       aria-label={`${display.label}, ${reaction.count}`}
                       onClick={() => setReactionDetails({ messageId: reactionDetailsMessage.id, emoji: reaction.emoji })}
-                      className={`pressable inline-flex min-h-11 shrink-0 items-center gap-2 px-3.5 text-sm font-semibold tabular-nums ${
-                        active
-                          ? 'tab-selected'
-                          : 'text-ink-muted hover:text-ink'
-                      }`}
+                      className="tabular-nums"
                     >
-                      <Icon className="h-4 w-4" />
+                      <Icon className="h-4 w-4" aria-hidden="true" />
                       {reaction.count}
-                    </button>
+                    </TabButton>
                   )
                 })}
               </div>
@@ -4056,102 +4051,65 @@ export function Messages() {
             return (
               <div
                 key={workspace.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => {
-                  selectWorkspace(workspace.id)
-                  setShowWorkspaceSwitcher(false)
-                }}
-                onKeyDown={(event) => {
-                  if (event.target !== event.currentTarget) return
-                  if (event.key !== 'Enter' && event.key !== ' ') return
-                  event.preventDefault()
-                  selectWorkspace(workspace.id)
-                  setShowWorkspaceSwitcher(false)
-                }}
-                aria-current={active ? 'true' : undefined}
-                className={`pressable group flex w-full cursor-pointer items-center gap-4 rounded-2xl border px-4 py-4 text-left ${
-                  active
-                    ? 'nav-selected border-line-strong'
-                    : unreadCount > 0
-                      ? 'border-line-strong bg-surface-raised hover:bg-slate-50'
-                    : 'border-line bg-surface-raised hover:border-line-strong hover:bg-slate-50'
-                }`}
+                className={`flex items-stretch gap-2 rounded-2xl border ${active ? 'border-line-strong' : unreadCount > 0 ? 'border-line-strong' : 'border-line'} bg-surface-raised`}
               >
-                <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-sm font-semibold ${
-                  active ? 'bg-slate-300 text-ink' : 'bg-slate-200 text-slate-700'
-                }`}>
-                  {channelInitials(workspace.name)}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-2">
-                    <span className="truncate text-sm font-semibold text-slate-900">{workspace.name}</span>
-                    {unreadCount > 0 && (
-                      <span className="inline-flex shrink-0 rounded-full bg-ruby-600 px-2 py-0.5 text-xs font-semibold tabular-nums text-white">
-                        {unreadCount} unread
+                <RowButton
+                  selected={active}
+                  aria-current={active ? 'true' : undefined}
+                  onClick={() => {
+                    selectWorkspace(workspace.id)
+                    setShowWorkspaceSwitcher(false)
+                  }}
+                  className="group flex flex-1 items-center gap-4 rounded-2xl px-4 py-4"
+                >
+                  <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-sm font-semibold ${active ? 'bg-slate-300 text-ink' : 'bg-slate-200 text-ink-secondary'}`} aria-hidden="true">
+                    {channelInitials(workspace.name)}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="min-w-0 truncate text-sm font-semibold text-ink">{workspace.name}</span>
+                      <CountBadge count={unreadCount} label="unread" />
+                      {active && <Badge icon={<Check className="h-3 w-3" aria-hidden="true" />}>Current</Badge>}
+                      <Badge tone={workspace.workspace_type === 'community' ? 'neutral' : 'info'}>{workspace.workspace_type === 'community' ? 'Community' : 'Cohort'}</Badge>
+                    </span>
+                    <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs tabular-nums text-ink-muted">
+                      <span className="inline-flex items-center gap-1">
+                        <Users className="h-3.5 w-3.5" aria-hidden="true" />
+                        {workspace.member_count} {workspace.member_count === 1 ? 'member' : 'members'}
                       </span>
-                    )}
-                    {active && (
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-ink ring-1 ring-line-strong">
-                        <Check className="h-3 w-3" />
-                        Current
+                      <span className="inline-flex items-center gap-1">
+                        <Hash className="h-3.5 w-3.5" aria-hidden="true" />
+                        {channelCount} {channelCount === 1 ? 'channel' : 'channels'}
+                        {unreadChannelCount > 0 && <span className="font-semibold text-ink">· {unreadChannelCount} unread</span>}
                       </span>
+                      <span className="inline-flex items-center gap-1">
+                        <MessageCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                        {dmCount} DM {dmCount === 1 ? 'conversation' : 'conversations'}
+                        {unreadDmCount > 0 && <span className="font-semibold text-ink">· {unreadDmCount} unread</span>}
+                      </span>
+                    </span>
+                    {workspace.description && (
+                      <span className="mt-2 block line-clamp-2 text-xs leading-5 text-ink-muted">{workspace.description}</span>
                     )}
                   </span>
-                  <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs tabular-nums text-slate-500">
-                    <span className="inline-flex items-center gap-1">
-                      <Users className="h-3.5 w-3.5" />
-                      {workspace.member_count} {workspace.member_count === 1 ? 'member' : 'members'}
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <Hash className="h-3.5 w-3.5" />
-                      {channelCount} {channelCount === 1 ? 'channel' : 'channels'}
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <MessageCircle className="h-3.5 w-3.5" />
-                      {dmCount} DM {dmCount === 1 ? 'conversation' : 'conversations'}
-                    </span>
-                    {unreadChannelCount > 0 && (
-                      <span className="inline-flex items-center gap-1 font-semibold text-ink">
-                        <Hash className="h-3.5 w-3.5" />
-                        {unreadChannelCount} unread
-                      </span>
-                    )}
-                    {unreadDmCount > 0 && (
-                      <span className="inline-flex items-center gap-1 font-semibold text-ink">
-                        <MessageCircle className="h-3.5 w-3.5" />
-                        {unreadDmCount} unread
-                      </span>
-                    )}
-                  </span>
-                  {workspace.description && (
-                    <span className="mt-2 block line-clamp-2 text-xs leading-5 text-slate-500">{workspace.description}</span>
-                  )}
-                </span>
-                <span className="flex shrink-0 flex-col items-end gap-2">
-                  <span className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                    workspace.workspace_type === 'community'
-                      ? 'bg-slate-100 text-slate-600'
-                      : 'bg-info-50 text-info-800'
-                  }`}>
-                    {workspace.workspace_type === 'community' ? 'Community' : 'Cohort'}
-                  </span>
-                  {unreadCount > 0 && (
+                </RowButton>
+                {unreadCount > 0 && (
+                  <div className="flex shrink-0 items-center pr-3">
                     <Button
                       variant="secondary"
                       size="sm"
-                      onClick={(event) => {
-                        event.stopPropagation()
+                      onClick={() => {
                         markWorkspaceRead(workspace.id).catch(() => {
                           toast.error('Failed to mark workspace as read')
                         })
                       }}
                     >
-                      <CheckCheck className="h-3.5 w-3.5" />
-                      Mark read
+                      <CheckCheck className="h-4 w-4" aria-hidden="true" />
+                      <span className="sr-only sm:not-sr-only">Mark read</span>
+                      <span className="sr-only">{` ${workspace.name}`}</span>
                     </Button>
-                  )}
-                </span>
+                  </div>
+                )}
               </div>
             )
           })}
@@ -4398,113 +4356,162 @@ export function Messages() {
         subtitle={mobileActionsMessage ? `${mobileActionsMessage.author.full_name} · ${formatTime(mobileActionsMessage.created_at)}` : undefined}
         size="md"
       >
-        <div className="space-y-2">
-          {isStaff && mobileActionsMessage && (
-            <button
-              type="button"
-              onClick={() => {
-                void togglePin(mobileActionsMessage)
-                setMobileActionsMessageId(null)
-              }}
-              className="pressable flex min-h-12 w-full items-center gap-3 rounded-xl border border-line px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
-            >
-              <Pin className="h-4 w-4" />
-              {mobileActionsMessage.pinned_at ? 'Unpin message' : 'Pin message'}
-            </button>
-          )}
-          {mobileActionsMessage?.body && !mobileActionsMessage.blocked && (
-            <button
-              type="button"
-              onClick={() => {
-                void copyMessage(mobileActionsMessage)
-                setMobileActionsMessageId(null)
-              }}
-              className="pressable flex min-h-12 w-full items-center gap-3 rounded-xl border border-line px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
-            >
-              <Copy className="h-4 w-4" />
-              Copy message
-            </button>
-          )}
-          {mobileActionsMessage && (
-            <button
-              type="button"
-              onClick={() => {
-                const rootId = rootMessageIdFor(mobileActionsMessage, messagesById)
-                setActiveThreadRootId(rootId)
-                if (!isDesktop) setMobilePane('thread')
-                setMobileActionsMessageId(null)
-              }}
-              className="pressable flex min-h-12 w-full items-center gap-3 rounded-xl border border-line px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
-            >
-              <MessageCircle className="h-4 w-4" />
-              {activeThreadRootId ? 'Reply in thread' : 'Reply'}
-            </button>
-          )}
-          {mobileActionsMessage?.mine && (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditing(mobileActionsMessage)
-                  setEditBody(mobileActionsMessage.body)
-                  setMobileActionsMessageId(null)
-                }}
-                className="pressable flex min-h-12 w-full items-center gap-3 rounded-xl border border-line px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
-              >
-                <Edit3 className="h-4 w-4" />
-                Edit message
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setMessagePendingDelete(mobileActionsMessage)
-                  setMobileActionsMessageId(null)
-                }}
-                className="pressable flex min-h-12 w-full items-center gap-3 rounded-xl border border-danger-200 px-4 py-3 text-left text-sm font-medium text-danger-700 hover:bg-danger-50 active:bg-danger-100"
-              >
-                <Trash2 className="h-4 w-4" />
-                Delete message
-              </button>
-            </>
-          )}
-          {mobileActionsMessage && !mobileActionsMessage.mine && (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  void reportMessage(mobileActionsMessage)
-                  setMobileActionsMessageId(null)
-                }}
-                className="pressable flex min-h-12 w-full items-center gap-3 rounded-xl border border-danger-200 px-4 py-3 text-left text-sm font-medium text-danger-700 hover:bg-danger-50 active:bg-danger-100"
-              >
-                <Flag className="h-4 w-4" />
-                Report message
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  void reportUser(mobileActionsMessage)
-                  setMobileActionsMessageId(null)
-                }}
-                className="pressable flex min-h-12 w-full items-center gap-3 rounded-xl border border-danger-200 px-4 py-3 text-left text-sm font-medium text-danger-700 hover:bg-danger-50 active:bg-danger-100"
-              >
-                <Flag className="h-4 w-4" />
-                Report {mobileActionsMessage.author.full_name}
-              </button>
-              {!mobileActionsMessage.blocked && <button
-                type="button"
-                onClick={() => {
-                  void blockMessageAuthor(mobileActionsMessage)
-                  setMobileActionsMessageId(null)
-                }}
-                className="pressable flex min-h-12 w-full items-center gap-3 rounded-xl border border-danger-200 px-4 py-3 text-left text-sm font-medium text-danger-700 hover:bg-danger-50 active:bg-danger-100"
-              >
-                <UserX className="h-4 w-4" />
-                Block {mobileActionsMessage.author.full_name}
-              </button>}
-            </>
-          )}
-        </div>
+        {mobileActionsMessage && (() => {
+          const actionMessage = mobileActionsMessage
+          const close = () => setMobileActionsMessageId(null)
+          const row = 'justify-start text-left'
+          return (
+            <div className="space-y-2">
+              {!actionMessage.blocked && (
+                <div role="group" aria-label="React" className="mb-3 grid grid-cols-4 gap-2">
+                  {REACTIONS.map(({ value, label, Icon }) => {
+                    const reacted = Boolean(actionMessage.reactions.find((reaction) => reaction.emoji === value)?.reacted)
+                    return (
+                      <Button
+                        key={value}
+                        variant="secondary"
+                        size="lg"
+                        aria-label={reacted ? `Remove your ${label.toLowerCase()} reaction` : `React with ${label.toLowerCase()}`}
+                        aria-pressed={reacted}
+                        title={label}
+                        onClick={() => {
+                          void toggleReaction(actionMessage, value)
+                          close()
+                        }}
+                        className={reacted ? 'border-info-200! bg-info-50! text-info-800!' : ''}
+                      >
+                        <Icon className="h-5 w-5" aria-hidden="true" />
+                      </Button>
+                    )
+                  })}
+                </div>
+              )}
+              {!actionMessage.blocked && (
+                <Button
+                  variant="secondary"
+                  size="lg"
+                  fullWidth
+                  className={row}
+                  onClick={() => {
+                    const rootId = rootMessageIdFor(actionMessage, messagesById)
+                    setActiveThreadRootId(rootId)
+                    if (!isDesktop) setMobilePane('thread')
+                    close()
+                  }}
+                >
+                  <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                  {activeThreadRootId ? 'Reply in thread' : 'Reply'}
+                </Button>
+              )}
+              {actionMessage.body && !actionMessage.blocked && (
+                <Button
+                  variant="secondary"
+                  size="lg"
+                  fullWidth
+                  className={row}
+                  onClick={() => {
+                    void copyMessage(actionMessage)
+                    close()
+                  }}
+                >
+                  <Copy className="h-4 w-4" aria-hidden="true" />
+                  Copy message
+                </Button>
+              )}
+              {isStaff && (
+                <Button
+                  variant="secondary"
+                  size="lg"
+                  fullWidth
+                  className={row}
+                  onClick={() => {
+                    void togglePin(actionMessage)
+                    close()
+                  }}
+                >
+                  <Pin className="h-4 w-4" aria-hidden="true" />
+                  {actionMessage.pinned_at ? 'Unpin message' : 'Pin message'}
+                </Button>
+              )}
+              {actionMessage.mine && (
+                <>
+                  <Button
+                    variant="secondary"
+                    size="lg"
+                    fullWidth
+                    className={row}
+                    onClick={() => {
+                      setEditing(actionMessage)
+                      setEditBody(actionMessage.body)
+                      close()
+                    }}
+                  >
+                    <Edit3 className="h-4 w-4" aria-hidden="true" />
+                    Edit message
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="lg"
+                    fullWidth
+                    className={row}
+                    onClick={() => {
+                      setMessagePendingDelete(actionMessage)
+                      close()
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    Delete message
+                  </Button>
+                </>
+              )}
+              {!actionMessage.mine && (
+                <>
+                  <Button
+                    variant="danger"
+                    size="lg"
+                    fullWidth
+                    className={row}
+                    onClick={() => {
+                      void reportMessage(actionMessage)
+                      close()
+                    }}
+                  >
+                    <Flag className="h-4 w-4" aria-hidden="true" />
+                    Report message
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="lg"
+                    fullWidth
+                    className={row}
+                    onClick={() => {
+                      void reportUser(actionMessage)
+                      close()
+                    }}
+                  >
+                    <Flag className="h-4 w-4" aria-hidden="true" />
+                    <span className="min-w-0 truncate">Report {actionMessage.author.full_name}</span>
+                  </Button>
+                  {!actionMessage.blocked && (
+                    <Button
+                      variant="danger"
+                      size="lg"
+                      fullWidth
+                      className={row}
+                      onClick={() => {
+                        void blockMessageAuthor(actionMessage)
+                        close()
+                      }}
+                    >
+                      <UserX className="h-4 w-4" aria-hidden="true" />
+                      <span className="min-w-0 truncate">Block {actionMessage.author.full_name}</span>
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
+          )
+        })()}
       </Modal>
 
       <Modal
@@ -4612,6 +4619,7 @@ export function Messages() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4"
           role="dialog"
           aria-modal="true"
+          aria-label={`Image preview: ${lightboxAttachment.filename}`}
           onTouchStart={(event) => {
             lightboxTouchStartX.current = event.touches[0]?.clientX ?? null
           }}
@@ -4629,37 +4637,20 @@ export function Messages() {
             else showPreviousLightboxImage()
           }}
         >
-          <button
-            type="button"
-            onClick={closeLightbox}
-            className="pressable absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20 active:bg-white/30"
-            aria-label="Close image preview"
-          >
+          <IconButton label="Close image preview" onClick={closeLightbox} className="absolute right-4 top-4 surface-inverse bg-white/10! text-white! hover:bg-white/20! active:bg-white/30!">
             <X className="h-5 w-5" />
-          </button>
+          </IconButton>
           {lightboxAttachments.length > 1 && (
             <>
-              <button
-                type="button"
-                onClick={showPreviousLightboxImage}
-                disabled={lightboxIndex === 0}
-                className="pressable absolute left-4 top-1/2 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20 active:bg-white/30 disabled:opacity-30"
-                aria-label="Previous image"
-              >
+              <IconButton label="Previous image" onClick={showPreviousLightboxImage} disabled={lightboxIndex === 0} className="absolute left-4 top-1/2 h-12! w-12! -translate-y-1/2 surface-inverse bg-white/10! text-white! hover:bg-white/20! active:bg-white/30!">
                 <ChevronLeft className="h-6 w-6" />
-              </button>
-              <button
-                type="button"
-                onClick={showNextLightboxImage}
-                disabled={lightboxIndex === lightboxAttachments.length - 1}
-                className="pressable absolute right-4 top-1/2 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20 active:bg-white/30 disabled:opacity-30"
-                aria-label="Next image"
-              >
+              </IconButton>
+              <IconButton label="Next image" onClick={showNextLightboxImage} disabled={lightboxIndex === lightboxAttachments.length - 1} className="absolute right-4 top-1/2 h-12! w-12! -translate-y-1/2 surface-inverse bg-white/10! text-white! hover:bg-white/20! active:bg-white/30!">
                 <ChevronRight className="h-6 w-6" />
-              </button>
+              </IconButton>
             </>
           )}
-          <div className="max-h-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-overlay">
+          <div className="max-h-full max-w-5xl overflow-hidden rounded-2xl bg-surface-raised shadow-overlay">
             <img src={lightboxAttachment.url} alt={lightboxAttachment.filename} className="max-h-[80vh] w-full object-contain" />
             <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 text-sm text-slate-700">
               <div className="min-w-0">
@@ -4711,30 +4702,23 @@ function ConversationButton({
   onClick: () => void
 }) {
   return (
-    <button
+    <RowButton
       onClick={onClick}
+      selected={active}
       aria-current={active ? 'true' : undefined}
-      className={`pressable mb-1 w-full min-w-0 overflow-hidden rounded-xl border px-2.5 py-2.5 text-left sm:rounded-2xl sm:px-3 sm:py-3 ${
-        active
-          ? 'nav-selected border-transparent'
-          : 'border-transparent hover:border-line hover:bg-white'
-      }`}
+      className="mb-1 block w-full overflow-hidden rounded-xl px-2.5 py-2.5 sm:rounded-2xl sm:px-3 sm:py-3"
     >
-      <div className="flex min-w-0 items-center justify-between gap-2">
-        <span className="flex min-w-0 flex-1 items-center gap-2">
+      <span className="flex min-w-0 items-center justify-between gap-2">
+        <span className={`flex min-w-0 flex-1 items-center gap-2 ${unread > 0 || active ? 'text-ink' : 'text-ink-secondary'}`}>
           {icon}
           <span className="truncate text-sm font-semibold">{title}</span>
-          {muted && <BellOff className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
+          {muted && <BellOff className="h-3.5 w-3.5 shrink-0 text-ink-muted" aria-label="Muted" />}
         </span>
-        {latestAt && <time dateTime={latestAt} className="shrink-0 text-xs font-medium tabular-nums text-ink-muted">{formatInboxTime(latestAt)}</time>}
-        {unread > 0 && (
-          <span className="shrink-0 rounded-full bg-ruby-600 px-2 py-0.5 text-xs font-semibold tabular-nums text-white">
-            {unread}
-          </span>
-        )}
-      </div>
-      <p className={`mt-1 truncate text-xs ${unread > 0 ? 'font-semibold text-slate-700' : 'text-slate-500'}`}>{subtitle}</p>
-    </button>
+        {latestAt && <time dateTime={latestAt} className={`shrink-0 text-xs tabular-nums ${unread > 0 ? 'font-semibold text-ink' : 'font-medium text-ink-muted'}`}>{formatInboxTime(latestAt)}</time>}
+        <CountBadge count={unread} label="unread" />
+      </span>
+      <span className={`mt-1 block truncate text-xs ${unread > 0 ? 'font-semibold text-ink' : 'text-ink-muted'}`}>{subtitle}</span>
+    </RowButton>
   )
 }
 
@@ -4973,13 +4957,13 @@ function MessageRow({
       } : undefined}
       className={`message-row group relative flex w-full max-w-full min-w-0 gap-1.5 rounded-xl px-1.5 py-0.5 transition-[background-color,box-shadow,opacity] duration-200 hover:bg-slate-50/90 sm:gap-3 sm:px-3 ${
         compact ? 'mt-0' : 'mt-1.5'
-      } ${entering ? 'message-row-enter' : ''} ${message.pinned_at ? 'bg-amber-50/70 ring-1 ring-amber-100' : ''} ${message.pending ? 'opacity-75' : ''} ${
+      } ${entering ? 'message-row-enter' : ''} ${message.pinned_at ? 'bg-surface-sunken ring-1 ring-line' : ''} ${message.pending ? 'opacity-75' : ''} ${
         highlighted ? 'message-row-highlight bg-info-50 ring-2 ring-info-200' : ''
       }`}
     >
       <div className="flex w-7 shrink-0 justify-center sm:w-10">
         {compact ? (
-          <span className="hidden whitespace-nowrap pt-1 text-xs font-medium tabular-nums text-slate-400 transition-colors group-hover:text-ink-muted sm:block">
+          <span className="hidden whitespace-nowrap pt-1 text-xs font-medium tabular-nums text-ink-muted opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 lg:block">
             {new Date(message.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
           </span>
         ) : (
@@ -4989,16 +4973,16 @@ function MessageRow({
       <div className="min-w-0 flex-1 overflow-hidden">
         {!compact && (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-slate-950">{message.author.full_name}</span>
+            <span className="text-sm font-semibold text-ink">{message.author.full_name}</span>
             <span className="text-xs tabular-nums text-ink-muted">{formatTime(message.created_at)}</span>
             {message.edited_at && <span className="text-xs text-ink-muted">Edited</span>}
             {message.pending && <span className="text-xs text-ink-muted">Sending...</span>}
             {message.failed && <span className="text-xs font-medium text-danger-700">Not sent</span>}
-            {message.pinned_at && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700"><Pin className="h-3 w-3" /> Pinned</span>}
+            {message.pinned_at && <Badge icon={<Pin className="h-3 w-3" aria-hidden="true" />}>Pinned</Badge>}
           </div>
         )}
         {message.blocked ? (
-          <p className="text-sm italic text-slate-500">Message hidden — you blocked this user</p>
+          <p className="text-sm italic text-ink-muted">Message hidden — you blocked this user</p>
         ) : editing ? (
           <MessageEditSurface
             value={editBody}
@@ -5013,11 +4997,11 @@ function MessageRow({
           <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700" role="status">
             <span className="min-w-0 flex-1">{message.failureError || 'This message was not sent.'}</span>
             {message.retrySend ? (
-              <Button size="sm" onClick={onRetry}>
+              <Button variant="secondary" size="sm" onClick={onRetry}>
                 Retry
               </Button>
             ) : (
-              <Button size="sm" onClick={onRestore}>
+              <Button variant="secondary" size="sm" onClick={onRestore}>
                 {message.body ? 'Restore text' : 'Reattach files'}
               </Button>
             )}
@@ -5030,26 +5014,29 @@ function MessageRow({
           <div className="mt-3 grid max-w-full min-w-0 gap-2 sm:grid-cols-2">
             {message.attachments.map((attachment) => (
               attachment.image && attachment.url ? (
-              <button
+              <RowButton
                 key={attachment.id}
-                type="button"
                 onClick={() => onOpenImage(attachment, imageAttachments)}
-                className="pressable min-w-0 rounded-lg border border-line bg-white p-2 text-left text-sm text-slate-700 hover:border-line-strong hover:bg-slate-50"
+                aria-label={`Open image ${attachment.filename}`}
+                className="block rounded-xl border border-line bg-surface-raised p-2 text-sm text-ink-secondary hover:border-line-strong"
               >
-                <img src={attachment.url} alt={attachment.filename} className="mb-2 max-h-56 w-full rounded-lg object-cover" />
-                <div className="truncate font-medium">{attachment.filename}</div>
-                <div className="text-xs text-slate-500">{formatFileSize(attachment.byte_size)}</div>
-              </button>
+                <img src={attachment.url} alt="" className="mb-2 max-h-56 w-full rounded-lg object-cover" />
+                <span className="block truncate font-semibold text-ink" title={attachment.filename}>{attachment.filename}</span>
+                <span className="block text-xs tabular-nums text-ink-muted">{formatFileSize(attachment.byte_size)}</span>
+              </RowButton>
               ) : (
               <a
                 key={attachment.id}
                 href={attachment.url}
                 download={attachment.filename}
-                className="pressable min-w-0 rounded-lg border border-line bg-white p-2 text-sm text-slate-700 hover:border-line-strong hover:bg-slate-50"
+                className="pressable flex min-h-11 min-w-0 items-center gap-3 rounded-xl border border-line bg-surface-raised p-2 text-sm text-ink-secondary hover:border-line-strong hover:bg-surface-sunken"
               >
-                <File className="mb-2 h-5 w-5 text-slate-400" />
-                <div className="truncate font-medium">{attachment.filename}</div>
-                <div className="text-xs text-slate-500">{formatFileSize(attachment.byte_size)}</div>
+                <File className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-semibold text-ink" title={attachment.filename}>{attachment.filename}</span>
+                  <span className="block text-xs tabular-nums text-ink-muted">{formatFileSize(attachment.byte_size)}</span>
+                </span>
+                <Download className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
               </a>
               )
             ))}
@@ -5057,7 +5044,7 @@ function MessageRow({
         )}
         {message.mine && readReceipts && readReceipts.count > 0 && (
           <div
-            className="mt-1 inline-flex max-w-full min-w-0 items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-xs font-medium text-ink-muted"
+            className="mt-1 inline-flex max-w-full min-w-0 items-center gap-1 rounded-full bg-surface-sunken px-2 py-0.5 text-xs font-medium text-ink-muted"
             title={readReceiptTitle(readReceipts)}
             aria-label={`Seen by ${readReceiptTitle(readReceipts)}`}
           >
@@ -5072,15 +5059,16 @@ function MessageRow({
             const ReactionIcon = reactionDisplay.Icon
             return (
               <div key={reaction.emoji} className="group/reaction relative">
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={() => onInspectReaction(reaction.emoji)}
-                  className={`pressable inline-flex min-h-11 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs tabular-nums sm:min-h-9 ${reaction?.reacted ? 'border-info-200 bg-info-50 font-semibold text-info-800' : 'border-line text-ink-secondary hover:bg-slate-50'}`}
-                  aria-label={`${reactionDisplay.label}: ${reaction?.count || 0}. Show who reacted.`}
+                  className={`gap-1.5 px-2.5 text-xs tabular-nums shadow-none! ${reaction?.reacted ? 'border-info-200! bg-info-50! text-info-800!' : 'font-medium! text-ink-secondary!'}`}
+                  aria-label={`${reactionDisplay.label}: ${reaction?.count || 0}${reaction?.reacted ? ', including you' : ''}. Show who reacted.`}
                 >
-                  <ReactionIcon className="h-3.5 w-3.5" />
+                  <ReactionIcon className="h-3.5 w-3.5" aria-hidden="true" />
                   {reaction?.count || ''}
-                </button>
+                </Button>
                 {reaction && reaction.users.length > 0 && (
                   <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden -translate-x-1/2 rounded-lg bg-slate-900 px-3 py-2 text-xs text-white shadow-overlay group-hover/reaction:block">
                     <div className="font-medium">{reactionDisplay.label}</div>
@@ -5091,57 +5079,53 @@ function MessageRow({
             )
           })}
           {!inThreadView && replyCount > 0 && (
-            <button type="button" onClick={onReply} className="pressable min-h-11 rounded-lg px-2.5 py-1 text-xs font-semibold tabular-nums sm:min-h-9 text-ink hover:bg-slate-100">
+            <Button variant="quiet" size="sm" onClick={onReply} className="gap-1.5 px-2.5 text-xs tabular-nums text-ink!">
+              <MessageCircle className="h-3.5 w-3.5" aria-hidden="true" />
               {replyCount} {replyCount === 1 ? 'reply' : 'replies'}
-            </button>
+            </Button>
           )}
         </div>
         )}
       </div>
-      {!message.pending && !message.failed && <div className="ml-auto flex shrink-0 items-start gap-1 sm:hidden">
-        <IconButton label="Open message actions" onClick={onOpenActions} className="sm:hidden">
+      {!message.pending && !message.failed && <div className="ml-auto flex shrink-0 items-start gap-1 lg:hidden">
+        <IconButton label="Open message actions" onClick={onOpenActions}>
           <MoreHorizontal className="h-5 w-5" />
         </IconButton>
       </div>}
-      {!message.pending && !message.failed && <div className="absolute right-2 top-1 z-10 hidden items-center gap-0.5 rounded-xl border border-line bg-surface-raised px-1.5 py-1 shadow-overlay opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 sm:flex">
+      {!message.pending && !message.failed && <div role="toolbar" aria-label="Message actions" className="absolute right-2 top-1 z-10 hidden items-center gap-0.5 rounded-xl border border-line bg-surface-raised p-1 shadow-overlay opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 lg:flex">
         {!message.blocked && REACTIONS.map(({ value, label, Icon }) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => onReact(value)}
-            className="pressable inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 active:bg-slate-200"
-            aria-label={`React with ${label}`}
-            title={label}
-          >
-            <Icon className="h-4 w-4" />
-          </button>
+          <IconButton key={value} size="sm" label={`React with ${label.toLowerCase()}`} onClick={() => onReact(value)}>
+            <Icon className="h-4 w-4" aria-hidden="true" />
+          </IconButton>
         ))}
-        {!message.blocked && <button type="button" onClick={onReply} className="pressable rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 active:bg-slate-200" aria-label={inThreadView ? 'Reply in thread' : 'Reply'}>
-          <MessageCircle className="h-4 w-4" />
-        </button>}
+        {!message.blocked && (
+          <IconButton size="sm" label={inThreadView ? 'Reply in thread' : 'Reply'} onClick={onReply}>
+            <MessageCircle className="h-4 w-4" aria-hidden="true" />
+          </IconButton>
+        )}
         {!message.blocked && message.body && (
-          <button type="button" onClick={onCopy} className="pressable rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 active:bg-slate-200" aria-label="Copy message">
-            <Copy className="h-4 w-4" />
-          </button>
+          <IconButton size="sm" label="Copy message" onClick={onCopy}>
+            <Copy className="h-4 w-4" aria-hidden="true" />
+          </IconButton>
         )}
         {canPin && (
-          <button type="button" onClick={onPin} className="pressable rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 active:bg-slate-200" aria-label="Pin message">
-            <Pin className="h-4 w-4" />
-          </button>
+          <IconButton size="sm" label={message.pinned_at ? 'Unpin message' : 'Pin message'} onClick={onPin}>
+            <Pin className="h-4 w-4" aria-hidden="true" />
+          </IconButton>
         )}
         {message.mine && (
           <>
-            <button type="button" onClick={onStartEdit} className="pressable rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 active:bg-slate-200" aria-label="Edit message">
-              <Edit3 className="h-4 w-4" />
-            </button>
-            <button type="button" onClick={onDelete} className="pressable rounded-lg p-1.5 text-slate-500 hover:bg-danger-50 hover:text-danger-700 active:bg-danger-100" aria-label="Delete message">
-              <Trash2 className="h-4 w-4" />
-            </button>
+            <IconButton size="sm" label="Edit message" onClick={onStartEdit}>
+              <Edit3 className="h-4 w-4" aria-hidden="true" />
+            </IconButton>
+            <IconButton size="sm" variant="quiet" label="Delete message" onClick={onDelete} className="hover:bg-danger-50! hover:text-danger-700!">
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+            </IconButton>
           </>
         )}
-        <button type="button" onClick={onOpenActions} className="pressable rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 active:bg-slate-200" aria-label="More message actions">
-          <MoreHorizontal className="h-4 w-4" />
-        </button>
+        <IconButton size="sm" label="More message actions" onClick={onOpenActions}>
+          <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+        </IconButton>
       </div>}
     </div>
   )

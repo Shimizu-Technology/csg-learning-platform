@@ -37,6 +37,7 @@ import { CommandPalette } from './CommandPalette'
 import { CohortSwitcher } from './CohortSwitcher'
 import { AccountMenu } from './AccountMenu'
 import { IconButton } from '../ui/Button'
+import { useKeyboardAwareViewport } from '../../lib/visualViewport'
 
 interface LayoutProps {
   children?: React.ReactNode
@@ -61,6 +62,8 @@ export function Layout({ children }: LayoutProps) {
   const lastPresenceUpdateAtRef = useRef(0)
   const location = useLocation()
   const isMessagesRoute = location.pathname.startsWith('/messages')
+  // Messages keeps its composer above the iOS keyboard (see index.css `.keyboard-shell`).
+  useKeyboardAwareViewport(isMessagesRoute)
   const { user, enrollments, isLoading } = useAuthContext()
   const { selectedCohort } = useCohortContext()
   const [unreadCount, setUnreadCount] = useState(0)
@@ -333,12 +336,12 @@ export function Layout({ children }: LayoutProps) {
       : 'py-4 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] sm:py-6 sm:pb-[calc(6rem+env(safe-area-inset-bottom,0px))] sm:pl-[max(1.5rem,env(safe-area-inset-left))] sm:pr-[max(1.5rem,env(safe-area-inset-right))] lg:p-8'
 
   return (
-    <div className={isMessagesRoute ? 'h-dvh overflow-hidden bg-surface-page' : 'min-h-dvh bg-surface-page'}>
+    <div className={isMessagesRoute ? 'keyboard-shell h-dvh overflow-hidden bg-surface-page' : 'min-h-dvh bg-surface-page'}>
       <a href="#main-content" aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className="sr-only z-[100] rounded-xl bg-surface-raised px-4 py-3 font-semibold text-ink shadow-overlay focus:not-sr-only focus:fixed focus:left-4 focus:top-4">
         Skip to main content
       </a>
       {/* Mobile header */}
-      <header aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className="sticky top-0 z-40 flex h-14 items-center gap-2 overflow-x-clip border-b border-line bg-surface-raised pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))] lg:hidden">
+      <header aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className="hide-with-keyboard sticky top-0 z-40 flex h-14 items-center gap-2 overflow-x-clip border-b border-line bg-surface-raised pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))] lg:hidden">
         <IconButton
           ref={menuButtonRef}
           label="Open navigation"
@@ -513,13 +516,13 @@ export function Layout({ children }: LayoutProps) {
         </aside>
 
         {/* Main content */}
-        <main id="main-content" tabIndex={-1} className={`flex-1 min-w-0 overflow-x-hidden ${mainMargin} ${isMessagesRoute ? `${isStaff ? 'h-[calc(100dvh-3.5rem)]' : 'h-[calc(100dvh-7.75rem-env(safe-area-inset-bottom,0px))] [--composer-safe-bottom:0px] lg:[--composer-safe-bottom:env(safe-area-inset-bottom,0px)]'} overflow-hidden lg:h-dvh` : ''}`}>
+        <main id="main-content" tabIndex={-1} className={`flex-1 min-w-0 overflow-x-hidden ${mainMargin} ${isMessagesRoute ? `keyboard-shell-main ${isStaff ? 'h-[calc(100dvh-3.5rem)]' : 'h-[calc(100dvh-7.75rem-env(safe-area-inset-bottom,0px))] [--composer-safe-bottom:0px] lg:[--composer-safe-bottom:env(safe-area-inset-bottom,0px)]'} overflow-hidden lg:h-dvh` : ''}`}>
           <div className={pageContentClassName}>{children ?? <Outlet />}</div>
         </main>
       </div>
 
       {!isStaff && (
-        <nav aria-label="Primary navigation" aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-line bg-surface-raised pb-[env(safe-area-inset-bottom,0px)] pl-[max(0.25rem,env(safe-area-inset-left))] pr-[max(0.25rem,env(safe-area-inset-right))] lg:hidden">
+        <nav aria-label="Primary navigation" aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className="hide-with-keyboard fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-line bg-surface-raised pb-[env(safe-area-inset-bottom,0px)] pl-[max(0.25rem,env(safe-area-inset-left))] pr-[max(0.25rem,env(safe-area-inset-right))] lg:hidden">
           {studentBottomNav.map((item) => {
             const active = isActive(item.to, item.exact)
             const count = getNavUnreadCount(item.to)
