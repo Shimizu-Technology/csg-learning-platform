@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Filter, Check, RotateCcw, Clock, ChevronRight, Layers3, BookmarkPlus, MessageSquareText, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Filter, Check, RotateCcw, Clock, ChevronLeft, ChevronRight, Layers3, BookmarkPlus, MessageSquareText, ExternalLink } from 'lucide-react'
 import { api } from '../../lib/api'
 import { submissionPath } from '../../lib/routes'
 import { getLatestSubmissionIds, orderSubmissionQueue, type SubmissionQueueFilter, submissionWhereLabel } from '../../lib/submissionQueue'
@@ -21,6 +21,8 @@ import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { FilterChip, SegmentButton } from '../../components/ui/Choice'
 import { formatShortDateTime } from '../../lib/format'
+import { queueShortcutDirection, useListScrollMemory } from '../../lib/navigationContext'
+import { RowButton } from '../../components/ui/RowButton'
 
 type QueueFilter = SubmissionQueueFilter
 
@@ -75,6 +77,13 @@ export function Grading() {
 
   const latestSubmissionIds = useMemo(() => getLatestSubmissionIds(submissions), [submissions])
   const queue = useMemo(() => orderSubmissionQueue(submissions, queueFilter), [submissions, queueFilter])
+  const reviewPanelRef = useRef<HTMLDivElement>(null)
+  const scrollPanelOnSelectRef = useRef(false)
+  // Back from a submission record restores this queue (filters + selection) at the same scroll position.
+  useListScrollMemory(!loading)
+  const selectedIndex = selectedSubmission ? queue.findIndex((item) => item.id === selectedSubmission.id) : -1
+  const previousInQueue = selectedIndex > 0 ? queue[selectedIndex - 1] : null
+  const nextInQueue = selectedIndex >= 0 ? queue[selectedIndex + 1] || null : null
 
   const counts = useMemo(() => ({
     ungraded: submissions.filter((s) => s.grade === null).length,
@@ -136,6 +145,36 @@ export function Grading() {
     setLoadingDetail(false)
   }
 
+  /** A row tap or Previous/Next: select it and, on phones, bring the review panel into view. */
+  const pickSubmission = (submission: SubmissionItem) => {
+    scrollPanelOnSelectRef.current = true
+    void selectSubmission(submission)
+  }
+
+  useEffect(() => {
+    if (!selectedSubmission || loadingDetail || !scrollPanelOnSelectRef.current) return
+    scrollPanelOnSelectRef.current = false
+    if (window.matchMedia('(min-width: 1024px)').matches) return
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    reviewPanelRef.current?.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' })
+  }, [loadingDetail, selectedSubmission])
+
+  // J / K move through the queue while a submission is open; typing in feedback is never hijacked.
+  useEffect(() => {
+    if (!selectedSubmission) return
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      const direction = queueShortcutDirection(event)
+      const target = direction === 'next' ? nextInQueue : direction === 'previous' ? previousInQueue : null
+      if (!target) return
+      event.preventDefault()
+      pickSubmission(target)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+    // pickSubmission follows the current queue neighbours.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nextInQueue, previousInQueue, selectedSubmission])
+
   useEffect(() => {
     const selectedId = Number(searchParams.get('submission'))
     if (!selectedId || selectedSubmission?.id === selectedId || loading || loadingDetail) return
@@ -172,9 +211,15 @@ export function Grading() {
       })) || [],
     })
     if (!res.error) {
+      // Keep going: the next submission in this queue opens once the list reloads.
+      const following = nextInQueue || (queueFilter === 'all' ? null : previousInQueue)
       setSelectedSubmission(null)
       const nextParams = new URLSearchParams(searchParams)
-      nextParams.delete('submission')
+      if (following) {
+        nextParams.set('submission', String(following.id))
+        scrollPanelOnSelectRef.current = true
+      }
+      else nextParams.delete('submission')
       setSearchParams(nextParams, { replace: true })
       setFeedback('')
       loadSubmissions()
@@ -267,12 +312,12 @@ export function Grading() {
               const where = submissionWhereLabel(sub.lesson_title, sub.content_block_title)
               return (
                 <div key={sub.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-stretch gap-2">
-                  <button
-                    type="button"
-                    onClick={() => selectSubmission(sub)}
+                  <RowButton
+                    onClick={() => pickSubmission(sub)}
+                    selected={isSelected}
                     aria-current={isSelected ? 'true' : undefined}
-                    className={`pressable flex min-h-11 w-full min-w-0 items-start gap-3 rounded-2xl border p-3 text-left sm:p-4 ${
-                      isSelected ? 'nav-selected border-line-strong' : 'border-line bg-surface-raised hover:bg-surface-sunken'
+                    className={`flex w-full items-start gap-3 rounded-2xl border p-3 sm:p-4 ${
+                      isSelected ? 'border-line-strong' : 'border-line bg-surface-raised'
                     }`}
                   >
                     <Avatar name={sub.user_name} size="sm" />
@@ -286,9 +331,9 @@ export function Grading() {
                       </div>
                     </div>
                     <ChevronRight className="mt-2 hidden h-4 w-4 shrink-0 text-ink-muted sm:block" aria-hidden="true" />
-                  </button>
+                  </RowButton>
                   <Link
-                    to={submissionPath(sub.id, { userId: sub.user_id, returnTo: `${location.pathname}${location.search}`, queue: queueFilter })}
+                    to={submissionPath(sub.id, { userId: sub.user_id, returnTo: `${location.pathname}${location.search}`, queue: queueFilter, queueCohortId: cohortId })}
                     aria-label={`Open ${sub.user_name}'s submission record`}
                     title="Open submission record"
                     className="inline-flex h-11 w-11 items-center justify-center self-center rounded-xl text-ink-muted transition-colors duration-150 hover:bg-surface-sunken hover:text-ink"
@@ -302,11 +347,22 @@ export function Grading() {
         </div>
 
         {selectedSubmission && (
-          <div className="app-surface min-w-0 space-y-4 p-4 sm:p-6 lg:sticky lg:top-20 lg:self-start">
+          <div ref={reviewPanelRef} className="app-surface min-w-0 scroll-mt-20 space-y-4 p-4 sm:p-6 lg:sticky lg:top-20 lg:self-start">
             {loadingDetail ? (
               <LoadingSpinner message="Loading submission..." />
             ) : (
               <>
+                {selectedIndex >= 0 && (
+                  <nav aria-label="Queue" className="-mx-1 flex items-center justify-between gap-2 border-b border-line pb-3">
+                    <Button variant="quiet" size="sm" disabled={!previousInQueue} onClick={() => previousInQueue && pickSubmission(previousInQueue)} aria-keyshortcuts="K" title="Previous (K)" className="px-2">
+                      <ChevronLeft className="h-4 w-4" aria-hidden="true" />Previous
+                    </Button>
+                    <p className="text-center text-xs font-semibold tabular-nums text-ink-muted" aria-live="polite">{selectedIndex + 1} of {queue.length}<span className="hidden lg:inline"> · keys K / J</span></p>
+                    <Button variant="quiet" size="sm" disabled={!nextInQueue} onClick={() => nextInQueue && pickSubmission(nextInQueue)} aria-keyshortcuts="J" title="Next (J)" className="px-2">
+                      Next<ChevronRight className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  </nav>
+                )}
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-start gap-3">
                     <Avatar name={selectedSubmission.user_name} size="md" />
