@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button';
 import { themedAlert as Alert } from '@/lib/alerts';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
@@ -101,12 +102,12 @@ export default function ComposeScreen() {
         <ScrollView style={styles.memberScroll} contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           {visible.map((user) => {
             const active = selected.includes(user.id);
-            return <Pressable key={user.id} accessibilityRole="checkbox" accessibilityLabel={`Select ${user.full_name}`} accessibilityState={{ checked: active }} onPress={() => { Keyboard.dismiss(); setSelected((current) => active ? current.filter((id) => id !== user.id) : [...current, user.id]); }} style={styles.person}><Avatar name={user.full_name} /><View style={{ flex: 1 }}><Text style={styles.name}>{user.full_name}</Text><Text style={styles.email}>{user.email}</Text></View><View style={[styles.check, active && styles.checkActive]}>{active && <Check color="white" size={16} strokeWidth={3} />}</View></Pressable>;
+            return <Pressable key={user.id} accessibilityRole="checkbox" accessibilityLabel={`Select ${user.full_name}`} accessibilityState={{ checked: active }} onPress={() => { Keyboard.dismiss(); setSelected((current) => active ? current.filter((id) => id !== user.id) : [...current, user.id]); }} style={styles.person}><Avatar name={user.full_name} /><View style={{ flex: 1 }}><Text style={styles.name}>{user.full_name}</Text><Text style={styles.email}>{user.email}</Text></View><View style={[styles.check, active && styles.checkActive]}>{active && <Check color={c.text.strong} size={16} strokeWidth={3} />}</View></Pressable>;
           })}
           {!visible.length && <EmptyState title="No members found" copy={workspaces.length ? 'Try a name or email from this workspace.' : 'Join a workspace before starting a conversation.'} />}
         </ScrollView>
       )}
-      {(keyboardHeight === 0 || selected.length > 0) && <View style={styles.footer}><Pressable accessibilityRole="button" disabled={!selected.length || creating} onPress={() => void start()} style={[styles.start, (!selected.length || creating) && styles.disabled]}><Text style={styles.startText}>{creating ? 'Starting…' : selected.length > 1 ? `Start group message (${selected.length})` : 'Start message'}</Text></Pressable></View>}
+      {(keyboardHeight === 0 || selected.length > 0) && <View style={styles.footer}><Button variant="primary" accessibilityRole="button" disabled={!selected.length || creating} onPress={() => void start()} style={[styles.start, (!selected.length || creating) && styles.disabled]}><Text style={styles.startText}>{creating ? 'Starting…' : selected.length > 1 ? `Start group message (${selected.length})` : 'Start message'}</Text></Button></View>}
     </View>
   );
 }

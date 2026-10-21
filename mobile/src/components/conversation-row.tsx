@@ -40,5 +40,5 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   unreadPreview: { color: c.text.body },
   workspace: { ...typography.meta, color: c.text.body, fontFamily: fonts.medium, textTransform: 'uppercase', letterSpacing: 0.7 },
   badge: { minWidth: 24, minHeight: 24, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 12, backgroundColor: c.selection.bg, alignItems: 'center', justifyContent: 'center' },
-  badgeText: { ...typography.label, color: 'white', fontFamily: fonts.bold },
+  badgeText: { ...typography.label, color: c.text.strong, fontFamily: fonts.bold },
 }));

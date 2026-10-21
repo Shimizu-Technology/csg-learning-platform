@@ -39,7 +39,7 @@ export function MessageBubble({ message, showAuthor, mentionUsers, onLongPress, 
       <View style={[styles.bubbleWrap, message.mine && styles.mineWrap]}>
         {showAuthor && !message.mine && <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.author}>{message.author.full_name}</Text>}
         <Pressable accessible={false} delayLongPress={350} onLongPress={onLongPress ? () => onLongPress(message) : undefined} style={[styles.bubble, message.mine && styles.mineBubble, message.client_status === 'failed' && styles.failedBubble]} testID={`message-bubble-${message.id}`}>
-          {message.pinned_at && <View style={styles.pinLabel}><Pin color={message.mine ? c.surface.sunken : c.text.body} size={11} /><Text style={[styles.pinText, message.mine && styles.mineMeta]}>Pinned</Text></View>}
+          {message.pinned_at && <View style={styles.pinLabel}><Pin color={c.text.body} size={11} /><Text style={[styles.pinText, message.mine && styles.mineMeta]}>Pinned</Text></View>}
           {blocked
             ? <Text style={[styles.body, styles.deleted]}>Message hidden — you blocked this user</Text>
             : !!message.body && (deleted

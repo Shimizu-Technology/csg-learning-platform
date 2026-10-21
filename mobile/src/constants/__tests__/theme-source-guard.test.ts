@@ -12,7 +12,7 @@ function sources(dir: string): string[] {
 it('keeps every runtime TSX color in the theme table and every readable font >=12pt', () => {
   const violations = sources(root).flatMap((path) => {
     const source = readFileSync(path, 'utf8');
-    const bad = [...source.matchAll(/#[\da-fA-F]{3,8}\b|rgba?\([\d\s,.]+\)|\bpalette\b|fontSize:\s*(?:[0-9]|1[01])\b/g)];
+    const bad = [...source.matchAll(/#[\da-fA-F]{3,8}\b|rgba?\([\d\s,.]+\)|(?:color|backgroundColor|borderColor):\s*['\"](?:white|black)['\"]|color=\"(?:white|black)\"|\bpalette\b|fontSize:\s*(?:[0-9]|1[01])\b/g)];
     return bad.map((m) => `${relative(root, path)}:${source.slice(0, m.index).split('\n').length}: ${m[0]}`);
   });
   expect(violations).toEqual([]);
