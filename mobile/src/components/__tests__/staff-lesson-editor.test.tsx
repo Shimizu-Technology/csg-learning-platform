@@ -1,3 +1,4 @@
+import { themes } from '@/constants/csg-theme';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 
@@ -63,6 +64,8 @@ describe('native staff lesson editor', () => {
       retrieval_check: expect.objectContaining({ enabled: true, content_block_id: 202, correct_option: 1 }),
     })));
     await waitFor(() => expect(screen.getByText('Lesson saved. The student preview now uses this version.')).toBeTruthy());
+    expect(screen.getByText('Lesson saved. The student preview now uses this version.')).toHaveStyle({ color: themes.light.colors.status.success.fg });
+    expect(screen.getByText('Ready')).toHaveStyle({ color: themes.light.colors.status.success.fg });
     expect(mockClearDraft).toHaveBeenCalledWith(7, 101);
   });
 
@@ -208,4 +211,14 @@ describe('native staff lesson editor', () => {
     expect(screen.getByDisplayValue('My safe draft')).toBeTruthy();
     expect(mockSaveDraft).toHaveBeenCalledWith(7, 101, expect.objectContaining({ title: 'My safe draft' }), latest.updated_at);
   });
+});
+
+it('keeps save error body copy in the danger family', async () => {
+  const screen = render(<StaffLessonEditor {...uploadProps} lesson={lesson} userId={7} onBack={jest.fn()} onSave={jest.fn().mockRejectedValue(new Error('Synthetic save failure'))} onReload={async () => lesson} />);
+  await waitFor(() => expect(screen.getByLabelText('Save lesson')).toBeDisabled());
+  fireEvent.changeText(screen.getByLabelText('Lesson title'), 'My draft stays safe');
+  fireEvent.press(screen.getByLabelText('Save lesson'));
+  expect(await screen.findByText('Synthetic save failure')).toHaveStyle({ color: themes.light.colors.status.danger.fg });
+  expect(screen.getByText('Something needs attention')).toHaveStyle({ color: themes.light.colors.status.danger.fg });
+  expect(screen.getByDisplayValue('My draft stays safe')).toBeTruthy();
 });
