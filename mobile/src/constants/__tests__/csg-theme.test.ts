@@ -1,14 +1,8 @@
-import { readdirSync, readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { themes, typography } from '../csg-theme';
 import { contrastRatio } from '../../test-utils/contrast';
 
-function sourceFiles(directory: string): string[] {
-  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(directory, entry.name);
-    return entry.isDirectory() ? sourceFiles(path) : path.endsWith('.tsx') && !path.includes('__tests__') ? [path] : [];
-  });
-}
 describe.each(Object.values(themes))('$scheme token contrast', (theme) => {
   const c = theme.colors;
   const pairs: [string, string, string, number][] = [];
@@ -28,7 +22,7 @@ it('keeps semantic text at 12pt or larger and preserves font scaling', () => {
   expect(Object.values(typography).every((role) => role.fontSize >= 12)).toBe(true);
   // PR 3a migrates the shell; the all-screen source guard lands in 3b.
   const shell = ['community-standards-gate.tsx', 'weekly-plan.tsx', 'learning-ui.tsx'];
-  const violations = sourceFiles(resolve(__dirname, '../../components')).filter((p) => shell.some((f) => p.endsWith('/'+f)))
+  const violations = shell.map((filename) => resolve(__dirname, '../../components', filename))
     .flatMap((p) => [...readFileSync(p, 'utf8').matchAll(/fontSize:\s*(\d+)/g)].filter((m) => Number(m[1]) < 12).map((m) => `${p}: ${m[0]}`));
   expect(violations).toEqual([]);
 });

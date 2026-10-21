@@ -39,7 +39,7 @@ export default function AccessDeniedScreen() {
         )}
 
         <Pressable accessibilityRole="button" disabled={loading || signingOut} onPress={() => void refresh()} style={({ pressed }) => [styles.primary, pressed && styles.pressed, (loading || signingOut) && styles.disabled]}>
-          {loading ? <ActivityIndicator color={c.text.strong} /> : <RefreshCw color={c.text.strong} size={18} />}
+          {loading ? <ActivityIndicator color={c.text.onAction} /> : <RefreshCw color={c.text.onAction} size={18} />}
           <Text style={styles.primaryText}>{loading ? 'Checking access…' : 'I’ve been invited — check again'}</Text>
         </Pressable>
         <Pressable accessibilityRole="button" disabled={loading || signingOut} onPress={() => void handleSignOut()} style={({ pressed }) => [styles.secondary, pressed && styles.pressed, (loading || signingOut) && styles.disabled]}>
@@ -64,7 +64,7 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   accountLabel: { color: c.text.muted, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.3 },
   accountEmail: { color: c.text.strong, fontFamily: fonts.semibold, fontSize: 14, marginTop: 6 },
   primary: { minHeight: 52, borderRadius: 17, backgroundColor: c.action.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 24 },
-  primaryText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 14 },
+  primaryText: { color: c.text.onAction, fontFamily: fonts.bold, fontSize: 14 },
   secondary: { minHeight: 52, borderRadius: 17, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 10 },
   secondaryText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 14 },
   note: { color: c.text.muted, fontFamily: fonts.medium, fontSize: 12, lineHeight: 17, textAlign: 'center', marginTop: 18 },

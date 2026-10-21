@@ -310,7 +310,7 @@ export default function SignIn() {
 
             {visibleError && (
               <View accessibilityLiveRegion="polite" style={styles.errorBanner}>
-                <AlertCircle color={c.surface.sunken} size={18} />
+                <AlertCircle color={c.status.danger.fg} size={18} />
                 <Text style={styles.errorText}>{visibleError}</Text>
               </View>
             )}
