@@ -1,10 +1,12 @@
+import { makeStyles } from '@/providers/theme-provider';
 import { useEffect } from 'react';
 import { AccessibilityInfo, Platform, StyleSheet, Text, View } from 'react-native';
 
-import { fontScaleLimits, fonts, palette } from '@/constants/csg-theme';
+import { fontScaleLimits, fonts } from '@/constants/csg-theme';
 import { typingIndicatorLabel, type TypingUser } from '@/lib/typing';
 
 export function TypingIndicator({ users }: { users: TypingUser[] }) {
+  const styles = useStyles();
   const label = typingIndicatorLabel(users);
 
   useEffect(() => {
@@ -25,9 +27,9 @@ export function TypingIndicator({ users }: { users: TypingUser[] }) {
   );
 }
 
-const styles = StyleSheet.create({
-  row: { minHeight: 28, paddingHorizontal: 16, backgroundColor: palette.panel, flexDirection: 'row', alignItems: 'center', gap: 7 },
+const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
+  row: { minHeight: 28, paddingHorizontal: 16, backgroundColor: c.surface.raised, flexDirection: 'row', alignItems: 'center', gap: 7 },
   dots: { flexDirection: 'row', gap: 3 },
-  dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: palette.subtle },
-  text: { flex: 1, color: palette.subtle, fontFamily: fonts.semibold, fontSize: 11 },
-});
+  dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: c.text.muted },
+  text: { flex: 1, color: c.text.body, fontFamily: fonts.semibold, fontSize: 12 },
+}));

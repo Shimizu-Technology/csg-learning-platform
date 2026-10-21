@@ -1,3 +1,4 @@
+import { themes } from '@/constants/csg-theme';
 import { render } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 import { FormattedMessage } from '../formatted-message';
@@ -23,6 +24,6 @@ it('keeps inline formatting and sender colors in nested text and continuations',
   for (const label of ['continuation', 'Quoted child', 'Parent', 'Sibling']) {
     let text = screen.getByText(label);
     while (text.parent && !StyleSheet.flatten(text.props.style)?.color) text = text.parent;
-    expect(StyleSheet.flatten(text.props.style).color).toBe('#FFFFFF');
+    expect(StyleSheet.flatten(text.props.style).color).toBe(themes.light.colors.text.body);
   }
 });

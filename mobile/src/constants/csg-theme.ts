@@ -60,8 +60,3 @@ export function createTheme(scheme: 'light' | 'dark') {
 }
 export type CsgTheme = ReturnType<typeof createTheme>;
 export const themes = { light: createTheme('light'), dark: createTheme('dark') };
-
-// Temporary compatibility for screens migrating in the immediately stacked PR 3b.
-export const palette = { ink: darkColors.surface.page, panel: darkColors.surface.raised, panelRaised: darkColors.surface.sunken, line: darkColors.border.subtle, ruby: darkColors.action.primary, rubySoft: darkColors.text.body, paper: darkColors.text.strong, text: darkColors.text.strong, muted: darkColors.text.body, subtle: darkColors.text.muted, quiet: darkColors.text.muted, success: darkColors.status.success.fg, warning: darkColors.status.warning.fg };
-export const statusTones = themes.dark.statusTones;
-export const csgPrimary = lightColors.action.primary;

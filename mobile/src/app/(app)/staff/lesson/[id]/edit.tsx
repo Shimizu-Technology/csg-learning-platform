@@ -1,13 +1,15 @@
+import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
+import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
 import { useEffect } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StaffLessonEditor } from '@/components/staff-lesson-editor';
 import { ErrorState, LoadingState } from '@/components/screen-states';
-import { palette } from '@/constants/csg-theme';
+
 import { queueContentVideoCleanup, retryContentVideoCleanups } from '@/lib/content-video-cleanup';
 import { demoLearningObjectives, demoLessonFor, demoRubrics } from '@/lib/demo-learning';
 import { appendCatalogItem, learningKeys } from '@/lib/learning';
@@ -18,6 +20,7 @@ import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 
 export default function StaffLessonEditorScreen() {
+  const styles = useStyles();
   const id = Number(useLocalSearchParams<{ id: string }>().id);
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -103,7 +106,9 @@ export default function StaffLessonEditorScreen() {
 }
 
 function ScreenError({ message, onBack, retry }: { message: string; onBack: () => void; retry?: () => void }) {
-  return <SafeAreaView style={styles.safe}><View style={styles.backRow}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onBack} style={styles.back}><ArrowLeft color={palette.text} size={22} /></Pressable></View><ErrorState message={message} retry={retry} /></SafeAreaView>;
+  const styles = useStyles();
+  const { colors: c } = useTheme();
+  return <SafeAreaView style={styles.safe}><View style={styles.backRow}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onBack} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable></View><ErrorState message={message} retry={retry} /></SafeAreaView>;
 }
 
-const styles = StyleSheet.create({ safe: { flex: 1, backgroundColor: palette.ink }, backRow: { minHeight: 68, paddingHorizontal: 10, justifyContent: 'center' }, back: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' } });
+const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({ safe: { flex: 1, backgroundColor: c.surface.page }, backRow: { minHeight: 68, paddingHorizontal: 10, justifyContent: 'center' }, back: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' } }));

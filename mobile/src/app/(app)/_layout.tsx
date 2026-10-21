@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { Redirect, Stack, useRouter, type Href } from 'expo-router';
 import { X } from 'lucide-react-native';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 import { fonts } from '@/constants/csg-theme';

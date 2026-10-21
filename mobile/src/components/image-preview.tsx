@@ -1,3 +1,6 @@
+import { Button } from '@/components/ui/button';
+import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
+import { makeStyles, useTheme } from '@/providers/theme-provider';
 /* eslint-disable react-hooks/immutability -- Reanimated SharedValue.value is intentionally mutable inside UI-thread worklets. */
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { StatusBar } from 'expo-status-bar';
@@ -9,7 +12,6 @@ import {
   Image,
   Modal,
   Platform,
-  Pressable,
   Share,
   StyleSheet,
   Text,
@@ -18,6 +20,7 @@ import {
 } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
+  ReduceMotion,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
@@ -26,7 +29,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { fonts, palette } from '@/constants/csg-theme';
+import { fonts } from '@/constants/csg-theme';
 import { formatFileSize } from '@/lib/attachments';
 import {
   IMAGE_VIEWER_DOUBLE_TAP_SCALE,
@@ -47,10 +50,11 @@ type Props = {
   onClose: () => void;
 };
 
-const spring = { damping: 22, stiffness: 260, mass: 0.75 };
+const spring = { damping: 22, stiffness: 260, mass: 0.75, reduceMotion: ReduceMotion.System };
 const queueOrientationTransition = createSerialTaskQueue();
 
 export function ImagePreview({ attachments, initialAttachmentId, onClose }: Props) {
+  const styles = useStyles();
   const initialIndex = Math.max(0, attachments.findIndex((attachment) => attachment.id === initialAttachmentId));
   const [index, setIndex] = useState(initialIndex);
   const attachment = attachments[index] || null;
@@ -125,6 +129,8 @@ function ImagePreviewSurface({
   onChangeIndex: (delta: number) => void;
   onClose: () => void;
 }) {
+  const styles = useStyles();
+  const { colors: c } = useTheme();
   const insets = useSafeAreaInsets();
   const [chromeVisible, setChromeVisible] = useState(true);
   const [imageState, setImageState] = useState<'loading' | 'ready' | 'error'>(attachment.url ? 'loading' : 'error');
@@ -151,7 +157,7 @@ function ImagePreviewSurface({
 
   const setChrome = useCallback((visible: boolean) => {
     setChromeVisible(visible);
-    chromeOpacity.value = withTiming(visible ? 1 : 0, { duration: 170 });
+    chromeOpacity.value = withTiming(visible ? 1 : 0, { duration: 170, reduceMotion: ReduceMotion.Never });
   }, [chromeOpacity]);
 
   const toggleChrome = useCallback(() => setChrome(!chromeVisible), [chromeVisible, setChrome]);
@@ -247,7 +253,7 @@ function ImagePreviewSurface({
       const wantsPrevious = isHorizontal && (translateX.value > horizontalThreshold || event.velocityX > 750);
       if ((wantsNext && canGoNext) || (wantsPrevious && canGoPrevious)) {
         const delta = wantsNext ? 1 : -1;
-        translateX.value = withTiming(wantsNext ? -viewportValue.width : viewportValue.width, { duration: 150 }, (finished) => {
+        translateX.value = withTiming(wantsNext ? -viewportValue.width : viewportValue.width, { duration: 150, reduceMotion: ReduceMotion.System }, (finished) => {
           if (finished) runOnJS(changeImage)(delta);
         });
         return;
@@ -255,7 +261,7 @@ function ImagePreviewSurface({
 
       const dismissThreshold = Math.max(110, viewportValue.height * 0.14);
       if (translateY.value > dismissThreshold || event.velocityY > 900) {
-        translateY.value = withTiming(viewportValue.height, { duration: 180 }, (finished) => {
+        translateY.value = withTiming(viewportValue.height, { duration: 180, reduceMotion: ReduceMotion.System }, (finished) => {
           if (finished) runOnJS(close)();
         });
         return;
@@ -392,7 +398,7 @@ function ImagePreviewSurface({
 
       {imageState === 'loading' && (
         <View accessibilityLiveRegion="polite" pointerEvents="none" style={styles.feedback}>
-          <ActivityIndicator color={palette.rubySoft} size="large" />
+          <ActivityIndicator color={c.media.fg} size="large" />
           <Text style={styles.feedbackCopy}>Preparing image…</Text>
         </View>
       )}
@@ -401,17 +407,17 @@ function ImagePreviewSurface({
         <View accessibilityLiveRegion="assertive" style={styles.feedback}>
           <Text style={styles.errorTitle}>Image couldn’t be loaded</Text>
           <Text style={styles.errorCopy}>Check your connection and try the attachment again.</Text>
-          <Pressable accessibilityRole="button" onPress={retry} style={({ pressed }) => [styles.retry, pressed && styles.pressed]}>
-            <RefreshCw color={palette.text} size={17} />
+          <Button variant="secondary" accessibilityRole="button" onPress={retry} style={({ pressed }) => [styles.retry, pressed && styles.pressed]}>
+            <RefreshCw color={c.media.fg} size={17} />
             <Text style={styles.retryText}>Try again</Text>
-          </Pressable>
+          </Button>
         </View>
       )}
 
       <Animated.View pointerEvents={chromeVisible ? 'box-none' : 'none'} style={[styles.chrome, chromeStyle]}>
         <View style={[styles.topBar, { top: insets.top + 10 }]}>
           <Pressable accessibilityLabel="Close image preview" accessibilityRole="button" onPress={close} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
-            <X color={palette.text} size={23} />
+            <X color={c.media.fg} size={23} />
           </Pressable>
           <View pointerEvents="none" style={styles.headerCopy}>
             <Text numberOfLines={1} style={styles.filename}>{attachment.filename}</Text>
@@ -424,7 +430,7 @@ function ImagePreviewSurface({
             onPress={() => attachment.url && void Share.share({ title: attachment.filename, url: attachment.url, message: attachment.url })}
             style={({ pressed }) => [styles.iconButton, !attachment.url && styles.disabled, pressed && styles.pressed]}
           >
-            <Share2 color={palette.text} size={21} />
+            <Share2 color={c.media.fg} size={21} />
           </Pressable>
         </View>
 
@@ -437,7 +443,7 @@ function ImagePreviewSurface({
               onPress={() => changeImage(-1)}
               style={({ pressed }) => [styles.pageButton, !canGoPrevious && styles.disabled, pressed && styles.pressed]}
             >
-              <ChevronLeft color={palette.text} size={21} />
+              <ChevronLeft color={c.media.fg} size={21} />
             </Pressable>
           )}
           <View pointerEvents="none" style={styles.metadata}>
@@ -452,7 +458,7 @@ function ImagePreviewSurface({
               onPress={() => changeImage(1)}
               style={({ pressed }) => [styles.pageButton, !canGoNext && styles.disabled, pressed && styles.pressed]}
             >
-              <ChevronRight color={palette.text} size={21} />
+              <ChevronRight color={c.media.fg} size={21} />
             </Pressable>
           )}
         </View>
@@ -461,9 +467,9 @@ function ImagePreviewSurface({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   flex: { flex: 1 },
-  safe: { flex: 1, backgroundColor: '#050609' },
+  safe: { flex: 1, backgroundColor: c.media.bg },
   stage: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center' },
   imageWrap: { width: '100%', height: '100%' },
   image: { width: '100%', height: '100%' },
@@ -476,20 +482,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 9,
   },
-  feedbackCopy: { color: palette.muted, fontFamily: fonts.semibold, fontSize: 12 },
-  errorTitle: { color: palette.text, fontFamily: fonts.bold, fontSize: 16, textAlign: 'center' },
-  errorCopy: { color: palette.muted, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, textAlign: 'center', maxWidth: 280 },
+  feedbackCopy: { color: c.media.fg, fontFamily: fonts.semibold, fontSize: 12 },
+  errorTitle: { color: c.status.danger.fg, fontFamily: fonts.bold, fontSize: 16, textAlign: 'center' },
+  errorCopy: { color: c.status.danger.fg, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, textAlign: 'center', maxWidth: 280 },
   retry: {
     minHeight: 44,
     borderRadius: 14,
     paddingHorizontal: 18,
     marginTop: 4,
-    backgroundColor: palette.ruby,
+    backgroundColor: c.selection.bg,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  retryText: { color: palette.text, fontFamily: fonts.bold, fontSize: 12 },
+  retryText: { color: c.media.fg, fontFamily: fonts.bold, fontSize: 12 },
   chrome: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   topBar: {
     position: 'absolute',
@@ -506,9 +512,9 @@ const styles = StyleSheet.create({
     borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(18,21,29,0.94)',
+    backgroundColor: c.media.bg,
     borderWidth: 1,
-    borderColor: 'rgba(151,160,184,0.24)',
+    borderColor: c.media.bg,
   },
   headerCopy: {
     flex: 1,
@@ -518,12 +524,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 17,
-    backgroundColor: 'rgba(10,12,17,0.82)',
+    backgroundColor: c.media.bg,
     borderWidth: 1,
-    borderColor: 'rgba(151,160,184,0.18)',
+    borderColor: c.media.bg,
   },
-  filename: { color: palette.text, fontFamily: fonts.semibold, fontSize: 13, maxWidth: '100%' },
-  position: { color: palette.subtle, fontFamily: fonts.medium, fontSize: 11, marginTop: 2 },
+  filename: { color: c.media.fg, fontFamily: fonts.semibold, fontSize: 13, maxWidth: '100%' },
+  position: { color: c.media.fg, fontFamily: fonts.medium, fontSize: 12, marginTop: 2 },
   bottomBar: {
     position: 'absolute',
     left: 12,
@@ -541,22 +547,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 17,
     justifyContent: 'center',
     borderRadius: 18,
-    backgroundColor: 'rgba(10,12,17,0.88)',
+    backgroundColor: c.media.bg,
     borderWidth: 1,
-    borderColor: 'rgba(151,160,184,0.18)',
+    borderColor: c.media.bg,
   },
-  footerName: { color: palette.text, fontFamily: fonts.semibold, fontSize: 12 },
-  footerMeta: { color: palette.subtle, fontFamily: fonts.medium, fontSize: 11, marginTop: 3 },
+  footerName: { color: c.media.fg, fontFamily: fonts.semibold, fontSize: 12 },
+  footerMeta: { color: c.media.fg, fontFamily: fonts.medium, fontSize: 12, marginTop: 3 },
   pageButton: {
     width: 48,
     height: 48,
     borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(18,21,29,0.94)',
+    backgroundColor: c.media.bg,
     borderWidth: 1,
-    borderColor: 'rgba(151,160,184,0.24)',
+    borderColor: c.media.bg,
   },
   pressed: { opacity: 0.72, transform: [{ scale: 0.96 }] },
   disabled: { opacity: 0.34 },
-});
+}));

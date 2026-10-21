@@ -1,4 +1,4 @@
-import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
+import { Button } from '@/components/ui/button';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import * as Clipboard from 'expo-clipboard';
 import { Check, Copy, MoveHorizontal } from 'lucide-react-native';
@@ -98,7 +98,7 @@ export function MessageCodeBlock({ code, language = '', surface = 'message', tes
               <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.overflowText}>Drag</Text>
             </View>
           )}
-          <Pressable
+          <Button foregroundColor={copied ? c.code.success : c.code.muted} variant="quiet"
             accessibilityRole="button"
             accessibilityLabel={copied ? 'Code copied' : 'Copy code'}
             accessibilityHint="Copies the complete code block"
@@ -108,7 +108,7 @@ export function MessageCodeBlock({ code, language = '', surface = 'message', tes
           >
             {copied ? <Check color={c.code.success} size={15} /> : <Copy color={c.code.muted} size={15} />}
             <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={[styles.copyText, copied && styles.copyTextCopied]}>{copied ? 'Copied' : 'Copy'}</Text>
-          </Pressable>
+          </Button>
         </View>
       </View>
       <View onLayout={measureViewport} style={styles.viewport} testID="message-code-viewport">

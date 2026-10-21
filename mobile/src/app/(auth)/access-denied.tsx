@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useUser } from '@clerk/expo';
@@ -38,10 +39,10 @@ export default function AccessDeniedScreen() {
           </View>
         )}
 
-        <Pressable accessibilityRole="button" disabled={loading || signingOut} onPress={() => void refresh()} style={({ pressed }) => [styles.primary, pressed && styles.pressed, (loading || signingOut) && styles.disabled]}>
+        <Button variant="primary" accessibilityRole="button" disabled={loading || signingOut} onPress={() => void refresh()} style={({ pressed }) => [styles.primary, pressed && styles.pressed, (loading || signingOut) && styles.disabled]}>
           {loading ? <ActivityIndicator color={c.text.onAction} /> : <RefreshCw color={c.text.onAction} size={18} />}
           <Text style={styles.primaryText}>{loading ? 'Checking access…' : 'I’ve been invited — check again'}</Text>
-        </Pressable>
+        </Button>
         <Pressable accessibilityRole="button" disabled={loading || signingOut} onPress={() => void handleSignOut()} style={({ pressed }) => [styles.secondary, pressed && styles.pressed, (loading || signingOut) && styles.disabled]}>
           {signingOut ? <ActivityIndicator color={c.text.body} /> : <LogOut color={c.text.body} size={18} />}
           <Text style={styles.secondaryText}>{signingOut ? 'Signing out…' : 'Use a different account'}</Text>
@@ -61,13 +62,13 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   title: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 32, lineHeight: 38, letterSpacing: -1.15, marginTop: 10 },
   copy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 15, lineHeight: 23, marginTop: 14 },
   account: { marginTop: 28, padding: 16, borderRadius: 17, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised },
-  accountLabel: { color: c.text.muted, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.3 },
+  accountLabel: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.3 },
   accountEmail: { color: c.text.strong, fontFamily: fonts.semibold, fontSize: 14, marginTop: 6 },
   primary: { minHeight: 52, borderRadius: 17, backgroundColor: c.action.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 24 },
   primaryText: { color: c.text.onAction, fontFamily: fonts.bold, fontSize: 14 },
   secondary: { minHeight: 52, borderRadius: 17, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 10 },
   secondaryText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 14 },
-  note: { color: c.text.muted, fontFamily: fonts.medium, fontSize: 12, lineHeight: 17, textAlign: 'center', marginTop: 18 },
+  note: { color: c.text.body, fontFamily: fonts.medium, fontSize: 12, lineHeight: 17, textAlign: 'center', marginTop: 18 },
   pressed: { opacity: 0.72, transform: [{ scale: 0.99 }] },
   disabled: { opacity: 0.5 },
 }));

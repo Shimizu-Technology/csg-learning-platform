@@ -1,17 +1,29 @@
+import { Children, Fragment, cloneElement, isValidElement, type ReactElement } from 'react';
 import { ActivityIndicator, StyleSheet, Text, type PressableProps, type StyleProp, type TextStyle } from 'react-native';
 import { fonts, typography } from '@/constants/csg-theme';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { PressableScale } from './pressable-scale';
 export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'danger';
-export type ButtonProps = Omit<PressableProps, 'children'> & { children?: React.ReactNode; label?: string; variant?: ButtonVariant; loading?: boolean; textStyle?: StyleProp<TextStyle> };
-export function Button({ label, children, variant = 'primary', loading = false, disabled, style, textStyle, accessibilityState, ...props }: ButtonProps) {
+export type ButtonProps = Omit<PressableProps, 'children'> & { children?: React.ReactNode; label?: string; variant?: ButtonVariant; loading?: boolean; textStyle?: StyleProp<TextStyle>; foregroundColor?: string };
+export function Button({ label, children, variant = 'primary', loading = false, disabled, style, textStyle, foregroundColor, accessibilityState, ...props }: ButtonProps) {
   const { colors: c } = useTheme();
   const styles = useStyles();
-  const foreground = variant === 'primary' ? c.text.onAction : variant === 'danger' ? c.status.danger.fg : c.text.strong;
+  const foreground = foregroundColor ?? (variant === 'primary' ? c.text.onAction : variant === 'danger' ? c.status.danger.fg : c.text.strong);
+  const paint = (node: React.ReactNode): React.ReactNode => {
+    const items = Children.toArray(node);
+    if (items.every((item) => typeof item === 'string' || typeof item === 'number')) return <Text style={[styles.label, { color: foreground }]}>{items.join('')}</Text>;
+    return Children.map(node, (child) => {
+    if (!isValidElement(child)) return child;
+    const element = child as ReactElement<{ style?: StyleProp<TextStyle>; color?: string; children?: React.ReactNode }>;
+    if (child.type === Fragment) return cloneElement(element, {}, paint(element.props.children));
+    if (child.type === Text) return cloneElement(element, { style: [element.props.style, { color: foreground }] });
+    return element.props.color ? cloneElement(element, { color: foreground }) : child;
+    });
+  };
   return <PressableScale {...props} accessibilityRole={props.accessibilityRole ?? "button"} accessibilityLabel={props.accessibilityLabel ?? label} accessibilityState={{ ...accessibilityState, disabled: disabled || loading, busy: loading }} disabled={disabled || loading}
-    style={(state) => [styles.base, variant === 'primary' ? styles.primary : variant === 'danger' ? styles.danger : variant === 'secondary' ? styles.secondary : styles.quiet, typeof style === 'function' ? style(state) : style]}>
+    style={(state) => [styles.base, typeof style === 'function' ? style(state) : style, variant === 'primary' ? styles.primary : variant === 'danger' ? styles.danger : variant === 'secondary' ? styles.secondary : styles.quiet, { minHeight: 48, minWidth: 44 }]}>
     {loading && <ActivityIndicator accessibilityLabel="Working" color={foreground} />}
-    {label !== undefined ? <Text style={[styles.label, textStyle, { color: foreground }]}>{label}</Text> : typeof children === 'string' || typeof children === 'number' ? <Text style={[styles.label, textStyle, { color: foreground }]}>{children}</Text> : children}
+    {label !== undefined ? <Text style={[styles.label, textStyle, { color: foreground }]}>{label}</Text> : typeof children === 'string' || typeof children === 'number' ? <Text style={[styles.label, textStyle, { color: foreground }]}>{children}</Text> : paint(children)}
   </PressableScale>;
 }
 const useStyles = makeStyles(({ colors: c, radius }) => StyleSheet.create({

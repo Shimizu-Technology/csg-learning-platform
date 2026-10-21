@@ -1,7 +1,10 @@
+import { Button } from '@/components/ui/button';
+import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
+import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { Check, CheckCircle2, RotateCcw } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { fonts, palette } from '@/constants/csg-theme';
+import { fonts } from '@/constants/csg-theme';
 
 export type GradingOutcome = 'A' | 'B' | 'C' | 'R';
 
@@ -16,6 +19,8 @@ interface GradingReviewActionsProps {
 }
 
 export function GradingReviewActions({ selected, changed, saving, disabled = false, saveBlocked = false, onSelect, onSave }: GradingReviewActionsProps) {
+  const styles = useStyles();
+  const { colors: c } = useTheme();
   const saveLabel = selected === 'R' ? 'Save redo request' : selected ? `Save grade ${selected}` : 'Save review';
   const controlsDisabled = saving || disabled;
   const saveDisabled = controlsDisabled || saveBlocked || !changed || !selected;
@@ -33,7 +38,7 @@ export function GradingReviewActions({ selected, changed, saving, disabled = fal
         onPress={() => onSelect(grade)}
         style={[styles.gradeButton, selected === grade && styles.gradeButtonActive, controlsDisabled && styles.disabled]}
       >
-        <Check color={selected === grade ? palette.text : palette.success} size={16} />
+        <Check color={selected === grade ? c.text.strong : c.status.success.fg} size={16} />
         <Text style={styles.gradeButtonText}>{grade}</Text>
       </Pressable>)}
     </View>
@@ -45,10 +50,10 @@ export function GradingReviewActions({ selected, changed, saving, disabled = fal
       onPress={() => onSelect('R')}
       style={[styles.redoButton, selected === 'R' && styles.redoButtonActive, controlsDisabled && styles.disabled]}
     >
-      <RotateCcw color={palette.warning} size={18} />
+      <RotateCcw color={c.status.warning.fg} size={18} />
       <Text style={styles.redoButtonText}>Request redo</Text>
     </Pressable>
-    <Pressable
+    <Button variant="secondary"
       accessibilityRole="button"
       accessibilityLabel={saveLabel}
       accessibilityState={{ disabled: saveDisabled }}
@@ -58,23 +63,23 @@ export function GradingReviewActions({ selected, changed, saving, disabled = fal
     >
       {saving
         ? <Text style={styles.saveReviewText}>Saving review…</Text>
-        : <><CheckCircle2 color={palette.text} size={18} /><Text style={styles.saveReviewText}>{saveLabel}</Text></>}
-    </Pressable>
+        : <><CheckCircle2 color={c.text.strong} size={18} /><Text style={styles.saveReviewText}>{saveLabel}</Text></>}
+    </Button>
   </View>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   container: { marginTop: 6 },
-  label: { color: palette.subtle, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.3, marginBottom: 8 },
-  hint: { color: palette.muted, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, marginTop: -3, marginBottom: 10 },
+  label: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.3, marginBottom: 8 },
+  hint: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, marginTop: -3, marginBottom: 10 },
   gradeRow: { flexDirection: 'row', gap: 8 },
-  gradeButton: { flex: 1, minHeight: 50, borderRadius: 15, borderWidth: 1, borderColor: '#1E5A43', backgroundColor: '#10271F', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-  gradeButtonActive: { backgroundColor: '#1B684A', borderColor: palette.success },
-  gradeButtonText: { color: palette.text, fontFamily: fonts.extraBold, fontSize: 13 },
-  redoButton: { minHeight: 52, borderRadius: 15, borderWidth: 1, borderColor: '#5B4720', backgroundColor: '#2A2115', marginTop: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  redoButtonActive: { backgroundColor: '#493718' },
-  redoButtonText: { color: palette.warning, fontFamily: fonts.bold, fontSize: 12 },
-  saveReview: { minHeight: 54, borderRadius: 16, backgroundColor: palette.ruby, marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  saveReviewText: { color: palette.text, fontFamily: fonts.extraBold, fontSize: 13 },
+  gradeButton: { flex: 1, minHeight: 50, borderRadius: 15, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.sunken, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  gradeButtonActive: { backgroundColor: c.surface.sunken, borderColor: c.status.success.fg },
+  gradeButtonText: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 13 },
+  redoButton: { minHeight: 52, borderRadius: 15, borderWidth: 1, borderColor: c.status.warning.border, backgroundColor: c.status.warning.bg, marginTop: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  redoButtonActive: { backgroundColor: c.status.warning.bg },
+  redoButtonText: { color: c.status.warning.fg, fontFamily: fonts.bold, fontSize: 12 },
+  saveReview: { minHeight: 54, borderRadius: 16, backgroundColor: c.action.primary, marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  saveReviewText: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 13 },
   disabled: { opacity: 0.42 },
-});
+}));

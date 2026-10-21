@@ -29,3 +29,8 @@ it('LoadingState names the pending operation', () => { expect(render(<LoadingSta
 it('StatusRow uses canonical learner status language', () => { const ui = render(<StatusRow status="awaiting_review" detail="Your instructor will review this." />); expect(ui.getByText('Submitted · awaiting review')).toBeTruthy(); });
 it('PressableScale preserves labels and fires only once per action', () => { const tap=jest.fn(); const ui=render(<PressableScale accessibilityRole="button" accessibilityLabel="Open card" onPress={tap}><Text>Card</Text></PressableScale>); fireEvent.press(ui.getByRole('button')); expect(tap).toHaveBeenCalledTimes(1); });
 it('CodeBlock retains raw indentation and newlines', () => { const code='for x in values:\n    print(x)'; const ui=render(<CodeBlock code={code} />); expect(ui.getByTestId('message-code-text').props.children).toBe(code); });
+
+it('wraps interpolated text children for native controls', () => {
+  const ui = render(<Button variant="secondary">Past weeks ({2})</Button>);
+  expect(ui.getByText('Past weeks (2)')).toBeTruthy();
+});

@@ -1,11 +1,14 @@
+import { Button } from '@/components/ui/button';
+import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
+import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useEventListener } from 'expo';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { AlertCircle, Check, RefreshCw } from 'lucide-react-native';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, StyleSheet, Text, View } from 'react-native';
 
-import { fonts, palette } from '@/constants/csg-theme';
+import { fonts } from '@/constants/csg-theme';
 import type { VideoProgressInput } from '@/lib/types';
 import { creditedPlaybackSeconds, formatVideoTime, normalizedProgress, PROGRESS_SAVE_INTERVAL_MS, resumePosition, streamRefreshDelay } from '@/lib/video-progress';
 
@@ -28,6 +31,8 @@ const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
 export interface NativeVideoPlayerHandle { seekTo: (seconds: number, play?: boolean) => void }
 
 export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideoPlayerProps>(function NativeVideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStream, saveProgress, onProgressSaved, stopAtSeconds = null, onStopAtReached, trackProgress = true }, ref) {
+  const styles = useStyles();
+  const { colors: c } = useTheme();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState(false);
@@ -260,33 +265,33 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
         player={player}
         style={styles.video}
       />
-      {loading && <View style={styles.overlay}><RefreshCw color={palette.rubySoft} size={24} /><Text style={styles.overlayText}>Preparing secure playback…</Text></View>}
-      {error && !loading && <View style={styles.overlay}><AlertCircle color={palette.rubySoft} size={26} /><Text style={styles.errorTitle}>Playback needs a reconnect</Text><Text numberOfLines={3} style={styles.errorCopy}>{error}</Text><Pressable accessibilityRole="button" accessibilityLabel="Retry playback" onPress={() => void loadSource()} style={styles.retry}><RefreshCw color={palette.text} size={16} /><Text style={styles.retryText}>Retry</Text></Pressable></View>}
+      {loading && <View style={styles.overlay}><RefreshCw color={c.text.body} size={24} /><Text style={styles.overlayText}>Preparing secure playback…</Text></View>}
+      {error && !loading && <View style={styles.overlay}><AlertCircle color={c.text.body} size={26} /><Text style={styles.errorTitle}>Playback needs a reconnect</Text><Text numberOfLines={3} style={styles.errorCopy}>{error}</Text><Button variant="secondary" accessibilityRole="button" accessibilityLabel="Retry playback" onPress={() => void loadSource()} style={styles.retry}><RefreshCw color={c.text.strong} size={16} /><Text style={styles.retryText}>Retry</Text></Button></View>}
     </View>
-    <View style={styles.statusRow}><Text style={styles.time}>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</Text>{!trackProgress ? <Text style={styles.sync}>Preview mode</Text> : completed ? <View style={styles.synced}><Check color={palette.success} size={13} /><Text style={styles.completeText}>Watched</Text></View> : <Text style={[styles.sync, syncError && styles.syncError]}>{syncError ? 'Progress will retry' : playing ? 'Watching' : 'Progress saved'}</Text>}</View>
+    <View style={styles.statusRow}><Text style={styles.time}>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</Text>{!trackProgress ? <Text style={styles.sync}>Preview mode</Text> : completed ? <View style={styles.synced}><Check color={c.status.success.fg} size={13} /><Text style={styles.completeText}>Watched</Text></View> : <Text style={[styles.sync, syncError && styles.syncError]}>{syncError ? 'Progress will retry' : playing ? 'Watching' : 'Progress saved'}</Text>}</View>
     <View accessibilityRole="radiogroup" accessibilityLabel="Playback speed" style={styles.speedRow}>{SPEEDS.map((speed) => <Pressable key={speed} accessibilityRole="radio" accessibilityState={{ checked: rate === speed }} accessibilityLabel={`Play at ${speed} times speed`} onPress={() => changeRate(speed)} style={[styles.speed, rate === speed && styles.speedActive]}><Text style={[styles.speedText, rate === speed && styles.speedTextActive]}>{speed}×</Text></Pressable>)}</View>
   </View>;
 });
 
-const styles = StyleSheet.create({
-  shell: { borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panelRaised },
-  videoWrap: { width: '100%', aspectRatio: 16 / 9, backgroundColor: '#030408' },
+const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
+  shell: { borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.sunken },
+  videoWrap: { width: '100%', aspectRatio: 16 / 9, backgroundColor: c.surface.sunken },
   video: { width: '100%', height: '100%' },
-  overlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 22, backgroundColor: 'rgba(5,6,10,0.92)' },
-  overlayText: { color: palette.muted, fontFamily: fonts.semibold, fontSize: 11 },
-  errorTitle: { color: palette.text, fontFamily: fonts.bold, fontSize: 14, textAlign: 'center' },
-  errorCopy: { color: palette.muted, fontFamily: fonts.regular, fontSize: 11, lineHeight: 16, textAlign: 'center' },
-  retry: { minHeight: 44, borderRadius: 13, backgroundColor: palette.ruby, paddingHorizontal: 17, flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 4 },
-  retryText: { color: palette.text, fontFamily: fonts.bold, fontSize: 11 },
+  overlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 22, backgroundColor: c.surface.raised },
+  overlayText: { color: c.text.body, fontFamily: fonts.semibold, fontSize: 12 },
+  errorTitle: { color: c.status.danger.fg, fontFamily: fonts.bold, fontSize: 14, textAlign: 'center' },
+  errorCopy: { color: c.status.danger.fg, fontFamily: fonts.regular, fontSize: 12, lineHeight: 16, textAlign: 'center' },
+  retry: { minHeight: 44, borderRadius: 13, backgroundColor: c.selection.bg, paddingHorizontal: 17, flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 4 },
+  retryText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 12 },
   statusRow: { minHeight: 38, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  time: { color: palette.muted, fontFamily: fonts.medium, fontSize: 11 },
-  sync: { color: palette.subtle, fontFamily: fonts.semibold, fontSize: 11 },
-  syncError: { color: palette.warning },
+  time: { color: c.text.body, fontFamily: fonts.medium, fontSize: 12 },
+  sync: { color: c.text.body, fontFamily: fonts.semibold, fontSize: 12 },
+  syncError: { color: c.status.danger.fg },
   synced: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  completeText: { color: palette.success, fontFamily: fonts.bold, fontSize: 11 },
+  completeText: { color: c.status.success.fg, fontFamily: fonts.bold, fontSize: 12 },
   speedRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 10, paddingBottom: 10 },
-  speed: { minWidth: 44, minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: palette.line, alignItems: 'center', justifyContent: 'center', flex: 1 },
-  speedActive: { borderColor: '#6B2A38', backgroundColor: '#2A151B' },
-  speedText: { color: palette.muted, fontFamily: fonts.bold, fontSize: 11 },
-  speedTextActive: { color: palette.rubySoft },
-});
+  speed: { minWidth: 44, minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: c.border.subtle, alignItems: 'center', justifyContent: 'center', flex: 1 },
+  speedActive: { borderColor: c.border.strong, backgroundColor: c.surface.sunken },
+  speedText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 },
+  speedTextActive: { color: c.text.body },
+}));

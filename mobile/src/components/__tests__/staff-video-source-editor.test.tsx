@@ -59,7 +59,7 @@ describe('staff lesson video source editor', () => {
     fireEvent.press(screen.getByText('Upload file'));
     fireEvent.press(screen.getByLabelText('Choose lesson video from files'));
 
-    await waitFor(() => expect(alert).toHaveBeenCalledWith('Choose a supported video', 'Use an MP4, MOV, M4V, or WebM video.'));
+    await waitFor(() => expect(alert).toHaveBeenCalledWith('Choose a supported video', 'Use an MP4, MOV, M4V, or WebM video.', undefined, expect.objectContaining({ userInterfaceStyle: 'light' })));
     expect(onUpload).not.toHaveBeenCalled();
     alert.mockRestore();
   });
@@ -123,7 +123,7 @@ describe('staff lesson video source editor', () => {
     expect(onAbandon).toHaveBeenCalledWith(newKey);
     expect(onCleanupDeferred).toHaveBeenCalledWith(newKey);
     expect(onChange).not.toHaveBeenCalled();
-    expect(alert).toHaveBeenCalledWith('Video change did not finish', 'Storage cleanup failed');
+    expect(alert).toHaveBeenCalledWith('Video change did not finish', 'Storage cleanup failed', undefined, expect.objectContaining({ userInterfaceStyle: 'light' }));
     alert.mockRestore();
   });
 });
