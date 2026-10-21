@@ -53,7 +53,7 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   item: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderRadius: 17, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.sunken, padding: 13 },
   check: { marginTop: 2 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  code: { ...typography.label, color: c.code.fg, fontFamily: monoFont, backgroundColor: c.code.bg, borderRadius: 7, paddingHorizontal: 7, paddingVertical: 4, overflow: 'hidden' },
+  code: { ...typography.label, color: c.text.strong, fontFamily: monoFont, backgroundColor: c.surface.sunken, borderRadius: 7, paddingHorizontal: 7, paddingVertical: 4, overflow: 'hidden' },
   target: { ...typography.meta, flex: 1, color: c.text.body, fontFamily: fonts.semibold },
   title: { ...typography.body, color: c.text.strong, fontFamily: fonts.extraBold, marginTop: 8 },
   description: { ...typography.body, color: c.text.body, fontFamily: fonts.regular, marginTop: 4 },

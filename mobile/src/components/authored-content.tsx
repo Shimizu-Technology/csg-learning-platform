@@ -128,7 +128,7 @@ export function AuthoredContent({ body, compact = false, starterLinks }: Authore
         ol: { marginTop: 0, marginBottom: 12, paddingLeft: 18 },
         li: { marginBottom: 6 },
         blockquote: { borderLeftWidth: 3, borderLeftColor: c.action.primary, backgroundColor: c.surface.sunken, paddingHorizontal: 13, paddingVertical: 10, marginVertical: 10 },
-        code: { color: c.code.fg, fontFamily: monoFont, fontSize: 13, backgroundColor: c.code.bg },
+        code: { color: c.text.strong, fontFamily: monoFont, fontSize: 13, backgroundColor: c.surface.sunken },
         img: { borderRadius: 12, marginVertical: 8 },
         table: { borderWidth: 1, borderColor: c.border.subtle, marginVertical: 10 },
         th: { color: c.text.strong, fontFamily: fonts.bold, backgroundColor: c.surface.sunken, padding: 8 },
