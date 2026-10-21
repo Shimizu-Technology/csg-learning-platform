@@ -16,7 +16,8 @@ describe('course time (ChST)', () => {
         expect(formatCourseDateTime('2026-10-21T08:00:00Z')).toBe('Oct 21, 6:00 PM ChST');
       }
     } finally {
-      process.env.TZ = original;
+      if (original === undefined) delete process.env.TZ;
+      else process.env.TZ = original;
     }
   });
 

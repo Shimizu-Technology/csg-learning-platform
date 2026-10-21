@@ -110,6 +110,14 @@ describe('LessonContentBlockCard', () => {
     expect(screen.queryByTestId('submission-code-input')).toBeNull();
   });
 
+  it('shows Done for completed GitHub-synced work, but not for reviewed work without a review', () => {
+    const synced = renderWithQuery(<LessonContentBlockCard block={checkpoint({ block_type: 'exercise', submission_type: 'prework_github_sync', progress: { status: 'completed', completed_at: null } })} lesson={lesson} />);
+    expect(synced.getByText('Done')).toBeTruthy();
+
+    const unreviewed = renderWithQuery(<LessonContentBlockCard block={checkpoint({ progress: { status: 'completed', completed_at: null } })} lesson={lesson} />);
+    expect(unreviewed.queryByText('Done')).toBeNull();
+  });
+
   it('hides an imported video step that has no video yet', () => {
     const screen = renderWithQuery(<LessonContentBlockCard block={checkpoint({ id: 190, block_type: 'video', title: null, body: '', submission_type: 'manual_complete' })} lesson={lesson} />);
 

@@ -191,6 +191,7 @@ export default function ConversationScreen() {
     nearBottomRef.current = true;
     pendingScrollRef.current = true;
     unreadScrollPendingRef.current = false;
+    unreadRetryRef.current = null;
     setShowScrollToLatest(false);
     setNewMessagesBelow(0);
     requestAnimationFrame(() => listRef.current?.scrollToOffset({ animated, offset: 0 }));
@@ -756,7 +757,11 @@ export default function ConversationScreen() {
               const retry = unreadRetryRef.current;
               if (retry && retry.index === index && retry.attempts < 3) {
                 retry.attempts += 1;
-                setTimeout(() => listRef.current?.scrollToIndex({ animated: false, index, viewPosition: 1, viewOffset: 12 }), 120);
+                setTimeout(() => {
+                  // The learner may have jumped to the latest message meanwhile; only retry the current divider request.
+                  if (unreadRetryRef.current !== retry) return;
+                  listRef.current?.scrollToIndex({ animated: false, index, viewPosition: 1, viewOffset: 12 });
+                }, 120);
               }
             }, 50)}
             contentContainerStyle={styles.list}
