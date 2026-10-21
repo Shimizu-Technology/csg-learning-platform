@@ -1,0 +1,95 @@
+appId: com.codeschoolofguam.connect
+name: Weekly private meeting — real API book, reschedule, keep, cancel
+# Requires an invited learner signed in to Clerk development, a guided cohort,
+# and two free future slots in WEEK (both beyond the learner cutoff).
+# Start with no booking/change history in WEEK. Never use production fixtures.
+env:
+  WEEK: '2'
+---
+- launchApp
+- openLink: ${CSG_DEVELOPMENT_URL}
+- tapOn:
+    text: 'Open'
+    optional: true
+- runFlow:
+    when:
+      visible: 'Keep the CSG community safe'
+    commands:
+      - tapOn: 'I agree to the Terms.*'
+      - tapOn: 'Agree and continue'
+- extendedWaitUntil:
+    visible: 'YOUR LEARNING DAY'
+    timeout: 90000
+- tapOn:
+    id: 'book-private-hour'
+    enabled: true
+- extendedWaitUntil:
+    visible: 'Meetings'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: 'meeting-slot-${WEEK}-0'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'meeting-slot-${WEEK}-0'
+    enabled: true
+- assertVisible: 'Book your private hour?'
+- assertVisible: '.*ChST.*'
+- tapOn:
+    id: 'meeting-confirm-submit'
+    enabled: true
+- extendedWaitUntil:
+    visible: 'Your meeting is booked.'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: 'reschedule-week-${WEEK}'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'reschedule-week-${WEEK}'
+    enabled: true
+    retryTapIfNoChange: true
+- assertVisible: 'Keep current time.*'
+- scrollUntilVisible:
+    element:
+      id: 'meeting-slot-${WEEK}-0'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'meeting-slot-${WEEK}-0'
+    enabled: true
+- assertVisible: 'Move your private meeting?'
+- assertVisible: '.*only remaining schedule change.*'
+- tapOn:
+    id: 'meeting-confirm-submit'
+    enabled: true
+- extendedWaitUntil:
+    visible: 'Your meeting was moved.'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: 'cancel-week-${WEEK}'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'cancel-week-${WEEK}'
+    enabled: true
+- assertVisible: '.*cannot book another time yourself.*'
+- tapOn: 'Keep meeting'
+- assertVisible: 'Booked'
+- tapOn:
+    id: 'cancel-week-${WEEK}'
+    enabled: true
+- tapOn:
+    id: 'meeting-confirm-submit'
+    enabled: true
+- extendedWaitUntil:
+    visible: 'Your meeting was cancelled.'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: 'You have used your schedule change for Week ${WEEK}.*'
+    direction: DOWN
+    centerElement: true

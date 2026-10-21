@@ -1,7 +1,7 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useRouter, type Href } from 'expo-router';
 import { AlertTriangle, ArrowRight, BadgeCheck, BookOpen, CalendarCheck, CalendarClock, ClipboardCheck, Clock3, ExternalLink, Hourglass, LifeBuoy, Megaphone, MessageSquare, RotateCcw, Users, type LucideIcon } from 'lucide-react-native';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { LearningCard, ProgressBar, SectionHeading } from '@/components/learning-ui';
@@ -38,10 +38,7 @@ export default function TodayScreen() {
     enabled: Boolean(user && !user.is_staff),
   });
   const weeklyPlan = weeklyQuery.data?.weekly_plan;
-  const meetingsMutation = useMutation({
-    mutationFn: () => openAuthenticatedWebPage(api, '/meetings'),
-    onError: (error) => Alert.alert('Could not open meetings', (error as Error).message),
-  });
+
   const refresh = () => void Promise.all([query.refetch(), user?.is_staff ? Promise.resolve() : weeklyQuery.refetch()]);
 
   if (query.isPending && !dashboard) return <SafeAreaView style={styles.safe}><LoadingState label="Loading today" /></SafeAreaView>;
@@ -90,7 +87,7 @@ export default function TodayScreen() {
           {showCourseProgress && <><View style={styles.progressCopy}><Text style={styles.progressLabel}>Course progress</Text><Text style={styles.progressValue}>{Math.round(progress)}%</Text></View><ProgressBar value={progress} label="Course progress" /></>}
         </LearningCard>}
 
-        {dashboard.private_meetings_enabled && <Pressable accessibilityRole="button" accessibilityLabel="Book your weekly private hour" accessibilityHint="Opens your meetings page on the CSG Learn website" accessibilityState={{ busy: meetingsMutation.isPending }} disabled={meetingsMutation.isPending} onPress={() => meetingsMutation.mutate()} style={({ pressed }) => [styles.meetings, pressed && styles.pressed]} testID="book-private-hour"><View style={styles.meetingsIcon}><CalendarCheck color={palette.text} size={20} /></View><View style={styles.flex}><Text style={styles.cardTitle}>Book your weekly private hour</Text><Text style={styles.cardMeta}>Pick a one-on-one time with your instructor. Opens on the CSG Learn website.</Text></View>{meetingsMutation.isPending ? <ActivityIndicator color={palette.text} /> : <ExternalLink color={palette.muted} size={18} />}</Pressable>}
+        {dashboard.private_meetings_enabled && <Pressable accessibilityRole="button" accessibilityLabel="Book your weekly private hour" accessibilityHint="Choose or change your weekly meeting in the app" onPress={() => router.push('/meetings' as Href)} style={({ pressed }) => [styles.meetings, pressed && styles.pressed]} testID="book-private-hour"><View style={styles.meetingsIcon}><CalendarCheck color={palette.text} size={20} /></View><View style={styles.flex}><Text style={styles.cardTitle}>Book your weekly private hour</Text><Text style={styles.cardMeta}>Choose or change your 60-minute Zoom hour.</Text></View><ArrowRight color={palette.muted} size={18} /></Pressable>}
 
         {showWeeklyPlan && weeklyPlan && <WeeklyPlanCard plan={weeklyPlan} />}
 

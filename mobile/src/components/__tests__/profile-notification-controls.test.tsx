@@ -302,14 +302,11 @@ describe('ProfileScreen course-specific controls', () => {
     expect(render(<ProfileScreen />).queryAllByText(/GitHub/).length).toBeGreaterThan(0);
   });
 
-  it('opens private meeting booking on the web and explains a failure', async () => {
+  it('opens private meeting booking in the app', () => {
     mockDashboard = studentDashboard({ private_meetings_enabled: true });
-    mockOpenWebPage.mockRejectedValueOnce(new Error('Handoff unavailable'));
     const screen = render(<ProfileScreen />);
-
     fireEvent.press(screen.getByRole('button', { name: 'Book your weekly private hour' }));
-
-    await waitFor(() => expect(mockOpenWebPage).toHaveBeenCalledWith(expect.anything(), '/meetings'));
-    await waitFor(() => expect(jest.mocked(Alert.alert)).toHaveBeenCalledWith('Could not open meetings', 'Handoff unavailable'));
+    expect(mockRouter.push).toHaveBeenCalledWith('/meetings');
+    expect(mockOpenWebPage).not.toHaveBeenCalled();
   });
 });

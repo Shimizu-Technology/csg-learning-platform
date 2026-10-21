@@ -1,3 +1,4 @@
+import type { PrivateMeetingBooking, PrivateMeetingsResponse } from './private-meetings';
 import type {
   ActivityEventsResponse,
   AccessibleCohort,
@@ -165,6 +166,11 @@ export class CsgApi {
       signal?.removeEventListener('abort', cancel);
     }
   }
+
+  privateMeetings = (signal?: AbortSignal) => this.request<PrivateMeetingsResponse>('/api/v1/private_meetings', { signal });
+  bookPrivateMeeting = (slotId: number) => this.request<{ booking: PrivateMeetingBooking }>('/api/v1/private_meetings', { method: 'POST', body: JSON.stringify({ slot_id: slotId }) });
+  reschedulePrivateMeeting = (bookingId: number, slotId: number) => this.request<{ booking: PrivateMeetingBooking }>(`/api/v1/private_meetings/${bookingId}`, { method: 'PATCH', body: JSON.stringify({ slot_id: slotId }) });
+  cancelPrivateMeeting = (bookingId: number) => this.request<{ booking: PrivateMeetingBooking }>(`/api/v1/private_meetings/${bookingId}`, { method: 'DELETE' });
 
   session = () => this.request<{ user: SessionUser; enrollments: SessionEnrollment[] }>('/api/v1/sessions', { method: 'POST' });
   activityEvents = (params?: { user_id?: number; category?: string; before_id?: number }, signal?: AbortSignal) => this.request<ActivityEventsResponse>(`/api/v1/activity_events${queryString(params || {})}`, { signal });

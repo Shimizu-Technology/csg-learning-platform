@@ -14,5 +14,7 @@ export function createServerStateClient() {
 }
 
 export function shouldPersistServerQuery(query: Query) {
-  return query.meta?.persist !== false;
+  // SQLite JSON cannot preserve a pending query's Promise. Keep completed
+  // snapshots, including saved data after an offline refresh error.
+  return query.meta?.persist !== false && query.state.status !== 'pending' && query.state.data !== undefined;
 }
