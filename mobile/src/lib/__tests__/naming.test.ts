@@ -21,6 +21,7 @@ describe('mobile product identity', () => {
     expect(config.name).toBe('CSG Learn');
     expect(config.slug).toBe('csg-connect');
     expect(config.scheme).toEqual(['csgconnect', 'csglearn']);
+    expect(config.ios.infoPlist.CFBundleName).toBe('CSG Learn');
     expect(config.ios.bundleIdentifier).toBe('com.codeschoolofguam.connect');
     expect(config.android.package).toBe('com.codeschoolofguam.connect');
     expect(config.extra.eas.projectId).toBe('c6326478-e200-4aba-8614-806ca5f8e03a');

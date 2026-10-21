@@ -19,7 +19,8 @@
       "bundleIdentifier": "com.codeschoolofguam.connect",
       "supportsTablet": true,
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleName": "CSG Learn"
       }
     },
     "android": {
