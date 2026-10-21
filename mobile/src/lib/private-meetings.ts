@@ -20,13 +20,16 @@ const DAY = 86_400_000;
 export function courseWeekEndsAt(startDate: string, week: number) {
   return Date.parse(`${startDate}T00:00:00+10:00`) + week * 7 * DAY;
 }
-export function courseWeekForSlot(startDate: string, startsAt: string, weeks: number): number | null {
+/** The course week of a slot, matching the API's `PrivateMeetingConfig#week_for`: null outside the weeks or after the cohort's end date. */
+export function courseWeekForSlot(startDate: string, startsAt: string, weeks: number, endDate?: string | null): number | null {
   const date = new Date(startsAt);
   if (!Number.isFinite(date.getTime())) return null;
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: COURSE_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date).map((p) => [p.type, p.value]));
   const slotDay = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day));
   const week = Math.floor((slotDay - Date.parse(`${startDate}T00:00:00Z`)) / (7 * DAY)) + 1;
-  return week >= 1 && week <= weeks ? week : null;
+  if (week < 1 || week > weeks) return null;
+  if (endDate && slotDay > Date.parse(`${endDate}T00:00:00Z`)) return null;
+  return week;
 }
 export function partitionMeetingWeeks(startDate: string, weeks: number, now = Date.now()) {
   const all = Array.from({ length: Math.max(0, weeks) }, (_, i) => i + 1);
@@ -45,7 +48,7 @@ export function canReschedule(cohort: PrivateMeetingCohort, booking: PrivateMeet
   return beforeChangeCutoff(cohort, booking, now) && booking.reschedule_count < cohort.max_student_changes;
 }
 export function availableSlotsForWeek(cohort: PrivateMeetingCohort, week: number, now = Date.now()) {
-  return cohort.slots.filter((s) => s.available && Date.parse(s.starts_at) > now + cohort.reschedule_cutoff_hours * 3_600_000 && courseWeekForSlot(cohort.start_date, s.starts_at, cohort.weeks) === week).sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at));
+  return cohort.slots.filter((s) => s.available && Date.parse(s.starts_at) > now + cohort.reschedule_cutoff_hours * 3_600_000 && courseWeekForSlot(cohort.start_date, s.starts_at, cohort.weeks, cohort.end_date) === week).sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at));
 }
 export function cancelConsequence(week: number, changes: number, max: number) {
   if (changes >= max) return `You have already used your schedule change for Week ${week}. If you cancel, you cannot book another time yourself. Message your instructor to arrange another time.`;

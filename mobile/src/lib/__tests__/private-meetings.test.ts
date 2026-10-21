@@ -42,3 +42,12 @@ describe('private meeting rules', () => {
     expect(formatCourseTimeRange(booking.starts_at, booking.ends_at)).toBe('Sat, Dec 12, 12:00 PM – 1:00 PM ChST');
   });
 });
+
+describe('course end date', () => {
+  it('treats slots after the cohort end date as outside the course, like the API', () => {
+    expect(courseWeekForSlot('2026-11-30', '2026-12-19T12:00:00+10:00', 3, '2026-12-19')).toBe(3);
+    expect(courseWeekForSlot('2026-11-30', '2026-12-20T12:00:00+10:00', 3, '2026-12-19')).toBeNull();
+    const ended = { ...cohort, end_date: '2026-12-12', slots: [{ ...cohort.slots[0], starts_at: '2026-12-13T13:00:00+10:00', ends_at: '2026-12-13T14:00:00+10:00' }] };
+    expect(availableSlotsForWeek(ended, 2, now)).toEqual([]);
+  });
+});
