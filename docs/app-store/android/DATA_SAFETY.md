@@ -14,7 +14,7 @@ This is a release worksheet, not a final legal determination. Reconcile it again
 
 ## Data-type inventory
 
-| Play category | Examples in CSG Connect | Collected | User optional? | Primary purposes |
+| Play category | Examples in CSG Learn | Collected | User optional? | Primary purposes |
 | --- | --- | --- | --- | --- |
 | Personal info | Name, email, profile image, role, cohort, optional GitHub username | Yes | Mostly no; some profile fields optional | Account management, app functionality, security |
 | User IDs | Clerk identity, internal user ID | Yes | No | Authentication, authorization, account management |

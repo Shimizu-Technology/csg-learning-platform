@@ -1,24 +1,40 @@
-# CSG Connect icon sources
+# CSG Learn brand sources
 
-These SVG files are the editable vector sources for the generated PNG assets in `../images`.
+The official logo is reconstructed from `web/public/CSG-Logo.png` (500×500).
+The sampled flat colors are sage `#7d8b68`, tile `#191920`, and lettering
+`#fcfbfc`. No replacement font is required at build or runtime.
 
-- `icon-light.svg` — default iOS and legacy full icon
-- `icon-dark.svg` — iOS dark appearance
-- `icon-tinted.svg` — grayscale iOS tinted appearance source
-- `icon-foreground.svg` — transparent Android adaptive foreground and splash source
-- `icon-monochrome.svg` — Android themed and notification icon source
+`csg-mark.svg` is geometric: an eight-position gear with five surviving teeth,
+45° spacing, center (175.5,245.5), ring radii 69.5/50.9, tooth width32.5,
+outer radius88, corner radius3.5, and a roughly124° opening (inner132°).
+The oblique terminal cuts reproduce the source rather than using a radial cut.
+`csg-lockup.svg` retains the full official composition. `csg-lettering.svg`
+contains the original serif outlines. A specific open-licensed font could not
+be verified; these are cleaned Potrace1.16 outlines of the source lettering at
+4× upscale, not a substitute font or an automatic trace of the gear.
 
-Regenerate the PNG exports from the repository root:
+Candidate A combines the C with the original SG outlines, B is the gear alone,
+and C stacks the gear and CSG. A is selected: SG stays readable at60px, and
+at29px the gear remains recognizable with the initials. C's stacked lettering
+is smaller. Keep the tile square: the operating system applies its own mask.
+
+From `mobile/`, run:
 
 ```bash
-rsvg-convert -w 1024 -h 1024 mobile/assets/brand/icon-light.svg -o mobile/assets/images/icon.png
-rsvg-convert -w 1024 -h 1024 mobile/assets/brand/icon-light.svg -o mobile/assets/images/icon-light.png
-rsvg-convert -w 1024 -h 1024 mobile/assets/brand/icon-dark.svg -o mobile/assets/images/icon-dark.png
-rsvg-convert -w 1024 -h 1024 mobile/assets/brand/icon-tinted.svg -o mobile/assets/images/icon-tinted.png
-rsvg-convert -w 1024 -h 1024 mobile/assets/brand/icon-foreground.svg -o mobile/assets/images/icon-foreground.png
-rsvg-convert -w 1024 -h 1024 mobile/assets/brand/icon-monochrome.svg -o mobile/assets/images/icon-monochrome.png
-rsvg-convert -w 512 -h 512 mobile/assets/brand/icon-foreground.svg -o mobile/assets/images/splash-icon.png
-rsvg-convert -w 96 -h 96 mobile/assets/brand/icon-monochrome.svg -o mobile/assets/images/notification-icon.png
+npm ci
+npm run brand:generate
+npm run brand:check
+# Optional candidate sheet, Android masks, fidelity overlay/diff, asset manifest:
+node scripts/generate-brand-assets.mjs --evidence /absolute/output/directory
 ```
 
-Do not add rounded corners to source or exported icon canvases. The operating system applies its own mask.
+Sharp is a pinned development dependency. All icon/splash/notification/favicon
+PNGs and Android store images derive from these SVG sources. `brand:check`
+checks dimensions, alpha, white silhouettes, grayscale tint, pixel freshness,
+and the Android66/108 safe circle. It also checks the Play PNGs and every generated documentation SVG copy for missing/stale output. The feature graphic copy uses committed Manrope outlines in `play-feature-copy.svg` (from the existing font package under the SIL Open Font License), so generation needs no system font. On macOS it also decodes every image with
+`sips`. The icon dark background is transparent; tinted is white on black.
+Splash sources use dark ink on cream in light appearance and white on the dark
+tile in dark appearance. Notification uses only the simple white gear silhouette.
+
+The sign-in `CsgMark` uses the same geometry through the existing
+`react-native-svg` dependency. Keep it in sync with `csg-mark.svg`.

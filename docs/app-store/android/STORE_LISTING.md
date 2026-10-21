@@ -6,7 +6,7 @@ Use this copy as the English (United States) default listing. Confirm every stat
 
 **App name**
 
-CSG Connect
+CSG Learn
 
 **Short description**
 
@@ -14,7 +14,7 @@ Learn, message, submit work, and stay connected with Code School of Guam.
 
 **Full description**
 
-CSG Connect is the mobile learning hub for invited Code School of Guam students, instructors, and administrators.
+CSG Learn is the mobile learning hub for invited Code School of Guam students, instructors, and administrators.
 
 Keep your class day in one place:
 
@@ -29,7 +29,7 @@ Keep your class day in one place:
 
 Access is limited to authorized Code School of Guam accounts. Features and content depend on your role, cohort, and current enrollment.
 
-CSG Connect is operated by Shimizu Technology for Code School of Guam.
+CSG Learn is operated by Shimizu Technology for Code School of Guam.
 
 ## Classification draft
 
@@ -62,8 +62,8 @@ The youngest current student is 15, so Play's `13–15` bracket is required. Tha
 
 | Asset | Requirement | Source/status |
 | --- | --- | --- |
-| Play icon | 512×512, 32-bit PNG, up to 1 MB | `assets/play-icon-512.png`; 512×512, opaque, 19 KB |
-| Feature graphic | 1024×500, JPEG or 24-bit PNG without alpha | `assets/feature-graphic-1024x500.png`; 1024×500, opaque, 292 KB |
+| Play icon | 512×512, 32-bit PNG, up to 1 MB | `assets/play-icon-512.png`; 512×512, opaque; generated from the official SVG |
+| Feature graphic | 1024×500, JPEG or 24-bit PNG without alpha | `assets/feature-graphic-1024x500.png`; 1024×500, opaque; generated from the official SVG |
 | Phone screenshots | At least 2; 2–8 accepted | Capture clean Android phone emulator after final build |
 | 7-inch/10-inch tablet screenshots | Recommended if tablet distribution remains enabled | Capture only after tablet layout acceptance |
 

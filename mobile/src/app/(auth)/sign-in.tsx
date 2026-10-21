@@ -10,7 +10,6 @@ import {
   LockKeyhole,
   Mail,
   MailOpen,
-  MessageCircle,
   ShieldCheck,
 } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
@@ -27,6 +26,8 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { CsgMark } from '@/components/csg-mark';
 
 import { fonts, palette } from '@/constants/csg-theme';
 import { authErrorMessage, isAuthCancellation } from '@/lib/auth-errors';
@@ -280,10 +281,10 @@ export default function SignIn() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.brandRow}>
-            <View style={styles.mark}><MessageCircle color={palette.text} size={23} strokeWidth={2.3} /></View>
+            <View style={styles.mark}><CsgMark width={25} height={36} /></View>
             <View>
               <Text style={styles.eyebrow}>CODE SCHOOL OF GUAM</Text>
-              <Text style={styles.brandName}>CSG Connect</Text>
+              <Text style={styles.brandName}>CSG Learn</Text>
             </View>
           </View>
 
@@ -438,7 +439,7 @@ const styles = StyleSheet.create({
   gridHorizontal: { position: 'absolute', left: 0, right: 0, height: StyleSheet.hairlineWidth, backgroundColor: palette.line },
   content: { flexGrow: 1, paddingHorizontal: 22, paddingTop: 16 },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 13 },
-  mark: { width: 46, height: 46, borderRadius: 15, backgroundColor: palette.ruby, alignItems: 'center', justifyContent: 'center', shadowColor: palette.ruby, shadowOpacity: 0.28, shadowRadius: 14, shadowOffset: { width: 0, height: 7 } },
+  mark: { width: 46, height: 46, borderRadius: 15, backgroundColor: '#191920', alignItems: 'center', justifyContent: 'center', shadowColor: '#191920', shadowOpacity: 0.28, shadowRadius: 14, shadowOffset: { width: 0, height: 7 } },
   eyebrow: { color: palette.muted, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.8 },
   brandName: { color: palette.text, fontFamily: fonts.extraBold, fontSize: 22, letterSpacing: -0.7, marginTop: 1 },
   hero: { marginTop: 34, marginBottom: 26 },

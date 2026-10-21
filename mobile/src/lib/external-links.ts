@@ -8,7 +8,7 @@ export async function openExternalPage(value: string | null | undefined) {
   if (!url) throw new Error('This link is not a valid web address.');
   await WebBrowser.openBrowserAsync(url, {
     presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
-    controlsColor: '#C51D34',
+    controlsColor: '#9c292b',
   });
 }
 
