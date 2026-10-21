@@ -1,3 +1,4 @@
+import { themes } from '@/constants/csg-theme';
 import { Script } from 'node:vm';
 
 import {
@@ -8,6 +9,7 @@ import {
   richTextEditorContentScript,
   richTextEditorDocument,
   richTextEditorFontSize,
+  richTextEditorThemeScript,
   sanitizedStoredRichTextValue,
   sanitizeRichTextHtml,
   safeRichTextImage,
@@ -89,4 +91,12 @@ describe('rich text editor bridge', () => {
     expect(script).toContain('\\u003cp\\u003eSafe \\u0026amp; sound\\u003c/p\\u003e');
     expect(richTextEditorCommandScript('setLink', 'https://example.com/?a=1&b=2')).toContain('\\u0026');
   });
+});
+
+it('updates editor appearance without replacing content or selection', () => {
+  const script = richTextEditorThemeScript(themes.dark);
+  expect(script).toContain(themes.dark.colors.surface.raised);
+  expect(script).toContain('color-scheme: dark');
+  expect(script).not.toMatch(/innerHTML|setContent|removeAllRanges/);
+  expect(richTextEditorDocument('Draft', 'Write', 1, themes.light)).toContain('color-scheme: light');
 });

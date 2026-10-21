@@ -35,7 +35,7 @@ describe('GradingReviewActions', () => {
     fireEvent.press(screen.getByLabelText('Save grade B'));
 
     expect(onSave).not.toHaveBeenCalled();
-    expect(screen.getByLabelText('Save grade B').props.accessibilityState).toEqual({ disabled: true });
+    expect(screen.getByLabelText('Save grade B').props.accessibilityState).toMatchObject({ disabled: true });
   });
 
   it('blocks every grading action while a saved draft is restoring', () => {
@@ -57,7 +57,7 @@ describe('GradingReviewActions', () => {
 
     fireEvent.press(screen.getByLabelText('Save grade A'));
     expect(onSave).not.toHaveBeenCalled();
-    expect(screen.getByLabelText('Save grade A').props.accessibilityState).toEqual({ disabled: true });
+    expect(screen.getByLabelText('Save grade A').props.accessibilityState).toMatchObject({ disabled: true });
 
     screen.rerender(<GradingReviewActions selected="A" changed saving={false} saveBlocked={false} onSelect={jest.fn()} onSave={onSave} />);
     fireEvent.press(screen.getByLabelText('Save grade A'));

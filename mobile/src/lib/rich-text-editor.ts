@@ -1,3 +1,4 @@
+import { themes, type CsgTheme } from '@/constants/csg-theme';
 import { DomUtils, parseDocument } from 'htmlparser2';
 
 import { authoredContentSource } from './authored-content';
@@ -155,7 +156,16 @@ export function richTextEditorContentScript(value: string) {
   return `window.CSGEditor && window.CSGEditor.setContent(${safeJson(normalizedRichTextValue(value))}); true;`;
 }
 
-export function richTextEditorDocument(value: string, placeholder: string, fontScale = 1) {
+/** CSS-only updates preserve the WebView's DOM, selection, undo and unsaved work. */
+function editorThemeVariables(theme: CsgTheme) {
+  const c = theme.colors;
+  return `color-scheme: ${theme.scheme}; --surface: ${c.surface.raised}; --sunken: ${c.surface.sunken}; --body: ${c.text.body}; --strong: ${c.text.strong}; --border: ${c.border.strong}; --code-bg: ${c.code.bg}; --code-fg: ${c.code.fg}; --code-border: ${c.code.border};`;
+}
+export function richTextEditorThemeScript(theme: CsgTheme) {
+  return `document.documentElement.style.cssText = ${safeJson(editorThemeVariables(theme))}; true;`;
+}
+
+export function richTextEditorDocument(value: string, placeholder: string, fontScale = 1, theme: CsgTheme = themes.light) {
   const initialHtml = safeJson(normalizedRichTextValue(value));
   const safePlaceholder = escapeHtml(placeholder);
   const editorFontSize = richTextEditorFontSize(fontScale);
@@ -169,23 +179,23 @@ export function richTextEditorDocument(value: string, placeholder: string, fontS
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
   <style>
-    :root { color-scheme: dark; }
+    :root { ${editorThemeVariables(theme)} }
     * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; background: #12151D; color: #D6D9E1; font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: ${editorFontSize}px; line-height: 1.55; }
+    html, body { margin: 0; padding: 0; background: var(--surface); color: var(--body); font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: ${editorFontSize}px; line-height: 1.55; }
     body { min-height: 206px; }
     #editor { min-height: 206px; padding: 14px; outline: none; overflow-wrap: anywhere; }
-    #editor:empty::before { content: attr(data-placeholder); color: #626B7F; pointer-events: none; }
+    #editor:empty::before { content: attr(data-placeholder); color: var(--body); pointer-events: none; }
     p { margin: 0 0 12px; }
-    h1, h2, h3 { color: #F3F4F6; margin: 16px 0 8px; line-height: 1.3; }
+    h1, h2, h3 { color: var(--strong); margin: 16px 0 8px; line-height: 1.3; }
     h1 { font-size: 24px; } h2 { font-size: 20px; } h3 { font-size: 17px; }
-    strong, b { color: #F3F4F6; }
-    a { color: #F0445B; text-decoration: underline; }
+    strong, b { color: var(--strong); }
+    a { color: var(--body); text-decoration: underline; }
     ul, ol { margin: 0 0 12px; padding-left: 24px; }
     li { margin-bottom: 5px; }
-    blockquote { margin: 12px 0; padding: 9px 12px; border-left: 3px solid #C51D34; background: #211319; }
-    code { padding: 2px 4px; border-radius: 4px; background: #20151A; color: #F5A3AF; font-family: ui-monospace, Menlo, monospace; font-size: 14px; }
-    pre { margin: 12px 0; padding: 12px; border: 1px solid #252A36; border-radius: 10px; background: #080A0E; white-space: pre-wrap; overflow-wrap: normal; }
-    pre code { padding: 0; background: transparent; color: #E5E7EB; }
+    blockquote { margin: 12px 0; padding: 9px 12px; border-left: 3px solid var(--border); background: var(--sunken); }
+    code { padding: 2px 4px; border-radius: 4px; background: var(--code-bg); color: var(--code-fg); font-family: ui-monospace, Menlo, monospace; font-size: 14px; }
+    pre { margin: 12px 0; padding: 12px; border: 1px solid var(--code-border); border-radius: 10px; background: var(--code-bg); white-space: pre-wrap; overflow-wrap: normal; }
+    pre code { padding: 0; background: transparent; color: var(--code-fg); }
     img { max-width: 100%; height: auto; border-radius: 10px; }
   </style>
 </head>

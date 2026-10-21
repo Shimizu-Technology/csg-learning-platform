@@ -1,5 +1,5 @@
 import { contrastRatio } from '@/test-utils/contrast';
-import { statusTones } from '@/constants/csg-theme';
+import { themes } from '@/constants/csg-theme';
 import { isGradableWorkBlock, LEARNER_STATUS, learnerLessonStatus, lessonLearnerProgress, submissionStatus, weeklyItemStatus } from '../learning-status';
 import type { LessonContentBlock } from '../types';
 
@@ -52,7 +52,7 @@ describe('learner status', () => {
 
   it('uses CSG family status colours with readable contrast', () => {
     for (const tone of ['success', 'pending', 'warning'] as const) {
-      expect(contrastRatio(statusTones[tone].text, statusTones[tone].background)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(themes.light.statusTones[tone].text, themes.light.statusTones[tone].background)).toBeGreaterThanOrEqual(4.5);
     }
   });
 });

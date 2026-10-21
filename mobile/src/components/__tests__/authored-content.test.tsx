@@ -24,6 +24,17 @@ describe('AuthoredContent', () => {
     expect(screen.getByText('python')).toBeTruthy();
   });
 
+  it('renders inline code as a quiet surface chip, not the dark code-block panel', () => {
+    const { lightColors } = jest.requireActual('@/constants/csg-theme');
+    const screen = render(<AuthoredContent body={'Print `Subtotal` with two decimals.'} />);
+    const flat = (style: unknown): Record<string, unknown> => Object.assign({}, ...[style].flat(Infinity).filter(Boolean));
+    const style = flat(screen.getByText('Subtotal').props.style);
+
+    expect(style.backgroundColor).toBe(lightColors.surface.sunken);
+    expect(style.color).toBe(lightColors.text.strong);
+    expect(style.backgroundColor).not.toBe(lightColors.code.bg);
+  });
+
   it('keeps line breaks in rich-editor HTML code and decodes entities exactly once', () => {
     const screen = render(<AuthoredContent body={'<p>Compare:</p><pre><code class="language-python">if a &lt; b:\n    print(&quot;a &amp;amp; b&quot;)</code></pre>'} />);
 

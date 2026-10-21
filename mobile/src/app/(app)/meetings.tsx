@@ -1,10 +1,12 @@
+import { haptic } from '@/lib/haptics';
+import { useTheme } from '@/providers/theme-provider';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import { getNetworkStateAsync, useNetworkState } from 'expo-network';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Linking, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MeetingButton, MeetingCohort, MeetingConfirmation, meetingStyles as styles, type MeetingAction } from '@/components/private-meetings';
+import { MeetingButton, MeetingCohort, MeetingConfirmation, useMeetingStyles, type MeetingAction } from '@/components/private-meetings';
 import { PrivateMeetingsPreview } from '@/components/private-meetings-preview';
 import { ApiError } from '@/lib/api';
 import { availableSlotsForWeek, beforeChangeCutoff, canReschedule, currentBookingForWeek, isWeekBookingClosed, type PrivateMeetingCohort, type PrivateMeetingsResponse } from '@/lib/private-meetings';
@@ -12,6 +14,8 @@ import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 
 export default function MeetingsScreen() {
+  const styles = useMeetingStyles();
+  const { colors: c } = useTheme();
   const { api, user } = useSession();
   const { demo } = useCsgAuth();
   const router = useRouter();
@@ -39,6 +43,7 @@ export default function MeetingsScreen() {
   async function confirm() {
     if (!action || disabled || lock.current) return;
     lock.current = true;
+    if (action.kind === 'cancel') haptic('destructive');
     setBusy(true);
     setWriteError(null);
     setNotice(null);
@@ -58,10 +63,12 @@ export default function MeetingsScreen() {
       setAction(null);
       await query.refetch();
       setNotice(success);
+      if (action.kind !== 'cancel') haptic('success');
     } catch (error) {
       setAction(null);
       const conflict = error instanceof ApiError && error.status === 409;
       const uncertain = error instanceof ApiError && (!error.status || error.status >= 500);
+      if (action.kind !== 'cancel') haptic('error');
       setWriteError(conflict ? 'That time is no longer available. Choose another opening after availability refreshes.' : uncertain ? 'We could not confirm the result. Check your refreshed meetings before trying again.' : (error as Error).message || 'Could not save your meeting. Try again.');
       // No automatic write retry: a lost response might already have saved.
       await query.refetch();
@@ -87,10 +94,10 @@ export default function MeetingsScreen() {
       {notice && <Text accessibilityLiveRegion="polite" style={styles.notice}>{notice}</Text>}
       {writeError && <Text accessibilityRole="alert" style={styles.error}>{writeError}</Text>}
     </ScrollView>}
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={query.isFetching} onRefresh={refresh} tintColor="#9c292b" />}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={query.isFetching} onRefresh={refresh} tintColor={c.action.primary} />}>
       <View style={styles.header}><MeetingButton onPress={() => router.canGoBack() ? router.back() : router.replace('/')} label="Back to your learning">Back</MeetingButton><Text accessibilityRole="header" style={styles.title}>Meetings</Text><Text style={styles.copy}>Book your weekly private hour.</Text></View>
       {user?.is_staff ? <Text style={styles.copy}>Private meeting booking is for learners. Manage your class meetings on CSG Learn web.</Text> : demo && __DEV__ ? <PrivateMeetingsPreview /> : <>
-        {query.isPending && connected && <View accessibilityRole="progressbar" accessibilityLabel="Loading your meetings"><ActivityIndicator color="#9c292b" /><Text style={styles.copy}>Loading your meetings…</Text></View>}
+        {query.isPending && connected && <View accessibilityRole="progressbar" accessibilityLabel="Loading your meetings"><ActivityIndicator color={c.action.primary} /><Text style={styles.copy}>Loading your meetings…</Text></View>}
         {busy && !action && <Text accessibilityLiveRegion="polite" style={styles.notice}>Finishing your request…</Text>}
         {query.data?.cohorts.length === 0 && <Text style={styles.copy}>No private meetings are available for your courses. If you expected weekly meetings, message your instructor from Messages.</Text>}
         {query.data?.cohorts.map((cohort) => <MeetingCohort key={cohort.id} cohort={cohort} now={now} disabled={disabled} joinDisabled={!connected} onSelect={(next) => { if (!lock.current) { setNotice(null); setWriteError(null); setAction(next); } }} onMessage={() => void messageInstructor(cohort)} onJoin={(url) => void Linking.openURL(url).catch(() => setWriteError('Could not open Zoom. Try again or message your instructor.'))} />)}

@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-import { MeetingButton, MeetingCohort, meetingStyles } from './private-meetings';
+import { MeetingButton, MeetingCohort, useMeetingStyles } from './private-meetings';
 import { booking, cohort, now } from '@/lib/meeting-test-fixtures';
 
 /** Read-only stress fixture, reachable only in development demo mode. */
 export function PrivateMeetingsPreview() {
+  const meetingStyles = useMeetingStyles();
   const [worst, setWorst] = useState(false);
   const data = worst ? {
     ...cohort,

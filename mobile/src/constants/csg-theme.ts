@@ -16,7 +16,7 @@ export const lightColors = {
   },
   focus: '#1d4ed8', selection: { bg: '#f1f5f9', indicator: '#9c292b' },
   code: { bg: '#0f172a', fg: '#f8fafc', muted: '#cbd5e1', border: '#475569', success: '#86efac' },
-  media: { bg: '#000000', fg: '#ffffff', scrim: 'rgba(0,0,0,0.72)' },
+  media: { bg: '#000000', fg: '#ffffff', danger: '#fca5a5', scrim: 'rgba(0,0,0,0.72)' },
   overlay: 'rgba(15,23,42,0.48)',
 } as const;
 
@@ -35,7 +35,7 @@ export const darkColors: ThemeColors = {
     pending: { fg: '#cbd5e1', bg: '#1e293b', border: '#475569' },
     info: { fg: '#7dd3fc', bg: '#082536', border: '#075985' },
   },
-  focus: '#bfdbfe', selection: { bg: '#1e293b', indicator: '#b8393b' },
+  focus: '#bfdbfe', selection: { bg: '#1e293b', indicator: '#e88485' },
   code: { bg: '#020617', fg: '#f8fafc', muted: '#cbd5e1', border: '#475569', success: '#86efac' },
   media: lightColors.media, overlay: 'rgba(0,0,0,0.72)',
 };
@@ -61,7 +61,9 @@ export function createTheme(scheme: 'light' | 'dark') {
 export type CsgTheme = ReturnType<typeof createTheme>;
 export const themes = { light: createTheme('light'), dark: createTheme('dark') };
 
-// Temporary compatibility for screens migrating in the immediately stacked PR 3b.
-export const palette = { ink: darkColors.surface.page, panel: darkColors.surface.raised, panelRaised: darkColors.surface.sunken, line: darkColors.border.subtle, ruby: darkColors.action.primary, rubySoft: darkColors.text.body, paper: darkColors.text.strong, text: darkColors.text.strong, muted: darkColors.text.body, subtle: darkColors.text.muted, quiet: darkColors.text.muted, success: darkColors.status.success.fg, warning: darkColors.status.warning.fg };
-export const statusTones = themes.dark.statusTones;
-export const csgPrimary = lightColors.action.primary;
+/** Native on/off colors. Off thumb stays legible on the neutral track in both schemes. */
+export function switchColors(colors: ThemeColors, on: boolean) {
+  return { trackColor: { false: colors.border.strong, true: colors.action.primary },
+    thumbColor: on ? colors.text.onAction : colors.text.body,
+    ios_backgroundColor: colors.border.strong };
+}

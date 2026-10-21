@@ -1,9 +1,10 @@
+import { makeStyles } from '@/providers/theme-provider';
 import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 import { Linking, StyleSheet, Text, View } from 'react-native';
 
 import { MessageCodeBlock } from '@/components/message-code-block';
-import { fontScaleLimits, fonts, palette, typography, monoFont } from '@/constants/csg-theme';
+import { fontScaleLimits, fonts, typography, monoFont } from '@/constants/csg-theme';
 import { messageSegments } from '@/lib/mentions';
 import { normalizeMessageLink, parseMessageBlocks, splitTrailingUrlPunctuation } from '@/lib/message-format';
 import type { MessageListBlock } from '@/lib/message-format';
@@ -16,6 +17,7 @@ type Props = {
 };
 
 export function FormattedMessage({ body, mentionUsers, mine = false }: Props) {
+  const styles = useStyles();
   const blocks = useMemo(() => parseMessageBlocks(body), [body]);
 
   if (!body) return null;
@@ -46,7 +48,6 @@ export function FormattedMessage({ body, mentionUsers, mine = false }: Props) {
       })}
     </View>
   );
-}
 
 function renderList(block: MessageListBlock, mentionUsers: UserSummary[], mine: boolean, key: string, depth = 0): ReactNode {
   const bullet = ['•', '◦', '▪'][depth % 3];
@@ -234,25 +235,27 @@ function renderMentions(text: string, mentionUsers: UserSummary[], keyPrefix: st
   });
 }
 
-const styles = StyleSheet.create({
+}
+
+const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   content: { maxWidth: '100%', gap: 4 },
   spacer: { height: 2 },
-  body: { ...typography.body, color: palette.text, fontFamily: fonts.regular },
-  mineText: { color: '#FFFFFF' },
+  body: { ...typography.body, color: c.text.strong, fontFamily: fonts.regular },
+  mineText: { color: c.text.body },
   bold: { fontFamily: fonts.bold },
   italic: { fontStyle: 'italic' },
   strike: { textDecorationLine: 'line-through' },
   underline: { textDecorationLine: 'underline' },
-  mention: { color: '#FFD1D7', fontFamily: fonts.bold },
-  link: { color: palette.rubySoft, fontFamily: fonts.semibold, textDecorationLine: 'underline' },
-  mineLink: { color: '#FFE4E8' },
-  inlineCode: { ...typography.code, color: '#F5A3AF', fontFamily: monoFont, backgroundColor: '#20151A' },
-  mineInlineCode: { color: '#FFFFFF', backgroundColor: 'rgba(6, 9, 14, 0.28)' },
+  mention: { color: c.text.body, fontFamily: fonts.bold },
+  link: { color: c.text.body, fontFamily: fonts.semibold, textDecorationLine: 'underline' },
+  mineLink: { color: c.text.body },
+  inlineCode: { ...typography.code, color: c.text.body, fontFamily: monoFont, backgroundColor: c.surface.sunken },
+  mineInlineCode: { color: c.text.body, backgroundColor: c.surface.raised },
   list: { gap: 3 },
   listRow: { flexDirection: 'row', alignItems: 'flex-start', paddingRight: 2 },
-  listMarker: { ...typography.body, minWidth: 23, flexShrink: 0, color: palette.muted, fontFamily: fonts.semibold, textAlign: 'right', paddingRight: 7 },
+  listMarker: { ...typography.body, minWidth: 23, flexShrink: 0, color: c.text.body, fontFamily: fonts.semibold, textAlign: 'right', paddingRight: 7 },
   listItem: { flexShrink: 1, minWidth: 0, gap: 3 },
-  blockquote: { borderLeftWidth: 3, borderLeftColor: palette.rubySoft, paddingLeft: 10, paddingVertical: 2 },
-  mineBlockquote: { borderLeftColor: '#FFE4E8' },
-  quoteText: { color: '#D6D9E1' },
-});
+  blockquote: { borderLeftWidth: 3, borderLeftColor: c.text.body, paddingLeft: 10, paddingVertical: 2 },
+  mineBlockquote: { borderLeftColor: c.border.strong },
+  quoteText: { color: c.text.body },
+}));

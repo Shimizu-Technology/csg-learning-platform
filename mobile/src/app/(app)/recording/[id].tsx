@@ -1,15 +1,17 @@
+import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
+import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, CalendarDays, ShieldCheck } from 'lucide-react-native';
 import { useCallback, useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NativeVideoPlayer } from '@/components/native-video-player';
 import { InAppMediaPlayer } from '@/components/in-app-media-player';
 import { ContextualHelp } from '@/components/contextual-help';
 import { ErrorState, LoadingState } from '@/components/screen-states';
-import { fonts, palette } from '@/constants/csg-theme';
+import { fonts } from '@/constants/csg-theme';
 import { demoRecordings } from '@/lib/demo-learning';
 import { learningKeys } from '@/lib/learning';
 import type { RecordingItem, VideoProgressInput, WatchProgress } from '@/lib/types';
@@ -25,6 +27,8 @@ function updateProgress(payload: RecordingsPayload | undefined, itemKey: string,
 }
 
 export default function RecordingDetailScreen() {
+  const styles = useStyles();
+  const { colors: c } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const auth = useCsgAuth();
@@ -57,18 +61,18 @@ export default function RecordingDetailScreen() {
   }, [api, auth.demo, itemKey, key, queryClient, recordingId]);
 
   if (query.isPending && !query.data) return <SafeAreaView style={styles.safe}><LoadingState label="Opening recording" /></SafeAreaView>;
-  if (query.error && !query.data) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={palette.text} size={22} /></Pressable></View><ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /></SafeAreaView>;
-  if (!item) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={palette.text} size={22} /></Pressable></View><ErrorState message="This recording is no longer available to this account." retry={() => void query.refetch()} /></SafeAreaView>;
+  if (query.error && !query.data) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable></View><ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /></SafeAreaView>;
+  if (!item) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable></View><ErrorState message="This recording is no longer available to this account." retry={() => void query.refetch()} /></SafeAreaView>;
 
-  return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={palette.text} size={22} /></Pressable><View style={styles.flex}><Text style={styles.kicker}>CLASS RECORDING</Text><Text numberOfLines={1} style={styles.headerTitle}>{item.cohort_name}</Text></View></View><ScrollView contentContainerStyle={styles.content}>
-    <View><Text style={styles.source}>{item.source === 'uploaded' ? 'SECURE CSG VIDEO' : item.source.toUpperCase()}</Text><Text style={styles.title}>{item.title}</Text><View style={styles.meta}><CalendarDays color={palette.quiet} size={14} /><Text style={styles.metaText}>{item.recorded_date || 'Recording date not set'}{item.duration_display ? ` · ${item.duration_display}` : ''}</Text></View></View>
+  return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View style={styles.flex}><Text style={styles.kicker}>CLASS RECORDING</Text><Text numberOfLines={1} style={styles.headerTitle}>{item.cohort_name}</Text></View></View><ScrollView contentContainerStyle={styles.content}>
+    <View><Text style={styles.source}>{item.source === 'uploaded' ? 'SECURE CSG VIDEO' : item.source.toUpperCase()}</Text><Text style={styles.title}>{item.title}</Text><View style={styles.meta}><CalendarDays color={c.text.muted} size={14} /><Text style={styles.metaText}>{item.recorded_date || 'Recording date not set'}{item.duration_display ? ` · ${item.duration_display}` : ''}</Text></View></View>
     {item.source === 'uploaded' ? <NativeVideoPlayer fetchStream={fetchStream} initialPosition={item.watch_progress?.last_position_seconds || 0} initialTotalWatched={item.watch_progress?.total_watched_seconds || 0} saveProgress={saveProgress} title={item.title} trackProgress={!user?.is_staff} /> : item.url ? <InAppMediaPlayer initialPosition={item.watch_progress?.last_position_seconds || 0} initialTotalWatched={item.watch_progress?.total_watched_seconds || 0} saveProgress={saveProgress} title={item.title} trackProgress={!user?.is_staff && recordingId !== null} url={item.url} /> : null}
     {item.description && <View style={styles.description}><Text style={styles.sectionKicker}>ABOUT THIS CLASS</Text><Text style={styles.descriptionText}>{item.description}</Text></View>}
     {helpContext && <View style={styles.help}><ContextualHelp cohortId={item.cohort_id} contextType="recording" contextSource={helpContext.source} contextId={helpContext.id} contextLabel={item.title} /></View>}
-    <View style={styles.security}><ShieldCheck color={palette.success} size={19} /><View style={styles.flex}><Text style={styles.securityTitle}>Private cohort access</Text><Text style={styles.securityCopy}>{user?.is_staff ? 'Staff preview is read-only and never changes student learning records.' : recordingId !== null ? 'Your place and watch progress sync to the same class record used by the web learning platform.' : 'This older link plays in the official hosted player when the provider supports it.'}</Text></View></View>
+    <View style={styles.security}><ShieldCheck color={c.status.success.fg} size={19} /><View style={styles.flex}><Text style={styles.securityTitle}>Private cohort access</Text><Text style={styles.securityCopy}>{user?.is_staff ? 'Staff preview is read-only and never changes student learning records.' : recordingId !== null ? 'Your place and watch progress sync to the same class record used by the web learning platform.' : 'This older link plays in the official hosted player when the provider supports it.'}</Text></View></View>
   </ScrollView></SafeAreaView>;
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: palette.ink }, header: { minHeight: 68, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.line, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 7 }, backRow: { minHeight: 68, paddingHorizontal: 10, justifyContent: 'center' }, back: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, flex: { flex: 1, minWidth: 0 }, kicker: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1 }, headerTitle: { color: palette.text, fontFamily: fonts.bold, fontSize: 16, marginTop: 2 }, content: { padding: 20, paddingBottom: 100, gap: 18 }, source: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.2 }, title: { color: palette.text, fontFamily: fonts.extraBold, fontSize: 27, lineHeight: 34, letterSpacing: -0.8, marginTop: 6 }, meta: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 10 }, metaText: { color: palette.subtle, fontFamily: fonts.medium, fontSize: 11 }, description: { borderRadius: 18, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panel, padding: 16 }, sectionKicker: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1 }, descriptionText: { color: palette.muted, fontFamily: fonts.regular, fontSize: 12, lineHeight: 20, marginTop: 8 }, help: { alignItems: 'flex-start' }, security: { borderRadius: 17, backgroundColor: '#10231D', padding: 14, flexDirection: 'row', gap: 11 }, securityTitle: { color: palette.success, fontFamily: fonts.bold, fontSize: 11 }, securityCopy: { color: '#86B8A5', fontFamily: fonts.regular, fontSize: 11, lineHeight: 16, marginTop: 3 },
-});
+const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: c.surface.page }, header: { minHeight: 68, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 7 }, backRow: { minHeight: 68, paddingHorizontal: 10, justifyContent: 'center' }, back: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, flex: { flex: 1, minWidth: 0 }, kicker: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1 }, headerTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 16, marginTop: 2 }, content: { padding: 20, paddingBottom: 100, gap: 18 }, source: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.2 }, title: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 27, lineHeight: 34, letterSpacing: -0.8, marginTop: 6 }, meta: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 10 }, metaText: { color: c.text.body, fontFamily: fonts.medium, fontSize: 12 }, description: { borderRadius: 18, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 16 }, sectionKicker: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1 }, descriptionText: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 20, marginTop: 8 }, help: { alignItems: 'flex-start' }, security: { borderRadius: 17, backgroundColor: c.surface.sunken, padding: 14, flexDirection: 'row', gap: 11 }, securityTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 12 }, securityCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 16, marginTop: 3 },
+}));

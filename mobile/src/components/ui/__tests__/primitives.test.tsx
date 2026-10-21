@@ -1,5 +1,5 @@
 import { fireEvent, render } from '@testing-library/react-native';
-import { Text } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import { Button } from '../button';
 import { Badge } from '../badge';
 import { Card } from '../card';
@@ -8,11 +8,12 @@ import { LoadingState } from '../loading-state';
 import { StatusRow } from '../status-row';
 import { PressableScale } from '../pressable-scale';
 import { CodeBlock } from '../code-block';
+import { themes } from '@/constants/csg-theme';
 
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn().mockResolvedValue(undefined) }));
 jest.mock('../../../lib/analytics', () => ({ analyticsLanguage: jest.fn(), captureProductEvent: jest.fn() }));
-it.each(['primary', 'secondary', 'quiet', 'danger'] as const)('Button %s labels and activation', (variant) => {
+it.each(['primary', 'secondary', 'quiet', 'danger', 'success'] as const)('Button %s labels and activation', (variant) => {
   const onPress = jest.fn(); const ui = render(<Button label="Save work" variant={variant} onPress={onPress} />);
   fireEvent.press(ui.getByRole('button', { name: 'Save work' })); expect(onPress).toHaveBeenCalledTimes(1);
 });
@@ -29,3 +30,30 @@ it('LoadingState names the pending operation', () => { expect(render(<LoadingSta
 it('StatusRow uses canonical learner status language', () => { const ui = render(<StatusRow status="awaiting_review" detail="Your instructor will review this." />); expect(ui.getByText('Submitted · awaiting review')).toBeTruthy(); });
 it('PressableScale preserves labels and fires only once per action', () => { const tap=jest.fn(); const ui=render(<PressableScale accessibilityRole="button" accessibilityLabel="Open card" onPress={tap}><Text>Card</Text></PressableScale>); fireEvent.press(ui.getByRole('button')); expect(tap).toHaveBeenCalledTimes(1); });
 it('CodeBlock retains raw indentation and newlines', () => { const code='for x in values:\n    print(x)'; const ui=render(<CodeBlock code={code} />); expect(ui.getByTestId('message-code-text').props.children).toBe(code); });
+
+it('wraps interpolated text children for native controls', () => {
+  const ui = render(<Button variant="secondary" textStyle={{ fontSize: 19, letterSpacing: 2 }}>Past weeks ({2})</Button>);
+  expect(ui.getByText('Past weeks (2)')).toHaveStyle({ fontSize: 19, letterSpacing: 2, color: themes.light.colors.text.strong });
+});
+
+it('renders an accessible selected secondary choice after variant styling', () => {
+  const ui = render(<Button variant="secondary" accessibilityState={{ selected: false }}>Meets expectations</Button>);
+  const off = StyleSheet.flatten(ui.getByRole('button').props.style);
+  ui.rerender(<Button variant="secondary" accessibilityState={{ selected: true }}>Meets expectations</Button>);
+  expect(ui.getByRole('button').props.accessibilityState).toMatchObject({ selected: true });
+  expect(ui.getByRole('button')).toHaveStyle({ backgroundColor: themes.light.colors.selection.bg, borderColor: themes.light.colors.selection.indicator, borderWidth: 2 });
+  expect(StyleSheet.flatten(ui.getByRole('button').props.style)).not.toEqual(off);
+});
+it('preserves larger caller targets while enforcing the minimum', () => {
+  const ui = render(<Button label="Save review" style={{ minHeight: 54 }} />);
+  expect(ui.getByRole('button')).toHaveStyle({ minHeight: 54, minWidth: 44 });
+  ui.rerender(<Button label="Save review" style={{ minHeight: 20, minWidth: 20 }} />);
+  expect(ui.getByRole('button')).toHaveStyle({ minHeight: 48, minWidth: 44 });
+});
+
+it('keeps variant paint and its foreground together while callers control layout', () => {
+  const c = themes.light.colors;
+  const ui = render(<Button label="Save" variant="primary" style={{ backgroundColor: c.surface.sunken, borderColor: c.border.subtle, marginTop: 17 }} />);
+  expect(ui.getByRole('button')).toHaveStyle({ backgroundColor: c.action.primary, borderColor: c.action.primary, marginTop: 17 });
+  expect(ui.getByText('Save')).toHaveStyle({ color: c.text.onAction });
+});

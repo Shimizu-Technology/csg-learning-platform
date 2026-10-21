@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { themes, typography } from '../csg-theme';
+import { switchColors, themes, typography } from '../csg-theme';
 import { contrastRatio } from '../../test-utils/contrast';
 
 describe.each(Object.values(themes))('$scheme token contrast', (theme) => {
@@ -15,7 +15,7 @@ describe.each(Object.values(themes))('$scheme token contrast', (theme) => {
   pairs.push(['muted / raised', c.text.muted, c.surface.raised, 4.5], ['muted UI / page (large text or icons only)', c.text.muted, c.surface.page, 3]);
   for (const [role, pair] of Object.entries(c.status)) pairs.push([role, pair.fg, pair.bg, 4.5]);
   for (const [role, bg] of Object.entries(c.action)) pairs.push([role, c.text.onAction, bg, 4.5]);
-  pairs.push(['selection', c.text.strong, c.selection.bg, 4.5], ['code', c.code.fg, c.code.bg, 4.5], ['code support', c.code.muted, c.code.bg, 4.5], ['code copied', c.code.success, c.code.bg, 4.5], ['media', c.media.fg, c.media.bg, 4.5], ['focus', c.focus, c.surface.page, 3]);
+  pairs.push(['selection', c.text.strong, c.selection.bg, 4.5], ['selected icon and border', c.selection.indicator, c.selection.bg, 3], ['code', c.code.fg, c.code.bg, 4.5], ['inline code', c.text.strong, c.surface.sunken, 4.5], ['code support', c.code.muted, c.code.bg, 4.5], ['code copied', c.code.success, c.code.bg, 4.5], ['media', c.media.fg, c.media.bg, 4.5], ['media error', c.media.danger, c.media.bg, 4.5], ['focus', c.focus, c.surface.page, 3]);
   it.each(pairs)('%s', (_label, fg, bg, minimum) => expect(contrastRatio(fg, bg)).toBeGreaterThanOrEqual(minimum));
 });
 it('keeps semantic text at 12pt or larger and preserves font scaling', () => {
@@ -30,4 +30,13 @@ it('keeps semantic text at 12pt or larger and preserves font scaling', () => {
 it('keeps the fixed brand tile consistent across appearances', () => {
   expect(themes.light.colors.brand.tile).toBe('#191920');
   expect(themes.dark.colors.brand.tile).toBe(themes.light.colors.brand.tile);
+});
+
+it.each(Object.values(themes))('$scheme switch states retain thumb contrast and distinct tracks', (theme) => {
+  const on = switchColors(theme.colors, true), off = switchColors(theme.colors, false);
+  expect(on.trackColor.true).not.toBe(off.trackColor.false);
+  expect(on.thumbColor).not.toBe(off.thumbColor);
+  expect(off.ios_backgroundColor).toBe(off.trackColor.false);
+  expect(contrastRatio(on.thumbColor, on.trackColor.true)).toBeGreaterThanOrEqual(3);
+  expect(contrastRatio(off.thumbColor, off.trackColor.false)).toBeGreaterThanOrEqual(3);
 });

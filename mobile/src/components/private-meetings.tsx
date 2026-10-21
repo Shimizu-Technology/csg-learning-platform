@@ -1,27 +1,21 @@
-import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Button } from '@/components/ui/button';
+import { makeStyles, useTheme } from '@/providers/theme-provider';
+import { useState, type PropsWithChildren } from 'react';
+import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { CalendarCheck } from 'lucide-react-native';
 import { fonts } from '@/constants/csg-theme';
 import { formatCourseTimeRange } from '@/lib/course-time';
 import { availableSlotsForWeek, beforeChangeCutoff, cancelConsequence, canReschedule, currentBookingForWeek, isWeekBookingClosed, meetingJoinUrl, meetingRebookWarning, partitionMeetingWeeks, type PrivateMeetingBooking, type PrivateMeetingCohort, type PrivateMeetingSlot } from '@/lib/private-meetings';
 
-const tokens = { ink: '#0f172a', muted: '#475569', surface: '#ffffff', background: '#f8fafc', line: '#cbd5e1', ruby: '#9c292b', danger: '#b91c1c', dangerBg: '#fef2f2', success: '#15803d', successBg: '#f0fdf4', warning: '#92400e', warningBg: '#fffbeb', pending: '#334155', pendingBg: '#f1f5f9', info: '#075985', infoBg: '#f0f9ff' };
 export type MeetingAction = { kind: 'book' | 'reschedule' | 'cancel'; cohort: PrivateMeetingCohort; week: number; slot?: PrivateMeetingSlot; booking?: PrivateMeetingBooking };
 
 export function MeetingButton({ children, onPress, disabled = false, danger = false, primary = false, label, testID, expanded }: PropsWithChildren<{ onPress: () => void; disabled?: boolean; danger?: boolean; primary?: boolean; label?: string; testID?: string; expanded?: boolean }>) {
-  const [scale] = useState(() => new Animated.Value(1));
-  const reduced = useRef(true);
-  useEffect(() => {
-    let active = true;
-    void AccessibilityInfo.isReduceMotionEnabled().then((value) => { if (active) reduced.current = value; });
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (value) => { reduced.current = value; scale.setValue(1); });
-    return () => { active = false; sub.remove(); };
-  }, [scale]);
-  const animate = (value: number) => { Animated.timing(scale, { toValue: reduced.current ? 1 : value, duration: 120, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start(); };
-  return <Animated.View style={{ transform: [{ scale }] }}><Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled, ...(expanded === undefined ? {} : { expanded }) }} disabled={disabled} onPress={onPress} onPressIn={() => animate(.97)} onPressOut={() => animate(1)} testID={testID} style={[styles.button, primary && styles.primary, danger && styles.danger, disabled && styles.disabled]}><Text style={[styles.buttonText, primary && styles.primaryText, danger && styles.dangerText]}>{children}</Text></Pressable></Animated.View>;
+  return <Button onPress={onPress} disabled={disabled} variant={danger ? 'danger' : primary ? 'primary' : 'secondary'} accessibilityLabel={label} testID={testID} accessibilityState={{ ...(expanded === undefined ? {} : { expanded }) }}>{children}</Button>;
 }
 
 export function MeetingCohort({ cohort, now, disabled, joinDisabled = false, onSelect, onMessage, onJoin }: { cohort: PrivateMeetingCohort; now: number; disabled: boolean; joinDisabled?: boolean; onSelect: (action: MeetingAction) => void; onMessage: () => void; onJoin: (url: string) => void }) {
+  const { colors: c } = useTheme();
+  const styles = useStyles();
   const [showPast, setShowPast] = useState(false);
   const [changing, setChanging] = useState<number | null>(null);
   const weeks = partitionMeetingWeeks(cohort.start_date, cohort.weeks, now);
@@ -48,7 +42,7 @@ export function MeetingCohort({ cohort, now, disabled, joinDisabled = false, onS
       <Text accessibilityRole="header" style={styles.weekTitle}>Week {week}</Text>
       <View style={[styles.badge, booking && !completed ? styles.success : styles.pending]}><Text style={[styles.badgeText, booking && !completed ? styles.successText : styles.pendingText]}>{status}</Text></View>
       {booking && <View style={styles.stack}>
-        <View style={styles.timeRow}><CalendarCheck size={20} color={tokens.muted} /><Text style={styles.time}>{formatCourseTimeRange(booking.starts_at, booking.ends_at)}</Text></View>
+        <View style={styles.timeRow}><CalendarCheck size={20} color={c.text.body} /><Text style={styles.time}>{formatCourseTimeRange(booking.starts_at, booking.ends_at)}</Text></View>
         <Text style={styles.copy}>60 minutes with {booking.instructor_name}</Text>
         {join ? <MeetingButton primary disabled={joinDisabled} onPress={() => onJoin(join)} label={`Join Week ${week} meeting on Zoom`}>Join on Zoom</MeetingButton> : !completed && <Text style={styles.info}>{booking.zoom_url ? 'Join opens 15 minutes before your meeting.' : 'Your Zoom link is being prepared. It will appear here before your meeting.'}</Text>}
         {!completed && <>
@@ -68,11 +62,13 @@ export function MeetingCohort({ cohort, now, disabled, joinDisabled = false, onS
 }
 
 export function MeetingConfirmation({ action, busy, disabled, blockedReason, onDismiss, onConfirm }: { action: MeetingAction | null; busy: boolean; disabled: boolean; blockedReason?: string; onDismiss: () => void; onConfirm: () => void }) {
+  const { colors: c } = useTheme();
+  const styles = useStyles();
   if (!action) return null;
   const cancelling = action.kind === 'cancel';
   const title = cancelling ? 'Cancel this meeting?' : action.kind === 'reschedule' ? 'Move your private meeting?' : 'Book your private hour?';
   const meeting = action.slot || action.booking!;
-  return <Modal visible transparent animationType="none" onRequestClose={() => { if (!busy) onDismiss(); }}>
+  return <Modal visible transparent animationType="fade" onRequestClose={() => { if (!busy) onDismiss(); }}>
     <View style={styles.overlay}><View style={styles.sheet} accessibilityViewIsModal>
       <ScrollView contentContainerStyle={styles.stack}>
         <Text accessibilityRole="header" style={styles.cohortTitle}>{title}</Text>
@@ -81,7 +77,7 @@ export function MeetingConfirmation({ action, busy, disabled, blockedReason, onD
         <Text style={cancelling ? styles.warning : styles.copy}>{cancelling ? cancelConsequence(action.week, action.booking!.reschedule_count, action.cohort.max_student_changes) : action.kind === 'reschedule' ? `This uses ${action.cohort.max_student_changes - action.booking!.reschedule_count === 1 ? 'your only remaining schedule change' : 'one schedule change'} for Week ${action.week}. Your current time stays booked until the new time is confirmed.` : meetingRebookWarning(action.cohort, action.week) || 'This reserves the full hour for you.'}</Text>
         {cancelling && <Text style={styles.copy}>Your time will be released for someone else.</Text>}
         {blockedReason && !busy && <Text accessibilityLiveRegion="polite" style={styles.info}>{blockedReason}</Text>}
-        {busy && <View accessibilityRole="progressbar" accessibilityLabel="Saving meeting" style={styles.timeRow}><ActivityIndicator color={tokens.ruby} /><Text style={styles.copy}>Saving your meeting…</Text></View>}
+        {busy && <View accessibilityRole="progressbar" accessibilityLabel="Saving meeting" style={styles.timeRow}><ActivityIndicator color={c.action.primary} /><Text style={styles.copy}>Saving your meeting…</Text></View>}
         <MeetingButton disabled={busy} onPress={onDismiss} testID="meeting-confirm-dismiss">{cancelling ? 'Keep meeting' : 'Go back'}</MeetingButton>
         <MeetingButton primary={!cancelling} danger={cancelling} disabled={busy || disabled} onPress={onConfirm} testID="meeting-confirm-submit">{cancelling ? 'Cancel meeting' : action.kind === 'reschedule' ? 'Move meeting' : 'Book meeting'}</MeetingButton>
       </ScrollView>
@@ -89,35 +85,35 @@ export function MeetingConfirmation({ action, busy, disabled, blockedReason, onD
   </Modal>;
 }
 
-export const meetingStyles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: tokens.background },
+export const useMeetingStyles = makeStyles(({ colors: c }) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: c.surface.page },
   content: { padding: 20, gap: 20, paddingBottom: 44 },
   header: { gap: 12 },
-  title: { color: tokens.ink, fontSize: 28, fontFamily: fonts.extraBold },
-  copy: { color: tokens.muted, fontSize: 16, lineHeight: 24, fontFamily: fonts.regular },
-  notice: { color: tokens.info, backgroundColor: tokens.infoBg, padding: 14, borderRadius: 12, fontSize: 16, lineHeight: 24 },
-  error: { color: tokens.danger, backgroundColor: tokens.dangerBg, padding: 14, borderRadius: 12, fontSize: 16, lineHeight: 24 },
-});
-const styles = StyleSheet.create({
+  title: { color: c.text.strong, fontSize: 28, fontFamily: fonts.extraBold },
+  copy: { color: c.text.body, fontSize: 16, lineHeight: 24, fontFamily: fonts.regular },
+  notice: { color: c.status.info.fg, backgroundColor: c.status.info.bg, padding: 14, borderRadius: 12, fontSize: 16, lineHeight: 24 },
+  error: { color: c.status.danger.fg, backgroundColor: c.status.danger.bg, padding: 14, borderRadius: 12, fontSize: 16, lineHeight: 24 },
+}));
+const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   stack: { gap: 14 },
-  cohortTitle: { color: tokens.ink, fontSize: 22, fontFamily: fonts.bold },
-  copy: meetingStyles.copy,
-  card: { gap: 14, padding: 18, borderRadius: 16, backgroundColor: tokens.surface, borderWidth: 1, borderColor: tokens.line },
-  weekTitle: { color: tokens.ink, fontSize: 20, fontFamily: fonts.bold },
-  subheading: { color: tokens.ink, fontSize: 16, fontFamily: fonts.semibold },
+  cohortTitle: { color: c.text.strong, fontSize: 22, fontFamily: fonts.bold },
+  copy: { color: c.text.body, fontSize: 16, lineHeight: 24, fontFamily: fonts.regular },
+  card: { gap: 14, padding: 18, borderRadius: 16, backgroundColor: c.surface.raised, borderWidth: 1, borderColor: c.border.strong },
+  weekTitle: { color: c.text.strong, fontSize: 20, fontFamily: fonts.bold },
+  subheading: { color: c.text.strong, fontSize: 16, fontFamily: fonts.semibold },
   badge: { alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8 },
   badgeText: { fontSize: 14, fontFamily: fonts.semibold },
-  pending: { backgroundColor: tokens.pendingBg }, pendingText: { color: tokens.pending },
-  success: { backgroundColor: tokens.successBg }, successText: { color: tokens.success },
+  pending: { backgroundColor: c.status.pending.bg }, pendingText: { color: c.status.pending.fg },
+  success: { backgroundColor: c.status.success.bg }, successText: { color: c.status.success.fg },
   timeRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-  time: { flexShrink: 1, color: tokens.ink, fontSize: 17, lineHeight: 26, fontFamily: fonts.semibold, fontVariant: ['tabular-nums'] },
-  button: { minHeight: 48, minWidth: 44, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: tokens.line, backgroundColor: tokens.pendingBg, justifyContent: 'center', alignItems: 'center' },
-  buttonText: { color: tokens.ink, fontFamily: fonts.bold, fontSize: 16, lineHeight: 24, textAlign: 'center', flexShrink: 1 },
-  primary: { backgroundColor: tokens.ruby, borderColor: tokens.ruby }, primaryText: { color: '#fff' },
-  danger: { backgroundColor: tokens.dangerBg, borderColor: '#fecaca' }, dangerText: { color: tokens.danger },
+  time: { flexShrink: 1, color: c.text.strong, fontSize: 17, lineHeight: 26, fontFamily: fonts.semibold, fontVariant: ['tabular-nums'] },
+  button: { minHeight: 48, minWidth: 44, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.status.pending.bg, justifyContent: 'center', alignItems: 'center' },
+  buttonText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 16, lineHeight: 24, textAlign: 'center', flexShrink: 1 },
+  primary: { backgroundColor: c.action.primary, borderColor: c.action.primary }, primaryText: { color: c.text.onAction },
+  danger: { backgroundColor: c.status.danger.bg, borderColor: c.status.danger.border }, dangerText: { color: c.status.danger.fg },
   disabled: { opacity: .5 },
-  warning: { color: tokens.warning, backgroundColor: tokens.warningBg, borderRadius: 12, padding: 12, fontSize: 16, lineHeight: 24 },
-  info: { color: tokens.info, backgroundColor: tokens.infoBg, borderRadius: 12, padding: 12, fontSize: 16, lineHeight: 24 },
-  overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(15,23,42,0.5)' },
-  sheet: { maxHeight: '90%', backgroundColor: tokens.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 24, paddingBottom: 44 },
-});
+  warning: { color: c.status.warning.fg, backgroundColor: c.status.warning.bg, borderRadius: 12, padding: 12, fontSize: 16, lineHeight: 24 },
+  info: { color: c.status.info.fg, backgroundColor: c.status.info.bg, borderRadius: 12, padding: 12, fontSize: 16, lineHeight: 24 },
+  overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: c.overlay },
+  sheet: { maxHeight: '90%', backgroundColor: c.surface.raised, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 24, paddingBottom: 44 },
+}));

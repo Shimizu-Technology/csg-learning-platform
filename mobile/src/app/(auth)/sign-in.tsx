@@ -356,7 +356,7 @@ export default function SignIn() {
                       keyboardType="email-address"
                       onChangeText={(value) => { setEmail(value); clearError(); }}
                       placeholder="you@example.com"
-                      placeholderTextColor={c.text.muted}
+                      placeholderTextColor={c.text.body}
                       returnKeyType="next"
                       style={styles.input}
                       value={email}
@@ -378,7 +378,7 @@ export default function SignIn() {
                         onChangeText={(value) => { setPassword(value); clearError(); }}
                         onSubmitEditing={() => void handleSubmit()}
                         placeholder={step === 'new-password' ? 'At least 8 characters' : 'Enter your password'}
-                        placeholderTextColor={c.text.muted}
+                        placeholderTextColor={c.text.body}
                         returnKeyType="go"
                         secureTextEntry={!showPassword}
                         style={styles.passwordInput}
@@ -402,7 +402,7 @@ export default function SignIn() {
                       onChangeText={(value) => { setCode(value); clearError(); }}
                       onSubmitEditing={() => void handleSubmit()}
                       placeholder="Enter code"
-                      placeholderTextColor={c.text.muted}
+                      placeholderTextColor={c.text.body}
                       returnKeyType="done"
                       style={[styles.input, styles.codeInput]}
                       value={code}

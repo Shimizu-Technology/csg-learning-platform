@@ -1,5 +1,5 @@
-import { themedAlert as Alert } from '@/lib/alerts';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
+import { themedAlert as Alert } from '@/lib/alerts';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useRouter } from 'expo-router';
 import { ArrowRight, BookOpen, CalendarClock, Check, ClipboardList, Film, LockKeyhole, RotateCcw, Sparkles, type LucideIcon } from 'lucide-react-native';

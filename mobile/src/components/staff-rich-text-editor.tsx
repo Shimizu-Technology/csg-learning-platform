@@ -1,10 +1,13 @@
+import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
+import { Button } from '@/components/ui/button';
+import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { Bold, Code2, Italic, Link, List, ListOrdered, Quote, Redo2, Undo2 } from 'lucide-react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 
 import { AuthoredContent } from '@/components/authored-content';
-import { fonts, palette } from '@/constants/csg-theme';
+import { fonts } from '@/constants/csg-theme';
 import {
   normalizedRichTextValue,
   parseRichTextEditorMessage,
@@ -12,6 +15,7 @@ import {
   richTextEditorContentScript,
   richTextEditorDocument,
   richTextEditorFontSize,
+  richTextEditorThemeScript,
   safeRichTextLink,
   type RichTextEditorCommand,
   type RichTextEditorState,
@@ -45,10 +49,13 @@ export function StaffRichTextEditor({
   accessibilityLabel = 'Exercise instructions',
   placeholder = 'Explain the goal, constraints, and what done looks like…',
 }: StaffRichTextEditorProps) {
+  const styles = useStyles();
+  const theme = useTheme();
+  const { colors: c, scheme } = theme;
   const { fontScale } = useWindowDimensions();
   const webViewRef = useRef<WebView>(null);
   const lastEditorValueRef = useRef(normalizedRichTextValue(value));
-  const [editorDocument, setEditorDocument] = useState(() => richTextEditorDocument(value, placeholder, fontScale));
+  const [editorDocument, setEditorDocument] = useState(() => richTextEditorDocument(value, placeholder, fontScale, theme));
   const [ready, setReady] = useState(false);
   const [height, setHeight] = useState(MIN_EDITOR_HEIGHT);
   const [selection, setSelection] = useState(EMPTY_STATE);
@@ -68,6 +75,10 @@ export function StaffRichTextEditor({
     if (!ready) return;
     webViewRef.current?.injectJavaScript(richTextEditorCommandScript('setFontSize', String(richTextEditorFontSize(fontScale))));
   }, [fontScale, ready]);
+
+  useEffect(() => {
+    if (ready) webViewRef.current?.injectJavaScript(richTextEditorThemeScript(theme));
+  }, [ready, theme]);
 
   const command = (name: RichTextEditorCommand, commandValue?: string) => {
     if (!ready) return;
@@ -108,7 +119,7 @@ export function StaffRichTextEditor({
   const retryEditor = () => {
     const currentValue = normalizedRichTextValue(value);
     lastEditorValueRef.current = currentValue;
-    setEditorDocument(richTextEditorDocument(value, placeholder, fontScale));
+    setEditorDocument(richTextEditorDocument(value, placeholder, fontScale, theme));
     setReady(false);
     setLoadFailed(false);
   };
@@ -118,7 +129,7 @@ export function StaffRichTextEditor({
       <Text style={styles.fallbackTitle}>Formatting tools are unavailable</Text>
       <Text style={styles.fallbackCopy}>Your instructions are safe and unchanged. Review them below, then retry the editor before changing this field.</Text>
       <View style={styles.fallbackPreview}><AuthoredContent body={value} compact /></View>
-      <Pressable accessibilityRole="button" onPress={retryEditor} style={styles.retryButton}><Text style={styles.retryButtonText}>Retry formatting editor</Text></Pressable>
+      <Button accessibilityRole="button" onPress={retryEditor} style={styles.retryButton} variant="secondary" label="Retry formatting editor" textStyle={styles.retryButtonText} />
     </View>;
   }
 
@@ -138,7 +149,7 @@ export function StaffRichTextEditor({
     </ScrollView>
     {linkOpen && <View style={styles.linkPanel}>
       <Text style={styles.linkLabel}>LINK URL</Text>
-      <TextInput
+      <TextInput keyboardAppearance={scheme}
         accessibilityLabel="Instruction link URL"
         autoCapitalize="none"
         autoCorrect={false}
@@ -146,15 +157,15 @@ export function StaffRichTextEditor({
         onChangeText={(next) => { setLinkValue(next); setLinkError(''); }}
         onSubmitEditing={applyLink}
         placeholder="https://…"
-        placeholderTextColor={palette.quiet}
+        placeholderTextColor={c.text.body}
         style={styles.linkInput}
         value={linkValue}
       />
       {linkError && <Text accessibilityRole="alert" style={styles.linkError}>{linkError}</Text>}
       <View style={styles.linkActions}>
-        <Pressable accessibilityRole="button" onPress={() => { setLinkOpen(false); setLinkError(''); }} style={styles.linkButton}><Text style={styles.linkButtonText}>Cancel</Text></Pressable>
-        {selection.link && <Pressable accessibilityRole="button" onPress={() => { command('setLink', ''); setLinkOpen(false); }} style={styles.linkButton}><Text style={styles.linkButtonText}>Remove link</Text></Pressable>}
-        <Pressable accessibilityRole="button" onPress={applyLink} style={[styles.linkButton, styles.linkButtonPrimary]}><Text style={styles.linkButtonPrimaryText}>Apply link</Text></Pressable>
+        <Button accessibilityRole="button" onPress={() => { setLinkOpen(false); setLinkError(''); }} style={styles.linkButton} variant="quiet" label="Cancel" textStyle={styles.linkButtonText} />
+        {selection.link && <Button accessibilityRole="button" onPress={() => { command('setLink', ''); setLinkOpen(false); }} style={styles.linkButton} variant="quiet" label="Remove link" textStyle={styles.linkButtonText} />}
+        <Button accessibilityRole="button" onPress={applyLink} style={[styles.linkButton, styles.linkButtonPrimary]} variant="primary" label="Apply link" textStyle={styles.linkButtonPrimaryText} />
       </View>
     </View>}
     <WebView
@@ -183,37 +194,39 @@ export function StaffRichTextEditor({
 type IconComponent = typeof Bold;
 
 function ToolbarButton({ label, active = false, disabled = false, icon: Icon, onPress }: { label: string; active?: boolean; disabled?: boolean; icon: IconComponent; onPress: () => void }) {
+  const styles = useStyles();
+  const { colors: c } = useTheme();
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: active, disabled }} disabled={disabled} onPress={onPress} style={[styles.tool, active && styles.toolActive, disabled && styles.toolDisabled]}>
-    <Icon color={active ? palette.rubySoft : palette.muted} size={18} />
+    <Icon color={active ? c.selection.indicator : c.text.body} size={18} />
     <Text style={[styles.toolText, active && styles.toolTextActive]}>{label}</Text>
   </Pressable>;
 }
 
-const styles = StyleSheet.create({
-  container: { overflow: 'hidden', borderRadius: 16, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panel },
-  toolbar: { flexGrow: 0, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.line, backgroundColor: palette.panelRaised },
+const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
+  container: { overflow: 'hidden', borderRadius: 16, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised },
+  toolbar: { flexGrow: 0, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle, backgroundColor: c.surface.sunken },
   toolbarContent: { minHeight: 58, alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 7 },
   tool: { minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: 'transparent', paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  toolActive: { borderColor: '#6A2A36', backgroundColor: '#351821' },
+  toolActive: { borderColor: c.selection.indicator, backgroundColor: c.selection.bg, borderWidth: 2 },
   toolDisabled: { opacity: 0.35 },
-  toolText: { color: palette.muted, fontFamily: fonts.bold, fontSize: 11 },
-  toolTextActive: { color: palette.rubySoft },
-  divider: { width: StyleSheet.hairlineWidth, height: 28, backgroundColor: palette.line, marginHorizontal: 2 },
-  editor: { width: '100%', backgroundColor: palette.panel },
-  helper: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.line, color: palette.muted, fontFamily: fonts.regular, fontSize: 11, lineHeight: 17, paddingHorizontal: 13, paddingVertical: 10 },
-  linkPanel: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.line, backgroundColor: '#211319', padding: 12, gap: 8 },
-  linkLabel: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 0.8 },
-  linkInput: { minHeight: 48, borderRadius: 13, borderWidth: 1, borderColor: '#4D2630', backgroundColor: palette.panel, color: palette.text, fontFamily: fonts.regular, fontSize: 13, paddingHorizontal: 12 },
-  linkError: { color: palette.rubySoft, fontFamily: fonts.semibold, fontSize: 11 },
+  toolText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 },
+  toolTextActive: { color: c.text.strong, fontFamily: fonts.extraBold },
+  divider: { width: StyleSheet.hairlineWidth, height: 28, backgroundColor: c.border.subtle, marginHorizontal: 2 },
+  editor: { width: '100%', backgroundColor: c.surface.raised },
+  helper: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle, color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 17, paddingHorizontal: 13, paddingVertical: 10 },
+  linkPanel: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle, backgroundColor: c.surface.sunken, padding: 12, gap: 8 },
+  linkLabel: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.8 },
+  linkInput: { minHeight: 48, borderRadius: 13, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.raised, color: c.text.strong, fontFamily: fonts.regular, fontSize: 13, paddingHorizontal: 12 },
+  linkError: { color: c.status.danger.fg, fontFamily: fonts.semibold, fontSize: 12 },
   linkActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 7 },
-  linkButton: { minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: palette.line, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
-  linkButtonPrimary: { borderColor: palette.ruby, backgroundColor: palette.ruby },
-  linkButtonText: { color: palette.muted, fontFamily: fonts.bold, fontSize: 11 },
-  linkButtonPrimaryText: { color: palette.text, fontFamily: fonts.bold, fontSize: 11 },
-  fallback: { borderRadius: 16, borderWidth: 1, borderColor: '#5A4520', backgroundColor: '#282013', padding: 13, gap: 7 },
-  fallbackTitle: { color: palette.warning, fontFamily: fonts.bold, fontSize: 13 },
-  fallbackCopy: { color: palette.muted, fontFamily: fonts.regular, fontSize: 11, lineHeight: 17 },
-  fallbackPreview: { minHeight: 100, borderRadius: 13, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panel, padding: 12 },
-  retryButton: { minHeight: 44, alignSelf: 'flex-start', borderRadius: 12, borderWidth: 1, borderColor: '#6B5425', paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
-  retryButtonText: { color: palette.warning, fontFamily: fonts.bold, fontSize: 11 },
-});
+  linkButton: { minHeight: 44, borderRadius: 12, borderWidth: 1,  paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
+  linkButtonPrimary: { },
+  linkButtonText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 },
+  linkButtonPrimaryText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 12 },
+  fallback: { borderRadius: 16, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.sunken, padding: 13, gap: 7 },
+  fallbackTitle: { color: c.status.warning.fg, fontFamily: fonts.bold, fontSize: 13 },
+  fallbackCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 17 },
+  fallbackPreview: { minHeight: 100, borderRadius: 13, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 12 },
+  retryButton: { minHeight: 44, alignSelf: 'flex-start', borderRadius: 12, borderWidth: 1,  paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
+  retryButtonText: { color: c.status.warning.fg, fontFamily: fonts.bold, fontSize: 12 },
+}));

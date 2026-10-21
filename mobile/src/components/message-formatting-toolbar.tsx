@@ -1,10 +1,11 @@
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
+import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { Button } from '@/components/ui/button';
 import { ALargeSmall, AtSign, Bold, Braces, Code2, Italic, Link2, List, ListOrdered, Quote, Strikethrough, Underline, type LucideIcon } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { fonts, palette } from '@/constants/csg-theme';
+import { fonts } from '@/constants/csg-theme';
 import { applyMessageFormat, applyMessageLink, messageFormatIsActive, type ComposerSelection, type MessageFormatAction } from '@/lib/message-formatting';
 import { messageBodyWithinLimit } from '@/lib/message-compose';
 
@@ -32,6 +33,8 @@ const ACTIONS: { action: Exclude<MessageFormatAction, 'link' | 'mention'>; label
 ];
 
 export function FormattingToggleButton({ expanded, disabled, onPress }: { expanded: boolean; disabled?: boolean; onPress: () => void }) {
+  const styles = useStyles();
+  const { colors: c } = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
@@ -41,12 +44,14 @@ export function FormattingToggleButton({ expanded, disabled, onPress }: { expand
       onPress={onPress}
       style={({ pressed }) => [styles.toggle, expanded && styles.activeButton, disabled && styles.disabled, pressed && styles.pressed]}
     >
-      <ALargeSmall color={expanded ? palette.rubySoft : palette.muted} size={20} />
+      <ALargeSmall color={expanded ? c.selection.indicator : c.text.body} size={20} />
     </Pressable>
   );
 }
 
 export function MessageFormattingToolbar({ value, selection, visible, disabled, onChange, onSelectionChange, onComposerFocus, onLimitExceeded }: Props) {
+  const styles = useStyles();
+  const { colors: c, scheme } = useTheme();
   const [linkOpen, setLinkOpen] = useState(false);
   const [url, setUrl] = useState('https://');
   const active = useMemo(() => new Set(ACTIONS.filter(({ action }) => messageFormatIsActive(value, selection, action)).map(({ action }) => action)), [selection, value]);
@@ -95,7 +100,7 @@ export function MessageFormattingToolbar({ value, selection, visible, disabled, 
           <View style={styles.linkCard}>
             <Text accessibilityRole="header" style={styles.linkTitle}>Add a link</Text>
             <Text style={styles.linkCopy}>{selection.start === selection.end ? 'Enter the address, then replace the selected “link text”.' : 'The selected text will be used as the link label.'}</Text>
-            <TextInput
+            <TextInput keyboardAppearance={scheme}
               accessibilityLabel="Link address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -104,7 +109,7 @@ export function MessageFormattingToolbar({ value, selection, visible, disabled, 
               onChangeText={setUrl}
               onSubmitEditing={applyLink}
               placeholder="https://example.com"
-              placeholderTextColor={palette.quiet}
+              placeholderTextColor={c.text.body}
               returnKeyType="done"
               selectTextOnFocus
               style={styles.linkInput}
@@ -122,6 +127,8 @@ export function MessageFormattingToolbar({ value, selection, visible, disabled, 
 }
 
 function FormatButton({ label, Icon, active = false, disabled, onPress }: { label: string; Icon: LucideIcon; active?: boolean; disabled?: boolean; onPress: () => void }) {
+  const styles = useStyles();
+  const { colors: c } = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
@@ -131,28 +138,28 @@ function FormatButton({ label, Icon, active = false, disabled, onPress }: { labe
       onPress={onPress}
       style={({ pressed }) => [styles.button, active && styles.activeButton, disabled && styles.disabled, pressed && styles.pressed]}
     >
-      <Icon color={active ? palette.rubySoft : palette.muted} size={19} strokeWidth={active ? 2.5 : 2} />
+      <Icon color={active ? c.selection.indicator : c.text.body} size={19} strokeWidth={active ? 2.5 : 2} />
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  clip: { overflow: 'hidden', backgroundColor: palette.panel },
-  bar: { height: 53, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.line, backgroundColor: palette.panel, justifyContent: 'center' },
+const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
+  clip: { overflow: 'hidden', backgroundColor: c.surface.raised },
+  bar: { height: 53, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle, backgroundColor: c.surface.raised, justifyContent: 'center' },
   actions: { paddingHorizontal: 10, paddingVertical: 4, gap: 3, alignItems: 'center' },
   button: { width: 44, height: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   toggle: { width: 44, height: 46, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  activeButton: { backgroundColor: '#351820', borderWidth: 1, borderColor: '#682C38' },
+  activeButton: { backgroundColor: c.selection.bg, borderWidth: 1, borderColor: c.selection.indicator },
   disabled: { opacity: 0.38 },
   pressed: { transform: [{ scale: 0.94 }] },
-  modalRoot: { flex: 1, backgroundColor: 'rgba(2,4,8,0.76)', justifyContent: 'center', paddingHorizontal: 22 },
-  linkCard: { borderRadius: 22, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panel, padding: 20 },
-  linkTitle: { color: palette.text, fontFamily: fonts.bold, fontSize: 19 },
-  linkCopy: { color: palette.muted, fontFamily: fonts.regular, fontSize: 13, lineHeight: 19, marginTop: 5 },
-  linkInput: { minHeight: 50, borderRadius: 15, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.ink, color: palette.text, fontFamily: fonts.regular, fontSize: 14, paddingHorizontal: 14, marginTop: 16 },
+  modalRoot: { flex: 1, backgroundColor: c.overlay, justifyContent: 'center', paddingHorizontal: 22 },
+  linkCard: { borderRadius: 22, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 20 },
+  linkTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 19 },
+  linkCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, lineHeight: 19, marginTop: 5 },
+  linkInput: { minHeight: 50, borderRadius: 15, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.page, color: c.text.strong, fontFamily: fonts.regular, fontSize: 14, paddingHorizontal: 14, marginTop: 16 },
   linkActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 9, marginTop: 16 },
   cancel: { minHeight: 44, borderRadius: 14, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
-  cancelText: { color: palette.muted, fontFamily: fonts.bold, fontSize: 13 },
-  add: { minHeight: 44, borderRadius: 14, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.ruby },
-  addText: { color: palette.text, fontFamily: fonts.bold, fontSize: 13 },
-});
+  cancelText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 13 },
+  add: { minHeight: 44, borderRadius: 14, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: c.selection.bg },
+  addText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 13 },
+}));
