@@ -749,9 +749,16 @@ export default function ConversationScreen() {
               unreadRetryRef.current = boundaryIndex >= 0 ? { index: boundaryIndex, attempts: 0 } : null;
               unreadScrollPendingRef.current = false;
               // Inverted list: viewPosition 1 puts the first unread message (and its divider) at the top edge, clear of the header.
-              requestAnimationFrame(() => boundaryIndex >= 0
-                ? listRef.current?.scrollToIndex({ animated: false, index: boundaryIndex, viewPosition: 1, viewOffset: 12 })
-                : listRef.current?.scrollToOffset({ animated: false, offset: 0 }));
+              const generation = scrollGenerationRef.current.capture();
+              requestAnimationFrame(() => {
+                if (boundaryIndex < 0) {
+                  listRef.current?.scrollToOffset({ animated: false, offset: 0 });
+                  return;
+                }
+                // A jump to the latest message before this frame supersedes the unread-divider scroll.
+                if (!scrollGenerationRef.current.isCurrent(generation)) return;
+                listRef.current?.scrollToIndex({ animated: false, index: boundaryIndex, viewPosition: 1, viewOffset: 12 });
+              });
             }}
             onScrollToIndexFailed={({ index, averageItemLength }) => {
               const generation = scrollGenerationRef.current.capture();
