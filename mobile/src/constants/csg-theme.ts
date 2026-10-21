@@ -16,7 +16,7 @@ export const lightColors = {
   },
   focus: '#1d4ed8', selection: { bg: '#f1f5f9', indicator: '#9c292b' },
   code: { bg: '#0f172a', fg: '#f8fafc', muted: '#cbd5e1', border: '#475569', success: '#86efac' },
-  media: { bg: '#000000', fg: '#ffffff', scrim: 'rgba(0,0,0,0.72)' },
+  media: { bg: '#000000', fg: '#ffffff', danger: '#fca5a5', scrim: 'rgba(0,0,0,0.72)' },
   overlay: 'rgba(15,23,42,0.48)',
 } as const;
 

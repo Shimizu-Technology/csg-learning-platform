@@ -15,7 +15,7 @@ describe.each(Object.values(themes))('$scheme token contrast', (theme) => {
   pairs.push(['muted / raised', c.text.muted, c.surface.raised, 4.5], ['muted UI / page (large text or icons only)', c.text.muted, c.surface.page, 3]);
   for (const [role, pair] of Object.entries(c.status)) pairs.push([role, pair.fg, pair.bg, 4.5]);
   for (const [role, bg] of Object.entries(c.action)) pairs.push([role, c.text.onAction, bg, 4.5]);
-  pairs.push(['selection', c.text.strong, c.selection.bg, 4.5], ['code', c.code.fg, c.code.bg, 4.5], ['code support', c.code.muted, c.code.bg, 4.5], ['code copied', c.code.success, c.code.bg, 4.5], ['media', c.media.fg, c.media.bg, 4.5], ['focus', c.focus, c.surface.page, 3]);
+  pairs.push(['selection', c.text.strong, c.selection.bg, 4.5], ['code', c.code.fg, c.code.bg, 4.5], ['code support', c.code.muted, c.code.bg, 4.5], ['code copied', c.code.success, c.code.bg, 4.5], ['media', c.media.fg, c.media.bg, 4.5], ['media error', c.media.danger, c.media.bg, 4.5], ['focus', c.focus, c.surface.page, 3]);
   it.each(pairs)('%s', (_label, fg, bg, minimum) => expect(contrastRatio(fg, bg)).toBeGreaterThanOrEqual(minimum));
 });
 it('keeps semantic text at 12pt or larger and preserves font scaling', () => {

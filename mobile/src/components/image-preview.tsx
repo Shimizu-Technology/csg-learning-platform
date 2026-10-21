@@ -483,8 +483,8 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
     gap: 9,
   },
   feedbackCopy: { color: c.media.fg, fontFamily: fonts.semibold, fontSize: 12 },
-  errorTitle: { color: c.status.danger.fg, fontFamily: fonts.bold, fontSize: 16, textAlign: 'center' },
-  errorCopy: { color: c.status.danger.fg, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, textAlign: 'center', maxWidth: 280 },
+  errorTitle: { color: c.media.danger, fontFamily: fonts.bold, fontSize: 16, textAlign: 'center' },
+  errorCopy: { color: c.media.danger, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, textAlign: 'center', maxWidth: 280 },
   retry: {
     minHeight: 44,
     borderRadius: 14,
