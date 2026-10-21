@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { Linking, StyleSheet, Text, View } from 'react-native';
 
 import { MessageCodeBlock } from '@/components/message-code-block';
-import { fontScaleLimits, fonts, palette, typography } from '@/constants/csg-theme';
+import { fontScaleLimits, fonts, palette, typography, monoFont } from '@/constants/csg-theme';
 import { messageSegments } from '@/lib/mentions';
 import { normalizeMessageLink, parseMessageBlocks, splitTrailingUrlPunctuation } from '@/lib/message-format';
 import type { MessageListBlock } from '@/lib/message-format';
@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
   mention: { color: '#FFD1D7', fontFamily: fonts.bold },
   link: { color: palette.rubySoft, fontFamily: fonts.semibold, textDecorationLine: 'underline' },
   mineLink: { color: '#FFE4E8' },
-  inlineCode: { ...typography.code, color: '#F5A3AF', fontFamily: 'Menlo', backgroundColor: '#20151A' },
+  inlineCode: { ...typography.code, color: '#F5A3AF', fontFamily: monoFont, backgroundColor: '#20151A' },
   mineInlineCode: { color: '#FFFFFF', backgroundColor: 'rgba(6, 9, 14, 0.28)' },
   list: { gap: 3 },
   listRow: { flexDirection: 'row', alignItems: 'flex-start', paddingRight: 2 },
