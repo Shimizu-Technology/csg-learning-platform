@@ -17,7 +17,7 @@ export function VoiceDraftButton({ state, disabled, onPress }: VoiceDraftButtonP
   const styles = useStyles();
   const { colors: c } = useTheme();
   const busy = state === 'preparing' || state === 'recording' || state === 'transcribing';
-  return <Pressable accessibilityRole="button" accessibilityLabel="Dictate a draft" accessibilityHint="Records temporary audio and inserts editable text; it never sends automatically" accessibilityState={{ disabled: disabled || busy, busy }} disabled={disabled || busy} onPress={onPress} style={({ pressed }) => [styles.iconButton, (disabled || busy) && styles.disabled, pressed && styles.pressed]}><Mic color={state === 'recording' ? c.text.body : c.text.body} size={19} /></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel="Dictate a draft" accessibilityHint="Records temporary audio and inserts editable text; it never sends automatically" accessibilityState={{ disabled: disabled || busy, busy }} disabled={disabled || busy} onPress={onPress} style={({ pressed }) => [styles.iconButton, (disabled || busy) && styles.disabled, pressed && styles.pressed]}><Mic color={state === 'recording' ? c.status.danger.fg : c.text.body} size={19} /></Pressable>;
 }
 
 interface VoiceDraftPanelProps {
@@ -110,7 +110,7 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   rowGrow: { flex: 1, minWidth: 0 },
   reviewCopy: { minWidth: 0 },
   processingIcon: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: c.surface.sunken },
-  cancelCircle: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.page },
+  cancelCircle: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', borderWidth: 1,},
   stopCircle: { width: 50, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center', backgroundColor: c.selection.bg },
   iconButton: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   disabled: { opacity: 0.4 },

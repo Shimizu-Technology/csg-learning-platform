@@ -38,7 +38,7 @@ export function GradingReviewActions({ selected, changed, saving, disabled = fal
         onPress={() => onSelect(grade)}
         style={[styles.gradeButton, selected === grade && styles.gradeButtonActive, controlsDisabled && styles.disabled]}
       >
-        <Check color={selected === grade ? c.text.strong : c.status.success.fg} size={16} />
+        {selected === grade && <Check color={c.selection.indicator} size={16} />}
         <Text style={styles.gradeButtonText}>{grade}</Text>
       </Pressable>)}
     </View>
@@ -53,7 +53,7 @@ export function GradingReviewActions({ selected, changed, saving, disabled = fal
       <RotateCcw color={c.status.warning.fg} size={18} />
       <Text style={styles.redoButtonText}>Request redo</Text>
     </Pressable>
-    <Button variant="secondary"
+    <Button variant="primary"
       accessibilityRole="button"
       accessibilityLabel={saveLabel}
       accessibilityState={{ disabled: saveDisabled }}
@@ -74,10 +74,10 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   hint: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, marginTop: -3, marginBottom: 10 },
   gradeRow: { flexDirection: 'row', gap: 8 },
   gradeButton: { flex: 1, minHeight: 50, borderRadius: 15, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.sunken, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-  gradeButtonActive: { backgroundColor: c.surface.sunken, borderColor: c.status.success.fg },
+  gradeButtonActive: { backgroundColor: c.selection.bg, borderColor: c.selection.indicator, borderWidth: 2 },
   gradeButtonText: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 13 },
   redoButton: { minHeight: 52, borderRadius: 15, borderWidth: 1, borderColor: c.status.warning.border, backgroundColor: c.status.warning.bg, marginTop: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  redoButtonActive: { backgroundColor: c.status.warning.bg },
+  redoButtonActive: { backgroundColor: c.selection.bg, borderColor: c.selection.indicator, borderWidth: 2 },
   redoButtonText: { color: c.status.warning.fg, fontFamily: fonts.bold, fontSize: 12 },
   saveReview: { minHeight: 54, borderRadius: 16, backgroundColor: c.action.primary, marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   saveReviewText: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 13 },

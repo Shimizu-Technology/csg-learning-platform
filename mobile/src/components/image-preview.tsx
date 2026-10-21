@@ -490,7 +490,6 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
     borderRadius: 14,
     paddingHorizontal: 18,
     marginTop: 4,
-    backgroundColor: c.selection.bg,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,

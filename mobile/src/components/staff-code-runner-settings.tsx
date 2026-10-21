@@ -1,3 +1,4 @@
+import { switchColors } from '@/constants/csg-theme';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { Braces, Gem } from 'lucide-react-native';
@@ -13,9 +14,9 @@ export function StaffCodeRunnerSettings({ value, onChange }: { value: CodeRunner
 
   return <View style={styles.card}>
     <View style={styles.toggleRow}>
-      <View style={styles.icon}><Braces color={value.enabled ? c.text.body : c.text.body} size={19} /></View>
+      <View style={styles.icon}><Braces color={value.enabled ? c.selection.indicator : c.text.body} size={19} /></View>
       <View style={styles.flex}><Text style={styles.title}>Browser code runner</Text><Text style={styles.copy}>Let students run starter code for practice. Running code does not grade or submit their work.</Text></View>
-      <Switch accessibilityLabel="Enable browser code runner" value={value.enabled} onValueChange={(enabled) => onChange({ ...value, enabled })} trackColor={{ false: c.border.subtle, true: c.surface.sunken }} thumbColor={value.enabled ? c.text.body : c.text.body} />
+      <Switch accessibilityLabel="Enable browser code runner" value={value.enabled} onValueChange={(enabled) => onChange({ ...value, enabled })} {...switchColors(c, value.enabled)}  />
     </View>
     {value.enabled && <View style={styles.languageSection}>
       <Text style={styles.label}>RUNNER LANGUAGE</Text>
@@ -32,7 +33,7 @@ function LanguageButton({ label, language, selected, onPress }: { label: string;
   const styles = useStyles();
   const { colors: c } = useTheme();
   const Icon = language === 'ruby' ? Gem : Braces;
-  return <Pressable accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={() => onPress(language)} style={[styles.language, selected && styles.languageActive]}><Icon color={selected ? c.text.body : c.text.body} size={17} /><Text style={[styles.languageText, selected && styles.languageTextActive]}>{label}</Text></Pressable>;
+  return <Pressable accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={() => onPress(language)} style={[styles.language, selected && styles.languageActive]}><Icon color={selected ? c.selection.indicator : c.text.body} size={17} /><Text style={[styles.languageText, selected && styles.languageTextActive]}>{label}</Text></Pressable>;
 }
 
 const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
@@ -46,8 +47,8 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   label: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.8 },
   languages: { flexDirection: 'row', gap: 8 },
   language: { flex: 1, minHeight: 46, borderRadius: 14, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.sunken, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-  languageActive: { borderColor: c.action.primary, backgroundColor: c.surface.sunken },
+  languageActive: { borderColor: c.selection.indicator, backgroundColor: c.selection.bg, borderWidth: 2 },
   languageText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 },
-  languageTextActive: { color: c.text.body },
+  languageTextActive: { color: c.text.strong, fontFamily: fonts.extraBold },
   handoff: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 17 },
 }));

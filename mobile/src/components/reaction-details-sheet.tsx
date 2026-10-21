@@ -57,7 +57,7 @@ export function ReactionDetailsSheet({ message, initialEmoji, onClose, onToggle 
                 onPress={() => setSelectedEmoji(reaction.emoji)}
                 style={[styles.tab, active && styles.tabActive]}
               >
-                {Icon ? <Icon color={active ? c.text.body : c.text.body} size={16} /> : <Text style={styles.fallback}>{reaction.emoji}</Text>}
+                {Icon ? <Icon color={active ? c.selection.indicator : c.text.body} size={16} /> : <Text style={styles.fallback}>{reaction.emoji}</Text>}
                 <Text style={[styles.tabCount, active && styles.tabCountActive]}>{reaction.count}</Text>
               </Pressable>
             );
@@ -111,9 +111,9 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   close: { width: 44, height: 44, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: c.surface.raised, borderWidth: 1, borderColor: c.border.subtle },
   tabs: { paddingHorizontal: 20, paddingVertical: 14, gap: 8 },
   tab: { height: 44, minWidth: 58, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  tabActive: { borderColor: c.border.strong, backgroundColor: c.surface.sunken },
+  tabActive: { borderColor: c.selection.indicator, backgroundColor: c.selection.bg, borderWidth: 2 },
   tabCount: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 },
-  tabCountActive: { color: c.text.body },
+  tabCountActive: { color: c.text.strong, fontFamily: fonts.extraBold },
   fallback: { color: c.text.strong, fontSize: 14 },
   people: { paddingHorizontal: 20, paddingBottom: 24 },
   summary: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8 },

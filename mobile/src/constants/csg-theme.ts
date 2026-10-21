@@ -35,7 +35,7 @@ export const darkColors: ThemeColors = {
     pending: { fg: '#cbd5e1', bg: '#1e293b', border: '#475569' },
     info: { fg: '#7dd3fc', bg: '#082536', border: '#075985' },
   },
-  focus: '#bfdbfe', selection: { bg: '#1e293b', indicator: '#b8393b' },
+  focus: '#bfdbfe', selection: { bg: '#1e293b', indicator: '#e88485' },
   code: { bg: '#020617', fg: '#f8fafc', muted: '#cbd5e1', border: '#475569', success: '#86efac' },
   media: lightColors.media, overlay: 'rgba(0,0,0,0.72)',
 };
@@ -60,3 +60,10 @@ export function createTheme(scheme: 'light' | 'dark') {
 }
 export type CsgTheme = ReturnType<typeof createTheme>;
 export const themes = { light: createTheme('light'), dark: createTheme('dark') };
+
+/** Native on/off colors. Off thumb stays legible on the neutral track in both schemes. */
+export function switchColors(colors: ThemeColors, on: boolean) {
+  return { trackColor: { false: colors.border.strong, true: colors.action.primary },
+    thumbColor: on ? colors.text.onAction : colors.text.body,
+    ios_backgroundColor: colors.border.strong };
+}

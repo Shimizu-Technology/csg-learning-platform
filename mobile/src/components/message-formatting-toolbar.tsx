@@ -44,7 +44,7 @@ export function FormattingToggleButton({ expanded, disabled, onPress }: { expand
       onPress={onPress}
       style={({ pressed }) => [styles.toggle, expanded && styles.activeButton, disabled && styles.disabled, pressed && styles.pressed]}
     >
-      <ALargeSmall color={expanded ? c.text.body : c.text.body} size={20} />
+      <ALargeSmall color={expanded ? c.selection.indicator : c.text.body} size={20} />
     </Pressable>
   );
 }
@@ -138,7 +138,7 @@ function FormatButton({ label, Icon, active = false, disabled, onPress }: { labe
       onPress={onPress}
       style={({ pressed }) => [styles.button, active && styles.activeButton, disabled && styles.disabled, pressed && styles.pressed]}
     >
-      <Icon color={active ? c.text.body : c.text.body} size={19} strokeWidth={active ? 2.5 : 2} />
+      <Icon color={active ? c.selection.indicator : c.text.body} size={19} strokeWidth={active ? 2.5 : 2} />
     </Pressable>
   );
 }

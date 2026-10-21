@@ -20,7 +20,7 @@ export function VideoSegmentControls({ segments, onSelect, activeSegment = null,
       const key = videoSegmentKey(segment);
       const isActive = key === activeKey;
       const isCompleted = key === completedKey;
-      return <Pressable key={key} accessibilityRole="button" accessibilityState={{ selected: isActive }} accessibilityLabel={`Play ${segment.label}, ${formatVideoTimestamp(segment.start_seconds)} to ${formatVideoTimestamp(segment.end_seconds)}${isCompleted ? ', section finished' : isActive ? ', playing this section' : ''}`} onPress={() => onSelect(segment)} style={[styles.row, isActive && styles.rowActive]}><View style={[styles.play, isCompleted && styles.playDone]}>{isCompleted ? <Check color={c.text.strong} size={16} strokeWidth={3} /> : <Play color={c.text.strong} fill={c.text.strong} size={15} />}</View><View style={styles.copy}><Text style={styles.label}>{segment.label}</Text><Text style={styles.time}>Start {formatVideoTimestamp(segment.start_seconds)} · stop {formatVideoTimestamp(segment.end_seconds)}</Text>{(isActive || isCompleted) && <Text accessibilityLiveRegion="polite" style={[styles.state, isCompleted && styles.stateDone]}>{isCompleted ? 'Section finished' : 'Playing this section'}</Text>}</View><Text style={[styles.badge, !segment.required && styles.optional]}>{segment.required ? 'CORE' : 'OPTIONAL'}</Text></Pressable>;
+      return <Pressable key={key} accessibilityRole="button" accessibilityState={{ selected: isActive }} accessibilityLabel={`Play ${segment.label}, ${formatVideoTimestamp(segment.start_seconds)} to ${formatVideoTimestamp(segment.end_seconds)}${isCompleted ? ', section finished' : isActive ? ', playing this section' : ''}`} onPress={() => onSelect(segment)} style={[styles.row, isActive && styles.rowActive]}><View style={[styles.play, isCompleted && styles.playDone]}>{isCompleted ? <Check color={c.status.success.fg} size={16} strokeWidth={3} /> : <Play color={c.text.strong} fill={c.text.strong} size={15} />}</View><View style={styles.copy}><Text style={styles.label}>{segment.label}</Text><Text style={styles.time}>Start {formatVideoTimestamp(segment.start_seconds)} · stop {formatVideoTimestamp(segment.end_seconds)}</Text>{(isActive || isCompleted) && <Text accessibilityLiveRegion="polite" style={[styles.state, isCompleted && styles.stateDone]}>{isCompleted ? 'Section finished' : 'Playing this section'}</Text>}</View><Text style={[styles.badge, !segment.required && styles.optional]}>{segment.required ? 'CORE' : 'OPTIONAL'}</Text></Pressable>;
     })}
   </View>;
 }
@@ -34,9 +34,9 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   subtitle: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 16, marginTop: 2 },
   summary: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, marginTop: 4 },
   row: { minHeight: 64, paddingHorizontal: 13, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle },
-  rowActive: { backgroundColor: c.surface.sunken },
+  rowActive: { backgroundColor: c.selection.bg, borderColor: c.selection.indicator, borderWidth: 2 },
   play: { width: 38, height: 38, borderRadius: 19, backgroundColor: c.selection.bg, alignItems: 'center', justifyContent: 'center' },
-  playDone: { backgroundColor: c.status.success.fg },
+  playDone: { backgroundColor: c.status.success.bg},
   label: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 12, lineHeight: 17 },
   time: { color: c.text.body, fontFamily: monoFont, fontSize: 12, marginTop: 3 },
   state: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, marginTop: 4 },

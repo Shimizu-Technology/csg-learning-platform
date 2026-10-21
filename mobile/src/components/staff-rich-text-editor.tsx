@@ -197,7 +197,7 @@ function ToolbarButton({ label, active = false, disabled = false, icon: Icon, on
   const styles = useStyles();
   const { colors: c } = useTheme();
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: active, disabled }} disabled={disabled} onPress={onPress} style={[styles.tool, active && styles.toolActive, disabled && styles.toolDisabled]}>
-    <Icon color={active ? c.text.body : c.text.body} size={18} />
+    <Icon color={active ? c.selection.indicator : c.text.body} size={18} />
     <Text style={[styles.toolText, active && styles.toolTextActive]}>{label}</Text>
   </Pressable>;
 }
@@ -207,10 +207,10 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   toolbar: { flexGrow: 0, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle, backgroundColor: c.surface.sunken },
   toolbarContent: { minHeight: 58, alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 7 },
   tool: { minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: 'transparent', paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  toolActive: { borderColor: c.border.strong, backgroundColor: c.surface.sunken },
+  toolActive: { borderColor: c.selection.indicator, backgroundColor: c.selection.bg, borderWidth: 2 },
   toolDisabled: { opacity: 0.35 },
   toolText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 },
-  toolTextActive: { color: c.text.body },
+  toolTextActive: { color: c.text.strong, fontFamily: fonts.extraBold },
   divider: { width: StyleSheet.hairlineWidth, height: 28, backgroundColor: c.border.subtle, marginHorizontal: 2 },
   editor: { width: '100%', backgroundColor: c.surface.raised },
   helper: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle, color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 17, paddingHorizontal: 13, paddingVertical: 10 },
