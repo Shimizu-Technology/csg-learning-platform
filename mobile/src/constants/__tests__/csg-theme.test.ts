@@ -32,3 +32,8 @@ it('keeps semantic text at 12pt or larger and preserves font scaling', () => {
     .flatMap((p) => [...readFileSync(p, 'utf8').matchAll(/fontSize:\s*(\d+)/g)].filter((m) => Number(m[1]) < 12).map((m) => `${p}: ${m[0]}`));
   expect(violations).toEqual([]);
 });
+
+it('keeps the fixed brand tile consistent across appearances', () => {
+  expect(themes.light.colors.brand.tile).toBe('#191920');
+  expect(themes.dark.colors.brand.tile).toBe(themes.light.colors.brand.tile);
+});
