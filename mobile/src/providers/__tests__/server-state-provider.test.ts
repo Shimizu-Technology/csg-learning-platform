@@ -35,3 +35,23 @@ describe('server state messaging persistence', () => {
     restored.clear();
   });
 });
+
+
+describe('durable learning snapshots', () => {
+  it('excludes pending promises and keeps saved meetings after an offline refresh failure', async () => {
+    const source = createServerStateClient();
+    const meetingsKey = ['learning', 7, 'private-meetings'];
+    const pendingKey = ['learning', 7, 'not-loaded'];
+    const saved = { cohorts: [{ id: 2, name: 'Python' }] };
+    source.setQueryData(meetingsKey, saved);
+    source.getQueryCache().build(source, { queryKey: pendingKey });
+    await expect(source.fetchQuery({ queryKey: meetingsKey, queryFn: async () => { throw new Error('Offline'); }, retry: false, staleTime: 0 })).rejects.toThrow('Offline');
+    const snapshot = dehydrate(source, { shouldDehydrateQuery: shouldPersistServerQuery });
+    expect(snapshot.queries.map((q) => q.queryKey)).toEqual([meetingsKey]);
+    const restored = createServerStateClient();
+    hydrate(restored, JSON.parse(JSON.stringify(snapshot)));
+    expect(restored.getQueryData(meetingsKey)).toEqual(saved);
+    expect(restored.getQueryCache().find({ queryKey: pendingKey })).toBeUndefined();
+    source.clear(); restored.clear();
+  });
+});
