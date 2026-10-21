@@ -56,18 +56,31 @@ const render = (source, width, height, alpha = true) => {
   const pipeline = sharp(Buffer.from(source)).resize(width, height);
   return (alpha ? pipeline : pipeline.removeAlpha()).png();
 };
-const feature = svg(`${tile}<g transform="translate(15 7) scale(.33)">${glyph}</g><text x="385" y="210" fill="#fcfbfc" font-family="sans-serif" font-size="70" font-weight="700">CSG Learn</text><text x="387" y="268" fill="#fcfbfc" font-family="sans-serif" font-size="26">Code School of Guam</text><text x="387" y="340" fill="#fcfbfc" font-family="sans-serif" font-size="24">Your learning. Your community.</text>`, 'CSG Learn Google Play feature graphic', '0 0 1024 500');
+const feature = svg(`${tile}<g transform="translate(15 7) scale(.33)">${glyph}</g>${body(await read('play-feature-copy.svg'))}`, 'CSG Learn Google Play feature graphic', '0 0 1024 500');
 const store = path.join(repo, 'docs/app-store/android/assets');
 const docs = path.join(repo, 'docs/brand');
+const textArtifacts = new Map([
+  [path.join(store, 'feature-graphic.svg'), feature],
+  [path.join(docs, 'csg-learn-app-icon.svg'), sources['icon-light.svg']],
+  [path.join(docs, 'csg-learn-mark.svg'), await read('csg-mark.svg')],
+  [path.join(docs, 'csg-learn-icon-study.svg'), svg(Object.entries(candidates).map(([key, content], i) => `<g transform="translate(${i * 1024} 0)">${tile}${content}</g>`).join(''), 'CSG Learn icon candidates A, B, C', '0 0 3072 1024')],
+]);
+const releaseImages = [
+  { file: path.join(store, 'feature-graphic-1024x500.png'), source: feature, width: 1024, height: 500 },
+  { file: path.join(store, 'play-icon-512.png'), source: sources['icon-light.svg'], width: 512, height: 512 },
+];
+const artifactName = (file) => path.relative(repo, file);
+const readArtifact = async (file) => {
+  try { return await readFile(file, 'utf8'); }
+  catch (error) { throw new Error(`Missing generated asset ${artifactName(file)}; run npm run brand:generate`, { cause: error }); }
+};
 if (!checkOnly) {
   for (const [name, source] of Object.entries(sources)) await writeFile(path.join(brand, name), source);
   for (const [name, source, width, height, alpha] of outputs) await render(sources[source], width, height, alpha).toFile(path.join(images, name));
-  await writeFile(path.join(store, 'feature-graphic.svg'), feature);
-  await render(feature, 1024, 500, false).toFile(path.join(store, 'feature-graphic-1024x500.png'));
-  await render(sources['icon-light.svg'], 512, 512, false).toFile(path.join(store, 'play-icon-512.png'));
-  await writeFile(path.join(docs, 'csg-learn-app-icon.svg'), sources['icon-light.svg']);
-  await writeFile(path.join(docs, 'csg-learn-mark.svg'), await read('csg-mark.svg'));
-  await writeFile(path.join(docs, 'csg-learn-icon-study.svg'), svg(Object.entries(candidates).map(([key, content], i) => `<g transform="translate(${i * 1024} 0)">${tile}${content}</g>`).join(''), 'CSG Learn icon candidates A, B, C', '0 0 3072 1024'));
+  for (const [file, content] of textArtifacts) await writeFile(file, content);
+  for (const { file, source, width, height } of releaseImages) await render(source, width, height, false).toFile(file);
+} else {
+  for (const [file, expected] of textArtifacts) assert.equal(await readArtifact(file), expected, `${artifactName(file)} stale; run npm run brand:generate`);
 }
 // Keep the in-app vector mark derived from the canonical SVG too.
 const componentPath = path.join(mobile, 'src/components/csg-mark.tsx');
@@ -108,6 +121,18 @@ for (const [name, , width, height, alpha] of outputs) {
     const expected = await render(sources[outputs.find((o) => o[0] === name)[1]], width, height, alpha).raw().toBuffer();
     assert.ok(expected.equals(await sharp(file).raw().toBuffer()), `${name} stale; run npm run brand:generate`);
   }
+}
+for (const { file, source, width, height } of releaseImages) {
+  const name = artifactName(file);
+  try {
+    const metadata = await sharp(file).metadata();
+    assert.equal(metadata.width, width, `${name} width`);
+    assert.equal(metadata.height, height, `${name} height`);
+    assert.equal(metadata.hasAlpha, false, `${name} must be opaque`);
+    if (checkOnly) assert.ok((await render(source, width, height, false).raw().toBuffer()).equals(await sharp(file).raw().toBuffer()), `${name} stale; run npm run brand:generate`);
+    const sips = process.platform === 'darwin' ? execFileSync('sips', ['-g', 'pixelWidth', '-g', 'pixelHeight', '-g', 'hasAlpha', file], { encoding: 'utf8' }).trim() : 'sips unavailable on this platform; sharp verified';
+    manifest.push({ name, width, height, alpha: false, sips });
+  } catch (error) { throw new Error(`Generated release asset ${name} missing, invalid, or stale; run npm run brand:generate`, { cause: error }); }
 }
 console.log(JSON.stringify(manifest, null, 2));
 if (evidence) {

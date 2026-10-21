@@ -31,7 +31,7 @@ node scripts/generate-brand-assets.mjs --evidence /absolute/output/directory
 Sharp is a pinned development dependency. All icon/splash/notification/favicon
 PNGs and Android store images derive from these SVG sources. `brand:check`
 checks dimensions, alpha, white silhouettes, grayscale tint, pixel freshness,
-and the Android66/108 safe circle. On macOS it also decodes every image with
+and the Android66/108 safe circle. It also checks the Play PNGs and every generated documentation SVG copy for missing/stale output. The feature graphic copy uses committed Manrope outlines in `play-feature-copy.svg` (from the existing font package under the SIL Open Font License), so generation needs no system font. On macOS it also decodes every image with
 `sips`. The icon dark background is transparent; tinted is white on black.
 Splash sources use dark ink on cream in light appearance and white on the dark
 tile in dark appearance. Notification uses only the simple white gear silhouette.
