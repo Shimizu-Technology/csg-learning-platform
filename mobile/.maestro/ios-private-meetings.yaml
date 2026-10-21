@@ -22,6 +22,7 @@ env:
     timeout: 90000
 - tapOn:
     id: 'book-private-hour'
+    enabled: true
 - extendedWaitUntil:
     visible: 'Meetings'
     timeout: 30000
@@ -29,12 +30,15 @@ env:
     element:
       id: 'meeting-slot-${WEEK}-0'
     direction: DOWN
+    centerElement: true
 - tapOn:
     id: 'meeting-slot-${WEEK}-0'
+    enabled: true
 - assertVisible: 'Book your private hour?'
 - assertVisible: '.*ChST.*'
 - tapOn:
     id: 'meeting-confirm-submit'
+    enabled: true
 - extendedWaitUntil:
     visible: 'Your meeting is booked.'
     timeout: 30000
@@ -42,18 +46,25 @@ env:
     element:
       id: 'reschedule-week-${WEEK}'
     direction: DOWN
+    centerElement: true
 - tapOn:
     id: 'reschedule-week-${WEEK}'
+    enabled: true
+    retryTapIfNoChange: true
+- assertVisible: 'Keep current time.*'
 - scrollUntilVisible:
     element:
       id: 'meeting-slot-${WEEK}-0'
     direction: DOWN
+    centerElement: true
 - tapOn:
     id: 'meeting-slot-${WEEK}-0'
+    enabled: true
 - assertVisible: 'Move your private meeting?'
 - assertVisible: '.*only remaining schedule change.*'
 - tapOn:
     id: 'meeting-confirm-submit'
+    enabled: true
 - extendedWaitUntil:
     visible: 'Your meeting was moved.'
     timeout: 30000
@@ -61,15 +72,19 @@ env:
     element:
       id: 'cancel-week-${WEEK}'
     direction: DOWN
+    centerElement: true
 - tapOn:
     id: 'cancel-week-${WEEK}'
+    enabled: true
 - assertVisible: '.*cannot book another time yourself.*'
 - tapOn: 'Keep meeting'
 - assertVisible: 'Booked'
 - tapOn:
     id: 'cancel-week-${WEEK}'
+    enabled: true
 - tapOn:
     id: 'meeting-confirm-submit'
+    enabled: true
 - extendedWaitUntil:
     visible: 'Your meeting was cancelled.'
     timeout: 30000
@@ -77,3 +92,4 @@ env:
     element:
       text: 'You have used your schedule change for Week ${WEEK}.*'
     direction: DOWN
+    centerElement: true

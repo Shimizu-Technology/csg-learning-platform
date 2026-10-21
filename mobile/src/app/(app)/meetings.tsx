@@ -55,9 +55,10 @@ export default function MeetingsScreen() {
       const response = action.kind === 'cancel' ? await api.cancelPrivateMeeting(action.booking!.id) : action.kind === 'reschedule' ? await api.reschedulePrivateMeeting(action.booking!.id, action.slot!.id) : await api.bookPrivateMeeting(action.slot!.id);
       // Keep the acknowledged outcome readable even if the following refresh fails.
       client.setQueryData<PrivateMeetingsResponse>(key, (old) => old && ({ cohorts: old.cohorts.map((c) => c.id !== action.cohort.id ? c : { ...c, bookings: [...c.bookings.filter((b) => b.id !== response.booking.id), response.booking] }) }));
-      setNotice(action.kind === 'cancel' ? 'Your meeting was cancelled.' : action.kind === 'reschedule' ? 'Your meeting was moved.' : 'Your meeting is booked.');
+      const success = action.kind === 'cancel' ? 'Your meeting was cancelled.' : action.kind === 'reschedule' ? 'Your meeting was moved.' : 'Your meeting is booked.';
       setAction(null);
       await query.refetch();
+      setNotice(success);
     } catch (error) {
       setAction(null);
       const conflict = error instanceof ApiError && error.status === 409;
@@ -82,17 +83,19 @@ export default function MeetingsScreen() {
 
   return <SafeAreaView edges={['top', 'bottom']} style={styles.safe}>
     <StatusBar style="dark" />
+    {(!connected || notice || writeError) && !user?.is_staff && !demo && <ScrollView style={{ flexGrow: 0, maxHeight: '40%' }} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, gap: 8 }}>
+      {!connected && <Text accessibilityLiveRegion="polite" style={styles.notice}>You are offline. Saved meetings stay readable. Reconnect to book, change a meeting, or message your instructor.</Text>}
+      {notice && <Text accessibilityLiveRegion="polite" style={styles.notice}>{notice}</Text>}
+      {writeError && <Text accessibilityRole="alert" style={styles.error}>{writeError}</Text>}
+    </ScrollView>}
     <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={query.isFetching} onRefresh={refresh} tintColor="#9c292b" />}>
       <View style={styles.header}><MeetingButton onPress={() => router.canGoBack() ? router.back() : router.replace('/')} label="Back to your learning">Back</MeetingButton><Text accessibilityRole="header" style={styles.title}>Meetings</Text><Text style={styles.copy}>Book your weekly private hour.</Text></View>
       {user?.is_staff ? <Text style={styles.copy}>Private meeting booking is for learners. Manage your class meetings on CSG Learn web.</Text> : demo && __DEV__ ? <PrivateMeetingsPreview /> : <>
-        {!connected && <Text accessibilityLiveRegion="polite" style={styles.notice}>You are offline. Previously loaded meetings stay readable. Reconnect to book, change a meeting, or open your instructor conversation.</Text>}
         {query.isPending && connected && <View accessibilityRole="progressbar" accessibilityLabel="Loading your meetings"><ActivityIndicator color="#9c292b" /><Text style={styles.copy}>Loading your meetings…</Text></View>}
         {query.isError && <><Text accessibilityRole="alert" style={styles.error}>{query.data ? 'Showing saved meetings. We could not refresh availability. Reconnect and retry before booking or changing a meeting.' : 'Could not load your meetings. Check your connection and try again.'}</Text><MeetingButton onPress={refresh} disabled={!connected || busy || query.isFetching}>Try again</MeetingButton></>}
         {busy && !action && <Text accessibilityLiveRegion="polite" style={styles.notice}>Finishing your request…</Text>}
-        {notice && <Text accessibilityLiveRegion="polite" style={styles.notice}>{notice}</Text>}
-        {writeError && <Text accessibilityRole="alert" style={styles.error}>{writeError}</Text>}
         {query.data?.cohorts.length === 0 && <Text style={styles.copy}>No private meetings are available for your courses. If you expected weekly meetings, message your instructor from Messages.</Text>}
-        {query.data?.cohorts.map((cohort) => <MeetingCohort key={cohort.id} cohort={cohort} now={now} disabled={disabled} joinDisabled={!connected} onSelect={(next) => { if (!lock.current) setAction(next); }} onMessage={() => void messageInstructor(cohort)} onJoin={(url) => void Linking.openURL(url).catch(() => setWriteError('Could not open Zoom. Try again or message your instructor.'))} />)}
+        {query.data?.cohorts.map((cohort) => <MeetingCohort key={cohort.id} cohort={cohort} now={now} disabled={disabled} joinDisabled={!connected} onSelect={(next) => { if (!lock.current) { setNotice(null); setWriteError(null); setAction(next); } }} onMessage={() => void messageInstructor(cohort)} onJoin={(url) => void Linking.openURL(url).catch(() => setWriteError('Could not open Zoom. Try again or message your instructor.'))} />)}
       </>}
     </ScrollView>
     <MeetingConfirmation action={action} busy={busy} disabled={disabled} blockedReason={!connected ? "You are offline. Reconnect before confirming." : query.isError ? "Availability could not refresh. Go back and try again." : query.isFetching ? "Refreshing availability…" : undefined} onDismiss={() => setAction(null)} onConfirm={() => void confirm()} />
