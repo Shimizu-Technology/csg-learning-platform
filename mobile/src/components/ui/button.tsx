@@ -4,6 +4,7 @@ import { fonts, typography } from '@/constants/csg-theme';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { PressableScale } from './pressable-scale';
 export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'danger' | 'success';
+// Variants own foreground, background and border colors. Caller styles set layout/shape.
 export type ButtonProps = Omit<PressableProps, 'children'> & { children?: React.ReactNode; label?: string; variant?: ButtonVariant; loading?: boolean; textStyle?: StyleProp<TextStyle>; foregroundColor?: string };
 export function Button({ label, children, variant = 'primary', loading = false, disabled, style, textStyle, foregroundColor, accessibilityState, ...props }: ButtonProps) {
   const { colors: c } = useTheme();

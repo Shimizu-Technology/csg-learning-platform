@@ -231,7 +231,7 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   overlayText: { color: c.text.body, fontFamily: fonts.semibold, fontSize: 12 },
   errorTitle: { color: c.status.danger.fg, fontFamily: fonts.bold, fontSize: 13, textAlign: 'center' },
   errorCopy: { color: c.status.danger.fg, fontFamily: fonts.regular, fontSize: 12, lineHeight: 16, textAlign: 'center' },
-  retry: { minHeight: 44, borderRadius: 13, backgroundColor: c.selection.bg, paddingHorizontal: 17, flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 4 },
+  retry: { minHeight: 44, borderRadius: 13,  paddingHorizontal: 17, flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 4 },
   retryText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 12 },
   footer: { minHeight: 58, paddingLeft: 13, paddingRight: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   provider: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.8 },

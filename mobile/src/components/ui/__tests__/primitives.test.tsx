@@ -50,3 +50,10 @@ it('preserves larger caller targets while enforcing the minimum', () => {
   ui.rerender(<Button label="Save review" style={{ minHeight: 20, minWidth: 20 }} />);
   expect(ui.getByRole('button')).toHaveStyle({ minHeight: 48, minWidth: 44 });
 });
+
+it('keeps variant paint and its foreground together while callers control layout', () => {
+  const c = themes.light.colors;
+  const ui = render(<Button label="Save" variant="primary" style={{ backgroundColor: c.surface.sunken, borderColor: c.border.subtle, marginTop: 17 }} />);
+  expect(ui.getByRole('button')).toHaveStyle({ backgroundColor: c.action.primary, borderColor: c.action.primary, marginTop: 17 });
+  expect(ui.getByText('Save')).toHaveStyle({ color: c.text.onAction });
+});

@@ -120,7 +120,7 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   errorSecondaryActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   reviewAction: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: c.border.subtle },
   reviewActionText: { color: c.text.strong, fontFamily: fonts.medium, fontSize: 12 },
-  primaryAction: { width: '100%', minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 13, backgroundColor: c.action.primary },
+  primaryAction: { width: '100%', minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 13 },
   primaryActionText: { color: c.text.strong, fontFamily: fonts.semibold, fontSize: 12 },
   secondaryErrorAction: { minWidth: 132, minHeight: 46, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, borderWidth: 1, borderColor: c.status.danger.border, backgroundColor: c.status.danger.bg },
   secondaryErrorActionText: { flexShrink: 1, color: c.status.danger.fg, fontFamily: fonts.medium, fontSize: 12, textAlign: 'center' },

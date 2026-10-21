@@ -64,7 +64,7 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   account: { marginTop: 28, padding: 16, borderRadius: 17, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised },
   accountLabel: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.3 },
   accountEmail: { color: c.text.strong, fontFamily: fonts.semibold, fontSize: 14, marginTop: 6 },
-  primary: { minHeight: 52, borderRadius: 17, backgroundColor: c.action.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 24 },
+  primary: { minHeight: 52, borderRadius: 17,  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 24 },
   primaryText: { color: c.text.onAction, fontFamily: fonts.bold, fontSize: 14 },
   secondary: { minHeight: 52, borderRadius: 17, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 10 },
   secondaryText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 14 },

@@ -79,7 +79,7 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   redoButton: { minHeight: 52, borderRadius: 15, borderWidth: 1, borderColor: c.status.warning.border, backgroundColor: c.status.warning.bg, marginTop: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   redoButtonActive: { backgroundColor: c.selection.bg, borderColor: c.selection.indicator, borderWidth: 2 },
   redoButtonText: { color: c.status.warning.fg, fontFamily: fonts.bold, fontSize: 12 },
-  saveReview: { minHeight: 54, borderRadius: 16, backgroundColor: c.action.primary, marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  saveReview: { minHeight: 54, borderRadius: 16,  marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   saveReviewText: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 13 },
   disabled: { opacity: 0.42 },
 }));

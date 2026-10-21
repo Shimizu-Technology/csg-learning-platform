@@ -141,7 +141,7 @@ export function AuthoredContent({ body, compact = false, starterLinks }: Authore
 const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   codeBlock: { marginVertical: 10 },
   starter: { marginTop: 2, marginBottom: 14, gap: 7, alignItems: 'flex-start' },
-  starterButton: { minHeight: 48, maxWidth: '100%', borderRadius: 14, backgroundColor: c.action.primary, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  starterButton: { minHeight: 48, maxWidth: '100%', borderRadius: 14,  paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 9 },
   starterLabel: { flexShrink: 1, color: c.text.onAction, fontFamily: fonts.bold, fontSize: 15, lineHeight: 20 },
   starterHint: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, lineHeight: 19 },
   pressed: { opacity: 0.84, transform: [{ scale: 0.98 }] },

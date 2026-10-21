@@ -138,7 +138,7 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   check: { width: 26, height: 26, borderRadius: 9, borderWidth: 1, borderColor: c.border.subtle, alignItems: 'center', justifyContent: 'center' },
   checkActive: { backgroundColor: c.selection.bg, borderColor: c.action.primary },
   footer: { padding: 16, backgroundColor: c.surface.raised, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle },
-  start: { minHeight: 50, borderRadius: 16, backgroundColor: c.action.primary, alignItems: 'center', justifyContent: 'center' },
+  start: { minHeight: 50, borderRadius: 16,  alignItems: 'center', justifyContent: 'center' },
   disabled: { opacity: 0.4 },
   startText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 14 },
 }));

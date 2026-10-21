@@ -196,7 +196,7 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
   },
-  copyButtonCopied: { backgroundColor: c.code.bg },
+  copyButtonCopied: {  },
   copyText: { ...typography.label, color: c.code.muted, fontFamily: fonts.semibold },
   copyTextCopied: { color: c.code.success },
   pressed: { opacity: 0.66 },
